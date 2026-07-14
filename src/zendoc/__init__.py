@@ -11,6 +11,6 @@ pymdown-extensions - each is its own extension, enabled separately:
 See https://github.com/buckwem/zendoc-extension for documentation.
 """
 
-__version__ = "0.1.0.dev0"
+__version__ = "0.1.0"
 
 __all__ = ["__version__"]
