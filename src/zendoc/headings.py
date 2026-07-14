@@ -1,15 +1,22 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
+"""zendoc.headings: gives every heading an id and a hierarchical section
+number, recorded in a shared :class:`~zendoc.util.IdRegistry` that other
+zendoc extensions (currently :mod:`zendoc.refs`) look entries up in.
+"""
+
 from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as etree
 
 from markdown import Markdown
+from markdown.extensions import Extension
+from markdown.extensions.toc import TocExtension
 from markdown.treeprocessors import Treeprocessor
 
-from zendoc.registry import IdRegistry
+from zendoc.util import IdRegistry
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 
@@ -25,7 +32,7 @@ def _slugify(text: str) -> str:
     return re.sub(r"\s+", "-", slug)
 
 
-class RegistryTreeprocessor(Treeprocessor):
+class HeadingsTreeprocessor(Treeprocessor):
     """Records every h1-h6 element's id, and its hierarchical section number,
     in a shared :class:`IdRegistry`, keyed by the current document's source
     name.
@@ -33,12 +40,10 @@ class RegistryTreeprocessor(Treeprocessor):
     Numbering is per-document: h1 is a top-level counter, h2 nests under the
     nearest preceding h1 ("1.1", "1.2", ...), and so on through h6 - reset
     from scratch on every call, so reordering headings within a document
-    always produces correct numbers on the next build (see the ``\\ref{id}``
-    syntax in :mod:`zendoc.inlinepatterns`, which depends on this). A heading
-    with an ``unnumbered`` class (e.g. via ``# Title {: .unnumbered }``) is
-    still given an id but excluded from numbering - its counter position is
-    skipped entirely, matching zendoc-template's own cover-page convention -
-    so its registered ``number`` is ``None``.
+    always produces correct numbers on the next build. A heading with an
+    ``unnumbered`` class (e.g. via ``# Title {: .unnumbered }``) is still
+    given an id but excluded from numbering - its counter position is
+    skipped entirely - so its registered ``number`` is ``None``.
 
     Runs at a lower priority than 'toc' (registered at 5) so it always reads
     the final id 'toc' assigned - including one already set explicitly via
@@ -81,40 +86,42 @@ class RegistryTreeprocessor(Treeprocessor):
             )
 
 
-class RefResolverTreeprocessor(Treeprocessor):
-    """Resolves the placeholder ``<a data-zendoc-ref="id">`` elements left by
-    :class:`zendoc.inlinepatterns.RefInlineProcessor` to the referenced
-    heading's section number, once the current document's own headings have
-    been numbered.
+class HeadingsExtension(Extension):
+    """Python-Markdown extension assigning ids and section numbers to headings."""
 
-    Runs at a lower priority than RegistryTreeprocessor (4) so every heading
-    in *this* document - including one defined further down the page than
-    where it's referenced - is already registered by the time resolution
-    happens. A reference to a heading in a document not yet processed in
-    this build (e.g. a later page in a multi-page site) can't be resolved
-    yet either; both cases fall back to `unresolved`, the same way an
-    undefined LaTeX \\ref shows "??" until a later compilation pass.
-    """
+    def __init__(self, **kwargs: object) -> None:
+        # Popped rather than run through Extension's own config/setConfig:
+        # that machinery bool-coerces any config value whose *current*
+        # default is None (see markdown.util.parseBoolValue), which would
+        # silently corrupt a real IdRegistry object passed in explicitly.
+        registry = kwargs.pop("registry", None)
+        self.registry: IdRegistry = (
+            registry if isinstance(registry, IdRegistry) else IdRegistry()
+        )
+        self.config = {
+            "source": [
+                "",
+                "Identifier for the current document (e.g. its path), used "
+                "to scope this document's own entries in the registry.",
+            ],
+        }
+        super().__init__(**kwargs)
 
-    def __init__(self, md: Markdown, registry: IdRegistry, unresolved: str = "??") -> None:
-        super().__init__(md)
-        self.registry = registry
-        self.unresolved = unresolved
+    def extendMarkdown(self, md: Markdown) -> None:
+        md.registerExtension(self)
+        # Heading ids are 'toc''s job (including respecting one 'attr_list'
+        # already set) - reuse it rather than re-deriving slugs here, but
+        # don't clobber a caller's own 'toc' config (e.g. permalink=True) if
+        # they've already enabled it themselves.
+        if "toc" not in md.treeprocessors:
+            TocExtension().extendMarkdown(md)
+        source: str = self.getConfig("source")
+        md.treeprocessors.register(
+            HeadingsTreeprocessor(md, self.registry, source),
+            "zendoc-headings",
+            4,
+        )
 
-    def run(self, root: etree.Element) -> None:
-        for el in root.iter("a"):
-            ref_id = el.get("data-zendoc-ref")
-            if ref_id is None:
-                continue
-            del el.attrib["data-zendoc-ref"]
-            record = self.registry.get(ref_id)
-            if record is None or record.number is None:
-                el.text = self.unresolved
-                el.set("class", "zendoc-ref zendoc-ref-unresolved")
-                if record is not None:
-                    # Known heading, just unnumbered (e.g. {: .unnumbered }) -
-                    # still a valid link target, unlike a genuinely unknown id.
-                    el.set("href", f"#{ref_id}")
-            else:
-                el.text = record.number
-                el.set("href", f"#{ref_id}")
+
+def makeExtension(**kwargs: object) -> HeadingsExtension:
+    return HeadingsExtension(**kwargs)

@@ -1,14 +1,14 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Cross-document registry of heading ids.
+"""Shared data structures used by more than one zendoc extension.
 
 A single :class:`IdRegistry` instance is meant to be shared across every
-source document in a build (one :class:`~zendoc.extension.ZendocExtension`
-call per document), so that the ``\ref{id}`` cross-reference syntax (and a
-future citation feature) can resolve an id to the document, heading, and
-current section number that defines it, regardless of which document is
-currently being converted.
+source document in a build (one extension instance per document, e.g. one
+:class:`~zendoc.headings.HeadingsExtension` call per page), so that
+:mod:`zendoc.refs` (and a future citation extension) can resolve an id to
+the document, heading, and current section number that defines it,
+regardless of which document is currently being converted.
 """
 
 from __future__ import annotations

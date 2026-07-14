@@ -21,3 +21,13 @@ jobs:
       - run: ruff check .
       - run: mypy src
       - run: pytest --cov=zendoc
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install -e ".[docs]"
+      - run: mkdocs build --strict

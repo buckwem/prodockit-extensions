@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "zendoc"
 version = "0.1.0.dev0"
-description = "Python-Markdown extension for section cross-references and bibliography/citation handling"
+description = "A family of Python-Markdown extensions for section cross-references and bibliography/citation handling"
 readme = "README.md"
 license = "MIT"
 authors = [
@@ -28,7 +28,8 @@ Homepage = "https://github.com/buckwem/zendoc-extension"
 Issues = "https://github.com/buckwem/zendoc-extension/issues"
 
 [project.entry-points."markdown.extensions"]
-zendoc = "zendoc.extension:ZendocExtension"
+"zendoc.headings" = "zendoc.headings:HeadingsExtension"
+"zendoc.refs" = "zendoc.refs:RefsExtension"
 
 [project.optional-dependencies]
 dev = [
@@ -37,6 +38,10 @@ dev = [
   "types-Markdown",
   "pytest",
   "pytest-cov",
+]
+docs = [
+  "mkdocs",
+  "mkdocs-material",
 ]
 
 [tool.hatch.build.targets.wheel]

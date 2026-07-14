@@ -1,14 +1,18 @@
 # zendoc
 
-A [Python-Markdown](https://python-markdown.github.io/) extension providing
-section cross-references and bibliography/citation handling, factored out of
+A family of [Python-Markdown](https://python-markdown.github.io/) extensions
+for section cross-references and bibliography/citation handling, in the
+spirit of [pymdown-extensions](https://facelessuser.github.io/pymdown-extensions/):
+each extension is independent and enabled separately. Factored out of
 [zendoc-template](https://github.com/buckwem/zendoc-template) so it can be
 installed and reused independently of that template.
 
-> **Status:** early - section cross-references are implemented; citation
-> handling isn't yet. See
+> **Status:** early - `zendoc.headings` and `zendoc.refs` are implemented;
+> citation handling isn't yet. See
 > [zendoc-template#25](https://github.com/buckwem/zendoc-template/issues/25)
 > for the tracking issue and scope.
+
+**[Full documentation](https://buckwem.github.io/zendoc-extension/)**
 
 ## Installation
 
@@ -16,61 +20,30 @@ installed and reused independently of that template.
 pip install zendoc
 ```
 
-## Usage
+## Extensions
 
-Enable it like any other Python-Markdown extension:
+| Extension | Description |
+|---|---|
+| [`zendoc.headings`](https://buckwem.github.io/zendoc-extension/extensions/headings/) | Gives every heading an id and a hierarchical section number ("1", "1.1", "1.2", "2", ...). |
+| [`zendoc.refs`](https://buckwem.github.io/zendoc-extension/extensions/refs/) | `\ref{id}` section cross-references, resolving to the target's current number - similar in spirit to LaTeX's `\ref`. |
 
 ```python
 import markdown
 
-html = markdown.markdown(text, extensions=["zendoc"])
+html = markdown.markdown(text, extensions=["zendoc.headings", "zendoc.refs"])
 ```
 
-Or in a `zensical.toml`/`mkdocs.yml`-style config:
-
-```toml
-[project.markdown_extensions.zendoc]
-```
-
-### Section cross-references
-
-Every heading gets an id and a hierarchical section number (h1 → `1`, a
-nested h2 → `1.1`, and so on), tracked in a shared registry. Reference one
-with `\ref{id}` - similar in spirit to LaTeX's `\ref` - and it resolves to
-the target's *current* number, so it stays correct if sections are
-reordered:
-
-```markdown
+```md
 # Introduction {: #intro }
 
 See \ref{intro} for background.
 ```
 
-renders `\ref{intro}` as a link to `#intro` reading `1`. A heading with no
-explicit id gets one derived from its text (reusing Python-Markdown's own
-`toc` extension, enabled automatically if you haven't already). A reference
-to an unknown id, or to a heading marked `unnumbered` (`{: .unnumbered }`),
-renders `??` (configurable via the `unresolved` option) rather than
-resolving to nothing.
-
-To share one registry - and therefore resolve cross-page references -
-across multiple documents in a site build, construct the extension with an
-explicit `registry` and a per-document `source`:
-
-```python
-from zendoc import IdRegistry
-from zendoc.extension import ZendocExtension
-
-registry = IdRegistry()
-for path, text in pages:
-    html = markdown.markdown(
-        text, extensions=[ZendocExtension(registry=registry, source=path)]
-    )
-```
-
-A reference to a heading in a page that hasn't been converted yet in the
-current build resolves to `??`, the same way an undefined LaTeX `\ref` does
-until a later compilation pass.
+`\ref{intro}` resolves to a link reading `1` - the heading's current
+section number - and stays correct if sections are reordered, since
+numbering is recomputed on every conversion. See the
+[docs](https://buckwem.github.io/zendoc-extension/) for options, multi-page
+registry sharing, and full syntax details.
 
 ## Development
 
@@ -79,6 +52,13 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
+```
+
+To build the documentation locally:
+
+```bash
+pip install -e ".[docs]"
+mkdocs serve
 ```
 
 ## License

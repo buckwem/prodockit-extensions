@@ -4,13 +4,13 @@
 import markdown
 import pytest
 
-from zendoc import DuplicateIdError, IdRegistry
-from zendoc.extension import ZendocExtension
+from zendoc.headings import HeadingsExtension
+from zendoc.util import DuplicateIdError, IdRegistry
 
 
 def _convert(text: str, registry: IdRegistry, source: str) -> str:
     md = markdown.Markdown(
-        extensions=["attr_list", ZendocExtension(registry=registry, source=source)]
+        extensions=["attr_list", HeadingsExtension(registry=registry, source=source)]
     )
     return md.convert(text)
 
@@ -24,6 +24,24 @@ def test_heading_gets_an_id_and_is_registered() -> None:
     assert record.source == "intro.md"
     assert record.level == 1
     assert record.text == "Introduction"
+    assert record.number == "1"
+
+
+def test_nested_headings_get_hierarchical_numbers() -> None:
+    registry = IdRegistry()
+    _convert("# Chapter\n\n## Setup\n\n## Usage\n\n# Next Chapter\n", registry, "doc.md")
+    assert registry.get("chapter").number == "1"  # type: ignore[union-attr]
+    assert registry.get("setup").number == "1.1"  # type: ignore[union-attr]
+    assert registry.get("usage").number == "1.2"  # type: ignore[union-attr]
+    assert registry.get("next-chapter").number == "2"  # type: ignore[union-attr]
+
+
+def test_unnumbered_heading_has_no_number_but_gets_an_id() -> None:
+    registry = IdRegistry()
+    _convert("# Cover Page {: .unnumbered }\n\n# Introduction\n", registry, "doc.md")
+    assert registry.get("cover-page").number is None  # type: ignore[union-attr]
+    # unnumbered heading doesn't consume a counter slot
+    assert registry.get("introduction").number == "1"  # type: ignore[union-attr]
 
 
 def test_explicit_id_is_respected() -> None:
@@ -70,10 +88,17 @@ def test_reuses_callers_own_toc_config() -> None:
     md = markdown.Markdown(
         extensions=[
             "toc",
-            ZendocExtension(registry=registry, source="intro.md"),
+            HeadingsExtension(registry=registry, source="intro.md"),
         ],
         extension_configs={"toc": {"permalink": True}},
     )
     html = md.convert("# Introduction\n")
     assert "headerlink" in html
     assert registry.get("introduction") is not None
+
+
+def test_entry_point_name_resolves() -> None:
+    md = markdown.Markdown(extensions=["zendoc.headings"])
+    assert md.convert("# Introduction\n") == (
+        '<h1 id="introduction">Introduction</h1>'
+    )
