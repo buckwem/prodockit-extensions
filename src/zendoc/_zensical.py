@@ -3,18 +3,21 @@
 
 """Internal helpers for Zensical-aware, cross-page state sharing.
 
-Not part of zendoc's public API - shared by zendoc.headings and
-zendoc.citations, both of which face the same problem: Zensical builds each
-page with its own fresh ``Markdown`` instance, so a plain per-instance
-default registry can never see another page's entries. ``nav_pages`` (used
-by zendoc.citations) additionally addresses pages being built in a single,
+Not part of zendoc's public API - shared by zendoc.headings,
+zendoc.citations, and zendoc.glossary, all of which face the same problem:
+Zensical builds each page with its own fresh ``Markdown`` instance, so a
+plain per-instance default registry can never see another page's entries.
+``nav_pages``/``preseed_attr_from_nav`` (used by zendoc.citations and
+zendoc.glossary) additionally address pages being built in a single,
 one-shot pass: a forward reference to a page not yet built can't resolve
 without pre-scanning ahead of time.
 """
 
 from __future__ import annotations
 
-from typing import TypeVar
+import re
+from pathlib import Path
+from typing import Protocol, TypeVar
 
 from markdown import Markdown
 
@@ -106,3 +109,69 @@ def _flatten_nav(items: object) -> list[str]:
         elif isinstance(item, list):
             paths.extend(_flatten_nav(item))
     return paths
+
+
+class _Preseedable(Protocol):
+    def preseed(self, source: str, id: str, text: str) -> None: ...
+
+
+_ATTR_RE = re.compile(r"\{:\s*([^}]+?)\s*\}")
+_ID_RE = re.compile(r"#([\w-]+)")
+_FENCE_RE = re.compile(
+    r"^[ \t]*```.*?^[ \t]*```[ \t]*$|^[ \t]*~~~.*?^[ \t]*~~~[ \t]*$",
+    re.MULTILINE | re.DOTALL,
+)
+
+
+def _strip_fences(text: str) -> str:
+    """Blanks out fenced code blocks before a raw-text regex scan, so a
+    documentation page showing a definition syntax as a *literal example*
+    inside a fenced code block isn't mistaken for a real definition by
+    preseed_attr_from_nav (which, unlike the real per-page treeprocessor,
+    scans raw text directly rather than the parsed, fence-aware
+    Python-Markdown tree)."""
+    return _FENCE_RE.sub("", text)
+
+
+def preseed_attr_from_nav(registry: _Preseedable, attr_name: str) -> None:
+    """Pre-scans every page in the current Zensical build's nav for a
+    ``{: #id <attr_name>="..." }`` attr_list definition, provisionally
+    registering each one (via ``registry.preseed``) before any page has
+    actually been converted.
+
+    Fixes the classic "cited/referenced before defined" ordering problem: a
+    source is usually cited/referenced from an early chapter but defined on
+    a references/acronyms/glossary page kept at the end of nav, which -
+    without this - is a forward reference to a page `zensical build`'s
+    single, one-shot process hasn't rendered yet (unlike `zensical serve`'s
+    live-reload, which eventually rebuilds every page at least once). Reads
+    raw file text directly rather than waiting for Python-Markdown to parse
+    it - safe here because the id/value are already literal attr_list
+    attribute values, unlike e.g. zendoc.headings' section numbers, which
+    genuinely depend on running the real Python-Markdown pipeline to
+    compute. Skips fenced code blocks, so a documentation page showing this
+    exact attr_list syntax as a literal example doesn't get mistaken for a
+    real definition.
+
+    Used by zendoc.citations (`attr_name="data-cite-text"`) and
+    zendoc.glossary (`attr_name="data-term"`) - both need the identical
+    scan, differing only in which attribute they're looking for and which
+    registry they feed.
+    """
+    located = nav_pages()
+    if located is None:
+        return
+    docs_dir, pages = located
+    value_re = re.compile(attr_name + r'="([^"]*)"')
+    for rel_path in pages:
+        try:
+            text = (Path(docs_dir) / rel_path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        text = _strip_fences(text)
+        for attr_match in _ATTR_RE.finditer(text):
+            attrs = attr_match.group(1)
+            id_match = _ID_RE.search(attrs)
+            value_match = value_re.search(attrs)
+            if id_match and value_match:
+                registry.preseed(rel_path, id_match.group(1), value_match.group(1))

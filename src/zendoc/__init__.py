@@ -9,17 +9,20 @@ pymdown-extensions - each is its own extension, enabled separately:
 - ``zendoc.refs`` - ``\\ref{id}`` section cross-references.
 - ``zendoc.citations`` - define a source once, cite it by key anywhere with
   ``\\cite{id}``.
+- ``zendoc.glossary`` - define a term once, insert it by id anywhere with
+  ``\\gls{id}``.
 
 Built for use with Zensical (https://zensical.org/) - enable an extension in
 `zensical.toml` the same way as a built-in or pymdownx one. Zensical's
 per-page rendering context is detected automatically where it's useful (see
-zendoc.headings'/zendoc.citations' cross-page registry sharing), but each
-extension is a standard Python-Markdown extension underneath, so it also
-works with MkDocs or any other Python-Markdown-based tool.
+zendoc.headings'/zendoc.citations'/zendoc.glossary's cross-page registry
+sharing), but each extension is a standard Python-Markdown extension
+underneath, so it also works with MkDocs or any other Python-Markdown-based
+tool.
 
 See https://buckwem.github.io/zendoc-extension/ for documentation.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = ["__version__"]

@@ -19,6 +19,7 @@ nav = [
     {"Headings" = "extensions/headings.md"},
     {"Refs" = "extensions/refs.md"},
     {"Citations" = "extensions/citations.md"},
+    {"Glossary" = "extensions/glossary.md"},
   ]},
   {"About" = [
     {"Release Notes" = "about/changelog.md"},

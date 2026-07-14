@@ -8,9 +8,10 @@ source document in a build (one extension instance per document, e.g. one
 :class:`~zendoc.headings.HeadingsExtension` call per page), so that
 :mod:`zendoc.refs` can resolve an id to the document, heading, and current
 section number that defines it, regardless of which document is currently
-being converted. :class:`CitationRegistry` is the equivalent for
-:mod:`zendoc.citations`' citation keys - a separate registry/namespace, not
-merged with headings' ids.
+being converted. :class:`CitationRegistry` (for :mod:`zendoc.citations`'
+citation keys) and :class:`GlossaryRegistry` (for :mod:`zendoc.glossary`'s
+terms) are the same idea for their own kind of id - each its own separate
+registry/namespace, not merged with headings' ids or each other.
 """
 
 from __future__ import annotations
@@ -173,6 +174,69 @@ class CitationRegistry:
         IdRegistry.clear_source for why this matters."""
         for stale_id in [k for k, v in self._citations.items() if v.source == source]:
             del self._citations[stale_id]
+
+
+@dataclass(frozen=True)
+class GlossaryRecord:
+    source: str
+    id: str
+    text: str
+
+
+class GlossaryRegistry:
+    """Registry of glossary/acronym terms, defined once (e.g. on an
+    Acronyms or Glossary page) and looked up by :mod:`zendoc.glossary`'s
+    ``\\gls{id}`` syntax from anywhere in a build. Same shape, collision
+    semantics, and preseed behaviour as :class:`CitationRegistry` - kept as
+    its own separate registry/id-namespace rather than merged with it, the
+    same way a citation key and a glossary term aren't the same kind of
+    thing even though both are just "an id with some text attached".
+    """
+
+    def __init__(self) -> None:
+        self._terms: dict[str, GlossaryRecord] = {}
+        self._preseeded: dict[str, GlossaryRecord] = {}
+
+    def register(self, source: str, id: str, text: str, strict: bool = True) -> None:
+        existing = self._terms.get(id)
+        if existing is not None and existing.source != source:
+            if strict:
+                raise DuplicateIdError(
+                    f"glossary term {id!r} is already registered from "
+                    f"{existing.source!r}; cannot also register it from {source!r}"
+                )
+            _log.warning(
+                "glossary term %r from %r collides with an existing one from %r - "
+                "keeping the first; give one of them a distinct id to disambiguate",
+                id,
+                source,
+                existing.source,
+            )
+            return
+        self._terms[id] = GlossaryRecord(source=source, id=id, text=text)
+        # A real registration always supersedes a provisional preseed()
+        # for the same id - no collision check needed, since preseed data
+        # was only ever a stand-in for this.
+        self._preseeded.pop(id, None)
+
+    def preseed(self, source: str, id: str, text: str) -> None:
+        """Provisionally records a term's display text and defining page
+        ahead of that page actually being converted - see
+        CitationRegistry.preseed for why this matters."""
+        if id not in self._preseeded:
+            self._preseeded[id] = GlossaryRecord(source=source, id=id, text=text)
+
+    def get(self, id: str) -> GlossaryRecord | None:
+        return self._terms.get(id) or self._preseeded.get(id)
+
+    def __contains__(self, id: str) -> bool:
+        return id in self._terms or id in self._preseeded
+
+    def clear_source(self, source: str) -> None:
+        """Drops every entry previously registered from source - see
+        IdRegistry.clear_source for why this matters."""
+        for stale_id in [k for k, v in self._terms.items() if v.source == source]:
+            del self._terms[stale_id]
 
 
 def cross_page_href(record_source: str, current_source: str, id: str) -> str:

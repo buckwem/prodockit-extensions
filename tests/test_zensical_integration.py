@@ -12,9 +12,11 @@ import markdown
 import pytest
 from zensical.extensions.context import ContextExtension, Page
 
+import zendoc._zensical as zendoc_zensical
 import zendoc.citations as zendoc_citations
+import zendoc.glossary as zendoc_glossary
 import zendoc.headings as zendoc_headings
-from zendoc.util import CitationRegistry, IdRegistry
+from zendoc.util import CitationRegistry, GlossaryRegistry, IdRegistry
 
 
 @pytest.fixture(autouse=True)
@@ -25,6 +27,7 @@ def _isolated_zensical_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     build's lifetime)."""
     monkeypatch.setattr(zendoc_headings, "_ZENSICAL_SHARED_REGISTRY", IdRegistry())
     monkeypatch.setattr(zendoc_citations, "_ZENSICAL_SHARED_REGISTRY", CitationRegistry())
+    monkeypatch.setattr(zendoc_glossary, "_ZENSICAL_SHARED_REGISTRY", GlossaryRegistry())
 
 
 def _convert_as_zensical_page(text: str, path: str) -> str:
@@ -180,7 +183,7 @@ def test_forward_citation_resolves_via_nav_preseed(
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        zendoc_citations,
+        zendoc_zensical,
         "nav_pages",
         lambda: (str(docs_dir), ["section1.md", "references.md"]),
     )
@@ -218,7 +221,7 @@ def test_nav_preseed_ignores_fenced_documentation_examples(
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        zendoc_citations,
+        zendoc_zensical,
         "nav_pages",
         lambda: (str(docs_dir), ["customise.md", "section1.md", "references.md"]),
     )
@@ -238,3 +241,59 @@ def test_real_definition_supersedes_preseeded_stub() -> None:
     record = registry.get("skou2023")
     assert record is not None
     assert record.text == "Skoulikari, 2023"
+
+
+def _convert_as_zensical_page_with_glossary(text: str, path: str) -> str:
+    md = markdown.Markdown(
+        extensions=[
+            ContextExtension(page=Page(url=path, path=path), config={}),
+            "attr_list",
+            "zendoc.glossary",
+        ]
+    )
+    return md.convert(text)
+
+
+def test_cross_page_gls_resolves_under_zensical() -> None:
+    _convert_as_zensical_page_with_glossary(
+        '**CSS** - Cascading Style Sheets.\n{: #css data-term="CSS" }\n',
+        "acronyms.md",
+    )
+    html = _convert_as_zensical_page_with_glossary(
+        "This uses \\gls{css}.\n", "section1.md"
+    )
+    # A real cross-page link (acronyms.md#css), not a bare same-page
+    # fragment - the latter would 404 on the actual website.
+    assert '<a href="acronyms.md#css">CSS</a>' in html
+
+
+def test_gls_forward_reference_resolves_via_nav_preseed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same "cited before defined" ordering problem zendoc.citations
+    solves: acronyms.md is usually kept as an appendix at the end of nav,
+    but referenced from early chapters."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "acronyms.md").write_text(
+        '**CSS** - Cascading Style Sheets.\n{: #css data-term="CSS" }\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        zendoc_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["section1.md", "acronyms.md"]),
+    )
+    html = _convert_as_zensical_page_with_glossary(
+        "This uses \\gls{css}.\n", "section1.md"
+    )
+    assert '<a href="acronyms.md#css">CSS</a>' in html
+
+
+def test_duplicate_glossary_term_across_pages_does_not_crash_the_build() -> None:
+    definition = '**CSS** - Cascading Style Sheets.\n{: #css data-term="CSS" }\n'
+    _convert_as_zensical_page_with_glossary(definition, "page-a.md")
+    # Must not raise, even though the same id is (implausibly, but
+    # possibly) defined twice across two different pages:
+    html = _convert_as_zensical_page_with_glossary(definition, "page-b.md")
+    assert 'id="css"' in html

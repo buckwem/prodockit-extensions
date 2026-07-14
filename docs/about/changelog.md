@@ -1,5 +1,28 @@
 # Release Notes
 
+## 0.5.0 (2026-07-14)
+
+- New `zendoc.glossary` extension: define a term once via `attr_list` (an
+  id plus a `data-term` short display string), then insert it by id from
+  anywhere with `\gls{id}`, which resolves to the term's own text, linked
+  to its definition - e.g. `\gls{css}` → `CSS`. Unlike `zendoc.citations`'
+  `\cite{id}` (which generates new bracketed citation text), `\gls{id}`
+  inserts the term's own registered text in place - closer to LaTeX's
+  `glossaries` package.
+- One shared `GlossaryRegistry` covers both acronym-style and
+  glossary-style entries - they're the same kind of thing (an id with a
+  short display text), so acronym and glossary pages can reference each
+  other, or be referenced from any other page, with no special wiring.
+- Supports forward references within a document, an `unresolved` marker
+  (`?` by default) for an unknown id, and the same automatic Zensical
+  cross-page registry sharing and nav pre-scan (for citing/using a term
+  before its defining page has been converted) that `zendoc.citations` got
+  in 0.4.0.
+- Refactored the nav pre-scan logic (previously private to
+  `zendoc.citations`) into a shared, generic
+  `zendoc._zensical.preseed_attr_from_nav` helper, since `zendoc.glossary`
+  needed the identical scan.
+
 ## 0.4.0 (2026-07-14)
 
 Fixes found migrating zendoc-template's own `references.md` to

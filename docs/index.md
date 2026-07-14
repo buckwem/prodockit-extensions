@@ -25,6 +25,7 @@ for the tracking issue and original motivation.
 | [zendoc.headings](extensions/headings.md) | Gives every heading an id and a hierarchical section number ("1", "1.1", "1.2", "2", ...). |
 | [zendoc.refs](extensions/refs.md) | `\ref{id}` section cross-references, resolving to the target's current number - similar in spirit to LaTeX's `\ref`. |
 | [zendoc.citations](extensions/citations.md) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
+| [zendoc.glossary](extensions/glossary.md) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
 
 ## Quick example
 
@@ -56,8 +57,8 @@ conversion.
 
 ## Status
 
-Early, but functional. `zendoc.headings`, `zendoc.refs`, and
-`zendoc.citations` are implemented and tested; auto-generating a full
+Early, but functional. `zendoc.headings`, `zendoc.refs`, `zendoc.citations`,
+and `zendoc.glossary` are implemented and tested; auto-generating a full
 references list from structured bibliographic data is not yet built (see
 [zendoc.citations](extensions/citations.md#what-this-doesnt-do-yet)). See
 the [Release Notes](about/changelog.md) for what's landed so far.
