@@ -10,17 +10,19 @@ import markdown
 import pytest
 from zensical.extensions.context import ContextExtension, Page
 
+import zendoc.citations as zendoc_citations
 import zendoc.headings as zendoc_headings
-from zendoc.util import IdRegistry
+from zendoc.util import CitationRegistry, IdRegistry
 
 
 @pytest.fixture(autouse=True)
 def _isolated_zensical_registry(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Each test gets its own shared-singleton stand-in, so tests can't leak
-    heading registrations into one another via the real module-level
-    singleton (which, in production, is deliberately shared for the whole
+    """Each test gets its own shared-singleton stand-ins, so tests can't
+    leak registrations into one another via the real module-level
+    singletons (which, in production, are deliberately shared for the whole
     build's lifetime)."""
     monkeypatch.setattr(zendoc_headings, "_ZENSICAL_SHARED_REGISTRY", IdRegistry())
+    monkeypatch.setattr(zendoc_citations, "_ZENSICAL_SHARED_REGISTRY", CitationRegistry())
 
 
 def _convert_as_zensical_page(text: str, path: str) -> str:
@@ -82,3 +84,38 @@ def test_non_zensical_use_is_unaffected() -> None:
     # Page 2 never saw page 1's heading - falls back to unresolved, exactly
     # as it did before Zensical auto-detection existed.
     assert '<a class="zendoc-ref zendoc-ref-unresolved">??</a>' in html
+
+
+def _convert_as_zensical_page_with_citations(text: str, path: str) -> str:
+    md = markdown.Markdown(
+        extensions=[
+            ContextExtension(page=Page(url=path, path=path), config={}),
+            "attr_list",
+            "zendoc.citations",
+        ]
+    )
+    return md.convert(text)
+
+
+def test_cross_page_citation_resolves_under_zensical() -> None:
+    _convert_as_zensical_page_with_citations(
+        'Skoulikari, A. (2023) *Learning Git*.\n'
+        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
+        "references.md",
+    )
+    html = _convert_as_zensical_page_with_citations(
+        "See \\cite{skou2023}.\n", "section1.md"
+    )
+    assert '<a href="#skou2023">Skoulikari, 2023</a>' in html
+
+
+def test_duplicate_citation_key_across_pages_does_not_crash_the_build() -> None:
+    definition = (
+        'Skoulikari, A. (2023) *Learning Git*.\n'
+        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n'
+    )
+    _convert_as_zensical_page_with_citations(definition, "page-a.md")
+    # Must not raise, even though the same key is (implausibly, but
+    # possibly) defined twice across two different pages:
+    html = _convert_as_zensical_page_with_citations(definition, "page-b.md")
+    assert 'id="skou2023"' in html

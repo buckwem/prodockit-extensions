@@ -11,8 +11,8 @@ Python-Markdown (MkDocs, etc.). Factored out of
 [zendoc-template](https://github.com/buckwem/zendoc-template), a Zensical
 project, so it can be installed and reused independently of that template.
 
-> **Status:** early - `zendoc.headings` and `zendoc.refs` are implemented;
-> citation handling isn't yet. See
+> **Status:** early, but functional - `zendoc.headings`, `zendoc.refs`, and
+> `zendoc.citations` are implemented and tested. See
 > [zendoc-template#25](https://github.com/buckwem/zendoc-template/issues/25)
 > for the tracking issue and scope.
 
@@ -30,22 +30,29 @@ pip install zendoc
 |---|---|
 | [`zendoc.headings`](https://buckwem.github.io/zendoc-extension/extensions/headings/) | Gives every heading an id and a hierarchical section number ("1", "1.1", "1.2", "2", ...). |
 | [`zendoc.refs`](https://buckwem.github.io/zendoc-extension/extensions/refs/) | `\ref{id}` section cross-references, resolving to the target's current number - similar in spirit to LaTeX's `\ref`. |
+| [`zendoc.citations`](https://buckwem.github.io/zendoc-extension/extensions/citations/) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
 
 ```python
 import markdown
 
-html = markdown.markdown(text, extensions=["zendoc.headings", "zendoc.refs"])
+html = markdown.markdown(
+    text, extensions=["attr_list", "zendoc.headings", "zendoc.refs", "zendoc.citations"]
+)
 ```
 
 ```md
 # Introduction {: #intro }
 
-See \ref{intro} for background.
+See \ref{intro} for background.\cite{skou2023}
+
+Skoulikari, A. (2023) *Learning Git*.
+{: #skou2023 data-cite-text="Skoulikari, 2023" }
 ```
 
 `\ref{intro}` resolves to a link reading `1` - the heading's current
-section number - and stays correct if sections are reordered, since
-numbering is recomputed on every conversion. See the
+section number - and `\cite{skou2023}` resolves to `[Skoulikari, 2023]`,
+linked to that source. Both stay correct if content is reordered, since
+resolution happens fresh on every conversion. See the
 [docs](https://buckwem.github.io/zendoc-extension/) for options, multi-page
 registry sharing, and full syntax details.
 

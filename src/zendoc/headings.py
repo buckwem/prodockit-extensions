@@ -16,6 +16,7 @@ from markdown.extensions import Extension
 from markdown.extensions.toc import TocExtension
 from markdown.treeprocessors import Treeprocessor
 
+from zendoc._zensical import page_source, share
 from zendoc.util import IdRegistry
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
@@ -32,51 +33,12 @@ def _slugify(text: str) -> str:
     return re.sub(r"\s+", "-", slug)
 
 
-def _zensical_page_source(md: Markdown) -> str | None:
-    """Returns the current page's path if running under Zensical's per-page
-    ``render()``, else None.
-
-    Zensical constructs a fresh ``Markdown`` instance per page, but stashes a
-    ``Page`` (with a stable, per-page path) on every one of them via its own
-    ``ContextPreprocessor`` - used here as a best-effort default for
-    ``source`` when the caller hasn't set one explicitly, since without it
-    every page would silently share the same default source (``""``), each
-    page wiping the previous one's registry entries on every render (see
-    ``HeadingsTreeprocessor.run``'s ``clear_source`` call). Returns None
-    (falling back to ordinary behaviour) under any other Python-Markdown
-    tool, or if Zensical isn't installed.
-    """
-    try:
-        from zensical.extensions.context import ContextPreprocessor
-    except ImportError:
-        return None
-    context = ContextPreprocessor.from_markdown(md)
-    if context is None or context.page is None:
-        return None
-    return context.page.path
-
-
 # Shared across every page of a single Zensical build (one Python process per
-# `zensical build`/`zensical serve` invocation) - see _zensical_page_source
-# and HeadingsExtension.extendMarkdown. Never touched unless Zensical's
-# per-page context is actually detected, so it has no effect under any other
-# tool, or on a caller who passes their own explicit registry/source.
+# `zensical build`/`zensical serve` invocation) - see zendoc._zensical and
+# HeadingsExtension.extendMarkdown. Never touched unless Zensical's per-page
+# context is actually detected, so it has no effect under any other tool, or
+# on a caller who passes their own explicit registry/source.
 _ZENSICAL_SHARED_REGISTRY = IdRegistry()
-
-
-def _share_registry(md: Markdown, registry: IdRegistry) -> IdRegistry:
-    """Order-independent registry sharing between zendoc.headings and
-    zendoc.refs on the same page: whichever extension's extendMarkdown()
-    runs first claims `registry` by stashing it on `md`; whichever runs
-    second reuses what's already there - regardless of which order the two
-    extensions were listed in (Zensical's own TOML-to-extension-list
-    conversion doesn't preserve list order, so this can't be assumed).
-    """
-    existing = getattr(md, "zendoc_registry", None)
-    if isinstance(existing, IdRegistry):
-        return existing
-    md.zendoc_registry = registry  # type: ignore[attr-defined]
-    return registry
 
 
 class HeadingsTreeprocessor(Treeprocessor):
@@ -175,12 +137,12 @@ class HeadingsExtension(Extension):
         # setup - see the docs - which should keep raising on a genuine
         # collision, not silently paper over it).
         if not self._registry_explicit and not source:
-            page_source = _zensical_page_source(md)
-            if page_source is not None:
-                source = page_source
+            detected_source = page_source(md)
+            if detected_source is not None:
+                source = detected_source
                 registry = _ZENSICAL_SHARED_REGISTRY
                 strict = False
-        registry = _share_registry(md, registry)
+        registry = share(md, "zendoc_registry", registry)
         self.registry = registry
         md.treeprocessors.register(
             HeadingsTreeprocessor(md, registry, source, strict=strict),

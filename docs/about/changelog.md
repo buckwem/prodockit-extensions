@@ -1,5 +1,26 @@
 # Release Notes
 
+## 0.3.0 (2026-07-14)
+
+- New `zendoc.citations` extension: define a source once via `attr_list`
+  (an id plus a `data-cite-text` short display string), then cite it by key
+  from anywhere with `\cite{id}` (or `\cite{id1,id2,...}` for multiple),
+  auto-generating a bracketed, linked citation - `[Skoulikari, 2023]` -
+  instead of hand-typing the link and text at every citation site.
+- Supports forward references within a document, an `unresolved` marker
+  (`?` by default) for an unknown key, and the same automatic Zensical
+  cross-page registry sharing (with soft-fail on key collisions) that
+  `zendoc.headings`/`zendoc.refs` got in 0.2.0.
+- Auto-generating the references page's own listing from structured
+  bibliographic data isn't built yet - see the extension's docs for the
+  current scope.
+- Fixed the `zensical.toml` installation examples in the docs: nested
+  `[project.markdown_extensions.zendoc.headings]` tables don't work
+  (Zensical only hoists the `pymdownx`/`zensical` namespaces that way) -
+  the quoted-key form (`[project.markdown_extensions."zendoc.headings"]`)
+  is required, as zendoc-template's own `zensical.toml` already used
+  correctly.
+
 ## 0.2.0 (2026-07-14)
 
 - `zendoc.headings`/`zendoc.refs` now share their registry automatically

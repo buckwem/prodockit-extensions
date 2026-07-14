@@ -24,8 +24,7 @@ for the tracking issue and original motivation.
 |---|---|
 | [zendoc.headings](extensions/headings.md) | Gives every heading an id and a hierarchical section number ("1", "1.1", "1.2", "2", ...). |
 | [zendoc.refs](extensions/refs.md) | `\ref{id}` section cross-references, resolving to the target's current number - similar in spirit to LaTeX's `\ref`. |
-
-Bibliography/citation handling is planned but not implemented yet.
+| [zendoc.citations](extensions/citations.md) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
 
 ## Quick example
 
@@ -36,22 +35,29 @@ html = markdown.markdown(
     """
 # Introduction
 
-See \\ref{background} for context.
+See \\ref{background} for context.\\cite{skou2023}
 
 ## Background
 
 ...
+
+Skoulikari, A. (2023) *Learning Git*.
+{: #skou2023 data-cite-text="Skoulikari, 2023" }
 """,
-    extensions=["zendoc.headings", "zendoc.refs"],
+    extensions=["attr_list", "zendoc.headings", "zendoc.refs", "zendoc.citations"],
 )
 ```
 
 `\ref{background}` resolves to `1.1` - the current section number of the
-heading it points to - and stays correct if headings are reordered, because
-numbering is recomputed fresh on every conversion.
+heading it points to - and `\cite{skou2023}` resolves to `[Skoulikari,
+2023]`, linked to that source's own paragraph. Both stay correct if
+headings/sources are reordered, since resolution happens fresh on every
+conversion.
 
 ## Status
 
-Early. `zendoc.headings` and `zendoc.refs` are implemented and tested;
-citation-key management is not yet built. See the
-[Release Notes](about/changelog.md) for what's landed so far.
+Early, but functional. `zendoc.headings`, `zendoc.refs`, and
+`zendoc.citations` are implemented and tested; auto-generating a full
+references list from structured bibliographic data is not yet built (see
+[zendoc.citations](extensions/citations.md#what-this-doesnt-do-yet)). See
+the [Release Notes](about/changelog.md) for what's landed so far.

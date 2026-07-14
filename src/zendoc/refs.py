@@ -17,7 +17,8 @@ from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
 from markdown.treeprocessors import Treeprocessor
 
-from zendoc.headings import HeadingsExtension, _share_registry
+from zendoc._zensical import share
+from zendoc.headings import HeadingsExtension
 from zendoc.util import IdRegistry
 
 REF_RE = r"\\ref\{([^}\s]+)\}"
@@ -129,7 +130,7 @@ class RefsExtension(Extension):
                     headings_ext = HeadingsExtension()
                     headings_ext.extendMarkdown(md)
                 registry = headings_ext.registry
-        registry = _share_registry(md, registry)
+        registry = share(md, "zendoc_registry", registry)
         unresolved: str = self.getConfig("unresolved")
         md.inlinePatterns.register(
             RefInlineProcessor(REF_RE, md),

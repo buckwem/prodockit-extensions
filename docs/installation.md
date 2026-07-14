@@ -19,31 +19,41 @@ name, the same way you'd enable a built-in extension like `toc` or a
 ```python
 import markdown
 
-html = markdown.markdown(text, extensions=["zendoc.headings", "zendoc.refs"])
+html = markdown.markdown(
+    text, extensions=["zendoc.headings", "zendoc.refs", "zendoc.citations"]
+)
 ```
 
 Or, for a [Zensical](https://zensical.org/) project, in `zensical.toml`
-alongside the built-in and `pymdownx` extensions:
+alongside the built-in and `pymdownx` extensions. Unlike `pymdownx`'s and
+Zensical's own namespaces, Zensical doesn't hoist a nested
+`zendoc.headings` table into that dotted extension name, so each one needs
+a quoted key instead:
 
 ```toml
-[project.markdown_extensions.zendoc.headings]
-[project.markdown_extensions.zendoc.refs]
+[project.markdown_extensions."zendoc.headings"]
+[project.markdown_extensions."zendoc.refs"]
+[project.markdown_extensions."zendoc.citations"]
 ```
 
-zendoc has no Zensical-specific dependency - it's a standard Python-Markdown
-extension, so the same names work in an `mkdocs.yml`-style config too:
+zendoc's own auto-detection of Zensical's per-page context (see each
+extension's own page) is what actually needs Zensical present at runtime -
+the extensions themselves are standard Python-Markdown extensions, so the
+same names work in an `mkdocs.yml`-style config too:
 
 ```yaml
 markdown_extensions:
   - zendoc.headings
   - zendoc.refs
+  - zendoc.citations
 ```
 
-See each extension's own page for its options and for how to share one
+See each extension's own page for its options and for how to share a
 registry across multiple pages of a site build:
 
 - [zendoc.headings](extensions/headings.md)
 - [zendoc.refs](extensions/refs.md)
+- [zendoc.citations](extensions/citations.md)
 
 ## Development install
 
