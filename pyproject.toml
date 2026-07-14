@@ -40,8 +40,7 @@ dev = [
   "pytest-cov",
 ]
 docs = [
-  "mkdocs",
-  "mkdocs-material",
+  "zensical",
 ]
 
 [tool.hatch.build.targets.wheel]

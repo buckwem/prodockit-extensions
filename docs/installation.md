@@ -56,5 +56,5 @@ To build these docs locally:
 
 ```bash
 pip install -e ".[docs]"
-mkdocs serve
+zensical serve
 ```

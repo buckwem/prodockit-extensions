@@ -24,9 +24,9 @@ jobs:
         with:
           python-version: "3.x"
       - run: pip install -e ".[docs]"
-      - run: mkdocs build --strict --site-dir _site
+      - run: zensical build --clean --strict
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: _site
+          path: site
       - uses: actions/deploy-pages@v4
         id: deployment

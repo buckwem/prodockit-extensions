@@ -1,0 +1,68 @@
+[project]
+site_name = "zendoc"
+site_description = "A family of Python-Markdown extensions for section cross-references and bibliography/citation handling."
+site_author = "Mark Buckwell"
+site_url = "https://buckwem.github.io/zendoc-extension/"
+
+repo_url = "https://github.com/buckwem/zendoc-extension"
+repo_name = "buckwem/zendoc-extension"
+edit_uri = "edit/main/docs/"
+
+copyright = """
+Copyright &copy; 2026 Mark Buckwell and contributors
+"""
+
+nav = [
+  {"Home" = "index.md"},
+  {"Installation" = "installation.md"},
+  {"Extensions" = [
+    {"Headings" = "extensions/headings.md"},
+    {"Refs" = "extensions/refs.md"},
+  ]},
+  {"About" = [
+    {"Release Notes" = "about/changelog.md"},
+    {"License" = "about/license.md"},
+  ]},
+]
+
+[project.theme]
+language = "en"
+features = [
+  "content.action.edit",
+  "content.code.copy",
+  "navigation.top",
+  "navigation.tracking",
+  "navigation.instant",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/buckwem/zendoc-extension"
+
+# ----------------------------------------------------------------------------
+# Markdown extensions used to render these docs. pymdownx.snippets is used to
+# embed LICENSE (outside docs_dir) into about/license.md.
+# ----------------------------------------------------------------------------
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.snippets]
+base_path = ["."]
+[project.markdown_extensions.pymdownx.superfences]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true

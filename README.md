@@ -58,7 +58,7 @@ To build the documentation locally:
 
 ```bash
 pip install -e ".[docs]"
-mkdocs serve
+zensical serve
 ```
 
 ## License
