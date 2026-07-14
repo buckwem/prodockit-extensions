@@ -86,3 +86,15 @@ def test_entry_point_names_resolve_together() -> None:
     md = markdown.Markdown(extensions=["zendoc.headings", "zendoc.refs"])
     html = md.convert("# Introduction\n\nSee \\ref{introduction}.\n")
     assert '<a class="zendoc-ref" href="#introduction">1</a>' in html
+
+
+def test_entry_point_names_resolve_in_reverse_order() -> None:
+    """zendoc.refs listed before zendoc.headings - order shouldn't matter,
+    since Zensical's own TOML-to-extension-list conversion doesn't preserve
+    the order extensions were written in (it round-trips through a set())."""
+    md = markdown.Markdown(extensions=["zendoc.refs", "zendoc.headings"])
+    html = md.convert("# Introduction\n\nSee \\ref{introduction}.\n")
+    assert '<a class="zendoc-ref" href="#introduction">1</a>' in html
+    # Only one heading treeprocessor's worth of ids should exist - not a
+    # duplicate registration from two independently-created registries.
+    assert html.count('id="introduction"') == 1

@@ -81,8 +81,19 @@ there at all.
 ## Sharing a registry across a multi-page build
 
 To resolve cross-page references, every page in a build needs to write into
-- and read from - the *same* `IdRegistry` instance. Construct one and pass
-it to every page's extension instance, along with that page's own `source`:
+- and read from - the *same* `IdRegistry` instance, each scoped by its own,
+distinct `source`.
+
+Under [Zensical](https://zensical.org/), this happens automatically with no
+configuration - see [zendoc.refs](refs.md#multi-page-builds) for details:
+`zendoc.headings` detects Zensical's per-page context (each page gets its
+own fresh `Markdown` instance) and uses it to derive `source` from the
+page's own path, sharing one registry across the whole build. This
+auto-detection only activates when you *haven't* set an explicit `registry`
+or `source` yourself, and has no effect at all outside Zensical.
+
+For any other tool, construct a registry yourself and pass it to every
+page's extension instance, along with that page's own `source`:
 
 ```python
 import markdown
@@ -99,6 +110,9 @@ for path, text in pages:
 ```
 
 A duplicate id registered from two *different* sources raises
-`zendoc.util.DuplicateIdError` - re-converting the *same* source (e.g. a
-live-reload dev server) is safe and expected; its previous entries are
-cleared first.
+`zendoc.util.DuplicateIdError` here - re-converting the *same* source (e.g.
+a live-reload dev server) is safe and expected; its previous entries are
+cleared first. (Zensical's automatic sharing above uses the same registry,
+but logs a warning and keeps the first registration instead of raising -
+appropriate for a best-effort default rather than a setup you configured
+deliberately.)

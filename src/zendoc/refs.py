@@ -17,7 +17,7 @@ from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
 from markdown.treeprocessors import Treeprocessor
 
-from zendoc.headings import HeadingsExtension
+from zendoc.headings import HeadingsExtension, _share_registry
 from zendoc.util import IdRegistry
 
 REF_RE = r"\\ref\{([^}\s]+)\}"
@@ -113,14 +113,23 @@ class RefsExtension(Extension):
         md.registerExtension(self)
         registry = self.registry
         if registry is None:
-            headings_ext = next(
-                (ext for ext in md.registeredExtensions if isinstance(ext, HeadingsExtension)),
-                None,
-            )
-            if headings_ext is None:
-                headings_ext = HeadingsExtension()
-                headings_ext.extendMarkdown(md)
-            registry = headings_ext.registry
+            # Order-independent: if zendoc.headings already ran on this page
+            # (in either list order), it stashed its registry on md - reuse
+            # that directly rather than searching md.registeredExtensions,
+            # which only works if headings happened to run first.
+            existing = getattr(md, "zendoc_registry", None)
+            if isinstance(existing, IdRegistry):
+                registry = existing
+            else:
+                headings_ext = next(
+                    (ext for ext in md.registeredExtensions if isinstance(ext, HeadingsExtension)),
+                    None,
+                )
+                if headings_ext is None:
+                    headings_ext = HeadingsExtension()
+                    headings_ext.extendMarkdown(md)
+                registry = headings_ext.registry
+        registry = _share_registry(md, registry)
         unresolved: str = self.getConfig("unresolved")
         md.inlinePatterns.register(
             RefInlineProcessor(REF_RE, md),

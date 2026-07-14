@@ -13,7 +13,10 @@ regardless of which document is currently being converted.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+
+_log = logging.getLogger("zendoc")
 
 
 @dataclass(frozen=True)
@@ -34,14 +37,42 @@ class IdRegistry:
         self._headings: dict[str, HeadingRecord] = {}
 
     def register(
-        self, source: str, id: str, level: int, text: str, number: str | None = None
+        self,
+        source: str,
+        id: str,
+        level: int,
+        text: str,
+        number: str | None = None,
+        strict: bool = True,
     ) -> None:
+        """Registers a heading, keyed by id.
+
+        A duplicate id from a *different* source is a `DuplicateIdError`
+        when `strict` (the default) - the right behaviour for a registry
+        a caller deliberately shares across pages, where an unexpected
+        collision usually means two headings genuinely need distinguishing
+        (e.g. via an explicit id). When `strict` is False, a collision is
+        logged and the earlier registration wins instead of raising - used
+        for registry sharing this package sets up automatically (see
+        zendoc.headings' Zensical auto-detection), where crashing an entire
+        site build over two unrelated pages both having, say, an "Overview"
+        heading would be a worse outcome than an unresolved cross-reference.
+        """
         existing = self._headings.get(id)
         if existing is not None and existing.source != source:
-            raise DuplicateIdError(
-                f"heading id {id!r} is already registered from "
-                f"{existing.source!r}; cannot also register it from {source!r}"
+            if strict:
+                raise DuplicateIdError(
+                    f"heading id {id!r} is already registered from "
+                    f"{existing.source!r}; cannot also register it from {source!r}"
+                )
+            _log.warning(
+                "heading id %r from %r collides with an existing one from %r - "
+                "keeping the first; give one of them an explicit id to disambiguate",
+                id,
+                source,
+                existing.source,
             )
+            return
         self._headings[id] = HeadingRecord(
             source=source, id=id, level=level, text=text, number=number
         )

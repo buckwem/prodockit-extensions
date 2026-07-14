@@ -21,8 +21,10 @@ never have to manually renumber a cross-reference.
 [zendoc.headings](headings.md) builds. If you enable `zendoc.refs` on its
 own, it transparently enables `zendoc.headings` for you with matching
 defaults, so a single document works with no extra configuration. If you
-list both explicitly, list `zendoc.headings` first - see
-[Multi-page builds](#multi-page-builds) below.
+list both explicitly, they'll find and share each other's registry
+regardless of which order they're listed in - see
+[Multi-page builds](#multi-page-builds) below for Zensical (automatic) and
+other tools (manual).
 
 ## Syntax
 
@@ -92,10 +94,38 @@ renders `\ref{cover-page}` as `??`, linked to `#cover-page`.
 
 ## Multi-page builds
 
-To resolve cross-page references, give `zendoc.headings` and `zendoc.refs`
-the *same* `IdRegistry` on every page, converting pages in the order
-cross-references should become resolvable in (a reference to a page not
-yet converted resolves to `unresolved`, as above):
+### Under Zensical: automatic
+
+Under [Zensical](https://zensical.org/), cross-page references work with no
+extra configuration - just enable both extensions in `zensical.toml` as
+usual:
+
+```toml
+[project.markdown_extensions."zendoc.headings"]
+[project.markdown_extensions."zendoc.refs"]
+```
+
+Zensical builds each page with its own, fresh `Markdown` instance, so
+`zendoc.headings` detects this (via Zensical's own per-page context) and
+transparently shares one registry across every page of the build, keyed by
+each page's own path - no explicit `registry`/`source` needed. A reference
+to a page not yet converted in the current build still resolves to
+`unresolved`, the same way an undefined LaTeX `\ref` does until a later
+compilation pass - so list your pages, or build more than once (e.g. via
+`zensical serve`'s live reload), if a forward cross-page reference doesn't
+resolve on the first pass.
+
+Two pages that happen to share an identically-titled heading (e.g. both
+have their own "Overview" section) don't fail the build: the *first* one
+built keeps that id, and the collision is logged as a warning rather than
+raised as an error - give one of them an explicit id via `attr_list` (`##
+Overview {: #api-overview }`) to disambiguate and make both referenceable.
+
+### Under other tools: manual
+
+Outside Zensical, give `zendoc.headings` and `zendoc.refs` the *same*
+`IdRegistry` on every page yourself, converting pages in the order
+cross-references should become resolvable in:
 
 ```python
 import markdown
@@ -115,11 +145,7 @@ for path, text in pages:
     )
 ```
 
-If you enable both extensions by name instead (e.g. from a
-`mkdocs.yml`/`zensical.toml`-style config, where you can't pass a shared
-`IdRegistry` object directly), list `zendoc.headings` before `zendoc.refs`:
-`zendoc.refs` looks for an already-registered `zendoc.headings` instance on
-the current `Markdown` object and reuses its registry automatically, so a
-per-page site-generator integration (a plugin owning one shared registry
-across the whole build) is the way to get cross-page resolution without
-constructing extension instances by hand.
+Here, a genuine id collision between two different `source`s *does* raise
+`zendoc.util.DuplicateIdError` rather than warning - a deliberately shared
+registry means you're expected to notice and fix a collision, unlike the
+best-effort automatic Zensical case above.

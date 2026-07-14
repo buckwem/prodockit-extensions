@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zendoc"
-version = "0.1.0"
+version = "0.2.0"
 description = "A family of Python-Markdown extensions for section cross-references and bibliography/citation handling, built for use with Zensical"
 readme = "README.md"
 license = "MIT"
