@@ -162,23 +162,53 @@ shared registry means you're expected to notice and fix it.
 
 ## Acronyms and Glossary: one registry, two pages
 
-This template's own convention splits acronym expansions (a short form →
-long form) and glossary entries (a term → its definition) across two
-separate pages, each linking to the other by id:
+A common convention splits acronym expansions (a short form → long form)
+and glossary entries (a term → its definition) across two separate pages.
+`zendoc.glossary` doesn't need to know which page is "acronyms" and which
+is "glossary" - both are just term definitions in the same registry, so a
+`\gls{id}` resolves the same way regardless of which page defines it:
 
 ```md
 <!-- acronyms.md -->
-**CSS** - Cascading Style Sheets. See \gls{css-def} for what this means.
+**CSS** - Cascading Style Sheets.
 {: #css .acronym data-term="CSS" }
 ```
 
 ```md
 <!-- glossary.md -->
-**Cascading Style Sheets** - The language used to control appearance. See \gls{css} for the expansion.
+**Cascading Style Sheets** - The language used to control appearance.
 {: #css-def .glossary data-term="Cascading Style Sheets" }
 ```
 
-`zendoc.glossary` doesn't need to know which page is "acronyms" and which
-is "glossary" - both are just term definitions in the same registry, so
-`\gls{css}` and `\gls{css-def}` both resolve regardless of which page
-they're used from, including from each other.
+### Cross-links between entries: use a plain link, not `\gls{id}`
+
+Linking an acronym entry to its own glossary counterpart (and vice versa)
+is a "see also" cross-reference, not a term insertion - the link text
+needs to say something like "see the glossary", not repeat the term
+itself. `\gls{id}` always inserts the *term's own registered text*, so
+it's the wrong tool here: `\gls{css-def}` renders `Cascading Style
+Sheets`, so `See \gls{css-def} for what this means` would read *"See
+Cascading Style Sheets for what this means"* - it resolves, but loses the
+"go look elsewhere" cue the word "glossary" gives the reader.
+
+Use a plain, hand-typed Markdown link instead, exactly as you would for
+any other page-to-page cross-reference - it's understood natively by both
+outputs, and doesn't need `zendoc.refs`/`zendoc.citations`/`zendoc.glossary`
+at all:
+
+```md
+<!-- acronyms.md -->
+**CSS** - Cascading Style Sheets. See the [glossary](glossary.md#css-def) for what this means in practice.
+{: #css .acronym data-term="CSS" }
+```
+
+```md
+<!-- glossary.md -->
+**Cascading Style Sheets** - The language used to control appearance. See the [Acronyms](acronyms.md#css) entry for the expansion.
+{: #css-def .glossary data-term="Cascading Style Sheets" }
+```
+
+As a rule of thumb: reach for `\gls{id}` when the term's own name belongs
+at that point in the sentence, and a plain link when the link text needs
+to say something else entirely - a "see also", a page name, or any other
+custom wording.
