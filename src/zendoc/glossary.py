@@ -131,9 +131,10 @@ class GlsResolverTreeprocessor(Treeprocessor):
             record = self.registry.get(term_id)
             if record is None:
                 el.text = self.unresolved
-                el.set("class", "zendoc-gls-unresolved")
+                el.set("class", "zendoc-gls zendoc-gls-unresolved")
             else:
                 el.text = record.text
+                el.set("class", "zendoc-gls")
                 el.set("href", cross_page_href(record.source, self.source, term_id))
 
 

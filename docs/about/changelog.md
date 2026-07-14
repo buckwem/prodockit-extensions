@@ -1,5 +1,15 @@
 # Release Notes
 
+## 0.5.1 (2026-07-14)
+
+- `zendoc.glossary`: a resolved `\gls{id}` now always renders with
+  `class="zendoc-gls"` (previously it had no class at all), matching
+  `zendoc.refs`' always-present base class. The unresolved case now
+  renders `class="zendoc-gls zendoc-gls-unresolved"` (previously just
+  `zendoc-gls-unresolved`, missing the base class), so a stylesheet has
+  one stable hook (`.zendoc-gls`) regardless of resolution state, with
+  `.zendoc-gls-unresolved` layered on top only when needed.
+
 ## 0.5.0 (2026-07-14)
 
 - New `zendoc.glossary` extension: define a term once via `attr_list` (an

@@ -34,22 +34,22 @@ def test_term_definition_strips_internal_attribute_but_keeps_id_and_class() -> N
 
 def test_gls_resolves_to_the_terms_own_text() -> None:
     html = _convert(f"{CSS_DEF}\n\nThis template uses \\gls{{css}} to style pages.\n")
-    assert 'This template uses <a href="#css">CSS</a> to style pages.' in html
+    assert 'This template uses <a class="zendoc-gls" href="#css">CSS</a> to style pages.' in html
 
 
 def test_forward_reference_within_same_document_resolves() -> None:
     html = _convert(f"See \\gls{{css}} above.\n\n{CSS_DEF}\n")
-    assert '<a href="#css">CSS</a>' in html
+    assert '<a class="zendoc-gls" href="#css">CSS</a>' in html
 
 
 def test_unknown_id_is_unresolved() -> None:
     html = _convert("See \\gls{does-not-exist}.\n")
-    assert '<a class="zendoc-gls-unresolved">?</a>' in html
+    assert '<a class="zendoc-gls zendoc-gls-unresolved">?</a>' in html
 
 
 def test_unresolved_id_has_no_href() -> None:
     html = _convert("See \\gls{does-not-exist}.\n")
-    assert 'href' not in html[html.index('<a class="zendoc-gls-unresolved">') :].split(">")[0]
+    assert 'href' not in html[html.index('<a class="zendoc-gls zendoc-gls-unresolved">') :].split(">")[0]
 
 
 def test_custom_unresolved_marker() -> None:
@@ -77,7 +77,7 @@ def test_shares_registry_across_explicit_sources() -> None:
     # A different source references this, so the link must be a real
     # cross-page reference (acronyms.md#css), not a bare same-page
     # fragment - a bare "#css" would 404 on the actual multi-page website.
-    assert '<a href="acronyms.md#css">CSS</a>' in html
+    assert '<a class="zendoc-gls" href="acronyms.md#css">CSS</a>' in html
 
 
 def test_duplicate_id_across_explicit_sources_raises() -> None:
@@ -98,11 +98,11 @@ def test_acronyms_and_glossary_share_one_registry() -> None:
     html = _convert(
         "See \\gls{css} and \\gls{css-def}.\n", registry=registry, source="section1.md"
     )
-    assert '<a href="acronyms.md#css">CSS</a>' in html
-    assert '<a href="glossary.md#css-def">Cascading Style Sheets</a>' in html
+    assert '<a class="zendoc-gls" href="acronyms.md#css">CSS</a>' in html
+    assert '<a class="zendoc-gls" href="glossary.md#css-def">Cascading Style Sheets</a>' in html
 
 
 def test_entry_point_name_resolves() -> None:
     md = markdown.Markdown(extensions=["attr_list", "zendoc.glossary"])
     html = md.convert(f"{CSS_DEF}\n\nSee \\gls{{css}}.\n")
-    assert '<a href="#css">CSS</a>' in html
+    assert '<a class="zendoc-gls" href="#css">CSS</a>' in html

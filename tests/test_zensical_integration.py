@@ -264,7 +264,7 @@ def test_cross_page_gls_resolves_under_zensical() -> None:
     )
     # A real cross-page link (acronyms.md#css), not a bare same-page
     # fragment - the latter would 404 on the actual website.
-    assert '<a href="acronyms.md#css">CSS</a>' in html
+    assert '<a class="zendoc-gls" href="acronyms.md#css">CSS</a>' in html
 
 
 def test_gls_forward_reference_resolves_via_nav_preseed(
@@ -287,7 +287,7 @@ def test_gls_forward_reference_resolves_via_nav_preseed(
     html = _convert_as_zensical_page_with_glossary(
         "This uses \\gls{css}.\n", "section1.md"
     )
-    assert '<a href="acronyms.md#css">CSS</a>' in html
+    assert '<a class="zendoc-gls" href="acronyms.md#css">CSS</a>' in html
 
 
 def test_duplicate_glossary_term_across_pages_does_not_crash_the_build() -> None:
