@@ -8,15 +8,7 @@ what you use.
 
 zendoc is built for use with [Zensical](https://zensical.org/) - enable it
 in `zensical.toml` the same way as any other Zensical or `pymdownx`
-extension (see [Installation](installation.md)). It's a standard
-Python-Markdown extension though, with no Zensical-specific dependency, so
-it also works with MkDocs or any other tool built on Python-Markdown.
-
-zendoc was factored out of
-[zendoc-template](https://github.com/buckwem/zendoc-template), a Zensical
-project, so it can be installed and reused independently of that template -
-see [zendoc-template#25](https://github.com/buckwem/zendoc-template/issues/25)
-for the tracking issue and original motivation.
+extension (see [Installation](installation.md)).
 
 ## Extensions
 

@@ -245,15 +245,14 @@ def cross_page_href(record_source: str, current_source: str, id: str) -> str:
     A bare ``#id`` fragment only navigates within the *current* page - on a
     multi-page site, a link to a heading/citation defined on a *different*
     page needs a real relative link to that page, e.g. ``other.md#id``.
-    Both Zensical (``zensical.extensions.links.LinksTreeprocessor``, always
-    present on every page it builds) and plain MkDocs already rewrite a
-    relative ``.md`` link with a fragment into the correct clean URL for
-    the *current* page - the same rewriting a hand-typed
-    ``[text](other.md#id)`` link already gets - so emitting that same
-    relative form here, rather than a bare fragment, is what makes a
-    cross-page reference/citation actually resolve on the built website
-    (not just in a single-document PDF, where every id lives on the same
-    page once every source is concatenated).
+    Zensical (``zensical.extensions.links.LinksTreeprocessor``, always
+    present on every page it builds) already rewrites a relative ``.md``
+    link with a fragment into the correct clean URL for the *current*
+    page - the same rewriting a hand-typed ``[text](other.md#id)`` link
+    already gets - so emitting that same relative form here, rather than a
+    bare fragment, is what makes a cross-page reference/citation actually
+    resolve on the built website (not just in a single-document PDF, where
+    every id lives on the same page once every source is concatenated).
 
     `record_source`/`current_source` are both docs-dir-relative paths (e.g.
     ``"references.md"``, ``"starthere/customise.md"``) - a relative link

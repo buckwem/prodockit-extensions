@@ -16,9 +16,7 @@ Built for use with Zensical (https://zensical.org/) - enable an extension in
 `zensical.toml` the same way as a built-in or pymdownx one. Zensical's
 per-page rendering context is detected automatically where it's useful (see
 zendoc.headings'/zendoc.citations'/zendoc.glossary's cross-page registry
-sharing), but each extension is a standard Python-Markdown extension
-underneath, so it also works with MkDocs or any other Python-Markdown-based
-tool.
+sharing).
 
 See https://buckwem.github.io/zendoc-extension/ for documentation.
 """

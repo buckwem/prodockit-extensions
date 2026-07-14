@@ -12,7 +12,7 @@ authors = [
   { name = "Mark Buckwell" },
 ]
 requires-python = ">=3.10"
-keywords = ["markdown", "python-markdown", "zensical", "mkdocs", "extension"]
+keywords = ["markdown", "python-markdown", "zensical", "extension"]
 dependencies = [
   "Markdown>=3.4",
   "zensical",

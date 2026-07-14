@@ -23,8 +23,8 @@ Git is a tool used to manage version control.\cite{skou2023}
 renders as `Git is a tool used to manage version control.[Skoulikari,
 2023]`, with `[Skoulikari, 2023]` linked directly to the source's own page
 (e.g. `references.md#skou2023`, or `#skou2023` if cited from that same
-page) - both Zensical and MkDocs rewrite that into the correct clean URL
-for the citing page's own location, the same way a hand-typed
+page) - Zensical rewrites that into the correct clean URL for the citing
+page's own location, the same way a hand-typed
 `[text](references.md#skou2023)` link already gets rewritten. Unlike
 hand-typing that link yourself, you never have to work out the relative
 path to the references page, retype the display text, or fix every

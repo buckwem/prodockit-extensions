@@ -17,14 +17,14 @@ id and its display text via
 then insert it from anywhere with `\gls{css}`:
 
 ```md
-This template uses \gls{css} to control appearance.
+This site uses \gls{css} to control appearance.
 ```
 
-renders as `This template uses CSS to control appearance.`, with `CSS`
+renders as `This site uses CSS to control appearance.`, with `CSS`
 linked directly to the term's own page (e.g. `acronyms.md#css`, or `#css`
-if used from that same page) - both Zensical and MkDocs rewrite that into
-the correct clean URL for the citing page's own location, the same way a
-hand-typed `[CSS](acronyms.md#css)` link already gets rewritten.
+if used from that same page) - Zensical rewrites that into the correct
+clean URL for the citing page's own location, the same way a hand-typed
+`[CSS](acronyms.md#css)` link already gets rewritten.
 
 **Unlike [zendoc.citations](citations.md)'s `\cite{id}`**, which *generates*
 new bracketed citation text (`\cite{id}` → `[Skoulikari, 2023]`), `\gls{id}`

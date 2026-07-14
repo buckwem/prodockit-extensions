@@ -5,16 +5,10 @@ for section cross-references and bibliography/citation handling, in the
 spirit of [pymdown-extensions](https://facelessuser.github.io/pymdown-extensions/):
 each extension is independent and enabled separately. Built for use with
 [Zensical](https://zensical.org/) - configure it the same way as any other
-Zensical/`pymdownx` Markdown extension, via `zensical.toml` - but since it's
-a standard Python-Markdown extension, it works with any tool built on
-Python-Markdown (MkDocs, etc.). Factored out of
-[zendoc-template](https://github.com/buckwem/zendoc-template), a Zensical
-project, so it can be installed and reused independently of that template.
+Zensical/`pymdownx` Markdown extension, via `zensical.toml`.
 
 > **Status:** early, but functional - `zendoc.headings`, `zendoc.refs`,
-> `zendoc.citations`, and `zendoc.glossary` are implemented and tested. See
-> [zendoc-template#25](https://github.com/buckwem/zendoc-template/issues/25)
-> for the tracking issue and scope.
+> `zendoc.citations`, and `zendoc.glossary` are implemented and tested.
 
 **[Full documentation](https://buckwem.github.io/zendoc-extension/)**
 

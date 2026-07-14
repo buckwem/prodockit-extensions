@@ -25,7 +25,7 @@
 
 ## 0.4.0 (2026-07-14)
 
-Fixes found migrating zendoc-template's own `references.md` to
+Fixes found migrating a real multi-page site's references page to
 `zendoc.citations` for real - all discovered by actually building a
 real multi-page site, not just single-document tests:
 
@@ -36,8 +36,8 @@ real multi-page site, not just single-document tests:
   only navigates within the *current* page). Both now emit a real relative
   link (e.g. `references.md#id`, correctly adjusted for the citing page's
   own directory depth) when the target is on a different page, which
-  Zensical and MkDocs already know how to rewrite into the right clean URL
-  - the same way a hand-typed cross-page Markdown link already works.
+  Zensical already knows how to rewrite into the right clean URL - the
+  same way a hand-typed cross-page Markdown link already works.
 - New: `zendoc.citations` pre-scans every page in a Zensical build's nav
   for citation definitions before any page is actually converted, so citing
   a source *before* it's defined - the common case, since a references page
@@ -47,11 +47,10 @@ real multi-page site, not just single-document tests:
   backs this; a real registration always supersedes a preseeded stub.
 - `RefsExtension` gained a `source` option (mirroring `HeadingsExtension`'s),
   needed for the same-page-vs-cross-page link decision above.
-- Fixed the nav pre-scan (and, in zendoc-template, its `build_pdf.py`-side
-  equivalent) matching a citation-definition attr_list example shown
-  literally inside a fenced code block in documentation - it now skips
-  fenced content, the same protection `CitationDefTreeprocessor` already
-  gets for free from the real Python-Markdown parser.
+- Fixed the nav pre-scan matching a citation-definition attr_list example
+  shown literally inside a fenced code block in documentation - it now
+  skips fenced content, the same protection `CitationDefTreeprocessor`
+  already gets for free from the real Python-Markdown parser.
 
 ## 0.3.0 (2026-07-14)
 
@@ -71,8 +70,7 @@ real multi-page site, not just single-document tests:
   `[project.markdown_extensions.zendoc.headings]` tables don't work
   (Zensical only hoists the `pymdownx`/`zensical` namespaces that way) -
   the quoted-key form (`[project.markdown_extensions."zendoc.headings"]`)
-  is required, as zendoc-template's own `zensical.toml` already used
-  correctly.
+  is required.
 
 ## 0.2.0 (2026-07-14)
 
@@ -80,7 +78,7 @@ real multi-page site, not just single-document tests:
   under Zensical, without any explicit `registry`/`source` configuration:
   each extension detects Zensical's per-page rendering context and derives
   a stable `source` from the page's own path, fixing cross-page `\ref{id}`
-  references not resolving (zendoc-template#85).
+  references not resolving.
 - A heading id collision across two different sources, when detected via
   this automatic Zensical sharing, now logs a warning and keeps the first
   registration instead of raising `DuplicateIdError` - so two unrelated

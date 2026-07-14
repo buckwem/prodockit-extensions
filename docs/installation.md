@@ -38,19 +38,6 @@ a quoted key instead:
 [project.markdown_extensions."zendoc.glossary"]
 ```
 
-zendoc's own auto-detection of Zensical's per-page context (see each
-extension's own page) is what actually needs Zensical present at runtime -
-the extensions themselves are standard Python-Markdown extensions, so the
-same names work in an `mkdocs.yml`-style config too:
-
-```yaml
-markdown_extensions:
-  - zendoc.headings
-  - zendoc.refs
-  - zendoc.citations
-  - zendoc.glossary
-```
-
 See each extension's own page for its options and for how to share a
 registry across multiple pages of a site build:
 

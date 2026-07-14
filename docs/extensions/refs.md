@@ -19,9 +19,9 @@ never have to manually renumber a cross-reference.
 
 Referencing a heading defined on a *different* page (see
 [Multi-page builds](#multi-page-builds) below) links to that page directly
-(e.g. `other.md#intro`, which both Zensical and MkDocs rewrite into the
-correct clean URL) rather than a bare `#intro` fragment, which would only
-work if the target happened to be on the same page.
+(e.g. `other.md#intro`, which Zensical rewrites into the correct clean URL)
+rather than a bare `#intro` fragment, which would only work if the target
+happened to be on the same page.
 
 `zendoc.refs` depends on the id/number registry that
 [zendoc.headings](headings.md) builds. If you enable `zendoc.refs` on its
