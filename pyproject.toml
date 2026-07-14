@@ -15,6 +15,7 @@ requires-python = ">=3.10"
 keywords = ["markdown", "python-markdown", "zensical", "mkdocs", "extension"]
 dependencies = [
   "Markdown>=3.4",
+  "zensical",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -40,9 +41,6 @@ dev = [
   "types-Markdown",
   "pytest",
   "pytest-cov",
-]
-docs = [
-  "zensical",
 ]
 
 [tool.hatch.build.targets.wheel]

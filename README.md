@@ -58,12 +58,9 @@ pip install -e ".[dev]"
 pytest
 ```
 
-To build the documentation locally:
-
-```bash
-pip install -e ".[docs]"
-zensical serve
-```
+`zensical` is a core dependency, so `zensical serve` is available as soon as
+`zendoc` is installed - no extra step needed to build the documentation
+locally.
 
 ## License
 

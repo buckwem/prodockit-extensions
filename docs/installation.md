@@ -6,8 +6,8 @@
 pip install zendoc
 ```
 
-`zendoc` depends only on [`Markdown`](https://python-markdown.github.io/)
-(>= 3.4) - no other runtime dependencies.
+`zendoc` depends on [`Markdown`](https://python-markdown.github.io/)
+(>= 3.4) and [`zensical`](https://zensical.org/).
 
 ## Enabling an extension
 
@@ -56,9 +56,6 @@ pip install -e ".[dev]"
 pytest
 ```
 
-To build these docs locally:
-
-```bash
-pip install -e ".[docs]"
-zensical serve
-```
+`zensical` is a core dependency, so `zensical serve` is available as soon as
+`pip install -e ".[dev]"` finishes - no extra step needed to build these
+docs locally.
