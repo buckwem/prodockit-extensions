@@ -103,6 +103,104 @@ def test_non_zensical_use_is_unaffected() -> None:
     assert '<a class="zendoc-ref zendoc-ref-unresolved">??</a>' in html
 
 
+def test_default_numbering_is_still_per_document_under_zensical() -> None:
+    """Zensical auto-detection alone must not switch numbering to
+    "continuous" - that's an explicit opt-in (see zendoc-template#89), not a
+    side effect of running under Zensical."""
+    _convert_as_zensical_page("# One\n", "page1.md")
+    _convert_as_zensical_page("# Two\n", "page2.md")
+    registry = zendoc_headings._ZENSICAL_SHARED_REGISTRY
+    assert registry.get("one").number == "1"  # type: ignore[union-attr]
+    assert registry.get("two").number == "1"  # type: ignore[union-attr]
+
+
+def _convert_as_zensical_page_with_continuous_headings(text: str, path: str) -> str:
+    md = markdown.Markdown(
+        extensions=[
+            ContextExtension(page=Page(url=path, path=path), config={}),
+            zendoc_headings.HeadingsExtension(numbering="continuous"),
+        ]
+    )
+    return md.convert(text)
+
+
+def test_continuous_numbering_seeds_from_earlier_nav_pages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "page1.md").write_text("# One\n\n## Sub\n", encoding="utf-8")
+    (docs_dir / "page2.md").write_text("# Two\n", encoding="utf-8")
+    monkeypatch.setattr(
+        zendoc_zensical, "nav_pages", lambda: (str(docs_dir), ["page1.md", "page2.md"])
+    )
+    _convert_as_zensical_page_with_continuous_headings("# One\n\n## Sub\n", "page1.md")
+    _convert_as_zensical_page_with_continuous_headings("# Two\n", "page2.md")
+    registry = zendoc_headings._ZENSICAL_SHARED_REGISTRY
+    assert registry.get("one").number == "1"  # type: ignore[union-attr]
+    assert registry.get("sub").number == "1.1"  # type: ignore[union-attr]
+    assert registry.get("two").number == "2"  # type: ignore[union-attr]
+
+
+def test_continuous_numbering_letters_appendix_pages_without_consuming_a_number(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "page1.md").write_text("# One\n", encoding="utf-8")
+    (docs_dir / "appendix.md").write_text(
+        "---\nis_appendix: true\n---\n\n# App Heading\n\n## Sub\n", encoding="utf-8"
+    )
+    (docs_dir / "page2.md").write_text("# Two\n", encoding="utf-8")
+    monkeypatch.setattr(
+        zendoc_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["page1.md", "appendix.md", "page2.md"]),
+    )
+    _convert_as_zensical_page_with_continuous_headings("# One\n", "page1.md")
+    _convert_as_zensical_page_with_continuous_headings(
+        "# App Heading\n\n## Sub\n", "appendix.md"
+    )
+    _convert_as_zensical_page_with_continuous_headings("# Two\n", "page2.md")
+    registry = zendoc_headings._ZENSICAL_SHARED_REGISTRY
+    assert registry.get("one").number == "1"  # type: ignore[union-attr]
+    assert registry.get("app-heading").number == "A"  # type: ignore[union-attr]
+    assert registry.get("sub").number == "A.1"  # type: ignore[union-attr]
+    # page2 continues the numeric sequence as if the appendix page never
+    # consumed a number from it - "2", not "3".
+    assert registry.get("two").number == "2"  # type: ignore[union-attr]
+
+
+def test_ref_to_a_continuously_numbered_heading_on_another_page_shows_the_right_number(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The bug zendoc-template#89 documents: \\ref{} must show the number
+    actually displayed on the target page (continuing across earlier pages),
+    not a per-document number that resets to 1 on every page."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "page1.md").write_text("# One\n", encoding="utf-8")
+    (docs_dir / "page2.md").write_text("# Two\n", encoding="utf-8")
+    monkeypatch.setattr(
+        zendoc_zensical, "nav_pages", lambda: (str(docs_dir), ["page1.md", "page2.md"])
+    )
+
+    def _convert(text: str, path: str) -> str:
+        md = markdown.Markdown(
+            extensions=[
+                ContextExtension(page=Page(url=path, path=path), config={}),
+                zendoc_headings.HeadingsExtension(numbering="continuous"),
+                "zendoc.refs",
+            ]
+        )
+        return md.convert(text)
+
+    _convert("# One\n", "page1.md")
+    _convert("# Two\n", "page2.md")
+    html = _convert("See \\ref{two}.\n", "page3.md")
+    assert '<a class="zendoc-ref" href="page2.md#two">2</a>' in html
+
+
 def _convert_as_zensical_page_with_citations(text: str, path: str) -> str:
     md = markdown.Markdown(
         extensions=[

@@ -16,7 +16,7 @@ from markdown.extensions import Extension
 from markdown.extensions.toc import TocExtension
 from markdown.treeprocessors import Treeprocessor
 
-from zendoc._zensical import page_source, share
+from zendoc._zensical import page_source, prescan_headings, share
 from zendoc.util import IdRegistry
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
@@ -46,13 +46,21 @@ class HeadingsTreeprocessor(Treeprocessor):
     in a shared :class:`IdRegistry`, keyed by the current document's source
     name.
 
-    Numbering is per-document: h1 is a top-level counter, h2 nests under the
-    nearest preceding h1 ("1.1", "1.2", ...), and so on through h6 - reset
-    from scratch on every call, so reordering headings within a document
-    always produces correct numbers on the next build. A heading with an
-    ``unnumbered`` class (e.g. via ``# Title {: .unnumbered }``) is still
-    given an id but excluded from numbering - its counter position is
-    skipped entirely - so its registered ``number`` is ``None``.
+    Numbering is per-document by default: h1 is a top-level counter, h2
+    nests under the nearest preceding h1 ("1.1", "1.2", ...), and so on
+    through h6 - reset from scratch on every call, so reordering headings
+    within a document always produces correct numbers on the next build. A
+    heading with an ``unnumbered`` class (e.g. via ``# Title {: .unnumbered
+    }``) is still given an id but excluded from numbering - its counter
+    position is skipped entirely - so its registered ``number`` is ``None``.
+
+    With ``start_count`` set (see ``HeadingsExtension``'s ``numbering``
+    config), h1 numbering continues from that value instead of starting at
+    0, so numbering can continue seamlessly across pages. With
+    ``appendix_letter`` set, h1 (and everything nested beneath it) is
+    numbered using that letter instead of a digit - "A", "A.1", "A.1.1" -
+    and ``start_count`` is ignored, since a lettered page doesn't consume a
+    number from the numeric sequence at all.
 
     Runs at a lower priority than 'toc' (registered at 5) so it always reads
     the final id 'toc' assigned - including one already set explicitly via
@@ -60,16 +68,24 @@ class HeadingsTreeprocessor(Treeprocessor):
     """
 
     def __init__(
-        self, md: Markdown, registry: IdRegistry, source: str, strict: bool = True
+        self,
+        md: Markdown,
+        registry: IdRegistry,
+        source: str,
+        strict: bool = True,
+        start_count: int = 0,
+        appendix_letter: str | None = None,
     ) -> None:
         super().__init__(md)
         self.registry = registry
         self.source = source
         self.strict = strict
+        self.start_count = start_count
+        self.appendix_letter = appendix_letter
 
     def run(self, root: etree.Element) -> None:
         self.registry.clear_source(self.source)
-        counters = [0] * 6
+        counters = [self.start_count, 0, 0, 0, 0, 0]
         for el in root.iter():
             if el.tag not in HEADING_TAGS:
                 continue
@@ -87,7 +103,10 @@ class HeadingsTreeprocessor(Treeprocessor):
                 counters[level - 1] += 1
                 for deeper in range(level, 6):
                     counters[deeper] = 0
-                number = ".".join(str(c) for c in counters[:level])
+                first = (
+                    self.appendix_letter if self.appendix_letter is not None else str(counters[0])
+                )
+                number = ".".join([first] + [str(c) for c in counters[1:level]])
 
             self.registry.register(
                 source=self.source,
@@ -118,6 +137,22 @@ class HeadingsExtension(Extension):
                 "Identifier for the current document (e.g. its path), used "
                 "to scope this document's own entries in the registry.",
             ],
+            "numbering": [
+                "per-document",
+                "Either \"per-document\" (default - every document's h1 "
+                "starts at 1) or \"continuous\" (h1 numbering continues "
+                "across pages in Zensical nav order, and a page whose "
+                "front matter sets `appendix_attr` gets letter-based "
+                "numbering - \"A\", \"A.1\" - instead of continuing the "
+                "numeric sequence, and doesn't consume a number from it). "
+                "Only meaningful under Zensical, where nav order is known; "
+                "ignored otherwise.",
+            ],
+            "appendix_attr": [
+                "is_appendix",
+                "Front matter flag name marking a page for letter-based "
+                "appendix numbering when numbering=\"continuous\".",
+            ],
         }
         super().__init__(**kwargs)
 
@@ -144,11 +179,44 @@ class HeadingsExtension(Extension):
                 strict = False
         registry = share(md, "zendoc_registry", registry)
         self.registry = registry
+
+        start_count = 0
+        appendix_letter = None
+        if self.getConfig("numbering") == "continuous":
+            prescan = prescan_headings(self.getConfig("appendix_attr"))
+            if prescan is not None:
+                start_counts, appendix_letters = prescan
+                start_count = start_counts.get(source, 0)
+                appendix_letter = appendix_letters.get(source)
+
         md.treeprocessors.register(
-            HeadingsTreeprocessor(md, registry, source, strict=strict),
+            HeadingsTreeprocessor(
+                md,
+                registry,
+                source,
+                strict=strict,
+                start_count=start_count,
+                appendix_letter=appendix_letter,
+            ),
             "zendoc-headings",
             4,
         )
+
+
+def prescan(appendix_attr: str = "is_appendix") -> tuple[dict[str, int], dict[str, str]] | None:
+    """Public wrapper around the internal Zensical nav pre-scan
+    ``HeadingsExtension`` itself uses for ``numbering="continuous"`` mode -
+    for a consuming project's own build tooling (e.g. a template's macro
+    that emits a CSS counter-reset override matching the numbers this
+    extension computes) to look up the exact same start-count/appendix-
+    letter values, so the two stay in sync automatically instead of
+    re-deriving them a second, independent way.
+
+    Returns ``(start_counts, appendix_letters)``, both keyed by nav-relative
+    page path - see ``zendoc._zensical.prescan_headings`` for the full
+    description. Returns None outside a Zensical build.
+    """
+    return prescan_headings(appendix_attr)
 
 
 def makeExtension(**kwargs: object) -> HeadingsExtension:

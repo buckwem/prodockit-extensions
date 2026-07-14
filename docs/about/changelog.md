@@ -1,5 +1,25 @@
 # Release Notes
 
+## 0.6.0 (2026-07-14)
+
+- `zendoc.headings`: new `numbering="continuous"` option (Zensical only) -
+  `h1` numbering carries on from wherever the previous nav page left off,
+  instead of restarting at 1 on every page. Fixes `\ref{id}` showing the
+  wrong number for a heading on a different page (it previously always
+  showed that page's own per-document number, not the number actually
+  displayed on the page - see zendoc-template#89).
+- New `appendix_attr` option (default `is_appendix`): a page whose front
+  matter sets this flag is numbered with a letter instead - "A", "A.1",
+  "A.1.1" - and doesn't consume a number from the numeric sequence, so
+  later pages aren't left with a gap. Letters are assigned sequentially in
+  nav order.
+- New public `zendoc.headings.prescan(appendix_attr="is_appendix")`
+  function: returns the same `(start_counts, appendix_letters)` pre-scan
+  `HeadingsExtension` uses internally, for a consuming project's own build
+  tooling (e.g. a template macro driving a presentational CSS
+  counter-reset) to stay in sync automatically rather than re-deriving the
+  same page-order/heading-count logic independently.
+
 ## 0.5.1 (2026-07-14)
 
 - `zendoc.glossary`: a resolved `\gls{id}` now always renders with

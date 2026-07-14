@@ -1,10 +1,13 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
+from pathlib import Path
+
 import markdown
 import pytest
 
-from zendoc.headings import HeadingsExtension
+import zendoc._zensical as zendoc_zensical
+from zendoc.headings import HeadingsExtension, prescan
 from zendoc.util import DuplicateIdError, IdRegistry
 
 
@@ -102,3 +105,33 @@ def test_entry_point_name_resolves() -> None:
     assert md.convert("# Introduction\n") == (
         '<h1 id="introduction">Introduction</h1>'
     )
+
+
+def test_prescan_wrapper_delegates_to_the_internal_nav_prescan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """zendoc.headings.prescan() is the public seam a consuming project's
+    own build tooling (e.g. a template macro emitting a matching CSS
+    counter-reset override) uses to look up the same start-counts/appendix-
+    letters HeadingsExtension itself computes for numbering="continuous"."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "page1.md").write_text("# One\n", encoding="utf-8")
+    (docs_dir / "appendix.md").write_text(
+        "---\nis_appendix: true\n---\n\n# Appendix\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        zendoc_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["page1.md", "appendix.md"]),
+    )
+    start_counts, appendix_letters = prescan()  # type: ignore[misc]
+    assert start_counts == {"page1.md": 0}
+    assert appendix_letters == {"appendix.md": "A"}
+
+
+def test_prescan_wrapper_returns_none_outside_zensical(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(zendoc_zensical, "nav_pages", lambda: None)
+    assert prescan() is None

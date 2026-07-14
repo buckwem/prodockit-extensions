@@ -133,6 +133,89 @@ def _strip_fences(text: str) -> str:
     return _FENCE_RE.sub("", text)
 
 
+def _front_matter_flag(text: str, key: str) -> bool:
+    """True if raw file text's YAML front matter sets ``key: true``. Used by
+    prescan_headings() to detect an appendix-flagged page ahead of that page
+    actually being converted."""
+    if not text.startswith("---"):
+        return False
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return False
+    return bool(
+        re.search(rf"^{re.escape(key)}:\s*true\s*$", parts[1], re.MULTILINE | re.IGNORECASE)
+    )
+
+
+def _count_top_level_headings(text: str) -> int:
+    """Counts top-level (single ``#``) ATX headings in raw markdown text,
+    skipping fenced code blocks, HTML comments, and headings tagged
+    ``{.unnumbered}`` - used by prescan_headings() to work out how many
+    numbered h1s appear on a page before any page has actually been
+    converted. Line-based rather than a single regex (unlike _strip_fences()
+    above) since it also needs to track HTML comments, not just fences, in
+    one pass."""
+    count = 0
+    in_fence = False
+    in_comment = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not in_comment and (stripped.startswith("```") or stripped.startswith("~~~")):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if not in_comment and "<!--" in stripped:
+            in_comment = True
+        if in_comment:
+            if "-->" in stripped:
+                in_comment = False
+            continue
+        if re.match(r"^#\s+\S", line) and ".unnumbered" not in line:
+            count += 1
+    return count
+
+
+def prescan_headings(appendix_attr: str) -> tuple[dict[str, int], dict[str, str]] | None:
+    """Returns ``(start_counts, appendix_letters)``, both keyed by
+    nav-relative page path, by pre-scanning every page in the current
+    Zensical build's nav - the same "before any page has actually been
+    converted" pre-scan preseed_attr_from_nav does for citation/glossary
+    definitions, applied to heading counts instead.
+
+    ``start_counts[page]`` is how many numbered h1s appear on every earlier
+    nav page, for zendoc.headings' "continuous" numbering mode to seed this
+    page's own h1 counter with - so numbering continues seamlessly from one
+    page to the next instead of resetting per page. A page whose front
+    matter sets `appendix_attr` is skipped entirely for this count (it
+    doesn't consume a number from the sequence) and instead gets a
+    sequential letter in ``appendix_letters`` - "A" for the first such page
+    in nav order, "B" for the second, and so on.
+
+    Returns None outside a Zensical build (mirrors nav_pages()).
+    """
+    located = nav_pages()
+    if located is None:
+        return None
+    docs_dir, pages = located
+    start_counts: dict[str, int] = {}
+    appendix_letters: dict[str, str] = {}
+    running_total = 0
+    next_letter_index = 0
+    for rel_path in pages:
+        try:
+            text = (Path(docs_dir) / rel_path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if _front_matter_flag(text, appendix_attr):
+            next_letter_index += 1
+            appendix_letters[rel_path] = chr(ord("A") + next_letter_index - 1)
+            continue
+        start_counts[rel_path] = running_total
+        running_total += _count_top_level_headings(text)
+    return start_counts, appendix_letters
+
+
 def preseed_attr_from_nav(registry: _Preseedable, attr_name: str) -> None:
     """Pre-scans every page in the current Zensical build's nav for a
     ``{: #id <attr_name>="..." }`` attr_list definition, provisionally

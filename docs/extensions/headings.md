@@ -11,11 +11,14 @@ It exists to be a foundation other zendoc extensions build on:
 this registry. You can also enable `zendoc.headings` on its own if you just
 want ids/numbers on your headings without cross-references.
 
-Numbering is per-document and hierarchical: an `h1` is a top-level counter
-("1", "2", ...), an `h2` nests under the nearest preceding `h1` ("1.1",
-"1.2", ...), and so on down through `h6`. Numbers are recomputed from
-scratch on every conversion, so reordering headings always produces correct
-numbers on the next build - there's no stored/stale numbering state.
+Numbering is hierarchical and, by default, per-document: an `h1` is a
+top-level counter ("1", "2", ...), an `h2` nests under the nearest preceding
+`h1` ("1.1", "1.2", ...), and so on down through `h6`. Numbers are
+recomputed from scratch on every conversion, so reordering headings always
+produces correct numbers on the next build - there's no stored/stale
+numbering state. Under Zensical, `h1` numbering can instead continue across
+pages in nav order - see [Continuous numbering across pages](#continuous-numbering-across-pages)
+below.
 
 ## Example
 
@@ -77,6 +80,8 @@ there at all.
 |---|---|---|---|
 | `source` | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's entries in the registry, and to safely clear/replace them on a rebuild of the same document. |
 | `registry` | `IdRegistry \| None` | a new `IdRegistry()` | Share one registry across multiple documents/conversions - see below. Passed as a constructor keyword, not a string-based config value (Python-Markdown's config system can't carry arbitrary Python objects safely). |
+| `numbering` | `"per-document" \| "continuous"` | `"per-document"` | `"continuous"` makes `h1` numbering carry on across pages in Zensical nav order, instead of restarting at 1 on every page - see below. Only meaningful under Zensical; ignored otherwise. |
+| `appendix_attr` | `str` | `"is_appendix"` | Front matter flag name marking a page for letter-based numbering ("A", "A.1", ...) instead of the normal numeric sequence, when `numbering="continuous"`. |
 
 ## Sharing a registry across a multi-page build
 
@@ -116,3 +121,52 @@ cleared first. (Zensical's automatic sharing above uses the same registry,
 but logs a warning and keeps the first registration instead of raising -
 appropriate for a best-effort default rather than a setup you configured
 deliberately.)
+
+## Continuous numbering across pages
+
+By default, numbering is per-document: every page's own `h1` starts back at
+1, regardless of what came before it in a multi-page build. Set
+`numbering="continuous"` (under Zensical only - see above) to make `h1`
+numbering carry on from wherever the previous nav page left off instead -
+e.g. if page one ends with `h1` number `"3"`, page two's first `h1` becomes
+`"4"`, not `"1"` again. This is what makes a `\ref{id}` link to a heading on
+a *different* page (see [zendoc.refs](refs.md)) show the same number that's
+actually displayed on that page.
+
+A page whose front matter sets the flag named by `appendix_attr` (default
+`is_appendix`) is numbered with a letter instead - `"A"`, `"A.1"`,
+`"A.1.1"` - and doesn't consume a number from the numeric sequence at all,
+so pages after it aren't left with a gap:
+
+```md
+---
+is_appendix: true
+---
+
+# Glossary
+```
+
+Letters are assigned sequentially in nav order - the first `is_appendix`
+page becomes `"A"`, the second `"B"`, and so on, independent of how many
+numbered pages come before them.
+
+### Looking up the same numbers from your own build tooling
+
+`zendoc.headings.prescan(appendix_attr="is_appendix")` returns
+`(start_counts, appendix_letters)` - both `dict[str, ...]` keyed by
+nav-relative page path - the exact same pre-scan `HeadingsExtension` itself
+uses internally for `numbering="continuous"`. A consuming project's own
+build tooling can call this directly to stay in sync automatically, rather
+than re-deriving the same page-order/heading-count logic a second,
+independent way - e.g. a template macro that emits a presentational CSS
+counter-reset per page, matching whatever number `zendoc.headings` computes
+for that page's first heading. Returns `None` outside a Zensical build.
+
+## CSS hooks
+
+`zendoc.headings` doesn't add any class of its own to a heading - only an
+`id` (see above), the class(es) already on the heading (e.g. `unnumbered`),
+and whatever the numbers themselves feed into via the registry (typically
+consumed by [zendoc.refs](refs.md), or by a template's own build tooling via
+`prescan()` above to drive presentational CSS). There is currently no
+`zendoc-heading`-style class to hook a stylesheet onto directly.
