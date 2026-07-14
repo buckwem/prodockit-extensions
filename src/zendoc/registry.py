@@ -5,9 +5,10 @@
 
 A single :class:`IdRegistry` instance is meant to be shared across every
 source document in a build (one :class:`~zendoc.extension.ZendocExtension`
-call per document), so that a later cross-reference/citation feature can
-resolve an id to the document and heading that defines it, regardless of
-which document is currently being converted.
+call per document), so that the ``\ref{id}`` cross-reference syntax (and a
+future citation feature) can resolve an id to the document, heading, and
+current section number that defines it, regardless of which document is
+currently being converted.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ class HeadingRecord:
     id: str
     level: int
     text: str
+    number: str | None = None
 
 
 class DuplicateIdError(ValueError):
@@ -31,14 +33,18 @@ class IdRegistry:
     def __init__(self) -> None:
         self._headings: dict[str, HeadingRecord] = {}
 
-    def register(self, source: str, id: str, level: int, text: str) -> None:
+    def register(
+        self, source: str, id: str, level: int, text: str, number: str | None = None
+    ) -> None:
         existing = self._headings.get(id)
         if existing is not None and existing.source != source:
             raise DuplicateIdError(
                 f"heading id {id!r} is already registered from "
                 f"{existing.source!r}; cannot also register it from {source!r}"
             )
-        self._headings[id] = HeadingRecord(source=source, id=id, level=level, text=text)
+        self._headings[id] = HeadingRecord(
+            source=source, id=id, level=level, text=text, number=number
+        )
 
     def get(self, id: str) -> HeadingRecord | None:
         return self._headings.get(id)

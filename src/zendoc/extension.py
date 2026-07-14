@@ -3,12 +3,12 @@
 
 """Python-Markdown extension entry point for zendoc.
 
-Currently provides the id/anchor registry only (see zendoc-template#25):
-every heading is given an id and recorded in a shared IdRegistry keyed by
-`source`, so a later cross-reference/citation feature can resolve an id to
-the document that defines it. The cross-reference and citation syntax itself
-will be added as further Preprocessor/Treeprocessor/Postprocessor subclasses
-registered here.
+Provides the id/anchor registry (see zendoc-template#25): every heading is
+given an id and hierarchical section number, recorded in a shared
+IdRegistry keyed by `source`; and the ``\\ref{id}`` cross-reference syntax
+built on top of it, which resolves to the referenced heading's current
+section number - similar in spirit to LaTeX's ``\\ref``. A future citation
+feature will build on the same registry.
 """
 
 from __future__ import annotations
@@ -17,8 +17,9 @@ from markdown import Markdown
 from markdown.extensions import Extension
 from markdown.extensions.toc import TocExtension
 
+from zendoc.inlinepatterns import REF_RE, RefInlineProcessor
 from zendoc.registry import IdRegistry
-from zendoc.treeprocessors import RegistryTreeprocessor
+from zendoc.treeprocessors import RefResolverTreeprocessor, RegistryTreeprocessor
 
 
 class ZendocExtension(Extension):
@@ -36,6 +37,12 @@ class ZendocExtension(Extension):
                 "Identifier for the current document (e.g. its path), used "
                 "to scope this document's own entries in the registry.",
             ],
+            "unresolved": [
+                "??",
+                "Text rendered by \\ref{id} when id doesn't resolve to a "
+                "numbered heading - unknown id, or a heading marked "
+                "unnumbered.",
+            ],
         }
         super().__init__(**kwargs)
 
@@ -49,10 +56,21 @@ class ZendocExtension(Extension):
             TocExtension().extendMarkdown(md)
         registry: IdRegistry = self.getConfig("registry")
         source: str = self.getConfig("source")
+        unresolved: str = self.getConfig("unresolved")
         md.treeprocessors.register(
             RegistryTreeprocessor(md, registry, source),
             "zendoc-registry",
             4,
+        )
+        md.inlinePatterns.register(
+            RefInlineProcessor(REF_RE, md),
+            "zendoc-ref",
+            45,
+        )
+        md.treeprocessors.register(
+            RefResolverTreeprocessor(md, registry, unresolved),
+            "zendoc-ref-resolver",
+            2,
         )
 
 
