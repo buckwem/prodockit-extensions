@@ -20,6 +20,6 @@ works with MkDocs or any other Python-Markdown-based tool.
 See https://buckwem.github.io/zendoc-extension/ for documentation.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = ["__version__"]

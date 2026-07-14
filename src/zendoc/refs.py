@@ -17,9 +17,9 @@ from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
 from markdown.treeprocessors import Treeprocessor
 
-from zendoc._zensical import share
+from zendoc._zensical import page_source, share
 from zendoc.headings import HeadingsExtension
-from zendoc.util import IdRegistry
+from zendoc.util import IdRegistry, cross_page_href
 
 REF_RE = r"\\ref\{([^}\s]+)\}"
 
@@ -65,9 +65,12 @@ class RefResolverTreeprocessor(Treeprocessor):
     undefined LaTeX \\ref shows "??" until a later compilation pass.
     """
 
-    def __init__(self, md: Markdown, registry: IdRegistry, unresolved: str = "??") -> None:
+    def __init__(
+        self, md: Markdown, registry: IdRegistry, source: str, unresolved: str = "??"
+    ) -> None:
         super().__init__(md)
         self.registry = registry
+        self.source = source
         self.unresolved = unresolved
 
     def run(self, root: etree.Element) -> None:
@@ -83,10 +86,10 @@ class RefResolverTreeprocessor(Treeprocessor):
                 if record is not None:
                     # Known heading, just unnumbered (e.g. {: .unnumbered }) -
                     # still a valid link target, unlike a genuinely unknown id.
-                    el.set("href", f"#{ref_id}")
+                    el.set("href", cross_page_href(record.source, self.source, ref_id))
             else:
                 el.text = record.number
-                el.set("href", f"#{ref_id}")
+                el.set("href", cross_page_href(record.source, self.source, ref_id))
 
 
 class RefsExtension(Extension):
@@ -101,6 +104,12 @@ class RefsExtension(Extension):
         registry = kwargs.pop("registry", None)
         self.registry: IdRegistry | None = registry if isinstance(registry, IdRegistry) else None
         self.config = {
+            "source": [
+                "",
+                "Identifier for the current document (e.g. its path), used "
+                "to build a correct link when a \\ref{id} target lives on a "
+                "different page. Auto-detected under Zensical if not set.",
+            ],
             "unresolved": [
                 "??",
                 "Text rendered by \\ref{id} when id doesn't resolve to a "
@@ -131,6 +140,7 @@ class RefsExtension(Extension):
                     headings_ext.extendMarkdown(md)
                 registry = headings_ext.registry
         registry = share(md, "zendoc_registry", registry)
+        source: str = self.getConfig("source") or page_source(md) or ""
         unresolved: str = self.getConfig("unresolved")
         md.inlinePatterns.register(
             RefInlineProcessor(REF_RE, md),
@@ -138,7 +148,7 @@ class RefsExtension(Extension):
             45,
         )
         md.treeprocessors.register(
-            RefResolverTreeprocessor(md, registry, unresolved),
+            RefResolverTreeprocessor(md, registry, source, unresolved),
             "zendoc-ref-resolver",
             2,
         )

@@ -6,7 +6,10 @@
 Not part of zendoc's public API - shared by zendoc.headings and
 zendoc.citations, both of which face the same problem: Zensical builds each
 page with its own fresh ``Markdown`` instance, so a plain per-instance
-default registry can never see another page's entries.
+default registry can never see another page's entries. ``nav_pages`` (used
+by zendoc.citations) additionally addresses pages being built in a single,
+one-shot pass: a forward reference to a page not yet built can't resolve
+without pre-scanning ahead of time.
 """
 
 from __future__ import annotations
@@ -56,3 +59,50 @@ def share(md: Markdown, attr: str, value: T) -> T:
         return existing  # type: ignore[no-any-return]
     setattr(md, attr, value)
     return value
+
+
+def nav_pages() -> tuple[str, list[str]] | None:
+    """Returns (docs_dir, [nav markdown file paths]) from Zensical's own
+    already-parsed build configuration, if running under Zensical with that
+    configuration actually populated (i.e. mid-build - `zensical.config.get_config()`
+    returns an empty/absent config otherwise, e.g. under a plain script
+    import). Returns None in that case, or if Zensical isn't installed.
+
+    Used to pre-scan every page's raw text for something (currently
+    zendoc.citations' citation definitions) before any single page has
+    actually been converted - needed because Zensical's `render()` builds
+    one page a time, in one pass, so a page late in nav order (e.g. a
+    references page kept as an appendix) hasn't been touched yet at the
+    point an early page might already want to resolve something defined
+    there.
+    """
+    try:
+        from zensical.config import get_config
+    except ImportError:
+        return None
+    config = get_config()
+    if not config:
+        return None
+    docs_dir = config.get("docs_dir")
+    nav = config.get("nav")
+    if not docs_dir or not nav:
+        return None
+    return str(docs_dir), _flatten_nav(nav)
+
+
+def _flatten_nav(items: object) -> list[str]:
+    """Flattens Zensical's normalised nav structure (a list of
+    {"url": ..., "children": [...]} dicts, possibly nested) into a plain
+    list of markdown file paths, in nav order."""
+    paths: list[str] = []
+    if not isinstance(items, list):
+        return paths
+    for item in items:
+        if isinstance(item, dict):
+            url = item.get("url")
+            if url:
+                paths.append(url)
+            paths.extend(_flatten_nav(item.get("children")))
+        elif isinstance(item, list):
+            paths.extend(_flatten_nav(item))
+    return paths

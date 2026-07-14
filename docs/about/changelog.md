@@ -1,5 +1,35 @@
 # Release Notes
 
+## 0.4.0 (2026-07-14)
+
+Fixes found migrating zendoc-template's own `references.md` to
+`zendoc.citations` for real - all discovered by actually building a
+real multi-page site, not just single-document tests:
+
+- **Fixed a real correctness bug**: `zendoc.refs`/`zendoc.citations` were
+  emitting a bare `#id` fragment for *every* resolved link, including a
+  cross-page one - which only works by coincidence in a single concatenated
+  PDF document, but 404s on an actual multi-page website (an `#id` fragment
+  only navigates within the *current* page). Both now emit a real relative
+  link (e.g. `references.md#id`, correctly adjusted for the citing page's
+  own directory depth) when the target is on a different page, which
+  Zensical and MkDocs already know how to rewrite into the right clean URL
+  - the same way a hand-typed cross-page Markdown link already works.
+- New: `zendoc.citations` pre-scans every page in a Zensical build's nav
+  for citation definitions before any page is actually converted, so citing
+  a source *before* it's defined - the common case, since a references page
+  is usually kept at the end of nav as an appendix - resolves correctly in
+  a single `zensical build` pass, rather than only working from
+  `zensical serve`'s live-reload. New `CitationRegistry.preseed()` method
+  backs this; a real registration always supersedes a preseeded stub.
+- `RefsExtension` gained a `source` option (mirroring `HeadingsExtension`'s),
+  needed for the same-page-vs-cross-page link decision above.
+- Fixed the nav pre-scan (and, in zendoc-template, its `build_pdf.py`-side
+  equivalent) matching a citation-definition attr_list example shown
+  literally inside a fenced code block in documentation - it now skips
+  fenced content, the same protection `CitationDefTreeprocessor` already
+  gets for free from the real Python-Markdown parser.
+
 ## 0.3.0 (2026-07-14)
 
 - New `zendoc.citations` extension: define a source once via `attr_list`

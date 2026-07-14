@@ -6,6 +6,8 @@ page, each carrying a zensical.extensions.context.ContextPreprocessor - see
 zendoc.headings._zensical_page_source, added to fix zendoc-template#85
 (cross-page \\ref resolution not working under Zensical's per-page build)."""
 
+from pathlib import Path
+
 import markdown
 import pytest
 from zensical.extensions.context import ContextExtension, Page
@@ -43,7 +45,9 @@ def _convert_as_zensical_page(text: str, path: str) -> str:
 def test_cross_page_reference_resolves_under_zensical() -> None:
     _convert_as_zensical_page("# Introduction\n", "intro.md")
     html = _convert_as_zensical_page("See \\ref{introduction}.\n", "usage.md")
-    assert '<a class="zendoc-ref" href="#introduction">1</a>' in html
+    # A real cross-page link (intro.md#introduction), not a bare same-page
+    # fragment - the latter would 404 on the actual multi-page website.
+    assert '<a class="zendoc-ref" href="intro.md#introduction">1</a>' in html
 
 
 def test_each_page_gets_its_own_source_automatically() -> None:
@@ -56,8 +60,18 @@ def test_each_page_gets_its_own_source_automatically() -> None:
     html = _convert_as_zensical_page(
         "See \\ref{introduction} and \\ref{setup}.\n", "summary.md"
     )
+    assert '<a class="zendoc-ref" href="intro.md#introduction">1</a>' in html
+    assert '<a class="zendoc-ref" href="setup.md#setup">1</a>' in html
+
+
+def test_same_page_reference_still_uses_bare_fragment_under_zensical() -> None:
+    """A reference to a heading on the *same* page keeps the simpler bare
+    fragment - only a genuinely cross-page reference needs the page-prefixed
+    form."""
+    html = _convert_as_zensical_page(
+        "# Introduction\n\nSee \\ref{introduction}.\n", "intro.md"
+    )
     assert '<a class="zendoc-ref" href="#introduction">1</a>' in html
-    assert '<a class="zendoc-ref" href="#setup">1</a>' in html
 
 
 def test_duplicate_heading_text_across_pages_does_not_crash_the_build() -> None:
@@ -106,6 +120,34 @@ def test_cross_page_citation_resolves_under_zensical() -> None:
     html = _convert_as_zensical_page_with_citations(
         "See \\cite{skou2023}.\n", "section1.md"
     )
+    # A real cross-page link (references.md#skou2023), not a bare
+    # same-page fragment - the latter would 404 on the actual website.
+    assert '<a href="references.md#skou2023">Skoulikari, 2023</a>' in html
+
+
+def test_cross_page_citation_from_nested_page_uses_relative_path() -> None:
+    """Regression test for a real bug found migrating zendoc-template: a
+    top-level record_source ("references.md") isn't a valid link as-is from
+    a page nested in a subdirectory - it needs the same "../" prefix a
+    hand-typed relative link between the same two pages would need."""
+    _convert_as_zensical_page_with_citations(
+        'Skoulikari, A. (2023) *Learning Git*.\n'
+        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
+        "references.md",
+    )
+    html = _convert_as_zensical_page_with_citations(
+        "See \\cite{skou2023}.\n", "starthere/customise.md"
+    )
+    assert '<a href="../references.md#skou2023">Skoulikari, 2023</a>' in html
+
+
+def test_same_page_citation_still_uses_bare_fragment_under_zensical() -> None:
+    html = _convert_as_zensical_page_with_citations(
+        'Skoulikari, A. (2023) *Learning Git*.\n'
+        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n\n'
+        'See \\cite{skou2023}.\n',
+        "references.md",
+    )
     assert '<a href="#skou2023">Skoulikari, 2023</a>' in html
 
 
@@ -119,3 +161,80 @@ def test_duplicate_citation_key_across_pages_does_not_crash_the_build() -> None:
     # possibly) defined twice across two different pages:
     html = _convert_as_zensical_page_with_citations(definition, "page-b.md")
     assert 'id="skou2023"' in html
+
+
+def test_forward_citation_resolves_via_nav_preseed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The realistic ordering problem this fix solves: a source cited from
+    an early page (built first in nav order), but defined on a references
+    page kept as an appendix at the *end* of nav - a forward reference
+    `zensical build`'s single, one-shot pass couldn't otherwise resolve,
+    since references.md is never actually converted in this test at all;
+    only pre-scanned."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "references.md").write_text(
+        'Skoulikari, A. (2023) *Learning Git*.\n'
+        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        zendoc_citations,
+        "nav_pages",
+        lambda: (str(docs_dir), ["section1.md", "references.md"]),
+    )
+    html = _convert_as_zensical_page_with_citations(
+        "See \\cite{skou2023}.\n", "section1.md"
+    )
+    assert '<a href="references.md#skou2023">Skoulikari, 2023</a>' in html
+
+
+def test_nav_preseed_ignores_fenced_documentation_examples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A doc page showing zendoc.citations' own definition syntax as a
+    literal example inside a fenced code block - exactly what
+    zendoc-template's customise.md does - must not be mistaken for a real
+    definition by the raw-text nav pre-scan (which, unlike
+    CitationDefTreeprocessor, isn't fence-aware via the real parser).
+    Regression test for a real bug found migrating zendoc-template's
+    references.md: customise.md comes before references.md in nav order,
+    so its fenced example was "winning" the preseed slot, sending every
+    \\cite{skou2023} to the wrong page."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "customise.md").write_text(
+        "Define a source like this:\n\n"
+        "``` markdown\n"
+        "Skoulikari, A. (2023) *Learning Git*.\n"
+        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n'
+        "```\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "references.md").write_text(
+        "Skoulikari, A. (2023) *Learning Git*.\n"
+        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        zendoc_citations,
+        "nav_pages",
+        lambda: (str(docs_dir), ["customise.md", "section1.md", "references.md"]),
+    )
+    html = _convert_as_zensical_page_with_citations(
+        "See \\cite{skou2023}.\n", "section1.md"
+    )
+    assert '<a href="references.md#skou2023">Skoulikari, 2023</a>' in html
+
+
+def test_real_definition_supersedes_preseeded_stub() -> None:
+    """Once a page's own CitationDefTreeprocessor has genuinely registered
+    an id, that takes precedence over any provisional preseed() value for
+    the same id - preseed() is only ever a stand-in for this."""
+    registry = CitationRegistry()
+    registry.preseed("references.md", "skou2023", "stale placeholder text")
+    registry.register(source="references.md", id="skou2023", text="Skoulikari, 2023")
+    record = registry.get("skou2023")
+    assert record is not None
+    assert record.text == "Skoulikari, 2023"

@@ -25,21 +25,75 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as etree
+from pathlib import Path
 
 from markdown import Markdown
 from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
 from markdown.treeprocessors import Treeprocessor
 
-from zendoc._zensical import page_source, share
-from zendoc.util import CitationRegistry
+from zendoc._zensical import nav_pages, page_source, share
+from zendoc.util import CitationRegistry, cross_page_href
 
 CITE_RE = r"\\cite\{([^}]+)\}"
+_ATTR_RE = re.compile(r"\{:\s*([^}]+?)\s*\}")
+_ID_RE = re.compile(r"#([\w-]+)")
+_CITE_TEXT_RE = re.compile(r'data-cite-text="([^"]*)"')
+_FENCE_RE = re.compile(
+    r"^[ \t]*```.*?^[ \t]*```[ \t]*$|^[ \t]*~~~.*?^[ \t]*~~~[ \t]*$",
+    re.MULTILINE | re.DOTALL,
+)
+
+
+def _strip_fences(text: str) -> str:
+    """Blanks out fenced code blocks before a raw-text regex scan, so a
+    documentation page showing zendoc.citations' own definition syntax as a
+    *literal example* inside a fenced code block doesn't get mistaken for a
+    real definition by :func:`_preseed_from_nav` (which, unlike
+    :class:`CitationDefTreeprocessor`, scans raw text directly rather than
+    the parsed, fence-aware Python-Markdown tree)."""
+    return _FENCE_RE.sub("", text)
 
 # Shared across every page of a single Zensical build - see zendoc._zensical
 # and CitationsExtension.extendMarkdown. Never touched unless Zensical's
 # per-page context is actually detected.
 _ZENSICAL_SHARED_REGISTRY = CitationRegistry()
+
+
+def _preseed_from_nav(registry: CitationRegistry) -> None:
+    """Pre-scans every page in the current Zensical build's nav for
+    ``data-cite-text`` attr_list definitions - the same syntax
+    :class:`CitationDefTreeprocessor` looks for - provisionally registering
+    each one (via :meth:`CitationRegistry.preseed`) before any page has
+    actually been converted.
+
+    Fixes the classic "cited before defined" ordering problem: a source is
+    usually cited from an early chapter but defined on a references page
+    kept at the end of nav, which - without this - is a forward reference
+    to a page `zensical build`'s single, one-shot process hasn't rendered
+    yet (unlike `zensical serve`'s live-reload, which eventually rebuilds
+    every page at least once). Reads raw file text directly rather than
+    waiting for Python-Markdown to parse it - safe here because a citation
+    definition's id/text are already literal attr_list attribute values,
+    unlike zendoc.headings' section numbers, which genuinely depend on
+    running the real Python-Markdown pipeline to compute.
+    """
+    located = nav_pages()
+    if located is None:
+        return
+    docs_dir, pages = located
+    for rel_path in pages:
+        try:
+            text = (Path(docs_dir) / rel_path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        text = _strip_fences(text)
+        for attr_match in _ATTR_RE.finditer(text):
+            attrs = attr_match.group(1)
+            id_match = _ID_RE.search(attrs)
+            cite_text_match = _CITE_TEXT_RE.search(attrs)
+            if id_match and cite_text_match:
+                registry.preseed(rel_path, id_match.group(1), cite_text_match.group(1))
 
 
 class CitationDefTreeprocessor(Treeprocessor):
@@ -111,10 +165,11 @@ class CiteResolverTreeprocessor(Treeprocessor):
     """
 
     def __init__(
-        self, md: Markdown, registry: CitationRegistry, unresolved: str = "?"
+        self, md: Markdown, registry: CitationRegistry, source: str, unresolved: str = "?"
     ) -> None:
         super().__init__(md)
         self.registry = registry
+        self.source = source
         self.unresolved = unresolved
 
     def run(self, root: etree.Element) -> None:
@@ -135,7 +190,7 @@ class CiteResolverTreeprocessor(Treeprocessor):
                     a.set("class", "zendoc-cite-unresolved")
                 else:
                     a.text = record.text
-                    a.set("href", f"#{key}")
+                    a.set("href", cross_page_href(record.source, self.source, key))
                 a.tail = "]" if i == last else "; "
 
 
@@ -181,6 +236,7 @@ class CitationsExtension(Extension):
                 source = detected_source
                 registry = _ZENSICAL_SHARED_REGISTRY
                 strict = False
+                _preseed_from_nav(registry)
         registry = share(md, "zendoc_citation_registry", registry)
         self.registry = registry
         unresolved: str = self.getConfig("unresolved")
@@ -195,7 +251,7 @@ class CitationsExtension(Extension):
             44,
         )
         md.treeprocessors.register(
-            CiteResolverTreeprocessor(md, registry, unresolved),
+            CiteResolverTreeprocessor(md, registry, source, unresolved),
             "zendoc-cite-resolver",
             1,
         )

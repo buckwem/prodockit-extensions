@@ -21,10 +21,14 @@ Git is a tool used to manage version control.\cite{skou2023}
 ```
 
 renders as `Git is a tool used to manage version control.[Skoulikari,
-2023]`, with `[Skoulikari, 2023]` linked to `#skou2023`. Unlike a hand-typed
-`[[Skoulikari, 2023](references.md#skou2023)]`, you never have to work out
-the relative path to the references page, retype the display text, or fix
-every citation site if the display text needs to change - it's defined once.
+2023]`, with `[Skoulikari, 2023]` linked directly to the source's own page
+(e.g. `references.md#skou2023`, or `#skou2023` if cited from that same
+page) - both Zensical and MkDocs rewrite that into the correct clean URL
+for the citing page's own location, the same way a hand-typed
+`[text](references.md#skou2023)` link already gets rewritten. Unlike
+hand-typing that link yourself, you never have to work out the relative
+path to the references page, retype the display text, or fix every
+citation site if the display text needs to change - it's defined once.
 
 Defining and citing are bundled into one extension, unlike
 [zendoc.headings](headings.md)/[zendoc.refs](refs.md): a definition is
@@ -123,8 +127,21 @@ one registry across the whole build automatically.
 [project.markdown_extensions."zendoc.citations"]
 ```
 
+**Citing a source before it's defined works too** - the common case, since
+a references page is usually cited from earlier chapters but kept at the
+*end* of nav as an appendix. Normally that's a forward reference to a page
+`zensical build`'s single, one-shot pass hasn't rendered yet (unlike
+`zensical serve`'s live-reload, which eventually rebuilds every page at
+least once) - `zendoc.citations` avoids this by pre-scanning every page in
+the current Zensical build's nav for citation definitions (reading raw
+file text directly, not waiting for Python-Markdown to parse each one)
+before any single page has actually been converted, the same way LaTeX
+needs multiple compilation passes to resolve a `\cite` used before its
+`\bibitem` - except here it happens automatically, within one `zensical
+build` invocation.
+
 Two different sources that happen to share the same key don't fail the
-build: the first one built keeps that key, and the collision is logged as
+build: the first one scanned keeps that key, and the collision is logged as
 a warning rather than raised as an error.
 
 ### Under other tools: manual

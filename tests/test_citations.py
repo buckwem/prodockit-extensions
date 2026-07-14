@@ -90,7 +90,11 @@ def test_shares_registry_across_explicit_sources() -> None:
     registry = CitationRegistry()
     _convert(SKOU_DEF, registry=registry, source="references.md")
     html = _convert("See \\cite{skou2023}.\n", registry=registry, source="section1.md")
-    assert '<a href="#skou2023">Skoulikari, 2023</a>' in html
+    # A different source cites this, so the link must be a real cross-page
+    # reference (references.md#skou2023), not a bare same-page fragment -
+    # a bare "#skou2023" would 404 on the actual multi-page website, even
+    # though it happens to "work" in a single concatenated PDF document.
+    assert '<a href="references.md#skou2023">Skoulikari, 2023</a>' in html
 
 
 def test_duplicate_key_across_explicit_sources_raises() -> None:

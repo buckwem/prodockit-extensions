@@ -62,12 +62,14 @@ def test_ref_inside_fenced_code_block_is_not_resolved() -> None:
 
 def test_shares_registry_with_explicitly_enabled_headings_extension() -> None:
     """zendoc.headings listed first, zendoc.refs second - the recommended
-    multi-page pattern: both share one registry across separate conversions."""
+    multi-page pattern: both share one registry across separate conversions,
+    and RefsExtension's own source (matching HeadingsExtension's) lets it
+    build a correct cross-page link rather than a same-page-only fragment."""
     registry = IdRegistry()
     md_page1 = markdown.Markdown(
         extensions=[
             HeadingsExtension(registry=registry, source="intro.md"),
-            RefsExtension(registry=registry),
+            RefsExtension(registry=registry, source="intro.md"),
         ]
     )
     md_page1.convert("# Introduction\n")
@@ -75,11 +77,11 @@ def test_shares_registry_with_explicitly_enabled_headings_extension() -> None:
     md_page2 = markdown.Markdown(
         extensions=[
             HeadingsExtension(registry=registry, source="usage.md"),
-            RefsExtension(registry=registry),
+            RefsExtension(registry=registry, source="usage.md"),
         ]
     )
     html = md_page2.convert("See \\ref{introduction}.\n")
-    assert '<a class="zendoc-ref" href="#introduction">1</a>' in html
+    assert '<a class="zendoc-ref" href="intro.md#introduction">1</a>' in html
 
 
 def test_entry_point_names_resolve_together() -> None:

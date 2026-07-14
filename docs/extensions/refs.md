@@ -17,6 +17,12 @@ is looked up fresh on every conversion (see [zendoc.headings](headings.md)),
 it stays correct even if sections are added, removed, or reordered - you
 never have to manually renumber a cross-reference.
 
+Referencing a heading defined on a *different* page (see
+[Multi-page builds](#multi-page-builds) below) links to that page directly
+(e.g. `other.md#intro`, which both Zensical and MkDocs rewrite into the
+correct clean URL) rather than a bare `#intro` fragment, which would only
+work if the target happened to be on the same page.
+
 `zendoc.refs` depends on the id/number registry that
 [zendoc.headings](headings.md) builds. If you enable `zendoc.refs` on its
 own, it transparently enables `zendoc.headings` for you with matching
@@ -90,6 +96,7 @@ renders `\ref{cover-page}` as `??`, linked to `#cover-page`.
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `unresolved` | `str` | `"??"` | Text rendered when `id` doesn't resolve to a numbered heading. |
+| `source` | `str` | `""`, auto-detected under Zensical | Identifier for the current document (e.g. its path) - used only to decide whether a resolved target is on this same page (bare `#id`) or a different one (a real link to it). Doesn't affect resolution itself. |
 | `registry` | `IdRegistry \| None` | discovered from a sibling `zendoc.headings`, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
 
 ## Multi-page builds
@@ -140,10 +147,15 @@ for path, text in pages:
         text,
         extensions=[
             HeadingsExtension(registry=registry, source=path),
-            RefsExtension(registry=registry),
+            RefsExtension(registry=registry, source=path),
         ],
     )
 ```
+
+Give `RefsExtension` the same `source=path` as `HeadingsExtension` - without
+it, every resolved link is treated as cross-page (harmless, just not the
+minimal same-page form for a reference that happens to target its own
+page).
 
 Here, a genuine id collision between two different `source`s *does* raise
 `zendoc.util.DuplicateIdError` rather than warning - a deliberately shared

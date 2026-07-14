@@ -16,6 +16,7 @@ merged with headings' ids.
 from __future__ import annotations
 
 import logging
+import posixpath
 from dataclasses import dataclass
 
 _log = logging.getLogger("zendoc")
@@ -116,6 +117,7 @@ class CitationRegistry:
 
     def __init__(self) -> None:
         self._citations: dict[str, CitationRecord] = {}
+        self._preseeded: dict[str, CitationRecord] = {}
 
     def register(self, source: str, id: str, text: str, strict: bool = True) -> None:
         existing = self._citations.get(id)
@@ -134,15 +136,74 @@ class CitationRegistry:
             )
             return
         self._citations[id] = CitationRecord(source=source, id=id, text=text)
+        # A real registration always supersedes a provisional preseed()
+        # for the same id - no collision check needed, since preseed data
+        # was only ever a stand-in for this.
+        self._preseeded.pop(id, None)
+
+    def preseed(self, source: str, id: str, text: str) -> None:
+        """Provisionally records a citation's display text and defining
+        page ahead of that page actually being converted - used by
+        zendoc.citations' Zensical pre-scan to unblock a `\\cite{id}` that
+        cites a source defined on a page not yet processed in this build
+        pass (e.g. a references page at the end of nav, cited from an early
+        chapter - the classic "cited before defined" ordering problem
+        `zensical build`'s single, one-shot process can't otherwise
+        resolve). `source` matters here, not just `text`: it's what lets a
+        citation resolve to the correct cross-page link before the real
+        page has registered anything.
+
+        Doesn't participate in collision checking at all: it's advisory
+        data, always superseded automatically once the real page registers
+        this id via `register()`. A repeat `preseed()` call for an id
+        that's already been preseeded is a no-op - the first scan wins,
+        consistent with how a real duplicate is handled.
+        """
+        if id not in self._preseeded:
+            self._preseeded[id] = CitationRecord(source=source, id=id, text=text)
 
     def get(self, id: str) -> CitationRecord | None:
-        return self._citations.get(id)
+        return self._citations.get(id) or self._preseeded.get(id)
 
     def __contains__(self, id: str) -> bool:
-        return id in self._citations
+        return id in self._citations or id in self._preseeded
 
     def clear_source(self, source: str) -> None:
         """Drops every entry previously registered from source - see
         IdRegistry.clear_source for why this matters."""
         for stale_id in [k for k, v in self._citations.items() if v.source == source]:
             del self._citations[stale_id]
+
+
+def cross_page_href(record_source: str, current_source: str, id: str) -> str:
+    """Builds the href for a resolved zendoc.refs/zendoc.citations link.
+
+    A bare ``#id`` fragment only navigates within the *current* page - on a
+    multi-page site, a link to a heading/citation defined on a *different*
+    page needs a real relative link to that page, e.g. ``other.md#id``.
+    Both Zensical (``zensical.extensions.links.LinksTreeprocessor``, always
+    present on every page it builds) and plain MkDocs already rewrite a
+    relative ``.md`` link with a fragment into the correct clean URL for
+    the *current* page - the same rewriting a hand-typed
+    ``[text](other.md#id)`` link already gets - so emitting that same
+    relative form here, rather than a bare fragment, is what makes a
+    cross-page reference/citation actually resolve on the built website
+    (not just in a single-document PDF, where every id lives on the same
+    page once every source is concatenated).
+
+    `record_source`/`current_source` are both docs-dir-relative paths (e.g.
+    ``"references.md"``, ``"starthere/customise.md"``) - a relative link
+    written on the current page must be relative to *its own* directory,
+    not to the docs root, so a ``record_source`` of ``"references.md"``
+    needs `posixpath.relpath`'d into ``"../references.md"`` when
+    `current_source` is one directory deeper (e.g.
+    ``"starthere/customise.md"``) - exactly the adjustment a hand-typed
+    relative link between the same two pages would need too.
+    """
+    if record_source == current_source:
+        return f"#{id}"
+    current_dir = posixpath.dirname(current_source)
+    relative_source = (
+        posixpath.relpath(record_source, current_dir) if current_dir else record_source
+    )
+    return f"{relative_source}#{id}"
