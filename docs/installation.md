@@ -22,17 +22,21 @@ import markdown
 html = markdown.markdown(text, extensions=["zendoc.headings", "zendoc.refs"])
 ```
 
-Or in a `mkdocs.yml`/`zensical.toml`-style config:
+Or, for a [Zensical](https://zensical.org/) project, in `zensical.toml`
+alongside the built-in and `pymdownx` extensions:
+
+```toml
+[project.markdown_extensions.zendoc.headings]
+[project.markdown_extensions.zendoc.refs]
+```
+
+zendoc has no Zensical-specific dependency - it's a standard Python-Markdown
+extension, so the same names work in an `mkdocs.yml`-style config too:
 
 ```yaml
 markdown_extensions:
   - zendoc.headings
   - zendoc.refs
-```
-
-```toml
-[project.markdown_extensions.zendoc.headings]
-[project.markdown_extensions.zendoc.refs]
 ```
 
 See each extension's own page for its options and for how to share one

@@ -8,7 +8,12 @@ pymdown-extensions - each is its own extension, enabled separately:
 - ``zendoc.headings`` - heading ids and hierarchical section numbers.
 - ``zendoc.refs`` - ``\\ref{id}`` section cross-references.
 
-See https://github.com/buckwem/zendoc-extension for documentation.
+Built for use with Zensical (https://zensical.org/) - enable an extension in
+`zensical.toml` the same way as a built-in or pymdownx one. A standard
+Python-Markdown extension with no Zensical-specific dependency, so it also
+works with MkDocs or any other Python-Markdown-based tool.
+
+See https://buckwem.github.io/zendoc-extension/ for documentation.
 """
 
 __version__ = "0.1.0"
