@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+# Every pull request needs a review from one of the owners listed below,
+# regardless of which files it touches. Combine with a branch protection
+# rule on main ("Require a pull request before merging" + "Require review
+# from Code Owners") for this to actually block merging without approval.
+* @buckwem
