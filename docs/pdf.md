@@ -1,18 +1,78 @@
 # PDF generation
 
-`zendoc.pdf` builds a standalone PDF from your Zensical site's own rendered
-pages, via [Pandoc](https://pandoc.org/) and [WeasyPrint](https://weasyprint.org/) -
-the kind of downloadable, submittable document professional and academic
-reports commonly need alongside the website itself. `pandoc` and a
-WeasyPrint install both need to be on your machine already (this function
-doesn't install either); see [Pandoc's own install instructions](https://pandoc.org/installing.html)
-and `pip install weasyprint`.
+`zendoc.pdf` builds a standalone PDF from your Zensical site - the kind of
+downloadable, submittable document professional and academic reports
+commonly need alongside the website itself. It reads the same
+`zensical.toml` your site already has, so there's nothing new to learn or
+configure beyond a couple of optional settings.
+
+## Requirements
+
+The PDF is built via [Pandoc](https://pandoc.org/) and
+[WeasyPrint](https://weasyprint.org/), so both need to be installed and on
+your `PATH`:
+
+```bash
+pip install weasyprint
+```
+
+then follow [Pandoc's own install instructions](https://pandoc.org/installing.html)
+for your platform (e.g. `brew install pandoc` on macOS).
 
 ## Quick start
 
-Add a call like this to your own build script, after your site's pages have
-already been rendered to HTML (e.g. via `zensical.markdown.render.render()`,
-or however your project renders each page):
+From your project root (wherever `zensical.toml` lives):
+
+```bash
+zendoc pdf
+```
+
+That's it. Every page in your `nav` is rendered, in order, into
+`docs/site_documentation.pdf` (or wherever `extra.pdf_output` says - see
+below), complete with a generated table of contents, chapter numbering, and
+your site's own admonitions, code blocks, tables, and Mermaid diagrams.
+
+If a build fails (a missing `pandoc`, a WeasyPrint error, and so on), the
+command prints the underlying error and exits with a non-zero status,
+rather than silently producing a broken or missing file.
+
+## Configuration
+
+Everything is read from your project's own `zensical.toml` - nothing is
+passed on the command line beyond, optionally, which config file to use:
+
+```bash
+zendoc pdf --config-file zensical.toml   # -f for short; this is the default
+```
+
+Most of what the PDF needs, it already gets from settings your site likely
+has for other reasons: `site_name`, `copyright`, `repo_url`, `docs_dir`,
+`theme.font.text`/`.code`, and `theme.icon.admonition`. The rest lives
+under `[project.extra]`, all optional:
+
+| Setting | Default | What it does |
+|---|---|---|
+| `pdf_output` | `"<docs_dir>/site_documentation.pdf"` | Where the PDF is written. |
+| `pdf_page_size` | `"A4"` | Any WeasyPrint-supported CSS page size (`"Letter"`, ...). |
+| `pdf_margin_top` / `_right` / `_bottom` / `_left` | `"2cm"` each | Page margins, as CSS lengths. |
+| `pdf_header_footer_font_size` / `_color` / `_divider_color` | `"10pt"` / `"#555555"` / `"#e2e8f0"` | Running header/footer styling. |
+| `heading_numbering` | `true` | Chapter/appendix numbering on headings and captions. |
+| `reference_style` | `"european"` | `"european"` (tight, single-line citation entries) or `"global"` (double-spaced, hanging indent - the common APA/MLA/Chicago style). |
+| `pdf_include_table_of_contents` | `true` | Whether to generate and insert a table of contents. |
+| `pdf_table_of_contents_title` | `"Table of Contents"` | That page's own heading text. |
+| `pdf_mmdc_bin` | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found. |
+| `pdf_tex2svg_script` / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found. |
+
+A page's own front matter `is_appendix: true` gives it letter-based
+numbering ("A", "A.1", ...) instead of numeric, matching
+[zendoc.headings](extensions/headings.md)' own `appendix_attr` convention.
+
+## Advanced usage: the Python API
+
+If you're scripting your own build pipeline and want to call into
+`zendoc.pdf` directly rather than through `zensical.toml`, `build_pdf()` is
+a one-call function you can import instead of shelling out to the `zendoc`
+command:
 
 ```python
 from zendoc.pdf import Page, build_pdf
@@ -29,40 +89,14 @@ build_pdf(
 )
 ```
 
-That's it - `dist/report.pdf` now exists. `Page.html` is a page's own
-already-rendered HTML (not yet fixed up for Pandoc - `build_pdf` does that
-internally for you); `Page.docs_rel_path` is that page's path relative to
-your docs directory, e.g. `"starthere/installtooling.md"`. Mark exactly one
-page `is_index=True` if you have a dedicated cover/title page - its
-headings are treated as decorative rather than real chapters.
-
-If a build fails (a missing `pandoc`, a WeasyPrint error, and so on),
-`build_pdf` raises `zendoc.pdf.PdfBuildError` with the underlying error
-message attached, rather than silently producing a broken or missing file.
-
-## Common options
-
-`build_pdf`'s two required arguments are the page list and `output_path`
-(where the PDF gets written - any path, absolute or relative; its parent
-directory must already exist). Everything else is an optional keyword
-argument with a sensible default. The ones you'll most likely want to set:
-
-| Parameter | Default | What it does |
-|---|---|---|
-| `docs_dir` | `"docs"` | Your project's docs root, used to resolve each page's own relative image/link references. |
-| `site_name` | `""` | Shown in the running page header. |
-| `copyright_text` | `""` | Shown in the running page footer. |
-| `main_font` / `mono_font` | `"Inter"` / `"JetBrains Mono"` | Font family names - must already be installed/available to WeasyPrint. |
-| `page_size` | `"A4"` | Any WeasyPrint-supported CSS page size (`"Letter"`, ...). |
-| `margin_top` / `margin_right` / `margin_bottom` / `margin_left` | `"2cm"` each | Page margins, as CSS lengths. |
-| `extra_css` | `""` | Your own website stylesheet's content (theme CSS, any custom stylesheet), layered underneath the CSS `build_pdf` generates. |
-| `repo_url` | `""` | Your project's repository URL (GitHub or GitLab) - a relative link to a non-page file (e.g. a stylesheet) is rewritten to that file's canonical URL there, since it has no meaning inside a standalone PDF. |
-
-See the full parameter list below for everything else (running header/
-footer styling, reference-list spacing, heading numbering, math/Mermaid
-pre-rendering, and working-file control).
-
-## Full reference
+`Page.html` is a page's own already-rendered HTML (not yet fixed up for
+Pandoc - `build_pdf` does that internally for you); `Page.docs_rel_path` is
+that page's path relative to your docs directory, e.g.
+`"starthere/installtooling.md"`. Mark exactly one page `is_index=True` if
+you have a dedicated cover/title page - its headings are treated as
+decorative rather than real chapters. `build_pdf` raises
+`zendoc.pdf.PdfBuildError` with the underlying error message attached if
+the build fails.
 
 ### `build_pdf`
 
@@ -97,42 +131,31 @@ build_pdf(
     mathjax_available: bool = False,
     math_dir: str | None = None,
     tex2svg_script: str = "",
+    include_table_of_contents: bool = True,
+    table_of_contents_title: str = "Table of Contents",
     work_dir: str | None = None,
     keep_work_dir: bool = False,
 ) -> None
 ```
 
+Its two required arguments are the page list and `output_path` (where the
+PDF gets written - any path, absolute or relative; its parent directory
+must already exist). Everything else mirrors the `zensical.toml` settings
+above one-for-one, plus a few options only meaningful from Python:
+
 **Content**
 
+- `docs_dir`: your project's docs root, used to resolve each page's own
+  relative image/link references.
+- `extra_css`: your own website stylesheet's content, layered underneath
+  the CSS `build_pdf` generates, so its own `!important` rules can still
+  override a website-only style that doesn't make sense in a paginated PDF.
 - `admonition_icon_config`/`icon_registry`: give an admonition its own icon
   in the PDF (Zensical's admonition HTML has none by default outside a
   website) - see [zendoc.pdf.icons](#zendocpdficons).
 - `render_mermaid`: called with each Mermaid diagram's own source text,
   should return an image path/`data:` URI or `None` if rendering failed -
   see [zendoc.pdf.mermaid](#zendocpdfmermaid) for a ready-made renderer.
-
-**Reference-list spacing**
-
-`reference_style_global` switches `.reference` paragraphs (citation
-entries) from the default tight, single-line "european" spacing to double
-spacing between entries with a hanging indent on wrapped lines (the common
-APA/MLA/Chicago style); `.acronym`/`.glossary` paragraphs always use the
-tight spacing regardless. `reference_spacing_european`/
-`reference_indent_global`/`reference_spacing_global` are the underlying
-CSS length values for each.
-
-**Numbering and math**
-
-`heading_numbering_enabled` turns chapter/appendix numbering on headings
-and captions on or off entirely. `mathjax_available`/`math_dir`/
-`tex2svg_script` enable TeX math pre-rendering (WeasyPrint has no JS engine
-to run MathJax client-side): `math_dir` is where a pre-rendered formula's
-SVG is written (defaults to a subdirectory of the working directory);
-`tex2svg_script` is a Node script that renders one TeX formula to SVG,
-invoked as `node tex2svg_script <display|inline>` with the formula on
-stdin and the SVG on stdout. Leave `mathjax_available` False if your
-content has no math, or you haven't set up a local MathJax/`tex2svg`
-install.
 
 **Working files**
 

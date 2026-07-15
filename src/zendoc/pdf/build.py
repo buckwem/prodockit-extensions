@@ -87,6 +87,8 @@ def build_pdf(
     mathjax_available: bool = False,
     math_dir: str | None = None,
     tex2svg_script: str = "",
+    include_table_of_contents: bool = True,
+    table_of_contents_title: str = "Table of Contents",
     work_dir: str | None = None,
     keep_work_dir: bool = False,
 ) -> None:
@@ -131,6 +133,14 @@ def build_pdf(
     `mathjax_available` False if your content has no math or you haven't
     set up a local MathJax/`tex2svg` install.
 
+    **Table of contents**
+
+    `include_table_of_contents` (default on) inserts an auto-generated
+    Table of Contents, right after your first page if it's `is_index=True`,
+    or at the very start otherwise - a page break always follows it, so
+    your first real chapter still starts on its own page.
+    `table_of_contents_title` is that page's own heading text.
+
     **Working files**
 
     `pandoc` needs a few intermediate files on disk (the concatenated HTML,
@@ -165,6 +175,22 @@ def build_pdf(
                     render_mermaid=render_mermaid,
                 )
             )
+
+        if include_table_of_contents:
+            # A Lua filter's own Pandoc() handler (see zendoc.pdf.lua)
+            # inserts the real, auto-generated Table of Contents right
+            # after a heading literally titled `table_of_contents_title` -
+            # this is that heading, unnumbered/unlisted like a cover page's
+            # own heading, with a page break after it so the first real
+            # chapter still starts on its own page. Raw HTML, not run
+            # through fix_up_page_html() - it's not a real page with its
+            # own links/images/anchor to fix up.
+            toc_trigger_html = (
+                f'<h1 class="unnumbered unlisted">{table_of_contents_title}</h1>'
+                '<div class="page-break"></div>'
+            )
+            insert_at = 1 if pages and pages[0].is_index else 0
+            fixed_html_parts.insert(insert_at, toc_trigger_html)
 
         concatenated_html_path = os.path.join(resolved_work_dir, "_zendoc_pdf_compiled.html")
         with open(concatenated_html_path, "w", encoding="utf-8") as f:

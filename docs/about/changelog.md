@@ -1,5 +1,27 @@
 # Release Notes
 
+## 0.9.0 (2026-07-15)
+
+- New `zendoc pdf` command: builds a complete PDF with no Python required,
+  reading everything - nav, docs directory, fonts, page size, and all
+  PDF-specific settings - from the project's own `zensical.toml`, the same
+  way `zensical build`/`zensical serve` do. Installing `zendoc` now
+  registers a `zendoc` console script (`pip install zendoc` is enough - no
+  separate build script to write). See the new `zendoc.pdf.config` module
+  (`build_pdf_from_zensical_config()`) for the config-to-`build_pdf()`
+  orchestration this wraps: nav-tree flattening, per-page `is_appendix`
+  front-matter detection, and auto-detection of a local `mmdc`
+  (Mermaid) binary and MathJax `tex2svg` script, so a typical project
+  needs no extra configuration beyond what it likely already has.
+- `build_pdf()` gained `include_table_of_contents`/`table_of_contents_title`
+  parameters (both used automatically by `zendoc pdf`): a generated table
+  of contents is now inserted by default, right after a cover page if one
+  is marked `is_index=True`, or at the very start otherwise.
+- Rewrote the [PDF generation](../pdf.md) docs page around the `zendoc pdf`
+  command as the primary, and for most projects only necessary, way to use
+  `zendoc.pdf` - `build_pdf()` and the individual pipeline pieces are now
+  documented as the advanced, scripting-your-own-pipeline path.
+
 ## 0.8.0 (2026-07-15)
 
 - New `zendoc.pdf.build_pdf()`: a one-call convenience wrapper around the

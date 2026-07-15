@@ -13,3 +13,5 @@ venv/
 htmlcov/
 .DS_Store
 site/
+docs/site_documentation.pdf
+docs/.zendoc-pdf-mermaid/

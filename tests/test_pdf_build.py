@@ -118,6 +118,64 @@ def test_multiple_pages_are_concatenated_in_order(tmp_path: Path, fake_pandoc_on
     assert compiled.index("Cover") < compiled.index("Chapter One") < compiled.index("Chapter Two")
 
 
+def test_table_of_contents_is_inserted_after_the_cover_page_by_default(tmp_path: Path, fake_pandoc_on_path) -> None:
+    work_dir = tmp_path / "work"
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [
+            Page(docs_rel_path="index.md", html="<h1>Cover</h1>", is_index=True),
+            Page(docs_rel_path="chapter1.md", html="<h1>Chapter One</h1>"),
+        ],
+        str(tmp_path / "out.pdf"),
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+    compiled = (work_dir / "_zendoc_pdf_compiled.html").read_text(encoding="utf-8")
+    assert "Table of Contents" in compiled
+    assert compiled.index("Cover") < compiled.index("Table of Contents") < compiled.index("Chapter One")
+
+
+def test_table_of_contents_is_inserted_first_without_a_cover_page(tmp_path: Path, fake_pandoc_on_path) -> None:
+    work_dir = tmp_path / "work"
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [Page(docs_rel_path="chapter1.md", html="<h1>Chapter One</h1>")],
+        str(tmp_path / "out.pdf"),
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+    compiled = (work_dir / "_zendoc_pdf_compiled.html").read_text(encoding="utf-8")
+    assert compiled.index("Table of Contents") < compiled.index("Chapter One")
+
+
+def test_table_of_contents_can_be_disabled(tmp_path: Path, fake_pandoc_on_path) -> None:
+    work_dir = tmp_path / "work"
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [Page(docs_rel_path="chapter1.md", html="<h1>Chapter One</h1>")],
+        str(tmp_path / "out.pdf"),
+        include_table_of_contents=False,
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+    compiled = (work_dir / "_zendoc_pdf_compiled.html").read_text(encoding="utf-8")
+    assert "Table of Contents" not in compiled
+
+
+def test_table_of_contents_title_is_configurable(tmp_path: Path, fake_pandoc_on_path) -> None:
+    work_dir = tmp_path / "work"
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [Page(docs_rel_path="chapter1.md", html="<h1>Chapter One</h1>")],
+        str(tmp_path / "out.pdf"),
+        table_of_contents_title="Contents",
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+    compiled = (work_dir / "_zendoc_pdf_compiled.html").read_text(encoding="utf-8")
+    assert "<h1 class=\"unnumbered unlisted\">Contents</h1>" in compiled
+
+
 def test_extra_css_is_included_before_the_generated_css(tmp_path: Path, fake_pandoc_on_path) -> None:
     work_dir = tmp_path / "work"
     fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')

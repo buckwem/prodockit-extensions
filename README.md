@@ -10,8 +10,9 @@ for what you use.
 Most of zendoc is [Python-Markdown](https://python-markdown.github.io/)
 extensions, in the spirit of [pymdown-extensions](https://facelessuser.github.io/pymdown-extensions/) -
 configure one the same way as any other Zensical/`pymdownx` Markdown
-extension, via `zensical.toml`. `zendoc.pdf` is a plain function library
-instead, since a PDF build pipeline isn't a Markdown syntax extension.
+extension, via `zensical.toml`. `zendoc.pdf` is a command-line tool
+instead (`zendoc pdf`), since a PDF build pipeline isn't a Markdown syntax
+extension - it reads the same `zensical.toml` too.
 
 > **Status:** early, but functional - `zendoc.headings`, `zendoc.refs`,
 > `zendoc.citations`, `zendoc.glossary`, and `zendoc.pdf` are implemented
@@ -68,24 +69,20 @@ registry sharing, and full syntax details.
 ## PDF generation
 
 [`zendoc.pdf`](https://buckwem.github.io/zendoc-extension/pdf/) builds a
-standalone PDF from your site's own rendered pages, via Pandoc and
-WeasyPrint - not a Python-Markdown extension, a plain function library.
-`build_pdf()` is a one-call wrapper: hand it your rendered pages and where
-you want the PDF written.
+standalone PDF from your site, via Pandoc and WeasyPrint (both need to be
+installed separately - see the docs). No Python required - it reads the
+same `zensical.toml` your site already has:
 
-```python
-from zendoc.pdf import Page, build_pdf
-
-build_pdf(
-    [Page(docs_rel_path="index.md", html=rendered_html, is_index=True)],
-    "dist/report.pdf",
-)
+```bash
+zendoc pdf
 ```
 
-See the [docs](https://buckwem.github.io/zendoc-extension/pdf/) for the
-full parameter list, and for the individual pieces (`zendoc.pdf.html`/
-`.lua`/`.css`/`.icons`/`.mermaid`) if you need more control over how they
-fit together.
+That's it - run it from your project root and it builds a complete PDF,
+table of contents included, from every page in your `nav`. See the
+[docs](https://buckwem.github.io/zendoc-extension/pdf/) for the
+`zensical.toml` settings it reads, and for the Python API
+(`build_pdf()`, `zendoc.pdf.html`/`.lua`/`.css`/`.icons`/`.mermaid`) if
+you're scripting your own build pipeline instead.
 
 ## Development
 

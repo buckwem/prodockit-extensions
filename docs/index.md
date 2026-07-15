@@ -13,8 +13,9 @@ Most of zendoc is [Python-Markdown](https://python-markdown.github.io/)
 extensions, in the spirit of [pymdown-extensions](https://facelessuser.github.io/pymdown-extensions/) -
 enable one in `zensical.toml` the same way as any other Zensical or
 `pymdownx` extension (see [Installation](installation.md)).
-[zendoc.pdf](pdf.md) is a plain function library instead, since a PDF
-build pipeline isn't a Markdown syntax extension.
+[zendoc.pdf](pdf.md) is a command-line tool instead, since a PDF build
+pipeline isn't a Markdown syntax extension - no Python required, it reads
+the same `zensical.toml` too.
 
 ## Extensions
 
@@ -29,18 +30,14 @@ build pipeline isn't a Markdown syntax extension.
 
 | Module | Description |
 |---|---|
-| [zendoc.pdf](pdf.md) | Builds a standalone PDF from your site's own rendered pages, via Pandoc and WeasyPrint - not a Python-Markdown extension, a plain function library. `build_pdf()` is a one-call wrapper: hand it your rendered pages and an output path. |
+| [zendoc.pdf](pdf.md) | Builds a standalone PDF from your site, via Pandoc and WeasyPrint. Run `zendoc pdf` from your project root - everything is read from your own `zensical.toml`. |
 
-```python
-from zendoc.pdf import Page, build_pdf
-
-build_pdf(
-    [Page(docs_rel_path="index.md", html=rendered_html, is_index=True)],
-    "dist/report.pdf",
-)
+```bash
+zendoc pdf
 ```
 
-See [PDF generation](pdf.md) for the full parameter list.
+See [PDF generation](pdf.md) for the `zensical.toml` settings it reads, and
+for the Python API if you're scripting your own build pipeline instead.
 
 ## Quick example
 
