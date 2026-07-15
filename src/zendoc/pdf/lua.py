@@ -39,11 +39,10 @@ def build_lua_filter(
 
     `math_dir` is where a pre-rendered formula's SVG is written (must
     already exist or be creatable by the caller); `tex2svg_script` is the
-    path to a Node script that renders one TeX formula to SVG on stdin/argv
-    (see zendoc-template's own ``tools/mathjax/tex2svg.js`` for the
-    expected CLI shape: ``node tex2svg.js <display|inline>``, formula on
-    stdin, SVG on stdout). Both are ignored (no formula is rendered) when
-    `mathjax_available` is False - e.g. no local MathJax install.
+    path to a Node script that renders one TeX formula to SVG, invoked as
+    ``node tex2svg_script <display|inline>`` with the formula on stdin and
+    the SVG written to stdout. Both are ignored (no formula is rendered)
+    when `mathjax_available` is False - e.g. no local MathJax install.
     """
     heading_numbering_lua = "true" if heading_numbering_enabled else "false"
     mathjax_available_lua = "true" if mathjax_available else "false"

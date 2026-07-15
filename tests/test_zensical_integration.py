@@ -3,8 +3,8 @@
 
 """Simulates Zensical's per-page render(): a fresh Markdown() instance per
 page, each carrying a zensical.extensions.context.ContextPreprocessor - see
-zendoc.headings._zensical_page_source, added to fix zendoc-template#85
-(cross-page \\ref resolution not working under Zensical's per-page build)."""
+zendoc.headings._zensical_page_source, added to fix cross-page \\ref
+resolution not working under Zensical's per-page build."""
 
 from pathlib import Path
 
@@ -78,12 +78,12 @@ def test_same_page_reference_still_uses_bare_fragment_under_zensical() -> None:
 
 
 def test_duplicate_heading_text_across_pages_does_not_crash_the_build() -> None:
-    """A real, common scenario (confirmed present in zendoc-template's own
-    docs/): two unrelated pages both happen to have an identically-titled
-    heading (e.g. "Overview"). Under the strict (explicit multi-page) path
-    this would raise DuplicateIdError - here, under Zensical auto-detection,
-    it must not, or installing zendoc would risk breaking any Zensical site
-    with a common heading title used on more than one page."""
+    """A real, common scenario: two unrelated pages both happen to have an
+    identically-titled heading (e.g. "Overview"). Under the strict
+    (explicit multi-page) path this would raise DuplicateIdError - here,
+    under Zensical auto-detection, it must not, or installing zendoc would
+    risk breaking any Zensical site with a common heading title used on
+    more than one page."""
     _convert_as_zensical_page("# Overview\n", "page-a.md")
     # Must not raise:
     html = _convert_as_zensical_page("# Overview\n", "page-b.md")
@@ -105,8 +105,8 @@ def test_non_zensical_use_is_unaffected() -> None:
 
 def test_default_numbering_is_still_per_document_under_zensical() -> None:
     """Zensical auto-detection alone must not switch numbering to
-    "continuous" - that's an explicit opt-in (see zendoc-template#89), not a
-    side effect of running under Zensical."""
+    "continuous" - that's an explicit opt-in, not a side effect of running
+    under Zensical."""
     _convert_as_zensical_page("# One\n", "page1.md")
     _convert_as_zensical_page("# Two\n", "page2.md")
     registry = zendoc_headings._ZENSICAL_SHARED_REGISTRY
@@ -174,9 +174,9 @@ def test_continuous_numbering_letters_appendix_pages_without_consuming_a_number(
 def test_ref_to_a_continuously_numbered_heading_on_another_page_shows_the_right_number(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The bug zendoc-template#89 documents: \\ref{} must show the number
-    actually displayed on the target page (continuing across earlier pages),
-    not a per-document number that resets to 1 on every page."""
+    """\\ref{} must show the number actually displayed on the target page
+    (continuing across earlier pages), not a per-document number that
+    resets to 1 on every page."""
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
     (docs_dir / "page1.md").write_text("# One\n", encoding="utf-8")
@@ -227,10 +227,10 @@ def test_cross_page_citation_resolves_under_zensical() -> None:
 
 
 def test_cross_page_citation_from_nested_page_uses_relative_path() -> None:
-    """Regression test for a real bug found migrating zendoc-template: a
-    top-level record_source ("references.md") isn't a valid link as-is from
-    a page nested in a subdirectory - it needs the same "../" prefix a
-    hand-typed relative link between the same two pages would need."""
+    """Regression test: a top-level record_source ("references.md") isn't a
+    valid link as-is from a page nested in a subdirectory - it needs the
+    same "../" prefix a hand-typed relative link between the same two
+    pages would need."""
     _convert_as_zensical_page_with_citations(
         'Skoulikari, A. (2023) *Learning Git*.\n'
         '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
@@ -295,14 +295,12 @@ def test_nav_preseed_ignores_fenced_documentation_examples(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A doc page showing zendoc.citations' own definition syntax as a
-    literal example inside a fenced code block - exactly what
-    zendoc-template's customise.md does - must not be mistaken for a real
-    definition by the raw-text nav pre-scan (which, unlike
+    literal example inside a fenced code block must not be mistaken for a
+    real definition by the raw-text nav pre-scan (which, unlike
     CitationDefTreeprocessor, isn't fence-aware via the real parser).
-    Regression test for a real bug found migrating zendoc-template's
-    references.md: customise.md comes before references.md in nav order,
-    so its fenced example was "winning" the preseed slot, sending every
-    \\cite{skou2023} to the wrong page."""
+    Regression test for a real bug: a page with such an example earlier in
+    nav order than the real references page was "winning" the preseed
+    slot, sending every \\cite{skou2023} to the wrong page."""
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
     (docs_dir / "customise.md").write_text(

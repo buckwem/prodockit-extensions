@@ -67,16 +67,25 @@ registry sharing, and full syntax details.
 
 ## PDF generation
 
-[`zendoc.pdf`](https://buckwem.github.io/zendoc-extension/pdf/) is a
-Pandoc/WeasyPrint pipeline for building a standalone PDF from
-Zensical-rendered HTML - not a Python-Markdown extension, a plain function
-library: HTML fixups for Pandoc's own reader/writer quirks
-(`zendoc.pdf.html`), a Lua filter for chapter numbering and caption
-ordering (`zendoc.pdf.lua`), and the compiled CSS a paginated PDF needs on
-top of a project's own website stylesheet (`zendoc.pdf.css`), plus
-standalone helpers for admonition icons and Mermaid diagram pre-rendering.
+[`zendoc.pdf`](https://buckwem.github.io/zendoc-extension/pdf/) builds a
+standalone PDF from your site's own rendered pages, via Pandoc and
+WeasyPrint - not a Python-Markdown extension, a plain function library.
+`build_pdf()` is a one-call wrapper: hand it your rendered pages and where
+you want the PDF written.
+
+```python
+from zendoc.pdf import Page, build_pdf
+
+build_pdf(
+    [Page(docs_rel_path="index.md", html=rendered_html, is_index=True)],
+    "dist/report.pdf",
+)
+```
+
 See the [docs](https://buckwem.github.io/zendoc-extension/pdf/) for the
-full pipeline and each module's own reference.
+full parameter list, and for the individual pieces (`zendoc.pdf.html`/
+`.lua`/`.css`/`.icons`/`.mermaid`) if you need more control over how they
+fit together.
 
 ## Development
 

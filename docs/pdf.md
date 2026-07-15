@@ -1,97 +1,187 @@
 # PDF generation
 
-## Overview
+`zendoc.pdf` builds a standalone PDF from your Zensical site's own rendered
+pages, via [Pandoc](https://pandoc.org/) and [WeasyPrint](https://weasyprint.org/) -
+the kind of downloadable, submittable document professional and academic
+reports commonly need alongside the website itself. `pandoc` and a
+WeasyPrint install both need to be on your machine already (this function
+doesn't install either); see [Pandoc's own install instructions](https://pandoc.org/installing.html)
+and `pip install weasyprint`.
 
-`zendoc.pdf` is a Pandoc/WeasyPrint pipeline for building a standalone PDF
-from Zensical-rendered HTML - the kind of downloadable, submittable document
-professional and academic reports commonly need alongside the website
-itself, which Zensical doesn't produce on its own.
+## Quick start
 
-Unlike `zendoc.headings`/`zendoc.refs`/`zendoc.citations`/`zendoc.glossary`,
-`zendoc.pdf` is **not** a Python-Markdown extension - there's no
-`markdown.extensions` entry point for it, and nothing to add to
-`zensical.toml`. A PDF build pipeline isn't a Markdown syntax extension: it
-runs *after* Zensical has already rendered a page to HTML, fixing that HTML
-up for Pandoc (a different parser from Python-Markdown, with its own reader/
-writer quirks) and generating the Lua filter and CSS a compiled, paginated
-document needs that a live website doesn't. Import what you need directly
-from `zendoc.pdf.html`/`.lua`/`.css`/`.icons`/`.mermaid`, the same way as any
-other zendoc module - see [zendoc-extension#7](https://github.com/buckwem/zendoc-extension/issues/7)
-for why there's no bundled "build the whole PDF" entry point yet.
-
-## Why this exists
-
-Pandoc is a completely different parser from Python-Markdown/Zensical, with
-no awareness of Zensical/`pymdownx`-specific markup at all. Feeding it a
-page's real, already-rendered HTML (rather than hand-translating markdown
-syntax into a Pandoc-compatible dialect) means Pandoc's own HTML reader
-already understands standard HTML correctly - no per-feature translation
-needed - but a handful of real HTML constructs still trip up Pandoc's
-reader/writer, or WeasyPrint's rendering, in ways that need working around
-before/after Pandoc sees them. `zendoc.pdf` collects those workarounds so a
-consuming project doesn't have to rediscover them:
-
-- A raw inline `<svg>` (icons, emoji, diagrams) doesn't survive Pandoc's
-  HTML-to-HTML round trip through to WeasyPrint at all.
-- Pandoc's native `Para` AST node has no attribute field, silently dropping
-  any `id`/`class` a `<p>` carries (attr_list-based citation/glossary
-  definitions, styled paragraphs).
-- Pandoc's `Figure` AST node stores its caption and content as two separate
-  fields rather than ordered children, so a caption meant to appear
-  *before* its table/figure always ends up *after* it once Pandoc's own
-  HTML writer re-serializes the page.
-- A multi-page site concatenated into one PDF document needs cross-page
-  links rewritten to in-document anchors, and local images/repo file links
-  rewritten so they don't depend on relative paths resolving from wherever
-  Pandoc happens to run.
-- WeasyPrint has no JS engine, so client-side Mermaid diagrams and MathJax
-  formulas need pre-rendering to static images before Pandoc ever sees them.
-- A handful of WeasyPrint-specific `page-break-inside`/`page-break-after`
-  quirks need CSS tuned specifically for them - a rule that's fine for a
-  live website's print stylesheet can force an entire heading, admonition,
-  or code block onto a blank page in WeasyPrint's own paginated output.
-
-## Pipeline
-
-A typical caller builds a PDF roughly like this, for each page in a
-project's nav, then once for the whole concatenated document:
+Add a call like this to your own build script, after your site's pages have
+already been rendered to HTML (e.g. via `zensical.markdown.render.render()`,
+or however your project renders each page):
 
 ```python
-from zendoc.pdf.css import build_css
-from zendoc.pdf.html import build_page_anchor_map, fix_up_page_html
-from zendoc.pdf.lua import build_lua_filter
-from zendoc.pdf.mermaid import render_mermaid_diagram
+from zendoc.pdf import Page, build_pdf
 
-# Once, up front, across every page in the build:
-page_anchor_map = build_page_anchor_map(nav_markdown_files)
-
-# Per page: render through Zensical's own Markdown pipeline first...
-rendered_html = zensical_render(markdown_source, page_path)
-
-# ...then fix up the result for Pandoc/WeasyPrint:
-fixed_html = fix_up_page_html(
-    rendered_html,
-    current_docs_rel_path=page_path,
-    docs_dir=docs_dir,
-    page_anchor_map=page_anchor_map,
-    render_mermaid=lambda source: render_mermaid_diagram(
-        source, mmdc_bin, mermaid_output_dir, next_diagram_index()
-    ),
+build_pdf(
+    [
+        Page(docs_rel_path="index.md", html=rendered_html["index.md"], is_index=True),
+        Page(docs_rel_path="chapter1.md", html=rendered_html["chapter1.md"]),
+        Page(docs_rel_path="chapter2.md", html=rendered_html["chapter2.md"]),
+    ],
+    "dist/report.pdf",
+    site_name="My Report",
+    copyright_text="Copyright 2026 Jane Doe",
 )
-
-# Once, for the whole build: concatenate every page's fixed_html into one
-# HTML document, then hand it to Pandoc alongside a generated Lua filter
-# and compiled CSS:
-lua_filter = build_lua_filter(heading_numbering_enabled=True, mathjax_available=True,
-                               math_dir=math_dir, tex2svg_script=tex2svg_script)
-css = build_css(main_font="Inter", mono_font="JetBrains Mono",
-                 copyright_text="Copyright 2026", site_name="My Report")
-
-# pandoc concatenated.html -o out.pdf --pdf-engine=weasyprint \
-#   --lua-filter=filter.lua --css=compiled.css -f html
 ```
 
-## `zendoc.pdf.html`
+That's it - `dist/report.pdf` now exists. `Page.html` is a page's own
+already-rendered HTML (not yet fixed up for Pandoc - `build_pdf` does that
+internally for you); `Page.docs_rel_path` is that page's path relative to
+your docs directory, e.g. `"starthere/installtooling.md"`. Mark exactly one
+page `is_index=True` if you have a dedicated cover/title page - its
+headings are treated as decorative rather than real chapters.
+
+If a build fails (a missing `pandoc`, a WeasyPrint error, and so on),
+`build_pdf` raises `zendoc.pdf.PdfBuildError` with the underlying error
+message attached, rather than silently producing a broken or missing file.
+
+## Common options
+
+`build_pdf`'s two required arguments are the page list and `output_path`
+(where the PDF gets written - any path, absolute or relative; its parent
+directory must already exist). Everything else is an optional keyword
+argument with a sensible default. The ones you'll most likely want to set:
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `docs_dir` | `"docs"` | Your project's docs root, used to resolve each page's own relative image/link references. |
+| `site_name` | `""` | Shown in the running page header. |
+| `copyright_text` | `""` | Shown in the running page footer. |
+| `main_font` / `mono_font` | `"Inter"` / `"JetBrains Mono"` | Font family names - must already be installed/available to WeasyPrint. |
+| `page_size` | `"A4"` | Any WeasyPrint-supported CSS page size (`"Letter"`, ...). |
+| `margin_top` / `margin_right` / `margin_bottom` / `margin_left` | `"2cm"` each | Page margins, as CSS lengths. |
+| `extra_css` | `""` | Your own website stylesheet's content (theme CSS, any custom stylesheet), layered underneath the CSS `build_pdf` generates. |
+| `repo_url` | `""` | Your project's repository URL (GitHub or GitLab) - a relative link to a non-page file (e.g. a stylesheet) is rewritten to that file's canonical URL there, since it has no meaning inside a standalone PDF. |
+
+See the full parameter list below for everything else (running header/
+footer styling, reference-list spacing, heading numbering, math/Mermaid
+pre-rendering, and working-file control).
+
+## Full reference
+
+### `build_pdf`
+
+```python
+build_pdf(
+    pages: list[Page],
+    output_path: str,
+    *,
+    docs_dir: str = "docs",
+    extra_css: str = "",
+    repo_url: str = "",
+    admonition_icon_config: dict[str, Any] | None = None,
+    icon_registry: dict[str, str] | None = None,
+    render_mermaid: Callable[[str], str | None] | None = None,
+    main_font: str = "Inter",
+    mono_font: str = "JetBrains Mono",
+    copyright_text: str = "",
+    site_name: str = "",
+    page_size: str = "A4",
+    margin_top: str = "2cm",
+    margin_right: str = "2cm",
+    margin_bottom: str = "2cm",
+    margin_left: str = "2cm",
+    header_footer_font_size: str = "10pt",
+    header_footer_color: str = "#555555",
+    header_footer_divider_color: str = "#e2e8f0",
+    reference_style_global: bool = False,
+    reference_spacing_european: str = "-0.8em",
+    reference_indent_global: str = "1.27cm",
+    reference_spacing_global: str = "2em",
+    heading_numbering_enabled: bool = True,
+    mathjax_available: bool = False,
+    math_dir: str | None = None,
+    tex2svg_script: str = "",
+    work_dir: str | None = None,
+    keep_work_dir: bool = False,
+) -> None
+```
+
+**Content**
+
+- `admonition_icon_config`/`icon_registry`: give an admonition its own icon
+  in the PDF (Zensical's admonition HTML has none by default outside a
+  website) - see [zendoc.pdf.icons](#zendocpdficons).
+- `render_mermaid`: called with each Mermaid diagram's own source text,
+  should return an image path/`data:` URI or `None` if rendering failed -
+  see [zendoc.pdf.mermaid](#zendocpdfmermaid) for a ready-made renderer.
+
+**Reference-list spacing**
+
+`reference_style_global` switches `.reference` paragraphs (citation
+entries) from the default tight, single-line "european" spacing to double
+spacing between entries with a hanging indent on wrapped lines (the common
+APA/MLA/Chicago style); `.acronym`/`.glossary` paragraphs always use the
+tight spacing regardless. `reference_spacing_european`/
+`reference_indent_global`/`reference_spacing_global` are the underlying
+CSS length values for each.
+
+**Numbering and math**
+
+`heading_numbering_enabled` turns chapter/appendix numbering on headings
+and captions on or off entirely. `mathjax_available`/`math_dir`/
+`tex2svg_script` enable TeX math pre-rendering (WeasyPrint has no JS engine
+to run MathJax client-side): `math_dir` is where a pre-rendered formula's
+SVG is written (defaults to a subdirectory of the working directory);
+`tex2svg_script` is a Node script that renders one TeX formula to SVG,
+invoked as `node tex2svg_script <display|inline>` with the formula on
+stdin and the SVG on stdout. Leave `mathjax_available` False if your
+content has no math, or you haven't set up a local MathJax/`tex2svg`
+install.
+
+**Working files**
+
+`pandoc` needs a few intermediate files on disk (the concatenated HTML, the
+generated Lua filter, the compiled CSS) - written under `work_dir` if
+given, or a fresh temporary directory otherwise (always cleaned up
+regardless of `keep_work_dir` - there's no path left to inspect
+afterwards). `keep_work_dir=True` with an explicit `work_dir` leaves those
+files in place, useful for checking exactly what Pandoc/WeasyPrint received
+when a build succeeds but the PDF looks wrong.
+
+### `Page`
+
+```python
+@dataclass
+class Page:
+    docs_rel_path: str
+    html: str
+    is_index: bool = False
+    is_appendix: bool = False
+```
+
+One page to include in the PDF. `html` is this page's own already-rendered
+HTML (not yet fixed up for Pandoc - `build_pdf` does that for you).
+`is_appendix` gives this page's first heading a letter instead of a number
+("A", "A.1", ...) if you enable `heading_numbering_enabled`.
+
+### `PdfBuildError`
+
+Raised by `build_pdf` when the underlying `pandoc` invocation fails.
+`returncode` and `stderr` are attached for logging or troubleshooting.
+
+## Building your own pipeline
+
+If `build_pdf`'s shape doesn't fit how your project is put together - e.g.
+you want to fix up and inspect each page's HTML individually before
+concatenating them yourself, or drive `pandoc` with your own extra
+arguments - the pieces `build_pdf` is built from are all directly
+importable too:
+
+| Module | What it does |
+|---|---|
+| [`zendoc.pdf.html`](#zendocpdfhtml) | Fixes up one page's rendered HTML for Pandoc's own reader/writer quirks - the biggest piece, and what `build_pdf` calls per page internally. |
+| [`zendoc.pdf.lua`](#zendocpdflua) | Generates the Pandoc Lua filter (chapter numbering, caption ordering, tab reconstruction, math). |
+| [`zendoc.pdf.css`](#zendocpdfcss) | Generates the compiled CSS a paginated PDF needs on top of your website's own stylesheet. |
+| [`zendoc.pdf.icons`](#zendocpdficons) | Resolves an admonition type to its accent-coloured icon SVG. |
+| [`zendoc.pdf.mermaid`](#zendocpdfmermaid) | Pre-renders a Mermaid diagram to a static SVG via `mermaid-cli`. |
+
+### `zendoc.pdf.html`
 
 ```python
 fix_up_page_html(
@@ -109,34 +199,26 @@ fix_up_page_html(
 ) -> str
 ```
 
-The main entry point - applies every HTML fixup a page needs, in the order
-they need to happen, and returns the fixed-up HTML to feed to Pandoc.
-`current_docs_rel_path` is this page's own docs-directory-relative path
-(e.g. `"starthere/installtooling.md"`); `page_anchor_map` is shared across
-every page in the build (see below), used to rewrite cross-page links to
-in-document anchors. `is_index` marks this as the document's cover page -
-every heading on it becomes decorative (unnumbered/unlisted/hidden), and
-its content is wrapped in a `.cover-page` div. `is_appendix` gives this
-page's first heading an `appendix` class, for `zendoc.pdf.lua`'s own
-`Header()` handler to letter instead of number it.
+Applies every HTML fixup a page needs - a raw inline `<svg>` (icons, emoji,
+diagrams) doesn't survive Pandoc's HTML-to-HTML round trip through to
+WeasyPrint at all; Pandoc's `Para` AST node has no attribute field,
+silently dropping any `id`/`class` a `<p>` carries; a caption meant to
+appear *before* its table/figure always ends up *after* it once Pandoc's
+own HTML writer re-serializes the page; a multi-page site concatenated
+into one PDF document needs cross-page links rewritten to in-document
+anchors; and more.
 
-A few standalone helpers are exported separately, since a caller building a
-multi-page PDF needs to call them once, up front, across every page - not
-just from within `fix_up_page_html` itself:
+A few standalone helpers, used once up front across every page rather than
+from within `fix_up_page_html` itself:
 
 | Function | Purpose |
 |---|---|
-| `build_page_anchor_map(md_files)` | Maps each nav markdown file to a deterministic in-document anchor id, for cross-page link rewriting. |
+| `build_page_anchor_map(md_files)` | Maps each page to a deterministic in-document anchor id, for cross-page link rewriting. |
 | `build_virtual_page_map(md_files)` | Same mapping, keyed by Zensical's own clean-URL "virtual directory" path instead of the raw filename. |
 | `virtual_page_path(docs_rel_path)` | The clean-URL virtual directory a single page's path maps to. |
 | `to_base64_data_uri(img_src, base_dir)` | Resolves a (possibly relative) image src to an absolute path and returns it as a base64 `data:` URI. |
 
-`render_mermaid`, if given, is called with each Mermaid diagram's own source
-text and should return an image src (a file path or `data:` URI), or `None`
-if rendering failed - see `zendoc.pdf.mermaid.render_mermaid_diagram` for a
-ready-made renderer to wire up as this callback.
-
-## `zendoc.pdf.lua`
+### `zendoc.pdf.lua`
 
 ```python
 build_lua_filter(
@@ -148,23 +230,9 @@ build_lua_filter(
 ```
 
 Generates the complete Pandoc Lua filter source as a string - write it to a
-file and pass it to Pandoc with `--lua-filter=`. `math_dir` is where a
-pre-rendered formula's SVG is written; `tex2svg_script` is a Node script
-that renders one TeX formula to SVG (formula on stdin, SVG on stdout,
-invoked as `node tex2svg_script <display|inline>`) - both are ignored when
-`mathjax_available` is `False`. Handles:
+file and pass it to Pandoc with `--lua-filter=`.
 
-- Chapter-number/appendix-letter prefixing on every heading, carried over
-  onto figure/table caption numbers too.
-- Reconstructing `pymdownx.blocks.tab`'s tabbed-set HTML into one
-  header/body pair per tab (each tab's label is rewritten to its own `<p>`
-  by `zendoc.pdf.html` first, since Pandoc's HTML reader would otherwise
-  merge adjacent inline labels into one unseparated run of text).
-- Pre-rendering TeX math to static SVGs via a Node `tex2svg`-style script,
-  since WeasyPrint has no JS engine to run MathJax client-side.
-- Inserting the generated Table of Contents at its own heading.
-
-## `zendoc.pdf.css`
+### `zendoc.pdf.css`
 
 ```python
 build_css(
@@ -187,30 +255,15 @@ build_css(
 ) -> str
 ```
 
-Generates the complete compiled CSS a PDF needs, layered on top of a
-project's own website stylesheet (the caller is expected to concatenate its
-own theme CSS/`extra.css`/print stylesheet underneath this). Covers running
-header/footer boxes, footnotes anchored via `float: footnote`, and
-WeasyPrint-specific page-break tuning for headings, paragraphs, tables,
-code blocks, figures/captions, admonitions, tabbed sets, and grid cards -
-every rule here exists because a plausible-looking print CSS rule (`avoid`
-where `auto` was needed, or vice versa) forced a real, confirmed blank-page
-gap or an orphaned heading in WeasyPrint specifically. Values a project's
-own config controls (fonts, page size/margins, header/footer styling,
-reference-list spacing) are function parameters, substituted into the
-generated CSS.
+Generates the complete compiled CSS a PDF needs, layered on top of your own
+website stylesheet. Covers running header/footer boxes, footnotes anchored
+via `float: footnote`, and page-break tuning for headings, paragraphs,
+tables, code blocks, figures/captions, admonitions, tabbed sets, and grid
+cards - every rule here exists because a plausible-looking print CSS rule
+forced a real, confirmed blank-page gap or an orphaned heading in
+WeasyPrint specifically.
 
-`reference_style_global` mirrors a project's own website-side reference-
-style choice: `False` (the default, "european") gives every
-`.reference`/`.acronym`/`.glossary` paragraph tight, single-line spacing
-with no indent between entries; `True` ("global") gives `.reference`
-paragraphs (only) double spacing between entries with a hanging indent on
-wrapped lines (the common APA/MLA/Chicago style). These three classes have
-no equivalent styling on a website without a `.md-typeset`-style ancestor
-wrapper - Pandoc's HTML output has none, so `build_css()`'s own plain,
-unscoped selectors are what actually applies either style in a PDF.
-
-## `zendoc.pdf.icons`
+### `zendoc.pdf.icons`
 
 ```python
 admonition_icon_svg(
@@ -220,15 +273,12 @@ admonition_icon_svg(
 ) -> str | None
 ```
 
-Zensical's own admonition HTML has no icon markup at all in a standalone
-document - the website draws one via a CSS trick referencing a theme asset
-that doesn't exist outside it. `discover_icon_dirs()`/`build_icon_registry()`
-find and index the same Material/Zensical/FontAwesome `.icons` directories a
-project's own icon shortcodes already draw from, so `admonition_icon_svg()`
-can resolve an admonition type to its accent-coloured icon SVG markup for
-`zendoc.pdf.html` to insert.
+Resolves an admonition type (note, warning, tip, ...) to its accent-
+coloured icon SVG markup. `discover_icon_dirs()`/`build_icon_registry()`
+find and index the Material/Zensical/FontAwesome `.icons` directories your
+project's own icon shortcodes already draw from.
 
-## `zendoc.pdf.mermaid`
+### `zendoc.pdf.mermaid`
 
 ```python
 render_mermaid_diagram(
@@ -242,18 +292,9 @@ render_mermaid_diagram(
 
 Pre-renders one Mermaid diagram's source to a static SVG via a local
 [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) install, since
-WeasyPrint has no JS engine to run Mermaid.js client-side. Forces Mermaid's
-`htmlLabels` option off internally, so diagram labels render as plain SVG
-text WeasyPrint can actually display, instead of the `<foreignObject>`-based
-default it silently can't.
+WeasyPrint has no JS engine to run Mermaid.js client-side.
 
 ## Status
 
-Ported from [zendoc-template](https://github.com/buckwem/zendoc-template)'s
-own `build_pdf.py` (see [zendoc-template#96](https://github.com/buckwem/zendoc-template/issues/96)),
-where it's still the production build script as of this release -
-`zendoc-template` hasn't yet been cut over to import from here. No formal,
-versioned public API contract yet either (see
-[zendoc-extension#7](https://github.com/buckwem/zendoc-extension/issues/7)) -
-import whatever's needed directly, the same informal way as the rest of
-this package.
+No formal, versioned public API stability contract yet (see
+[zendoc-extension#7](https://github.com/buckwem/zendoc-extension/issues/7)).

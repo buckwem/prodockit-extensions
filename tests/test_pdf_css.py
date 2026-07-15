@@ -74,11 +74,11 @@ def test_acronym_and_glossary_spacing_use_the_european_value_regardless_of_style
 
 
 def test_dead_gridcard_matrix_classes_are_not_present() -> None:
-    """Regression guard: .gridcard-matrix/-item/-title was the old regex
-    pipeline's own hand-built HTML convention (retired in zendoc-template#92)
-    - Zensical's real grid-card HTML never produces this structure, so this
-    CSS was never ported here at all (only the real div.grid.cards rules
-    were)."""
+    """Regression guard: .gridcard-matrix/-item/-title was an older,
+    hand-built HTML convention some consuming projects have retired in
+    favour of Zensical's own native grid-card HTML, which never produces
+    this structure - so this CSS was never ported here at all (only the
+    real div.grid.cards rules were)."""
     css = build_css("Inter", "Fira Code", "Copyright 2026", "My Site")
     assert ".gridcard-matrix" not in css
     assert ".gridcard-item" not in css

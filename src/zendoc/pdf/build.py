@@ -1,0 +1,230 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+"""One-call PDF build: wires up html/lua/css into a real `pandoc` +
+WeasyPrint invocation and writes a finished PDF file.
+
+The rest of `zendoc.pdf` (`html.py`/`lua.py`/`css.py`/`icons.py`/
+`mermaid.py`) is a set of focused building blocks you can call individually
+if you need to change how they fit together. `build_pdf()` here is the
+convenience path: hand it your already-rendered pages and where you want
+the PDF written, and it does the rest - fixing up each page's HTML,
+generating the Lua filter and CSS, concatenating everything, and running
+`pandoc`/WeasyPrint.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import tempfile
+from dataclasses import dataclass
+from typing import Any, Callable
+
+from zendoc.pdf.css import build_css
+from zendoc.pdf.html import build_page_anchor_map, fix_up_page_html
+from zendoc.pdf.lua import build_lua_filter
+
+
+@dataclass
+class Page:
+    """One page to include in the PDF.
+
+    `html` is this page's content already rendered to HTML by your own
+    Markdown pipeline (e.g. Zensical's `zensical.markdown.render.render()`)
+    - not yet fixed up for Pandoc; `build_pdf()` applies
+    `zendoc.pdf.html.fix_up_page_html()` to it internally. `docs_rel_path`
+    is this page's path relative to your docs directory (e.g.
+    `"starthere/installtooling.md"`), used to resolve this page's own
+    relative links/images and to generate its in-document anchor.
+    """
+
+    docs_rel_path: str
+    html: str
+    is_index: bool = False
+    is_appendix: bool = False
+
+
+class PdfBuildError(RuntimeError):
+    """Raised when the underlying `pandoc` invocation fails. `stderr` (if
+    captured) and `returncode` are attached for a caller that wants to
+    inspect or log the failure, rather than just the formatted message."""
+
+    def __init__(self, message: str, *, returncode: int | None = None, stderr: str | None = None) -> None:
+        super().__init__(message)
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+def build_pdf(
+    pages: list[Page],
+    output_path: str,
+    *,
+    docs_dir: str = "docs",
+    extra_css: str = "",
+    repo_url: str = "",
+    admonition_icon_config: dict[str, Any] | None = None,
+    icon_registry: dict[str, str] | None = None,
+    render_mermaid: Callable[[str], str | None] | None = None,
+    main_font: str = "Inter",
+    mono_font: str = "JetBrains Mono",
+    copyright_text: str = "",
+    site_name: str = "",
+    page_size: str = "A4",
+    margin_top: str = "2cm",
+    margin_right: str = "2cm",
+    margin_bottom: str = "2cm",
+    margin_left: str = "2cm",
+    header_footer_font_size: str = "10pt",
+    header_footer_color: str = "#555555",
+    header_footer_divider_color: str = "#e2e8f0",
+    reference_style_global: bool = False,
+    reference_spacing_european: str = "-0.8em",
+    reference_indent_global: str = "1.27cm",
+    reference_spacing_global: str = "2em",
+    heading_numbering_enabled: bool = True,
+    mathjax_available: bool = False,
+    math_dir: str | None = None,
+    tex2svg_script: str = "",
+    work_dir: str | None = None,
+    keep_work_dir: bool = False,
+) -> None:
+    """Builds a complete PDF from `pages` and writes it to `output_path`
+    (e.g. `"dist/report.pdf"`, `"build/output/handbook.pdf"` - any path,
+    absolute or relative; parent directories are not created for you).
+
+    Raises `PdfBuildError` if the underlying `pandoc` invocation fails
+    (`pandoc` and a WeasyPrint install are both required on `PATH`/in the
+    current Python environment - this function doesn't install either).
+
+    **Content**
+
+    `docs_dir` is your project's docs root (used to resolve each page's own
+    relative image/link references - see `zendoc.pdf.html.fix_up_page_html`).
+    `extra_css` is your own website stylesheet's content (e.g. your theme
+    CSS plus any custom stylesheet), concatenated *before* the CSS this
+    function generates, so its own `!important` rules can still override a
+    website-only style that doesn't make sense in a paginated PDF. `repo_url`,
+    `admonition_icon_config`, `icon_registry`, and `render_mermaid` are
+    passed straight through to `fix_up_page_html()` for every page - see its
+    own docs for what each does.
+
+    **Typography and layout**
+
+    `main_font`/`mono_font` are font family names (already installed/
+    available to WeasyPrint - this function doesn't fetch fonts).
+    `page_size` is any WeasyPrint-supported CSS page size (`"A4"`,
+    `"Letter"`, ...). `margin_*`/`header_footer_*` are CSS length/colour
+    values for the page margins and running header/footer. `copyright_text`/
+    `site_name` appear in the running footer/header. `reference_style_global`
+    and its `reference_*` spacing values control `.reference`/`.acronym`/
+    `.glossary` paragraph spacing - see `zendoc.pdf.css.build_css` for what
+    each style looks like.
+
+    **Numbering and math**
+
+    `heading_numbering_enabled` turns chapter/appendix numbering on
+    headings and captions on or off entirely. `mathjax_available`/
+    `math_dir`/`tex2svg_script` enable TeX math pre-rendering - see
+    `zendoc.pdf.lua.build_lua_filter` for what each does; leave
+    `mathjax_available` False if your content has no math or you haven't
+    set up a local MathJax/`tex2svg` install.
+
+    **Working files**
+
+    `pandoc` needs a few intermediate files on disk (the concatenated HTML,
+    the generated Lua filter, the compiled CSS) - written under `work_dir`
+    if given, or a fresh temporary directory otherwise. `keep_work_dir`
+    leaves those files in place afterwards (only meaningful with an explicit
+    `work_dir` - a temporary directory is always cleaned up regardless, and
+    can't usefully be inspected afterwards) - handy for debugging exactly
+    what Pandoc/WeasyPrint received, e.g. when the generated PDF looks wrong
+    but the build didn't fail outright.
+    """
+    use_temp_dir = work_dir is None
+    resolved_work_dir: str = tempfile.mkdtemp(prefix="zendoc-pdf-") if work_dir is None else work_dir
+    os.makedirs(resolved_work_dir, exist_ok=True)
+
+    try:
+        page_anchor_map = build_page_anchor_map([page.docs_rel_path for page in pages])
+
+        fixed_html_parts = []
+        for page in pages:
+            fixed_html_parts.append(
+                fix_up_page_html(
+                    page.html,
+                    current_docs_rel_path=page.docs_rel_path,
+                    docs_dir=docs_dir,
+                    page_anchor_map=page_anchor_map,
+                    is_index=page.is_index,
+                    is_appendix=page.is_appendix,
+                    repo_url=repo_url,
+                    admonition_icon_config=admonition_icon_config,
+                    icon_registry=icon_registry,
+                    render_mermaid=render_mermaid,
+                )
+            )
+
+        concatenated_html_path = os.path.join(resolved_work_dir, "_zendoc_pdf_compiled.html")
+        with open(concatenated_html_path, "w", encoding="utf-8") as f:
+            f.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>\n")
+            f.write("\n\n".join(fixed_html_parts))
+            f.write("\n</body></html>")
+
+        lua_filter_path = os.path.join(resolved_work_dir, "_zendoc_pdf_filter.lua")
+        with open(lua_filter_path, "w", encoding="utf-8") as f:
+            f.write(
+                build_lua_filter(
+                    heading_numbering_enabled=heading_numbering_enabled,
+                    mathjax_available=mathjax_available,
+                    math_dir=math_dir or resolved_work_dir,
+                    tex2svg_script=tex2svg_script,
+                )
+            )
+
+        css = build_css(
+            main_font=main_font,
+            mono_font=mono_font,
+            copyright_text=copyright_text,
+            site_name=site_name,
+            page_size=page_size,
+            margin_top=margin_top,
+            margin_right=margin_right,
+            margin_bottom=margin_bottom,
+            margin_left=margin_left,
+            header_footer_font_size=header_footer_font_size,
+            header_footer_color=header_footer_color,
+            header_footer_divider_color=header_footer_divider_color,
+            reference_style_global=reference_style_global,
+            reference_spacing_european=reference_spacing_european,
+            reference_indent_global=reference_indent_global,
+            reference_spacing_global=reference_spacing_global,
+        )
+        compiled_css_path = os.path.join(resolved_work_dir, "_zendoc_pdf_compiled.css")
+        with open(compiled_css_path, "w", encoding="utf-8") as f:
+            f.write(extra_css + "\n\n" + css)
+
+        cmd = [
+            "pandoc",
+            concatenated_html_path,
+            "-o", output_path,
+            "--pdf-engine=weasyprint",
+            "--pdf-engine-opt=-q",
+            "--mathjax",
+            f"--lua-filter={lua_filter_path}",
+            "-f", "html",
+            "--resource-path=.",
+            f"--resource-path={docs_dir}",
+            f"--css={compiled_css_path}",
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise PdfBuildError(
+                f"pandoc exited with status {result.returncode} building {output_path!r}",
+                returncode=result.returncode,
+                stderr=result.stderr,
+            )
+    finally:
+        if use_temp_dir or not keep_work_dir:
+            shutil.rmtree(resolved_work_dir, ignore_errors=True)

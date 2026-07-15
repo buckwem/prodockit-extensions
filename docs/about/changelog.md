@@ -1,12 +1,30 @@
 # Release Notes
 
+## 0.8.0 (2026-07-15)
+
+- New `zendoc.pdf.build_pdf()`: a one-call convenience wrapper around the
+  rest of `zendoc.pdf` - hand it a list of already-rendered pages
+  (`zendoc.pdf.Page`) and where to write the PDF, and it fixes up each
+  page's HTML, generates the Lua filter and CSS, concatenates everything,
+  and runs `pandoc`/WeasyPrint for you. Takes `output_path` (the PDF's own
+  destination path) plus font/page-size/margin/header-footer/reference-
+  style/numbering/math parameters, all with sensible defaults. Raises the
+  new `zendoc.pdf.PdfBuildError` (with the underlying `pandoc` exit code
+  and stderr attached) if the build fails, rather than failing silently.
+  `zendoc.pdf.html`/`.lua`/`.css`/`.icons`/`.mermaid` remain directly
+  importable if you need more control over how the pieces fit together.
+- Rewrote the [PDF generation](../pdf.md) docs page around `build_pdf()` as
+  the primary documented way to use `zendoc.pdf`, leading with a short,
+  practical quick-start example rather than the implementation-level detail
+  of how Pandoc/WeasyPrint's own quirks are worked around (that detail is
+  still there, now further down, for anyone who wants it).
+
 ## 0.7.0 (2026-07-15)
 
 - New `zendoc.pdf`: a Pandoc/WeasyPrint pipeline for building a standalone
   PDF from Zensical-rendered HTML - not a Python-Markdown extension (no
   `markdown.extensions` entry point), a plain function library, since a PDF
-  build pipeline isn't a Markdown syntax extension. Ported from
-  `zendoc-template`'s own `build_pdf.py` (see zendoc-template#96):
+  build pipeline isn't a Markdown syntax extension:
     - `zendoc.pdf.html`: `fix_up_page_html()` and link/anchor/image helpers
       - fixes up one page's already-rendered HTML for Pandoc's own reader/
         writer quirks (attribute loss on `<p>`, raw `<svg>` not surviving

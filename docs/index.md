@@ -29,7 +29,18 @@ build pipeline isn't a Markdown syntax extension.
 
 | Module | Description |
 |---|---|
-| [zendoc.pdf](pdf.md) | A Pandoc/WeasyPrint pipeline for building a standalone PDF from Zensical-rendered HTML - not a Python-Markdown extension, a plain function library. |
+| [zendoc.pdf](pdf.md) | Builds a standalone PDF from your site's own rendered pages, via Pandoc and WeasyPrint - not a Python-Markdown extension, a plain function library. `build_pdf()` is a one-call wrapper: hand it your rendered pages and an output path. |
+
+```python
+from zendoc.pdf import Page, build_pdf
+
+build_pdf(
+    [Page(docs_rel_path="index.md", html=rendered_html, is_index=True)],
+    "dist/report.pdf",
+)
+```
+
+See [PDF generation](pdf.md) for the full parameter list.
 
 ## Quick example
 
