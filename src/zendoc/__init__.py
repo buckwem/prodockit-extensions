@@ -18,6 +18,13 @@ per-page rendering context is detected automatically where it's useful (see
 zendoc.headings'/zendoc.citations'/zendoc.glossary's cross-page registry
 sharing).
 
+Also includes ``zendoc.pdf``, a family of plain functions (not a
+Python-Markdown extension - there's no ``markdown.extensions`` entry point
+for it) for building a standalone PDF from Zensical-rendered HTML via Pandoc
+and WeasyPrint: HTML fixups for Pandoc's own reader/writer quirks, a Lua
+filter, and the compiled CSS a PDF needs on top of a project's own website
+stylesheet.
+
 See https://buckwem.github.io/zendoc-extension/ for documentation.
 """
 

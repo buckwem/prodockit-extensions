@@ -5,17 +5,18 @@ build-backend = "hatchling.build"
 [project]
 name = "zendoc"
 version = "0.6.0"
-description = "A family of Python-Markdown extensions for section cross-references and bibliography/citation handling, built for use with Zensical"
+description = "Python-Markdown extensions for section cross-references and bibliography/citation handling, plus a Pandoc/WeasyPrint PDF pipeline, built for use with Zensical"
 readme = "README.md"
 license = "MIT"
 authors = [
   { name = "Mark Buckwell" },
 ]
 requires-python = ">=3.10"
-keywords = ["markdown", "python-markdown", "zensical", "extension"]
+keywords = ["markdown", "python-markdown", "zensical", "extension", "pdf", "pandoc"]
 dependencies = [
   "Markdown>=3.4",
   "zensical",
+  "beautifulsoup4>=4.12",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -41,6 +42,7 @@ dev = [
   "ruff",
   "mypy",
   "types-Markdown",
+  "types-beautifulsoup4",
   "pytest",
   "pytest-cov",
 ]
