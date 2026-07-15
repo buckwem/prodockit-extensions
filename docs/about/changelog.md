@@ -1,5 +1,29 @@
 # Release Notes
 
+## 0.10.0 (2026-07-15)
+
+- New `zendoc.zensical_macros`: Jinja variables/macros for Zensical's own
+  macros plugin - `{{ word_count }}` (site-wide prose word count, excluding
+  the cover page and any page flagged `exclude_from_word_count: true`),
+  `{{ repo_url }}` (git-detected repository URL), `{{ site_name }}`, and
+  `heading_counter_reset(page)`/`reference_style()`/`acronym_style()`/
+  `glossary_style()` macros. Add it alongside a project's own `macros.py`
+  via `zensical.toml`'s `modules = ["zendoc.zensical_macros"]` - or use it
+  alone if the project has no macros of its own.
+- New `zendoc.wordcount`: the generic prose word-count utility
+  (`count_words()`/`compute_word_count()`) behind both `zendoc.pdf`'s
+  `{WORDCOUNT}`-style cover-page use and `zendoc.zensical_macros`'
+  `{{ word_count }}` - previously duplicated independently by each
+  downstream project needing both.
+- New `zendoc.settings`: `flatten_nav()`, `heading_numbering_enabled()`, and
+  `reference_style_values()` - the `project.extra.*` reading shared by
+  `zendoc.pdf.config` and `zendoc.zensical_macros`, so the two agree on one
+  set of fallback defaults instead of each hand-maintaining its own copy.
+  `zendoc.pdf.config.build_pdf_from_zensical_config()` now uses these too
+  (previously inlined), and its `pdf_math_dir` setting is now created
+  automatically if configured to a directory that doesn't already exist
+  (matching the auto-detected default's existing behaviour).
+
 ## 0.9.0 (2026-07-15)
 
 - New `zendoc pdf` command: builds a complete PDF with no Python required,

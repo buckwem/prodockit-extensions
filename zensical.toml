@@ -22,6 +22,7 @@ nav = [
     {"Glossary" = "extensions/glossary.md"},
   ]},
   {"PDF generation" = "pdf.md"},
+  {"Website macros" = "macros.md"},
   {"About" = [
     {"Release Notes" = "about/changelog.md"},
     {"License" = "about/license.md"},

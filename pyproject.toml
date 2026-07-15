@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zendoc"
-version = "0.9.0"
-description = "A family of extensions for Zensical needed for professional and academic documentation: section cross-references, bibliography/citation handling, a glossary, and a Pandoc/WeasyPrint PDF pipeline"
+version = "0.10.0"
+description = "A family of extensions for Zensical needed for professional and academic documentation: section cross-references, bibliography/citation handling, a glossary, a Pandoc/WeasyPrint PDF pipeline, and Jinja macros for word counts and reference-style spacing"
 readme = "README.md"
 license = "MIT"
 authors = [

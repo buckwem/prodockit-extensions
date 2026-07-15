@@ -18,33 +18,17 @@ from __future__ import annotations
 
 import os
 import shutil
-from typing import Any
 
 from zendoc.pdf.build import Page, build_pdf
 from zendoc.pdf.icons import build_icon_registry, discover_icon_dirs
 from zendoc.pdf.mermaid import render_mermaid_diagram
+from zendoc.settings import flatten_nav, heading_numbering_enabled, reference_style_values
 
 # Front matter flag marking a page for letter-based numbering ("A", "A.1",
 # ...) - same default name as zendoc.headings' own `appendix_attr` option,
 # so a project already using continuous numbering doesn't need a second,
 # differently-named flag for the PDF.
 APPENDIX_FRONT_MATTER_KEY = "is_appendix"
-
-
-def _flatten_nav(nav_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Flattens Zensical's own resolved nav tree (each item already
-    carrying `url`/`is_index`/`children`, as returned by
-    `zensical.config.parse_config()`) into an ordered, depth-first list of
-    real pages only - a nav group heading (`url` is `None`, only
-    `children`) contributes no entry of its own, just its descendants."""
-    pages = []
-    for item in nav_items:
-        if item.get("url"):
-            pages.append(item)
-        children = item.get("children") or []
-        if children:
-            pages.extend(_flatten_nav(children))
-    return pages
 
 
 def _find_mmdc_bin(configured: str | None) -> str | None:
@@ -122,7 +106,7 @@ def build_pdf_from_zensical_config(config_path: str = "zensical.toml") -> str:
     admonition_icon_config = (theme.get("icon") or {}).get("admonition") or {}
 
     docs_dir = config.get("docs_dir") or "docs"
-    nav_pages = _flatten_nav(config.get("nav") or [])
+    nav_pages = flatten_nav(config.get("nav") or [])
     if not nav_pages:
         raise ValueError(f"No pages found in {config_path}'s nav - nothing to build")
 
@@ -139,6 +123,13 @@ def build_pdf_from_zensical_config(config_path: str = "zensical.toml") -> str:
             return render_mermaid_diagram(source, mmdc_bin, mermaid_dir, mermaid_state["count"])
 
     tex2svg_script = _find_tex2svg_script(extra.get("pdf_tex2svg_script"))
+    math_dir = extra.get("pdf_math_dir")
+    if math_dir:
+        # build_lua_filter()'s math_dir "must already exist or be creatable
+        # by the caller" - only relevant here for an explicitly configured
+        # directory; the default (build_pdf()'s own work_dir) already
+        # exists by the time the Lua filter needs it.
+        os.makedirs(math_dir, exist_ok=True)
 
     page_objects = []
     for nav_page in nav_pages:
@@ -157,6 +148,9 @@ def build_pdf_from_zensical_config(config_path: str = "zensical.toml") -> str:
         )
 
     output_path = extra.get("pdf_output") or os.path.join(docs_dir, "site_documentation.pdf")
+    reference_style, reference_spacing_european, reference_indent_global, reference_spacing_global = (
+        reference_style_values(extra)
+    )
 
     build_pdf(
         page_objects,
@@ -178,13 +172,13 @@ def build_pdf_from_zensical_config(config_path: str = "zensical.toml") -> str:
         header_footer_font_size=extra.get("pdf_header_footer_font_size") or "10pt",
         header_footer_color=extra.get("pdf_header_footer_color") or "#555555",
         header_footer_divider_color=extra.get("pdf_header_footer_divider_color") or "#e2e8f0",
-        reference_style_global=str(extra.get("reference_style") or "european").strip().lower() == "global",
-        reference_spacing_european=extra.get("reference_spacing_european") or "-0.8em",
-        reference_indent_global=extra.get("reference_indent_global") or "1.27cm",
-        reference_spacing_global=extra.get("reference_spacing_global") or "2em",
-        heading_numbering_enabled=bool(extra.get("heading_numbering", True)),
+        reference_style_global=reference_style == "global",
+        reference_spacing_european=reference_spacing_european,
+        reference_indent_global=reference_indent_global,
+        reference_spacing_global=reference_spacing_global,
+        heading_numbering_enabled=heading_numbering_enabled(extra),
         mathjax_available=tex2svg_script is not None,
-        math_dir=extra.get("pdf_math_dir") or None,
+        math_dir=math_dir,
         tex2svg_script=tex2svg_script or "",
         include_table_of_contents=bool(extra.get("pdf_include_table_of_contents", True)),
         table_of_contents_title=extra.get("pdf_table_of_contents_title") or "Table of Contents",

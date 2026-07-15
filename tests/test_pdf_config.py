@@ -10,7 +10,6 @@ import pytest
 from zendoc.pdf.config import (
     _find_mmdc_bin,
     _find_tex2svg_script,
-    _flatten_nav,
     build_pdf_from_zensical_config,
 )
 
@@ -58,21 +57,6 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         return root
 
     return _make
-
-
-def test_flatten_nav_recurses_into_groups_and_skips_group_headings() -> None:
-    nav = [
-        {"url": "index.md", "children": []},
-        {
-            "url": None,
-            "children": [
-                {"url": "a.md", "children": []},
-                {"url": "b.md", "children": []},
-            ],
-        },
-    ]
-    flattened = _flatten_nav(nav)
-    assert [page["url"] for page in flattened] == ["index.md", "a.md", "b.md"]
 
 
 def test_find_mmdc_bin_prefers_an_explicit_configured_path_that_exists(tmp_path: Path) -> None:

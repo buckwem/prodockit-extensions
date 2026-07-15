@@ -15,8 +15,8 @@ instead (`zendoc pdf`), since a PDF build pipeline isn't a Markdown syntax
 extension - it reads the same `zensical.toml` too.
 
 > **Status:** early, but functional - `zendoc.headings`, `zendoc.refs`,
-> `zendoc.citations`, `zendoc.glossary`, and `zendoc.pdf` are implemented
-> and tested.
+> `zendoc.citations`, `zendoc.glossary`, `zendoc.pdf`, and
+> `zendoc.zensical_macros` are implemented and tested.
 
 **[Full documentation](https://buckwem.github.io/zendoc-extension/)**
 
@@ -83,6 +83,22 @@ table of contents included, from every page in your `nav`. See the
 `zensical.toml` settings it reads, and for the Python API
 (`build_pdf()`, `zendoc.pdf.html`/`.lua`/`.css`/`.icons`/`.mermaid`) if
 you're scripting your own build pipeline instead.
+
+## Website macros
+
+[`zendoc.zensical_macros`](https://buckwem.github.io/zendoc-extension/macros/)
+provides a site-wide word count, the git-detected repository URL, chapter/
+appendix numbering that continues across pages, and reference/acronym/
+glossary spacing that matches `zendoc.pdf`'s own PDF output - as Jinja
+variables/macros for Zensical's own macros plugin:
+
+```toml
+[project.markdown_extensions.zensical.extensions.macros]
+modules = ["zendoc.zensical_macros"]
+```
+
+See the [docs](https://buckwem.github.io/zendoc-extension/macros/) for the
+full variable/macro list.
 
 ## Development
 

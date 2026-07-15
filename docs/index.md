@@ -39,6 +39,19 @@ zendoc pdf
 See [PDF generation](pdf.md) for the `zensical.toml` settings it reads, and
 for the Python API if you're scripting your own build pipeline instead.
 
+## Website macros
+
+| Module | Description |
+|---|---|
+| [zendoc.zensical_macros](macros.md) | Jinja variables/macros for Zensical's macros plugin: a site-wide word count, the git-detected repository URL, chapter/appendix numbering that continues across pages, and reference/acronym/glossary spacing that matches `zendoc.pdf`'s own PDF output. |
+
+```toml
+[project.markdown_extensions.zensical.extensions.macros]
+modules = ["zendoc.zensical_macros"]
+```
+
+See [Website macros](macros.md) for the full variable/macro list.
+
 ## Quick example
 
 ```python
@@ -70,9 +83,10 @@ conversion.
 ## Status
 
 Early, but functional. `zendoc.headings`, `zendoc.refs`, `zendoc.citations`,
-`zendoc.glossary`, and `zendoc.pdf` are implemented and tested; auto-
-generating a full references list from structured bibliographic data is not
-yet built (see [zendoc.citations](extensions/citations.md#what-this-doesnt-do-yet)),
-and `zendoc.pdf` has no formal, versioned public API yet (see
-[zendoc-extension#7](https://github.com/buckwem/zendoc-extension/issues/7)).
+`zendoc.glossary`, `zendoc.pdf`, and `zendoc.zensical_macros` are
+implemented and tested; auto-generating a full references list from
+structured bibliographic data is not yet built (see
+[zendoc.citations](extensions/citations.md#what-this-doesnt-do-yet)), and
+none of `zendoc.pdf`/`zendoc.zensical_macros` has a formal, versioned public
+API yet (see [zendoc-extension#7](https://github.com/buckwem/zendoc-extension/issues/7)).
 See the [Release Notes](about/changelog.md) for what's landed so far.
