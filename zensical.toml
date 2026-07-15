@@ -1,6 +1,6 @@
 [project]
 site_name = "zendoc"
-site_description = "A family of Python-Markdown extensions for section cross-references and bibliography/citation handling."
+site_description = "A family of extensions for Zensical needed for professional and academic documentation: section cross-references, bibliography/citation handling, a glossary, and a Pandoc/WeasyPrint PDF pipeline."
 site_author = "Mark Buckwell"
 site_url = "https://buckwem.github.io/zendoc-extension/"
 
@@ -21,6 +21,7 @@ nav = [
     {"Citations" = "extensions/citations.md"},
     {"Glossary" = "extensions/glossary.md"},
   ]},
+  {"PDF generation" = "pdf.md"},
   {"About" = [
     {"Release Notes" = "about/changelog.md"},
     {"License" = "about/license.md"},

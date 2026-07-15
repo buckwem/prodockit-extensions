@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zendoc"
-version = "0.6.0"
-description = "Python-Markdown extensions for section cross-references and bibliography/citation handling, plus a Pandoc/WeasyPrint PDF pipeline, built for use with Zensical"
+version = "0.7.0"
+description = "A family of extensions for Zensical needed for professional and academic documentation: section cross-references, bibliography/citation handling, a glossary, and a Pandoc/WeasyPrint PDF pipeline"
 readme = "README.md"
 license = "MIT"
 authors = [

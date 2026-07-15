@@ -7,7 +7,9 @@ pip install zendoc
 ```
 
 `zendoc` depends on [`Markdown`](https://python-markdown.github.io/)
-(>= 3.4) and [`zensical`](https://zensical.org/).
+(>= 3.4), [`zensical`](https://zensical.org/), and
+[`beautifulsoup4`](https://www.crummy.com/software/BeautifulSoup/) (>= 4.12,
+used by `zendoc.pdf` - see [PDF generation](pdf.md)).
 
 ## Enabling an extension
 
@@ -45,6 +47,11 @@ registry across multiple pages of a site build:
 - [zendoc.refs](extensions/refs.md)
 - [zendoc.citations](extensions/citations.md)
 - [zendoc.glossary](extensions/glossary.md)
+
+`zendoc.pdf` is different: it isn't a Python-Markdown extension (no
+`markdown.extensions` entry point, nothing to add to `zensical.toml`) - it's
+a plain function library for a separate PDF-generation build step. See
+[PDF generation](pdf.md) for how it's used.
 
 ## Development install
 

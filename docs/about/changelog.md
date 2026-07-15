@@ -1,5 +1,42 @@
 # Release Notes
 
+## 0.7.0 (2026-07-15)
+
+- New `zendoc.pdf`: a Pandoc/WeasyPrint pipeline for building a standalone
+  PDF from Zensical-rendered HTML - not a Python-Markdown extension (no
+  `markdown.extensions` entry point), a plain function library, since a PDF
+  build pipeline isn't a Markdown syntax extension. Ported from
+  `zendoc-template`'s own `build_pdf.py` (see zendoc-template#96):
+    - `zendoc.pdf.html`: `fix_up_page_html()` and link/anchor/image helpers
+      - fixes up one page's already-rendered HTML for Pandoc's own reader/
+        writer quirks (attribute loss on `<p>`, raw `<svg>` not surviving
+        the round trip to WeasyPrint, footnote/caption structural
+        mismatches, cross-page link rewriting for a concatenated multi-page
+        PDF, and more).
+    - `zendoc.pdf.lua`: `build_lua_filter()` - chapter/appendix numbering,
+      caption chapter-prefix numbering, tabbed-set reconstruction, and
+      MathJax pre-rendering, generated as a parameterized Lua filter.
+    - `zendoc.pdf.css`: `build_css()` - the compiled CSS a PDF needs on top
+      of a project's own website stylesheet, including WeasyPrint-specific
+      page-break tuning for headings, paragraphs, tables, code blocks,
+      figures/captions, admonitions, and grid cards.
+    - `zendoc.pdf.icons` / `zendoc.pdf.mermaid`: admonition icon resolution
+      and Mermaid diagram pre-rendering, as standalone helpers.
+  - Fixed a real bug found while writing tests: the iframe→"Watch Video"
+    admonition link builder stripped the video id from every single
+    conversion (a replace-then-split ordering removed the just-added
+    `?v=...` too) - now produces a working YouTube watch link.
+  - No formal, versioned public API surface yet (see zendoc-extension#7) -
+    import whatever's needed directly, the same informal way as the rest of
+    this package.
+  - New dependency: `beautifulsoup4` (>= 4.12).
+- Broadened the package's own description: zendoc is now framed as a family
+  of extensions for Zensical needed for professional and academic
+  documentation, rather than "Python-Markdown extensions" specifically -
+  `zendoc.pdf` isn't one, and the framing was due to broaden anyway now
+  that PDF generation is in scope alongside cross-references/citations/
+  glossary.
+
 ## 0.6.0 (2026-07-14)
 
 - `zendoc.headings`: new `numbering="continuous"` option (Zensical only) -

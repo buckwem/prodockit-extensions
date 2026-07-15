@@ -1,14 +1,21 @@
 # zendoc
 
-A family of [Python-Markdown](https://python-markdown.github.io/) extensions
-for section cross-references and bibliography/citation handling, in the
-spirit of [pymdown-extensions](https://facelessuser.github.io/pymdown-extensions/):
-each extension is independent and enabled separately. Built for use with
-[Zensical](https://zensical.org/) - configure it the same way as any other
-Zensical/`pymdownx` Markdown extension, via `zensical.toml`.
+A family of extensions for [Zensical](https://zensical.org/) needed for
+professional and academic documentation: section cross-references,
+bibliography/citation handling, a glossary, and a Pandoc/WeasyPrint PDF
+pipeline for the downloadable, submittable document these usually need
+alongside the website itself. Each piece is independent, so you only pay
+for what you use.
+
+Most of zendoc is [Python-Markdown](https://python-markdown.github.io/)
+extensions, in the spirit of [pymdown-extensions](https://facelessuser.github.io/pymdown-extensions/) -
+configure one the same way as any other Zensical/`pymdownx` Markdown
+extension, via `zensical.toml`. `zendoc.pdf` is a plain function library
+instead, since a PDF build pipeline isn't a Markdown syntax extension.
 
 > **Status:** early, but functional - `zendoc.headings`, `zendoc.refs`,
-> `zendoc.citations`, and `zendoc.glossary` are implemented and tested.
+> `zendoc.citations`, `zendoc.glossary`, and `zendoc.pdf` are implemented
+> and tested.
 
 **[Full documentation](https://buckwem.github.io/zendoc-extension/)**
 
@@ -57,6 +64,19 @@ definition. All three stay correct if content is reordered, since
 resolution happens fresh on every conversion. See the
 [docs](https://buckwem.github.io/zendoc-extension/) for options, multi-page
 registry sharing, and full syntax details.
+
+## PDF generation
+
+[`zendoc.pdf`](https://buckwem.github.io/zendoc-extension/pdf/) is a
+Pandoc/WeasyPrint pipeline for building a standalone PDF from
+Zensical-rendered HTML - not a Python-Markdown extension, a plain function
+library: HTML fixups for Pandoc's own reader/writer quirks
+(`zendoc.pdf.html`), a Lua filter for chapter numbering and caption
+ordering (`zendoc.pdf.lua`), and the compiled CSS a paginated PDF needs on
+top of a project's own website stylesheet (`zendoc.pdf.css`), plus
+standalone helpers for admonition icons and Mermaid diagram pre-rendering.
+See the [docs](https://buckwem.github.io/zendoc-extension/pdf/) for the
+full pipeline and each module's own reference.
 
 ## Development
 
