@@ -218,6 +218,9 @@ importable too:
   border: 2px solid var(--md-primary-fg-color);
   border-radius: 0.4em;
   padding: 0.5em 0.9em;
+  width: 180px;
+  box-sizing: border-box;
+  text-align: center;
   white-space: nowrap;
   background-color: var(--md-default-bg-color);
 }
@@ -245,8 +248,7 @@ importable too:
   border-top: 7px solid var(--md-default-fg-color--lighter);
 }
 .zendoc-pipeline-desc {
-  display: flex;
-  align-items: center;
+  align-self: center;
   padding: 0.75em 0;
 }
 </style>
