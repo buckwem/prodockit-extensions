@@ -56,8 +56,8 @@ a plain function library for a separate PDF-generation build step. See
 ## Development install
 
 ```bash
-git clone https://github.com/buckwem/zendoc-extension
-cd zendoc-extension
+git clone https://github.com/buckwem/zendoc-extensions
+cd zendoc-extensions
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"

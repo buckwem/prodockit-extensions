@@ -31,7 +31,7 @@ for it - a PDF build pipeline isn't a Markdown syntax extension).
 ``zendoc.zensical_macros`` is a plain ``define_env()`` module for Zensical's
 macros plugin's own ``modules`` config, not a Markdown extension either.
 
-See https://buckwem.github.io/zendoc-extension/ for documentation.
+See https://buckwem.github.io/zendoc-extensions/ for documentation.
 """
 
 __version__ = "0.10.0"

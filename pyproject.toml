@@ -28,9 +28,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/buckwem/zendoc-extension"
-Documentation = "https://buckwem.github.io/zendoc-extension/"
-Issues = "https://github.com/buckwem/zendoc-extension/issues"
+Homepage = "https://github.com/buckwem/zendoc-extensions"
+Documentation = "https://buckwem.github.io/zendoc-extensions/"
+Issues = "https://github.com/buckwem/zendoc-extensions/issues"
 
 [project.entry-points."markdown.extensions"]
 "zendoc.headings" = "zendoc.headings:HeadingsExtension"
