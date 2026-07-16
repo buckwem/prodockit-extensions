@@ -46,54 +46,17 @@ inline wherever you write `\ref{id}`. Numbers are recomputed from scratch on
 every conversion, so reordering headings always produces correct numbers on
 the next build - there's no stored/stale numbering state.
 
-### Unnumbered headings
+### Appendices
 
-A heading with an `unnumbered` class - e.g. a cover page or title slide -
-still gets an id, but is skipped when computing section numbers, so it
-doesn't consume a counter position:
-
-```md
-# Cover Page {: .unnumbered }
-
-# Introduction
-```
-
-`Introduction` above is still numbered `1`, as if `Cover Page` weren't
-there at all.
-
-### Continuous numbering across pages (Zensical)
-
-By default, numbering is per-document: every page's own `h1` starts back at
-1, regardless of what came before it in a multi-page build. Set
-`numbering="continuous"` to make `h1` numbering carry on from wherever the
-previous nav page left off instead:
-
-```toml
-[project.markdown_extensions."zendoc.headings"]
-numbering = "continuous"
-```
-
-e.g. if page one ends with `h1` number `"3"`, page two's first `h1` becomes
-`"4"`, not `"1"` again. This is what makes a `\ref{id}` link to a heading on
-a *different* page (see [zendoc.refs](refs.md)) show the same number that's
-actually displayed on that page.
-
-A page whose front matter sets `is_appendix: true` is numbered with a
-letter instead - `"A"`, `"A.1"`, `"A.1.1"` - and doesn't consume a number
-from the numeric sequence at all, so pages after it aren't left with a gap:
-
-```md
----
-is_appendix: true
----
-
-# Glossary
-```
-
-Letters are assigned sequentially in nav order - the first `is_appendix`
-page becomes `"A"`, the second `"B"`, and so on, independent of how many
-numbered pages come before them. Only meaningful under
-[Zensical](https://zensical.org/); ignored otherwise.
+Flag a page's front matter with `is_appendix: true` to give it letter-based
+numbering instead of the normal numeric sequence - `"A"`, `"A.1"`,
+`"A.1.1"` - once you've enabled
+[continuous numbering](#continuous-numbering-across-pages-zensical) (see
+Reference below). An appendix page doesn't consume a number from the
+numeric sequence at all, so pages after it aren't left with a gap. Letters
+are assigned sequentially in nav order - the first `is_appendix` page
+becomes `"A"`, the second `"B"`, and so on, independent of how many
+numbered pages come before them.
 
 For example, with this nav order:
 
@@ -137,9 +100,46 @@ since `glossary.md` isn't a real page on *this* site):
 `Glossary`'s own `h1` becomes `"A"` (the first appendix page in nav) and
 its `Terms` subheading becomes `"A.1"` - and `References`, the page after
 it, still gets the next plain number in the numeric sequence (`"2"`, not
-`"3"`), exactly as if the appendix page had never consumed one.
+`"3"`), exactly as if the appendix page had never consumed one. Only
+meaningful under [Zensical](https://zensical.org/); ignored otherwise.
+
+### Unnumbered headings
+
+A heading with an `unnumbered` class - e.g. a cover page or title slide -
+still gets an id, but is skipped when computing section numbers, so it
+doesn't consume a counter position:
+
+```md
+# Cover Page {: .unnumbered }
+
+# Introduction
+```
+
+`Introduction` above is still numbered `1`, as if `Cover Page` weren't
+there at all.
 
 ## Reference
+
+### Continuous numbering across pages (Zensical)
+
+By default, numbering is per-document: every page's own `h1` starts back at
+1, regardless of what came before it in a multi-page build. Set
+`numbering="continuous"` to make `h1` numbering carry on from wherever the
+previous nav page left off instead:
+
+```toml
+[project.markdown_extensions."zendoc.headings"]
+numbering = "continuous"
+```
+
+e.g. if page one ends with `h1` number `"3"`, page two's first `h1` becomes
+`"4"`, not `"1"` again. This is what makes a `\ref{id}` link to a heading on
+a *different* page (see [zendoc.refs](refs.md)) show the same number that's
+actually displayed on that page.
+
+Once enabled, a page whose front matter sets `is_appendix: true` is
+numbered with a letter instead - see [Appendices](#appendices) above for a
+worked example.
 
 ### Ids
 
