@@ -95,6 +95,50 @@ page becomes `"A"`, the second `"B"`, and so on, independent of how many
 numbered pages come before them. Only meaningful under
 [Zensical](https://zensical.org/); ignored otherwise.
 
+For example, with this nav order:
+
+```toml
+nav = [
+  {"Install tooling" = "installtooling.md"},
+  {"Glossary" = "glossary.md"},
+  {"References" = "references.md"},
+]
+```
+
+and `glossary.md` flagged as an appendix:
+
+```md
+<!-- glossary.md -->
+---
+is_appendix: true
+---
+
+# Glossary
+
+## Terms {: #terms }
+```
+
+a [zendoc.refs](refs.md) reference to `Terms` from another page:
+
+```md
+<!-- references.md -->
+# References
+
+See \ref{terms} for defined terms.
+```
+
+renders to (a link to `glossary.md#terms`, shown here as a code block
+since `glossary.md` isn't a real page on *this* site):
+
+```html
+<p>See <a class="zendoc-ref" href="glossary.md#terms">A.1</a> for defined terms.</p>
+```
+
+`Glossary`'s own `h1` becomes `"A"` (the first appendix page in nav) and
+its `Terms` subheading becomes `"A.1"` - and `References`, the page after
+it, still gets the next plain number in the numeric sequence (`"2"`, not
+`"3"`), exactly as if the appendix page had never consumed one.
+
 ## Reference
 
 ### Ids
