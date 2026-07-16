@@ -198,13 +198,94 @@ concatenating them yourself, or drive `pandoc` with your own extra
 arguments - the pieces `build_pdf` is built from are all directly
 importable too:
 
-| Module | What it does |
-|---|---|
-| [`zendoc.pdf.html`](#zendocpdfhtml) | Fixes up one page's rendered HTML for Pandoc's own reader/writer quirks - the biggest piece, and what `build_pdf` calls per page internally. |
-| [`zendoc.pdf.lua`](#zendocpdflua) | Generates the Pandoc Lua filter (chapter numbering, caption ordering, tab reconstruction, math). |
-| [`zendoc.pdf.css`](#zendocpdfcss) | Generates the compiled CSS a paginated PDF needs on top of your website's own stylesheet. |
-| [`zendoc.pdf.icons`](#zendocpdficons) | Resolves an admonition type to its accent-coloured icon SVG. |
-| [`zendoc.pdf.mermaid`](#zendocpdfmermaid) | Pre-renders a Mermaid diagram to a static SVG via `mermaid-cli`. |
+<style>
+.zendoc-pipeline {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1.25rem;
+  margin: 1.5em 0;
+}
+.zendoc-pipeline-step {
+  display: contents;
+}
+.zendoc-pipeline-node-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+.zendoc-pipeline-node {
+  border: 2px solid var(--md-primary-fg-color);
+  border-radius: 0.4em;
+  padding: 0.5em 0.9em;
+  white-space: nowrap;
+  background-color: var(--md-default-bg-color);
+}
+.zendoc-pipeline-node code {
+  background: none;
+  padding: 0;
+}
+.zendoc-pipeline-connector {
+  flex: 1;
+  min-height: 1.5em;
+  width: 2px;
+  background-color: var(--md-default-fg-color--lighter);
+  position: relative;
+}
+.zendoc-pipeline-connector::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--md-default-fg-color--lighter);
+}
+.zendoc-pipeline-desc {
+  display: flex;
+  align-items: center;
+  padding: 0.75em 0;
+}
+</style>
+<div class="zendoc-pipeline">
+  <div class="zendoc-pipeline-step">
+    <div class="zendoc-pipeline-node-wrap">
+      <div class="zendoc-pipeline-node"><a href="#zendocpdfhtml"><code>zendoc.pdf.html</code></a></div>
+      <div class="zendoc-pipeline-connector"></div>
+    </div>
+    <div class="zendoc-pipeline-desc">Fixes up one page's rendered HTML for Pandoc's own reader/writer quirks - the biggest piece, and what <code>build_pdf</code> calls per page internally.</div>
+  </div>
+  <div class="zendoc-pipeline-step">
+    <div class="zendoc-pipeline-node-wrap">
+      <div class="zendoc-pipeline-node"><a href="#zendocpdflua"><code>zendoc.pdf.lua</code></a></div>
+      <div class="zendoc-pipeline-connector"></div>
+    </div>
+    <div class="zendoc-pipeline-desc">Generates the Pandoc Lua filter (chapter numbering, caption ordering, tab reconstruction, math).</div>
+  </div>
+  <div class="zendoc-pipeline-step">
+    <div class="zendoc-pipeline-node-wrap">
+      <div class="zendoc-pipeline-node"><a href="#zendocpdfcss"><code>zendoc.pdf.css</code></a></div>
+      <div class="zendoc-pipeline-connector"></div>
+    </div>
+    <div class="zendoc-pipeline-desc">Generates the compiled CSS a paginated PDF needs on top of your website's own stylesheet.</div>
+  </div>
+  <div class="zendoc-pipeline-step">
+    <div class="zendoc-pipeline-node-wrap">
+      <div class="zendoc-pipeline-node"><a href="#zendocpdficons"><code>zendoc.pdf.icons</code></a></div>
+      <div class="zendoc-pipeline-connector"></div>
+    </div>
+    <div class="zendoc-pipeline-desc">Resolves an admonition type to its accent-coloured icon SVG.</div>
+  </div>
+  <div class="zendoc-pipeline-step">
+    <div class="zendoc-pipeline-node-wrap">
+      <div class="zendoc-pipeline-node"><a href="#zendocpdfmermaid"><code>zendoc.pdf.mermaid</code></a></div>
+    </div>
+    <div class="zendoc-pipeline-desc">Pre-renders a Mermaid diagram to a static SVG via <code>mermaid-cli</code>.</div>
+  </div>
+</div>
 
 #### `zendoc.pdf.html`
 
