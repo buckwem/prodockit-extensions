@@ -1,30 +1,40 @@
 # Glossary
 
-## Overview
-
 `zendoc.glossary` lets you define a term once - an acronym expansion, a
 glossary definition, anything with a short name and a longer explanation -
 and insert it by id from anywhere in a build, instead of hand-typing a link
-around the term's own text at every use. Define a term's paragraph with an
-id and its display text via
-[`attr_list`](https://python-markdown.github.io/extensions/attr_list/):
+around the term's own text at every use. Like
+[zendoc.citations](citations.md), defining and inserting are bundled into
+one extension: a definition is useless without somewhere to use it.
+
+## Quick start
+
+Enable it in `zensical.toml`:
+
+```toml
+[project.markdown_extensions."zendoc.glossary"]
+```
+
+Define a term's paragraph with an id and its display text via
+[`attr_list`](https://python-markdown.github.io/extensions/attr_list/),
+then insert it from anywhere with `\gls{id}`:
 
 ```md
+This site uses \gls{css} to control appearance.
+
 **CSS** - Cascading Style Sheets.
 {: #css .acronym data-term="CSS" }
 ```
 
-then insert it from anywhere with `\gls{css}`:
+renders to:
 
-```md
-This site uses \gls{css} to control appearance.
-```
+<p>This site uses <a class="zendoc-gls" href="#css">CSS</a> to control appearance.</p>
+<p class="acronym" id="css"><strong>CSS</strong> - Cascading Style Sheets.</p>
 
-renders as `This site uses CSS to control appearance.`, with `CSS`
-linked directly to the term's own page (e.g. `acronyms.md#css`, or `#css`
-if used from that same page) - Zensical rewrites that into the correct
-clean URL for the citing page's own location, the same way a hand-typed
-`[CSS](acronyms.md#css)` link already gets rewritten.
+`CSS` is linked directly to the term's own page (e.g. `acronyms.md#css`, or
+`#css` if used from that same page) - Zensical rewrites that into the
+correct clean URL for the citing page's own location, the same way a
+hand-typed `[CSS](acronyms.md#css)` link already gets rewritten.
 
 **Unlike [zendoc.citations](citations.md)'s `\cite{id}`**, which *generates*
 new bracketed citation text (`\cite{id}` → `[Skoulikari, 2023]`), `\gls{id}`
@@ -33,51 +43,9 @@ inserts the term's *own* registered text in place - closer to LaTeX's
 citation. One shared registry covers both acronym entries and glossary
 entries (and anything else you want to define a short term for) - they're
 the same kind of thing, an id with a short display text, just conventionally
-organised across two differently-named pages.
-
-Like `zendoc.citations`, defining and inserting are bundled into one
-extension: a definition is useless without somewhere to use it, so there's
-no independently useful "just defining" half to split out.
-
-## Syntax
-
-### Defining a term
-
-Any block element - typically a paragraph - with both an `id` and a
-`data-term` attribute becomes usable with `\gls{id}`:
-
-```md
-**GUI** - Graphical User Interface.
-{: #gui .acronym data-term="GUI" }
-```
-
-`data-term` is the text inserted at each `\gls{id}` site - it's stripped
-from the rendered output (it's internal bookkeeping, not meant to be
-visible), while `id` stays, since references link straight to it.
-
-### Using a term
-
-```
-\gls{<id>}
-```
-
-Unlike `\cite{...}`, `\gls{...}` only ever takes a single id - there's no
-multi-term/bracketed form, since inserting a term's own text doesn't
-compose the way a citation list does.
-
-Like [zendoc.refs](refs.md)/[zendoc.citations](citations.md), `\gls{...}`
-is recognised the same way Python-Markdown's own inline syntax is, so it's
-protected inside inline code spans and fenced code blocks:
-
-````md
-Type `\gls{css}` to insert a term.
-
-```
-\gls{css}
-```
-````
-
-Neither of the two shown above is resolved; both render the literal text.
+organised across two differently-named pages (see
+[Acronyms and Glossary: one registry, two pages](#acronyms-and-glossary-one-registry-two-pages)
+below).
 
 ### Forward references
 
@@ -93,7 +61,7 @@ See \gls{css} above.
 {: #css data-term="CSS" }
 ```
 
-## Unresolved references
+### Unresolved references
 
 An id that doesn't resolve to a definition renders the `unresolved` marker
 (`?` by default), unlinked:
@@ -103,62 +71,6 @@ An id that doesn't resolve to a definition renders the `unresolved` marker
 ```
 
 renders `?`, with no link.
-
-## Options
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `source` | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's own term definitions in the registry, and to build a correct link when a `\gls{id}` target lives on a different page. |
-| `unresolved` | `str` | `"?"` | Text rendered for a `\gls{id}` that doesn't resolve to a definition. |
-| `registry` | `GlossaryRegistry \| None` | discovered automatically, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
-
-## Multi-page builds
-
-### Under Zensical: automatic
-
-Under [Zensical](https://zensical.org/), referencing a term defined on a
-*different* page (the common case - Acronyms/Glossary appendix pages
-separate from the pages that use them) works with no extra configuration,
-the same way [zendoc.citations](citations.md#under-zensical-automatic)
-shares its registry across pages:
-
-```toml
-[project.markdown_extensions."zendoc.glossary"]
-```
-
-**Using a term before it's defined works too**, the same way as
-`zendoc.citations`: `zendoc.glossary` pre-scans every page in the current
-Zensical build's nav for term definitions before any page has actually
-been converted, so a term used from an early chapter but defined on an
-Acronyms/Glossary page kept at the end of nav resolves correctly within a
-single `zensical build` pass.
-
-Two different sources that happen to define the same id don't fail the
-build: the first one scanned keeps that id, and the collision is logged as
-a warning rather than raised as an error.
-
-### Under other tools: manual
-
-Outside Zensical, share a `GlossaryRegistry` yourself, the same way as
-[zendoc.citations](citations.md#under-other-tools-manual):
-
-```python
-import markdown
-from zendoc.glossary import GlossaryExtension
-from zendoc.util import GlossaryRegistry
-
-registry = GlossaryRegistry()
-
-for path, text in pages:
-    html = markdown.markdown(
-        text,
-        extensions=[GlossaryExtension(registry=registry, source=path)],
-    )
-```
-
-A genuine id collision between two different `source`s raises
-`zendoc.util.DuplicateIdError` here, rather than warning - a deliberately
-shared registry means you're expected to notice and fix it.
 
 ## Acronyms and Glossary: one registry, two pages
 
@@ -212,3 +124,101 @@ As a rule of thumb: reach for `\gls{id}` when the term's own name belongs
 at that point in the sentence, and a plain link when the link text needs
 to say something else entirely - a "see also", a page name, or any other
 custom wording.
+
+## Reference
+
+### Syntax
+
+#### Defining a term
+
+Any block element - typically a paragraph - with both an `id` and a
+`data-term` attribute becomes usable with `\gls{id}`:
+
+```md
+**GUI** - Graphical User Interface.
+{: #gui .acronym data-term="GUI" }
+```
+
+`data-term` is the text inserted at each `\gls{id}` site - it's stripped
+from the rendered output (it's internal bookkeeping, not meant to be
+visible), while `id` stays, since references link straight to it.
+
+#### Using a term
+
+```
+\gls{<id>}
+```
+
+Unlike `\cite{...}`, `\gls{...}` only ever takes a single id - there's no
+multi-term/bracketed form, since inserting a term's own text doesn't
+compose the way a citation list does.
+
+Like [zendoc.refs](refs.md)/[zendoc.citations](citations.md), `\gls{...}`
+is recognised the same way Python-Markdown's own inline syntax is, so it's
+protected inside inline code spans and fenced code blocks:
+
+````md
+Type `\gls{css}` to insert a term.
+
+```
+\gls{css}
+```
+````
+
+Neither of the two shown above is resolved; both render the literal text.
+
+### Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `source` | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's own term definitions in the registry, and to build a correct link when a `\gls{id}` target lives on a different page. |
+| `unresolved` | `str` | `"?"` | Text rendered for a `\gls{id}` that doesn't resolve to a definition. |
+| `registry` | `GlossaryRegistry \| None` | discovered automatically, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
+
+### Multi-page builds
+
+#### Under Zensical: automatic
+
+Under [Zensical](https://zensical.org/), referencing a term defined on a
+*different* page (the common case - Acronyms/Glossary appendix pages
+separate from the pages that use them) works with no extra configuration,
+the same way [zendoc.citations](citations.md#under-zensical-automatic)
+shares its registry across pages:
+
+```toml
+[project.markdown_extensions."zendoc.glossary"]
+```
+
+**Using a term before it's defined works too**, the same way as
+`zendoc.citations`: `zendoc.glossary` pre-scans every page in the current
+Zensical build's nav for term definitions before any page has actually
+been converted, so a term used from an early chapter but defined on an
+Acronyms/Glossary page kept at the end of nav resolves correctly within a
+single `zensical build` pass.
+
+Two different sources that happen to define the same id don't fail the
+build: the first one scanned keeps that id, and the collision is logged as
+a warning rather than raised as an error.
+
+#### Under other tools: manual
+
+Outside Zensical, share a `GlossaryRegistry` yourself, the same way as
+[zendoc.citations](citations.md#under-other-tools-manual):
+
+```python
+import markdown
+from zendoc.glossary import GlossaryExtension
+from zendoc.util import GlossaryRegistry
+
+registry = GlossaryRegistry()
+
+for path, text in pages:
+    html = markdown.markdown(
+        text,
+        extensions=[GlossaryExtension(registry=registry, source=path)],
+    )
+```
+
+A genuine id collision between two different `source`s raises
+`zendoc.util.DuplicateIdError` here, rather than warning - a deliberately
+shared registry means you're expected to notice and fix it.

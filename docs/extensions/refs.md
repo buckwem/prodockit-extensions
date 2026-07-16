@@ -1,38 +1,79 @@
 # Refs
 
-## Overview
-
 `zendoc.refs` adds a `\ref{id}` cross-reference syntax - similar in spirit
 to LaTeX's `\ref` - that resolves to the *current* section number of the
-heading with that id:
+heading with that id. It depends on the id/number registry that
+[zendoc.headings](headings.md) builds; enabling `zendoc.refs` on its own
+transparently enables `zendoc.headings` too, with matching defaults, so a
+single document works with no extra configuration.
+
+## Quick start
+
+Enable it in `zensical.toml`:
+
+```toml
+[project.markdown_extensions."zendoc.refs"]
+```
+
+then reference any heading's id with `\ref{id}`:
 
 ```md
 # Introduction {: #intro }
 
 See \ref{intro} for background.
+
+## Background
 ```
 
-renders `\ref{intro}` as a link to `#intro` reading `1`. Because the number
-is looked up fresh on every conversion (see [zendoc.headings](headings.md)),
-it stays correct even if sections are added, removed, or reordered - you
-never have to manually renumber a cross-reference.
+renders to:
 
-Referencing a heading defined on a *different* page (see
-[Multi-page builds](#multi-page-builds) below) links to that page directly
-(e.g. `other.md#intro`, which Zensical rewrites into the correct clean URL)
-rather than a bare `#intro` fragment, which would only work if the target
-happened to be on the same page.
+<h1 id="intro">Introduction</h1>
+<p>See <a class="zendoc-ref" href="#intro">1</a> for background.</p>
+<h2 id="background">Background</h2>
 
-`zendoc.refs` depends on the id/number registry that
-[zendoc.headings](headings.md) builds. If you enable `zendoc.refs` on its
-own, it transparently enables `zendoc.headings` for you with matching
-defaults, so a single document works with no extra configuration. If you
-list both explicitly, they'll find and share each other's registry
-regardless of which order they're listed in - see
-[Multi-page builds](#multi-page-builds) below for Zensical (automatic) and
-other tools (manual).
+Because the number is looked up fresh on every conversion, it stays correct
+even if sections are added, removed, or reordered - you never have to
+manually renumber a cross-reference. Referencing a heading defined on a
+*different* page (see [Multi-page builds](#multi-page-builds) below) links
+to that page directly (e.g. `other.md#intro`, which Zensical rewrites into
+the correct clean URL) rather than a bare `#intro` fragment, which would
+only work if the target happened to be on the same page.
 
-## Syntax
+### Forward references
+
+A reference to a heading defined *later* in the same document resolves
+correctly:
+
+```md
+See \ref{background} below.
+
+## Background {: #background }
+```
+
+### Unresolved references
+
+`\ref{id}` renders the `unresolved` marker (`??` by default) instead of a
+number when:
+
+- `id` doesn't exist in the registry at all - e.g. a typo, or a reference
+  to a heading in a page that hasn't been converted yet in a multi-page
+  build (the same way an undefined LaTeX `\ref` shows `??` until a later
+  compilation pass).
+- `id` exists but belongs to a heading marked `unnumbered` (see
+  [zendoc.headings](headings.md#unnumbered-headings)) - it's still a valid
+  link target in this case, just without a number to show.
+
+```md
+# Cover Page {: .unnumbered }
+
+See \ref{cover-page}.
+```
+
+renders `\ref{cover-page}` as `??`, linked to `#cover-page`.
+
+## Reference
+
+### Syntax
 
 ```
 \ref{<id>}
@@ -59,39 +100,7 @@ Type `\ref{intro}` to reference a section.
 
 Neither of the two shown above is resolved; both render the literal text.
 
-## Forward references
-
-A reference to a heading defined *later* in the same document resolves
-correctly:
-
-```md
-See \ref{background} below.
-
-## Background {: #background }
-```
-
-## Unresolved references
-
-`\ref{id}` renders the `unresolved` marker (`??` by default) instead of a
-number when:
-
-- `id` doesn't exist in the registry at all - e.g. a typo, or a reference
-  to a heading in a page that hasn't been converted yet in a multi-page
-  build (the same way an undefined LaTeX `\ref` shows `??` until a later
-  compilation pass).
-- `id` exists but belongs to a heading marked `unnumbered` (see
-  [zendoc.headings](headings.md#unnumbered-headings)) - it's still a valid
-  link target in this case, just without a number to show.
-
-```md
-# Cover Page {: .unnumbered }
-
-See \ref{cover-page}.
-```
-
-renders `\ref{cover-page}` as `??`, linked to `#cover-page`.
-
-## Options
+### Options
 
 | Option | Type | Default | Description |
 |---|---|---|---|
@@ -99,9 +108,9 @@ renders `\ref{cover-page}` as `??`, linked to `#cover-page`.
 | `source` | `str` | `""`, auto-detected under Zensical | Identifier for the current document (e.g. its path) - used only to decide whether a resolved target is on this same page (bare `#id`) or a different one (a real link to it). Doesn't affect resolution itself. |
 | `registry` | `IdRegistry \| None` | discovered from a sibling `zendoc.headings`, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
 
-## Multi-page builds
+### Multi-page builds
 
-### Under Zensical: automatic
+#### Under Zensical: automatic
 
 Under [Zensical](https://zensical.org/), cross-page references work with no
 extra configuration - just enable both extensions in `zensical.toml` as
@@ -128,7 +137,7 @@ built keeps that id, and the collision is logged as a warning rather than
 raised as an error - give one of them an explicit id via `attr_list` (`##
 Overview {: #api-overview }`) to disambiguate and make both referenceable.
 
-### Under other tools: manual
+#### Under other tools: manual
 
 Outside Zensical, give `zendoc.headings` and `zendoc.refs` the *same*
 `IdRegistry` on every page yourself, converting pages in the order
