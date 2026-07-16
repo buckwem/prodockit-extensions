@@ -18,7 +18,7 @@ extension - it reads the same `zensical.toml` too.
 > `zendoc.citations`, `zendoc.glossary`, `zendoc.pdf`, and
 > `zendoc.zensical_macros` are implemented and tested.
 
-**[Full documentation](https://buckwem.github.io/zendoc-extension/)**
+**[Full documentation](https://buckwem.github.io/zendoc-extensions/)**
 
 ## Installation
 
@@ -30,10 +30,10 @@ pip install zendoc
 
 | Extension | Description |
 |---|---|
-| [`zendoc.headings`](https://buckwem.github.io/zendoc-extension/extensions/headings/) | Gives every heading an id and a hierarchical section number ("1", "1.1", "1.2", "2", ...). |
-| [`zendoc.refs`](https://buckwem.github.io/zendoc-extension/extensions/refs/) | `\ref{id}` section cross-references, resolving to the target's current number - similar in spirit to LaTeX's `\ref`. |
-| [`zendoc.citations`](https://buckwem.github.io/zendoc-extension/extensions/citations/) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
-| [`zendoc.glossary`](https://buckwem.github.io/zendoc-extension/extensions/glossary/) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
+| [`zendoc.headings`](https://buckwem.github.io/zendoc-extensions/extensions/headings/) | Gives every heading an id and a hierarchical section number ("1", "1.1", "1.2", "2", ...). |
+| [`zendoc.refs`](https://buckwem.github.io/zendoc-extensions/extensions/refs/) | `\ref{id}` section cross-references, resolving to the target's current number - similar in spirit to LaTeX's `\ref`. |
+| [`zendoc.citations`](https://buckwem.github.io/zendoc-extensions/extensions/citations/) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
+| [`zendoc.glossary`](https://buckwem.github.io/zendoc-extensions/extensions/glossary/) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
 
 ```python
 import markdown
@@ -63,12 +63,12 @@ section number; `\cite{skou2023}` resolves to `[Skoulikari, 2023]`, linked
 to that source; `\gls{css}` resolves to `CSS`, linked to its own
 definition. All three stay correct if content is reordered, since
 resolution happens fresh on every conversion. See the
-[docs](https://buckwem.github.io/zendoc-extension/) for options, multi-page
+[docs](https://buckwem.github.io/zendoc-extensions/) for options, multi-page
 registry sharing, and full syntax details.
 
 ## PDF generation
 
-[`zendoc.pdf`](https://buckwem.github.io/zendoc-extension/pdf/) builds a
+[`zendoc.pdf`](https://buckwem.github.io/zendoc-extensions/pdf/) builds a
 standalone PDF from your site, via Pandoc and WeasyPrint (both need to be
 installed separately - see the docs). No Python required - it reads the
 same `zensical.toml` your site already has:
@@ -79,14 +79,14 @@ zendoc pdf
 
 That's it - run it from your project root and it builds a complete PDF,
 table of contents included, from every page in your `nav`. See the
-[docs](https://buckwem.github.io/zendoc-extension/pdf/) for the
+[docs](https://buckwem.github.io/zendoc-extensions/pdf/) for the
 `zensical.toml` settings it reads, and for the Python API
 (`build_pdf()`, `zendoc.pdf.html`/`.lua`/`.css`/`.icons`/`.mermaid`) if
 you're scripting your own build pipeline instead.
 
 ## Website macros
 
-[`zendoc.zensical_macros`](https://buckwem.github.io/zendoc-extension/macros/)
+[`zendoc.zensical_macros`](https://buckwem.github.io/zendoc-extensions/macros/)
 provides a site-wide word count, the git-detected repository URL, chapter/
 appendix numbering that continues across pages, and reference/acronym/
 glossary spacing that matches `zendoc.pdf`'s own PDF output - as Jinja
@@ -97,7 +97,7 @@ variables/macros for Zensical's own macros plugin:
 modules = ["zendoc.zensical_macros"]
 ```
 
-See the [docs](https://buckwem.github.io/zendoc-extension/macros/) for the
+See the [docs](https://buckwem.github.io/zendoc-extensions/macros/) for the
 full variable/macro list.
 
 ## Development

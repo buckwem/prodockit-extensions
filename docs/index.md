@@ -88,5 +88,5 @@ implemented and tested; auto-generating a full references list from
 structured bibliographic data is not yet built (see
 [zendoc.citations](extensions/citations.md#what-this-doesnt-do-yet)), and
 none of `zendoc.pdf`/`zendoc.zensical_macros` has a formal, versioned public
-API yet (see [zendoc-extension#7](https://github.com/buckwem/zendoc-extension/issues/7)).
+API yet (see [zendoc-extensions#7](https://github.com/buckwem/zendoc-extensions/issues/7)).
 See the [Release Notes](about/changelog.md) for what's landed so far.

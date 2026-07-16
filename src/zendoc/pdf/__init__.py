@@ -30,7 +30,7 @@ CSS a compiled PDF needs that a live website doesn't (:mod:`zendoc.pdf.css`),
 and standalone helpers for Mermaid pre-rendering (:mod:`zendoc.pdf.mermaid`)
 and admonition icons (:mod:`zendoc.pdf.icons`).
 
-No published API stability contract yet - see zendoc-extension#7.
+No published API stability contract yet - see zendoc-extensions#7.
 """
 
 from zendoc.pdf.build import Page, PdfBuildError, build_pdf

@@ -562,4 +562,4 @@ markdown-dialect translation.
 ## Status
 
 No formal, versioned public API stability contract yet (see
-[zendoc-extension#7](https://github.com/buckwem/zendoc-extension/issues/7)).
+[zendoc-extensions#7](https://github.com/buckwem/zendoc-extensions/issues/7)).
