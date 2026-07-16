@@ -67,7 +67,9 @@ A page's own front matter `is_appendix: true` gives it letter-based
 numbering ("A", "A.1", ...) instead of numeric, matching
 [zendoc.headings](extensions/headings.md)' own `appendix_attr` convention.
 
-## Advanced usage: the Python API
+## Reference
+
+### Python API
 
 If you're scripting your own build pipeline and want to call into
 `zendoc.pdf` directly rather than through `zensical.toml`, `build_pdf()` is
@@ -98,7 +100,7 @@ decorative rather than real chapters. `build_pdf` raises
 `zendoc.pdf.PdfBuildError` with the underlying error message attached if
 the build fails.
 
-### `build_pdf`
+#### `build_pdf`
 
 ```python
 build_pdf(
@@ -167,7 +169,7 @@ afterwards). `keep_work_dir=True` with an explicit `work_dir` leaves those
 files in place, useful for checking exactly what Pandoc/WeasyPrint received
 when a build succeeds but the PDF looks wrong.
 
-### `Page`
+#### `Page`
 
 ```python
 @dataclass
@@ -183,12 +185,12 @@ HTML (not yet fixed up for Pandoc - `build_pdf` does that for you).
 `is_appendix` gives this page's first heading a letter instead of a number
 ("A", "A.1", ...) if you enable `heading_numbering_enabled`.
 
-### `PdfBuildError`
+#### `PdfBuildError`
 
 Raised by `build_pdf` when the underlying `pandoc` invocation fails.
 `returncode` and `stderr` are attached for logging or troubleshooting.
 
-## Building your own pipeline
+### Building your own pipeline
 
 If `build_pdf`'s shape doesn't fit how your project is put together - e.g.
 you want to fix up and inspect each page's HTML individually before
@@ -196,15 +198,98 @@ concatenating them yourself, or drive `pandoc` with your own extra
 arguments - the pieces `build_pdf` is built from are all directly
 importable too:
 
-| Module | What it does |
-|---|---|
-| [`zendoc.pdf.html`](#zendocpdfhtml) | Fixes up one page's rendered HTML for Pandoc's own reader/writer quirks - the biggest piece, and what `build_pdf` calls per page internally. |
-| [`zendoc.pdf.lua`](#zendocpdflua) | Generates the Pandoc Lua filter (chapter numbering, caption ordering, tab reconstruction, math). |
-| [`zendoc.pdf.css`](#zendocpdfcss) | Generates the compiled CSS a paginated PDF needs on top of your website's own stylesheet. |
-| [`zendoc.pdf.icons`](#zendocpdficons) | Resolves an admonition type to its accent-coloured icon SVG. |
-| [`zendoc.pdf.mermaid`](#zendocpdfmermaid) | Pre-renders a Mermaid diagram to a static SVG via `mermaid-cli`. |
+<style>
+.zendoc-pipeline {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1.25rem;
+  margin: 1.5em 0;
+}
+.zendoc-pipeline-step {
+  display: contents;
+}
+.zendoc-pipeline-node-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+.zendoc-pipeline-node {
+  border: 2px solid var(--md-primary-fg-color);
+  border-radius: 0.4em;
+  padding: 0.5em 0.9em;
+  width: 180px;
+  box-sizing: border-box;
+  text-align: center;
+  white-space: nowrap;
+  background-color: var(--md-default-bg-color);
+}
+.zendoc-pipeline-node code {
+  background: none;
+  padding: 0;
+}
+.zendoc-pipeline-connector {
+  flex: 1;
+  min-height: 1.5em;
+  width: 2px;
+  background-color: var(--md-default-fg-color--lighter);
+  position: relative;
+}
+.zendoc-pipeline-connector::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--md-default-fg-color--lighter);
+}
+.zendoc-pipeline-desc {
+  align-self: center;
+  padding: 0.75em 0;
+}
+</style>
+<div class="zendoc-pipeline">
+  <div class="zendoc-pipeline-step">
+    <div class="zendoc-pipeline-node-wrap">
+      <div class="zendoc-pipeline-node"><a href="#zendocpdfhtml"><code>zendoc.pdf.html</code></a></div>
+      <div class="zendoc-pipeline-connector"></div>
+    </div>
+    <div class="zendoc-pipeline-desc">Fixes up one page's rendered HTML for Pandoc's own reader/writer quirks - the biggest piece, and what <code>build_pdf</code> calls per page internally.</div>
+  </div>
+  <div class="zendoc-pipeline-step">
+    <div class="zendoc-pipeline-node-wrap">
+      <div class="zendoc-pipeline-node"><a href="#zendocpdflua"><code>zendoc.pdf.lua</code></a></div>
+      <div class="zendoc-pipeline-connector"></div>
+    </div>
+    <div class="zendoc-pipeline-desc">Generates the Pandoc Lua filter (chapter numbering, caption ordering, tab reconstruction, math).</div>
+  </div>
+  <div class="zendoc-pipeline-step">
+    <div class="zendoc-pipeline-node-wrap">
+      <div class="zendoc-pipeline-node"><a href="#zendocpdfcss"><code>zendoc.pdf.css</code></a></div>
+      <div class="zendoc-pipeline-connector"></div>
+    </div>
+    <div class="zendoc-pipeline-desc">Generates the compiled CSS a paginated PDF needs on top of your website's own stylesheet.</div>
+  </div>
+  <div class="zendoc-pipeline-step">
+    <div class="zendoc-pipeline-node-wrap">
+      <div class="zendoc-pipeline-node"><a href="#zendocpdficons"><code>zendoc.pdf.icons</code></a></div>
+      <div class="zendoc-pipeline-connector"></div>
+    </div>
+    <div class="zendoc-pipeline-desc">Resolves an admonition type to its accent-coloured icon SVG.</div>
+  </div>
+  <div class="zendoc-pipeline-step">
+    <div class="zendoc-pipeline-node-wrap">
+      <div class="zendoc-pipeline-node"><a href="#zendocpdfmermaid"><code>zendoc.pdf.mermaid</code></a></div>
+    </div>
+    <div class="zendoc-pipeline-desc">Pre-renders a Mermaid diagram to a static SVG via <code>mermaid-cli</code>.</div>
+  </div>
+</div>
 
-### `zendoc.pdf.html`
+#### `zendoc.pdf.html`
 
 ```python
 fix_up_page_html(
@@ -241,7 +326,7 @@ from within `fix_up_page_html` itself:
 | `virtual_page_path(docs_rel_path)` | The clean-URL virtual directory a single page's path maps to. |
 | `to_base64_data_uri(img_src, base_dir)` | Resolves a (possibly relative) image src to an absolute path and returns it as a base64 `data:` URI. |
 
-### `zendoc.pdf.lua`
+#### `zendoc.pdf.lua`
 
 ```python
 build_lua_filter(
@@ -255,7 +340,7 @@ build_lua_filter(
 Generates the complete Pandoc Lua filter source as a string - write it to a
 file and pass it to Pandoc with `--lua-filter=`.
 
-### `zendoc.pdf.css`
+#### `zendoc.pdf.css`
 
 ```python
 build_css(
@@ -286,7 +371,7 @@ cards - every rule here exists because a plausible-looking print CSS rule
 forced a real, confirmed blank-page gap or an orphaned heading in
 WeasyPrint specifically.
 
-### `zendoc.pdf.icons`
+#### `zendoc.pdf.icons`
 
 ```python
 admonition_icon_svg(
@@ -301,7 +386,7 @@ coloured icon SVG markup. `discover_icon_dirs()`/`build_icon_registry()`
 find and index the Material/Zensical/FontAwesome `.icons` directories your
 project's own icon shortcodes already draw from.
 
-### `zendoc.pdf.mermaid`
+#### `zendoc.pdf.mermaid`
 
 ```python
 render_mermaid_diagram(
@@ -316,6 +401,163 @@ render_mermaid_diagram(
 Pre-renders one Mermaid diagram's source to a static SVG via a local
 [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) install, since
 WeasyPrint has no JS engine to run Mermaid.js client-side.
+
+## Limitations and workarounds
+
+`zendoc.pdf` pipes your site's own rendered HTML through Pandoc and
+WeasyPrint to produce the PDF - two tools with their own reader/writer
+quirks and no JS engine, quite different from a browser rendering your
+live website. This section documents the confirmed limitations that
+shape `zendoc.pdf.html`/`.lua`/`.css`, and the workaround each one gets,
+so a project hitting unexpected PDF output has somewhere to check *why*
+before assuming it's a bug.
+
+**No JS engine (WeasyPrint can't run client-side JS)**
+
+- Mermaid diagrams: no JS engine to run Mermaid.js client-side → each
+  ` ```mermaid ` fence is pre-rendered to a static SVG via `mermaid-cli`
+  before Pandoc ever sees it (see [`zendoc.pdf.mermaid`](#zendocpdfmermaid)).
+    - Mermaid's default node/edge labels are HTML `<foreignObject>`
+      content, which WeasyPrint's SVG renderer can't display (text
+      silently vanishes) → `htmlLabels` is forced off, so Mermaid emits
+      plain SVG `<text>`/`<tspan>` labels instead.
+- Math (`$...$`/`$$...$$`, `pymdownx.arithmatex`): no JS engine to run
+  MathJax client-side → each formula is pre-rendered to a static SVG via
+  a Lua filter `Math()` handler piping to a `tex2svg` script (see
+  [`zendoc.pdf.lua`](#zendocpdflua)).
+    - `arithmatex`'s *generic*-mode math (`<div class="arithmatex">`/
+      `<span class="arithmatex">`) has no native Math AST node in
+      Pandoc's *HTML* reader (unlike its *markdown* reader, which
+      recognises `$...$` as a real Math node) → matched by CSS class in
+      dedicated `Div()`/`Span()` Lua handlers instead of the `Math()`
+      function.
+- A live site's own header repo widget (release/version info) fetches it
+  client-side via JS; Pandoc/WeasyPrint has no JS engine to do the same →
+  a project embedding similar info in a PDF cover page needs to fetch and
+  substitute it directly before the page ever reaches `build_pdf()`.
+
+**Multi-page → single-document concatenation**
+
+- A link that resolves fine on a website (a separate page) has nothing to
+  point at once every page is concatenated into one PDF - Pandoc treats it
+  as a link to an external file at whatever absolute path the PDF happened
+  to be built from → rewritten to in-document anchors instead (see
+  `build_page_anchor_map()`/`build_virtual_page_map()` in
+  [`zendoc.pdf.html`](#zendocpdfhtml)).
+- Local image/file references can't depend on relative paths resolving
+  correctly from wherever Pandoc happens to run in a standalone document →
+  base64-embedded as `data:` URIs directly in the HTML (see
+  `to_base64_data_uri()`).
+- A CSS `url()` reference (e.g. in your own website stylesheet, passed via
+  `extra_css`) resolved relative to wherever Pandoc runs is meaningless
+  (and can leak a local file path) to anyone reading the PDF → a project
+  passing its own CSS through `extra_css` should rewrite any such
+  reference to a stable, absolute URL (e.g. the file's canonical GitHub/
+  GitLab "blob" URL) before handing it to `build_pdf()`.
+
+**Raw `<svg>` doesn't survive Pandoc's HTML→HTML round trip through to
+WeasyPrint at all** (confirmed directly, isolated test) - affects
+admonition icons, grid-card title icons, and pre-rendered Mermaid diagrams
+alike → every `<svg>` is converted to a base64 `data:` URI `<img>` instead
+(see [`zendoc.pdf.icons`](#zendocpdficons)).
+
+**Content tabs (`pymdownx.blocks.tab`)**: each tab's label renders as an
+inline `<label>` sibling with no block boundary between them; Pandoc's
+HTML reader merges adjacent inline-level siblings with no block boundary
+into one `Plain` block, collapsing every label in a tabbed-set into one
+unseparated run of text with no way to recover the boundary afterward in a
+Lua filter → each `<label>` is rewritten into its own `<p>` *before*
+Pandoc's reader ever sees it, then the Lua filter reconstructs the
+`tabbed-set`/`tabbed-labels`/`tabbed-content` structure into a `tabbox`
+shape (see [`zendoc.pdf.lua`](#zendocpdflua)).
+
+**Figure/table captions in "prepend" position**: Pandoc's `Figure` AST
+node stores `Caption` and content as two separate, independently-typed
+fields rather than ordered children reflecting DOM position, and Pandoc's
+own HTML writer always re-emits a `Figure`'s `<figcaption>` *after* its
+content when serializing back to HTML - confirmed directly (a
+`<figcaption>` placed first in source HTML still comes out last from
+Pandoc's own HTML writer), discarding "prepend" positioning entirely
+regardless of input order → any figure/table whose caption comes first is
+retagged from `<figure>` to `<div>` before Pandoc parses it (a `Div`'s
+children *are* emitted in original document order), with the
+`<figcaption>` unwrapped into the div's first child block.
+
+**Pandoc's native `Para` AST node has no attribute field at all** (unlike
+`Div`/`Header`/`CodeBlock`/`Table`/`Figure`, which all carry one) -
+confirmed: a `<p id="..." class="...">` comes out the other end as a bare
+`Para` with both the `id` and the `class` silently gone, with no error.
+This is exactly the shape every `attr_list` citation/acronym/glossary
+definition takes (see [zendoc.citations](extensions/citations.md)/
+[zendoc.glossary](extensions/glossary.md)) → any `<p>` carrying an `id` or
+`class` is retagged to a `<div>` instead (which Pandoc's reader does
+preserve attributes on).
+
+**Lightbox-wrapped images**: an `<a class="glightbox">` wrapping an
+`<img>` resolves its `href` one directory level differently than the
+`<img>`'s own `src` (an artifact of Zensical's URL cleaning), which
+Pandoc/WeasyPrint then fails to resolve as a broken link → the lightbox
+`<a>` is unwrapped, leaving just the `<img>`.
+
+**Embedded `<iframe>` (e.g. a YouTube video)**: left as-is, produces a
+stray unwanted heading in the compiled PDF (WeasyPrint attempts to fetch
+the iframe's `src`, and something in that response ends up parsed as real
+page content) → replaced with a link-styled reference to the video instead
+- a static PDF can't embed a live video player regardless.
+
+**No Jinja evaluation**: Pandoc/`zendoc.pdf` never evaluates Jinja - a
+`{{ site_name }}` placeholder that resolves via macro evaluation on the
+live site (see [zendoc.zensical_macros](macros.md)) is left as literal
+text unless a project substitutes it directly in its own page HTML before
+handing it to `build_pdf()`.
+
+**No `.md-typeset` wrapper**: unlike a Zensical website, Pandoc's HTML
+output has no `.md-typeset` wrapper element, so website CSS rules scoped
+to `.md-typeset ...` (reference/acronym/glossary spacing, a `.screenshot`
+class, and so on) never match in the PDF → `zendoc.pdf.css` duplicates the
+relevant rules as plain, unscoped selectors instead (see
+[`zendoc.pdf.css`](#zendocpdfcss)).
+
+**Footnotes**: Pandoc's default behaviour collects every footnote in the
+whole document into one section at the very end of the PDF, rather than at
+the bottom of the page it's referenced on like a printed book → a Lua
+filter handler replaces each footnote reference with an inline span styled
+via CSS `float: footnote` instead (see [`zendoc.pdf.lua`](#zendocpdflua)/
+[`zendoc.pdf.css`](#zendocpdfcss)).
+
+**WeasyPrint's CSS Grid support is too limited to trust for an actual
+side-by-side multi-column layout** → a Zensical grid-cards block renders
+as one full-width stacked box per row instead of a real grid.
+
+**`<figcaption>` centering doesn't extend to its sibling `<img>`**:
+WeasyPrint's UA stylesheet centers `<figcaption>` text by default via
+`text-align`, but that doesn't affect the sibling image, which stays
+left-aligned and visibly misaligned under its own caption → explicit CSS
+centers the whole figure/wrapping element instead.
+
+**Two-space vs. four-space nested-list indentation discrepancy**:
+Pandoc's markdown reader nests a sub-list at just 2-space indentation (no
+4-space requirement), unlike Python-Markdown's stricter 4-space rule.
+Only relevant if you write markdown by hand for a *separate* Pandoc-only
+input rather than feeding `zendoc.pdf` your already-rendered HTML (the
+normal, documented path) - the HTML-based pipeline sidesteps this
+entirely, since Pandoc's HTML reader has no such indentation rule to
+begin with.
+
+**General "every markdown extension needs its own bespoke translation"
+limitation, and why `zendoc.pdf` avoids it**: Pandoc is a completely
+different parser from Python-Markdown/Zensical, so a pipeline built
+around hand-translating each markdown feature into a Pandoc-compatible
+dialect needs a new bespoke translation for every extension a project
+enables (admonitions, tabs, grid cards, captions, `attr_list` spans,
+`{% if %}` conditionals, and so on) - fragile, and it grows without bound.
+`zendoc.pdf` sidesteps this by feeding Pandoc your site's own already-
+rendered HTML (via `zensical.markdown.render.render()`, the same pipeline
+that builds your live website) instead of raw markdown - Pandoc's own HTML
+reader already understands standard HTML correctly, with no per-feature
+translation needed. The fixups documented above are what's left after
+that: genuine gaps in Pandoc/WeasyPrint's own HTML handling, not gaps in
+markdown-dialect translation.
 
 ## Status
 
