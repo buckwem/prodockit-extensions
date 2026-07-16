@@ -47,7 +47,7 @@ def _front_matter_flag(path: str, key: str) -> bool:
     """True if the markdown file at `path` sets `key: true` in its YAML
     front matter."""
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             text = f.read()
     except OSError:
         return False
@@ -74,7 +74,7 @@ def _compute_site_word_count(config: dict[str, Any]) -> str:
         if _front_matter_flag(full_path, WORD_COUNT_EXCLUDED_FRONT_MATTER_KEY):
             continue
         try:
-            with open(full_path, "r", encoding="utf-8") as f:
+            with open(full_path, encoding="utf-8") as f:
                 counted_texts.append(f.read())
         except OSError:
             continue

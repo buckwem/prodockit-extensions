@@ -19,8 +19,9 @@ import os
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from zendoc.pdf.css import build_css
 from zendoc.pdf.html import build_page_anchor_map, fix_up_page_html
@@ -51,7 +52,9 @@ class PdfBuildError(RuntimeError):
     captured) and `returncode` are attached for a caller that wants to
     inspect or log the failure, rather than just the formatted message."""
 
-    def __init__(self, message: str, *, returncode: int | None = None, stderr: str | None = None) -> None:
+    def __init__(
+        self, message: str, *, returncode: int | None = None, stderr: str | None = None
+    ) -> None:
         super().__init__(message)
         self.returncode = returncode
         self.stderr = stderr
@@ -153,7 +156,9 @@ def build_pdf(
     but the build didn't fail outright.
     """
     use_temp_dir = work_dir is None
-    resolved_work_dir: str = tempfile.mkdtemp(prefix="zendoc-pdf-") if work_dir is None else work_dir
+    resolved_work_dir: str = (
+        tempfile.mkdtemp(prefix="zendoc-pdf-") if work_dir is None else work_dir
+    )
     os.makedirs(resolved_work_dir, exist_ok=True)
 
     try:

@@ -73,12 +73,10 @@ def discover_icon_dirs(docs_dir: str = "docs") -> list[str]:
         base_venv = os.path.join(os.getcwd(), local_dir)
         if os.path.isdir(base_venv):
             for pkg in ["material", "mkdocs_material", "zensical"]:
-                dirs.extend(
-                    glob.glob(os.path.join(base_venv, "lib", "python*", "site-packages", pkg, "templates", ".icons"))
-                )
-                dirs.extend(glob.glob(os.path.join(base_venv, "lib", "python*", "site-packages", pkg, ".icons")))
-                dirs.extend(glob.glob(os.path.join(base_venv, "Lib", "site-packages", pkg, "templates", ".icons")))
-                dirs.extend(glob.glob(os.path.join(base_venv, "Lib", "site-packages", pkg, ".icons")))
+                for site_packages in ("lib/python*/site-packages", "Lib/site-packages"):
+                    parts = (base_venv, *site_packages.split("/"), pkg)
+                    dirs.extend(glob.glob(os.path.join(*parts, "templates", ".icons")))
+                    dirs.extend(glob.glob(os.path.join(*parts, ".icons")))
 
     valid_dirs = []
     for d in dirs:
@@ -160,7 +158,7 @@ def admonition_icon_svg(
     if not abs_path:
         return None
     try:
-        with open(abs_path, "r", encoding="utf-8") as f:
+        with open(abs_path, encoding="utf-8") as f:
             svg_data = f.read()
     except OSError:
         return None
