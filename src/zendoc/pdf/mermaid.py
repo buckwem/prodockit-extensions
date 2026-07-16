@@ -60,10 +60,13 @@ def render_mermaid_diagram(
         return None
 
     os.makedirs(output_dir, exist_ok=True)
-    mmd_path = os.path.abspath(os.path.join(output_dir, f"diagram_{index}.mmd"))
-    svg_path = os.path.abspath(os.path.join(output_dir, f"diagram_{index}.svg"))
-    mmdc_config_path = os.path.abspath(os.path.join(output_dir, f"diagram_{index}_mermaid_config.json"))
-    puppeteer_config_path = os.path.abspath(os.path.join(output_dir, f"diagram_{index}_puppeteer_config.json"))
+    def _path(suffix: str) -> str:
+        return os.path.abspath(os.path.join(output_dir, f"diagram_{index}{suffix}"))
+
+    mmd_path = _path(".mmd")
+    svg_path = _path(".svg")
+    mmdc_config_path = _path("_mermaid_config.json")
+    puppeteer_config_path = _path("_puppeteer_config.json")
 
     with open(mmd_path, "w", encoding="utf-8") as f:
         f.write(diagram_source)

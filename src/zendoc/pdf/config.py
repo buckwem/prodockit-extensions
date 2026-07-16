@@ -135,7 +135,7 @@ def build_pdf_from_zensical_config(config_path: str = "zensical.toml") -> str:
     for nav_page in nav_pages:
         docs_rel_path = nav_page["url"]
         full_path = os.path.join(docs_dir, docs_rel_path)
-        with open(full_path, "r", encoding="utf-8") as f:
+        with open(full_path, encoding="utf-8") as f:
             raw_content = f.read()
         result = zensical_render(raw_content, docs_rel_path, docs_rel_path)
         page_objects.append(
@@ -148,9 +148,12 @@ def build_pdf_from_zensical_config(config_path: str = "zensical.toml") -> str:
         )
 
     output_path = extra.get("pdf_output") or os.path.join(docs_dir, "site_documentation.pdf")
-    reference_style, reference_spacing_european, reference_indent_global, reference_spacing_global = (
-        reference_style_values(extra)
-    )
+    (
+        reference_style,
+        reference_spacing_european,
+        reference_indent_global,
+        reference_spacing_global,
+    ) = reference_style_values(extra)
 
     build_pdf(
         page_objects,

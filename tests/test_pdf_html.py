@@ -13,11 +13,11 @@ from zendoc.pdf.html import (
 
 
 def _fix(html: str, **kwargs) -> str:
-    defaults = dict(
-        current_docs_rel_path="page.md",
-        docs_dir="docs",
-        page_anchor_map={},
-    )
+    defaults = {
+        "current_docs_rel_path": "page.md",
+        "docs_dir": "docs",
+        "page_anchor_map": {},
+    }
     defaults.update(kwargs)
     return fix_up_page_html(html, **defaults)
 

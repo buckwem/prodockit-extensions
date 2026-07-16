@@ -24,7 +24,8 @@ from __future__ import annotations
 import base64
 import os
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from bs4 import BeautifulSoup, Tag
 
@@ -382,7 +383,8 @@ def fix_up_page_html(
         target, _, frag = href.partition("#")
         if not target:
             continue
-        resolved = os.path.normpath(os.path.join(current_virtual_dir, target)).replace("\\", "/").rstrip("/")
+        joined = os.path.normpath(os.path.join(current_virtual_dir, target))
+        resolved = joined.replace("\\", "/").rstrip("/")
         anchor = virtual_page_map.get(resolved)
         if anchor is not None:
             a["href"] = f"#{frag}" if frag else f"#{anchor}"
@@ -410,7 +412,8 @@ def fix_up_page_html(
         if blob_prefix is None:
             a.unwrap()
             continue
-        repo_rel_path = os.path.normpath(os.path.join(docs_dir, current_dir, href)).replace("\\", "/")
+        joined = os.path.normpath(os.path.join(docs_dir, current_dir, href))
+        repo_rel_path = joined.replace("\\", "/")
         a["href"] = f"{blob_prefix}{repo_rel_path}"
 
     # Prepend-position figure-caption/table-caption ("/// figure-caption | <"
