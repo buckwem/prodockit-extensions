@@ -116,6 +116,38 @@ percentage-only case above:
     | 1 | prodockit.headings | Heading ids and section numbers |
     | 2 | prodockit.tables | Column widths on a table |
 
+### Left-aligning a header
+
+By default a header cell is centred and a body cell is left-aligned - the
+browser's own default styling for `<th>`/`<td>`, unrelated to
+`prodockit.tables`. To left-align a header too, use Python-Markdown's own
+column-alignment syntax - a `:` on the left side of that column's own
+dashes in the separator row - which applies to the header *and* every
+body cell in that column alike, and combines with `width` on the same
+header cell with no conflict:
+
+=== "Markdown"
+
+    ```md
+    | Name {: width="30%" } | Description |
+    |:---|---|
+    | Headings | Heading ids and section numbers |
+    | Refs | Cross-references, resolved by number |
+    ```
+
+=== "Result"
+
+    | Name {: width="30%" } | Description |
+    |:---|---|
+    | Headings | Heading ids and section numbers |
+    | Refs | Cross-references, resolved by number |
+
+`:---:`/`---:` center- or right-align a column the same way - see
+[Python-Markdown's own `tables` docs](https://python-markdown.github.io/extensions/tables/)
+for the full syntax. This isn't a `prodockit.tables` feature; it's
+documented here because it's the natural companion to `width` when
+sizing a column, not something `prodockit.tables` needs to reimplement.
+
 ## Reference
 
 ### Syntax
