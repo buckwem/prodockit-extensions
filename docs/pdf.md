@@ -1,5 +1,7 @@
 # PDF generation
 
+[Download this page as PDF](pdf.pdf){.web-only}
+
 `prodockit.pdf` builds a standalone PDF from your Zensical site - the kind of
 downloadable, submittable document professional and academic reports
 commonly need alongside the website itself. It reads the same
@@ -64,8 +66,11 @@ unless `pdf_output` is set, in which case that always wins.
 
 Most of what the PDF needs, it already gets from settings your site likely
 has for other reasons: `site_name`, `copyright`, `repo_url`, `docs_dir`,
-`theme.font.text`/`.code`, and `theme.icon.admonition`. The rest lives
-under `[project.extra]`, all optional:
+`theme.font.text`/`.code`, `theme.icon.admonition`, and `extra_css` - your
+site's own stylesheet(s) are passed straight through, so a `@media print`
+rule (e.g. hiding a website-only "Download PDF" link/button, since
+WeasyPrint always renders in print mode) applies in the PDF too. The rest
+lives under `[project.extra]`, all optional:
 
 | Setting | Default | What it does |
 |---|---|---|

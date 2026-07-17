@@ -168,3 +168,39 @@ def test_markdown_file_passes_only_that_page_to_build_pdf(
     build_pdf_from_zensical_config(str(root / "zensical.toml"), markdown_file="chapter1.md")
 
     assert [page.docs_rel_path for page in captured["pages"]] == ["chapter1.md"]
+
+
+def test_extra_css_is_read_from_zensical_toml_and_passed_through(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(extra='\nextra_css = ["stylesheets/extra.css"]\n')
+    (root / "docs" / "stylesheets").mkdir()
+    (root / "docs" / "stylesheets" / "extra.css").write_text(
+        "@media print { .web-only { display: none; } }\n", encoding="utf-8"
+    )
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["extra_css"] = kwargs["extra_css"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert ".web-only" in captured["extra_css"]
+
+
+def test_extra_css_defaults_to_empty_when_unset(project, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = project()
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["extra_css"] = kwargs["extra_css"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["extra_css"] == ""

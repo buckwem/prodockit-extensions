@@ -102,6 +102,11 @@ def build_pdf_from_zensical_config(
       formulas are simply left unrendered if neither is found, rather than
       failing the build), `pdf_math_dir`, `pdf_include_table_of_contents`
       (default `true`), `pdf_table_of_contents_title`.
+    - `project.extra_css` - your site's own stylesheet(s) (the same setting
+      Zensical itself reads to style the live website), passed through as
+      `build_pdf()`'s own `extra_css` - so a project-specific `@media print`
+      rule (e.g. hiding a website-only "Download PDF" link/button) applies
+      in the PDF too, since WeasyPrint always renders in print mode.
 
     A page's own front matter `is_appendix: true` flag gives it letter-
     based numbering, matching `prodockit.headings`' own `appendix_attr`
@@ -125,6 +130,11 @@ def build_pdf_from_zensical_config(
             raise ValueError(f"No pages found in {config_path}'s nav - nothing to build")
 
     icon_registry = build_icon_registry(discover_icon_dirs(docs_dir))
+
+    extra_css = ""
+    for css_rel_path in config.get("extra_css") or []:
+        with open(os.path.join(docs_dir, css_rel_path), encoding="utf-8") as f:
+            extra_css += f.read() + "\n"
 
     mmdc_bin = _find_mmdc_bin(extra.get("pdf_mmdc_bin"))
     mermaid_state = {"count": 0}
@@ -179,6 +189,7 @@ def build_pdf_from_zensical_config(
         page_objects,
         output_path,
         docs_dir=docs_dir,
+        extra_css=extra_css,
         repo_url=config.get("repo_url") or "",
         admonition_icon_config=admonition_icon_config,
         icon_registry=icon_registry,

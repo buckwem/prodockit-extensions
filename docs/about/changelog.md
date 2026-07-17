@@ -1,5 +1,7 @@
 # Release Notes
 
+[Download this page as PDF](../changelog.pdf){.web-only}
+
 ## 0.1.1 (2026-07-17)
 
 - Docs: reworded the package intro on the docs site and README (dropped

@@ -1,5 +1,7 @@
 # Headings
 
+[Download this page as PDF](../headings.pdf){.web-only}
+
 `prodockit.headings` gives every heading in a document an `id` and a
 hierarchical section number, and records both - along with the heading's
 text and level - in a shared registry other prodockit extensions build on

@@ -1,5 +1,7 @@
 # Glossary
 
+[Download this page as PDF](../glossary.pdf){.web-only}
+
 `prodockit.glossary` lets you define a term once - an acronym expansion, a
 glossary definition, anything with a short name and a longer explanation -
 and insert it by id from anywhere in a build, instead of hand-typing a link
