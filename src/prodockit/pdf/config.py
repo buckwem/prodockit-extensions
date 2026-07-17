@@ -65,14 +65,25 @@ def _find_tex2svg_script(configured: str | None) -> str | None:
     return None
 
 
-def build_pdf_from_zensical_config(config_path: str = "zensical.toml") -> str:
+def build_pdf_from_zensical_config(
+    config_path: str = "zensical.toml", *, markdown_file: str | None = None
+) -> str:
     """Builds a PDF entirely from `config_path` (a Zensical config file)
     and returns the path it was written to.
 
-    Reads (all optional except `nav`, with defaults matching a typical
-    Zensical project):
+    If `markdown_file` is given (a path relative to `project.docs_dir`),
+    the PDF is built from just that one file instead of `project.nav` -
+    everything else (fonts, page size, margins, `heading_numbering`, and so
+    on) still comes from `config_path` exactly as it would for a full
+    nav-driven build. `pdf_output` still overrides the output path if set;
+    otherwise it defaults to `markdown_file`'s own name (with a `.pdf`
+    extension) inside `docs_dir`, rather than `site_documentation.pdf`.
 
-    - `project.nav` - which pages to include, in order.
+    Reads (all optional except `nav` when `markdown_file` isn't given, with
+    defaults matching a typical Zensical project):
+
+    - `project.nav` - which pages to include, in order (ignored if
+      `markdown_file` is given).
     - `project.docs_dir` (default `"docs"`).
     - `project.site_name`, `project.copyright`, `project.repo_url`.
     - `project.theme.font.text`/`.code` - main/monospace font.
@@ -106,9 +117,12 @@ def build_pdf_from_zensical_config(config_path: str = "zensical.toml") -> str:
     admonition_icon_config = (theme.get("icon") or {}).get("admonition") or {}
 
     docs_dir = config.get("docs_dir") or "docs"
-    nav_pages = flatten_nav(config.get("nav") or [])
-    if not nav_pages:
-        raise ValueError(f"No pages found in {config_path}'s nav - nothing to build")
+    if markdown_file:
+        nav_pages = [{"url": markdown_file}]
+    else:
+        nav_pages = flatten_nav(config.get("nav") or [])
+        if not nav_pages:
+            raise ValueError(f"No pages found in {config_path}'s nav - nothing to build")
 
     icon_registry = build_icon_registry(discover_icon_dirs(docs_dir))
 
@@ -147,7 +161,13 @@ def build_pdf_from_zensical_config(config_path: str = "zensical.toml") -> str:
             )
         )
 
-    output_path = extra.get("pdf_output") or os.path.join(docs_dir, "site_documentation.pdf")
+    if extra.get("pdf_output"):
+        output_path = str(extra["pdf_output"])
+    elif markdown_file:
+        stem = os.path.splitext(os.path.basename(markdown_file))[0]
+        output_path = os.path.join(docs_dir, f"{stem}.pdf")
+    else:
+        output_path = os.path.join(docs_dir, "site_documentation.pdf")
     (
         reference_style,
         reference_spacing_european,
