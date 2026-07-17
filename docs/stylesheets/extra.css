@@ -1,0 +1,13 @@
+/* Copyright (c) 2026 Mark Buckwell and contributors */
+/* SPDX-License-Identifier: MIT */
+
+/* Marker for content meant only for the live website (e.g. a "Download
+   PDF" link/button) - irrelevant on a page that's already the PDF you'd be
+   downloading. Read by both Zensical (for the live site) and
+   prodockit.pdf (via zensical.toml's own `extra_css`, since WeasyPrint
+   always renders in print mode) - so one rule covers both outputs. */
+@media print {
+  .web-only {
+    display: none !important;
+  }
+}

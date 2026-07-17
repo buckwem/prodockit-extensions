@@ -1,5 +1,7 @@
 # Website macros
 
+[Download this page as PDF](macros.pdf){.web-only}
+
 `prodockit.zensical_macros` provides a handful of Jinja variables and macros
 for Zensical's own [macros plugin](https://zensical.org/docs/authoring/macros/)
 - the pieces a professional/academic report's website commonly wants that

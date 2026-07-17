@@ -1,5 +1,7 @@
 # prodockit
 
+[:material-file-pdf-box: PDF](site_documentation.pdf){ .md-button target="_blank" style="float: right; margin-left: 15px;" .web-only}
+
 prodockit is a family of extensions for [Zensical](https://zensical.org/)
 needed for professional and academic documentation - the pieces a report,
 dissertation, or technical document commonly needs that Zensical doesn't

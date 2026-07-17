@@ -12,6 +12,8 @@ copyright = """
 Copyright &copy; 2026 Mark Buckwell and contributors
 """
 
+extra_css = ["stylesheets/extra.css"]
+
 nav = [
   {"Home" = "index.md"},
   {"Installation" = "installation.md"},
@@ -62,6 +64,9 @@ permalink = true
 [project.markdown_extensions.admonition]
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.md_in_html]
+[project.markdown_extensions.pymdownx.emoji]
+emoji_index = "zensical.extensions.emoji.twemoji"
+emoji_generator = "zensical.extensions.emoji.to_svg"
 [project.markdown_extensions.pymdownx.highlight]
 anchor_linenums = true
 [project.markdown_extensions.pymdownx.inlinehilite]
