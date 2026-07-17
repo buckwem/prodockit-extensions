@@ -37,20 +37,24 @@ def test_citation_definition_strips_internal_attribute_but_keeps_id_and_class() 
 
 def test_cite_resolves_to_bracketed_link() -> None:
     html = _convert(f"{SKOU_DEF}\n\nSee \\cite{{skou2023}}.\n")
-    assert '<span class="prodockit-cite">[<a href="#skou2023">Skoulikari, 2023</a>]</span>' in html
+    assert (
+        '<span class="prodockit-cite">[<a class="prodockit-cite-resolved" '
+        'href="#skou2023">Skoulikari, 2023</a>]</span>' in html
+    )
 
 
 def test_multiple_keys_join_with_semicolons() -> None:
     html = _convert(f"{SKOU_DEF}\n\n{CHACON_DEF}\n\nSee \\cite{{skou2023,chacon2014}}.\n")
     assert (
-        '<a href="#skou2023">Skoulikari, 2023</a>; '
-        '<a href="#chacon2014">Chacon and Straub, 2014</a>]' in html
+        '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>; '
+        '<a class="prodockit-cite-resolved" href="#chacon2014">Chacon and Straub, 2014</a>]'
+        in html
     )
 
 
 def test_forward_reference_within_same_document_resolves() -> None:
     html = _convert(f"See \\cite{{skou2023}} above.\n\n{SKOU_DEF}\n")
-    assert '<a href="#skou2023">Skoulikari, 2023</a>' in html
+    assert '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>' in html
 
 
 def test_unknown_key_is_unresolved() -> None:
@@ -71,7 +75,10 @@ def test_custom_unresolved_marker() -> None:
 
 def test_partial_resolution_in_multi_key_citation() -> None:
     html = _convert(f"{SKOU_DEF}\n\nSee \\cite{{skou2023,does-not-exist}}.\n")
-    assert '<a href="#skou2023">Skoulikari, 2023</a>; <a class="prodockit-cite-unresolved">?</a>]' in html
+    assert (
+        '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>; '
+        '<a class="prodockit-cite-unresolved">?</a>]' in html
+    )
 
 
 def test_cite_inside_code_span_is_not_resolved() -> None:
@@ -94,7 +101,7 @@ def test_shares_registry_across_explicit_sources() -> None:
     # reference (references.md#skou2023), not a bare same-page fragment -
     # a bare "#skou2023" would 404 on the actual multi-page website, even
     # though it happens to "work" in a single concatenated PDF document.
-    assert '<a href="references.md#skou2023">Skoulikari, 2023</a>' in html
+    assert '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>' in html
 
 
 def test_duplicate_key_across_explicit_sources_raises() -> None:
@@ -107,4 +114,4 @@ def test_duplicate_key_across_explicit_sources_raises() -> None:
 def test_entry_point_name_resolves() -> None:
     md = markdown.Markdown(extensions=["attr_list", "prodockit.citations"])
     html = md.convert(f"{SKOU_DEF}\n\nSee \\cite{{skou2023}}.\n")
-    assert '<a href="#skou2023">Skoulikari, 2023</a>' in html
+    assert '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>' in html

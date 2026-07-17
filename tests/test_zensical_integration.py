@@ -223,7 +223,7 @@ def test_cross_page_citation_resolves_under_zensical() -> None:
     )
     # A real cross-page link (references.md#skou2023), not a bare
     # same-page fragment - the latter would 404 on the actual website.
-    assert '<a href="references.md#skou2023">Skoulikari, 2023</a>' in html
+    assert '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>' in html
 
 
 def test_cross_page_citation_from_nested_page_uses_relative_path() -> None:
@@ -239,7 +239,7 @@ def test_cross_page_citation_from_nested_page_uses_relative_path() -> None:
     html = _convert_as_zensical_page_with_citations(
         "See \\cite{skou2023}.\n", "starthere/customise.md"
     )
-    assert '<a href="../references.md#skou2023">Skoulikari, 2023</a>' in html
+    assert '<a class="prodockit-cite-resolved" href="../references.md#skou2023">Skoulikari, 2023</a>' in html
 
 
 def test_same_page_citation_still_uses_bare_fragment_under_zensical() -> None:
@@ -249,7 +249,7 @@ def test_same_page_citation_still_uses_bare_fragment_under_zensical() -> None:
         'See \\cite{skou2023}.\n',
         "references.md",
     )
-    assert '<a href="#skou2023">Skoulikari, 2023</a>' in html
+    assert '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>' in html
 
 
 def test_duplicate_citation_key_across_pages_does_not_crash_the_build() -> None:
@@ -288,7 +288,7 @@ def test_forward_citation_resolves_via_nav_preseed(
     html = _convert_as_zensical_page_with_citations(
         "See \\cite{skou2023}.\n", "section1.md"
     )
-    assert '<a href="references.md#skou2023">Skoulikari, 2023</a>' in html
+    assert '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>' in html
 
 
 def test_nav_preseed_ignores_fenced_documentation_examples(
@@ -324,7 +324,7 @@ def test_nav_preseed_ignores_fenced_documentation_examples(
     html = _convert_as_zensical_page_with_citations(
         "See \\cite{skou2023}.\n", "section1.md"
     )
-    assert '<a href="references.md#skou2023">Skoulikari, 2023</a>' in html
+    assert '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>' in html
 
 
 def test_real_definition_supersedes_preseeded_stub() -> None:

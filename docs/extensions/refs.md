@@ -172,3 +172,21 @@ Here, a genuine id collision between two different `source`s *does* raise
 `prodockit.util.DuplicateIdError` rather than warning - a deliberately shared
 registry means you're expected to notice and fix a collision, unlike the
 best-effort automatic Zensical case above.
+
+### CSS hooks
+
+`prodockit.refs` always sets a class on the `\ref{id}` link it renders -
+resolved or not - so a stylesheet has a stable hook either way:
+
+| State | Class |
+|---|---|
+| Resolved | `prodockit-ref` |
+| Unresolved | `prodockit-ref prodockit-ref-unresolved` |
+
+An unresolved reference (see [Unresolved references](#unresolved-references)
+above) still gets a `class` either way; style `prodockit-ref-unresolved`
+distinctly (e.g. a warning colour) to make a broken cross-reference
+visually obvious without inspecting the page source. No `data-*`
+attribute is left in the rendered output - the internal
+`data-prodockit-ref` placeholder attribute used during resolution is
+always stripped before the page is rendered.

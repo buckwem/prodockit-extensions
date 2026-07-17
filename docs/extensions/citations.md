@@ -31,7 +31,7 @@ Basics of Git*. Sebastopol, CA: O'Reilly Media.
 
 renders to:
 
-<p>Git is a tool used to manage version control.<span class="prodockit-cite">[<a href="#skou2023">Skoulikari, 2023</a>]</span></p>
+<p>Git is a tool used to manage version control.<span class="prodockit-cite">[<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>]</span></p>
 <p class="reference" id="skou2023">Skoulikari, A. (2023) <em>Learning Git: A Hands-On and Visual Guide to the Basics of Git</em>. Sebastopol, CA: O'Reilly Media.</p>
 
 `[Skoulikari, 2023]` is linked directly to the source's own paragraph (e.g.
@@ -187,3 +187,23 @@ itself from structured bibliographic data (author/year/title/publisher/URL
 fields) the way a full BibTeX-style tool would - the reference entry's own
 text (as shown in the examples above) is still hand-authored prose, just
 like today. Building that out is a natural next step, not yet implemented.
+
+### CSS hooks
+
+`prodockit.citations` emits three hooks - one on the outer wrapper, one on
+each individual key's own link:
+
+| Element | State | Class |
+|---|---|---|
+| Outer `<span>` wrapping the whole `\cite{...}` citation | always | `prodockit-cite` |
+| Each key's own `<a>` | resolved | `prodockit-cite-resolved` |
+| Each key's own `<a>` | unresolved | `prodockit-cite-unresolved` |
+
+An unresolved key's `<a>` has no `href` (see
+[Unresolved citations](#unresolved-citations) above) - style
+`prodockit-cite-unresolved` distinctly (e.g. a muted colour, no underline)
+to make a missing citation visually obvious without inspecting the page
+source. No `data-*` attribute is left in the rendered output - the
+internal `data-prodockit-cite` placeholder attribute used during
+resolution, and the `data-cite-text` attribute marking a definition, are
+both always stripped before the page is rendered.
