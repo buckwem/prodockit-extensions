@@ -2,6 +2,40 @@
 
 [Download this page as PDF](../changelog.pdf){.web-only}
 
+## 0.2.0 (2026-07-18)
+
+- New `prodockit.tables` extension: gives a table column a percentage or
+  fixed width via a `width` attribute already attachable to a header cell
+  with `attr_list` - no new syntax. Column-width distribution beyond what's
+  explicitly given is left to CSS's own `table-layout: fixed` algorithm
+  rather than computed in Python. Ships with the matching CSS in
+  `prodockit.pdf`'s generated stylesheet, and documents the equivalent rule
+  a project's own website theme needs (see the new
+  [Tables](../extensions/tables.md) docs page).
+- New `prodockit pdf --markdown-file`/`-m` option: builds a PDF from a
+  single markdown file instead of the whole `nav`, using the same
+  `zensical.toml` settings as a full build.
+- `prodockit.pdf`'s generated table CSS now draws a full grey 0.5pt grid -
+  outer border and internal row *and* column lines (there was previously
+  no line between columns at all) - and reads a project's own
+  `extra_css` (from `zensical.toml`), so a project-specific `@media print`
+  rule (e.g. hiding a website-only "Download PDF" link/button) also
+  applies in the PDF.
+- `prodockit.citations`: a resolved `\cite{id}` link now always gets
+  `class="prodockit-cite-resolved"` (previously no class at all),
+  matching `prodockit.refs`/`prodockit.glossary`'s existing convention of a
+  stable class for both the resolved and unresolved case.
+- Docs: added a "CSS hooks" section to `refs.md`/`citations.md`/
+  `glossary.md` (`headings.md` already had one), documenting every class/
+  attribute each extension itself emits; replaced the docs site's "edit
+  this page" link with "view this page" (a `content.action.view` link to
+  the raw source rather than a GitHub edit form); added a whole-site PDF
+  download button on the front page and a per-page download link on every
+  other page, both built via the new `--markdown-file` option above.
+- Fixed `prodockit.__version__` reporting a stale `"0.10.0"` (left over
+  from before the `zendoc`→`prodockit` rename) instead of matching this
+  package's actual, `pyproject.toml`-declared version.
+
 ## 0.1.1 (2026-07-17)
 
 - Docs: reworded the package intro on the docs site and README (dropped
