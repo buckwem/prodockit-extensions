@@ -34,7 +34,7 @@ nav = [
 [project.theme]
 language = "en"
 features = [
-  "content.action.edit",
+  "content.action.view",
   "content.code.copy",
   "navigation.top",
   "navigation.tracking",
