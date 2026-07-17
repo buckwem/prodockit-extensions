@@ -1,5 +1,12 @@
 # Release Notes
 
+## 0.1.1 (2026-07-17)
+
+- Docs: reworded the package intro on the docs site and README (dropped
+  the `pymdown-extensions` comparison, added a mention of the website
+  macros and a one-line "kit for professional documentation" summary) -
+  no functional changes.
+
 ## 0.10.0 (2026-07-15)
 
 - New `prodockit.zensical_macros`: Jinja variables/macros for Zensical's own

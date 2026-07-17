@@ -9,7 +9,7 @@ downloadable, submittable document these usually need alongside the
 website itself.
 
 Most of prodockit is [Python-Markdown](https://python-markdown.github.io/)
-extensions, that are enabled `zensical.toml`. [prodockit.pdf](pdf.md) is a command-line tool instead, since a PDF build pipeline isn't a Markdown syntax extension - no Python required, it reads the same `zensical.toml` too. In addition, there are a set of website macros to help use the features of prodockit.
+extensions, that are enabled in `zensical.toml`. [prodockit.pdf](pdf.md) is a command-line tool instead, since a PDF build pipeline isn't a Markdown syntax extension - no Python required, it reads the same `zensical.toml` too. In addition, there are a set of website macros to help use the features of prodockit.
 
 It's a kit for professional documentation, built on Zensical's own Markdown and Pandoc/WeasyPrint PDF pipeline.
 
