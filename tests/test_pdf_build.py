@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from zendoc.pdf.build import Page, PdfBuildError, build_pdf
+from prodockit.pdf.build import Page, PdfBuildError, build_pdf
 
 
 def _fake_pandoc(tmp_path: Path, script: str) -> Path:
@@ -81,9 +81,9 @@ def test_keep_work_dir_leaves_intermediate_files_in_place(tmp_path: Path, fake_p
         keep_work_dir=True,
     )
     assert work_dir.exists()
-    assert (work_dir / "_zendoc_pdf_compiled.html").exists()
-    assert (work_dir / "_zendoc_pdf_filter.lua").exists()
-    assert (work_dir / "_zendoc_pdf_compiled.css").exists()
+    assert (work_dir / "_prodockit_pdf_compiled.html").exists()
+    assert (work_dir / "_prodockit_pdf_filter.lua").exists()
+    assert (work_dir / "_prodockit_pdf_compiled.css").exists()
 
 
 def test_auto_created_temp_dir_is_always_cleaned_up_even_with_keep_work_dir(tmp_path: Path, fake_pandoc_on_path) -> None:
@@ -114,7 +114,7 @@ def test_multiple_pages_are_concatenated_in_order(tmp_path: Path, fake_pandoc_on
         work_dir=str(work_dir),
         keep_work_dir=True,
     )
-    compiled = (work_dir / "_zendoc_pdf_compiled.html").read_text(encoding="utf-8")
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
     assert compiled.index("Cover") < compiled.index("Chapter One") < compiled.index("Chapter Two")
 
 
@@ -130,7 +130,7 @@ def test_table_of_contents_is_inserted_after_the_cover_page_by_default(tmp_path:
         work_dir=str(work_dir),
         keep_work_dir=True,
     )
-    compiled = (work_dir / "_zendoc_pdf_compiled.html").read_text(encoding="utf-8")
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
     assert "Table of Contents" in compiled
     assert compiled.index("Cover") < compiled.index("Table of Contents") < compiled.index("Chapter One")
 
@@ -144,7 +144,7 @@ def test_table_of_contents_is_inserted_first_without_a_cover_page(tmp_path: Path
         work_dir=str(work_dir),
         keep_work_dir=True,
     )
-    compiled = (work_dir / "_zendoc_pdf_compiled.html").read_text(encoding="utf-8")
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
     assert compiled.index("Table of Contents") < compiled.index("Chapter One")
 
 
@@ -158,7 +158,7 @@ def test_table_of_contents_can_be_disabled(tmp_path: Path, fake_pandoc_on_path) 
         work_dir=str(work_dir),
         keep_work_dir=True,
     )
-    compiled = (work_dir / "_zendoc_pdf_compiled.html").read_text(encoding="utf-8")
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
     assert "Table of Contents" not in compiled
 
 
@@ -172,7 +172,7 @@ def test_table_of_contents_title_is_configurable(tmp_path: Path, fake_pandoc_on_
         work_dir=str(work_dir),
         keep_work_dir=True,
     )
-    compiled = (work_dir / "_zendoc_pdf_compiled.html").read_text(encoding="utf-8")
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
     assert "<h1 class=\"unnumbered unlisted\">Contents</h1>" in compiled
 
 
@@ -186,7 +186,7 @@ def test_extra_css_is_included_before_the_generated_css(tmp_path: Path, fake_pan
         work_dir=str(work_dir),
         keep_work_dir=True,
     )
-    css = (work_dir / "_zendoc_pdf_compiled.css").read_text(encoding="utf-8")
+    css = (work_dir / "_prodockit_pdf_compiled.css").read_text(encoding="utf-8")
     assert css.index(".my-custom-class") < css.index("@page")
 
 
@@ -201,6 +201,6 @@ def test_generated_css_reflects_the_given_typography_and_layout(tmp_path: Path, 
         work_dir=str(work_dir),
         keep_work_dir=True,
     )
-    css = (work_dir / "_zendoc_pdf_compiled.css").read_text(encoding="utf-8")
+    css = (work_dir / "_prodockit_pdf_compiled.css").read_text(encoding="utf-8")
     assert '"Georgia", sans-serif' in css
     assert "size: Letter;" in css

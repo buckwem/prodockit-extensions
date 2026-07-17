@@ -5,7 +5,7 @@ import os
 import stat
 from pathlib import Path
 
-from zendoc.pdf.mermaid import render_mermaid_diagram
+from prodockit.pdf.mermaid import render_mermaid_diagram
 
 
 def test_returns_none_when_mmdc_binary_does_not_exist(tmp_path: Path) -> None:

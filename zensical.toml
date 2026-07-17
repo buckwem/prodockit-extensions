@@ -1,11 +1,11 @@
 [project]
-site_name = "zendoc"
+site_name = "prodockit"
 site_description = "A family of extensions for Zensical needed for professional and academic documentation: section cross-references, bibliography/citation handling, a glossary, and a Pandoc/WeasyPrint PDF pipeline."
 site_author = "Mark Buckwell"
-site_url = "https://buckwem.github.io/zendoc-extensions/"
+site_url = "https://buckwem.github.io/prodockit-extensions/"
 
-repo_url = "https://github.com/buckwem/zendoc-extensions"
-repo_name = "buckwem/zendoc-extensions"
+repo_url = "https://github.com/buckwem/prodockit-extensions"
+repo_name = "buckwem/prodockit-extensions"
 edit_uri = "edit/main/docs/"
 
 copyright = """
@@ -51,7 +51,7 @@ toggle.name = "Switch to light mode"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/buckwem/zendoc-extensions"
+link = "https://github.com/buckwem/prodockit-extensions"
 
 # ----------------------------------------------------------------------------
 # Markdown extensions used to render these docs. pymdownx.snippets is used to

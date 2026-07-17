@@ -1,10 +1,10 @@
 # Glossary
 
-`zendoc.glossary` lets you define a term once - an acronym expansion, a
+`prodockit.glossary` lets you define a term once - an acronym expansion, a
 glossary definition, anything with a short name and a longer explanation -
 and insert it by id from anywhere in a build, instead of hand-typing a link
 around the term's own text at every use. Like
-[zendoc.citations](citations.md), defining and inserting are bundled into
+[prodockit.citations](citations.md), defining and inserting are bundled into
 one extension: a definition is useless without somewhere to use it.
 
 ## Quick start
@@ -12,7 +12,7 @@ one extension: a definition is useless without somewhere to use it.
 Enable it in `zensical.toml`:
 
 ```toml
-[project.markdown_extensions."zendoc.glossary"]
+[project.markdown_extensions."prodockit.glossary"]
 ```
 
 Define a term's paragraph with an id and its display text via
@@ -28,7 +28,7 @@ This site uses \gls{css} to control appearance.
 
 renders to:
 
-<p>This site uses <a class="zendoc-gls" href="#css">CSS</a> to control appearance.</p>
+<p>This site uses <a class="prodockit-gls" href="#css">CSS</a> to control appearance.</p>
 <p class="acronym" id="css"><strong>CSS</strong> - Cascading Style Sheets.</p>
 
 `CSS` is linked directly to the term's own page (e.g. `acronyms.md#css`, or
@@ -36,7 +36,7 @@ renders to:
 correct clean URL for the citing page's own location, the same way a
 hand-typed `[CSS](acronyms.md#css)` link already gets rewritten.
 
-**Unlike [zendoc.citations](citations.md)'s `\cite{id}`**, which *generates*
+**Unlike [prodockit.citations](citations.md)'s `\cite{id}`**, which *generates*
 new bracketed citation text (`\cite{id}` → `[Skoulikari, 2023]`), `\gls{id}`
 inserts the term's *own* registered text in place - closer to LaTeX's
 `glossaries` package (`\gls{key}` expands to the term's own name) than to a
@@ -51,7 +51,7 @@ below).
 
 A `\gls{id}` pointing at a term defined *later* in the same document
 resolves correctly, the same way
-[zendoc.refs](refs.md#forward-references)/[zendoc.citations](citations.md#forward-references)
+[prodockit.refs](refs.md#forward-references)/[prodockit.citations](citations.md#forward-references)
 do:
 
 ```md
@@ -76,7 +76,7 @@ renders `?`, with no link.
 
 A common convention splits acronym expansions (a short form → long form)
 and glossary entries (a term → its definition) across two separate pages.
-`zendoc.glossary` doesn't need to know which page is "acronyms" and which
+`prodockit.glossary` doesn't need to know which page is "acronyms" and which
 is "glossary" - both are just term definitions in the same registry, so a
 `\gls{id}` resolves the same way regardless of which page defines it:
 
@@ -105,7 +105,7 @@ Cascading Style Sheets for what this means"* - it resolves, but loses the
 
 Use a plain, hand-typed Markdown link instead, exactly as you would for
 any other page-to-page cross-reference - it's understood natively by both
-outputs, and doesn't need `zendoc.refs`/`zendoc.citations`/`zendoc.glossary`
+outputs, and doesn't need `prodockit.refs`/`prodockit.citations`/`prodockit.glossary`
 at all:
 
 ```md
@@ -153,7 +153,7 @@ Unlike `\cite{...}`, `\gls{...}` only ever takes a single id - there's no
 multi-term/bracketed form, since inserting a term's own text doesn't
 compose the way a citation list does.
 
-Like [zendoc.refs](refs.md)/[zendoc.citations](citations.md), `\gls{...}`
+Like [prodockit.refs](refs.md)/[prodockit.citations](citations.md), `\gls{...}`
 is recognised the same way Python-Markdown's own inline syntax is, so it's
 protected inside inline code spans and fenced code blocks:
 
@@ -182,15 +182,15 @@ Neither of the two shown above is resolved; both render the literal text.
 Under [Zensical](https://zensical.org/), referencing a term defined on a
 *different* page (the common case - Acronyms/Glossary appendix pages
 separate from the pages that use them) works with no extra configuration,
-the same way [zendoc.citations](citations.md#under-zensical-automatic)
+the same way [prodockit.citations](citations.md#under-zensical-automatic)
 shares its registry across pages:
 
 ```toml
-[project.markdown_extensions."zendoc.glossary"]
+[project.markdown_extensions."prodockit.glossary"]
 ```
 
 **Using a term before it's defined works too**, the same way as
-`zendoc.citations`: `zendoc.glossary` pre-scans every page in the current
+`prodockit.citations`: `prodockit.glossary` pre-scans every page in the current
 Zensical build's nav for term definitions before any page has actually
 been converted, so a term used from an early chapter but defined on an
 Acronyms/Glossary page kept at the end of nav resolves correctly within a
@@ -203,12 +203,12 @@ a warning rather than raised as an error.
 #### Under other tools: manual
 
 Outside Zensical, share a `GlossaryRegistry` yourself, the same way as
-[zendoc.citations](citations.md#under-other-tools-manual):
+[prodockit.citations](citations.md#under-other-tools-manual):
 
 ```python
 import markdown
-from zendoc.glossary import GlossaryExtension
-from zendoc.util import GlossaryRegistry
+from prodockit.glossary import GlossaryExtension
+from prodockit.util import GlossaryRegistry
 
 registry = GlossaryRegistry()
 
@@ -220,5 +220,5 @@ for path, text in pages:
 ```
 
 A genuine id collision between two different `source`s raises
-`zendoc.util.DuplicateIdError` here, rather than warning - a deliberately
+`prodockit.util.DuplicateIdError` here, rather than warning - a deliberately
 shared registry means you're expected to notice and fix it.

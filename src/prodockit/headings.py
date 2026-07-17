@@ -1,9 +1,9 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""zendoc.headings: gives every heading an id and a hierarchical section
-number, recorded in a shared :class:`~zendoc.util.IdRegistry` that other
-zendoc extensions (currently :mod:`zendoc.refs`) look entries up in.
+"""prodockit.headings: gives every heading an id and a hierarchical section
+number, recorded in a shared :class:`~prodockit.util.IdRegistry` that other
+prodockit extensions (currently :mod:`prodockit.refs`) look entries up in.
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ from markdown.extensions import Extension
 from markdown.extensions.toc import TocExtension
 from markdown.treeprocessors import Treeprocessor
 
-from zendoc._zensical import page_source, prescan_headings, share
-from zendoc.util import IdRegistry
+from prodockit._zensical import page_source, prescan_headings, share
+from prodockit.util import IdRegistry
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 
@@ -34,7 +34,7 @@ def _slugify(text: str) -> str:
 
 
 # Shared across every page of a single Zensical build (one Python process per
-# `zensical build`/`zensical serve` invocation) - see zendoc._zensical and
+# `zensical build`/`zensical serve` invocation) - see prodockit._zensical and
 # HeadingsExtension.extendMarkdown. Never touched unless Zensical's per-page
 # context is actually detected, so it has no effect under any other tool, or
 # on a caller who passes their own explicit registry/source.
@@ -177,7 +177,7 @@ class HeadingsExtension(Extension):
                 source = detected_source
                 registry = _ZENSICAL_SHARED_REGISTRY
                 strict = False
-        registry = share(md, "zendoc_registry", registry)
+        registry = share(md, "prodockit_registry", registry)
         self.registry = registry
 
         start_count = 0
@@ -198,7 +198,7 @@ class HeadingsExtension(Extension):
                 start_count=start_count,
                 appendix_letter=appendix_letter,
             ),
-            "zendoc-headings",
+            "prodockit-headings",
             4,
         )
 
@@ -213,7 +213,7 @@ def prescan(appendix_attr: str = "is_appendix") -> tuple[dict[str, int], dict[st
     re-deriving them a second, independent way.
 
     Returns ``(start_counts, appendix_letters)``, both keyed by nav-relative
-    page path - see ``zendoc._zensical.prescan_headings`` for the full
+    page path - see ``prodockit._zensical.prescan_headings`` for the full
     description. Returns None outside a Zensical build.
     """
     return prescan_headings(appendix_attr)

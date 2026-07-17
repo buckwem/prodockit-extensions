@@ -2,14 +2,14 @@
 # SPDX-License-Identifier: MIT
 
 """Drives a full PDF build entirely from `zensical.toml`, for a project
-that doesn't want to write any Python at all - see `zendoc.pdf.cli` for the
+that doesn't want to write any Python at all - see `prodockit.pdf.cli` for the
 command-line tool built on top of this.
 
 `build_pdf_from_zensical_config()` reads your project's nav, docs
 directory, and PDF-specific settings (all under the same `[project.extra]`
 table your other Zensical settings live in), renders every nav page
 through Zensical's own Markdown pipeline, and calls
-`zendoc.pdf.build.build_pdf()` with everything wired up: icon/Mermaid/
+`prodockit.pdf.build.build_pdf()` with everything wired up: icon/Mermaid/
 MathJax auto-detection included, so a typical project needs zero
 additional configuration beyond what it likely already has.
 """
@@ -19,13 +19,13 @@ from __future__ import annotations
 import os
 import shutil
 
-from zendoc.pdf.build import Page, build_pdf
-from zendoc.pdf.icons import build_icon_registry, discover_icon_dirs
-from zendoc.pdf.mermaid import render_mermaid_diagram
-from zendoc.settings import flatten_nav, heading_numbering_enabled, reference_style_values
+from prodockit.pdf.build import Page, build_pdf
+from prodockit.pdf.icons import build_icon_registry, discover_icon_dirs
+from prodockit.pdf.mermaid import render_mermaid_diagram
+from prodockit.settings import flatten_nav, heading_numbering_enabled, reference_style_values
 
 # Front matter flag marking a page for letter-based numbering ("A", "A.1",
-# ...) - same default name as zendoc.headings' own `appendix_attr` option,
+# ...) - same default name as prodockit.headings' own `appendix_attr` option,
 # so a project already using continuous numbering doesn't need a second,
 # differently-named flag for the PDF.
 APPENDIX_FRONT_MATTER_KEY = "is_appendix"
@@ -93,7 +93,7 @@ def build_pdf_from_zensical_config(config_path: str = "zensical.toml") -> str:
       (default `true`), `pdf_table_of_contents_title`.
 
     A page's own front matter `is_appendix: true` flag gives it letter-
-    based numbering, matching `zendoc.headings`' own `appendix_attr`
+    based numbering, matching `prodockit.headings`' own `appendix_attr`
     default.
     """
     import zensical.config as zensical_config
@@ -116,7 +116,7 @@ def build_pdf_from_zensical_config(config_path: str = "zensical.toml") -> str:
     mermaid_state = {"count": 0}
     render_mermaid = None
     if mmdc_bin:
-        mermaid_dir = os.path.join(docs_dir, ".zendoc-pdf-mermaid")
+        mermaid_dir = os.path.join(docs_dir, ".prodockit-pdf-mermaid")
 
         def render_mermaid(source: str) -> str | None:
             mermaid_state["count"] += 1

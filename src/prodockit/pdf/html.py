@@ -43,7 +43,7 @@ def virtual_page_path(docs_rel_path: str) -> str:
 
     Used to resolve a real ``<a href>``/``<img src>`` - already rewritten
     to this same clean-URL form by Zensical's own link-rewriting treeprocessor
-    (or zendoc.refs/zendoc.citations/zendoc.glossary's own cross-page href
+    (or prodockit.refs/prodockit.citations/prodockit.glossary's own cross-page href
     building) by the time ``render()`` returns a page's HTML - back to the
     real page/file it points at.
     """
@@ -153,10 +153,10 @@ def fix_up_page_html(
     it is treated as decorative (unnumbered/unlisted/hidden), and its whole
     content is wrapped in a ``.cover-page`` div. `is_appendix` gives this
     page's first heading an ``appendix`` class, for a Lua filter's own
-    ``Header()`` handler (see :mod:`zendoc.pdf.lua`) to letter instead of
+    ``Header()`` handler (see :mod:`prodockit.pdf.lua`) to letter instead of
     number it.
 
-    `admonition_icon_config`/`icon_registry` (see :mod:`zendoc.pdf.icons`)
+    `admonition_icon_config`/`icon_registry` (see :mod:`prodockit.pdf.icons`)
     are needed to insert an admonition's own icon; omit either to skip icon
     insertion entirely (an admonition still renders, just without one).
 
@@ -164,7 +164,7 @@ def fix_up_page_html(
     diagram's own source text and should return an image src (a file path
     or ``data:`` URI) or None if rendering failed (in which case the
     diagram is left as an unrendered ``<pre>``, rather than raising) - see
-    :func:`zendoc.pdf.mermaid.render_mermaid_diagram` for a ready-made
+    :func:`prodockit.pdf.mermaid.render_mermaid_diagram` for a ready-made
     callback (partially applied with its own `mmdc_bin`/`output_dir`
     arguments).
     """
@@ -174,7 +174,7 @@ def fix_up_page_html(
     # own heading-numbering/reference-style <style> injection (if any), and
     # a table of contents' hover-to-copy permalink links, are meaningless in
     # a PDF, which gets its own equivalent numbering/styling some other way
-    # (see zendoc.pdf.lua's Header()/Figure(), and zendoc.pdf.css).
+    # (see prodockit.pdf.lua's Header()/Figure(), and prodockit.pdf.css).
     for style in soup.find_all("style"):
         style.decompose()
     for permalink in soup.select("a.headerlink"):
@@ -244,13 +244,13 @@ def fix_up_page_html(
     # collapses every label in a tabbed-set into one unseparated run of
     # text, with no way to recover the boundary afterward in a Lua filter.
     # Rewriting each into its own <p> here, before Pandoc's reader ever
-    # sees it, is the only point this can be fixed - see zendoc.pdf.lua's
+    # sees it, is the only point this can be fixed - see prodockit.pdf.lua's
     # tabbed-set Div() handler for the matching reconstruction.
     for radio in soup.select('input[type="radio"]'):
         radio.decompose()
     for label in soup.select("div.tabbed-labels label"):
         p = soup.new_tag("p")
-        p["class"] = "zendoc-tab-label"
+        p["class"] = "prodockit-tab-label"
         p.string = label.get_text()
         label.replace_with(p)
 
@@ -260,7 +260,7 @@ def fix_up_page_html(
     # built admonition's title paragraph is just its plain text, nothing
     # else). Insert the configured, accent-coloured icon explicitly instead.
     if admonition_icon_config and icon_registry:
-        from zendoc.pdf.icons import admonition_icon_svg
+        from prodockit.pdf.icons import admonition_icon_svg
 
         for div in soup.select("div.admonition"):
             classes = div.get("class", [])
@@ -276,7 +276,7 @@ def fix_up_page_html(
                     # below, renders reliably instead.
                     b64 = base64.b64encode(svg_markup.encode("utf-8")).decode("utf-8")
                     # Reuses a compiled stylesheet's own img.twemoji rule
-                    # (see zendoc.pdf.css, sized for an inline icon) rather
+                    # (see prodockit.pdf.css, sized for an inline icon) rather
                     # than a bare width/height attribute - a generic
                     # "img { max-width: 100% }" rule elsewhere in the same
                     # stylesheet otherwise overrides a plain attribute,
@@ -315,7 +315,7 @@ def fix_up_page_html(
     # pre-rendered HTML here means it just sees an ordinary <div>/<ol>/
     # <sup>, not a Note). Moves each footnote's text inline at its own
     # reference point instead, in a <span class="pdf-footnote"> a compiled
-    # stylesheet's own float: footnote rule (see zendoc.pdf.css) can anchor
+    # stylesheet's own float: footnote rule (see prodockit.pdf.css) can anchor
     # to the correct page - confirmed directly, without this the
     # footnote's own text rendered wherever the <div class="footnote">
     # happened to fall in normal document flow, often several pages after
@@ -340,7 +340,7 @@ def fix_up_page_html(
     # Mermaid diagrams: WeasyPrint has no JS engine to run Mermaid.js
     # client-side - pre-render each <pre class="mermaid">'s source to a
     # static image via the caller-supplied `render_mermaid` callback (see
-    # zendoc.pdf.mermaid.render_mermaid_diagram for a ready-made one).
+    # prodockit.pdf.mermaid.render_mermaid_diagram for a ready-made one).
     if render_mermaid is not None:
         for pre in soup.select("pre.mermaid"):
             img_src = render_mermaid(pre.get_text())
@@ -372,8 +372,8 @@ def fix_up_page_html(
     # separate page) has nothing to point at here - rewrite to the
     # deterministic in-document anchor from page_anchor_map instead (see
     # build_page_anchor_map()). By the time render() returns this page's
-    # HTML, every such link (a regular markdown link, or a zendoc.refs/
-    # zendoc.citations/zendoc.glossary cross-page link) already uses the
+    # HTML, every such link (a regular markdown link, or a prodockit.refs/
+    # prodockit.citations/prodockit.glossary cross-page link) already uses the
     # same clean-URL virtual-directory form.
     virtual_page_map = {virtual_page_path(key): anchor for key, anchor in page_anchor_map.items()}
     for a in soup.find_all("a", href=True):
@@ -431,11 +431,12 @@ def fix_up_page_html(
     # <figcaption> itself (also confirmed: Pandoc's HTML reader treats a
     # bare <figcaption> not inside a <figure> as ordinary flow content),
     # leaving the caption as this element's first child block. A Lua
-    # filter's Div() handler (see zendoc.pdf.lua) applies the same
+    # filter's Div() handler (see prodockit.pdf.lua) applies the same
     # "Figure "/"Table " + chapter-prefix numbering to this case that its
     # Figure() handler applies to the (unaffected) default append-position
     # case.
-    for figure in soup.find_all("figure", class_=["zendoc-figure-caption", "zendoc-table-caption"]):
+    caption_classes = ["prodockit-figure-caption", "prodockit-table-caption"]
+    for figure in soup.find_all("figure", class_=caption_classes):
         first_child = figure.find(True, recursive=False)
         if first_child is not None and first_child.name == "figcaption":
             figure.name = "div"
@@ -446,29 +447,29 @@ def fix_up_page_html(
     # directly: a <p id="..." class="...">, once read by Pandoc's HTML
     # reader, comes out the other end as a bare Para with both the id *and*
     # the class silently gone. This is exactly the shape every attr_list
-    # citation/acronym/glossary definition (zendoc.citations/zendoc.glossary's
+    # citation/acronym/glossary definition (prodockit.citations/prodockit.glossary's
     # own convention) and a typical cover page's own title styling takes -
     # both would otherwise silently lose their id/styling with no error at
     # all. Retagging as a <div> (which Pandoc's reader does preserve
     # attributes on) fixes both at once.
     for p in soup.find_all("p"):
         classes = p.get("class") or []
-        # zendoc-tab-label (see above) deliberately stays a <p>: a Lua
-        # filter's tabbed-set Div() handler (see zendoc.pdf.lua) reads it
+        # prodockit-tab-label (see above) deliberately stays a <p>: a Lua
+        # filter's tabbed-set Div() handler (see prodockit.pdf.lua) reads it
         # as a Plain/Para whose .content is a plain inline list, matching
         # Pandoc's own Para AST node - retagging it to a Div here too would
         # change its .content to a list of blocks instead, breaking that
         # handler.
-        if "zendoc-tab-label" in classes:
+        if "prodockit-tab-label" in classes:
             continue
         if p.get("id") or classes:
             p.name = "div"
 
     # Cover page: every heading here (there's usually just one, hidden) is
     # decorative, not a real chapter - unnumbered/unlisted/hidden from a Lua
-    # filter's Header() counter (see zendoc.pdf.lua) and the table of
+    # filter's Header() counter (see prodockit.pdf.lua) and the table of
     # contents. Wrapped in a ".cover-page" class a compiled stylesheet
-    # already styles against (see zendoc.pdf.css).
+    # already styles against (see prodockit.pdf.css).
     if is_index:
         for heading in soup.find_all(HEADING_TAGS):
             classes = heading.get("class", [])
@@ -484,7 +485,7 @@ def fix_up_page_html(
 
     # This page's own anchor (see build_page_anchor_map()): give the first
     # real heading that id directly, and flag it .appendix if this page is
-    # one, for a Lua filter's Header() (see zendoc.pdf.lua) to letter
+    # one, for a Lua filter's Header() (see prodockit.pdf.lua) to letter
     # instead of number it.
     own_anchor = page_anchor_map.get(current_docs_rel_path)
     first_heading = soup.find(HEADING_TAGS)

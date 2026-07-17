@@ -3,7 +3,7 @@
 
 from bs4 import BeautifulSoup
 
-from zendoc.pdf.html import (
+from prodockit.pdf.html import (
     build_page_anchor_map,
     build_virtual_page_map,
     fix_up_page_html,
@@ -110,7 +110,7 @@ def test_tabbed_labels_become_their_own_paragraph() -> None:
         '<div class="tabbed-set"><div class="tabbed-labels"><label>Python</label></div></div>'
     )
     assert "<label>" not in html
-    assert '<p class="zendoc-tab-label">Python</p>' in html
+    assert '<p class="prodockit-tab-label">Python</p>' in html
 
 
 def test_radio_inputs_are_removed() -> None:
@@ -273,13 +273,13 @@ def test_repo_file_link_is_unwrapped_when_no_repo_url_is_known() -> None:
 
 def test_prepend_position_figure_caption_becomes_a_div_with_caption_first() -> None:
     html = _fix(
-        '<figure class="zendoc-figure-caption" id="f1">'
+        '<figure class="prodockit-figure-caption" id="f1">'
         "<figcaption><p>A caption</p></figcaption>"
         '<img src="x.png">'
         "</figure>"
     )
     soup = BeautifulSoup(html, "html.parser")
-    div = soup.find("div", class_="zendoc-figure-caption")
+    div = soup.find("div", class_="prodockit-figure-caption")
     assert div is not None
     assert div.find("figcaption") is None
     first_child = div.find(True, recursive=False)
@@ -289,7 +289,7 @@ def test_prepend_position_figure_caption_becomes_a_div_with_caption_first() -> N
 
 def test_append_position_figure_caption_is_left_as_a_figure() -> None:
     html = _fix(
-        '<figure class="zendoc-figure-caption" id="f1">'
+        '<figure class="prodockit-figure-caption" id="f1">'
         '<img src="x.png">'
         "<figcaption><p>A caption</p></figcaption>"
         "</figure>"
@@ -314,8 +314,8 @@ def test_plain_paragraph_without_class_or_id_stays_a_paragraph() -> None:
 
 
 def test_tab_label_paragraph_is_not_retagged_to_a_div() -> None:
-    html = _fix('<p class="zendoc-tab-label">Python</p>')
-    assert '<p class="zendoc-tab-label">Python</p>' in html
+    html = _fix('<p class="prodockit-tab-label">Python</p>')
+    assert '<p class="prodockit-tab-label">Python</p>' in html
 
 
 # ---------------------------------------------------------------------------

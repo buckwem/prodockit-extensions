@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from zendoc.pdf.icons import ADMONITION_ACCENT_COLORS, admonition_icon_svg, build_icon_registry
+from prodockit.pdf.icons import ADMONITION_ACCENT_COLORS, admonition_icon_svg, build_icon_registry
 
 
 def _write_svg(path: Path, fill: str = "currentColor") -> None:

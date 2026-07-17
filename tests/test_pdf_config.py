@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from zendoc.pdf.config import (
+from prodockit.pdf.config import (
     _find_mmdc_bin,
     _find_tex2svg_script,
     build_pdf_from_zensical_config,
@@ -100,7 +100,7 @@ def test_appendix_front_matter_flag_is_read_from_the_page(
     )
 
     captured = {}
-    import zendoc.pdf.config as config_module
+    import prodockit.pdf.config as config_module
 
     def _spy(pages, output_path, **kwargs):
         captured["pages"] = pages

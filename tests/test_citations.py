@@ -4,8 +4,8 @@
 import markdown
 import pytest
 
-from zendoc.citations import CitationsExtension
-from zendoc.util import CitationRegistry, DuplicateIdError
+from prodockit.citations import CitationsExtension
+from prodockit.util import CitationRegistry, DuplicateIdError
 
 
 def _convert(text: str, registry: CitationRegistry | None = None, source: str = "doc.md") -> str:
@@ -37,7 +37,7 @@ def test_citation_definition_strips_internal_attribute_but_keeps_id_and_class() 
 
 def test_cite_resolves_to_bracketed_link() -> None:
     html = _convert(f"{SKOU_DEF}\n\nSee \\cite{{skou2023}}.\n")
-    assert '<span class="zendoc-cite">[<a href="#skou2023">Skoulikari, 2023</a>]</span>' in html
+    assert '<span class="prodockit-cite">[<a href="#skou2023">Skoulikari, 2023</a>]</span>' in html
 
 
 def test_multiple_keys_join_with_semicolons() -> None:
@@ -55,7 +55,7 @@ def test_forward_reference_within_same_document_resolves() -> None:
 
 def test_unknown_key_is_unresolved() -> None:
     html = _convert("See \\cite{does-not-exist}.\n")
-    assert '<span class="zendoc-cite">[<a class="zendoc-cite-unresolved">?</a>]</span>' in html
+    assert '<span class="prodockit-cite">[<a class="prodockit-cite-unresolved">?</a>]</span>' in html
 
 
 def test_unresolved_key_has_no_href() -> None:
@@ -71,19 +71,19 @@ def test_custom_unresolved_marker() -> None:
 
 def test_partial_resolution_in_multi_key_citation() -> None:
     html = _convert(f"{SKOU_DEF}\n\nSee \\cite{{skou2023,does-not-exist}}.\n")
-    assert '<a href="#skou2023">Skoulikari, 2023</a>; <a class="zendoc-cite-unresolved">?</a>]' in html
+    assert '<a href="#skou2023">Skoulikari, 2023</a>; <a class="prodockit-cite-unresolved">?</a>]' in html
 
 
 def test_cite_inside_code_span_is_not_resolved() -> None:
     html = _convert(f"{SKOU_DEF}\n\nType `\\cite{{skou2023}}` literally.\n")
     assert "\\cite{skou2023}" in html
-    assert "zendoc-cite" not in html
+    assert "prodockit-cite" not in html
 
 
 def test_cite_inside_fenced_code_block_is_not_resolved() -> None:
     html = _convert(f"{SKOU_DEF}\n\n```\n\\cite{{skou2023}}\n```\n")
     assert "\\cite{skou2023}" in html
-    assert "zendoc-cite" not in html
+    assert "prodockit-cite" not in html
 
 
 def test_shares_registry_across_explicit_sources() -> None:
@@ -105,6 +105,6 @@ def test_duplicate_key_across_explicit_sources_raises() -> None:
 
 
 def test_entry_point_name_resolves() -> None:
-    md = markdown.Markdown(extensions=["attr_list", "zendoc.citations"])
+    md = markdown.Markdown(extensions=["attr_list", "prodockit.citations"])
     html = md.convert(f"{SKOU_DEF}\n\nSee \\cite{{skou2023}}.\n")
     assert '<a href="#skou2023">Skoulikari, 2023</a>' in html

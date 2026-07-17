@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "zendoc"
-version = "0.10.0"
+name = "prodockit"
+version = "0.1.0"
 description = "A family of extensions for Zensical needed for professional and academic documentation: section cross-references, bibliography/citation handling, a glossary, a Pandoc/WeasyPrint PDF pipeline, and Jinja macros for word counts and reference-style spacing"
 readme = "README.md"
 license = "MIT"
@@ -28,18 +28,18 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/buckwem/zendoc-extensions"
-Documentation = "https://buckwem.github.io/zendoc-extensions/"
-Issues = "https://github.com/buckwem/zendoc-extensions/issues"
+Homepage = "https://github.com/buckwem/prodockit-extensions"
+Documentation = "https://buckwem.github.io/prodockit-extensions/"
+Issues = "https://github.com/buckwem/prodockit-extensions/issues"
 
 [project.entry-points."markdown.extensions"]
-"zendoc.headings" = "zendoc.headings:HeadingsExtension"
-"zendoc.refs" = "zendoc.refs:RefsExtension"
-"zendoc.citations" = "zendoc.citations:CitationsExtension"
-"zendoc.glossary" = "zendoc.glossary:GlossaryExtension"
+"prodockit.headings" = "prodockit.headings:HeadingsExtension"
+"prodockit.refs" = "prodockit.refs:RefsExtension"
+"prodockit.citations" = "prodockit.citations:CitationsExtension"
+"prodockit.glossary" = "prodockit.glossary:GlossaryExtension"
 
 [project.scripts]
-zendoc = "zendoc.pdf.cli:main"
+prodockit = "prodockit.pdf.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -52,7 +52,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/zendoc"]
+packages = ["src/prodockit"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -66,9 +66,9 @@ select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 # One CSS/Lua rule (or descriptive test name) per source line - wrapping
 # would fragment the generated content's own readability for no benefit.
-"src/zendoc/pdf/css.py" = ["E501"]
-"src/zendoc/pdf/lua.py" = ["E501"]
-"src/zendoc/zensical_macros.py" = ["E501"]
+"src/prodockit/pdf/css.py" = ["E501"]
+"src/prodockit/pdf/lua.py" = ["E501"]
+"src/prodockit/zensical_macros.py" = ["E501"]
 "tests/*" = ["E501"]
 
 [tool.mypy]

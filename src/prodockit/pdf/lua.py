@@ -2,18 +2,18 @@
 # SPDX-License-Identifier: MIT
 
 """Generates the Pandoc Lua filter a PDF build needs alongside
-:mod:`zendoc.pdf.html`'s HTML fixups.
+:mod:`prodockit.pdf.html`'s HTML fixups.
 
 Some of Zensical/pymdownx's own rendered output only becomes fully correct
 for a PDF once Pandoc has parsed it into its own AST - not something
-:mod:`zendoc.pdf.html`'s pre-parse HTML fixups can reach:
+:mod:`prodockit.pdf.html`'s pre-parse HTML fixups can reach:
 
 - Chapter-number/appendix-letter prefixing on every heading (``Header``),
   carried over onto figure/table caption numbers too (``Figure``, and the
   ``Div`` case for a prepend-position caption already retagged to a
-  ``<div>`` by :mod:`zendoc.pdf.html`).
+  ``<div>`` by :mod:`prodockit.pdf.html`).
 - Reconstructing ``pymdownx.blocks.tab``'s tabbed-set HTML (each tab's
-  label rewritten to its own ``<p>`` by :mod:`zendoc.pdf.html`, since
+  label rewritten to its own ``<p>`` by :mod:`prodockit.pdf.html`, since
   Pandoc's HTML reader would otherwise merge adjacent inline labels into
   one unseparated run of text) into one ``tabbox-header``/``tabbox-body``
   pair per tab (``Div``).
@@ -107,15 +107,15 @@ def build_lua_filter(
         "  -- Pandoc's own HTML writer always re-emits the caption *after* the\n"
         "  -- content when serializing Figure back to HTML - discarding the\n"
         "  -- \"prepend\" positioning entirely (confirmed directly, isolated\n"
-        "  -- test). zendoc.pdf.html works around this by retagging any\n"
+        "  -- test). prodockit.pdf.html works around this by retagging any\n"
         "  -- prepend-position figure/table caption to a <div> before Pandoc\n"
         "  -- parses it (a Div's children ARE emitted in original document\n"
         "  -- order), leaving the caption as this Div's first child block -\n"
         "  -- same \"Figure \"/\"Table \" + chapter-prefix numbering as the\n"
         "  -- Figure() handler below, applied to el.content[1] instead of\n"
         "  -- el.caption.long[1].\n"
-        "  if el.classes:includes('zendoc-figure-caption') or el.classes:includes('zendoc-table-caption') then\n"
-        "    local word = el.classes:includes('zendoc-figure-caption') and 'Figure ' or 'Table '\n"
+        "  if el.classes:includes('prodockit-figure-caption') or el.classes:includes('prodockit-table-caption') then\n"
+        "    local word = el.classes:includes('prodockit-figure-caption') and 'Figure ' or 'Table '\n"
         "    local label = in_appendix and to_letter(appendix_index) or tostring(h1)\n"
         "    local block = el.content[1]\n"
         "    if block and (block.t == 'Para' or block.t == 'Plain') then\n"
@@ -172,12 +172,12 @@ def build_lua_filter(
         "-- (e.g. \"1.\" -> \"7.1.\"), plus the \"Figure \"/\"Table \" word itself\n"
         "-- (added via CSS ::before on the website, which has no equivalent\n"
         "-- for a PDF, where the number needs to be real text) - matching\n"
-        "-- zensical.toml's zendoc-figure-caption/zendoc-table-caption classes\n"
+        "-- zensical.toml's prodockit-figure-caption/prodockit-table-caption classes\n"
         "-- (see [project.markdown_extensions.pymdownx.blocks.caption]).\n"
         "function Figure(el)\n"
         "  local word = nil\n"
-        "  if el.classes:includes('zendoc-figure-caption') then word = 'Figure '\n"
-        "  elseif el.classes:includes('zendoc-table-caption') then word = 'Table ' end\n"
+        "  if el.classes:includes('prodockit-figure-caption') then word = 'Figure '\n"
+        "  elseif el.classes:includes('prodockit-table-caption') then word = 'Table ' end\n"
         "  if not word then return el end\n"
         "  local label = in_appendix and to_letter(appendix_index) or tostring(h1)\n"
         "  for _, block in ipairs(el.caption.long) do\n"

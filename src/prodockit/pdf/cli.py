@@ -1,16 +1,16 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""The `zendoc` command-line tool - no Python required. Add `zendoc` (this
+"""The `prodockit` command-line tool - no Python required. Add `prodockit` (this
 package) to your project, then run:
 
 ```bash
-zendoc pdf
+prodockit pdf
 ```
 
 from wherever your `zensical.toml` lives, and it builds a PDF the same way
 `zensical build`/`zensical serve` build your site: reading everything it
-needs from that same config file. See `zendoc.pdf.config` for exactly what
+needs from that same config file. See `prodockit.pdf.config` for exactly what
 it reads.
 """
 
@@ -20,13 +20,13 @@ import sys
 
 import click
 
-from zendoc.pdf.build import PdfBuildError
-from zendoc.pdf.config import build_pdf_from_zensical_config
+from prodockit.pdf.build import PdfBuildError
+from prodockit.pdf.config import build_pdf_from_zensical_config
 
 
 @click.group()
 def main() -> None:
-    """zendoc - extensions for Zensical needed for professional and
+    """prodockit - extensions for Zensical needed for professional and
     academic documentation."""
 
 

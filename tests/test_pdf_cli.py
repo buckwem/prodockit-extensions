@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from zendoc.pdf.cli import main
+from prodockit.pdf.cli import main
 
 _ZENSICAL_TOML = """
 [project]

@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 
 """Reads a handful of `project.extra.*` zensical.toml settings that both the
-website (see :mod:`zendoc.zensical_macros`) and the PDF (see
-:mod:`zendoc.pdf.config`) need to agree on - factored out here so both sides
+website (see :mod:`prodockit.zensical_macros`) and the PDF (see
+:mod:`prodockit.pdf.config`) need to agree on - factored out here so both sides
 share one fallback default per setting, rather than each hand-maintaining
 its own copy that only stays in sync by coincidence (or a test)."""
 
@@ -19,8 +19,8 @@ def flatten_nav(nav_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     inside a Zensical macros-plugin `define_env()`) into an ordered,
     depth-first list of real pages only - a nav group heading (`url` is
     `None`, only `children`) contributes no entry of its own, just its
-    descendants. Shared by :mod:`zendoc.pdf.config` and
-    :mod:`zendoc.zensical_macros`, which both need the same page list."""
+    descendants. Shared by :mod:`prodockit.pdf.config` and
+    :mod:`prodockit.zensical_macros`, which both need the same page list."""
     pages = []
     for item in nav_items:
         if item.get("url"):

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Direct unit tests for zendoc._zensical's internal helpers - the pieces
+"""Direct unit tests for prodockit._zensical's internal helpers - the pieces
 prescan_headings() is built from, and prescan_headings() itself, kept
 separate from the full markdown-conversion integration tests in
 test_zensical_integration.py so a regression here (e.g. in the fence/comment
@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-import zendoc._zensical as zendoc_zensical
-from zendoc._zensical import _count_top_level_headings, _front_matter_flag, prescan_headings
+import prodockit._zensical as prodockit_zensical
+from prodockit._zensical import _count_top_level_headings, _front_matter_flag, prescan_headings
 
 
 def test_front_matter_flag_true_when_set() -> None:
@@ -57,7 +57,7 @@ def test_count_top_level_headings_skips_unnumbered() -> None:
 def test_prescan_headings_returns_none_outside_zensical(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(zendoc_zensical, "nav_pages", lambda: None)
+    monkeypatch.setattr(prodockit_zensical, "nav_pages", lambda: None)
     assert prescan_headings("is_appendix") is None
 
 
@@ -70,7 +70,7 @@ def test_prescan_headings_computes_cumulative_start_counts(
     (docs_dir / "page2.md").write_text("# Two\n", encoding="utf-8")
     (docs_dir / "page3.md").write_text("# Three\n", encoding="utf-8")
     monkeypatch.setattr(
-        zendoc_zensical,
+        prodockit_zensical,
         "nav_pages",
         lambda: (str(docs_dir), ["page1.md", "page2.md", "page3.md"]),
     )
@@ -95,7 +95,7 @@ def test_prescan_headings_letters_appendix_pages_and_skips_them_from_the_count(
     )
     (docs_dir / "page2.md").write_text("# Two\n", encoding="utf-8")
     monkeypatch.setattr(
-        zendoc_zensical,
+        prodockit_zensical,
         "nav_pages",
         lambda: (str(docs_dir), ["page1.md", "acronyms.md", "glossary.md", "page2.md"]),
     )
@@ -117,7 +117,7 @@ def test_prescan_headings_respects_a_custom_appendix_attr_name(
         "---\ncustom_flag: true\n---\n\n# Appendix\n", encoding="utf-8"
     )
     monkeypatch.setattr(
-        zendoc_zensical, "nav_pages", lambda: (str(docs_dir), ["appendix.md"])
+        prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["appendix.md"])
     )
     result = prescan_headings("custom_flag")
     assert result is not None

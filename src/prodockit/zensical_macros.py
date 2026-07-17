@@ -6,7 +6,7 @@
 professional/academic report commonly wants that aren't specific to any one
 project: a site-wide word count, the git-detected repository URL, chapter/
 appendix numbering that continues across pages, and reference/acronym/
-glossary list spacing that matches `zendoc.pdf`'s own PDF output.
+glossary list spacing that matches `prodockit.pdf`'s own PDF output.
 
 Add it alongside your own project's `macros.py` (which keeps anything
 genuinely project-specific - institution branding, a custom macro, and so
@@ -15,13 +15,13 @@ on) via `zensical.toml`:
 ```toml
 [project.markdown_extensions.zensical.extensions.macros]
 module_name = "macros"
-modules = ["zendoc.zensical_macros"]
+modules = ["prodockit.zensical_macros"]
 ```
 
 Zensical's macros plugin loads `module_name` and every entry in `modules`,
 merging all of their `define_env()` contributions into the same Jinja
 environment - so a project with no macros of its own can just use
-`modules = ["zendoc.zensical_macros"]` alone, dropping `module_name`/
+`modules = ["prodockit.zensical_macros"]` alone, dropping `module_name`/
 `macros.py` entirely.
 """
 
@@ -33,13 +33,13 @@ import subprocess
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
-from zendoc.headings import prescan
-from zendoc.settings import flatten_nav, reference_style_values
-from zendoc.wordcount import compute_word_count
+from prodockit.headings import prescan
+from prodockit.settings import flatten_nav, reference_style_values
+from prodockit.wordcount import compute_word_count
 
 # Front matter flag excluding a page from the site-wide word count - see
 # "Word count" in a project's own customisation docs. Shared with
-# zendoc.pdf's own PDF-side word count, if a project computes one there too.
+# prodockit.pdf's own PDF-side word count, if a project computes one there too.
 WORD_COUNT_EXCLUDED_FRONT_MATTER_KEY = "exclude_from_word_count"
 
 
@@ -131,7 +131,7 @@ def define_env(env: Any) -> None:
     def heading_counter_reset(page: Any) -> str:
         """Continues chapter/section numbering (and the matching sidebar
         numbering) across pages, from this page's position in nav - see
-        `zendoc.headings.prescan()`, the single source of truth for what
+        `prodockit.headings.prescan()`, the single source of truth for what
         number/letter a page actually gets, so this always matches what
         `\\ref{}` shows for a heading on this page. Usage: place
         `{{ heading_counter_reset(page) }}` near the top of each page;
@@ -140,7 +140,7 @@ def define_env(env: Any) -> None:
 
         A page flagged `is_appendix: true` in its own front matter gets
         letter-based numbering instead - "Appendix A", "A.1", "A.1.1" -
-        matching `zendoc.headings`' own `appendix_attr` default.
+        matching `prodockit.headings`' own `appendix_attr` default.
         """
         extra = config.get("extra") or {}
         if not bool(extra.get("heading_numbering", True)):
@@ -153,8 +153,8 @@ def define_env(env: Any) -> None:
                 "  .md-nav--secondary > .md-nav__list > .md-nav__item .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {\n"
                 '    content: "" !important;\n'
                 "  }\n"
-                '  .zendoc-figure-caption .caption-prefix::before { content: "Figure " !important; }\n'
-                '  .zendoc-table-caption .caption-prefix::before { content: "Table " !important; }\n'
+                '  .prodockit-figure-caption .caption-prefix::before { content: "Figure " !important; }\n'
+                '  .prodockit-table-caption .caption-prefix::before { content: "Table " !important; }\n'
                 "</style>"
             )
         page_path = getattr(page, "path", "")
@@ -169,8 +169,8 @@ def define_env(env: Any) -> None:
                 f'  .md-typeset h3::before {{ content: "{letter}." counter(h2-count) "." counter(h3-count) " " !important; }}\n'
                 f'  .md-nav--secondary > .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {{ content: "{letter}." counter(toc2) " " !important; }}\n'
                 f'  .md-nav--secondary > .md-nav__list > .md-nav__item .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {{ content: "{letter}." counter(toc2) "." counter(toc3) " " !important; }}\n'
-                f'  .zendoc-figure-caption .caption-prefix::before {{ content: "Figure {letter}." !important; }}\n'
-                f'  .zendoc-table-caption .caption-prefix::before {{ content: "Table {letter}." !important; }}\n'
+                f'  .prodockit-figure-caption .caption-prefix::before {{ content: "Figure {letter}." !important; }}\n'
+                f'  .prodockit-table-caption .caption-prefix::before {{ content: "Table {letter}." !important; }}\n'
                 "</style>"
             )
         n = start_counts.get(page_path, 0)

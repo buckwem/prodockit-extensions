@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 from zensical.extensions.macros import MacroEnv
 
-import zendoc.zensical_macros as zensical_macros
-from zendoc.zensical_macros import define_env
+import prodockit.zensical_macros as zensical_macros
+from prodockit.zensical_macros import define_env
 
 
 def _write_project(tmp_path: Path) -> dict:
@@ -111,7 +111,7 @@ def test_heading_counter_reset_disabled_via_config(tmp_path: Path) -> None:
 
 
 def test_heading_counter_reset_falls_back_to_zero_outside_a_real_build(tmp_path: Path) -> None:
-    """zendoc.headings.prescan() returns None outside an active Zensical
+    """prodockit.headings.prescan() returns None outside an active Zensical
     build - heading_counter_reset() should degrade to a harmless
     counter-reset-to-zero rather than raising."""
     env = MacroEnv(conf=_write_project(tmp_path))

@@ -9,7 +9,7 @@ asset) that doesn't exist in a standalone PDF (confirmed directly: a built
 admonition's title paragraph is just its plain text, nothing else). This
 module resolves an admonition type (note, warning, tip, ...) to its
 accent-coloured icon SVG markup instead, so a caller (see
-:mod:`zendoc.pdf.html`) can insert it explicitly.
+:mod:`prodockit.pdf.html`) can insert it explicitly.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import re
 from typing import Any
 
 # Mirrors the border-left-color a compiled PDF stylesheet typically sets per
-# admonition type (see zendoc.pdf.css), so the icon matches the coloured bar
+# admonition type (see prodockit.pdf.css), so the icon matches the coloured bar
 # rather than rendering in its raw (black) fill.
 ADMONITION_ACCENT_COLORS: dict[str, str] = {
     "note": "#448aff",

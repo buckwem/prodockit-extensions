@@ -1,12 +1,12 @@
 # Website macros
 
-`zendoc.zensical_macros` provides a handful of Jinja variables and macros
+`prodockit.zensical_macros` provides a handful of Jinja variables and macros
 for Zensical's own [macros plugin](https://zensical.org/docs/authoring/macros/)
 - the pieces a professional/academic report's website commonly wants that
 aren't specific to any one project: a site-wide word count, the git-detected
 repository URL, chapter/appendix numbering that continues across pages, and
 reference/acronym/glossary list spacing that matches
-[`zendoc.pdf`](pdf.md)'s own PDF output.
+[`prodockit.pdf`](pdf.md)'s own PDF output.
 
 ## Quick start
 
@@ -17,7 +17,7 @@ on):
 ```toml
 [project.markdown_extensions.zensical.extensions.macros]
 module_name = "macros"
-modules = ["zendoc.zensical_macros"]
+modules = ["prodockit.zensical_macros"]
 ```
 
 Zensical's macros plugin loads `module_name` and every entry in `modules`,
@@ -27,7 +27,7 @@ entirely and just use:
 
 ```toml
 [project.markdown_extensions.zensical.extensions.macros]
-modules = ["zendoc.zensical_macros"]
+modules = ["prodockit.zensical_macros"]
 ```
 
 ## Variables
@@ -51,7 +51,7 @@ modules = ["zendoc.zensical_macros"]
 
 Emits a `<style>` block that continues heading numbering from wherever the
 *previous* page left off, using
-[`zendoc.headings.prescan()`](extensions/headings.md) - the single source
+[`prodockit.headings.prescan()`](extensions/headings.md) - the single source
 of truth for what number/letter a page actually gets, so this always
 matches what `\ref{}` resolves to for a heading on this page. Nothing else
 needs to change when pages are reordered or headings are added/removed.
@@ -60,12 +60,12 @@ Set `project.extra.heading_numbering = false` in `zensical.toml` to turn
 numbering off entirely (content and sidebar) across the whole site. A page
 flagged `is_appendix: true` in its own front matter gets letter-based
 numbering instead - "Appendix A", "A.1", "A.1.1" - matching
-`zendoc.headings`' own `appendix_attr` default.
+`prodockit.headings`' own `appendix_attr` default.
 
 ### `reference_style()` / `acronym_style()` / `glossary_style()`
 
 Controls list-entry spacing, driven by the same `project.extra.*` settings
-[`zendoc.pdf`](pdf.md) reads for the PDF, so both outputs stay in sync from
+[`prodockit.pdf`](pdf.md) reads for the PDF, so both outputs stay in sync from
 one configured value:
 
 | Setting | Default | What it does |
@@ -78,4 +78,4 @@ one configured value:
 ## Status
 
 No formal, versioned public API stability contract yet (see
-[zendoc-extensions#7](https://github.com/buckwem/zendoc-extensions/issues/7)).
+[prodockit-extensions#7](https://github.com/buckwem/prodockit-extensions/issues/7)).
