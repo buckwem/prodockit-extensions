@@ -37,6 +37,7 @@ Issues = "https://github.com/buckwem/prodockit-extensions/issues"
 "prodockit.refs" = "prodockit.refs:RefsExtension"
 "prodockit.citations" = "prodockit.citations:CitationsExtension"
 "prodockit.glossary" = "prodockit.glossary:GlossaryExtension"
+"prodockit.tables" = "prodockit.tables:TablesExtension"
 
 [project.scripts]
 prodockit = "prodockit.pdf.cli:main"

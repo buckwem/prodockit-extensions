@@ -223,11 +223,17 @@ h1:not(.unnumbered) { string-set: chapter-title content() !important; }
    ========================================================================== */
 table {
     border-collapse: collapse !important;
-    border: 0.25pt solid #555555 !important;
+    border: 0.5pt solid #555555 !important;
     width: 100% !important;
     margin: 1.2em 0 !important;
     page-break-inside: auto !important;
     break-inside: auto !important;
+}
+/* prodockit.tables' own <colgroup>-based column widths only take effect
+   under table-layout: fixed - scoped to its own marker class so a plain
+   table's existing auto-layout/content-driven column sizing is unaffected. */
+table.prodockit-table-sized {
+    table-layout: fixed !important;
 }
 /* Rows never split mid-row - a page break only ever falls between rows */
 table tr {
@@ -265,9 +271,7 @@ table th { background-color: rgba(0, 0, 0, 0.1) !important; font-weight: bold !i
    sizes below. */
 table th, table td {
     padding: 8px 12px !important;
-    border-top: 0.25pt solid #555555 !important;
-    border-bottom: 0.25pt solid #555555 !important;
-    border-left: none !important; border-right: none !important;
+    border: 0.5pt solid #555555 !important;
     font-size: 10pt !important;
 }
 table td { text-align: left !important; }
