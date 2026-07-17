@@ -224,3 +224,22 @@ for path, text in pages:
 A genuine id collision between two different `source`s raises
 `prodockit.util.DuplicateIdError` here, rather than warning - a deliberately
 shared registry means you're expected to notice and fix it.
+
+### CSS hooks
+
+`prodockit.glossary` always sets a class on the `\gls{id}` link it renders -
+resolved or not - so a stylesheet has a stable hook either way:
+
+| State | Class |
+|---|---|
+| Resolved | `prodockit-gls` |
+| Unresolved | `prodockit-gls prodockit-gls-unresolved` |
+
+An unresolved id's `<a>` has no `href` (see
+[Unresolved references](#unresolved-references) above) - style
+`prodockit-gls-unresolved` distinctly (e.g. a warning colour) to make a
+missing term visually obvious without inspecting the page source. No
+`data-*` attribute is left in the rendered output - the internal
+`data-prodockit-gls` placeholder attribute used during resolution, and the
+`data-term` attribute marking a definition, are both always stripped
+before the page is rendered.

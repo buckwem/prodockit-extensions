@@ -136,6 +136,7 @@ class CiteResolverTreeprocessor(Treeprocessor):
                     a.set("class", "prodockit-cite-unresolved")
                 else:
                     a.text = record.text
+                    a.set("class", "prodockit-cite-resolved")
                     a.set("href", cross_page_href(record.source, self.source, key))
                 a.tail = "]" if i == last else "; "
 
