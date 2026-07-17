@@ -11,3 +11,13 @@
     display: none !important;
   }
 }
+
+/* prodockit.tables' own <colgroup>-based column widths only take effect
+   under table-layout: fixed - scoped to its own marker class so a plain
+   table's existing auto-layout/content-driven column sizing is unaffected.
+   A consuming project's own website theme needs this same rule too -
+   prodockit doesn't ship a bundled website stylesheet the way it ships
+   prodockit.pdf's own CSS for the PDF path. */
+.prodockit-table-sized {
+  table-layout: fixed;
+}

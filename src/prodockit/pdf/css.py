@@ -229,6 +229,12 @@ table {
     page-break-inside: auto !important;
     break-inside: auto !important;
 }
+/* prodockit.tables' own <colgroup>-based column widths only take effect
+   under table-layout: fixed - scoped to its own marker class so a plain
+   table's existing auto-layout/content-driven column sizing is unaffected. */
+table.prodockit-table-sized {
+    table-layout: fixed !important;
+}
 /* Rows never split mid-row - a page break only ever falls between rows */
 table tr {
     page-break-inside: avoid !important;

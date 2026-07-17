@@ -11,6 +11,8 @@ Zensical doesn't provide out of the box, each usable independently:
   ``\\cite{id}``.
 - ``prodockit.glossary`` - define a term once, insert it by id anywhere with
   ``\\gls{id}``.
+- ``prodockit.tables`` - percentage or fixed column widths on a table, via a
+  ``width`` attribute already attachable to a header cell with ``attr_list``.
 - ``prodockit.pdf`` - build a standalone PDF from your Zensical site via
   Pandoc and WeasyPrint, the kind of downloadable, submittable document
   professional/academic reports typically need alongside the website
@@ -21,8 +23,9 @@ Zensical doesn't provide out of the box, each usable independently:
   chapter/appendix numbering that continues across pages, and reference/
   acronym/glossary spacing that matches ``prodockit.pdf``'s own PDF output.
 
-``prodockit.headings``/``prodockit.refs``/``prodockit.citations``/``prodockit.glossary``
-are Python-Markdown extensions, in the spirit of pymdown-extensions - enable
+``prodockit.headings``/``prodockit.refs``/``prodockit.citations``/``prodockit.glossary``/
+``prodockit.tables`` are Python-Markdown extensions, in the spirit of
+pymdown-extensions - enable
 one in `zensical.toml` the same way as a built-in or pymdownx extension.
 Zensical's per-page rendering context is detected automatically where it's
 useful (see their own cross-page registry sharing). ``prodockit.pdf`` is a

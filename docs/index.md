@@ -23,6 +23,7 @@ It's a kit for professional documentation, built on Zensical's own Markdown and 
 | [prodockit.refs](extensions/refs.md) | `\ref{id}` section cross-references, resolving to the target's current number - similar in spirit to LaTeX's `\ref`. |
 | [prodockit.citations](extensions/citations.md) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
 | [prodockit.glossary](extensions/glossary.md) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
+| [prodockit.tables](extensions/tables.md) | Percentage or fixed column widths on a table, via a `width` attribute already attachable to a header cell with `attr_list`. |
 
 ## PDF generation
 
@@ -81,8 +82,9 @@ conversion.
 ## Status
 
 Early, but functional. `prodockit.headings`, `prodockit.refs`, `prodockit.citations`,
-`prodockit.glossary`, `prodockit.pdf`, and `prodockit.zensical_macros` are
-implemented and tested; auto-generating a full references list from
+`prodockit.glossary`, `prodockit.tables`, `prodockit.pdf`, and
+`prodockit.zensical_macros` are implemented and tested; auto-generating a
+full references list from
 structured bibliographic data is not yet built (see
 [prodockit.citations](extensions/citations.md#what-this-doesnt-do-yet)), and
 none of `prodockit.pdf`/`prodockit.zensical_macros` has a formal, versioned public
