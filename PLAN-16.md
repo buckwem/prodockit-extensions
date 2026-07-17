@@ -79,21 +79,18 @@ that name), so no squatting conflict to work around.
   on PyPI's side and requires your own PyPI login - I can't do this part).
 - Then a normal GitHub Release triggers `publish.yml` as it already does.
 
-### Phase 3 - rename the GitHub repo
-- `zendoc-extensions` → `prodockit-extensions` (Settings → repo name, same
-  process as #11's `zendoc-extension` → `zendoc-extensions` rename).
-- **Risk worth flagging**: GitHub redirects old→new repo URLs, but this
-  repo already has one redirect hop in place (`zendoc-extension` →
-  `zendoc-extensions`); adding a second hop (→ `prodockit-extensions`)
-  means anyone following the *original* pre-#11 URL now needs GitHub to
-  chain two redirects. GitHub does support this, but it's worth a quick
-  manual check afterwards that the original `zendoc-extension` URL still
-  lands somewhere sane.
-- GitHub Pages URL moves the same way: `buckwem.github.io/zendoc-extensions/`
-  → `buckwem.github.io/prodockit-extensions/` (same pattern as #11 -
-  confirmed old URL 404s, new one resolves).
-- Rename the local clone directory to match
-  (`~/GitHub/zendoc-extensions` → `~/GitHub/prodockit-extensions`).
+### Phase 3 - rename the GitHub repo - done
+- `zendoc-extensions` → `prodockit-extensions` via `gh repo rename`.
+- Redirect-chaining risk checked and fine: `github.com/buckwem/zendoc-extensions`
+  redirects (301 → 200) to the new URL.
+- GitHub Pages: old `buckwem.github.io/zendoc-extensions/` 404s (expected -
+  Pages doesn't redirect the way repo URLs do), new
+  `buckwem.github.io/prodockit-extensions/` resolves (200).
+- Local clone directory renamed to `~/GitHub/prodockit-extensions`, `origin`
+  remote URL updated.
+- All self-referential URLs in-repo (pyproject.toml, README, docs) were
+  already updated ahead of time in Phase 1/#17, so no further code changes
+  needed here.
 
 ### Phase 4 - `zendoc-template`: update the dependent repo
 132 references across 20 files, roughly:
