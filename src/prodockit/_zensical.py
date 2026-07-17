@@ -3,12 +3,12 @@
 
 """Internal helpers for Zensical-aware, cross-page state sharing.
 
-Not part of zendoc's public API - shared by zendoc.headings,
-zendoc.citations, and zendoc.glossary, all of which face the same problem:
+Not part of prodockit's public API - shared by prodockit.headings,
+prodockit.citations, and prodockit.glossary, all of which face the same problem:
 Zensical builds each page with its own fresh ``Markdown`` instance, so a
 plain per-instance default registry can never see another page's entries.
-``nav_pages``/``preseed_attr_from_nav`` (used by zendoc.citations and
-zendoc.glossary) additionally address pages being built in a single,
+``nav_pages``/``preseed_attr_from_nav`` (used by prodockit.citations and
+prodockit.glossary) additionally address pages being built in a single,
 one-shot pass: a forward reference to a page not yet built can't resolve
 without pre-scanning ahead of time.
 """
@@ -48,9 +48,9 @@ def page_source(md: Markdown) -> str | None:
 
 
 def share(md: Markdown, attr: str, value: T) -> T:
-    """Order-independent same-page sharing between two zendoc extensions
-    that both want the same piece of state (e.g. zendoc.headings and
-    zendoc.refs sharing an IdRegistry): whichever extension's
+    """Order-independent same-page sharing between two prodockit extensions
+    that both want the same piece of state (e.g. prodockit.headings and
+    prodockit.refs sharing an IdRegistry): whichever extension's
     extendMarkdown() runs first claims `value` by stashing it on `md` under
     `attr`; whichever runs second reuses what's already there - regardless
     of which order the two extensions were listed in (Zensical's own
@@ -72,7 +72,7 @@ def nav_pages() -> tuple[str, list[str]] | None:
     import). Returns None in that case, or if Zensical isn't installed.
 
     Used to pre-scan every page's raw text for something (currently
-    zendoc.citations' citation definitions) before any single page has
+    prodockit.citations' citation definitions) before any single page has
     actually been converted - needed because Zensical's `render()` builds
     one page a time, in one pass, so a page late in nav order (e.g. a
     references page kept as an appendix) hasn't been touched yet at the
@@ -184,7 +184,7 @@ def prescan_headings(appendix_attr: str) -> tuple[dict[str, int], dict[str, str]
     definitions, applied to heading counts instead.
 
     ``start_counts[page]`` is how many numbered h1s appear on every earlier
-    nav page, for zendoc.headings' "continuous" numbering mode to seed this
+    nav page, for prodockit.headings' "continuous" numbering mode to seed this
     page's own h1 counter with - so numbering continues seamlessly from one
     page to the next instead of resetting per page. A page whose front
     matter sets `appendix_attr` is skipped entirely for this count (it
@@ -230,14 +230,14 @@ def preseed_attr_from_nav(registry: _Preseedable, attr_name: str) -> None:
     live-reload, which eventually rebuilds every page at least once). Reads
     raw file text directly rather than waiting for Python-Markdown to parse
     it - safe here because the id/value are already literal attr_list
-    attribute values, unlike e.g. zendoc.headings' section numbers, which
+    attribute values, unlike e.g. prodockit.headings' section numbers, which
     genuinely depend on running the real Python-Markdown pipeline to
     compute. Skips fenced code blocks, so a documentation page showing this
     exact attr_list syntax as a literal example doesn't get mistaken for a
     real definition.
 
-    Used by zendoc.citations (`attr_name="data-cite-text"`) and
-    zendoc.glossary (`attr_name="data-term"`) - both need the identical
+    Used by prodockit.citations (`attr_name="data-cite-text"`) and
+    prodockit.glossary (`attr_name="data-term"`) - both need the identical
     scan, differing only in which attribute they're looking for and which
     registry they feed.
     """

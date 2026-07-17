@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-from zendoc.settings import flatten_nav, heading_numbering_enabled, reference_style_values
+from prodockit.settings import flatten_nav, heading_numbering_enabled, reference_style_values
 
 
 def test_flatten_nav_recurses_into_groups_and_skips_group_headings() -> None:

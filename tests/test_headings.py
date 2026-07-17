@@ -6,9 +6,9 @@ from pathlib import Path
 import markdown
 import pytest
 
-import zendoc._zensical as zendoc_zensical
-from zendoc.headings import HeadingsExtension, prescan
-from zendoc.util import DuplicateIdError, IdRegistry
+import prodockit._zensical as prodockit_zensical
+from prodockit.headings import HeadingsExtension, prescan
+from prodockit.util import DuplicateIdError, IdRegistry
 
 
 def _convert(text: str, registry: IdRegistry, source: str) -> str:
@@ -101,7 +101,7 @@ def test_reuses_callers_own_toc_config() -> None:
 
 
 def test_entry_point_name_resolves() -> None:
-    md = markdown.Markdown(extensions=["zendoc.headings"])
+    md = markdown.Markdown(extensions=["prodockit.headings"])
     assert md.convert("# Introduction\n") == (
         '<h1 id="introduction">Introduction</h1>'
     )
@@ -110,7 +110,7 @@ def test_entry_point_name_resolves() -> None:
 def test_prescan_wrapper_delegates_to_the_internal_nav_prescan(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """zendoc.headings.prescan() is the public seam a consuming project's
+    """prodockit.headings.prescan() is the public seam a consuming project's
     own build tooling (e.g. a template macro emitting a matching CSS
     counter-reset override) uses to look up the same start-counts/appendix-
     letters HeadingsExtension itself computes for numbering="continuous"."""
@@ -121,7 +121,7 @@ def test_prescan_wrapper_delegates_to_the_internal_nav_prescan(
         "---\nis_appendix: true\n---\n\n# Appendix\n", encoding="utf-8"
     )
     monkeypatch.setattr(
-        zendoc_zensical,
+        prodockit_zensical,
         "nav_pages",
         lambda: (str(docs_dir), ["page1.md", "appendix.md"]),
     )
@@ -133,5 +133,5 @@ def test_prescan_wrapper_delegates_to_the_internal_nav_prescan(
 def test_prescan_wrapper_returns_none_outside_zensical(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(zendoc_zensical, "nav_pages", lambda: None)
+    monkeypatch.setattr(prodockit_zensical, "nav_pages", lambda: None)
     assert prescan() is None

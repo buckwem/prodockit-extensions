@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""zendoc.glossary: define a term once, insert it by key anywhere.
+"""prodockit.glossary: define a term once, insert it by key anywhere.
 
 Mark a term's paragraph (or any block) with an id and its display text via
 ``attr_list``:
@@ -12,7 +12,7 @@ Mark a term's paragraph (or any block) with an id and its display text via
 then insert it from anywhere in the build with ``\\gls{css}``, which
 resolves to the term's own text, linked to its definition: ``CSS``.
 
-Unlike :mod:`zendoc.citations`' ``\\cite{id}`` (which generates new
+Unlike :mod:`prodockit.citations`' ``\\cite{id}`` (which generates new
 bracketed citation text), ``\\gls{id}`` inserts the term's *own* text
 in-line - closer to LaTeX's ``glossaries`` package (``\\gls{key}`` expands
 to the term's own name) than to a citation. One shared registry covers
@@ -20,7 +20,7 @@ both acronym and glossary entries (and anything else you want to define a
 short term for) - they're the same kind of thing (an id with a short
 display text), just organised across two conventionally-named pages.
 
-Like zendoc.citations, defining and inserting are bundled into one
+Like prodockit.citations, defining and inserting are bundled into one
 extension: a definition is useless without somewhere to use it, so there's
 no independently useful "just defining" half to split out.
 """
@@ -35,12 +35,12 @@ from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
 from markdown.treeprocessors import Treeprocessor
 
-from zendoc._zensical import page_source, preseed_attr_from_nav, share
-from zendoc.util import GlossaryRegistry, cross_page_href
+from prodockit._zensical import page_source, preseed_attr_from_nav, share
+from prodockit.util import GlossaryRegistry, cross_page_href
 
 GLS_RE = r"\\gls\{([^}\s]+)\}"
 
-# Shared across every page of a single Zensical build - see zendoc._zensical
+# Shared across every page of a single Zensical build - see prodockit._zensical
 # and GlossaryExtension.extendMarkdown. Never touched unless Zensical's
 # per-page context is actually detected.
 _ZENSICAL_SHARED_REGISTRY = GlossaryRegistry()
@@ -49,7 +49,7 @@ _ZENSICAL_SHARED_REGISTRY = GlossaryRegistry()
 class GlossaryDefTreeprocessor(Treeprocessor):
     """Registers every element carrying a ``data-term`` attribute
     (typically set via ``attr_list``, e.g. ``{: #css data-term="CSS" }``)
-    in a shared :class:`~zendoc.util.GlossaryRegistry`, keyed by the current
+    in a shared :class:`~prodockit.util.GlossaryRegistry`, keyed by the current
     document's source name, then strips the attribute - it's internal
     bookkeeping, not meant to leak into the rendered HTML.
 
@@ -85,7 +85,7 @@ class GlossaryDefTreeprocessor(Treeprocessor):
 
 class GlsInlineProcessor(InlineProcessor):
     """Matches ``\\gls{id}`` and emits an unresolved placeholder ``<a>``
-    carrying the referenced id in a ``data-zendoc-gls`` attribute.
+    carrying the referenced id in a ``data-prodockit-gls`` attribute.
 
     Registered at a low inline-pattern priority so it runs after 'backtick'
     (190) and 'escape' (180) - meaning inline code spans are already stashed
@@ -98,19 +98,19 @@ class GlsInlineProcessor(InlineProcessor):
         self, m: re.Match[str], data: str
     ) -> tuple[etree.Element, int, int]:
         el = etree.Element("a")
-        el.set("data-zendoc-gls", m.group(1))
+        el.set("data-prodockit-gls", m.group(1))
         return el, m.start(0), m.end(0)
 
 
 class GlsResolverTreeprocessor(Treeprocessor):
-    """Resolves the placeholder ``<a data-zendoc-gls="id">`` elements left
+    """Resolves the placeholder ``<a data-prodockit-gls="id">`` elements left
     by :class:`GlsInlineProcessor` to the referenced term's own text, once
     the current document's own term definitions have been registered.
 
-    Runs at a lower priority than 'zendoc-glossary-def' so a reference can
+    Runs at a lower priority than 'prodockit-glossary-def' so a reference can
     point at a term defined further down the same document - or on a page
     not yet built in a Zensical multi-page site, which instead falls back
-    to `unresolved` for that id, the same way zendoc.refs/zendoc.citations
+    to `unresolved` for that id, the same way prodockit.refs/prodockit.citations
     do.
     """
 
@@ -124,17 +124,17 @@ class GlsResolverTreeprocessor(Treeprocessor):
 
     def run(self, root: etree.Element) -> None:
         for el in root.iter("a"):
-            term_id = el.get("data-zendoc-gls")
+            term_id = el.get("data-prodockit-gls")
             if term_id is None:
                 continue
-            del el.attrib["data-zendoc-gls"]
+            del el.attrib["data-prodockit-gls"]
             record = self.registry.get(term_id)
             if record is None:
                 el.text = self.unresolved
-                el.set("class", "zendoc-gls zendoc-gls-unresolved")
+                el.set("class", "prodockit-gls prodockit-gls-unresolved")
             else:
                 el.text = record.text
-                el.set("class", "zendoc-gls")
+                el.set("class", "prodockit-gls")
                 el.set("href", cross_page_href(record.source, self.source, term_id))
 
 
@@ -143,7 +143,7 @@ class GlossaryExtension(Extension):
     ``\\gls{id}`` syntax."""
 
     def __init__(self, **kwargs: object) -> None:
-        # See zendoc.headings.HeadingsExtension for why this is popped
+        # See prodockit.headings.HeadingsExtension for why this is popped
         # rather than run through Extension's own config/setConfig
         # machinery.
         registry = kwargs.pop("registry", None)
@@ -182,22 +182,22 @@ class GlossaryExtension(Extension):
                 registry = _ZENSICAL_SHARED_REGISTRY
                 strict = False
                 preseed_attr_from_nav(registry, "data-term")
-        registry = share(md, "zendoc_glossary_registry", registry)
+        registry = share(md, "prodockit_glossary_registry", registry)
         self.registry = registry
         unresolved: str = self.getConfig("unresolved")
         md.treeprocessors.register(
             GlossaryDefTreeprocessor(md, registry, source, strict=strict),
-            "zendoc-glossary-def",
+            "prodockit-glossary-def",
             6,
         )
         md.inlinePatterns.register(
             GlsInlineProcessor(GLS_RE, md),
-            "zendoc-gls",
+            "prodockit-gls",
             43,
         )
         md.treeprocessors.register(
             GlsResolverTreeprocessor(md, registry, source, unresolved),
-            "zendoc-gls-resolver",
+            "prodockit-gls-resolver",
             1,
         )
 

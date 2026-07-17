@@ -1,15 +1,15 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Shared data structures used by more than one zendoc extension.
+"""Shared data structures used by more than one prodockit extension.
 
 A single :class:`IdRegistry` instance is meant to be shared across every
 source document in a build (one extension instance per document, e.g. one
-:class:`~zendoc.headings.HeadingsExtension` call per page), so that
-:mod:`zendoc.refs` can resolve an id to the document, heading, and current
+:class:`~prodockit.headings.HeadingsExtension` call per page), so that
+:mod:`prodockit.refs` can resolve an id to the document, heading, and current
 section number that defines it, regardless of which document is currently
-being converted. :class:`CitationRegistry` (for :mod:`zendoc.citations`'
-citation keys) and :class:`GlossaryRegistry` (for :mod:`zendoc.glossary`'s
+being converted. :class:`CitationRegistry` (for :mod:`prodockit.citations`'
+citation keys) and :class:`GlossaryRegistry` (for :mod:`prodockit.glossary`'s
 terms) are the same idea for their own kind of id - each its own separate
 registry/namespace, not merged with headings' ids or each other.
 """
@@ -20,7 +20,7 @@ import logging
 import posixpath
 from dataclasses import dataclass
 
-_log = logging.getLogger("zendoc")
+_log = logging.getLogger("prodockit")
 
 
 @dataclass(frozen=True)
@@ -58,7 +58,7 @@ class IdRegistry:
         (e.g. via an explicit id). When `strict` is False, a collision is
         logged and the earlier registration wins instead of raising - used
         for registry sharing this package sets up automatically (see
-        zendoc.headings' Zensical auto-detection), where crashing an entire
+        prodockit.headings' Zensical auto-detection), where crashing an entire
         site build over two unrelated pages both having, say, an "Overview"
         heading would be a worse outcome than an unresolved cross-reference.
         """
@@ -107,7 +107,7 @@ class CitationRecord:
 
 class CitationRegistry:
     """Registry of citation keys, defined once (e.g. on a references page)
-    and looked up by :mod:`zendoc.citations`' ``\\cite{id}`` syntax from
+    and looked up by :mod:`prodockit.citations`' ``\\cite{id}`` syntax from
     anywhere in a build. Same shape and collision semantics as
     :class:`IdRegistry`, kept as a separate registry/id-namespace rather
     than merged with it - a citation key isn't a heading, and the two
@@ -145,7 +145,7 @@ class CitationRegistry:
     def preseed(self, source: str, id: str, text: str) -> None:
         """Provisionally records a citation's display text and defining
         page ahead of that page actually being converted - used by
-        zendoc.citations' Zensical pre-scan to unblock a `\\cite{id}` that
+        prodockit.citations' Zensical pre-scan to unblock a `\\cite{id}` that
         cites a source defined on a page not yet processed in this build
         pass (e.g. a references page at the end of nav, cited from an early
         chapter - the classic "cited before defined" ordering problem
@@ -185,7 +185,7 @@ class GlossaryRecord:
 
 class GlossaryRegistry:
     """Registry of glossary/acronym terms, defined once (e.g. on an
-    Acronyms or Glossary page) and looked up by :mod:`zendoc.glossary`'s
+    Acronyms or Glossary page) and looked up by :mod:`prodockit.glossary`'s
     ``\\gls{id}`` syntax from anywhere in a build. Same shape, collision
     semantics, and preseed behaviour as :class:`CitationRegistry` - kept as
     its own separate registry/id-namespace rather than merged with it, the
@@ -240,7 +240,7 @@ class GlossaryRegistry:
 
 
 def cross_page_href(record_source: str, current_source: str, id: str) -> str:
-    """Builds the href for a resolved zendoc.refs/zendoc.citations link.
+    """Builds the href for a resolved prodockit.refs/prodockit.citations link.
 
     A bare ``#id`` fragment only navigates within the *current* page - on a
     multi-page site, a link to a heading/citation defined on a *different*

@@ -1,9 +1,9 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""zendoc.refs: ``\\ref{id}`` section cross-reference syntax, resolving to
+"""prodockit.refs: ``\\ref{id}`` section cross-reference syntax, resolving to
 the referenced heading's current section number - similar in spirit to
-LaTeX's ``\\ref``. Builds on the id registry from :mod:`zendoc.headings`,
+LaTeX's ``\\ref``. Builds on the id registry from :mod:`prodockit.headings`,
 which is auto-enabled with matching defaults if not already present.
 """
 
@@ -17,16 +17,16 @@ from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
 from markdown.treeprocessors import Treeprocessor
 
-from zendoc._zensical import page_source, share
-from zendoc.headings import HeadingsExtension
-from zendoc.util import IdRegistry, cross_page_href
+from prodockit._zensical import page_source, share
+from prodockit.headings import HeadingsExtension
+from prodockit.util import IdRegistry, cross_page_href
 
 REF_RE = r"\\ref\{([^}\s]+)\}"
 
 
 class RefInlineProcessor(InlineProcessor):
     """Matches ``\\ref{id}`` and emits an unresolved placeholder ``<a>``
-    carrying the referenced id in a ``data-zendoc-ref`` attribute.
+    carrying the referenced id in a ``data-prodockit-ref`` attribute.
 
     Registered at a low inline-pattern priority so it runs after 'backtick'
     (190) and 'escape' (180) - meaning inline code spans are already stashed
@@ -46,17 +46,17 @@ class RefInlineProcessor(InlineProcessor):
         self, m: re.Match[str], data: str
     ) -> tuple[etree.Element, int, int]:
         el = etree.Element("a")
-        el.set("data-zendoc-ref", m.group(1))
-        el.set("class", "zendoc-ref")
+        el.set("data-prodockit-ref", m.group(1))
+        el.set("class", "prodockit-ref")
         return el, m.start(0), m.end(0)
 
 
 class RefResolverTreeprocessor(Treeprocessor):
-    """Resolves the placeholder ``<a data-zendoc-ref="id">`` elements left by
+    """Resolves the placeholder ``<a data-prodockit-ref="id">`` elements left by
     :class:`RefInlineProcessor` to the referenced heading's section number,
     once the current document's own headings have been numbered.
 
-    Runs at a lower priority than 'zendoc-headings' (4) so every heading in
+    Runs at a lower priority than 'prodockit-headings' (4) so every heading in
     *this* document - including one defined further down the page than
     where it's referenced - is already registered by the time resolution
     happens. A reference to a heading in a document not yet processed in
@@ -75,14 +75,14 @@ class RefResolverTreeprocessor(Treeprocessor):
 
     def run(self, root: etree.Element) -> None:
         for el in root.iter("a"):
-            ref_id = el.get("data-zendoc-ref")
+            ref_id = el.get("data-prodockit-ref")
             if ref_id is None:
                 continue
-            del el.attrib["data-zendoc-ref"]
+            del el.attrib["data-prodockit-ref"]
             record = self.registry.get(ref_id)
             if record is None or record.number is None:
                 el.text = self.unresolved
-                el.set("class", "zendoc-ref zendoc-ref-unresolved")
+                el.set("class", "prodockit-ref prodockit-ref-unresolved")
                 if record is not None:
                     # Known heading, just unnumbered (e.g. {: .unnumbered }) -
                     # still a valid link target, unlike a genuinely unknown id.
@@ -123,11 +123,11 @@ class RefsExtension(Extension):
         md.registerExtension(self)
         registry = self.registry
         if registry is None:
-            # Order-independent: if zendoc.headings already ran on this page
+            # Order-independent: if prodockit.headings already ran on this page
             # (in either list order), it stashed its registry on md - reuse
             # that directly rather than searching md.registeredExtensions,
             # which only works if headings happened to run first.
-            existing = getattr(md, "zendoc_registry", None)
+            existing = getattr(md, "prodockit_registry", None)
             if isinstance(existing, IdRegistry):
                 registry = existing
             else:
@@ -139,17 +139,17 @@ class RefsExtension(Extension):
                     headings_ext = HeadingsExtension()
                     headings_ext.extendMarkdown(md)
                 registry = headings_ext.registry
-        registry = share(md, "zendoc_registry", registry)
+        registry = share(md, "prodockit_registry", registry)
         source: str = self.getConfig("source") or page_source(md) or ""
         unresolved: str = self.getConfig("unresolved")
         md.inlinePatterns.register(
             RefInlineProcessor(REF_RE, md),
-            "zendoc-ref",
+            "prodockit-ref",
             45,
         )
         md.treeprocessors.register(
             RefResolverTreeprocessor(md, registry, source, unresolved),
-            "zendoc-ref-resolver",
+            "prodockit-ref-resolver",
             2,
         )
 

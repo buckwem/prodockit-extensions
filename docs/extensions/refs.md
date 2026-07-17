@@ -1,10 +1,10 @@
 # Refs
 
-`zendoc.refs` adds a `\ref{id}` cross-reference syntax - similar in spirit
+`prodockit.refs` adds a `\ref{id}` cross-reference syntax - similar in spirit
 to LaTeX's `\ref` - that resolves to the *current* section number of the
 heading with that id. It depends on the id/number registry that
-[zendoc.headings](headings.md) builds; enabling `zendoc.refs` on its own
-transparently enables `zendoc.headings` too, with matching defaults, so a
+[prodockit.headings](headings.md) builds; enabling `prodockit.refs` on its own
+transparently enables `prodockit.headings` too, with matching defaults, so a
 single document works with no extra configuration.
 
 ## Quick start
@@ -12,7 +12,7 @@ single document works with no extra configuration.
 Enable it in `zensical.toml`:
 
 ```toml
-[project.markdown_extensions."zendoc.refs"]
+[project.markdown_extensions."prodockit.refs"]
 ```
 
 then reference any heading's id with `\ref{id}`:
@@ -28,7 +28,7 @@ See \ref{intro} for background.
 renders to:
 
 <h1 id="intro">Introduction</h1>
-<p>See <a class="zendoc-ref" href="#intro">1</a> for background.</p>
+<p>See <a class="prodockit-ref" href="#intro">1</a> for background.</p>
 <h2 id="background">Background</h2>
 
 Because the number is looked up fresh on every conversion, it stays correct
@@ -60,7 +60,7 @@ number when:
   build (the same way an undefined LaTeX `\ref` shows `??` until a later
   compilation pass).
 - `id` exists but belongs to a heading marked `unnumbered` (see
-  [zendoc.headings](headings.md#unnumbered-headings)) - it's still a valid
+  [prodockit.headings](headings.md#unnumbered-headings)) - it's still a valid
   link target in this case, just without a number to show.
 
 ```md
@@ -83,7 +83,7 @@ renders `\ref{cover-page}` as `??`, linked to `#cover-page`.
 [`attr_list`](https://python-markdown.github.io/extensions/attr_list/)
 (`# Introduction {: #intro }`), or the one
 [`toc`](https://python-markdown.github.io/extensions/toc/) derived
-automatically from the heading text (see [zendoc.headings](headings.md#ids)
+automatically from the heading text (see [prodockit.headings](headings.md#ids)
 for the exact precedence).
 
 `\ref{...}` is recognised the same way Python-Markdown's own inline syntax
@@ -106,7 +106,7 @@ Neither of the two shown above is resolved; both render the literal text.
 |---|---|---|---|
 | `unresolved` | `str` | `"??"` | Text rendered when `id` doesn't resolve to a numbered heading. |
 | `source` | `str` | `""`, auto-detected under Zensical | Identifier for the current document (e.g. its path) - used only to decide whether a resolved target is on this same page (bare `#id`) or a different one (a real link to it). Doesn't affect resolution itself. |
-| `registry` | `IdRegistry \| None` | discovered from a sibling `zendoc.headings`, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
+| `registry` | `IdRegistry \| None` | discovered from a sibling `prodockit.headings`, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
 
 ### Multi-page builds
 
@@ -117,12 +117,12 @@ extra configuration - just enable both extensions in `zensical.toml` as
 usual:
 
 ```toml
-[project.markdown_extensions."zendoc.headings"]
-[project.markdown_extensions."zendoc.refs"]
+[project.markdown_extensions."prodockit.headings"]
+[project.markdown_extensions."prodockit.refs"]
 ```
 
 Zensical builds each page with its own, fresh `Markdown` instance, so
-`zendoc.headings` detects this (via Zensical's own per-page context) and
+`prodockit.headings` detects this (via Zensical's own per-page context) and
 transparently shares one registry across every page of the build, keyed by
 each page's own path - no explicit `registry`/`source` needed. A reference
 to a page not yet converted in the current build still resolves to
@@ -139,15 +139,15 @@ Overview {: #api-overview }`) to disambiguate and make both referenceable.
 
 #### Under other tools: manual
 
-Outside Zensical, give `zendoc.headings` and `zendoc.refs` the *same*
+Outside Zensical, give `prodockit.headings` and `prodockit.refs` the *same*
 `IdRegistry` on every page yourself, converting pages in the order
 cross-references should become resolvable in:
 
 ```python
 import markdown
-from zendoc.headings import HeadingsExtension
-from zendoc.refs import RefsExtension
-from zendoc.util import IdRegistry
+from prodockit.headings import HeadingsExtension
+from prodockit.refs import RefsExtension
+from prodockit.util import IdRegistry
 
 registry = IdRegistry()
 
@@ -167,6 +167,6 @@ minimal same-page form for a reference that happens to target its own
 page).
 
 Here, a genuine id collision between two different `source`s *does* raise
-`zendoc.util.DuplicateIdError` rather than warning - a deliberately shared
+`prodockit.util.DuplicateIdError` rather than warning - a deliberately shared
 registry means you're expected to notice and fix a collision, unlike the
 best-effort automatic Zensical case above.

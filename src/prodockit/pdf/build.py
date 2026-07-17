@@ -4,7 +4,7 @@
 """One-call PDF build: wires up html/lua/css into a real `pandoc` +
 WeasyPrint invocation and writes a finished PDF file.
 
-The rest of `zendoc.pdf` (`html.py`/`lua.py`/`css.py`/`icons.py`/
+The rest of `prodockit.pdf` (`html.py`/`lua.py`/`css.py`/`icons.py`/
 `mermaid.py`) is a set of focused building blocks you can call individually
 if you need to change how they fit together. `build_pdf()` here is the
 convenience path: hand it your already-rendered pages and where you want
@@ -23,9 +23,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from zendoc.pdf.css import build_css
-from zendoc.pdf.html import build_page_anchor_map, fix_up_page_html
-from zendoc.pdf.lua import build_lua_filter
+from prodockit.pdf.css import build_css
+from prodockit.pdf.html import build_page_anchor_map, fix_up_page_html
+from prodockit.pdf.lua import build_lua_filter
 
 
 @dataclass
@@ -35,7 +35,7 @@ class Page:
     `html` is this page's content already rendered to HTML by your own
     Markdown pipeline (e.g. Zensical's `zensical.markdown.render.render()`)
     - not yet fixed up for Pandoc; `build_pdf()` applies
-    `zendoc.pdf.html.fix_up_page_html()` to it internally. `docs_rel_path`
+    `prodockit.pdf.html.fix_up_page_html()` to it internally. `docs_rel_path`
     is this page's path relative to your docs directory (e.g.
     `"starthere/installtooling.md"`), used to resolve this page's own
     relative links/images and to generate its in-document anchor.
@@ -106,7 +106,7 @@ def build_pdf(
     **Content**
 
     `docs_dir` is your project's docs root (used to resolve each page's own
-    relative image/link references - see `zendoc.pdf.html.fix_up_page_html`).
+    relative image/link references - see `prodockit.pdf.html.fix_up_page_html`).
     `extra_css` is your own website stylesheet's content (e.g. your theme
     CSS plus any custom stylesheet), concatenated *before* the CSS this
     function generates, so its own `!important` rules can still override a
@@ -124,7 +124,7 @@ def build_pdf(
     values for the page margins and running header/footer. `copyright_text`/
     `site_name` appear in the running footer/header. `reference_style_global`
     and its `reference_*` spacing values control `.reference`/`.acronym`/
-    `.glossary` paragraph spacing - see `zendoc.pdf.css.build_css` for what
+    `.glossary` paragraph spacing - see `prodockit.pdf.css.build_css` for what
     each style looks like.
 
     **Numbering and math**
@@ -132,7 +132,7 @@ def build_pdf(
     `heading_numbering_enabled` turns chapter/appendix numbering on
     headings and captions on or off entirely. `mathjax_available`/
     `math_dir`/`tex2svg_script` enable TeX math pre-rendering - see
-    `zendoc.pdf.lua.build_lua_filter` for what each does; leave
+    `prodockit.pdf.lua.build_lua_filter` for what each does; leave
     `mathjax_available` False if your content has no math or you haven't
     set up a local MathJax/`tex2svg` install.
 
@@ -157,7 +157,7 @@ def build_pdf(
     """
     use_temp_dir = work_dir is None
     resolved_work_dir: str = (
-        tempfile.mkdtemp(prefix="zendoc-pdf-") if work_dir is None else work_dir
+        tempfile.mkdtemp(prefix="prodockit-pdf-") if work_dir is None else work_dir
     )
     os.makedirs(resolved_work_dir, exist_ok=True)
 
@@ -182,7 +182,7 @@ def build_pdf(
             )
 
         if include_table_of_contents:
-            # A Lua filter's own Pandoc() handler (see zendoc.pdf.lua)
+            # A Lua filter's own Pandoc() handler (see prodockit.pdf.lua)
             # inserts the real, auto-generated Table of Contents right
             # after a heading literally titled `table_of_contents_title` -
             # this is that heading, unnumbered/unlisted like a cover page's
@@ -197,13 +197,13 @@ def build_pdf(
             insert_at = 1 if pages and pages[0].is_index else 0
             fixed_html_parts.insert(insert_at, toc_trigger_html)
 
-        concatenated_html_path = os.path.join(resolved_work_dir, "_zendoc_pdf_compiled.html")
+        concatenated_html_path = os.path.join(resolved_work_dir, "_prodockit_pdf_compiled.html")
         with open(concatenated_html_path, "w", encoding="utf-8") as f:
             f.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>\n")
             f.write("\n\n".join(fixed_html_parts))
             f.write("\n</body></html>")
 
-        lua_filter_path = os.path.join(resolved_work_dir, "_zendoc_pdf_filter.lua")
+        lua_filter_path = os.path.join(resolved_work_dir, "_prodockit_pdf_filter.lua")
         with open(lua_filter_path, "w", encoding="utf-8") as f:
             f.write(
                 build_lua_filter(
@@ -232,7 +232,7 @@ def build_pdf(
             reference_indent_global=reference_indent_global,
             reference_spacing_global=reference_spacing_global,
         )
-        compiled_css_path = os.path.join(resolved_work_dir, "_zendoc_pdf_compiled.css")
+        compiled_css_path = os.path.join(resolved_work_dir, "_prodockit_pdf_compiled.css")
         with open(compiled_css_path, "w", encoding="utf-8") as f:
             f.write(extra_css + "\n\n" + css)
 

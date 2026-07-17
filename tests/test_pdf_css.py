@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-from zendoc.pdf.css import build_css
+from prodockit.pdf.css import build_css
 
 
 def test_font_family_placeholders_are_substituted() -> None:

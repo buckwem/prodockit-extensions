@@ -4,8 +4,8 @@
 import markdown
 import pytest
 
-from zendoc.glossary import GlossaryExtension
-from zendoc.util import DuplicateIdError, GlossaryRegistry
+from prodockit.glossary import GlossaryExtension
+from prodockit.util import DuplicateIdError, GlossaryRegistry
 
 
 def _convert(text: str, registry: GlossaryRegistry | None = None, source: str = "doc.md") -> str:
@@ -34,22 +34,22 @@ def test_term_definition_strips_internal_attribute_but_keeps_id_and_class() -> N
 
 def test_gls_resolves_to_the_terms_own_text() -> None:
     html = _convert(f"{CSS_DEF}\n\nThis template uses \\gls{{css}} to style pages.\n")
-    assert 'This template uses <a class="zendoc-gls" href="#css">CSS</a> to style pages.' in html
+    assert 'This template uses <a class="prodockit-gls" href="#css">CSS</a> to style pages.' in html
 
 
 def test_forward_reference_within_same_document_resolves() -> None:
     html = _convert(f"See \\gls{{css}} above.\n\n{CSS_DEF}\n")
-    assert '<a class="zendoc-gls" href="#css">CSS</a>' in html
+    assert '<a class="prodockit-gls" href="#css">CSS</a>' in html
 
 
 def test_unknown_id_is_unresolved() -> None:
     html = _convert("See \\gls{does-not-exist}.\n")
-    assert '<a class="zendoc-gls zendoc-gls-unresolved">?</a>' in html
+    assert '<a class="prodockit-gls prodockit-gls-unresolved">?</a>' in html
 
 
 def test_unresolved_id_has_no_href() -> None:
     html = _convert("See \\gls{does-not-exist}.\n")
-    assert 'href' not in html[html.index('<a class="zendoc-gls zendoc-gls-unresolved">') :].split(">")[0]
+    assert 'href' not in html[html.index('<a class="prodockit-gls prodockit-gls-unresolved">') :].split(">")[0]
 
 
 def test_custom_unresolved_marker() -> None:
@@ -61,13 +61,13 @@ def test_custom_unresolved_marker() -> None:
 def test_gls_inside_code_span_is_not_resolved() -> None:
     html = _convert(f"{CSS_DEF}\n\nType `\\gls{{css}}` literally.\n")
     assert "\\gls{css}" in html
-    assert "zendoc-gls" not in html
+    assert "prodockit-gls" not in html
 
 
 def test_gls_inside_fenced_code_block_is_not_resolved() -> None:
     html = _convert(f"{CSS_DEF}\n\n```\n\\gls{{css}}\n```\n")
     assert "\\gls{css}" in html
-    assert "zendoc-gls" not in html
+    assert "prodockit-gls" not in html
 
 
 def test_shares_registry_across_explicit_sources() -> None:
@@ -77,7 +77,7 @@ def test_shares_registry_across_explicit_sources() -> None:
     # A different source references this, so the link must be a real
     # cross-page reference (acronyms.md#css), not a bare same-page
     # fragment - a bare "#css" would 404 on the actual multi-page website.
-    assert '<a class="zendoc-gls" href="acronyms.md#css">CSS</a>' in html
+    assert '<a class="prodockit-gls" href="acronyms.md#css">CSS</a>' in html
 
 
 def test_duplicate_id_across_explicit_sources_raises() -> None:
@@ -98,11 +98,11 @@ def test_acronyms_and_glossary_share_one_registry() -> None:
     html = _convert(
         "See \\gls{css} and \\gls{css-def}.\n", registry=registry, source="section1.md"
     )
-    assert '<a class="zendoc-gls" href="acronyms.md#css">CSS</a>' in html
-    assert '<a class="zendoc-gls" href="glossary.md#css-def">Cascading Style Sheets</a>' in html
+    assert '<a class="prodockit-gls" href="acronyms.md#css">CSS</a>' in html
+    assert '<a class="prodockit-gls" href="glossary.md#css-def">Cascading Style Sheets</a>' in html
 
 
 def test_entry_point_name_resolves() -> None:
-    md = markdown.Markdown(extensions=["attr_list", "zendoc.glossary"])
+    md = markdown.Markdown(extensions=["attr_list", "prodockit.glossary"])
     html = md.convert(f"{CSS_DEF}\n\nSee \\gls{{css}}.\n")
-    assert '<a class="zendoc-gls" href="#css">CSS</a>' in html
+    assert '<a class="prodockit-gls" href="#css">CSS</a>' in html

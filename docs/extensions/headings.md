@@ -1,9 +1,9 @@
 # Headings
 
-`zendoc.headings` gives every heading in a document an `id` and a
+`prodockit.headings` gives every heading in a document an `id` and a
 hierarchical section number, and records both - along with the heading's
-text and level - in a shared registry other zendoc extensions build on
-(e.g. [zendoc.refs](refs.md), which resolves `\ref{id}` by looking an id up
+text and level - in a shared registry other prodockit extensions build on
+(e.g. [prodockit.refs](refs.md), which resolves `\ref{id}` by looking an id up
 in exactly this registry). You can also enable it on its own if you just
 want ids/numbers on your headings without cross-references.
 
@@ -12,7 +12,7 @@ want ids/numbers on your headings without cross-references.
 Enable it in `zensical.toml`:
 
 ```toml
-[project.markdown_extensions."zendoc.headings"]
+[project.markdown_extensions."prodockit.headings"]
 ```
 
 and every heading gets a hierarchical number automatically - an `h1` is a
@@ -40,8 +40,8 @@ top-level counter ("1", "2", ...), an `h2` nests under the nearest preceding
     | Scope | `scope` | `1.2` |
     | Method | `method` | `2` |
 
-`zendoc.headings` doesn't render the number into the heading text itself -
-only into the registry above, which [zendoc.refs](refs.md) then renders
+`prodockit.headings` doesn't render the number into the heading text itself -
+only into the registry above, which [prodockit.refs](refs.md) then renders
 inline wherever you write `\ref{id}`. Numbers are recomputed from scratch on
 every conversion, so reordering headings always produces correct numbers on
 the next build - there's no stored/stale numbering state.
@@ -81,7 +81,7 @@ is_appendix: true
 ## Terms {: #terms }
 ```
 
-a [zendoc.refs](refs.md) reference to `Terms` from another page:
+a [prodockit.refs](refs.md) reference to `Terms` from another page:
 
 ```md
 <!-- references.md -->
@@ -94,7 +94,7 @@ renders to (a link to `glossary.md#terms`, shown here as a code block
 since `glossary.md` isn't a real page on *this* site):
 
 ```html
-<p>See <a class="zendoc-ref" href="glossary.md#terms">A.1</a> for defined terms.</p>
+<p>See <a class="prodockit-ref" href="glossary.md#terms">A.1</a> for defined terms.</p>
 ```
 
 `Glossary`'s own `h1` becomes `"A"` (the first appendix page in nav) and
@@ -128,13 +128,13 @@ By default, numbering is per-document: every page's own `h1` starts back at
 previous nav page left off instead:
 
 ```toml
-[project.markdown_extensions."zendoc.headings"]
+[project.markdown_extensions."prodockit.headings"]
 numbering = "continuous"
 ```
 
 e.g. if page one ends with `h1` number `"3"`, page two's first `h1` becomes
 `"4"`, not `"1"` again. This is what makes a `\ref{id}` link to a heading on
-a *different* page (see [zendoc.refs](refs.md)) show the same number that's
+a *different* page (see [prodockit.refs](refs.md)) show the same number that's
 actually displayed on that page.
 
 Once enabled, a page whose front matter sets `is_appendix: true` is
@@ -149,13 +149,13 @@ An id comes from one of, in order of precedence:
    [`attr_list`](https://python-markdown.github.io/extensions/attr_list/),
    e.g. `# Introduction {: #custom-id }`.
 2. Python-Markdown's own [`toc`](https://python-markdown.github.io/extensions/toc/)
-   extension, which `zendoc.headings` enables automatically (with its
+   extension, which `prodockit.headings` enables automatically (with its
    defaults) if you haven't already enabled it yourself - so if you *have*
    configured `toc` (e.g. with `permalink: true`), that configuration is
    left untouched and reused.
 3. A minimal built-in slugify fallback, used only if `toc` is somehow not
    registered at all (this should not normally happen, since
-   `zendoc.headings` enables it).
+   `prodockit.headings` enables it).
 
 ### Options
 
@@ -173,8 +173,8 @@ To resolve cross-page references, every page in a build needs to write into
 distinct `source`.
 
 Under [Zensical](https://zensical.org/), this happens automatically with no
-configuration - see [zendoc.refs](refs.md#multi-page-builds) for details:
-`zendoc.headings` detects Zensical's per-page context (each page gets its
+configuration - see [prodockit.refs](refs.md#multi-page-builds) for details:
+`prodockit.headings` detects Zensical's per-page context (each page gets its
 own fresh `Markdown` instance) and uses it to derive `source` from the
 page's own path, sharing one registry across the whole build. This
 auto-detection only activates when you *haven't* set an explicit `registry`
@@ -185,8 +185,8 @@ page's extension instance, along with that page's own `source`:
 
 ```python
 import markdown
-from zendoc.headings import HeadingsExtension
-from zendoc.util import IdRegistry
+from prodockit.headings import HeadingsExtension
+from prodockit.util import IdRegistry
 
 registry = IdRegistry()
 
@@ -198,7 +198,7 @@ for path, text in pages:
 ```
 
 A duplicate id registered from two *different* sources raises
-`zendoc.util.DuplicateIdError` here - re-converting the *same* source (e.g.
+`prodockit.util.DuplicateIdError` here - re-converting the *same* source (e.g.
 a live-reload dev server) is safe and expected; its previous entries are
 cleared first. (Zensical's automatic sharing above uses the same registry,
 but logs a warning and keeps the first registration instead of raising -
@@ -207,23 +207,23 @@ deliberately.)
 
 ### Looking up the same numbers from your own build tooling
 
-`zendoc.headings.prescan(appendix_attr="is_appendix")` returns
+`prodockit.headings.prescan(appendix_attr="is_appendix")` returns
 `(start_counts, appendix_letters)` - both `dict[str, ...]` keyed by
 nav-relative page path - the exact same pre-scan `HeadingsExtension` itself
 uses internally for `numbering="continuous"`. A consuming project's own
 build tooling can call this directly to stay in sync automatically, rather
 than re-deriving the same page-order/heading-count logic a second,
 independent way - e.g. a template macro that emits a presentational CSS
-counter-reset per page, matching whatever number `zendoc.headings` computes
+counter-reset per page, matching whatever number `prodockit.headings` computes
 for that page's first heading (see
-[zendoc.zensical_macros](../macros.md#heading_counter_resetpage)). Returns
+[prodockit.zensical_macros](../macros.md#heading_counter_resetpage)). Returns
 `None` outside a Zensical build.
 
 ### CSS hooks
 
-`zendoc.headings` doesn't add any class of its own to a heading - only an
+`prodockit.headings` doesn't add any class of its own to a heading - only an
 `id` (see above), the class(es) already on the heading (e.g. `unnumbered`),
 and whatever the numbers themselves feed into via the registry (typically
-consumed by [zendoc.refs](refs.md), or by a template's own build tooling via
+consumed by [prodockit.refs](refs.md), or by a template's own build tooling via
 `prescan()` above to drive presentational CSS). There is currently no
-`zendoc-heading`-style class to hook a stylesheet onto directly.
+`prodockit-heading`-style class to hook a stylesheet onto directly.

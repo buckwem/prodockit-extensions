@@ -3,8 +3,8 @@
 
 """A rough prose word count for markdown source - the kind an assignment or
 report with a submission word limit typically needs to show, on either the
-website (see :mod:`zendoc.zensical_macros`) or the PDF (see
-:mod:`zendoc.pdf`), and to enforce consistently between the two."""
+website (see :mod:`prodockit.zensical_macros`) or the PDF (see
+:mod:`prodockit.pdf`), and to enforce consistently between the two."""
 
 from __future__ import annotations
 

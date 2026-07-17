@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""zendoc.citations: define a citation source once, cite it by key anywhere.
+"""prodockit.citations: define a citation source once, cite it by key anywhere.
 
 Mark a source's paragraph (or any block) with an id and a short display
 text via ``attr_list``:
@@ -14,11 +14,11 @@ resolves to a linked, bracketed citation: ``[Skoulikari, 2023]``. Multiple
 keys in one citation (``\\cite{skou2023,chacon2014}``) render as
 ``[Skoulikari, 2023; Chacon and Straub, 2014]``.
 
-Unlike zendoc.headings/zendoc.refs, defining and citing are bundled into one
+Unlike prodockit.headings/prodockit.refs, defining and citing are bundled into one
 extension here rather than split in two: a definition is useless without a
 place to cite it, and a citation is meaningless without something defined
 to point at - there's no independently useful "just defining" half the way
-zendoc.headings' ids/numbers are useful even without zendoc.refs.
+prodockit.headings' ids/numbers are useful even without prodockit.refs.
 """
 
 from __future__ import annotations
@@ -31,12 +31,12 @@ from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
 from markdown.treeprocessors import Treeprocessor
 
-from zendoc._zensical import page_source, preseed_attr_from_nav, share
-from zendoc.util import CitationRegistry, cross_page_href
+from prodockit._zensical import page_source, preseed_attr_from_nav, share
+from prodockit.util import CitationRegistry, cross_page_href
 
 CITE_RE = r"\\cite\{([^}]+)\}"
 
-# Shared across every page of a single Zensical build - see zendoc._zensical
+# Shared across every page of a single Zensical build - see prodockit._zensical
 # and CitationsExtension.extendMarkdown. Never touched unless Zensical's
 # per-page context is actually detected.
 _ZENSICAL_SHARED_REGISTRY = CitationRegistry()
@@ -45,7 +45,7 @@ _ZENSICAL_SHARED_REGISTRY = CitationRegistry()
 class CitationDefTreeprocessor(Treeprocessor):
     """Registers every element carrying a ``data-cite-text`` attribute
     (typically set via ``attr_list``, e.g. ``{: #skou2023 data-cite-text="Skoulikari, 2023" }``)
-    in a shared :class:`~zendoc.util.CitationRegistry`, keyed by the current
+    in a shared :class:`~prodockit.util.CitationRegistry`, keyed by the current
     document's source name, then strips the attribute - it's internal
     bookkeeping, not meant to leak into the rendered HTML.
 
@@ -82,7 +82,7 @@ class CitationDefTreeprocessor(Treeprocessor):
 class CiteInlineProcessor(InlineProcessor):
     """Matches ``\\cite{id}`` or ``\\cite{id1,id2,...}`` and emits an
     unresolved placeholder ``<span>`` carrying the raw, comma-separated keys
-    in a ``data-zendoc-cite`` attribute.
+    in a ``data-prodockit-cite`` attribute.
 
     Registered at a low inline-pattern priority so it runs after 'backtick'
     (190) and 'escape' (180) - meaning inline code spans are already stashed
@@ -95,19 +95,19 @@ class CiteInlineProcessor(InlineProcessor):
         self, m: re.Match[str], data: str
     ) -> tuple[etree.Element, int, int]:
         el = etree.Element("span")
-        el.set("data-zendoc-cite", m.group(1))
+        el.set("data-prodockit-cite", m.group(1))
         return el, m.start(0), m.end(0)
 
 
 class CiteResolverTreeprocessor(Treeprocessor):
-    """Resolves the placeholder ``<span data-zendoc-cite="...">`` elements
+    """Resolves the placeholder ``<span data-prodockit-cite="...">`` elements
     left by :class:`CiteInlineProcessor` into a bracketed citation, once the
     current document's own citation definitions have been registered.
 
-    Runs at a lower priority than 'zendoc-citations-def' so a citation can
+    Runs at a lower priority than 'prodockit-citations-def' so a citation can
     reference a source defined further down the same document - or on a
     page not yet built in a Zensical multi-page site, which instead falls
-    back to `unresolved` for that key, the same way zendoc.refs does.
+    back to `unresolved` for that key, the same way prodockit.refs does.
     """
 
     def __init__(
@@ -120,11 +120,11 @@ class CiteResolverTreeprocessor(Treeprocessor):
 
     def run(self, root: etree.Element) -> None:
         for el in root.iter("span"):
-            raw_keys = el.get("data-zendoc-cite")
+            raw_keys = el.get("data-prodockit-cite")
             if raw_keys is None:
                 continue
-            del el.attrib["data-zendoc-cite"]
-            el.set("class", "zendoc-cite")
+            del el.attrib["data-prodockit-cite"]
+            el.set("class", "prodockit-cite")
             keys = [key.strip() for key in raw_keys.split(",") if key.strip()]
             el.text = "["
             last = len(keys) - 1
@@ -133,7 +133,7 @@ class CiteResolverTreeprocessor(Treeprocessor):
                 a = etree.SubElement(el, "a")
                 if record is None:
                     a.text = self.unresolved
-                    a.set("class", "zendoc-cite-unresolved")
+                    a.set("class", "prodockit-cite-unresolved")
                 else:
                     a.text = record.text
                     a.set("href", cross_page_href(record.source, self.source, key))
@@ -145,7 +145,7 @@ class CitationsExtension(Extension):
     ``\\cite{id}`` syntax."""
 
     def __init__(self, **kwargs: object) -> None:
-        # See zendoc.headings.HeadingsExtension for why this is popped
+        # See prodockit.headings.HeadingsExtension for why this is popped
         # rather than run through Extension's own config/setConfig
         # machinery.
         registry = kwargs.pop("registry", None)
@@ -183,22 +183,22 @@ class CitationsExtension(Extension):
                 registry = _ZENSICAL_SHARED_REGISTRY
                 strict = False
                 preseed_attr_from_nav(registry, "data-cite-text")
-        registry = share(md, "zendoc_citation_registry", registry)
+        registry = share(md, "prodockit_citation_registry", registry)
         self.registry = registry
         unresolved: str = self.getConfig("unresolved")
         md.treeprocessors.register(
             CitationDefTreeprocessor(md, registry, source, strict=strict),
-            "zendoc-citations-def",
+            "prodockit-citations-def",
             6,
         )
         md.inlinePatterns.register(
             CiteInlineProcessor(CITE_RE, md),
-            "zendoc-cite",
+            "prodockit-cite",
             44,
         )
         md.treeprocessors.register(
             CiteResolverTreeprocessor(md, registry, source, unresolved),
-            "zendoc-cite-resolver",
+            "prodockit-cite-resolver",
             1,
         )
 

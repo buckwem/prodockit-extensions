@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-from zendoc.pdf.lua import build_lua_filter
+from prodockit.pdf.lua import build_lua_filter
 
 
 def test_heading_numbering_flag_is_substituted_as_a_lua_boolean() -> None:

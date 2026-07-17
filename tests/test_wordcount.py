@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-from zendoc.wordcount import compute_word_count, count_words
+from prodockit.wordcount import compute_word_count, count_words
 
 
 def test_count_words_counts_plain_prose() -> None:

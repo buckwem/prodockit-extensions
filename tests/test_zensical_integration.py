@@ -3,7 +3,7 @@
 
 """Simulates Zensical's per-page render(): a fresh Markdown() instance per
 page, each carrying a zensical.extensions.context.ContextPreprocessor - see
-zendoc.headings._zensical_page_source, added to fix cross-page \\ref
+prodockit.headings._zensical_page_source, added to fix cross-page \\ref
 resolution not working under Zensical's per-page build."""
 
 from pathlib import Path
@@ -12,11 +12,11 @@ import markdown
 import pytest
 from zensical.extensions.context import ContextExtension, Page
 
-import zendoc._zensical as zendoc_zensical
-import zendoc.citations as zendoc_citations
-import zendoc.glossary as zendoc_glossary
-import zendoc.headings as zendoc_headings
-from zendoc.util import CitationRegistry, GlossaryRegistry, IdRegistry
+import prodockit._zensical as prodockit_zensical
+import prodockit.citations as prodockit_citations
+import prodockit.glossary as prodockit_glossary
+import prodockit.headings as prodockit_headings
+from prodockit.util import CitationRegistry, GlossaryRegistry, IdRegistry
 
 
 @pytest.fixture(autouse=True)
@@ -25,21 +25,21 @@ def _isolated_zensical_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     leak registrations into one another via the real module-level
     singletons (which, in production, are deliberately shared for the whole
     build's lifetime)."""
-    monkeypatch.setattr(zendoc_headings, "_ZENSICAL_SHARED_REGISTRY", IdRegistry())
-    monkeypatch.setattr(zendoc_citations, "_ZENSICAL_SHARED_REGISTRY", CitationRegistry())
-    monkeypatch.setattr(zendoc_glossary, "_ZENSICAL_SHARED_REGISTRY", GlossaryRegistry())
+    monkeypatch.setattr(prodockit_headings, "_ZENSICAL_SHARED_REGISTRY", IdRegistry())
+    monkeypatch.setattr(prodockit_citations, "_ZENSICAL_SHARED_REGISTRY", CitationRegistry())
+    monkeypatch.setattr(prodockit_glossary, "_ZENSICAL_SHARED_REGISTRY", GlossaryRegistry())
 
 
 def _convert_as_zensical_page(text: str, path: str) -> str:
     """Mirrors zensical/markdown/render.py: a brand new Markdown() instance
     per page, with a ContextExtension carrying that page's Page(path=...) -
-    and zendoc.headings/zendoc.refs configured as plain strings, exactly as
-    zensical.toml's [project.markdown_extensions."zendoc.headings"] does."""
+    and prodockit.headings/prodockit.refs configured as plain strings, exactly as
+    zensical.toml's [project.markdown_extensions."prodockit.headings"] does."""
     md = markdown.Markdown(
         extensions=[
             ContextExtension(page=Page(url=path, path=path), config={}),
-            "zendoc.headings",
-            "zendoc.refs",
+            "prodockit.headings",
+            "prodockit.refs",
         ]
     )
     return md.convert(text)
@@ -50,7 +50,7 @@ def test_cross_page_reference_resolves_under_zensical() -> None:
     html = _convert_as_zensical_page("See \\ref{introduction}.\n", "usage.md")
     # A real cross-page link (intro.md#introduction), not a bare same-page
     # fragment - the latter would 404 on the actual multi-page website.
-    assert '<a class="zendoc-ref" href="intro.md#introduction">1</a>' in html
+    assert '<a class="prodockit-ref" href="intro.md#introduction">1</a>' in html
 
 
 def test_each_page_gets_its_own_source_automatically() -> None:
@@ -63,8 +63,8 @@ def test_each_page_gets_its_own_source_automatically() -> None:
     html = _convert_as_zensical_page(
         "See \\ref{introduction} and \\ref{setup}.\n", "summary.md"
     )
-    assert '<a class="zendoc-ref" href="intro.md#introduction">1</a>' in html
-    assert '<a class="zendoc-ref" href="setup.md#setup">1</a>' in html
+    assert '<a class="prodockit-ref" href="intro.md#introduction">1</a>' in html
+    assert '<a class="prodockit-ref" href="setup.md#setup">1</a>' in html
 
 
 def test_same_page_reference_still_uses_bare_fragment_under_zensical() -> None:
@@ -74,14 +74,14 @@ def test_same_page_reference_still_uses_bare_fragment_under_zensical() -> None:
     html = _convert_as_zensical_page(
         "# Introduction\n\nSee \\ref{introduction}.\n", "intro.md"
     )
-    assert '<a class="zendoc-ref" href="#introduction">1</a>' in html
+    assert '<a class="prodockit-ref" href="#introduction">1</a>' in html
 
 
 def test_duplicate_heading_text_across_pages_does_not_crash_the_build() -> None:
     """A real, common scenario: two unrelated pages both happen to have an
     identically-titled heading (e.g. "Overview"). Under the strict
     (explicit multi-page) path this would raise DuplicateIdError - here,
-    under Zensical auto-detection, it must not, or installing zendoc would
+    under Zensical auto-detection, it must not, or installing prodockit would
     risk breaking any Zensical site with a common heading title used on
     more than one page."""
     _convert_as_zensical_page("# Overview\n", "page-a.md")
@@ -94,13 +94,13 @@ def test_non_zensical_use_is_unaffected() -> None:
     """Without a ContextExtension/Page on md (i.e. not under Zensical), two
     independent conversions must keep behaving exactly as before this fix -
     each gets its own private registry, not the shared Zensical singleton."""
-    md1 = markdown.Markdown(extensions=["zendoc.headings"])
+    md1 = markdown.Markdown(extensions=["prodockit.headings"])
     md1.convert("# Introduction\n")
-    md2 = markdown.Markdown(extensions=["zendoc.headings", "zendoc.refs"])
+    md2 = markdown.Markdown(extensions=["prodockit.headings", "prodockit.refs"])
     html = md2.convert("See \\ref{introduction}.\n")
     # Page 2 never saw page 1's heading - falls back to unresolved, exactly
     # as it did before Zensical auto-detection existed.
-    assert '<a class="zendoc-ref zendoc-ref-unresolved">??</a>' in html
+    assert '<a class="prodockit-ref prodockit-ref-unresolved">??</a>' in html
 
 
 def test_default_numbering_is_still_per_document_under_zensical() -> None:
@@ -109,7 +109,7 @@ def test_default_numbering_is_still_per_document_under_zensical() -> None:
     under Zensical."""
     _convert_as_zensical_page("# One\n", "page1.md")
     _convert_as_zensical_page("# Two\n", "page2.md")
-    registry = zendoc_headings._ZENSICAL_SHARED_REGISTRY
+    registry = prodockit_headings._ZENSICAL_SHARED_REGISTRY
     assert registry.get("one").number == "1"  # type: ignore[union-attr]
     assert registry.get("two").number == "1"  # type: ignore[union-attr]
 
@@ -118,7 +118,7 @@ def _convert_as_zensical_page_with_continuous_headings(text: str, path: str) -> 
     md = markdown.Markdown(
         extensions=[
             ContextExtension(page=Page(url=path, path=path), config={}),
-            zendoc_headings.HeadingsExtension(numbering="continuous"),
+            prodockit_headings.HeadingsExtension(numbering="continuous"),
         ]
     )
     return md.convert(text)
@@ -132,11 +132,11 @@ def test_continuous_numbering_seeds_from_earlier_nav_pages(
     (docs_dir / "page1.md").write_text("# One\n\n## Sub\n", encoding="utf-8")
     (docs_dir / "page2.md").write_text("# Two\n", encoding="utf-8")
     monkeypatch.setattr(
-        zendoc_zensical, "nav_pages", lambda: (str(docs_dir), ["page1.md", "page2.md"])
+        prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["page1.md", "page2.md"])
     )
     _convert_as_zensical_page_with_continuous_headings("# One\n\n## Sub\n", "page1.md")
     _convert_as_zensical_page_with_continuous_headings("# Two\n", "page2.md")
-    registry = zendoc_headings._ZENSICAL_SHARED_REGISTRY
+    registry = prodockit_headings._ZENSICAL_SHARED_REGISTRY
     assert registry.get("one").number == "1"  # type: ignore[union-attr]
     assert registry.get("sub").number == "1.1"  # type: ignore[union-attr]
     assert registry.get("two").number == "2"  # type: ignore[union-attr]
@@ -153,7 +153,7 @@ def test_continuous_numbering_letters_appendix_pages_without_consuming_a_number(
     )
     (docs_dir / "page2.md").write_text("# Two\n", encoding="utf-8")
     monkeypatch.setattr(
-        zendoc_zensical,
+        prodockit_zensical,
         "nav_pages",
         lambda: (str(docs_dir), ["page1.md", "appendix.md", "page2.md"]),
     )
@@ -162,7 +162,7 @@ def test_continuous_numbering_letters_appendix_pages_without_consuming_a_number(
         "# App Heading\n\n## Sub\n", "appendix.md"
     )
     _convert_as_zensical_page_with_continuous_headings("# Two\n", "page2.md")
-    registry = zendoc_headings._ZENSICAL_SHARED_REGISTRY
+    registry = prodockit_headings._ZENSICAL_SHARED_REGISTRY
     assert registry.get("one").number == "1"  # type: ignore[union-attr]
     assert registry.get("app-heading").number == "A"  # type: ignore[union-attr]
     assert registry.get("sub").number == "A.1"  # type: ignore[union-attr]
@@ -182,15 +182,15 @@ def test_ref_to_a_continuously_numbered_heading_on_another_page_shows_the_right_
     (docs_dir / "page1.md").write_text("# One\n", encoding="utf-8")
     (docs_dir / "page2.md").write_text("# Two\n", encoding="utf-8")
     monkeypatch.setattr(
-        zendoc_zensical, "nav_pages", lambda: (str(docs_dir), ["page1.md", "page2.md"])
+        prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["page1.md", "page2.md"])
     )
 
     def _convert(text: str, path: str) -> str:
         md = markdown.Markdown(
             extensions=[
                 ContextExtension(page=Page(url=path, path=path), config={}),
-                zendoc_headings.HeadingsExtension(numbering="continuous"),
-                "zendoc.refs",
+                prodockit_headings.HeadingsExtension(numbering="continuous"),
+                "prodockit.refs",
             ]
         )
         return md.convert(text)
@@ -198,7 +198,7 @@ def test_ref_to_a_continuously_numbered_heading_on_another_page_shows_the_right_
     _convert("# One\n", "page1.md")
     _convert("# Two\n", "page2.md")
     html = _convert("See \\ref{two}.\n", "page3.md")
-    assert '<a class="zendoc-ref" href="page2.md#two">2</a>' in html
+    assert '<a class="prodockit-ref" href="page2.md#two">2</a>' in html
 
 
 def _convert_as_zensical_page_with_citations(text: str, path: str) -> str:
@@ -206,7 +206,7 @@ def _convert_as_zensical_page_with_citations(text: str, path: str) -> str:
         extensions=[
             ContextExtension(page=Page(url=path, path=path), config={}),
             "attr_list",
-            "zendoc.citations",
+            "prodockit.citations",
         ]
     )
     return md.convert(text)
@@ -281,7 +281,7 @@ def test_forward_citation_resolves_via_nav_preseed(
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        zendoc_zensical,
+        prodockit_zensical,
         "nav_pages",
         lambda: (str(docs_dir), ["section1.md", "references.md"]),
     )
@@ -294,7 +294,7 @@ def test_forward_citation_resolves_via_nav_preseed(
 def test_nav_preseed_ignores_fenced_documentation_examples(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A doc page showing zendoc.citations' own definition syntax as a
+    """A doc page showing prodockit.citations' own definition syntax as a
     literal example inside a fenced code block must not be mistaken for a
     real definition by the raw-text nav pre-scan (which, unlike
     CitationDefTreeprocessor, isn't fence-aware via the real parser).
@@ -317,7 +317,7 @@ def test_nav_preseed_ignores_fenced_documentation_examples(
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        zendoc_zensical,
+        prodockit_zensical,
         "nav_pages",
         lambda: (str(docs_dir), ["customise.md", "section1.md", "references.md"]),
     )
@@ -344,7 +344,7 @@ def _convert_as_zensical_page_with_glossary(text: str, path: str) -> str:
         extensions=[
             ContextExtension(page=Page(url=path, path=path), config={}),
             "attr_list",
-            "zendoc.glossary",
+            "prodockit.glossary",
         ]
     )
     return md.convert(text)
@@ -360,13 +360,13 @@ def test_cross_page_gls_resolves_under_zensical() -> None:
     )
     # A real cross-page link (acronyms.md#css), not a bare same-page
     # fragment - the latter would 404 on the actual website.
-    assert '<a class="zendoc-gls" href="acronyms.md#css">CSS</a>' in html
+    assert '<a class="prodockit-gls" href="acronyms.md#css">CSS</a>' in html
 
 
 def test_gls_forward_reference_resolves_via_nav_preseed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The same "cited before defined" ordering problem zendoc.citations
+    """The same "cited before defined" ordering problem prodockit.citations
     solves: acronyms.md is usually kept as an appendix at the end of nav,
     but referenced from early chapters."""
     docs_dir = tmp_path / "docs"
@@ -376,14 +376,14 @@ def test_gls_forward_reference_resolves_via_nav_preseed(
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        zendoc_zensical,
+        prodockit_zensical,
         "nav_pages",
         lambda: (str(docs_dir), ["section1.md", "acronyms.md"]),
     )
     html = _convert_as_zensical_page_with_glossary(
         "This uses \\gls{css}.\n", "section1.md"
     )
-    assert '<a class="zendoc-gls" href="acronyms.md#css">CSS</a>' in html
+    assert '<a class="prodockit-gls" href="acronyms.md#css">CSS</a>' in html
 
 
 def test_duplicate_glossary_term_across_pages_does_not_crash_the_build() -> None:

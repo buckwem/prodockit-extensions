@@ -11,7 +11,7 @@ but a paginated, single-document PDF has structural needs no website page
 does: page-break behaviour tuned to real WeasyPrint quirks (see each rule's
 own comment below for the specific bug it works around), running
 header/footer boxes, footnotes anchored via ``float: footnote``, and
-generic layout for the shapes :mod:`zendoc.pdf.html` and :mod:`zendoc.pdf.lua`
+generic layout for the shapes :mod:`prodockit.pdf.html` and :mod:`prodockit.pdf.lua`
 reconstruct (tabbed sets, grid cards, figure/table captions).
 
 Values a caller's own project config controls (fonts, page size/margins,
@@ -240,12 +240,12 @@ thead {
 }
 /* pymdownx.blocks.caption always wraps its caption text in a <p> - inside
    a native <figcaption> for the default append-position case (still a
-   <figure> - see the "figure {}"/"figure.zendoc-table-caption" rules
+   <figure> - see the "figure {}"/"figure.prodockit-table-caption" rules
    below), or as the first child <p> once prepend-position unwraps the
-   <figcaption> into a <div> (see zendoc.pdf.html). */
+   <figcaption> into a <div> (see prodockit.pdf.html). */
 figcaption p,
-div.zendoc-table-caption > p:first-child,
-div.zendoc-figure-caption > p:first-child {
+div.prodockit-table-caption > p:first-child,
+div.prodockit-figure-caption > p:first-child {
     text-align: center !important;
     font-style: italic !important;
     margin-bottom: 8px !important;
@@ -254,7 +254,7 @@ div.zendoc-figure-caption > p:first-child {
 }
 table th { background-color: rgba(0, 0, 0, 0.1) !important; font-weight: bold !important; text-align: center !important; }
 /* text-align/font-size set explicitly here, not left to inherit - a
-   table-caption's own wrapping div (div.zendoc-table-caption above, or
+   table-caption's own wrapping div (div.prodockit-table-caption above, or
    the "figure {}" rule below for an append-position table caption) sets
    text-align: center to keep its caption text centered, which every cell's
    content otherwise silently inherits too (confirmed directly: table body
@@ -285,7 +285,7 @@ blockquote {
    printed book). Zensical's own markdown pipeline renders a footnote as a
    <sup id="fnref:N"> at the reference point plus a <div class="footnote">
    collecting every footnote's own text at the *end* of the page - never a
-   Pandoc-native Note element. zendoc.pdf.html moves each footnote's text
+   Pandoc-native Note element. prodockit.pdf.html moves each footnote's text
    inline into a <span class="pdf-footnote"> at its own reference point
    instead, so float: footnote can anchor it to the correct page. */
 .pdf-footnote {
@@ -317,7 +317,7 @@ blockquote {
 /* Renders TeX math ($...$/$$...$$, see https://zensical.org/docs/authoring/math/)
    as pre-rendered SVGs, since WeasyPrint has no JS engine to run MathJax
    client-side like the live Zensical site does. The Lua filter's Math()
-   function (see zendoc.pdf.lua) replaces each formula with one of these
+   function (see prodockit.pdf.lua) replaces each formula with one of these
    images at build time. */
 .pdf-math-display {
     display: block !important;
@@ -424,7 +424,7 @@ div.grid.cards > ul > li > p:first-child {
    own stylesheet uses the same variable. */
 pre, code { font-family: "__MONO_FONT__", monospace !important; }
 /* text-align isn't otherwise set anywhere on pre/code, so a fenced code
-   block nested inside a centered ancestor (figure {}, div.zendoc-*-caption,
+   block nested inside a centered ancestor (figure {}, div.prodockit-*-caption,
    a grid card title, an admonition/tab that happens to be inside one of
    those, etc.) would silently inherit centered text-align, ragging every
    code line's left edge - same class of inheritance bug as the table
@@ -478,11 +478,11 @@ figure {
     text-align: center !important;
 }
 /* A prepend-position figure-caption is retagged from <figure> to <div> in
-   zendoc.pdf.html (so its caption keeps original document order through
+   prodockit.pdf.html (so its caption keeps original document order through
    Pandoc) - same page-break/centering treatment as the "figure {}" rule
    above (an image can't be split anyway, so keeping it atomic with its
    caption is safe), which no longer matches once it's a <div>. */
-div.zendoc-figure-caption {
+div.prodockit-figure-caption {
     page-break-inside: avoid !important;
     break-inside: avoid-page !important;
     text-align: center !important;
@@ -496,7 +496,7 @@ div.zendoc-figure-caption {
    the default append-position case (still a native <figure>) and the
    prepend-position case (retagged to a <div> above) - each row is still
    individually protected from splitting by "table tr" above. */
-figure.zendoc-table-caption, div.zendoc-table-caption {
+figure.prodockit-table-caption, div.prodockit-table-caption {
     page-break-inside: auto !important;
     break-inside: auto !important;
     text-align: center !important;
