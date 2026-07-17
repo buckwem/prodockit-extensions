@@ -38,14 +38,26 @@ def main() -> None:
     show_default=True,
     help="Path to your project's Zensical config file.",
 )
-def pdf(config_file: str) -> None:
+@click.option(
+    "-m",
+    "--markdown-file",
+    default=None,
+    help=(
+        "Build the PDF from just this one markdown file (relative to "
+        "docs_dir), ignoring nav, using CONFIG_FILE for everything else."
+    ),
+)
+def pdf(config_file: str, markdown_file: str | None) -> None:
     """Build a PDF from your project, using CONFIG_FILE for everything -
     nav, docs directory, fonts, page size, and so on. See the PDF
     generation docs for the full list of `zensical.toml` settings this
     reads."""
-    click.echo(f"Building PDF from {config_file}...")
+    if markdown_file:
+        click.echo(f"Building PDF from {config_file} using {markdown_file}...")
+    else:
+        click.echo(f"Building PDF from {config_file}...")
     try:
-        output_path = build_pdf_from_zensical_config(config_file)
+        output_path = build_pdf_from_zensical_config(config_file, markdown_file=markdown_file)
     except (PdfBuildError, ValueError, OSError) as error:
         click.echo(f"Error: {error}", err=True)
         sys.exit(1)

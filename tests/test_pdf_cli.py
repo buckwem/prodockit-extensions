@@ -87,3 +87,19 @@ def test_pdf_command_reports_a_missing_config_file(
     result = CliRunner().invoke(main, ["pdf"])
 
     assert result.exit_code != 0
+
+
+def test_pdf_command_accepts_a_markdown_file_option(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_project(tmp_path)
+    (tmp_path / "docs" / "chapter1.md").write_text("# Chapter One\n", encoding="utf-8")
+    _install_fake_pandoc(tmp_path, monkeypatch, 'echo "%PDF-1.4 stub" > "$3"')
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, ["pdf", "-m", "chapter1.md"])
+
+    assert result.exit_code == 0
+    assert "Wrote docs/chapter1.pdf" in result.output
+    assert (tmp_path / "docs" / "chapter1.pdf").exists()
+    assert not (tmp_path / "docs" / "site_documentation.pdf").exists()

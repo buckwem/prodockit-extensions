@@ -45,6 +45,23 @@ passed on the command line beyond, optionally, which config file to use:
 prodockit pdf --config-file zensical.toml   # -f for short; this is the default
 ```
 
+### Building a single file
+
+To build a PDF from just one markdown file - a single chapter, say, rather
+than the whole site - pass `--markdown-file` (`-m` for short), a path
+relative to `docs_dir`:
+
+```bash
+prodockit pdf --markdown-file chapter1.md   # -m for short
+```
+
+This ignores `nav` entirely and renders only that page. Everything else -
+fonts, page size, margins, `heading_numbering`, and so on - still comes
+from `zensical.toml` exactly as it would for a full build. The output
+defaults to that file's own name with a `.pdf` extension inside
+`docs_dir` (e.g. `docs/chapter1.pdf`) instead of `site_documentation.pdf`,
+unless `pdf_output` is set, in which case that always wins.
+
 Most of what the PDF needs, it already gets from settings your site likely
 has for other reasons: `site_name`, `copyright`, `repo_url`, `docs_dir`,
 `theme.font.text`/`.code`, and `theme.icon.admonition`. The rest lives

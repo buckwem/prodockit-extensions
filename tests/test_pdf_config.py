@@ -120,3 +120,51 @@ def test_raises_a_clear_error_when_nav_is_empty(project) -> None:
     )
     with pytest.raises(ValueError, match="nav"):
         build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+
+def test_markdown_file_builds_only_that_page(project) -> None:
+    root = project()
+    output_path = build_pdf_from_zensical_config(
+        str(root / "zensical.toml"), markdown_file="chapter1.md"
+    )
+    assert output_path == "docs/chapter1.pdf"
+    assert (root / output_path).exists()
+
+
+def test_markdown_file_ignores_an_empty_nav(project) -> None:
+    root = project()
+    (root / "zensical.toml").write_text(
+        '[project]\nsite_name = "Empty"\nnav = []\n', encoding="utf-8"
+    )
+    output_path = build_pdf_from_zensical_config(
+        str(root / "zensical.toml"), markdown_file="chapter1.md"
+    )
+    assert output_path == "docs/chapter1.pdf"
+    assert (root / output_path).exists()
+
+
+def test_markdown_file_still_honours_an_explicit_pdf_output(project) -> None:
+    root = project(extra='\n[project.extra]\npdf_output = "dist/out.pdf"\n')
+    (root / "dist").mkdir()
+    output_path = build_pdf_from_zensical_config(
+        str(root / "zensical.toml"), markdown_file="chapter1.md"
+    )
+    assert output_path == "dist/out.pdf"
+    assert (root / output_path).exists()
+
+
+def test_markdown_file_passes_only_that_page_to_build_pdf(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["pages"] = pages
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"), markdown_file="chapter1.md")
+
+    assert [page.docs_rel_path for page in captured["pages"]] == ["chapter1.md"]
