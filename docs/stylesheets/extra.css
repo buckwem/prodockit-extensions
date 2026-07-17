@@ -17,7 +17,29 @@
    table's existing auto-layout/content-driven column sizing is unaffected.
    A consuming project's own website theme needs this same rule too -
    prodockit doesn't ship a bundled website stylesheet the way it ships
-   prodockit.pdf's own CSS for the PDF path. */
-.prodockit-table-sized {
+   prodockit.pdf's own CSS for the PDF path.
+
+   The theme's own default table styling (border, padding, alternating
+   presentation) is scoped ".md-typeset table:not([class])" - confirmed
+   directly in Zensical's bundled CSS - so a table carrying
+   prodockit-table-sized (or any other class) gets none of it at all, not
+   just no width control. Rebuilt here rather than left bare: a full grey
+   grid line (matching prodockit.pdf's own PDF table borders) on both the
+   outer table and every internal row/column division, and width: 100% so
+   a percentage column resolves against the same full-width table
+   prodockit.pdf itself always builds. */
+.md-typeset table.prodockit-table-sized {
   table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #555555;
+}
+.md-typeset table.prodockit-table-sized th,
+.md-typeset table.prodockit-table-sized td {
+  border: 1px solid #555555;
+  padding: 0.9375em 1.25em;
+  vertical-align: top;
+}
+.md-typeset table.prodockit-table-sized th {
+  font-weight: 700;
 }
