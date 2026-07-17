@@ -1,7 +1,8 @@
 # Plan: rename `zendoc` → `prodockit` (zendoc-extensions#16)
 
-Not yet implemented - for review/agreement first, per the same
-plan-then-implement pattern used for #11 (the earlier GitHub repo rename).
+**Done - all 5 phases complete, issue closed.** One manual step remains
+outstanding on pypi.org: removing the old `zendoc` project (decision #1) -
+not available via API, needs to be done by hand whenever convenient.
 
 ## What #16 actually asks for
 
