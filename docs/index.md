@@ -24,6 +24,7 @@ It's a kit for professional documentation, built on Zensical's own Markdown and 
 | [prodockit.citations](extensions/citations.md) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
 | [prodockit.glossary](extensions/glossary.md) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
 | [prodockit.tables](extensions/tables.md) | Percentage or fixed column widths on a table, via a `width` attribute already attachable to a header cell with `attr_list`. |
+| [prodockit.bibliography](extensions/bibliography.md) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\cite{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
 
 ## PDF generation
 
@@ -82,11 +83,14 @@ conversion.
 ## Status
 
 Early, but functional. `prodockit.headings`, `prodockit.refs`, `prodockit.citations`,
-`prodockit.glossary`, `prodockit.tables`, `prodockit.pdf`, and
-`prodockit.zensical_macros` are implemented and tested; auto-generating a
-full references list from
-structured bibliographic data is not yet built (see
-[prodockit.citations](extensions/citations.md#what-this-doesnt-do-yet)), and
-none of `prodockit.pdf`/`prodockit.zensical_macros` has a formal, versioned public
-API yet (see [prodockit-extensions#7](https://github.com/buckwem/prodockit-extensions/issues/7)).
+`prodockit.glossary`, `prodockit.tables`, `prodockit.bibliography`, `prodockit.pdf`,
+and `prodockit.zensical_macros` are implemented and tested.
+`prodockit.citations` itself still doesn't auto-generate a full references
+list from structured bibliographic data (see
+[prodockit.citations](extensions/citations.md#what-this-doesnt-do-yet)) -
+[prodockit.bibliography](extensions/bibliography.md) is the alternative
+that does, via a `.bib` file and Pandoc's own `--citeproc`. None of
+`prodockit.bibliography`/`prodockit.pdf`/`prodockit.zensical_macros` has a
+formal, versioned public API yet (see
+[prodockit-extensions#7](https://github.com/buckwem/prodockit-extensions/issues/7)).
 See the [Release Notes](about/changelog.md) for what's landed so far.

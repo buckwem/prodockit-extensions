@@ -6,6 +6,7 @@ page, each carrying a zensical.extensions.context.ContextPreprocessor - see
 prodockit.headings._zensical_page_source, added to fix cross-page \\ref
 resolution not working under Zensical's per-page build."""
 
+import shutil
 from pathlib import Path
 
 import markdown
@@ -13,10 +14,18 @@ import pytest
 from zensical.extensions.context import ContextExtension, Page
 
 import prodockit._zensical as prodockit_zensical
+import prodockit.bibliography as prodockit_bibliography
 import prodockit.citations as prodockit_citations
 import prodockit.glossary as prodockit_glossary
 import prodockit.headings as prodockit_headings
+from prodockit.bibliography import BibliographyExtension
 from prodockit.util import CitationRegistry, GlossaryRegistry, IdRegistry
+
+pandoc_required = pytest.mark.skipif(
+    shutil.which("pandoc") is None,
+    reason="prodockit.bibliography's citation/bibliography formatting is delegated "
+    "entirely to `pandoc --citeproc` - these tests need a real pandoc install.",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -28,6 +37,7 @@ def _isolated_zensical_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(prodockit_headings, "_ZENSICAL_SHARED_REGISTRY", IdRegistry())
     monkeypatch.setattr(prodockit_citations, "_ZENSICAL_SHARED_REGISTRY", CitationRegistry())
     monkeypatch.setattr(prodockit_glossary, "_ZENSICAL_SHARED_REGISTRY", GlossaryRegistry())
+    monkeypatch.setattr(prodockit_bibliography, "_ZENSICAL_SHARED_CACHES", {})
 
 
 def _convert_as_zensical_page(text: str, path: str) -> str:
@@ -393,3 +403,95 @@ def test_duplicate_glossary_term_across_pages_does_not_crash_the_build() -> None
     # possibly) defined twice across two different pages:
     html = _convert_as_zensical_page_with_glossary(definition, "page-b.md")
     assert 'id="css"' in html
+
+
+_BIB_FIXTURE = """
+@book{skou2023,
+  author = {Skoulikari, Angela},
+  title = {Learning Git},
+  year = {2023},
+  publisher = {O'Reilly Media}
+}
+"""
+
+
+def _convert_as_zensical_page_with_bibliography(text: str, path: str, bib_file: str) -> str:
+    md = markdown.Markdown(
+        extensions=[
+            ContextExtension(page=Page(url=path, path=path), config={}),
+            BibliographyExtension(bib_file=bib_file),
+        ]
+    )
+    return md.convert(text)
+
+
+@pandoc_required
+def test_bibliography_forward_reference_resolves_via_nav_prescan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same "cited before defined" ordering problem prodockit.citations/
+    prodockit.glossary solve: references.md is usually kept as an appendix
+    at the end of nav, but cited from early chapters - unlike those two,
+    prodockit.bibliography's own definitions all live in one external .bib
+    file, so this is a pre-scan for the \\bibliography *marker's own page*,
+    not for individual citation definitions."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    bib_file = tmp_path / "refs.bib"
+    bib_file.write_text(_BIB_FIXTURE, encoding="utf-8")
+    (docs_dir / "references.md").write_text("# References\n\n\\bibliography\n", encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["section1.md", "references.md"]),
+    )
+    html = _convert_as_zensical_page_with_bibliography(
+        "See \\cite{skou2023}.\n", "section1.md", str(bib_file)
+    )
+    assert 'href="references.md#ref-skou2023"' in html
+
+
+@pandoc_required
+def test_bibliography_cross_page_citation_from_nested_page_uses_relative_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    bib_file = tmp_path / "refs.bib"
+    bib_file.write_text(_BIB_FIXTURE, encoding="utf-8")
+    (docs_dir / "references.md").write_text("# References\n\n\\bibliography\n", encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["starthere/customise.md", "references.md"]),
+    )
+    html = _convert_as_zensical_page_with_bibliography(
+        "See \\cite{skou2023}.\n", "starthere/customise.md", str(bib_file)
+    )
+    assert 'href="../references.md#ref-skou2023"' in html
+
+
+@pandoc_required
+def test_bibliography_prescan_ignores_fenced_documentation_examples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A doc page showing the \\bibliography marker as a literal example
+    inside a fenced code block must not be mistaken for the real marker by
+    the raw-text nav pre-scan."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    bib_file = tmp_path / "refs.bib"
+    bib_file.write_text(_BIB_FIXTURE, encoding="utf-8")
+    (docs_dir / "extending.md").write_text(
+        "Add a marker like this:\n\n``` markdown\n\\bibliography\n```\n", encoding="utf-8"
+    )
+    (docs_dir / "references.md").write_text("# References\n\n\\bibliography\n", encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["extending.md", "section1.md", "references.md"]),
+    )
+    html = _convert_as_zensical_page_with_bibliography(
+        "See \\cite{skou2023}.\n", "section1.md", str(bib_file)
+    )
+    assert 'href="references.md#ref-skou2023"' in html

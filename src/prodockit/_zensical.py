@@ -4,13 +4,13 @@
 """Internal helpers for Zensical-aware, cross-page state sharing.
 
 Not part of prodockit's public API - shared by prodockit.headings,
-prodockit.citations, and prodockit.glossary, all of which face the same problem:
-Zensical builds each page with its own fresh ``Markdown`` instance, so a
-plain per-instance default registry can never see another page's entries.
-``nav_pages``/``preseed_attr_from_nav`` (used by prodockit.citations and
-prodockit.glossary) additionally address pages being built in a single,
-one-shot pass: a forward reference to a page not yet built can't resolve
-without pre-scanning ahead of time.
+prodockit.citations, prodockit.glossary, and prodockit.bibliography, all of
+which face the same problem: Zensical builds each page with its own fresh
+``Markdown`` instance, so a plain per-instance default registry can never
+see another page's entries. ``nav_pages``/``preseed_attr_from_nav``/
+``find_page_with_marker`` additionally address pages being built in a
+single, one-shot pass: a forward reference to a page not yet built can't
+resolve without pre-scanning ahead of time.
 """
 
 from __future__ import annotations
@@ -258,3 +258,29 @@ def preseed_attr_from_nav(registry: _Preseedable, attr_name: str) -> None:
             value_match = value_re.search(attrs)
             if id_match and value_match:
                 registry.preseed(rel_path, id_match.group(1), value_match.group(1))
+
+
+def find_page_with_marker(marker: str) -> str | None:
+    """Pre-scans every page in the current Zensical build's nav for a bare
+    text marker (e.g. prodockit.bibliography's own ``\\bibliography``),
+    returning the first page found - the same "cited/referenced before
+    defined" ordering problem prescan_headings()/preseed_attr_from_nav()
+    solve for their own kind of definition, applied to a plain marker
+    string instead of an attr_list attribute value. Returns None outside a
+    Zensical build, or if no page has the marker (yet).
+
+    Skips fenced code blocks, so a documentation page showing this marker
+    as a literal example isn't mistaken for the real thing.
+    """
+    located = nav_pages()
+    if located is None:
+        return None
+    docs_dir, pages = located
+    for rel_path in pages:
+        try:
+            text = (Path(docs_dir) / rel_path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if marker in _strip_fences(text):
+            return rel_path
+    return None

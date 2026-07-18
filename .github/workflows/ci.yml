@@ -17,6 +17,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      # prodockit.bibliography's own tests need a real pandoc install - its
+      # citation/bibliography formatting is delegated entirely to `pandoc
+      # --citeproc`, so a fake stand-in (unlike the plain stub used
+      # elsewhere for prodockit.pdf's own orchestration-only tests)
+      # wouldn't actually test anything meaningful.
+      - run: sudo apt-get update && sudo apt-get install -y pandoc
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: mypy src
