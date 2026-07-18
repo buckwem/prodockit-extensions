@@ -2,6 +2,25 @@
 
 [Download this page as PDF](../changelog.pdf){.web-only}
 
+## 0.3.1 (2026-07-18)
+
+- Docs: renamed `glossary.md`'s heading to "Acronyms and Glossary" and
+  `citations.md`'s to "Citations or References" (and their matching nav
+  labels); added a flow diagram to `bibliography.md`'s Requirements
+  section (and fixed a real, unrelated gap found along the way - this
+  docs site had no Mermaid `custom_fences` config at all, so a plain
+  ` ```mermaid ` fence never rendered as a diagram anywhere on the site);
+  switched the citation-style example to `harvard-cite-them-right.csl`;
+  added an admonition pointing from `prodockit.citations` to
+  `prodockit.bibliography`; and noted `prodockit.bibliography`'s own
+  independent Pandoc invocation in `prodockit.pdf`'s "Limitations and
+  workarounds".
+- Docs: updated `README.md` (and so PyPI's own project page description)
+  to include `prodockit.tables`/`prodockit.bibliography`, and to mention
+  sideways tables/`.web-only`/`.pdf-only` under PDF generation - it had
+  gone stale since both extensions shipped in 0.3.0.
+- No functional changes.
+
 ## 0.3.0 (2026-07-18)
 
 - New `prodockit.bibliography` extension: an alternative to
