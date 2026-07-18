@@ -89,6 +89,39 @@ A page's own front matter `is_appendix: true` gives it letter-based
 numbering ("A", "A.1", ...) instead of numeric, matching
 [prodockit.headings](extensions/headings.md)' own `appendix_attr` convention.
 
+### Web-only / PDF-only content
+
+Mark any block or inline element `{.web-only}` (via
+[`attr_list`](https://python-markdown.github.io/extensions/attr_list/)) for
+content meant only for the live website - a "Download PDF" link/button is
+the common case, since linking to the very PDF you're already reading
+doesn't make sense once it's embedded in that PDF. `{.pdf-only}` is the
+opposite: content meant only for the PDF, e.g. an automated word count or
+release tag on a cover page that only makes sense in a standalone
+document.
+
+```md
+[Download this page as PDF](chapter1.pdf){.web-only}
+
+Word count: {WORDCOUNT}{.pdf-only}
+```
+
+`.web-only` needs no configuration - `prodockit.pdf`'s own generated CSS
+always hides it, in every build, whether you're using `prodockit pdf` or
+calling `build_pdf()` directly. `.pdf-only` is the one half prodockit can't
+provide automatically (its own CSS has no reach into your live website),
+so add this one line to your project's own website stylesheet:
+
+```css
+.pdf-only {
+  display: none !important;
+}
+```
+
+(see this project's own `docs/stylesheets/extra.css` for a working
+example). If your project doesn't yet use `.pdf-only` for anything, there's
+nothing to add until it does.
+
 ### Sideways tables
 
 A table too wide for a portrait page - a wide reference table, say - can be

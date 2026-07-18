@@ -12,6 +12,13 @@ def test_font_family_placeholders_are_substituted() -> None:
     assert "__MONO_FONT__" not in css
 
 
+def test_web_only_content_is_always_hidden() -> None:
+    css = build_css("Inter", "Fira Code", "Copyright 2026", "My Site")
+    assert ".web-only {" in css
+    rule = css.split(".web-only {")[1].split("}")[0]
+    assert "display: none !important;" in rule
+
+
 def test_page_size_and_margins_are_substituted() -> None:
     css = build_css(
         "Inter", "Fira Code", "Copyright 2026", "My Site",

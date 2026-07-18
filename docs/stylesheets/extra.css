@@ -1,15 +1,17 @@
 /* Copyright (c) 2026 Mark Buckwell and contributors */
 /* SPDX-License-Identifier: MIT */
 
-/* Marker for content meant only for the live website (e.g. a "Download
-   PDF" link/button) - irrelevant on a page that's already the PDF you'd be
-   downloading. Read by both Zensical (for the live site) and
-   prodockit.pdf (via zensical.toml's own `extra_css`, since WeasyPrint
-   always renders in print mode) - so one rule covers both outputs. */
-@media print {
-  .web-only {
-    display: none !important;
-  }
+/* .web-only content (e.g. the "Download PDF" link/button on every docs
+   page) needs no rule here at all - prodockit.pdf.css hides it
+   automatically in every PDF build, and it's meant to show normally here
+   on the live website. .pdf-only is the other half: content meant only
+   for the PDF (this site has none yet, but a project with e.g. an
+   automated cover-page word count would add its own here) - prodockit
+   has no reach into a live website's own stylesheet, so this one line is
+   the project-side part of the convention - see the "Web-only / PDF-only
+   content" section in the PDF generation docs. */
+.pdf-only {
+  display: none !important;
 }
 
 /* prodockit.tables' own <colgroup>-based column widths only take effect

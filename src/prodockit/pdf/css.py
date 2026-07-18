@@ -94,6 +94,21 @@ header, nav, footer, .md-sidebar, .md-header, .md-footer, .md-search, #search {
 }
 
 /* ==========================================================================
+   WEB-ONLY / PDF-ONLY CONTENT
+   ========================================================================== */
+/* A project marks content meant only for the live website (e.g. a
+   "Download PDF" link/button) with class="web-only" - always hidden here,
+   since this stylesheet only ever applies to the PDF. No project-side CSS
+   needed for this half; the complementary "pdf-only" (content meant only
+   for the PDF, e.g. a cover page's automated word count) needs one line in
+   the project's own website stylesheet instead, since this stylesheet has
+   no reach into the live site - see the "Web-only / PDF-only content"
+   section in the PDF generation docs for that snippet. */
+.web-only {
+    display: none !important;
+}
+
+/* ==========================================================================
    PAGE LAYOUT & UNIFIED HEADER/FOOTER CONFIGURATION
    ========================================================================== */
 @page {
