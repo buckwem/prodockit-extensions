@@ -174,6 +174,30 @@ header, nav, footer, .md-sidebar, .md-header, .md-footer, .md-search, #search {
     @bottom-right { content: none !important; border-top: none !important; }
 }
 
+/* Wrap a table (plus its own caption) in <div class="prodockit-table-rotated">
+   to print it sideways on its own page(s) - e.g. a wide reference table that
+   doesn't fit a portrait page. This does NOT use a CSS transform: rotating a
+   large/paginating box was confirmed directly to make WeasyPrint clip it to a
+   single page instead of splitting across pages, and to push its own heading
+   row and first few rows off-page entirely. Instead, the block is diverted
+   onto its own landscape-sized page (same configured page size, width/height
+   swapped) via the standard CSS Paged Media "page" property, so normal
+   pagination/page-break rules - including thead's own repeat-on-every-page
+   behaviour - apply exactly as they would on any other table. The actual
+   90-degree anticlockwise rotation is applied afterwards, directly on the
+   finished PDF's own per-page /Rotate flag (see prodockit.pdf.rotate) -
+   /Rotate only changes how a page is displayed/printed, not its own content
+   layout, so it can't undo the correct pagination already computed above. */
+@page prodockit-rotated {
+    size: __PDF_PAGE_SIZE__ landscape;
+    margin: __PDF_MARGIN_TOP__ __PDF_MARGIN_RIGHT__ __PDF_MARGIN_BOTTOM__ __PDF_MARGIN_LEFT__ !important;
+}
+.prodockit-table-rotated {
+    page: prodockit-rotated;
+    break-before: page !important;
+    break-after: page !important;
+}
+
 .page-break, .cover-page {
     page-break-after: always;
     break-after: always;

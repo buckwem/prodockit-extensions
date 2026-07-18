@@ -44,6 +44,25 @@ def test_h3_through_h6_override_page_break_after_to_auto() -> None:
     assert "h3, h4, h5, h6 { page-break-after: auto !important" in css
 
 
+def test_rotated_table_page_uses_the_configured_page_size_landscape() -> None:
+    css = build_css(
+        "Inter", "Fira Code", "Copyright 2026", "My Site",
+        page_size="Letter", margin_top="1in", margin_right="1in", margin_bottom="1in", margin_left="1in",
+    )
+    assert "@page prodockit-rotated {" in css
+    assert "size: Letter landscape;" in css
+    assert "margin: 1in 1in 1in 1in" in css.split("@page prodockit-rotated {")[1]
+
+
+def test_rotated_table_class_forces_a_break_before_and_after() -> None:
+    css = build_css("Inter", "Fira Code", "Copyright 2026", "My Site")
+    assert ".prodockit-table-rotated {" in css
+    rule = css.split(".prodockit-table-rotated {")[1].split("}")[0]
+    assert "page: prodockit-rotated;" in rule
+    assert "break-before: page !important;" in rule
+    assert "break-after: page !important;" in rule
+
+
 def test_default_reference_style_is_european_tight_spacing_only() -> None:
     css = build_css("Inter", "Fira Code", "Copyright 2026", "My Site")
     assert "p.reference + p.reference {" in css
