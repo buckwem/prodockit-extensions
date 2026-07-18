@@ -15,7 +15,8 @@ Copyright &copy; 2026 Mark Buckwell and contributors
 extra_css = ["stylesheets/extra.css"]
 
 nav = [
-  {"Introduction" = "index.md"},
+  {"Home" = "index.md"},
+  {"Introduction" = "introduction.md"},
   {"Installation" = "installation.md"},
   {"Extensions" = [
     {"Headings" = "extensions/headings.md"},
