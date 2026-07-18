@@ -58,6 +58,9 @@ features = [
   "toc.integrate",
 ]
 
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
 [[project.theme.palette]]
 scheme = "default"
 toggle.icon = "lucide/sun"
