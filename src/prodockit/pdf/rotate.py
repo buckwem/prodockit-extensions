@@ -22,11 +22,11 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.errors import PyPdfError
 
 # A PDF's own /Rotate value is a clockwise display angle (per the PDF
-# spec) - 90 here cancels out to content that displays/prints rotated
-# anticlockwise, confirmed directly by rendering both 90 and 270 and
-# comparing reading direction against prodockit-table-rotated's own
+# spec) - 270 degrees clockwise here displays/prints as content rotated 90
+# degrees anticlockwise, confirmed directly by rendering both 90 and 270
+# and comparing reading direction against prodockit-table-rotated's own
 # unrotated (landscape) layout.
-_ROTATE_DEGREES = 90
+_ROTATE_DEGREES = 270
 
 # Loose float tolerance for comparing page dimensions, in points - well
 # under a hairline, just enough to absorb floating-point rounding from

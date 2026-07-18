@@ -29,8 +29,8 @@ def test_rotates_only_the_landscape_pages(tmp_path: Path) -> None:
     assert rotated_count == 2
     reader = PdfReader(str(pdf_path))
     assert reader.pages[0].get("/Rotate") in (None, 0)
-    assert reader.pages[1].rotation == 90
-    assert reader.pages[2].rotation == 90
+    assert reader.pages[1].rotation == 270
+    assert reader.pages[2].rotation == 270
     assert reader.pages[3].get("/Rotate") in (None, 0)
 
 
