@@ -2,6 +2,22 @@
 
 [Download this page as PDF](../changelog.pdf){.web-only}
 
+## 0.4.2 (2026-07-19)
+
+- Docs: matched more of this site's own theme config to
+  [prodockit-userguide](https://github.com/buckwem/prodockit-userguide)'s -
+  the header's repo link now shows the actual GitHub logo instead of
+  Zensical's default Git icon; the "View source of this page" button now
+  shows an eye icon instead of a generic file icon; every admonition
+  (e.g. the "tip" callout in `citations.md`) now uses the same custom
+  FontAwesome icon set userguide uses instead of Zensical's own bundled
+  defaults - this also feeds into `prodockit.pdf`'s own admonition icons,
+  so PDF output picks it up too; added the matching theme features
+  userguide already had (`content.tabs.link` in particular actually
+  affects this project's own tabbed content); and swapped the palette
+  toggle icons to match userguide's own light/dark convention.
+- No functional (Python package) changes.
+
 ## 0.4.1 (2026-07-18)
 
 - Docs: reworked this site's own chrome to match
