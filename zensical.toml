@@ -23,6 +23,7 @@ nav = [
     {"Citations" = "extensions/citations.md"},
     {"Glossary" = "extensions/glossary.md"},
     {"Tables" = "extensions/tables.md"},
+    {"Bibliography" = "extensions/bibliography.md"},
   ]},
   {"PDF generation" = "pdf.md"},
   {"Website macros" = "macros.md"},

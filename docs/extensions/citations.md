@@ -186,7 +186,9 @@ anywhere" part. It doesn't auto-generate the references page's listing
 itself from structured bibliographic data (author/year/title/publisher/URL
 fields) the way a full BibTeX-style tool would - the reference entry's own
 text (as shown in the examples above) is still hand-authored prose, just
-like today. Building that out is a natural next step, not yet implemented.
+like today. See [prodockit.bibliography](bibliography.md) for the
+alternative that does exactly this, from a `.bib` file, in any citation
+style - and for the tradeoffs between the two approaches.
 
 ### CSS hooks
 

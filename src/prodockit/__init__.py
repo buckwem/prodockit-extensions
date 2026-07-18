@@ -13,6 +13,11 @@ Zensical doesn't provide out of the box, each usable independently:
   ``\\gls{id}``.
 - ``prodockit.tables`` - percentage or fixed column widths on a table, via a
   ``width`` attribute already attachable to a header cell with ``attr_list``.
+- ``prodockit.bibliography`` - an alternative to ``prodockit.citations``: define
+  sources in a BibTeX/BibLaTeX ``.bib`` file instead of by hand, and format
+  ``\\cite{id}``/the reference list in any Citation Style Language (CSL)
+  style (APA, IEEE, Harvard, ...) via Pandoc's own ``--citeproc`` - requires
+  `pandoc` on ``PATH`` even without a PDF build.
 - ``prodockit.pdf`` - build a standalone PDF from your Zensical site via
   Pandoc and WeasyPrint, the kind of downloadable, submittable document
   professional/academic reports typically need alongside the website
@@ -24,8 +29,8 @@ Zensical doesn't provide out of the box, each usable independently:
   acronym/glossary spacing that matches ``prodockit.pdf``'s own PDF output.
 
 ``prodockit.headings``/``prodockit.refs``/``prodockit.citations``/``prodockit.glossary``/
-``prodockit.tables`` are Python-Markdown extensions, in the spirit of
-pymdown-extensions - enable
+``prodockit.tables``/``prodockit.bibliography`` are Python-Markdown extensions,
+in the spirit of pymdown-extensions - enable
 one in `zensical.toml` the same way as a built-in or pymdownx extension.
 Zensical's per-page rendering context is detected automatically where it's
 useful (see their own cross-page registry sharing). ``prodockit.pdf`` is a

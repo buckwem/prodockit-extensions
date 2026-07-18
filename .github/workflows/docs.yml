@@ -32,6 +32,7 @@ jobs:
       - run: prodockit pdf -m extensions/citations.md
       - run: prodockit pdf -m extensions/glossary.md
       - run: prodockit pdf -m extensions/tables.md
+      - run: prodockit pdf -m extensions/bibliography.md
       - run: prodockit pdf -m pdf.md
       - run: prodockit pdf -m macros.md
       - run: prodockit pdf -m about/changelog.md
