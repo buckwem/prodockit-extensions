@@ -26,6 +26,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y pandoc fonts-inter fonts-jetbrains-mono
       - run: pip install -e . weasyprint
       - run: prodockit pdf
+      - run: prodockit pdf -m introduction.md
       - run: prodockit pdf -m installation.md
       - run: prodockit pdf -m extensions/headings.md
       - run: prodockit pdf -m extensions/refs.md
