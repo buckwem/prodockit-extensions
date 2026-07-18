@@ -113,6 +113,69 @@ def test_appendix_front_matter_flag_is_read_from_the_page(
     assert pages_by_path["index.md"].is_appendix is False
 
 
+def test_recto_title_front_matter_is_read_from_the_page(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+    (root / "docs" / "chapter1.md").write_text(
+        '---\nrecto_title: "Short Title"\n---\n\n# Chapter One\n', encoding="utf-8"
+    )
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["pages"] = pages
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    pages_by_path = {page.docs_rel_path: page for page in captured["pages"]}
+    assert pages_by_path["chapter1.md"].recto_title == "Short Title"
+    assert pages_by_path["index.md"].recto_title is None
+
+
+def test_double_sided_settings_are_read_from_extra_and_passed_through(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(
+        extra=(
+            "\n[project.extra]\npdf_double_sided = true\n"
+            'pdf_margin_inner = "2.5cm"\npdf_margin_outer = "1.5cm"\n'
+        )
+    )
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["double_sided"] is True
+    assert captured["margin_inner"] == "2.5cm"
+    assert captured["margin_outer"] == "1.5cm"
+
+
+def test_double_sided_settings_default_off(project, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = project()
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["double_sided"] is False
+    assert captured["margin_inner"] == "2cm"
+    assert captured["margin_outer"] == "2cm"
+
+
 def test_raises_a_clear_error_when_nav_is_empty(project) -> None:
     root = project()
     (root / "zensical.toml").write_text(

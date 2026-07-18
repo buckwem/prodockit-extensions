@@ -30,6 +30,10 @@ from prodockit.settings import flatten_nav, heading_numbering_enabled, reference
 # differently-named flag for the PDF.
 APPENDIX_FRONT_MATTER_KEY = "is_appendix"
 
+# Front matter key overriding a page's own running header text - see
+# `fix_up_page_html()`'s own docstring in prodockit.pdf.html.
+RECTO_TITLE_FRONT_MATTER_KEY = "recto_title"
+
 
 def _find_mmdc_bin(configured: str | None) -> str | None:
     """Resolves a usable `mmdc` (mermaid-cli) binary path: an explicit
@@ -92,8 +96,10 @@ def build_pdf_from_zensical_config(
       PDF the same way your website already shows one).
     - Under `project.extra`: `pdf_output` (default
       `"<docs_dir>/site_documentation.pdf"`), `pdf_page_size`,
-      `pdf_margin_{top,right,bottom,left}`,
-      `pdf_header_footer_{font_size,color,divider_color}`,
+      `pdf_margin_{top,right,bottom,left}`, `pdf_double_sided` (default
+      `false`) and its own `pdf_margin_{inner,outer}` (replace
+      `pdf_margin_{left,right}` when set - see `build_pdf()`'s own
+      `double_sided` docs), `pdf_header_footer_{font_size,color,divider_color}`,
       `heading_numbering` (default `true`), `reference_style` (`"european"`
       - the default - or `"global"`), `reference_spacing_european`,
       `reference_indent_global`, `reference_spacing_global`,
@@ -110,7 +116,9 @@ def build_pdf_from_zensical_config(
 
     A page's own front matter `is_appendix: true` flag gives it letter-
     based numbering, matching `prodockit.headings`' own `appendix_attr`
-    default.
+    default. A page's own front matter `recto_title: "Short Title"`
+    overrides that page's running header text - see `fix_up_page_html()`'s
+    own docstring in `prodockit.pdf.html`.
     """
     import zensical.config as zensical_config
     from zensical.markdown.render import render as zensical_render
@@ -168,6 +176,7 @@ def build_pdf_from_zensical_config(
                 html=result["content"],
                 is_index=bool(nav_page.get("is_index")),
                 is_appendix=bool(result["meta"].get(APPENDIX_FRONT_MATTER_KEY, False)),
+                recto_title=result["meta"].get(RECTO_TITLE_FRONT_MATTER_KEY) or None,
             )
         )
 
@@ -203,6 +212,9 @@ def build_pdf_from_zensical_config(
         margin_right=extra.get("pdf_margin_right") or "2cm",
         margin_bottom=extra.get("pdf_margin_bottom") or "2cm",
         margin_left=extra.get("pdf_margin_left") or "2cm",
+        double_sided=bool(extra.get("pdf_double_sided", False)),
+        margin_inner=extra.get("pdf_margin_inner") or "2cm",
+        margin_outer=extra.get("pdf_margin_outer") or "2cm",
         header_footer_font_size=extra.get("pdf_header_footer_font_size") or "10pt",
         header_footer_color=extra.get("pdf_header_footer_color") or "#555555",
         header_footer_divider_color=extra.get("pdf_header_footer_divider_color") or "#e2e8f0",

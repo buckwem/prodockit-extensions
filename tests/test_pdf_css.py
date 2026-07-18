@@ -99,6 +99,63 @@ def test_acronym_and_glossary_spacing_use_the_european_value_regardless_of_style
     assert "p.glossary + p.glossary {\n    margin-top: -0.5em !important;" in css
 
 
+def test_single_sided_h1_breaks_before_a_plain_page() -> None:
+    css = build_css("Inter", "Fira Code", "Copyright 2026", "My Site")
+    assert "h1 { break-before: page !important; }" in css
+    assert "@page :right {" not in css
+    assert "@page :left {" not in css
+
+
+def test_double_sided_h1_breaks_before_a_recto_page() -> None:
+    css = build_css("Inter", "Fira Code", "Copyright 2026", "My Site", double_sided=True)
+    assert "h1 { break-before: recto !important; }" in css
+
+
+def test_double_sided_adds_right_and_left_page_margin_rules() -> None:
+    css = build_css(
+        "Inter", "Fira Code", "Copyright 2026", "My Site",
+        double_sided=True, margin_top="1cm", margin_bottom="1cm",
+        margin_inner="2.5cm", margin_outer="1.5cm",
+    )
+    assert "@page :right {" in css
+    right_rule = css.split("@page :right {")[1].split("}")[0]
+    assert "margin: 1cm 1.5cm 1cm 2.5cm !important;" in right_rule
+
+    assert "@page :left {" in css
+    left_block = css.split("@page :left {")[1]
+    assert "margin: 1cm 2.5cm 1cm 1.5cm !important;" in left_block
+
+
+def test_double_sided_verso_page_swaps_all_four_header_footer_corners() -> None:
+    css = build_css("Inter", "Fira Code", "My Copyright", "My Site", double_sided=True)
+    left_block = css.split("@page :left {")[1].split("\n@page")[0]
+    assert "content: string(chapter-title)" in left_block.split("@top-left {")[1].split("}")[0]
+    assert 'content: "My Site"' in left_block.split("@top-right {")[1].split("}")[0]
+    assert 'content: "Page " counter(page) " of " counter(pages)' in (
+        left_block.split("@bottom-left {")[1].split("}")[0]
+    )
+    assert 'content: "My Copyright"' in left_block.split("@bottom-right {")[1].split("}")[0]
+
+
+def test_double_sided_recto_title_string_set_rule_always_present() -> None:
+    css_single = build_css("Inter", "Fira Code", "Copyright 2026", "My Site")
+    css_double = build_css("Inter", "Fira Code", "Copyright 2026", "My Site", double_sided=True)
+    for css in (css_single, css_double):
+        assert ".prodockit-recto-title { string-set: chapter-title content() !important; }" in css
+
+
+def test_no_placeholder_tokens_remain_after_substitution_double_sided() -> None:
+    css = build_css(
+        "Inter", "Fira Code", "Copyright 2026", "My Site",
+        double_sided=True, margin_inner="2.5cm", margin_outer="1.5cm",
+    )
+    for placeholder in (
+        "__PDF_MARGIN_INNER__", "__PDF_MARGIN_OUTER__",
+        "__PDF_DOUBLE_SIDED_PAGE_RULES__", "__PDF_H1_BREAK_BEFORE__",
+    ):
+        assert placeholder not in css
+
+
 def test_dead_gridcard_matrix_classes_are_not_present() -> None:
     """Regression guard: .gridcard-matrix/-item/-title was an older,
     hand-built HTML convention some consuming projects have retired in

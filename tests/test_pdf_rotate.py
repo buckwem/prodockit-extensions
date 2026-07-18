@@ -59,6 +59,40 @@ def test_square_first_page_is_left_alone(tmp_path: Path) -> None:
     assert rotate_landscape_pages(str(pdf_path)) == 0
 
 
+def test_double_sided_off_always_rotates_270_regardless_of_page_position(
+    tmp_path: Path,
+) -> None:
+    """Same fixed behaviour as before double_sided existed: every matched
+    landscape page rotates 270 degrees, whether its own 1-indexed position
+    in the document is odd or even."""
+    pdf_path = tmp_path / "doc.pdf"
+    _write_pdf(pdf_path, [_PORTRAIT, _LANDSCAPE, _PORTRAIT, _LANDSCAPE])
+
+    rotated_count = rotate_landscape_pages(str(pdf_path), double_sided=False)
+
+    assert rotated_count == 2
+    reader = PdfReader(str(pdf_path))
+    assert reader.pages[1].rotation == 270
+    assert reader.pages[3].rotation == 270
+
+
+def test_double_sided_on_alternates_rotation_by_final_page_position(tmp_path: Path) -> None:
+    """With double_sided, a landscape page's own final 1-indexed page
+    number decides its rotation direction: odd (recto) rotates 270 degrees
+    (anticlockwise), even (verso) rotates 90 (clockwise) - the spine sits
+    on the opposite physical side, so the rotation has to compensate."""
+    pdf_path = tmp_path / "doc.pdf"
+    # Page 2 (even/verso), page 3 (odd/recto) are the landscape inserts.
+    _write_pdf(pdf_path, [_PORTRAIT, _LANDSCAPE, _LANDSCAPE, _PORTRAIT])
+
+    rotated_count = rotate_landscape_pages(str(pdf_path), double_sided=True)
+
+    assert rotated_count == 2
+    reader = PdfReader(str(pdf_path))
+    assert reader.pages[1].rotation == 90
+    assert reader.pages[2].rotation == 270
+
+
 def test_a_page_matching_neither_orientation_is_left_alone(tmp_path: Path) -> None:
     """A page that's neither the first page's own shape nor its exact
     width/height swap (e.g. a custom-sized image page) shouldn't be

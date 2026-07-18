@@ -25,8 +25,16 @@ from pypdf.errors import PyPdfError
 # spec) - 270 degrees clockwise here displays/prints as content rotated 90
 # degrees anticlockwise, confirmed directly by rendering both 90 and 270
 # and comparing reading direction against prodockit-table-rotated's own
-# unrotated (landscape) layout.
-_ROTATE_DEGREES = 270
+# unrotated (landscape) layout. Also the `double_sided` odd-page value - an
+# odd (recto, right-hand) page's spine is on its left, the same side a
+# single-sided document's spine is always on.
+_ROTATE_DEGREES_ODD = 270
+
+# `double_sided` even-page (verso, left-hand) value: the spine is on its
+# *right* instead, the opposite physical side from a recto page, so a
+# landscape insert has to rotate the other way to keep its own top edge
+# facing the fore-edge rather than the spine.
+_ROTATE_DEGREES_EVEN = 90
 
 # Loose float tolerance for comparing page dimensions, in points - well
 # under a hairline, just enough to absorb floating-point rounding from
@@ -34,7 +42,7 @@ _ROTATE_DEGREES = 270
 _SIZE_TOLERANCE = 0.5
 
 
-def rotate_landscape_pages(pdf_path: str) -> int:
+def rotate_landscape_pages(pdf_path: str, *, double_sided: bool = False) -> int:
     """Finds every page in `pdf_path` whose own page box is the width/height
     swap of the first page's - i.e. a `prodockit-table-rotated` landscape
     insert amid an otherwise-portrait (or otherwise-landscape) document -
@@ -42,6 +50,16 @@ def rotate_landscape_pages(pdf_path: str) -> int:
     anticlockwise. Returns how many pages were rotated; leaves `pdf_path`
     completely untouched (not even re-written) if none matched, e.g. a
     build with no `prodockit-table-rotated` content at all.
+
+    `double_sided` (default off, matching a single-sided `build_pdf()`)
+    alternates the rotation direction by each matched page's own final
+    1-indexed position in the document: 270 degrees (anticlockwise) for an
+    odd/recto page, 90 degrees (clockwise) for an even/verso one - the
+    spine sits on the opposite physical side for a verso vs. a recto page,
+    so the rotation has to compensate to keep landscape content's own top
+    edge facing the fore-edge rather than the spine either way. Off, every
+    matched page always rotates 270 degrees, exactly as before this
+    parameter existed.
 
     A single-page document, or one whose first page is itself square,
     can't meaningfully be compared this way and is always left alone (0
@@ -65,7 +83,7 @@ def rotate_landscape_pages(pdf_path: str) -> int:
 
         writer = PdfWriter()
         rotated_count = 0
-        for page in reader.pages:
+        for index, page in enumerate(reader.pages):
             box = page.mediabox
             width, height = float(box.width), float(box.height)
             added_page = writer.add_page(page)
@@ -74,7 +92,13 @@ def rotate_landscape_pages(pdf_path: str) -> int:
                 and abs(height - first_width) < _SIZE_TOLERANCE
             )
             if is_swapped:
-                added_page.rotate(_ROTATE_DEGREES)
+                page_number = index + 1
+                degrees = (
+                    _ROTATE_DEGREES_ODD
+                    if not double_sided or page_number % 2 == 1
+                    else _ROTATE_DEGREES_EVEN
+                )
+                added_page.rotate(degrees)
                 rotated_count += 1
 
         if rotated_count:

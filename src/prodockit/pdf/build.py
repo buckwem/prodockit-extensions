@@ -40,12 +40,17 @@ class Page:
     is this page's path relative to your docs directory (e.g.
     `"starthere/installtooling.md"`), used to resolve this page's own
     relative links/images and to generate its in-document anchor.
+    `recto_title`, if given, overrides the running header's auto-detected
+    chapter title from the next page onward (this page itself still shows
+    the heading's own full title) - see `fix_up_page_html()`'s own
+    docstring.
     """
 
     docs_rel_path: str
     html: str
     is_index: bool = False
     is_appendix: bool = False
+    recto_title: str | None = None
 
 
 class PdfBuildError(RuntimeError):
@@ -80,6 +85,9 @@ def build_pdf(
     margin_right: str = "2cm",
     margin_bottom: str = "2cm",
     margin_left: str = "2cm",
+    double_sided: bool = False,
+    margin_inner: str = "2cm",
+    margin_outer: str = "2cm",
     header_footer_font_size: str = "10pt",
     header_footer_color: str = "#555555",
     header_footer_divider_color: str = "#e2e8f0",
@@ -127,6 +135,23 @@ def build_pdf(
     and its `reference_*` spacing values control `.reference`/`.acronym`/
     `.glossary` paragraph spacing - see `prodockit.pdf.css.build_css` for what
     each style looks like.
+
+    `double_sided` (default off) switches the whole document to a duplex-
+    printing layout: header/footer content mirrors between left-hand
+    (verso) and right-hand (recto) pages (the chapter title stays on the
+    outer, fore-edge corner; `site_name` on the inner, spine-side corner),
+    `margin_inner`/`margin_outer` replace `margin_left`/`margin_right`
+    (swapping which physical side each applies to depending on verso/
+    recto), every new numbered heading starts on its own recto page (a
+    blank page is inserted if needed - see `prodockit.pdf.css`'s own module
+    docstring for why this is plain CSS, not something computed here), and
+    a `prodockit-table-rotated` landscape page's own rotation direction
+    alternates by its final odd/even page position instead of always being
+    the same direction (see `prodockit.pdf.rotate`) - the physical spine is
+    on the opposite side for a verso vs. a recto page, so the rotation has
+    to compensate to keep landscape content facing the same way regardless
+    of which side of the spread it lands on. Off by default: everything
+    above is unchanged from a single-sided build.
 
     **Numbering and math**
 
@@ -186,6 +211,7 @@ def build_pdf(
                     page_anchor_map=page_anchor_map,
                     is_index=page.is_index,
                     is_appendix=page.is_appendix,
+                    recto_title=page.recto_title,
                     repo_url=repo_url,
                     admonition_icon_config=admonition_icon_config,
                     icon_registry=icon_registry,
@@ -236,6 +262,9 @@ def build_pdf(
             margin_right=margin_right,
             margin_bottom=margin_bottom,
             margin_left=margin_left,
+            double_sided=double_sided,
+            margin_inner=margin_inner,
+            margin_outer=margin_outer,
             header_footer_font_size=header_footer_font_size,
             header_footer_color=header_footer_color,
             header_footer_divider_color=header_footer_divider_color,
@@ -268,7 +297,7 @@ def build_pdf(
                 returncode=result.returncode,
                 stderr=result.stderr,
             )
-        rotate_landscape_pages(output_path)
+        rotate_landscape_pages(output_path, double_sided=double_sided)
     finally:
         if use_temp_dir or not keep_work_dir:
             shutil.rmtree(resolved_work_dir, ignore_errors=True)
