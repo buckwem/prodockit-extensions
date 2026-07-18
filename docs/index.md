@@ -1,6 +1,21 @@
-# prodockit
+<div class="cover-hero" markdown="1">
+<div class="cover-hero-text" markdown="1">
 
-[:material-file-pdf-box: PDF](site_documentation.pdf){ .md-button target="_blank" style="float: right; margin-left: 15px;" .web-only}
+# <span class="cover-hero-title-light">prodockit</span> {: .cover-hero-title }
+
+A family of extensions for Zensical needed for professional and academic documentation.
+{: .cover-hero-subtitle }
+
+[:material-file-pdf-box: Download PDF](site_documentation.pdf){ .md-button .md-button--primary target="_blank" .web-only }
+
+</div>
+<div class="cover-hero-graphic" markdown="1">
+
+![Illustration of abstract flowing concentric lines, representing professional documentation](assets/cover-hero-light.svg#only-light){ .off-glb .hero-light }
+![Illustration of abstract flowing concentric lines, representing professional documentation](assets/cover-hero-dark.svg#only-dark){ .off-glb .hero-dark }
+
+</div>
+</div>
 
 prodockit is a family of extensions for [Zensical](https://zensical.org/)
 needed for professional and academic documentation - the pieces a report,

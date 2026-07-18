@@ -15,7 +15,7 @@ Copyright &copy; 2026 Mark Buckwell and contributors
 extra_css = ["stylesheets/extra.css"]
 
 nav = [
-  {"Home" = "index.md"},
+  {"Introduction" = "index.md"},
   {"Installation" = "installation.md"},
   {"Extensions" = [
     {"Headings" = "extensions/headings.md"},
@@ -34,13 +34,20 @@ nav = [
 ]
 
 [project.theme]
+logo = "assets/logo_black.png"
 language = "en"
 features = [
   "content.action.view",
   "content.code.copy",
+  "navigation.footer",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.tabs.sticky",
   "navigation.top",
   "navigation.tracking",
-  "navigation.instant",
+  "toc.integrate",
 ]
 
 [[project.theme.palette]]
