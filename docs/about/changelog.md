@@ -2,6 +2,30 @@
 
 [Download this page as PDF](../changelog.pdf){.web-only}
 
+## 0.4.0 (2026-07-18)
+
+- New `pdf_double_sided` option: a duplex-printing layout for book/
+  handbook-style documents printed and bound on both sides. Verso (left-
+  hand) and recto (right-hand) pages mirror their header/footer content
+  and page margins (new `pdf_margin_inner`/`pdf_margin_outer`, replacing
+  `pdf_margin_left`/`_right` in this mode) via CSS Paged Media's `@page
+  :left`/`:right` selectors - chapter title and page number always on the
+  outer, fore-edge corner; site name and copyright always on the inner,
+  spine-side corner, whichever physical side that is for a given page.
+  Every numbered heading now starts its own recto page (`break-before:
+  recto`, auto-inserting a blank page as needed - confirmed directly this
+  needs no Python-side page-counting logic at all), and a
+  `prodockit-table-rotated` landscape page's own rotation direction now
+  alternates by its final page position (270 degrees on recto, 90 on
+  verso - the spine sits on the opposite physical side either way).
+- New `recto_title` front matter key: overrides a page's own running
+  header text with a shorter title, from the *next* page onward (the
+  heading's own page still shows its full title - confirmed directly this
+  is a consequence of CSS `string()`'s "first value on this page wins"
+  default policy) - useful for a chapter title too long to fit
+  comfortably in the header, with or without `pdf_double_sided`.
+- Off by default: a single-sided build is completely unchanged.
+
 ## 0.3.1 (2026-07-18)
 
 - Docs: renamed `glossary.md`'s heading to "Acronyms and Glossary" and
