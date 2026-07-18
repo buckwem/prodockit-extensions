@@ -8,9 +8,16 @@ repo_url = "https://github.com/buckwem/prodockit-extensions"
 repo_name = "buckwem/prodockit-extensions"
 edit_uri = "edit/main/docs/"
 
-copyright = """
-Copyright &copy; 2026 Mark Buckwell and contributors
-"""
+# Single-line, not a triple-quoted block: prodockit.pdf substitutes this
+# verbatim into a CSS `content: "..."` string for the PDF's running
+# footer - a triple-quoted string's own embedded newlines break that CSS
+# declaration, silently dropping the whole footer with no error (harmless
+# on the website, whose own copy renders through normal HTML instead,
+# which collapses whitespace). A literal "©" character, not the "&copy;"
+# HTML entity, for the same reason - CSS content strings don't decode
+# HTML entities, so "&copy;" would show up as those 6 literal characters
+# in the PDF footer instead of the symbol.
+copyright = "Copyright © 2026 Mark Buckwell and contributors"
 
 extra_css = ["stylesheets/extra.css"]
 
