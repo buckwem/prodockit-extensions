@@ -653,6 +653,19 @@ translation needed. The fixups documented above are what's left after
 that: genuine gaps in Pandoc/WeasyPrint's own HTML handling, not gaps in
 markdown-dialect translation.
 
+**`prodockit.bibliography` is a partial exception to this pattern, worth
+flagging explicitly**: resolving `\cite{id}`/`\bibliography` itself calls
+out to a *separate*, independent `pandoc --citeproc` invocation at
+markdown-render time (see
+[prodockit.bibliography](extensions/bibliography.md#requirements)) -
+unrelated to, and already finished well before, `prodockit.pdf`'s own
+`pandoc --pdf-engine=weasyprint` call below. By the time `prodockit.pdf`
+sees the page, citations and the reference list are already resolved,
+ordinary HTML - `id`-bearing `<div>`s and `<a>` links like any other
+content - so none of the fixups documented above apply to it specially;
+a build using both ends up invoking Pandoc twice, for two entirely
+unrelated reasons.
+
 ## Status
 
 No formal, versioned public API stability contract yet (see

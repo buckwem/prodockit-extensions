@@ -1,4 +1,4 @@
-# Citations
+# Citations or References
 
 [Download this page as PDF](../citations.pdf){.web-only}
 
@@ -8,6 +8,14 @@ citation site. Defining and citing are bundled into one extension, unlike
 [prodockit.headings](headings.md)/[prodockit.refs](refs.md): a definition is
 useless without somewhere to cite it, so there's no independently useful
 "just defining" half to split out.
+
+!!! tip "Looking for an auto-generated bibliography instead?"
+    `prodockit.citations` is one of two alternatives for citing sources -
+    this one resolves against a hand-authored paragraph you write yourself,
+    once. If you'd rather define sources in a BibTeX/BibLaTeX `.bib` file
+    and have the reference list generated for you, in any citation style,
+    see [prodockit.bibliography](bibliography.md) and its
+    [comparison of both approaches](bibliography.md#comparing-the-two-approaches).
 
 ## Quick start
 

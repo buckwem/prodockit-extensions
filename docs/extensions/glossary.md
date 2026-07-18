@@ -1,4 +1,4 @@
-# Glossary
+# Acronyms and Glossary
 
 [Download this page as PDF](../glossary.pdf){.web-only}
 

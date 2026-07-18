@@ -39,6 +39,29 @@ beyond Python-Markdown itself:
 brew install pandoc   # or see https://pandoc.org/installing.html
 ```
 
+How the two tools relate: Zensical renders your site as usual, but each
+time this extension resolves a `\cite{id}` or `\bibliography` marker it
+shells out to `pandoc --citeproc`, once per distinct citation and once for
+the full reference list, each memoized for the rest of the build - Pandoc
+never sees, and has no part in rendering, anything else on the page:
+
+```mermaid
+flowchart LR
+    bib[".bib file<br>.csl style"]
+    md["Markdown source<br>\cite{id} / \bibliography"]
+    ext["prodockit.bibliography<br>(Python-Markdown extension)"]
+    pandoc["pandoc --citeproc"]
+    web["Zensical<br>(live website)"]
+    pdf["prodockit.pdf<br>(WeasyPrint PDF)"]
+
+    bib --> ext
+    md --> ext
+    ext -- "subprocess call,<br>memoized per build" --> pandoc
+    pandoc -- "formatted citation /<br>reference list HTML" --> ext
+    ext --> web
+    ext --> pdf
+```
+
 ## Quick start
 
 Enable it in `zensical.toml`, pointing `bib_file` at your own `.bib` file
@@ -102,20 +125,35 @@ fragment that would 404 from a different page.
 Point `csl_style` at any `.csl` file - your institution's own house style,
 or one of the thousands available from the
 [Citation Style Language project](https://github.com/citation-style-language/styles)
-(the same repository Zotero/Mendeley pull styles from):
+(the same repository Zotero/Mendeley pull styles from). This project's own
+docs, and `prodockit-template`/`prodockit-userguide`'s hand-authored
+references, already follow Cite Them Right Harvard - `harvard-cite-them-right.csl`
+reproduces that exact style automatically:
 
 ```toml
 [project.markdown_extensions."prodockit.bibliography"]
 bib_file = "references.bib"
-csl_style = "apa.csl"
+csl_style = "harvard-cite-them-right.csl"
 ```
 
-Leaving `csl_style` unset uses Pandoc's own default (a Chicago author-date
-style). Confirmed directly: the exact same `.bib` file, with only
-`csl_style` changed, produces correctly (and very differently) formatted
-output - author-date parenthetical citations and a hanging-indent
-reference list for APA, numbered `[1]` citations and a numbered list for
-IEEE, and so on - with no other configuration.
+renders (confirmed directly against the same `.bib` file used above):
+
+```html
+<p>Git is a distributed version control system <span class="citation">(Chacon and Straub, 2014)</span>.</p>
+...
+<div id="ref-chacon2014" class="csl-entry">
+Chacon, S. and Straub, B. (2014) <em>Pro git</em>. 2nd edn. New York: Apress. Available at: <a href="https://git-scm.com/book">https://git-scm.com/book</a>.
+</div>
+```
+
+- exactly the format already hand-typed throughout this project's own
+reference lists, just generated instead. Leaving `csl_style` unset uses
+Pandoc's own default (a Chicago author-date style) instead. Confirmed
+directly: the exact same `.bib` file, with only `csl_style` changed,
+produces correctly (and very differently) formatted output - author-date
+parenthetical citations and a hanging-indent reference list for APA,
+numbered `[1]` citations and a numbered list for IEEE, and so on - with no
+other configuration.
 
 ### Unresolved citations
 
