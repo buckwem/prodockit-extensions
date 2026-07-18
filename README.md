@@ -17,8 +17,9 @@ It's a kit for professional documentation, built on Zensical's own
 Markdown and Pandoc/WeasyPrint PDF pipeline.
 
 > **Status:** early, but functional - `prodockit.headings`, `prodockit.refs`,
-> `prodockit.citations`, `prodockit.glossary`, `prodockit.pdf`, and
-> `prodockit.zensical_macros` are implemented and tested.
+> `prodockit.citations`, `prodockit.glossary`, `prodockit.tables`,
+> `prodockit.bibliography`, `prodockit.pdf`, and `prodockit.zensical_macros`
+> are implemented and tested.
 
 **[Full documentation](https://buckwem.github.io/prodockit-extensions/)**
 
@@ -36,6 +37,8 @@ pip install prodockit
 | [`prodockit.refs`](https://buckwem.github.io/prodockit-extensions/extensions/refs/) | `\ref{id}` section cross-references, resolving to the target's current number - similar in spirit to LaTeX's `\ref`. |
 | [`prodockit.citations`](https://buckwem.github.io/prodockit-extensions/extensions/citations/) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
 | [`prodockit.glossary`](https://buckwem.github.io/prodockit-extensions/extensions/glossary/) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
+| [`prodockit.tables`](https://buckwem.github.io/prodockit-extensions/extensions/tables/) | Percentage or fixed column widths on a table, via a `width` attribute already attachable to a header cell with `attr_list`. |
+| [`prodockit.bibliography`](https://buckwem.github.io/prodockit-extensions/extensions/bibliography/) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\cite{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
 
 ```python
 import markdown
@@ -80,11 +83,15 @@ prodockit pdf
 ```
 
 That's it - run it from your project root and it builds a complete PDF,
-table of contents included, from every page in your `nav`. See the
+table of contents included, from every page in your `nav`. Also handles a
+table too wide for a portrait page - printed sideways, on its own
+landscape page(s), spanning multiple pages with a repeated heading row -
+and `{.web-only}`/`{.pdf-only}` markers for content that should only
+appear in one of the two outputs. See the
 [docs](https://buckwem.github.io/prodockit-extensions/pdf/) for the
 `zensical.toml` settings it reads, and for the Python API
-(`build_pdf()`, `prodockit.pdf.html`/`.lua`/`.css`/`.icons`/`.mermaid`) if
-you're scripting your own build pipeline instead.
+(`build_pdf()`, `prodockit.pdf.html`/`.lua`/`.css`/`.icons`/`.mermaid`/`.rotate`)
+if you're scripting your own build pipeline instead.
 
 ## Website macros
 
