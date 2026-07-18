@@ -2,6 +2,37 @@
 
 [Download this page as PDF](../changelog.pdf){.web-only}
 
+## 0.3.0 (2026-07-18)
+
+- New `prodockit.bibliography` extension: an alternative to
+  `prodockit.citations` for a `.bib`-backed reference list instead of a
+  hand-authored one. Define sources in a BibTeX/BibLaTeX `.bib` file, cite
+  them with the same `\cite{id}` syntax, and get the resolved citation text
+  and a full, auto-generated reference list formatted in any Citation
+  Style Language (CSL) style (APA, IEEE, Harvard, ...) via Pandoc's own
+  `--citeproc` - confirmed directly against real Pandoc output rather than
+  reimplementing citation formatting, and rejected an actual LaTeX/biblatex
+  toolchain as a new hard dependency along the way. Makes `pandoc` a
+  required dependency for this extension specifically, including for a
+  website-only build with no PDF. New `docs/extensions/bibliography.md`
+  includes a "References and Bibliography" comparison of this,
+  `prodockit.citations`, and what `prodockit-template`/`prodockit-userguide`
+  currently do.
+- New sideways (90-degree anticlockwise) tables in the PDF: wrap a table
+  and its own caption in `<div class="prodockit-table-rotated" markdown="1">`
+  to print it on its own landscape-sized page(s), spanning multiple pages
+  with a repeated heading row exactly like any other table. Confirmed
+  directly that a CSS `transform: rotate()` doesn't work for this (clips
+  the table to one page and loses its heading row) - the actual rotation
+  is applied afterwards via a `/Rotate` post-process on the finished PDF
+  (new `prodockit.pdf.rotate` module, new `pypdf` dependency).
+- `.web-only` content is now hidden in every PDF build automatically, via
+  `prodockit.pdf.css`'s own always-included stylesheet - no project-side
+  CSS needed any more. `.pdf-only` is documented as a one-line, centrally-
+  sourced snippet instead (`prodockit` has no way to reach into a
+  project's own website stylesheet), in a new "Web-only / PDF-only
+  content" section in the PDF generation docs.
+
 ## 0.2.0 (2026-07-18)
 
 - New `prodockit.tables` extension: gives a table column a percentage or
