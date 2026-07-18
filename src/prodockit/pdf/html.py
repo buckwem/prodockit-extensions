@@ -133,6 +133,7 @@ def fix_up_page_html(
     page_anchor_map: dict[str, str],
     is_index: bool = False,
     is_appendix: bool = False,
+    recto_title: str | None = None,
     repo_url: str = "",
     admonition_icon_config: dict[str, Any] | None = None,
     icon_registry: dict[str, str] | None = None,
@@ -154,7 +155,19 @@ def fix_up_page_html(
     content is wrapped in a ``.cover-page`` div. `is_appendix` gives this
     page's first heading an ``appendix`` class, for a Lua filter's own
     ``Header()`` handler (see :mod:`prodockit.pdf.lua`) to letter instead of
-    number it.
+    number it. `recto_title` (a page's own front matter, e.g. `recto_title:
+    "Short Title"`) overrides the running header's auto-detected chapter
+    title text from the *next* page onward - the H1 itself is untouched,
+    only the header - by inserting a hidden element carrying the override
+    text directly after this page's first heading, with its own
+    `string-set` (see `prodockit.pdf.css`). Confirmed directly: CSS
+    `string()`'s default policy takes a page's own *first* value for a
+    given name, so the heading's own page still shows its full title (the
+    heading's own string-set is first in document order there); only the
+    following page - which has no string-set of its own, so inherits the
+    last value from the previous page - shows the override. Meaningful
+    whether or not `pdf_double_sided` is enabled - the running chapter
+    title appears in both layouts, just in different corners.
 
     `admonition_icon_config`/`icon_registry` (see :mod:`prodockit.pdf.icons`)
     are needed to insert an admonition's own icon; omit either to skip icon
@@ -495,5 +508,17 @@ def fix_up_page_html(
             classes = list(first_heading.get("class", []))
             classes.append("appendix")
             first_heading["class"] = classes
+
+    # recto_title (see docstring above): inserted directly *after* the real
+    # heading, not before, so its own string-set (see prodockit.pdf.css) is
+    # the *second* value set on this page, not the first - CSS string()'s
+    # default policy means it only takes effect from the following page
+    # onward, letting this page itself still show the heading's own full
+    # title.
+    if recto_title and isinstance(first_heading, Tag):
+        override = soup.new_tag("div")
+        override["class"] = "prodockit-recto-title"
+        override.string = recto_title
+        first_heading.insert_after(override)
 
     return str(soup)

@@ -73,7 +73,9 @@ def test_rotates_landscape_pages_after_a_successful_build(
     fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
     captured = {}
     monkeypatch.setattr(
-        build_module, "rotate_landscape_pages", lambda path: captured.setdefault("path", path)
+        build_module,
+        "rotate_landscape_pages",
+        lambda path, **kwargs: captured.setdefault("path", path),
     )
     build_pdf(
         [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
@@ -89,7 +91,9 @@ def test_does_not_rotate_pages_when_pandoc_fails(
 
     fake_pandoc_on_path('echo "boom" >&2; exit 1')
     called = []
-    monkeypatch.setattr(build_module, "rotate_landscape_pages", lambda path: called.append(path))
+    monkeypatch.setattr(
+        build_module, "rotate_landscape_pages", lambda path, **kwargs: called.append(path)
+    )
     with pytest.raises(PdfBuildError):
         build_pdf(
             [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
@@ -242,3 +246,70 @@ def test_generated_css_reflects_the_given_typography_and_layout(tmp_path: Path, 
     css = (work_dir / "_prodockit_pdf_compiled.css").read_text(encoding="utf-8")
     assert '"Georgia", sans-serif' in css
     assert "size: Letter;" in css
+
+
+def test_double_sided_is_passed_through_to_the_generated_css(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    work_dir = tmp_path / "work"
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+        str(tmp_path / "out.pdf"),
+        double_sided=True,
+        margin_inner="2.5cm",
+        margin_outer="1.5cm",
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+    css = (work_dir / "_prodockit_pdf_compiled.css").read_text(encoding="utf-8")
+    assert "@page :right {" in css
+    assert "@page :left {" in css
+    assert "break-before: recto !important;" in css
+
+
+def test_recto_title_is_passed_through_to_the_fixed_up_page_html(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    work_dir = tmp_path / "work"
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [
+            Page(
+                docs_rel_path="chapter1.md",
+                html="<h1>A Rather Long Chapter Title</h1>",
+                recto_title="Short Title",
+            )
+        ],
+        str(tmp_path / "out.pdf"),
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+    assert 'class="prodockit-recto-title"' in compiled
+    assert "Short Title" in compiled
+
+
+def test_double_sided_flag_is_passed_through_to_rotate_landscape_pages(
+    tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """build_pdf() must pass its own double_sided flag through to
+    rotate_landscape_pages() - confirmed at the rotate.py unit-test level
+    that this alternates 270/90 by final page position; here just confirm
+    build_pdf() actually wires the flag through rather than dropping it."""
+    import prodockit.pdf.build as build_module
+
+    output_path = tmp_path / "out.pdf"
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    captured = {}
+    monkeypatch.setattr(
+        build_module,
+        "rotate_landscape_pages",
+        lambda path, **kwargs: captured.update(path=path, **kwargs),
+    )
+    build_pdf(
+        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+        str(output_path),
+        double_sided=True,
+    )
+    assert captured == {"path": str(output_path), "double_sided": True}

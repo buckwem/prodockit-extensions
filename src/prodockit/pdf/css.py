@@ -34,6 +34,9 @@ def build_css(
     margin_right: str = "2cm",
     margin_bottom: str = "2cm",
     margin_left: str = "2cm",
+    double_sided: bool = False,
+    margin_inner: str = "2cm",
+    margin_outer: str = "2cm",
     header_footer_font_size: str = "10pt",
     header_footer_color: str = "#555555",
     header_footer_divider_color: str = "#e2e8f0",
@@ -61,6 +64,20 @@ def build_css(
     styling on the website side without a ``.md-typeset`` ancestor wrapper -
     Pandoc's HTML output has no such wrapper, so these plain, unscoped
     selectors are what actually applies either style in a PDF.
+
+    `double_sided` (default off) switches to a duplex-printing layout via
+    CSS Paged Media's ``:left``/``:right`` page selectors: right-hand
+    (recto) pages keep the same header/footer arrangement as a single-sided
+    build (chapter title top-right, site name top-left, page number
+    bottom-right, copyright bottom-left), while left-hand (verso) pages
+    mirror all four - chapter title and page number always land on the
+    outer, fore-edge corner and site name/copyright always on the inner,
+    spine-side corner, whichever physical side that is. `margin_inner`/
+    `margin_outer` then replace `margin_left`/`margin_right` for real page
+    margins (confirmed directly that WeasyPrint applies ``@page
+    :left``/``:right`` correctly). Every numbered heading also starts on
+    its own recto page in this mode (a blank page inserted if needed - pure
+    CSS `break-before: recto`, confirmed directly rather than assumed).
     """
     css = """
 /* ==========================================================================
@@ -182,6 +199,7 @@ header, nav, footer, .md-sidebar, .md-header, .md-footer, .md-search, #search {
         text-align: right !important;
     }
 }
+__PDF_DOUBLE_SIDED_PAGE_RULES__
 @page :first {
     @top-left { content: none !important; border-bottom: none !important; }
     @top-right { content: none !important; }
@@ -217,7 +235,7 @@ header, nav, footer, .md-sidebar, .md-header, .md-footer, .md-search, #search {
     page-break-after: always;
     break-after: always;
 }
-h1 { break-before: page !important; }
+h1 { break-before: __PDF_H1_BREAK_BEFORE__ !important; }
 .cover-page h1 { break-before: auto !important; }
 /* A generic "h1..h6 { page-break-after: avoid }" website print rule keeps a
    heading from being the last thing on a page - reasonable for h1/h2 (a
@@ -256,6 +274,14 @@ p {
    class the numbering Lua filter already uses to identify non-chapter
    headings, so the running title only starts once real content begins. */
 h1:not(.unnumbered) { string-set: chapter-title content() !important; }
+/* A page's own `recto_title` front matter (see prodockit.pdf.html and
+   prodockit.pdf.build) inserts one of these directly after that page's
+   real h1 - later in document order, so its own string-set here
+   supersedes the h1's own for the rest of this page's own running header,
+   without touching the h1 (still numbered/rendered normally) itself.
+   Applies to both single- and double-sided layouts - the running chapter
+   title appears in both, just in a different header corner. */
+.prodockit-recto-title { string-set: chapter-title content() !important; }
 
 /* ==========================================================================
    TABLE LAYOUT
@@ -613,8 +639,81 @@ img.twemoji, i.fa-solid, i.fa-regular, i.fa-brands, i.material-icons, i[class*="
 }
 """
 
+    # Right-hand (recto) pages keep the default @page block above as-is -
+    # margin only needs restating in terms of inner/outer, header/footer
+    # content already matches (chapter title outer/top-right, site name
+    # inner/top-left, page number outer/bottom-right, copyright inner/
+    # bottom-left). Left-hand (verso) pages mirror all four corners plus
+    # margin, since their spine is on the opposite physical side. Inserted
+    # (see the placeholder above) *before* the existing "@page :first"
+    # rule, so :first - unchanged, later in source - still wins the
+    # cascade on the cover page even though it's also :right, keeping the
+    # cover page's header/footer fully blank either way.
+    double_sided_css = (
+        """
+@page :right {
+    margin: __PDF_MARGIN_TOP__ __PDF_MARGIN_OUTER__ __PDF_MARGIN_BOTTOM__ __PDF_MARGIN_INNER__ !important;
+}
+@page :left {
+    margin: __PDF_MARGIN_TOP__ __PDF_MARGIN_INNER__ __PDF_MARGIN_BOTTOM__ __PDF_MARGIN_OUTER__ !important;
+    @top-left {
+        content: string(chapter-title) !important;
+        font-family: "__MAIN_FONT__", sans-serif !important;
+        font-size: __PDF_HEADER_FOOTER_FONT_SIZE__ !important;
+        color: __PDF_HEADER_FOOTER_COLOR__ !important;
+        vertical-align: bottom !important;
+        border-bottom: 1px solid __PDF_HEADER_FOOTER_DIVIDER_COLOR__ !important;
+        padding-bottom: 8px !important;
+        margin-bottom: 3mm !important;
+        width: 50% !important;
+        text-align: left !important;
+    }
+    @top-right {
+        content: "__SITE_NAME__" !important;
+        font-family: "__MAIN_FONT__", sans-serif !important;
+        font-size: __PDF_HEADER_FOOTER_FONT_SIZE__ !important;
+        color: __PDF_HEADER_FOOTER_COLOR__ !important;
+        vertical-align: bottom !important;
+        border-bottom: 1px solid __PDF_HEADER_FOOTER_DIVIDER_COLOR__ !important;
+        padding-bottom: 8px !important;
+        margin-bottom: 3mm !important;
+        width: 50% !important;
+        text-align: right !important;
+    }
+    @bottom-left {
+        content: "Page " counter(page) " of " counter(pages) !important;
+        font-family: "__MAIN_FONT__", sans-serif !important;
+        font-size: __PDF_HEADER_FOOTER_FONT_SIZE__ !important;
+        color: __PDF_HEADER_FOOTER_COLOR__ !important;
+        vertical-align: top !important;
+        border-top: 1px solid __PDF_HEADER_FOOTER_DIVIDER_COLOR__ !important;
+        padding-top: 8px !important;
+        margin-top: 3mm !important;
+        width: 20% !important;
+        text-align: left !important;
+    }
+    @bottom-right {
+        content: "__COPYRIGHT__" !important;
+        font-family: "__MAIN_FONT__", sans-serif !important;
+        font-size: __PDF_HEADER_FOOTER_FONT_SIZE__ !important;
+        color: __PDF_HEADER_FOOTER_COLOR__ !important;
+        vertical-align: top !important;
+        border-top: 1px solid __PDF_HEADER_FOOTER_DIVIDER_COLOR__ !important;
+        padding-top: 8px !important;
+        margin-top: 3mm !important;
+        width: 80% !important;
+        text-align: right !important;
+    }
+}
+"""
+        if double_sided
+        else ""
+    )
+
     css = (
-        css.replace("__MAIN_FONT__", main_font)
+        css.replace("__PDF_DOUBLE_SIDED_PAGE_RULES__", double_sided_css)
+        .replace("__PDF_H1_BREAK_BEFORE__", "recto" if double_sided else "page")
+        .replace("__MAIN_FONT__", main_font)
         .replace("__MONO_FONT__", mono_font)
         .replace("__COPYRIGHT__", copyright_text)
         .replace("__SITE_NAME__", site_name)
@@ -623,6 +722,8 @@ img.twemoji, i.fa-solid, i.fa-regular, i.fa-brands, i.material-icons, i[class*="
         .replace("__PDF_MARGIN_RIGHT__", margin_right)
         .replace("__PDF_MARGIN_BOTTOM__", margin_bottom)
         .replace("__PDF_MARGIN_LEFT__", margin_left)
+        .replace("__PDF_MARGIN_INNER__", margin_inner)
+        .replace("__PDF_MARGIN_OUTER__", margin_outer)
         .replace("__PDF_HEADER_FOOTER_FONT_SIZE__", header_footer_font_size)
         .replace("__PDF_HEADER_FOOTER_COLOR__", header_footer_color)
         .replace("__PDF_HEADER_FOOTER_DIVIDER_COLOR__", header_footer_divider_color)

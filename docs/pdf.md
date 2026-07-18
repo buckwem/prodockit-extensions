@@ -77,6 +77,8 @@ lives under `[project.extra]`, all optional:
 | `pdf_output` | `"<docs_dir>/site_documentation.pdf"` | Where the PDF is written. |
 | `pdf_page_size` | `"A4"` | Any WeasyPrint-supported CSS page size (`"Letter"`, ...). |
 | `pdf_margin_top` / `_right` / `_bottom` / `_left` | `"2cm"` each | Page margins, as CSS lengths. |
+| `pdf_double_sided` | `false` | Duplex-printing layout - see [Double-sided (duplex) printing](#double-sided-duplex-printing). |
+| `pdf_margin_inner` / `_outer` | `"2cm"` each | Spine-side/fore-edge margins, used instead of `pdf_margin_left`/`_right` when `pdf_double_sided` is on. |
 | `pdf_header_footer_font_size` / `_color` / `_divider_color` | `"10pt"` / `"#555555"` / `"#e2e8f0"` | Running header/footer styling. |
 | `heading_numbering` | `true` | Chapter/appendix numbering on headings and captions. |
 | `reference_style` | `"european"` | `"european"` (tight, single-line citation entries) or `"global"` (double-spaced, hanging indent - the common APA/MLA/Chicago style). |
@@ -88,6 +90,9 @@ lives under `[project.extra]`, all optional:
 A page's own front matter `is_appendix: true` gives it letter-based
 numbering ("A", "A.1", ...) instead of numeric, matching
 [prodockit.headings](extensions/headings.md)' own `appendix_attr` convention.
+A page's own front matter `recto_title: "Short Title"` overrides its
+running header text from the *next* page onward - see
+[Double-sided (duplex) printing](#double-sided-duplex-printing).
 
 ### Web-only / PDF-only content
 
@@ -161,6 +166,67 @@ This is PDF-only - the same wrapped table renders as a completely normal,
 unrotated table on the live website, the same way `.web-only` content
 elsewhere in this project only ever affects one of the two outputs.
 
+### Double-sided (duplex) printing
+
+Set `pdf_double_sided = true` under `[project.extra]` for a document meant
+to be printed and bound on both sides - a book or handbook, rather than a
+web-printed report. Left-hand (verso) and right-hand (recto) pages mirror
+their header/footer content and page margins, and every numbered heading
+starts its own recto page:
+
+```toml
+[project.extra]
+pdf_double_sided = true
+pdf_margin_inner = "3cm"   # spine side - wider, to leave room for binding
+pdf_margin_outer = "1.5cm" # fore-edge (outer) side
+```
+
+`pdf_margin_inner`/`pdf_margin_outer` replace `pdf_margin_left`/`_right`
+once `pdf_double_sided` is on - the "inner" (spine) side is the left
+margin on a recto page but the right margin on a verso page, and vice
+versa for "outer" (fore-edge), so a single pair of settings covers both
+without you having to think about which physical side is which for any
+given page. `pdf_margin_top`/`_bottom` are unaffected either way.
+
+Every corner of the running header/footer mirrors between recto and
+verso, keeping the chapter title and page number on the outer, fore-edge
+corner and the site name/copyright on the inner, spine-side corner,
+whichever physical side that happens to be for a given page - confirmed
+directly, by rendering a real double-sided document and inspecting facing
+pages, that this is how it actually looks.
+
+Every numbered heading (chapter start) also always starts on its own
+recto page - a blank page is inserted automatically if the previous
+chapter ended on an odd page, exactly like the blank pages you'd expect at
+the start of each chapter in a real printed book. This needs no
+configuration; it's part of what `pdf_double_sided` turns on.
+
+A `prodockit-table-rotated` landscape page's own rotation direction also
+alternates by its own final page position once `pdf_double_sided` is on -
+270 degrees (anticlockwise) on a recto page, 90 (clockwise) on a verso
+page - since the spine sits on the opposite physical side either way, and
+the rotation has to compensate to keep the landscape content's own top
+edge facing the fore-edge rather than the spine. With `pdf_double_sided`
+off, every rotated page always rotates 270 degrees, as before this option
+existed.
+
+A page's own front matter `recto_title: "Short Title"` overrides that
+page's own running header text with a shorter title, from the *next* page
+onward (the heading's own page still shows its full title) - handy when a
+chapter's real title is too long to comfortably fit the running header:
+
+```md
+---
+recto_title: "Ch. 1"
+---
+
+# Chapter One: A Rather Long Title That Wouldn't Fit In A Running Header
+```
+
+This setting is meaningful whether or not `pdf_double_sided` is on - the
+running chapter title appears in the header either way, just in a
+different corner.
+
 ## Reference
 
 ### Python API
@@ -216,6 +282,9 @@ build_pdf(
     margin_right: str = "2cm",
     margin_bottom: str = "2cm",
     margin_left: str = "2cm",
+    double_sided: bool = False,
+    margin_inner: str = "2cm",
+    margin_outer: str = "2cm",
     header_footer_font_size: str = "10pt",
     header_footer_color: str = "#555555",
     header_footer_divider_color: str = "#e2e8f0",
@@ -272,12 +341,15 @@ class Page:
     html: str
     is_index: bool = False
     is_appendix: bool = False
+    recto_title: str | None = None
 ```
 
 One page to include in the PDF. `html` is this page's own already-rendered
 HTML (not yet fixed up for Pandoc - `build_pdf` does that for you).
 `is_appendix` gives this page's first heading a letter instead of a number
-("A", "A.1", ...) if you enable `heading_numbering_enabled`.
+("A", "A.1", ...) if you enable `heading_numbering_enabled`. `recto_title`,
+if given, overrides this page's own running header text from the next
+page onward - see [Double-sided (duplex) printing](#double-sided-duplex-printing).
 
 #### `PdfBuildError`
 
@@ -447,6 +519,9 @@ build_css(
     margin_right: str = "2cm",
     margin_bottom: str = "2cm",
     margin_left: str = "2cm",
+    double_sided: bool = False,
+    margin_inner: str = "2cm",
+    margin_outer: str = "2cm",
     header_footer_font_size: str = "10pt",
     header_footer_color: str = "#555555",
     header_footer_divider_color: str = "#e2e8f0",

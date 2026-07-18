@@ -362,3 +362,32 @@ def test_appendix_page_flags_its_first_heading() -> None:
     )
     soup = BeautifulSoup(html, "html.parser")
     assert "appendix" in soup.find("h1")["class"]
+
+
+# ---------------------------------------------------------------------------
+# recto_title
+# ---------------------------------------------------------------------------
+
+def test_recto_title_inserts_an_override_directly_after_the_first_heading() -> None:
+    html = _fix(
+        "<h1>A Rather Long Chapter Title</h1><p>Body text.</p>",
+        recto_title="Short Title",
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    heading = soup.find("h1")
+    override = heading.find_next_sibling()
+    assert override.name == "div"
+    assert "prodockit-recto-title" in override["class"]
+    assert override.get_text() == "Short Title"
+
+
+def test_recto_title_none_inserts_nothing() -> None:
+    html = _fix("<h1>Chapter</h1><p>Body text.</p>")
+    soup = BeautifulSoup(html, "html.parser")
+    assert soup.find(class_="prodockit-recto-title") is None
+
+
+def test_recto_title_empty_string_inserts_nothing() -> None:
+    html = _fix("<h1>Chapter</h1><p>Body text.</p>", recto_title="")
+    soup = BeautifulSoup(html, "html.parser")
+    assert soup.find(class_="prodockit-recto-title") is None
