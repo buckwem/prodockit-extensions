@@ -2,6 +2,29 @@
 
 [Download this page as PDF](../changelog.pdf){.web-only}
 
+## 0.4.1 (2026-07-18)
+
+- Docs: reworked this site's own chrome to match
+  [prodockit-userguide](https://github.com/buckwem/prodockit-userguide)'s -
+  a new split hero cover page ("Home"), reusing that project's own logo/
+  favicon/illustration assets; top-level nav moved to a top tab bar with
+  the right-hand page TOC merged into the left sidebar instead; the
+  previous cover page's own prose moved to a new "Introduction" page.
+- Fixed a real bug found along the way: `zensical.toml`'s own `copyright`
+  was a triple-quoted, multi-line TOML string - `prodockit.pdf` substitutes
+  it verbatim into a CSS `content: "..."` string for the PDF's running
+  footer, and the embedded newline silently broke that declaration,
+  dropping the whole footer with no error (this site's own PDF footer had
+  no copyright text at all). Fixed to a single-line string, and switched
+  `&copy;` to a literal `©` character - a CSS content string doesn't
+  decode HTML entities either.
+- Fixed the deploy workflow missing a per-page PDF build step for the new
+  Introduction page (its own "Download this page as PDF" link 404'd), and
+  that page's leftover PDF link (still the old cover page's, pointing at
+  the whole-site PDF) to the same per-page convention every other content
+  page already uses.
+- No functional (Python package) changes.
+
 ## 0.4.0 (2026-07-18)
 
 - New `pdf_double_sided` option: a duplex-printing layout for book/
