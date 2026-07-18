@@ -26,6 +26,7 @@ from typing import Any
 from prodockit.pdf.css import build_css
 from prodockit.pdf.html import build_page_anchor_map, fix_up_page_html
 from prodockit.pdf.lua import build_lua_filter
+from prodockit.pdf.rotate import rotate_landscape_pages
 
 
 @dataclass
@@ -144,6 +145,17 @@ def build_pdf(
     your first real chapter still starts on its own page.
     `table_of_contents_title` is that page's own heading text.
 
+    **Sideways tables**
+
+    Wrap a table (plus its own caption) in `<div class="prodockit-table-rotated">`
+    to print it sideways, on its own landscape-sized page(s), spanning
+    multiple pages with a repeated heading row exactly like any other
+    table - see `prodockit.pdf.css`'s own module docstring for why this
+    isn't a CSS `transform`, and `prodockit.pdf.rotate` for the `/Rotate`
+    post-processing step (always run, a no-op if no page needs it) that
+    applies the actual anticlockwise rotation once WeasyPrint has finished
+    laying the page out.
+
     **Working files**
 
     `pandoc` needs a few intermediate files on disk (the concatenated HTML,
@@ -256,6 +268,7 @@ def build_pdf(
                 returncode=result.returncode,
                 stderr=result.stderr,
             )
+        rotate_landscape_pages(output_path)
     finally:
         if use_temp_dir or not keep_work_dir:
             shutil.rmtree(resolved_work_dir, ignore_errors=True)

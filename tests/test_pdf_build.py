@@ -60,6 +60,44 @@ def test_raises_pdf_build_error_when_pandoc_fails(tmp_path: Path, fake_pandoc_on
     assert "boom" in (exc_info.value.stderr or "")
 
 
+def test_rotates_landscape_pages_after_a_successful_build(
+    tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """build_pdf() must always run the prodockit-table-rotated /Rotate
+    post-process once pandoc/WeasyPrint succeeds - it's a no-op on a
+    document with no rotated table, so there's no reason it should ever be
+    skipped."""
+    import prodockit.pdf.build as build_module
+
+    output_path = tmp_path / "out.pdf"
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    captured = {}
+    monkeypatch.setattr(
+        build_module, "rotate_landscape_pages", lambda path: captured.setdefault("path", path)
+    )
+    build_pdf(
+        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+        str(output_path),
+    )
+    assert captured["path"] == str(output_path)
+
+
+def test_does_not_rotate_pages_when_pandoc_fails(
+    tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import prodockit.pdf.build as build_module
+
+    fake_pandoc_on_path('echo "boom" >&2; exit 1')
+    called = []
+    monkeypatch.setattr(build_module, "rotate_landscape_pages", lambda path: called.append(path))
+    with pytest.raises(PdfBuildError):
+        build_pdf(
+            [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+            str(tmp_path / "out.pdf"),
+        )
+    assert called == []
+
+
 def test_work_dir_is_cleaned_up_by_default(tmp_path: Path, fake_pandoc_on_path) -> None:
     work_dir = tmp_path / "work"
     fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
