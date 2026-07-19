@@ -22,6 +22,7 @@ import shutil
 from prodockit.pdf.build import Page, build_pdf
 from prodockit.pdf.icons import build_icon_registry, discover_icon_dirs
 from prodockit.pdf.mermaid import render_mermaid_diagram
+from prodockit.pdf.source_bundle import build_source_bundle
 from prodockit.settings import flatten_nav, heading_numbering_enabled, reference_style_values
 
 # Front matter flag marking a page for letter-based numbering ("A", "A.1",
@@ -107,7 +108,11 @@ def build_pdf_from_zensical_config(
       see `_find_mmdc_bin`/`_find_tex2svg_script` - Mermaid diagrams/math
       formulas are simply left unrendered if neither is found, rather than
       failing the build), `pdf_math_dir`, `pdf_include_table_of_contents`
-      (default `true`), `pdf_table_of_contents_title`.
+      (default `true`), `pdf_table_of_contents_title`, `pdf_source_bundle`
+      (default `false` - see `prodockit.pdf.source_bundle` for what this
+      builds and why it's a separate PDF rather than part of the one
+      above; only runs for a full, nav-driven build, never for a
+      `markdown_file`-scoped one).
     - `project.extra_css` - your site's own stylesheet(s) (the same setting
       Zensical itself reads to style the live website), passed through as
       `build_pdf()`'s own `extra_css` - so a project-specific `@media print`
@@ -229,4 +234,13 @@ def build_pdf_from_zensical_config(
         include_table_of_contents=bool(extra.get("pdf_include_table_of_contents", True)),
         table_of_contents_title=extra.get("pdf_table_of_contents_title") or "Table of Contents",
     )
+
+    if not markdown_file and bool(extra.get("pdf_source_bundle", False)):
+        build_source_bundle(
+            "source_bundle.pdf",
+            root=os.path.dirname(os.path.abspath(config_path)),
+            report_name=config.get("site_name") or "",
+            page_size=extra.get("pdf_page_size") or "A4",
+        )
+
     return output_path

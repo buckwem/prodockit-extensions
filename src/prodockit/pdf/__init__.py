@@ -30,6 +30,11 @@ CSS a compiled PDF needs that a live website doesn't (:mod:`prodockit.pdf.css`),
 and standalone helpers for Mermaid pre-rendering (:mod:`prodockit.pdf.mermaid`)
 and admonition icons (:mod:`prodockit.pdf.icons`).
 
+:mod:`prodockit.pdf.source_bundle` is unrelated to the rest of this package -
+it bundles a git repository's own source files (not Zensical/Markdown content
+at all) into a separate PDF, skipping Pandoc entirely since there's no
+Markdown involved.
+
 No published API stability contract yet - see prodockit-extensions#7.
 """
 

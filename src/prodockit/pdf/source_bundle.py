@@ -1,0 +1,237 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+"""Bundles a git repository's own tracked (and untracked-but-not-ignored)
+text/source files into a single PDF - one file per page, 8pt Courier,
+wrapped lines, a running header (the report's own name on the left, that
+page's own file path on the right), and a "Page N of M" footer.
+
+This is deliberately independent of the rest of `prodockit.pdf`
+(`build.py`/`html.py`/`css.py`/`lua.py`): there's no Markdown here, just
+raw source text, so there's nothing for Pandoc's own HTML/Markdown
+round-trip handling to do - this module builds one small, self-contained
+HTML document directly and hands it straight to `weasyprint`, skipping
+Pandoc entirely.
+"""
+
+from __future__ import annotations
+
+import html
+import os
+import shutil
+import subprocess
+import tempfile
+
+
+class SourceBundleError(RuntimeError):
+    """Raised when the underlying `git` or `weasyprint` invocation fails.
+    `returncode` and `stderr` (if captured) are attached for a caller that
+    wants to inspect or log the failure, rather than just the formatted
+    message."""
+
+    def __init__(
+        self, message: str, *, returncode: int | None = None, stderr: str | None = None
+    ) -> None:
+        super().__init__(message)
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+def discover_source_files(root: str = ".") -> list[str]:
+    """Returns every file under `root` that `.gitignore` doesn't exclude,
+    as `root`-relative paths sorted alphabetically - both already-tracked
+    files and untracked-but-not-ignored ones (a brand new file nobody's
+    run `git add` on yet still counts as "not excluded by .gitignore").
+
+    Shells out to `git ls-files --cached --others --exclude-standard`
+    rather than reimplementing `.gitignore`'s own matching rules (nested
+    `.gitignore` files, global excludes, negation patterns, and so on) -
+    `git` already has to get every one of those exactly right, and `root`
+    is a git working tree in every real use of this function (`prodockit
+    pdf`'s own CLI only ever runs from a project's repository root).
+
+    Raises `SourceBundleError` if `root` isn't a git working tree, or `git`
+    itself isn't on `PATH`.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise SourceBundleError("git is not installed or not on PATH") from exc
+    if result.returncode != 0:
+        raise SourceBundleError(
+            f"git ls-files failed in {root!r}",
+            returncode=result.returncode,
+            stderr=result.stderr,
+        )
+    return sorted(line for line in result.stdout.splitlines() if line)
+
+
+def is_probably_text(path: str) -> bool:
+    """Returns whether `path` looks like a text file worth bundling, by
+    content rather than file extension - reads (at most) the first 8 KiB
+    and rejects anything containing a null byte or that isn't valid UTF-8,
+    the same rough heuristic tools like `git diff` use to tell text from
+    binary. Content-based rather than an extension allowlist/denylist so
+    a new file type never needs this function updating to recognise it.
+
+    Returns `False` (rather than raising) for a path that can't be read
+    at all (e.g. a broken symlink) - nothing to bundle either way.
+    """
+    try:
+        with open(path, "rb") as f:
+            chunk = f.read(8192)
+    except OSError:
+        return False
+    if b"\x00" in chunk:
+        return False
+    try:
+        chunk.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
+def _css_escape(text: str) -> str:
+    """Minimal escaping for a value substituted into a CSS `content: "..."`
+    string (as opposed to `html.escape`, for values substituted into HTML
+    markup) - just enough for a plain site/report name (backslash and
+    double-quote), not a general-purpose CSS string escaper."""
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+_CSS_TEMPLATE = """
+@page {
+    size: __PDF_PAGE_SIZE__;
+    margin: 1.5cm;
+    @top-left {
+        content: "__REPORT_NAME__" !important;
+        font-family: Courier !important;
+        font-size: 8pt !important;
+    }
+    @top-right {
+        content: string(current-file) !important;
+        font-family: Courier !important;
+        font-size: 8pt !important;
+    }
+    @bottom-right {
+        content: "Page " counter(page) " of " counter(pages) !important;
+        font-family: Courier !important;
+        font-size: 8pt !important;
+    }
+}
+body {
+    font-family: Courier !important;
+    font-size: 8pt !important;
+    margin: 0 !important;
+}
+/* string-set only takes effect on an element that actually generates a
+   box - confirmed directly that display: none silently drops it instead,
+   leaving @top-right permanently empty. Zero-size-and-clipped (rather
+   than display: none) keeps the box (and so the string-set) while still
+   taking up no visible space. */
+.file-marker {
+    string-set: current-file content();
+    font-size: 0 !important;
+    line-height: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+}
+pre {
+    white-space: pre-wrap !important;
+    overflow-wrap: break-word !important;
+    break-before: page !important;
+    margin: 0 !important;
+}
+pre:first-of-type {
+    break-before: avoid !important;
+}
+"""
+
+
+def build_source_bundle(
+    output_path: str = "source_bundle.pdf",
+    *,
+    root: str = ".",
+    report_name: str = "",
+    page_size: str = "A4",
+    work_dir: str | None = None,
+    keep_work_dir: bool = False,
+) -> int:
+    """Builds a single PDF bundling every text file `.gitignore` doesn't
+    exclude under `root` (see `discover_source_files`) and writes it to
+    `output_path` (relative paths resolve against `root`, matching "the
+    top-level directory" a project's own `root` already is). Returns how
+    many files were actually included (binary files - see
+    `is_probably_text` - are silently skipped, not counted as a failure).
+
+    Each file starts on its own page, in 8pt Courier with wrapped lines
+    (a `white-space: pre-wrap` for genuinely long lines, not `pre`'s own
+    unwrapped default), a running header with `report_name` on the left
+    and that page's own file path on the right, and a "Page N of M"
+    footer - see this module's own `_CSS_TEMPLATE` for the exact rules.
+
+    Raises `SourceBundleError` if the underlying `git`/`weasyprint`
+    invocation fails (both `git` and a WeasyPrint install are required on
+    `PATH` - this function doesn't install either).
+
+    `work_dir`/`keep_work_dir` mirror `prodockit.pdf.build.build_pdf`'s
+    own pair - `weasyprint` needs the concatenated HTML on disk somewhere;
+    written under `work_dir` if given, or a fresh temporary directory
+    otherwise, left in place afterwards only if `keep_work_dir` is set
+    (only meaningful with an explicit `work_dir` - a temporary directory
+    is always cleaned up regardless).
+    """
+    resolved_output_path = (
+        output_path if os.path.isabs(output_path) else os.path.join(root, output_path)
+    )
+
+    files = discover_source_files(root)
+    text_files = [f for f in files if is_probably_text(os.path.join(root, f))]
+
+    use_temp_dir = work_dir is None
+    resolved_work_dir: str = (
+        tempfile.mkdtemp(prefix="prodockit-source-bundle-") if work_dir is None else work_dir
+    )
+    os.makedirs(resolved_work_dir, exist_ok=True)
+
+    try:
+        css = _CSS_TEMPLATE.replace("__PDF_PAGE_SIZE__", page_size).replace(
+            "__REPORT_NAME__", _css_escape(report_name)
+        )
+
+        body_parts: list[str] = []
+        for rel_path in text_files:
+            with open(os.path.join(root, rel_path), encoding="utf-8") as f:
+                content = f.read()
+            body_parts.append(
+                f'<div class="file-marker">{html.escape(rel_path)}</div>'
+                f"<pre>{html.escape(content)}</pre>"
+            )
+
+        html_path = os.path.join(resolved_work_dir, "_prodockit_source_bundle.html")
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\">")
+            f.write(f"<style>{css}</style>")
+            f.write("</head><body>")
+            f.write("\n".join(body_parts))
+            f.write("</body></html>")
+
+        cmd = ["weasyprint", html_path, resolved_output_path]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise SourceBundleError(
+                f"weasyprint exited with status {result.returncode} "
+                f"building {resolved_output_path!r}",
+                returncode=result.returncode,
+                stderr=result.stderr,
+            )
+        return len(text_files)
+    finally:
+        if use_temp_dir or not keep_work_dir:
+            shutil.rmtree(resolved_work_dir, ignore_errors=True)

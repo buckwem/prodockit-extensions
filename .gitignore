@@ -15,3 +15,4 @@ htmlcov/
 site/
 docs/*.pdf
 docs/.prodockit-pdf-mermaid/
+/source_bundle.pdf
