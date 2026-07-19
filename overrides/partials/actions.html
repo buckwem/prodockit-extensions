@@ -1,0 +1,64 @@
+{#-
+  Overrides Zensical's own bundled partials/actions.html (this file's own
+  base structure is that unmodified default) to add a fourth action icon:
+  a direct download link to this page's own per-page PDF (see
+  .github/workflows/docs.yml's own "prodockit pdf -m <file>" build step
+  for each page), replacing what used to be a hand-authored
+  "[Download this page as PDF](...)"" .web-only link at the top of every
+  page's own Markdown source.
+
+  Every per-page PDF is named after its own source file's stem, always
+  written flat at the site root regardless of how deeply nested the
+  source page itself is (see prodockit.pdf.config's own per-file build
+  path) - e.g. docs/extensions/citations.md's own PDF is
+  "citations.pdf", not "extensions/citations.pdf". `page.edit_url`
+  (already used by the "view" action below) already carries that same
+  source filename, so it doubles as the source of truth here too rather
+  than needing a second, separately-computed page attribute - split on
+  "/", take the last (only "split"/"reverse"/"first" filters exist here,
+  no "last" filter or negative indexing), then swap ".md" for ".pdf".
+  The "|url" filter (already used elsewhere for page.previous_page.url
+  etc.) resolves that plain, root-relative filename into the correct
+  "../"-prefixed path for this page's own nesting depth - confirmed
+  directly against a real build, matching exactly what every page's own
+  hand-typed link used to say.
+
+  The cover page (docs/index.md) has no own per-page PDF (it's the one
+  page CI's own per-file build list skips - it already has its own
+  whole-site PDF download button in its hero instead) - excluded here by
+  checking its own filename stem rather than hardcoding "index.md",
+  so a future is_index-style page wouldn't need this list updating.
+
+  This is a template-rendered icon, not markdown content - unlike the
+  link it replaces, it never flows through prodockit.pdf's own Markdown-
+  only rendering pipeline at all, so it needs no ".web-only" class to
+  keep it out of the PDF: the icon simply can't appear there by
+  construction.
+-#}
+{% if page.edit_url %}
+  {% if "content.action.edit" in features %}
+    <a href="{{ page.edit_url }}" title="{{ lang.t('action.edit') }}" class="md-content__button md-icon" rel="edit">
+      {% set icon = config.theme.icon.edit or "material/file-edit-outline" %}
+      {% include ".icons/" ~ icon ~ ".svg" %}
+    </a>
+  {% endif %}
+  {% if "content.action.view" in features %}
+    {% if "/blob/" in page.edit_url %}
+      {% set part = "/blob/" %}
+    {% else %}
+      {% set part = "/edit/" %}
+    {% endif %}
+    <a href="{{ page.edit_url | replace(part, '/raw/') }}" title="{{ lang.t('action.view') }}" class="md-content__button md-icon">
+      {% set icon = config.theme.icon.view or "material/file-eye-outline" %}
+      {% include ".icons/" ~ icon ~ ".svg" %}
+    </a>
+  {% endif %}
+  {% if "content.action.view" in features %}
+    {% set stem = (page.edit_url | split('/') | reverse | first) | replace('.md', '') %}
+    {% if stem != "index" %}
+      <a href="{{ (stem ~ '.pdf') | url }}" title="Download this page as PDF" class="md-content__button md-icon">
+        {% include ".icons/material/file-pdf-box.svg" %}
+      </a>
+    {% endif %}
+  {% endif %}
+{% endif %}

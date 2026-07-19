@@ -1,7 +1,5 @@
 # Installation
 
-[Download this page as PDF](installation.pdf){.web-only}
-
 ## From PyPI
 
 ```bash

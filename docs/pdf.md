@@ -1,7 +1,5 @@
 # PDF generation
 
-[Download this page as PDF](pdf.pdf){.web-only}
-
 `prodockit.pdf` builds a standalone PDF from your Zensical site - the kind of
 downloadable, submittable document professional and academic reports
 commonly need alongside the website itself. It reads the same

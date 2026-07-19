@@ -1,7 +1,5 @@
 # Refs
 
-[Download this page as PDF](../refs.pdf){.web-only}
-
 `prodockit.refs` adds a `\ref{id}` cross-reference syntax - similar in spirit
 to LaTeX's `\ref` - that resolves to the *current* section number of the
 heading with that id. It depends on the id/number registry that
