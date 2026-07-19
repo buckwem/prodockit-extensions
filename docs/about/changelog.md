@@ -1,5 +1,27 @@
 # Release Notes
 
+## 0.5.0 (2026-07-19)
+
+- New `prodockit.pdf.source_bundle`: bundles every text/source file
+  `.gitignore` doesn't exclude into a separate `source_bundle.pdf` at a
+  project's own top-level directory - 8pt Courier, wrapped lines, each
+  file starting its own page, a running header (`site_name` on the left,
+  that page's own file path on the right), and a "Page N of M" footer.
+  Off by default; set `pdf_source_bundle = true` under `[project.extra]`
+  to turn it on. Independent of the rest of `prodockit.pdf` - there's no
+  Markdown involved, so it skips Pandoc entirely and hands a small,
+  self-contained HTML document straight to WeasyPrint. File discovery
+  shells out to `git ls-files --cached --others --exclude-standard`
+  rather than reimplementing `.gitignore`'s own matching rules; text/
+  binary filtering is content-based, not by file extension.
+- Docs: this site's own header now shows a PDF download icon next to
+  "view" (an `overrides/partials/actions.html` override, linking to that
+  page's own per-page PDF) instead of a "Download this page as PDF" text
+  link at the top of the page - removed from every page that had one.
+  Since the new icon is template markup rather than Markdown content, it
+  also no longer shows up inside the PDF itself (no `.web-only` CSS trick
+  needed, unlike the link it replaces).
+
 ## 0.4.2 (2026-07-19)
 
 - Docs: matched more of this site's own theme config to
