@@ -1,7 +1,5 @@
 # Tables
 
-[Download this page as PDF](../tables.pdf){.web-only}
-
 `prodockit.tables` gives a table column a percentage or fixed width, via a
 `width` attribute already attachable to a header cell with
 [`attr_list`](https://python-markdown.github.io/extensions/attr_list/) -

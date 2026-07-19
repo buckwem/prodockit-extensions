@@ -43,6 +43,7 @@ nav = [
 
 [project.theme]
 logo = "assets/logo_black.png"
+custom_dir = "overrides"
 language = "en"
 features = [
   "announce.dismiss",

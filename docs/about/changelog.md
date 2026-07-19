@@ -1,7 +1,5 @@
 # Release Notes
 
-[Download this page as PDF](../changelog.pdf){.web-only}
-
 ## 0.4.2 (2026-07-19)
 
 - Docs: matched more of this site's own theme config to

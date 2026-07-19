@@ -1,7 +1,5 @@
 # Bibliography
 
-[Download this page as PDF](../bibliography.pdf){.web-only}
-
 `prodockit.bibliography` is an alternative to [prodockit.citations](citations.md):
 define your sources once in a BibTeX/BibLaTeX `.bib` file, cite them by key
 with `\cite{id}` from anywhere in a build, and get a fully formatted,

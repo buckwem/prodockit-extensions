@@ -1,7 +1,5 @@
 # Citations or References
 
-[Download this page as PDF](../citations.pdf){.web-only}
-
 `prodockit.citations` lets you define a source once and cite it by key from
 anywhere in a build, instead of hand-typing a bracketed link at every
 citation site. Defining and citing are bundled into one extension, unlike

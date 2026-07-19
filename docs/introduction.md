@@ -1,7 +1,5 @@
 # Introduction
 
-[Download this page as PDF](introduction.pdf){.web-only}
-
 prodockit is a family of extensions for [Zensical](https://zensical.org/)
 needed for professional and academic documentation - the pieces a report,
 dissertation, or technical document commonly needs that Zensical doesn't
