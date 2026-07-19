@@ -84,6 +84,7 @@ lives under `[project.extra]`, all optional:
 | `pdf_table_of_contents_title` | `"Table of Contents"` | That page's own heading text. |
 | `pdf_mmdc_bin` | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found. |
 | `pdf_tex2svg_script` / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found. |
+| `pdf_source_bundle` | `false` | Bundle this repository's own source code into a separate `source_bundle.pdf` - see [Bundling source code into a PDF](#bundling-source-code-into-a-pdf). Only runs for a full, nav-driven build - never for a `--markdown-file`-scoped one. |
 
 A page's own front matter `is_appendix: true` gives it letter-based
 numbering ("A", "A.1", ...) instead of numeric, matching
@@ -224,6 +225,39 @@ recto_title: "Ch. 1"
 This setting is meaningful whether or not `pdf_double_sided` is on - the
 running chapter title appears in the header either way, just in a
 different corner.
+
+### Bundling source code into a PDF
+
+Set `pdf_source_bundle = true` under `[project.extra]` to also produce
+`source_bundle.pdf` - a separate PDF, in the top-level project directory
+(not `docs_dir`), containing every text/source file `.gitignore` doesn't
+exclude, one file per page:
+
+```toml
+[project.extra]
+pdf_source_bundle = true
+```
+
+This is unrelated to the rest of `prodockit.pdf` - there's no Markdown
+involved at all, just this repository's own raw source files, so it
+skips Pandoc entirely and hands a small, self-contained HTML document
+straight to WeasyPrint. Only runs for a full, nav-driven build (`prodockit
+pdf` with no `--markdown-file`) - a single-page build has no reason to
+also rebuild a whole-repository artifact every time.
+
+Every file is rendered in 8pt Courier with wrapped lines (a genuinely
+long line wraps rather than running off the page or getting cut off),
+starting on its own page, with a running header (the project's own
+`site_name` on the left, that page's own file path on the right) and a
+"Page N of M" footer. Which files are included is decided entirely by
+`.gitignore` - both already-tracked files and untracked-but-not-yet-added
+ones count, as long as `.gitignore` doesn't exclude them - and by content
+(anything that isn't valid UTF-8 text, e.g. an image or compiled binary,
+is silently skipped, not by file extension).
+
+Scripting this outside `prodockit pdf` (e.g. from a different build
+tool)? See [`prodockit.pdf.source_bundle`](#prodockitpdfsource_bundle)
+below.
 
 ## Reference
 
@@ -568,6 +602,33 @@ render_mermaid_diagram(
 Pre-renders one Mermaid diagram's source to a static SVG via a local
 [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) install, since
 WeasyPrint has no JS engine to run Mermaid.js client-side.
+
+#### `prodockit.pdf.source_bundle`
+
+```python
+build_source_bundle(
+    output_path: str = "source_bundle.pdf",
+    *,
+    root: str = ".",
+    report_name: str = "",
+    page_size: str = "A4",
+    work_dir: str | None = None,
+    keep_work_dir: bool = False,
+) -> int
+```
+
+Unrelated to the rest of `prodockit.pdf` - see
+[Bundling source code into a PDF](#bundling-source-code-into-a-pdf) above
+for what this builds; `pdf_source_bundle` is the same function called for
+you. Returns how many files ended up in the bundle. `root` is both where
+`git ls-files --cached --others --exclude-standard` looks for files to
+include and where a relative `output_path` is written to.
+`work_dir`/`keep_work_dir` mirror `build_pdf()`'s own pair - a place to
+put (and optionally keep) the intermediate HTML `weasyprint` actually
+renders, handy when the output looks wrong. Raises
+`prodockit.pdf.source_bundle.SourceBundleError` (the underlying `git`/
+`weasyprint` exit code and stderr attached, where applicable) if either
+invocation fails.
 
 ## Limitations and workarounds
 

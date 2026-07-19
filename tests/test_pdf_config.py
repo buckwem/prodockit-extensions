@@ -267,3 +267,53 @@ def test_extra_css_defaults_to_empty_when_unset(project, monkeypatch: pytest.Mon
     build_pdf_from_zensical_config(str(root / "zensical.toml"))
 
     assert captured["extra_css"] == ""
+
+
+def test_source_bundle_is_not_built_by_default(project, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = project()
+
+    captured = {"called": False}
+    import prodockit.pdf.config as config_module
+
+    def _spy(*args, **kwargs):
+        captured["called"] = True
+
+    monkeypatch.setattr(config_module, "build_source_bundle", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["called"] is False
+
+
+def test_source_bundle_is_built_when_enabled(project, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = project(extra="\n[project.extra]\npdf_source_bundle = true\n")
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(output_path, **kwargs):
+        captured["output_path"] = output_path
+        captured.update(kwargs)
+
+    monkeypatch.setattr(config_module, "build_source_bundle", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["output_path"] == "source_bundle.pdf"
+    assert captured["root"] == str(root)
+    assert captured["report_name"] == "Test project"
+
+
+def test_source_bundle_is_not_built_for_a_markdown_file_scoped_build(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(extra="\n[project.extra]\npdf_source_bundle = true\n")
+
+    captured = {"called": False}
+    import prodockit.pdf.config as config_module
+
+    def _spy(*args, **kwargs):
+        captured["called"] = True
+
+    monkeypatch.setattr(config_module, "build_source_bundle", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"), markdown_file="chapter1.md")
+
+    assert captured["called"] is False
