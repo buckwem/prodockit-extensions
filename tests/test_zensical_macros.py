@@ -119,3 +119,35 @@ def test_heading_counter_reset_falls_back_to_zero_outside_a_real_build(tmp_path:
     page = type("Page", (), {"path": "chapter1.md"})()
     css = env.macros["heading_counter_reset"](page)
     assert "counter-reset: h1-count 0 !important;" in css
+
+
+def test_heading_counter_reset_seeds_from_a_real_prescan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The "real build, non-appendix page with n>0" branch - continuing
+    the numeric sequence from earlier nav pages' own h1 count - had no
+    test at all; only the "outside a build, falls back to 0" branch did."""
+    env = MacroEnv(conf=_write_project(tmp_path))
+    define_env(env)
+    monkeypatch.setattr(zensical_macros, "prescan", lambda: ({"chapter2.md": 3}, {}))
+    page = type("Page", (), {"path": "chapter2.md"})()
+    css = env.macros["heading_counter_reset"](page)
+    assert "counter-reset: h1-count 3 !important;" in css
+    assert "counter-reset: toc1 4 !important;" in css
+
+
+def test_heading_counter_reset_letters_an_appendix_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The appendix-letter CSS branch had no test at all - only the
+    disabled and outside-a-build fallback branches did."""
+    env = MacroEnv(conf=_write_project(tmp_path))
+    define_env(env)
+    monkeypatch.setattr(zensical_macros, "prescan", lambda: ({}, {"acronyms.md": "A"}))
+    page = type("Page", (), {"path": "acronyms.md"})()
+    css = env.macros["heading_counter_reset"](page)
+    assert 'content: "Appendix A. " !important;' in css
+    assert 'content: "A." counter(h2-count) " " !important;' in css
+    assert 'content: "A." counter(h2-count) "." counter(h3-count) " " !important;' in css
+    assert 'content: "Figure A." !important;' in css
+    assert 'content: "Table A." !important;' in css
