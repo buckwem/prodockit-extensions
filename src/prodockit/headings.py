@@ -53,6 +53,11 @@ class HeadingsTreeprocessor(Treeprocessor):
     heading with an ``unnumbered`` class (e.g. via ``# Title {: .unnumbered
     }``) is still given an id but excluded from numbering - its counter
     position is skipped entirely - so its registered ``number`` is ``None``.
+    A shallower level with no heading of its own yet (a skipped level, a
+    document starting below h1, or a numbered heading nested directly under
+    an ``unnumbered`` one) is treated as an implicit first one rather than
+    left at 0 - e.g. h1 followed directly by h3 (no h2) numbers the h3
+    "1.1.1", not "1.0.1".
 
     With ``start_count`` set (see ``HeadingsExtension``'s ``numbering``
     config), h1 numbering continues from that value instead of starting at
@@ -100,6 +105,19 @@ class HeadingsTreeprocessor(Treeprocessor):
             if "unnumbered" in classes:
                 number = None
             else:
+                # A shallower level that's never actually appeared yet (the
+                # document skipped straight from h1 to h3, started below
+                # h1, or nested this heading under an .unnumbered one) is
+                # backfilled to 1 rather than left at 0 - otherwise the
+                # number below would show a literal "0" segment (e.g.
+                # "1.0.1"), which is worse than treating the missing level
+                # as an implicit first one. Doesn't touch start_count
+                # itself when it's already non-zero (continuous numbering
+                # legitimately seeding this page's h1 counter from earlier
+                # pages) since that's not a gap to fill.
+                for shallower in range(level - 1):
+                    if counters[shallower] == 0:
+                        counters[shallower] = 1
                 counters[level - 1] += 1
                 for deeper in range(level, 6):
                     counters[deeper] = 0
