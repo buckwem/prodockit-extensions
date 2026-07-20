@@ -182,6 +182,49 @@ def test_fenced_code_block_does_protect_the_code_styled_syntax() -> None:
     assert "<code" in html
 
 
+def test_pymdownx_inlinehilite_also_fails_to_protect_inline_backticks() -> None:
+    """Regression test for a real bug found by checking the live site:
+    `pymdownx.inlinehilite` (this project's own zensical.toml config, and
+    almost certainly any real Zensical project's) replaces Python-
+    Markdown's plain `backtick` inline pattern with its own - same
+    priority and registry name, but a different regex/implementation.
+    Confirmed directly this makes no difference to the *documented*
+    limitation (inline backticks around the code-styled syntax still
+    don't protect it), but the exact same real sentence that worked fine
+    under bare Python-Markdown alone (see
+    test_inline_backticks_do_not_protect_the_code_styled_syntax) leaks a
+    raw internal stash placeholder here instead of wrapping cleanly in an
+    outer <code> - a worse, not just different, failure mode. This is
+    exactly what actually reached the live site: docs/extensions/
+    index-terms.md showed this syntax with inline backticks, and Zensical
+    always has `pymdownx.inlinehilite` enabled.
+    """
+    md = markdown.Markdown(extensions=[IndexExtension(), "pymdownx.inlinehilite"])
+    html = md.convert(
+        "Combine this with sub-entries by putting the backticks "
+        r"around just the last segment - `\index{Git!`git commit`}` nests a "
+        r"code-styled `git commit` entry under a plain `Git` one."
+    )
+    assert "klzzwxh" in html  # confirmed real failure mode - see docstring
+
+
+def test_fenced_code_block_protects_the_syntax_even_under_pymdownx_inlinehilite() -> None:
+    """The actual fix for the regression above: showing this syntax in a
+    fenced code block (pymdownx.superfences, matching this project's own
+    zensical.toml) - not inline backticks - stays safe even with
+    pymdownx.inlinehilite active, since a fence is stashed at the block-
+    parsing stage, before any inline pattern (backtick, inlinehilite, or
+    this module's own) ever runs. Confirmed directly against the same
+    combination of extensions the real docs site actually configures."""
+    md = markdown.Markdown(
+        extensions=[IndexExtension(), "pymdownx.inlinehilite", "pymdownx.superfences"]
+    )
+    html = md.convert("```md\n\\index{Git!`git commit`}\n```")
+    assert "klzzwxh" not in html
+    assert '<span class="index"' not in html
+    assert "<code" in html
+
+
 def test_plain_index_still_works_alongside_the_code_pattern() -> None:
     html = _convert(r"A \index{widget} and a \index{`git commit`} in one line.")
     assert '<span class="index">widget</span>' in html

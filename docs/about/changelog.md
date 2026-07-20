@@ -10,10 +10,10 @@
   the way it does for the plain syntax - the code-styled pattern has to
   run before Python-Markdown's own backtick handling (see 0.6.0's own
   entry below), so inline backticks don't protect it, and the live site
-  was rendering a raw internal Python-Markdown stash placeholder
-  (`klzzwxh:00NN`) instead of the intended literal text. Moved each one
-  to a fenced code block (already documented as the safe way to show this
-  syntax) or reworded to avoid the literal example entirely.
+  was rendering a raw internal Python-Markdown placeholder string instead
+  of the intended literal text. Moved each one to a fenced code block
+  (already documented as the safe way to show this syntax) or reworded to
+  avoid the literal example entirely.
 - No functional changes.
 
 ## 0.6.1 (2026-07-20)
