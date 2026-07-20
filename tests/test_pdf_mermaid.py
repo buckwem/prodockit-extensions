@@ -42,6 +42,20 @@ def test_returns_none_when_mmdc_exits_nonzero(tmp_path: Path) -> None:
     assert result is None
 
 
+def test_returns_none_when_mmdc_binary_is_not_executable(tmp_path: Path) -> None:
+    """Regression test: mmdc_bin existing but not being executable (e.g.
+    permission bits, or a directory mistakenly configured as the binary
+    path) makes subprocess.run raise PermissionError/OSError directly,
+    not CalledProcessError - previously uncaught, contradicting this
+    module's own "one bad diagram can't fail an entire build" promise."""
+    output_dir = tmp_path / "out"
+    non_executable_bin = tmp_path / "mmdc"
+    non_executable_bin.write_text("#!/bin/sh\necho not executable\n", encoding="utf-8")
+    non_executable_bin.chmod(0o644)
+    result = render_mermaid_diagram("graph TD; A-->B;", str(non_executable_bin), str(output_dir), 1)
+    assert result is None
+
+
 def test_returns_none_on_timeout(tmp_path: Path) -> None:
     output_dir = tmp_path / "out"
     mmdc_bin = _fake_mmdc(tmp_path, "sleep 2")
