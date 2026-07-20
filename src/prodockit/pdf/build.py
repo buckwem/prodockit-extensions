@@ -112,6 +112,7 @@ def build_pdf(
     index_title: str = "Index",
     work_dir: str | None = None,
     keep_work_dir: bool = False,
+    pandoc_timeout: int | None = 1800,
 ) -> None:
     """Builds a complete PDF from `pages` and writes it to `output_path`
     (e.g. `"dist/report.pdf"`, `"build/output/handbook.pdf"` - any path,
@@ -219,6 +220,13 @@ def build_pdf(
     can't usefully be inspected afterwards) - handy for debugging exactly
     what Pandoc/WeasyPrint received, e.g. when the generated PDF looks wrong
     but the build didn't fail outright.
+
+    `pandoc_timeout` (default 1800 seconds/30 minutes - generous for any
+    real document, however large) bounds each `pandoc`/WeasyPrint
+    invocation, raising `PdfBuildError` instead of hanging indefinitely
+    on a pathological CSS layout or similar. Pass `None` to disable the
+    timeout entirely for an exceptionally large build that genuinely
+    needs longer.
     """
     use_temp_dir = work_dir is None
     resolved_work_dir: str = (
@@ -348,7 +356,15 @@ def build_pdf(
             f"--css={compiled_css_path}",
         ]
         def run_pandoc(pass_label: str) -> None:
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            try:
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=pandoc_timeout
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise PdfBuildError(
+                    f"pandoc timed out after {pandoc_timeout}s building "
+                    f"{output_path!r} ({pass_label})"
+                ) from exc
             if result.returncode != 0:
                 raise PdfBuildError(
                     f"pandoc exited with status {result.returncode} "
