@@ -41,7 +41,15 @@ def _find_mmdc_bin(configured: str | None) -> str | None:
     `configured` path if given and it exists, else whatever `mmdc` is found
     on `PATH`, else a couple of common local-install locations, else None
     (Mermaid diagrams are then left unrendered rather than failing the
-    whole build)."""
+    whole build).
+
+    A relative `configured` path resolves against the current working
+    directory, not wherever the `zensical.toml` it came from lives - fine
+    for the common case of running `prodockit pdf` from the project root
+    (the same directory both `configured` and `config_path` are typically
+    relative to), but a `-f`/`--config-file` pointing at a project in a
+    different directory needs an absolute `pdf_mmdc_bin` instead.
+    """
     if configured and os.path.exists(configured):
         return configured
     found = shutil.which("mmdc")
@@ -61,7 +69,8 @@ def _find_tex2svg_script(configured: str | None) -> str | None:
     pre-rendering: an explicit `configured` path if given and it exists,
     else a common local-install location, else None (math formulas are
     then left as literal, unrendered text rather than failing the whole
-    build)."""
+    build). Same CWD-relative caveat for a relative `configured` path as
+    `_find_mmdc_bin` above."""
     if configured and os.path.exists(configured):
         return os.path.abspath(configured)
     candidate = os.path.join("tools", "mathjax", "tex2svg.js")
