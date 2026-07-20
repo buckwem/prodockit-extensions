@@ -63,6 +63,16 @@ def test_cross_page_reference_resolves_under_zensical() -> None:
     assert '<a class="prodockit-ref" href="intro.md#introduction">1</a>' in html
 
 
+def test_cross_page_reference_from_nested_page_uses_relative_path() -> None:
+    """Regression test: a top-level record_source ("intro.md") isn't a
+    valid link as-is from a page nested in a subdirectory - it needs the
+    same "../" prefix a hand-typed relative link between the same two
+    pages would need (see the equivalent test for prodockit.citations)."""
+    _convert_as_zensical_page("# Introduction\n", "intro.md")
+    html = _convert_as_zensical_page("See \\ref{introduction}.\n", "starthere/usage.md")
+    assert '<a class="prodockit-ref" href="../intro.md#introduction">1</a>' in html
+
+
 def test_each_page_gets_its_own_source_automatically() -> None:
     """Without explicit source= config (impossible to vary per page via
     zensical.toml alone), each page must still be scoped independently -
@@ -371,6 +381,21 @@ def test_cross_page_gls_resolves_under_zensical() -> None:
     # A real cross-page link (acronyms.md#css), not a bare same-page
     # fragment - the latter would 404 on the actual website.
     assert '<a class="prodockit-gls" href="acronyms.md#css">CSS</a>' in html
+
+
+def test_cross_page_gls_from_nested_page_uses_relative_path() -> None:
+    """Regression test: a top-level record_source ("acronyms.md") isn't a
+    valid link as-is from a page nested in a subdirectory - it needs the
+    same "../" prefix a hand-typed relative link between the same two
+    pages would need (see the equivalent test for prodockit.citations)."""
+    _convert_as_zensical_page_with_glossary(
+        '**CSS** - Cascading Style Sheets.\n{: #css data-term="CSS" }\n',
+        "acronyms.md",
+    )
+    html = _convert_as_zensical_page_with_glossary(
+        "This uses \\gls{css}.\n", "starthere/customise.md"
+    )
+    assert '<a class="prodockit-gls" href="../acronyms.md#css">CSS</a>' in html
 
 
 def test_gls_forward_reference_resolves_via_nav_preseed(
