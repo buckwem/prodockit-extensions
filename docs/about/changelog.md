@@ -1,5 +1,16 @@
 # Release Notes
 
+## 0.6.1 (2026-07-20)
+
+- Docs: `prodockit.index` (new in 0.6.0) was missing from `README.md` -
+  and so from PyPI's own project page - entirely: added it to the
+  "Status" line and the extensions table, and mentioned
+  `pdf_include_index` alongside `prodockit.pdf`'s other PDF-only
+  features. Also added it to `pyproject.toml`'s own `description` (PyPI's
+  summary line) and `src/prodockit/__init__.py`'s module docstring, both
+  of which had the same gap.
+- No functional changes.
+
 ## 0.6.0 (2026-07-20)
 
 - New `prodockit.index` extension: mark a term inline with `\index{Term}`
