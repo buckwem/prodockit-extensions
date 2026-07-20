@@ -317,3 +317,44 @@ def test_source_bundle_is_not_built_for_a_markdown_file_scoped_build(
     build_pdf_from_zensical_config(str(root / "zensical.toml"), markdown_file="chapter1.md")
 
     assert captured["called"] is False
+
+
+def test_include_index_defaults_off(project, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = project()
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["include_index"] = kwargs["include_index"]
+        captured["index_title"] = kwargs["index_title"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["include_index"] is False
+    assert captured["index_title"] == "Index"
+
+
+def test_include_index_reads_from_extra_and_a_custom_title(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(
+        extra=(
+            "\n[project.extra]\npdf_include_index = true\n"
+            'pdf_index_title = "Glossary of Terms"\n'
+        )
+    )
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["include_index"] = kwargs["include_index"]
+        captured["index_title"] = kwargs["index_title"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["include_index"] is True
+    assert captured["index_title"] == "Glossary of Terms"

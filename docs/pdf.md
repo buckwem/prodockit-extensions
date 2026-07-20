@@ -19,6 +19,12 @@ pip install weasyprint
 then follow [Pandoc's own install instructions](https://pandoc.org/installing.html)
 for your platform (e.g. `brew install pandoc` on macOS).
 
+[Back-of-book indexes](#back-of-book-index) additionally need
+[`pymupdf`](https://pymupdf.readthedocs.io/) - `pip install prodockit[index]`
+(or plain `pip install pymupdf`) - but only if you actually turn
+`pdf_include_index` on; every other feature on this page needs nothing
+beyond Pandoc/WeasyPrint above.
+
 ## Quick start
 
 From your project root (wherever `zensical.toml` lives):
@@ -82,6 +88,8 @@ lives under `[project.extra]`, all optional:
 | `reference_style` | `"european"` | `"european"` (tight, single-line citation entries) or `"global"` (double-spaced, hanging indent - the common APA/MLA/Chicago style). |
 | `pdf_include_table_of_contents` | `true` | Whether to generate and insert a table of contents. |
 | `pdf_table_of_contents_title` | `"Table of Contents"` | That page's own heading text. |
+| `pdf_include_index` | `false` | A back-of-book index from every `\index{Term}` marker - see [Back-of-book index](#back-of-book-index). Requires the optional `pymupdf` dependency. |
+| `pdf_index_title` | `"Index"` | That page's own heading text. |
 | `pdf_mmdc_bin` | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found. |
 | `pdf_tex2svg_script` / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found. |
 | `pdf_source_bundle` | `false` | Bundle this repository's own source code into a separate `source_bundle.pdf` - see [Bundling source code into a PDF](#bundling-source-code-into-a-pdf). Only runs for a full, nav-driven build - never for a `--markdown-file`-scoped one. |
@@ -259,7 +267,107 @@ Scripting this outside `prodockit pdf` (e.g. from a different build
 tool)? See [`prodockit.pdf.source_bundle`](#prodockitpdfsource_bundle)
 below.
 
-## Reference
+### Back-of-book index
+
+Set `pdf_include_index = true` under `[project.extra]` for a traditional,
+two-column back-of-book index - terms grouped under a bold letter
+heading (A, B, C, ...), each followed by the page number(s) it appears
+on - appended as its own page(s) at the very end of the document.
+PDF-only: there's no equivalent on the live website, where readers use
+browser/Ctrl-F search instead. Requires the optional `pymupdf`
+dependency - see [Requirements](#requirements) above.
+
+Mark a term inline, wherever it's actually discussed, with the new
+`prodockit.index` extension's own `\index{Term}` syntax (enable it in
+`zensical.toml` first: `[project.markdown_extensions."prodockit.index"]`
+- see [Index terms](extensions/index-terms.md) for why this needed a
+real extension rather than `attr_list`):
+
+```md
+A \index{widget} is the basic unit of work.
+
+Later, this \index{widget} gets combined with a \index{gadget}.
+```
+
+renders to an index page like:
+
+```text
+Index
+
+G
+Gadget, 3
+
+W
+Widget, 1, 3
+```
+
+The same term marked more than once merges into one entry (case-
+insensitively - "Widget" and "widget" become one "Widget" entry, keeping
+whichever casing was used first; "widgets" is still a separate entry
+from "widget" - no plural/singular normalisation), with its own page
+list deduplicated and sorted. Consecutive pages collapse into an en-dash
+range (`67–70`) rather than listing every page individually; non-
+consecutive pages/ranges are comma-separated (`64, 175`) - standard
+back-of-book index convention.
+
+A term is alphabetised (and letter-grouped) ignoring any leading
+punctuation - `--set-upstream option (git push)` and `-u option (git
+branch)` are filed under **S** and **U** respectively (matching where
+"set-upstream"/"u" itself would sort), not lumped into a separate
+"symbols" section, the same way a technical book's own index treats
+command-line options.
+
+Nest a term under another with `\index{Parent!Child!Grandchild}` (up to
+three levels deep in practice) - see
+[Sub-entries](extensions/index-terms.md#sub-entries) - for entries closely
+related enough to group together rather than list flat, e.g.:
+
+```md
+Now generate the \index{Git!ssh keys} to use for authentication.
+```
+
+renders a nested entry like:
+
+```text
+G
+
+Git
+    ssh keys, 13, 89
+```
+
+A parent with no marker of its own anywhere (like `Git` above) still gets
+its own line - a bare category label with no trailing page list - so its
+children have somewhere to nest under.
+
+Wrap the last segment in backticks - `` \index{`git commit`} `` (or,
+combined with the above, `` \index{Git!`git commit`} ``) - for a command
+or other code term: it displays inline in a real `<code>` element, and
+the generated index entry renders the same way, e.g.:
+
+```text
+G
+
+Git
+    git commit, 13, 89
+```
+
+(with `git commit` in your document's own monospace font, matching how
+it already displays inline). See
+[Code-styled terms](extensions/index-terms.md#code-styled-terms) for the
+full syntax.
+
+This is the one feature in `prodockit.pdf` that genuinely needs a
+two-pass build: a term's own page number can only be known once
+WeasyPrint has already laid the whole PDF out once - confirmed directly,
+before settling on this design, that CSS's own `target-counter()`
+*can* resolve a page number in a single pass, but can't deduplicate two
+markers that land on the same page (nothing on the Python side can know
+that without already knowing the layout) - accepted as a real limitation
+and not used here, in favour of a genuinely clean, deduplicated index.
+See [`prodockit.pdf.index`](#prodockitpdfindex) below for exactly how the
+two passes work, if you're scripting your own build pipeline.
+
+
 
 ### Python API
 
@@ -629,6 +737,47 @@ renders, handy when the output looks wrong. Raises
 `prodockit.pdf.source_bundle.SourceBundleError` (the underlying `git`/
 `weasyprint` exit code and stderr attached, where applicable) if either
 invocation fails.
+
+#### `prodockit.pdf.index`
+
+```python
+mark_index_terms(html: str) -> tuple[str, list[str], list[bool]]
+extract_term_pages(pdf_path: str, occurrence_count: int) -> dict[int, int | None]
+build_index_entries(
+    terms: list[str],
+    occurrence_pages: dict[int, int | None],
+    code_flags: list[bool] | None = None,
+) -> dict[str, IndexEntry]
+render_index_content(entries: dict[str, IndexEntry], level: int = 1) -> str
+format_pages(pages: list[int]) -> str
+```
+
+The three main pieces `build_pdf()`'s own `include_index` calls, in
+order, for its two-pass build - see
+[Back-of-book index](#back-of-book-index) above for the feature itself,
+and this module's own docstring for why a real two-pass build (rather
+than CSS's own `target-counter()`) is what backs it. `mark_index_terms()`
+finds every `[prodockit.index](extensions/index-terms.md)`
+`<span class="index">` and inserts a unique, near-invisible text marker
+after each occurrence, returning the terms found in order - a flat
+`"Term"` or, for a hierarchical `\index{Parent!Child}`, `"Parent!Child"` -
+alongside whether each one was a code-styled `` \index{`Term`} `` (see
+[Code-styled terms](extensions/index-terms.md#code-styled-terms)).
+`extract_term_pages()` needs the optional `pymupdf` dependency (only
+imported here, so only required if you actually call this function) -
+raises a plain `ModuleNotFoundError` with a clear install message if it
+isn't installed. `build_index_entries()` builds `mark_index_terms()`'s
+flat/hierarchical paths (plus its own `code_flags`) into a nested tree of
+`IndexEntry(display: str, pages: list[int], children: dict[str,
+IndexEntry], code: bool = False)` nodes, alphabetised ignoring leading
+punctuation (see [Back-of-book index](#back-of-book-index) above).
+`render_index_content()` walks that tree, grouping top-level entries
+under a bold letter heading per first letter (`build_css()`'s own
+compiled CSS lays the whole thing out in two columns), indenting each
+deeper level, and wrapping a code-styled entry's own text in `<code>` -
+matching a traditional printed book's own back-of-book index - using
+`format_pages()` to collapse each entry's own consecutive pages into
+en-dash ranges.
 
 ## Limitations and workarounds
 

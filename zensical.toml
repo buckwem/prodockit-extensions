@@ -32,6 +32,7 @@ nav = [
     {"Acronyms and Glossary" = "extensions/glossary.md"},
     {"Tables" = "extensions/tables.md"},
     {"Bibliography" = "extensions/bibliography.md"},
+    {"Index terms" = "extensions/index-terms.md"},
   ]},
   {"PDF generation" = "pdf.md"},
   {"Website macros" = "macros.md"},
@@ -109,6 +110,7 @@ permalink = true
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.md_in_html]
 [project.markdown_extensions."prodockit.tables"]
+[project.markdown_extensions."prodockit.index"]
 [project.markdown_extensions.pymdownx.emoji]
 emoji_index = "zensical.extensions.emoji.twemoji"
 emoji_generator = "zensical.extensions.emoji.to_svg"

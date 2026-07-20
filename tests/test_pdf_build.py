@@ -3,6 +3,7 @@
 
 import os
 import stat
+import sys
 from pathlib import Path
 
 import pytest
@@ -313,3 +314,182 @@ def test_double_sided_flag_is_passed_through_to_rotate_landscape_pages(
         double_sided=True,
     )
     assert captured == {"path": str(output_path), "double_sided": True}
+
+
+# ---------------------------------------------------------------------------
+# Back-of-book index (include_index) - see prodockit.pdf.index for the
+# module doing the actual work; these tests exercise build_pdf()'s own
+# two-pass orchestration around it.
+# ---------------------------------------------------------------------------
+
+pymupdf = pytest.importorskip("pymupdf")
+
+
+def _fake_pandoc_building_a_real_pdf(tmp_path: Path) -> str:
+    """Writes a fake `pandoc` (a shell script) that - unlike the plain
+    "%PDF-1.4 stub" text file every other test here uses - builds a real,
+    two-page PDF via pymupdf's own `insert_htmlbox()` (confirmed directly
+    to support the non-ASCII bracket markers mark_index_terms() inserts,
+    unlike its simpler insert_text()), with one marker on page 1 and two
+    on page 2 - so build_pdf()'s own extract_term_pages() call has a real,
+    searchable PDF to inspect after the first pass. Returns the script's
+    own text, for the caller to pass to fake_pandoc_on_path."""
+    helper_path = tmp_path / "_build_fake_pdf.py"
+    helper_path.write_text(
+        "import sys\n"
+        "import pymupdf\n"
+        "doc = pymupdf.open()\n"
+        "p1 = doc.new_page()\n"
+        "p1.insert_htmlbox(pymupdf.Rect(20, 20, 500, 200), "
+        "'chapter one \\u27e6prodockit-index-1\\u27e7 text')\n"
+        "p2 = doc.new_page()\n"
+        "p2.insert_htmlbox(pymupdf.Rect(20, 20, 500, 200), "
+        "'chapter two \\u27e6prodockit-index-2\\u27e7 and "
+        "\\u27e6prodockit-index-3\\u27e7 text')\n"
+        "doc.save(sys.argv[1])\n",
+        encoding="utf-8",
+    )
+    return f'{sys.executable} "{helper_path}" "$3"\necho invoked >> "{tmp_path}/invocations.txt"\n'
+
+
+def test_include_index_runs_a_second_pandoc_pass_with_real_entries(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
+    work_dir = tmp_path / "work"
+
+    build_pdf(
+        [
+            Page(docs_rel_path="chapter1.md", html='<span class="index">Widget</span>'),
+            Page(
+                docs_rel_path="chapter2.md",
+                html=(
+                    '<span class="index">widget</span>'
+                    '<span class="index">Gadget</span>'
+                ),
+            ),
+        ],
+        str(tmp_path / "out.pdf"),
+        include_index=True,
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    invocations = (tmp_path / "invocations.txt").read_text(encoding="utf-8").splitlines()
+    assert len(invocations) == 2  # first pass (extraction) + second (real content)
+
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+    assert '<div class="prodockit-index-entry prodockit-index-level-1">Gadget, 2</div>' in compiled
+    # Pages 1 and 2 are consecutive - format_pages() collapses them into a
+    # single en-dash range rather than "1, 2".
+    assert '<div class="prodockit-index-entry prodockit-index-level-1">Widget, 1–2</div>' in compiled
+    assert 'id="prodockit-index-content"' in compiled
+
+
+def test_include_index_renders_a_code_styled_entry_in_code_tags(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
+    work_dir = tmp_path / "work"
+
+    build_pdf(
+        [
+            Page(
+                docs_rel_path="chapter1.md",
+                html=(
+                    '<span class="index" data-index-code="true" '
+                    'data-index-term="git commit"><code>git commit</code></span>'
+                ),
+            ),
+        ],
+        str(tmp_path / "out.pdf"),
+        include_index=True,
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+    assert (
+        '<div class="prodockit-index-entry prodockit-index-level-1">'
+        "<code>git commit</code>, 1</div>" in compiled
+    )
+
+
+def test_include_index_renders_a_hierarchical_entry_nested_under_its_parent(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    """Same real two-pass build as the flat/code-styled cases above, but
+    for a hierarchical \\index{Parent!Child} marker - confirmed directly
+    build.py's own index_terms/index_code_flags threading produces a real
+    nested <div> pair through the whole pipeline, not just at the
+    build_index_entries()/render_index_content() unit level."""
+    fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
+    work_dir = tmp_path / "work"
+
+    build_pdf(
+        [
+            Page(
+                docs_rel_path="chapter1.md",
+                html='<span class="index" data-index-term="Git!ssh keys">ssh keys</span>',
+            ),
+        ],
+        str(tmp_path / "out.pdf"),
+        include_index=True,
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+    # "Git" is a pure grouping node here - no page of its own, no trailing
+    # page list - since this is the only occurrence and it's a child path.
+    assert '<div class="prodockit-index-entry prodockit-index-level-1">Git</div>' in compiled
+    assert (
+        '<div class="prodockit-index-entry prodockit-index-level-2">ssh keys, 1</div>'
+        in compiled
+    )
+
+
+def test_include_index_off_by_default_runs_only_one_pandoc_pass(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
+
+    build_pdf(
+        [Page(docs_rel_path="chapter1.md", html='<span class="index">Widget</span>')],
+        str(tmp_path / "out.pdf"),
+    )
+
+    invocations = (tmp_path / "invocations.txt").read_text(encoding="utf-8").splitlines()
+    assert len(invocations) == 1
+
+
+def test_include_index_with_no_marked_terms_skips_the_second_pass(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
+
+    build_pdf(
+        [Page(docs_rel_path="chapter1.md", html="<p>No index terms here.</p>")],
+        str(tmp_path / "out.pdf"),
+        include_index=True,
+    )
+
+    invocations = (tmp_path / "invocations.txt").read_text(encoding="utf-8").splitlines()
+    assert len(invocations) == 1
+
+
+def test_include_index_custom_title(tmp_path: Path, fake_pandoc_on_path) -> None:
+    fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
+    work_dir = tmp_path / "work"
+
+    build_pdf(
+        [Page(docs_rel_path="chapter1.md", html='<span class="index">Widget</span>')],
+        str(tmp_path / "out.pdf"),
+        include_index=True,
+        index_title="Glossary of Terms",
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+    assert ">Glossary of Terms<" in compiled
