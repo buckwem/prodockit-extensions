@@ -657,7 +657,14 @@ img.twemoji, i.fa-solid, i.fa-regular, i.fa-brands, i.material-icons, i[class*="
     column-rule: 0.5pt solid #e2e8f0 !important;
 }
 h2.prodockit-index-letter {
-    color: #b7410e !important;
+    /* Matches prodockit-template/prodockit-userguide's own shared cover
+       page hero graphic (docs/assets/cover-hero-light.svg) - its
+       innermost, most saturated ring's own stroke colour. The light
+       variant, not the dark one (a different, green-based gradient) -
+       confirmed directly against a real rendered PDF that it's always the
+       light hero graphic that shows there, regardless of a project's own
+       website light/dark toggle. */
+    color: #1e3a8a !important;
     font-size: 14pt !important;
     font-weight: bold !important;
     /* Generous top margin - clear air setting each new letter section

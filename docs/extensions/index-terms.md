@@ -112,6 +112,43 @@ code-styled `git commit` entry under a plain `Git` one.
     example on this page already uses) still works, since it's stashed
     before any inline pattern - this one included - ever runs.
 
+## Linked terms
+
+A term can be a markdown link - the same "not exempted from later inline
+passes" behaviour that lets `\index{*emphasised*}` work also resolves a
+link, rather than leaving `[Text](url)` as literal text:
+
+=== "Markdown"
+
+    ```md
+    \index{[Git](https://git-scm.com/)} is a version control system.
+    ```
+
+=== "Result"
+
+    \index{[Git](https://git-scm.com/)} is a version control system.
+
+`prodockit.pdf.index`'s own `mark_index_terms()` still extracts the
+plain "Git" text correctly either way - it already strips a nested
+`<code>`/`<em>` the same way, via BeautifulSoup's `get_text()`.
+
+!!! warning "`attr_list` (`{target="_blank"}`) doesn't combine cleanly"
+    This project's own convention for an external link -
+    `` [Git](https://git-scm.com/){target="_blank"} `` - doesn't work
+    wrapped in `\index{}`: `attr_list` attaches the attribute to
+    whichever element comes immediately before it, which after
+    `\index{}` processes is the *outer* `<span class="index">`, not the
+    link itself - a `target` on a `<span>` does nothing, silently losing
+    the "open in a new tab" behaviour. Putting the attribute *inside* the
+    `\index{}` call doesn't work either, since its own `{`/`}` braces
+    confuse `\index{}`'s own regex, which stops at the first `}` it
+    finds. If you need `target="_blank"` on a linked term, use a raw
+    inline `<a>` tag instead, which needs no `attr_list` at all:
+
+    ```md
+    \index{<a href="https://git-scm.com/" target="_blank">Git</a>} is a version control system.
+    ```
+
 ## CSS hooks
 
 A flat `\index{Term}` renders as `<span class="index">Term</span>` - no

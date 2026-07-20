@@ -96,6 +96,16 @@ def test_mark_index_terms_reads_the_code_flag() -> None:
     assert code_flags == [True, False]
 
 
+def test_mark_index_terms_extracts_plain_text_from_a_term_containing_a_link() -> None:
+    """A markdown link inside \\index{} (see prodockit.index) resolves to a
+    real <a> - get_text() (the fallback for a flat term with no
+    data-index-term attribute) already strips it correctly, the same way
+    it already strips <em>/<code>."""
+    html = '<span class="index"><a href="https://git-scm.com/">Git</a></span>'
+    _, terms, _code_flags = mark_index_terms(html)
+    assert terms == ["Git"]
+
+
 # ---------------------------------------------------------------------------
 # extract_term_pages
 # ---------------------------------------------------------------------------

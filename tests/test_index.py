@@ -44,6 +44,17 @@ def test_term_text_still_gets_normal_inline_markdown_processing() -> None:
     assert '<span class="index"><em>widget</em></span>' in html
 
 
+def test_term_can_be_a_markdown_link() -> None:
+    """Same reasoning as the nested-emphasis case above - a term isn't
+    exempted from later inline-pattern passes, so a markdown link inside
+    \\index{} resolves to a real <a>, not literal `[Text](url)` text.
+    prodockit.pdf.index's own mark_index_terms() still extracts the plain
+    term text correctly via BeautifulSoup's get_text(), which strips the
+    nested <a> tag the same way it already strips <em>/<code>."""
+    html = _convert(r"\index{[Git](https://git-scm.com/)} is a version control system.")
+    assert '<span class="index"><a href="https://git-scm.com/">Git</a></span>' in html
+
+
 def test_literal_backslash_index_in_a_code_span_is_left_untouched() -> None:
     html = _convert(r"Use `\index{Term}` to mark a term.")
     assert "<code>" in html
