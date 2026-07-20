@@ -24,6 +24,24 @@ def test_math_dir_and_tex2svg_script_paths_are_embedded_literally() -> None:
     assert 'local tex2svg_script = "/some/tex2svg.js"' in lua
 
 
+def test_math_dir_and_tex2svg_script_paths_with_a_quote_are_escaped() -> None:
+    """Regression test: math_dir/tex2svg_script used to be interpolated
+    into the Lua string literal with no escaping at all - a path
+    containing a literal `"` produced syntactically broken Lua, only
+    discoverable at real `pandoc` runtime."""
+    lua = build_lua_filter(True, True, '/some/weird"dir', '/some/tex2svg"script.js')
+    assert 'local math_dir = "/some/weird\\"dir"' in lua
+    assert 'local tex2svg_script = "/some/tex2svg\\"script.js"' in lua
+
+
+def test_math_dir_and_tex2svg_script_paths_with_a_backslash_are_escaped() -> None:
+    """Same as the quote-escaping regression above, for an unescaped
+    backslash (e.g. a Windows-style path passed through as-is)."""
+    lua = build_lua_filter(True, True, "C:\\math", "C:\\tex2svg.js")
+    assert 'local math_dir = "C:\\\\math"' in lua
+    assert 'local tex2svg_script = "C:\\\\tex2svg.js"' in lua
+
+
 def test_every_expected_lua_filter_function_is_present() -> None:
     lua = build_lua_filter(True, True, "/tmp/math", "/tmp/tex2svg.js")
     for fn in ("function Div(", "function Span(", "function Figure(", "function Header(", "function Math(", "function Pandoc("):

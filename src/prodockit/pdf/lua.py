@@ -29,6 +29,17 @@ for a PDF once Pandoc has parsed it into its own AST - not something
 from __future__ import annotations
 
 
+def _lua_string_escape(text: str) -> str:
+    """Escapes `text` for embedding inside a double-quoted Lua string
+    literal - just backslash and double-quote (the same two characters a
+    C-like string literal needs), enough for a filesystem path. Without
+    this, a `math_dir`/`tex2svg_script` path containing either character
+    (a literal `"` in a directory name, or an unescaped `\\` from a
+    Windows-style path passed through as-is) would produce syntactically
+    broken Lua, only discovered at real `pandoc` runtime."""
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def build_lua_filter(
     heading_numbering_enabled: bool,
     mathjax_available: bool,
@@ -59,8 +70,8 @@ def build_lua_filter(
         "  return string.char(64 + n)\n"
         "end\n\n"
         f"local mathjax_available = {mathjax_available_lua}\n"
-        f"local math_dir = \"{math_dir}\"\n"
-        f"local tex2svg_script = \"{tex2svg_script}\"\n"
+        f"local math_dir = \"{_lua_string_escape(math_dir)}\"\n"
+        f"local tex2svg_script = \"{_lua_string_escape(tex2svg_script)}\"\n"
         "local math_counter = 0\n\n"
         "function Div(el)\n"
         "  if el.classes:includes('tabbox') then\n"
