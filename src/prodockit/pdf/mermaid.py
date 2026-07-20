@@ -90,7 +90,7 @@ def render_mermaid_diagram(
             text=True,
             timeout=timeout,
         )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
         detail = getattr(e, "stderr", None) or str(e)
         print(f"⚠️  Mermaid render failed for diagram {index}: {detail}")
         return None
