@@ -61,6 +61,21 @@ def test_raises_pdf_build_error_when_pandoc_fails(tmp_path: Path, fake_pandoc_on
     assert "boom" in (exc_info.value.stderr or "")
 
 
+def test_raises_pdf_build_error_when_pandoc_hangs_past_the_timeout(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    """Regression test: run_pandoc() had no timeout= at all, so a hung
+    pandoc/WeasyPrint invocation (e.g. a pathological CSS layout) used to
+    block the whole build indefinitely with no way to recover."""
+    fake_pandoc_on_path("sleep 5")
+    with pytest.raises(PdfBuildError, match="timed out"):
+        build_pdf(
+            [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+            str(tmp_path / "out.pdf"),
+            pandoc_timeout=1,
+        )
+
+
 def test_rotates_landscape_pages_after_a_successful_build(
     tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
