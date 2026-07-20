@@ -1,5 +1,21 @@
 # Release Notes
 
+## 0.6.2 (2026-07-20)
+
+- Docs: fixed a real bug found by checking the live site after 0.6.1 -
+  four spots in `docs/extensions/index-terms.md`/`docs/pdf.md` (plus two
+  more in this same changelog) tried to show the code-styled `\index{}`
+  syntax as literal example text using *inline* backticks around a
+  hierarchical, code-styled path. Confirmed directly this doesn't work
+  the way it does for the plain syntax - the code-styled pattern has to
+  run before Python-Markdown's own backtick handling (see 0.6.0's own
+  entry below), so inline backticks don't protect it, and the live site
+  was rendering a raw internal Python-Markdown stash placeholder
+  (`klzzwxh:00NN`) instead of the intended literal text. Moved each one
+  to a fenced code block (already documented as the safe way to show this
+  syntax) or reworded to avoid the literal example entirely.
+- No functional changes.
+
 ## 0.6.1 (2026-07-20)
 
 - Docs: `prodockit.index` (new in 0.6.0) was missing from `README.md` -
@@ -25,11 +41,11 @@
       levels deep in practice, matching LaTeX `makeidx`'s own
       `\index{primary!secondary!tertiary}` convention) nests related
       entries together instead of listing every term flat.
-    - **Code-styled terms**: backticks around the last segment -
-      `` \index{`git commit`} ``, or combined with sub-entries,
-      `` \index{Git!`git commit`} `` - mark a command/code term: it
-      displays inline in a real `<code>` element, and the generated index
-      entry renders the same way.
+    - **Code-styled terms**: backticks around the last segment - or,
+      combined with sub-entries, around just the last segment of a
+      hierarchical path - mark a command/code term: it displays inline in
+      a real `<code>` element, and the generated index entry renders the
+      same way.
     - A term can be a markdown link or contain nested emphasis/code -
       confirmed directly neither needs special handling, since a term
       isn't exempted from Python-Markdown's own later inline-pattern
@@ -44,8 +60,8 @@
   pages collapsed into an en-dash range (`67–70`). Requires the new
   optional `pymupdf` dependency - `pip install prodockit[index]`.
 - Fixed a real bug found while writing tests: code-styling a non-last
-  segment (`` \index{`Git`!commit} `` - never a supported combination,
-  but this shouldn't have corrupted anything either) used to leak a raw
+  segment of a hierarchical term - never a supported combination, but
+  this shouldn't have corrupted anything either - used to leak a raw
   Python-Markdown internal stash placeholder into the generated index
   instead of failing gracefully - a real rendered PDF would have shown a
   nonsense category label instead of "Git".
