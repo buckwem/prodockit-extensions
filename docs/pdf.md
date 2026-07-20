@@ -339,9 +339,15 @@ A parent with no marker of its own anywhere (like `Git` above) still gets
 its own line - a bare category label with no trailing page list - so its
 children have somewhere to nest under.
 
-Wrap the last segment in backticks - `` \index{`git commit`} `` (or,
-combined with the above, `` \index{Git!`git commit`} ``) - for a command
-or other code term: it displays inline in a real `<code>` element, and
+Wrap the last segment in backticks for a command or other code term - or,
+combined with sub-entries, nest it under a parent:
+
+```md
+\index{`git commit`}
+\index{Git!`git commit`}
+```
+
+It displays inline in a real `<code>` element, and
 the generated index entry renders the same way, e.g.:
 
 ```text
@@ -761,8 +767,8 @@ finds every `[prodockit.index](extensions/index-terms.md)`
 `<span class="index">` and inserts a unique, near-invisible text marker
 after each occurrence, returning the terms found in order - a flat
 `"Term"` or, for a hierarchical `\index{Parent!Child}`, `"Parent!Child"` -
-alongside whether each one was a code-styled `` \index{`Term`} `` (see
-[Code-styled terms](extensions/index-terms.md#code-styled-terms)).
+alongside whether each one was a
+[code-styled term](extensions/index-terms.md#code-styled-terms).
 `extract_term_pages()` needs the optional `pymupdf` dependency (only
 imported here, so only required if you actually call this function) -
 raises a plain `ModuleNotFoundError` with a clear install message if it

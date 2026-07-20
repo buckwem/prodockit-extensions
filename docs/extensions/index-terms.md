@@ -99,8 +99,12 @@ the generated index entry renders the same way:
     Run \index{`git commit`} to save your changes.
 
 Combine this with [sub-entries](#sub-entries) by putting the backticks
-around just the last segment - `\index{Git!`git commit`}` nests a
-code-styled `git commit` entry under a plain `Git` one.
+around just the last segment - nesting a code-styled `git commit` entry
+under a plain `Git` one:
+
+```md
+\index{Git!`git commit`}
+```
 
 !!! note "Showing this syntax as literal example text"
     Unlike a plain `\index{Term}` (protected by a real code span, the same
@@ -158,8 +162,8 @@ hierarchical `\index{Parent!Child}` additionally carries the full path on
 data-index-term="Parent!Child">Child</span>`), read by
 `prodockit.pdf.index` to build the nested index - harmless for a
 project's own CSS, which would only ever need to target the shared
-`.index` class either way. A code-styled `` \index{`Term`} `` further
-carries `data-index-code="true"` and wraps its own text in a real
+`.index` class either way. A [code-styled term](#code-styled-terms)
+further carries `data-index-code="true"` and wraps its own text in a real
 `<code>` element (`<span class="index" data-index-code="true"
 data-index-term="Term"><code>Term</code></span>`) - picking up whatever
 `code {}` styling your project already has, on the website and in the
