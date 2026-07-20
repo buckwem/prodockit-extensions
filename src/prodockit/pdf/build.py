@@ -25,6 +25,13 @@ from typing import Any
 
 from prodockit.pdf.css import build_css
 from prodockit.pdf.html import build_page_anchor_map, fix_up_page_html
+from prodockit.pdf.index import (
+    INDEX_CONTENT_ID,
+    build_index_entries,
+    extract_term_pages,
+    mark_index_terms,
+    render_index_content,
+)
 from prodockit.pdf.lua import build_lua_filter
 from prodockit.pdf.rotate import rotate_landscape_pages
 
@@ -101,6 +108,8 @@ def build_pdf(
     tex2svg_script: str = "",
     include_table_of_contents: bool = True,
     table_of_contents_title: str = "Table of Contents",
+    include_index: bool = False,
+    index_title: str = "Index",
     work_dir: str | None = None,
     keep_work_dir: bool = False,
 ) -> None:
@@ -170,6 +179,25 @@ def build_pdf(
     your first real chapter still starts on its own page.
     `table_of_contents_title` is that page's own heading text.
 
+    **Back-of-book index**
+
+    `include_index` (default off) generates a traditional back-of-book
+    index - an alphabetised list of terms with the page number(s) they
+    appear on - from every `\\index{Term}` marker (see `prodockit.index`)
+    anywhere in your own content, and appends it (as its own
+    `index_title`-headed page) at the
+    very end of the document, after everything else. PDF-only by nature -
+    there's no equivalent on a live website, where readers use browser/
+    Ctrl-F search instead - see `prodockit.pdf.index`'s own module
+    docstring for why this needs (and is the only feature in this package
+    that needs) a genuine two-pass build: an index term's own page number
+    can only be known after WeasyPrint has already laid the PDF out once.
+    Requires the optional `pymupdf` dependency (`pip install
+    prodockit[index]`) - only imported (and so only required) if
+    `include_index` is actually on. A no-op, single-pass build as before
+    if no page anywhere uses the `.index` marker at all, even with
+    `include_index` on.
+
     **Sideways tables**
 
     Wrap a table (plus its own caption) in `<div class="prodockit-table-rotated">`
@@ -235,11 +263,39 @@ def build_pdf(
             insert_at = 1 if pages and pages[0].is_index else 0
             fixed_html_parts.insert(insert_at, toc_trigger_html)
 
+        body_html = "\n\n".join(fixed_html_parts)
+
+        # See prodockit.pdf.index's own module docstring for why this needs
+        # a real two-pass build - a marker's own page number can only be
+        # known once WeasyPrint has already laid the whole document out.
+        # index_terms stays empty (no second pass at all) if include_index
+        # is on but nothing anywhere actually used the \index{Term} marker -
+        # nothing to index, so no reason to pay for a second pandoc/
+        # WeasyPrint invocation.
+        index_terms: list[str] = []
+        if include_index:
+            body_html, index_terms = mark_index_terms(body_html)
+            if index_terms:
+                # Always last, after every real page (including any
+                # appendices) - the standard back-of-book position, and
+                # the only one where this section's own content growing
+                # or shrinking can't retroactively shift the page numbers
+                # already recorded for every earlier marker.
+                body_html += (
+                    '<div class="page-break"></div>'
+                    f'<h1 class="unnumbered unlisted">{index_title}</h1>'
+                    f'<div id="{INDEX_CONTENT_ID}"></div>'
+                )
+
         concatenated_html_path = os.path.join(resolved_work_dir, "_prodockit_pdf_compiled.html")
-        with open(concatenated_html_path, "w", encoding="utf-8") as f:
-            f.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>\n")
-            f.write("\n\n".join(fixed_html_parts))
-            f.write("\n</body></html>")
+
+        def write_concatenated_html(body: str) -> None:
+            with open(concatenated_html_path, "w", encoding="utf-8") as f:
+                f.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>\n")
+                f.write(body)
+                f.write("\n</body></html>")
+
+        write_concatenated_html(body_html)
 
         lua_filter_path = os.path.join(resolved_work_dir, "_prodockit_pdf_filter.lua")
         with open(lua_filter_path, "w", encoding="utf-8") as f:
@@ -290,13 +346,31 @@ def build_pdf(
             f"--resource-path={docs_dir}",
             f"--css={compiled_css_path}",
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise PdfBuildError(
-                f"pandoc exited with status {result.returncode} building {output_path!r}",
-                returncode=result.returncode,
-                stderr=result.stderr,
+        def run_pandoc(pass_label: str) -> None:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise PdfBuildError(
+                    f"pandoc exited with status {result.returncode} "
+                    f"building {output_path!r} ({pass_label})",
+                    returncode=result.returncode,
+                    stderr=result.stderr,
+                )
+
+        run_pandoc("first pass" if index_terms else "only pass")
+
+        if index_terms:
+            # output_path is this first pass's own finished PDF at this
+            # point - exactly what extract_term_pages() needs to inspect.
+            occurrence_pages = extract_term_pages(output_path, len(index_terms))
+            entries = build_index_entries(index_terms, occurrence_pages)
+            index_content_html = render_index_content(entries)
+            body_html = body_html.replace(
+                f'<div id="{INDEX_CONTENT_ID}"></div>',
+                f'<div id="{INDEX_CONTENT_ID}">{index_content_html}</div>',
             )
+            write_concatenated_html(body_html)
+            run_pandoc("second pass")
+
         rotate_landscape_pages(output_path, double_sided=double_sided)
     finally:
         if use_temp_dir or not keep_work_dir:

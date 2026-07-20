@@ -108,10 +108,14 @@ def build_pdf_from_zensical_config(
       see `_find_mmdc_bin`/`_find_tex2svg_script` - Mermaid diagrams/math
       formulas are simply left unrendered if neither is found, rather than
       failing the build), `pdf_math_dir`, `pdf_include_table_of_contents`
-      (default `true`), `pdf_table_of_contents_title`, `pdf_source_bundle`
-      (default `false` - see `prodockit.pdf.source_bundle` for what this
-      builds and why it's a separate PDF rather than part of the one
-      above; only runs for a full, nav-driven build, never for a
+      (default `true`), `pdf_table_of_contents_title`, `pdf_include_index`
+      (default `false` - a back-of-book index from every `\\index{Term}`
+      marker (see `prodockit.index`) anywhere in your content; see `build_pdf()`'s own
+      `include_index` docs for why this needs a real two-pass build, and
+      `prodockit.pdf.index` for the module behind it), `pdf_index_title`,
+      `pdf_source_bundle` (default `false` - see `prodockit.pdf.source_bundle`
+      for what this builds and why it's a separate PDF rather than part of
+      the one above; only runs for a full, nav-driven build, never for a
       `markdown_file`-scoped one).
     - `project.extra_css` - your site's own stylesheet(s) (the same setting
       Zensical itself reads to style the live website), passed through as
@@ -233,6 +237,8 @@ def build_pdf_from_zensical_config(
         tex2svg_script=tex2svg_script or "",
         include_table_of_contents=bool(extra.get("pdf_include_table_of_contents", True)),
         table_of_contents_title=extra.get("pdf_table_of_contents_title") or "Table of Contents",
+        include_index=bool(extra.get("pdf_include_index", False)),
+        index_title=extra.get("pdf_index_title") or "Index",
     )
 
     if not markdown_file and bool(extra.get("pdf_source_bundle", False)):
