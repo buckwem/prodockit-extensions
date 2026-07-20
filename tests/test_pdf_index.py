@@ -158,8 +158,19 @@ def test_render_index_content_empty_entries_returns_empty_string() -> None:
 
 def test_render_index_content_renders_one_paragraph_per_term() -> None:
     content = render_index_content({"Gadget": [4], "Widget": [1, 3]})
-    assert "<p>Gadget: 4</p>" in content
-    assert "<p>Widget: 1, 3</p>" in content
+    assert '<p class="prodockit-index-entry">Gadget, 4</p>' in content
+    assert '<p class="prodockit-index-entry">Widget, 1, 3</p>' in content
+
+
+def test_render_index_content_groups_entries_under_a_letter_heading() -> None:
+    content = render_index_content({"Apple": [1], "Avocado": [2], "Banana": [3]})
+    letter_a = '<h2 class="prodockit-index-letter unnumbered unlisted">A</h2>'
+    letter_b = '<h2 class="prodockit-index-letter unnumbered unlisted">B</h2>'
+    assert content.index(letter_a) < content.index("Apple")
+    assert content.index("Apple") < content.index("Avocado")
+    assert content.count(letter_a) == 1
+    assert letter_b in content
+    assert content.index("Avocado") < content.index(letter_b)
 
 
 def test_render_index_content_escapes_html_in_term_text() -> None:

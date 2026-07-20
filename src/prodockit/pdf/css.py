@@ -637,6 +637,31 @@ img.twemoji, i.fa-solid, i.fa-regular, i.fa-brands, i.material-icons, i[class*="
     page-break-inside: auto !important;
     break-inside: auto !important;
 }
+
+/* ==========================================================================
+   BACK-OF-BOOK INDEX (prodockit.pdf.index)
+   ========================================================================== */
+/* Traditional two-column index layout - the same shape as a printed book's
+   own back-of-book index. WeasyPrint's CSS Multi-column support (confirmed
+   directly) correctly reflows content across both columns and, in turn,
+   across as many pages as the index needs. */
+#prodockit-index-content {
+    column-count: 2 !important;
+    column-gap: 1.5cm !important;
+    column-rule: 0.5pt solid #e2e8f0 !important;
+}
+h2.prodockit-index-letter {
+    color: #7a1f2b !important;
+    font-size: 14pt !important;
+    font-weight: bold !important;
+    margin: 0.8em 0 0.3em 0 !important;
+    break-after: avoid-column !important;
+    break-inside: avoid-column !important;
+}
+p.prodockit-index-entry {
+    margin: 0 !important;
+    break-inside: avoid-column !important;
+}
 """
 
     # Right-hand (recto) pages keep the default @page block above as-is -

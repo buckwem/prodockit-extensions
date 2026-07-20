@@ -172,12 +172,32 @@ def build_index_entries(
 def render_index_content(entries: dict[str, list[int]]) -> str:
     """Renders `build_index_entries()`'s own output as the HTML that
     replaces the empty `id="prodockit-index-content"` placeholder div for
-    the second pass - one `<p>` per term, already alphabetised (dict
-    insertion order, as `build_index_entries()` already sorted it)."""
+    the second pass - a traditional back-of-book layout, grouped under a
+    letter heading (`<h2 class="prodockit-index-letter">`) per first
+    letter, with one `<p class="prodockit-index-entry">Term, pages</p>`
+    per term - `entries` is already alphabetised (dict insertion order, as
+    `build_index_entries()` already sorted it), so a new letter group
+    starts exactly when an entry's first letter differs from the previous
+    one, with no separate re-sorting needed here.
+
+    Each letter heading carries `unnumbered unlisted` (the same convention
+    `build_pdf()` already uses for its own Table of Contents/Index page
+    titles) - it's a typographic marker, not a real document section, so it
+    must not receive a chapter/section number from the heading-numbering
+    Lua filter, or an entry in the Table of Contents.
+    """
     if not entries:
         return ""
     lines = []
+    current_letter = None
     for term, pages in entries.items():
+        letter = term[0].upper()
+        if letter != current_letter:
+            current_letter = letter
+            lines.append(
+                '<h2 class="prodockit-index-letter unnumbered unlisted">'
+                f"{html.escape(letter)}</h2>"
+            )
         page_list = ", ".join(str(page) for page in pages)
-        lines.append(f"<p>{html.escape(term)}: {page_list}</p>")
+        lines.append(f'<p class="prodockit-index-entry">{html.escape(term)}, {page_list}</p>')
     return "\n".join(lines)

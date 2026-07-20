@@ -88,7 +88,7 @@ lives under `[project.extra]`, all optional:
 | `reference_style` | `"european"` | `"european"` (tight, single-line citation entries) or `"global"` (double-spaced, hanging indent - the common APA/MLA/Chicago style). |
 | `pdf_include_table_of_contents` | `true` | Whether to generate and insert a table of contents. |
 | `pdf_table_of_contents_title` | `"Table of Contents"` | That page's own heading text. |
-| `pdf_include_index` | `false` | A back-of-book index from every `[Term]{.index}` marker - see [Back-of-book index](#back-of-book-index). Requires the optional `pymupdf` dependency. |
+| `pdf_include_index` | `false` | A back-of-book index from every `\index{Term}` marker - see [Back-of-book index](#back-of-book-index). Requires the optional `pymupdf` dependency. |
 | `pdf_index_title` | `"Index"` | That page's own heading text. |
 | `pdf_mmdc_bin` | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found. |
 | `pdf_tex2svg_script` / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found. |
@@ -269,12 +269,13 @@ below.
 
 ### Back-of-book index
 
-Set `pdf_include_index = true` under `[project.extra]` for a traditional
-back-of-book index - an alphabetised list of terms with the page
-number(s) they appear on, appended as its own page at the very end of
-the document. PDF-only: there's no equivalent on the live website, where
-readers use browser/Ctrl-F search instead. Requires the optional
-`pymupdf` dependency - see [Requirements](#requirements) above.
+Set `pdf_include_index = true` under `[project.extra]` for a traditional,
+two-column back-of-book index - terms grouped under a bold letter
+heading (A, B, C, ...), each followed by the page number(s) it appears
+on - appended as its own page(s) at the very end of the document.
+PDF-only: there's no equivalent on the live website, where readers use
+browser/Ctrl-F search instead. Requires the optional `pymupdf`
+dependency - see [Requirements](#requirements) above.
 
 Mark a term inline, wherever it's actually discussed, with the new
 `prodockit.index` extension's own `\index{Term}` syntax (enable it in
@@ -293,8 +294,11 @@ renders to an index page like:
 ```text
 Index
 
-Gadget: 3
-Widget: 1, 3
+G
+Gadget, 3
+
+W
+Widget, 1, 3
 ```
 
 The same term marked more than once merges into one entry (case-
@@ -704,7 +708,10 @@ after each occurrence, returning the terms found in order.
 `extract_term_pages()` needs the optional `pymupdf` dependency (only
 imported here, so only required if you actually call this function) -
 raises a plain `ModuleNotFoundError` with a clear install message if it
-isn't installed.
+isn't installed. `render_index_content()` groups its entries under a
+bold letter heading per first letter (`build_css()`'s own compiled CSS
+lays the whole thing out in two columns), matching a traditional printed
+book's own back-of-book index.
 
 ## Limitations and workarounds
 
