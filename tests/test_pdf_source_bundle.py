@@ -206,6 +206,45 @@ def test_generated_html_has_one_page_break_pre_per_text_file_with_a_file_marker(
     assert 'content: "Page " counter(page) " of " counter(pages)' in html
 
 
+def test_a_file_invalid_past_the_8kib_sniff_window_is_skipped_not_crashed(
+    tmp_path: Path, fake_weasyprint_on_path
+) -> None:
+    """Regression test: is_probably_text() only sniffs the first 8 KiB, so
+    a file that's valid UTF-8 there but has an invalid byte further in
+    used to crash the whole bundle build with an uncaught
+    UnicodeDecodeError when it was fully read - it should be skipped the
+    same way a binary file already is."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_git_repo(repo)
+    (repo / "valid.py").write_text("print('ok')\n", encoding="utf-8")
+    # First 8192 bytes are plain ASCII (passes the sniff), followed by a
+    # byte sequence that isn't valid UTF-8 - only found once the whole
+    # file is actually read.
+    (repo / "mostly_text.dat").write_bytes(b"a" * 8200 + b"\xff\xfe")
+    subprocess.run(["git", "add", "valid.py", "mostly_text.dat"], cwd=repo, check=True)
+    fake_weasyprint_on_path('echo "%PDF-1.4 stub" > "$2"')
+
+    count = build_source_bundle(str(tmp_path / "out.pdf"), root=str(repo))
+
+    assert count == 1
+
+
+def test_an_empty_repository_builds_a_zero_file_pdf(
+    tmp_path: Path, fake_weasyprint_on_path
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_git_repo(repo)
+    fake_weasyprint_on_path('echo "%PDF-1.4 stub" > "$2"')
+
+    output_path = tmp_path / "out.pdf"
+    count = build_source_bundle(str(output_path), root=str(repo))
+
+    assert count == 0
+    assert output_path.exists()
+
+
 def test_work_dir_is_cleaned_up_by_default(tmp_path: Path, fake_weasyprint_on_path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()

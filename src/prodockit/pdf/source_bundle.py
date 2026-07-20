@@ -80,7 +80,12 @@ def is_probably_text(path: str) -> bool:
     a new file type never needs this function updating to recognise it.
 
     Returns `False` (rather than raising) for a path that can't be read
-    at all (e.g. a broken symlink) - nothing to bundle either way.
+    at all (e.g. a broken symlink) - nothing to bundle either way. Only
+    sniffs the first 8 KiB, so a file that's valid UTF-8 there but not
+    further in (e.g. a stray invalid byte, or a multi-byte character
+    split exactly at the boundary) can still pass this check -
+    `build_source_bundle` itself handles that case when it reads the
+    whole file, skipping it the same way rather than crashing the build.
     """
     try:
         with open(path, "rb") as f:
@@ -168,7 +173,8 @@ def build_source_bundle(
     `output_path` (relative paths resolve against `root`, matching "the
     top-level directory" a project's own `root` already is). Returns how
     many files were actually included (binary files - see
-    `is_probably_text` - are silently skipped, not counted as a failure).
+    `is_probably_text` - and a file that turns out not to be valid UTF-8
+    once fully read are both silently skipped, not counted as a failure).
 
     Each file starts on its own page, in 8pt Courier with wrapped lines
     (a `white-space: pre-wrap` for genuinely long lines, not `pre`'s own
@@ -207,8 +213,16 @@ def build_source_bundle(
 
         body_parts: list[str] = []
         for rel_path in text_files:
-            with open(os.path.join(root, rel_path), encoding="utf-8") as f:
-                content = f.read()
+            try:
+                with open(os.path.join(root, rel_path), encoding="utf-8") as f:
+                    content = f.read()
+            except (OSError, UnicodeDecodeError):
+                # is_probably_text() only sniffs the first 8 KiB - a file
+                # that's invalid UTF-8 beyond that (or vanished/became
+                # unreadable since discover_source_files() ran) is skipped
+                # here the same way a binary file already is, rather than
+                # crashing the whole bundle.
+                continue
             body_parts.append(
                 f'<div class="file-marker">{html.escape(rel_path)}</div>'
                 f"<pre>{html.escape(content)}</pre>"
@@ -231,7 +245,7 @@ def build_source_bundle(
                 returncode=result.returncode,
                 stderr=result.stderr,
             )
-        return len(text_files)
+        return len(body_parts)
     finally:
         if use_temp_dir or not keep_work_dir:
             shutil.rmtree(resolved_work_dir, ignore_errors=True)
