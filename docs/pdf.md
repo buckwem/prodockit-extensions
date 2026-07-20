@@ -339,6 +339,23 @@ A parent with no marker of its own anywhere (like `Git` above) still gets
 its own line - a bare category label with no trailing page list - so its
 children have somewhere to nest under.
 
+Wrap the last segment in backticks - `` \index{`git commit`} `` (or,
+combined with the above, `` \index{Git!`git commit`} ``) - for a command
+or other code term: it displays inline in a real `<code>` element, and
+the generated index entry renders the same way, e.g.:
+
+```text
+G
+
+Git
+    git commit, 13, 89
+```
+
+(with `git commit` in your document's own monospace font, matching how
+it already displays inline). See
+[Code-styled terms](extensions/index-terms.md#code-styled-terms) for the
+full syntax.
+
 This is the one feature in `prodockit.pdf` that genuinely needs a
 two-pass build: a term's own page number can only be known once
 WeasyPrint has already laid the whole PDF out once - confirmed directly,
@@ -724,9 +741,13 @@ invocation fails.
 #### `prodockit.pdf.index`
 
 ```python
-mark_index_terms(html: str) -> tuple[str, list[str]]
+mark_index_terms(html: str) -> tuple[str, list[str], list[bool]]
 extract_term_pages(pdf_path: str, occurrence_count: int) -> dict[int, int | None]
-build_index_entries(terms: list[str], occurrence_pages: dict[int, int | None]) -> dict[str, IndexEntry]
+build_index_entries(
+    terms: list[str],
+    occurrence_pages: dict[int, int | None],
+    code_flags: list[bool] | None = None,
+) -> dict[str, IndexEntry]
 render_index_content(entries: dict[str, IndexEntry], level: int = 1) -> str
 format_pages(pages: list[int]) -> str
 ```
@@ -739,20 +760,24 @@ than CSS's own `target-counter()`) is what backs it. `mark_index_terms()`
 finds every `[prodockit.index](extensions/index-terms.md)`
 `<span class="index">` and inserts a unique, near-invisible text marker
 after each occurrence, returning the terms found in order - a flat
-`"Term"` or, for a hierarchical `\index{Parent!Child}`, `"Parent!Child"`.
+`"Term"` or, for a hierarchical `\index{Parent!Child}`, `"Parent!Child"` -
+alongside whether each one was a code-styled `` \index{`Term`} `` (see
+[Code-styled terms](extensions/index-terms.md#code-styled-terms)).
 `extract_term_pages()` needs the optional `pymupdf` dependency (only
 imported here, so only required if you actually call this function) -
 raises a plain `ModuleNotFoundError` with a clear install message if it
 isn't installed. `build_index_entries()` builds `mark_index_terms()`'s
-flat/hierarchical paths into a nested tree of `IndexEntry(display: str,
-pages: list[int], children: dict[str, IndexEntry])` nodes, alphabetised
-ignoring leading punctuation (see [Back-of-book index](#back-of-book-index)
-above). `render_index_content()` walks that tree, grouping top-level
-entries under a bold letter heading per first letter (`build_css()`'s own
-compiled CSS lays the whole thing out in two columns) and indenting each
-deeper level - matching a traditional printed book's own back-of-book
-index - using `format_pages()` to collapse each entry's own consecutive
-pages into en-dash ranges.
+flat/hierarchical paths (plus its own `code_flags`) into a nested tree of
+`IndexEntry(display: str, pages: list[int], children: dict[str,
+IndexEntry], code: bool = False)` nodes, alphabetised ignoring leading
+punctuation (see [Back-of-book index](#back-of-book-index) above).
+`render_index_content()` walks that tree, grouping top-level entries
+under a bold letter heading per first letter (`build_css()`'s own
+compiled CSS lays the whole thing out in two columns), indenting each
+deeper level, and wrapping a code-styled entry's own text in `<code>` -
+matching a traditional printed book's own back-of-book index - using
+`format_pages()` to collapse each entry's own consecutive pages into
+en-dash ranges.
 
 ## Limitations and workarounds
 

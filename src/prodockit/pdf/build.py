@@ -273,8 +273,9 @@ def build_pdf(
         # nothing to index, so no reason to pay for a second pandoc/
         # WeasyPrint invocation.
         index_terms: list[str] = []
+        index_code_flags: list[bool] = []
         if include_index:
-            body_html, index_terms = mark_index_terms(body_html)
+            body_html, index_terms, index_code_flags = mark_index_terms(body_html)
             if index_terms:
                 # Always last, after every real page (including any
                 # appendices) - the standard back-of-book position, and
@@ -362,7 +363,7 @@ def build_pdf(
             # output_path is this first pass's own finished PDF at this
             # point - exactly what extract_term_pages() needs to inspect.
             occurrence_pages = extract_term_pages(output_path, len(index_terms))
-            entries = build_index_entries(index_terms, occurrence_pages)
+            entries = build_index_entries(index_terms, occurrence_pages, index_code_flags)
             index_content_html = render_index_content(entries)
             body_html = body_html.replace(
                 f'<div id="{INDEX_CONTENT_ID}"></div>',

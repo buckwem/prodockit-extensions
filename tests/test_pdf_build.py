@@ -386,6 +386,35 @@ def test_include_index_runs_a_second_pandoc_pass_with_real_entries(
     assert 'id="prodockit-index-content"' in compiled
 
 
+def test_include_index_renders_a_code_styled_entry_in_code_tags(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
+    work_dir = tmp_path / "work"
+
+    build_pdf(
+        [
+            Page(
+                docs_rel_path="chapter1.md",
+                html=(
+                    '<span class="index" data-index-code="true" '
+                    'data-index-term="git commit"><code>git commit</code></span>'
+                ),
+            ),
+        ],
+        str(tmp_path / "out.pdf"),
+        include_index=True,
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+    assert (
+        '<div class="prodockit-index-entry prodockit-index-level-1">'
+        "<code>git commit</code>, 1</div>" in compiled
+    )
+
+
 def test_include_index_off_by_default_runs_only_one_pandoc_pass(
     tmp_path: Path, fake_pandoc_on_path
 ) -> None:

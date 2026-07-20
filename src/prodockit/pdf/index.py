@@ -35,6 +35,11 @@ two - never an iterative "rebuild until stable" loop.
 `prodockit.index`) builds a nested tree, up to three levels deep in
 practice, rendered with a fixed indent step per level - see
 `build_index_entries()`/`render_index_content()`.
+
+**Code-styled entries**: `\\index{`Term`}`/`\\index{Parent!`Term`}` (see
+`prodockit.index`) render that entry's own text in a real `<code>`
+element in the generated index, matching how it displays inline in the
+prose itself.
 """
 
 from __future__ import annotations
@@ -70,7 +75,7 @@ def _marker_text(occurrence_number: int) -> str:
     return f"⟦prodockit-index-{occurrence_number}⟧"
 
 
-def mark_index_terms(html: str) -> tuple[str, list[str]]:
+def mark_index_terms(html: str) -> tuple[str, list[str], list[bool]]:
     """Finds every `<span class="index">` in `html` (i.e. every
     `\\index{Term}` an author wrote) and inserts a unique, sequentially
     numbered marker (see `_marker_text`) directly after each one - a
@@ -79,23 +84,27 @@ def mark_index_terms(html: str) -> tuple[str, list[str]]:
     (confirmed directly: `font-size: 0` is dropped from the PDF's text
     layer entirely, unlike a merely tiny non-zero size).
 
-    Returns `(html_with_markers, terms)`, where `terms[i]` is the term's
-    full path for marker number `i + 1` - a flat `\\index{Term}` gives
-    `"Term"`, a hierarchical `\\index{Parent!Child}` (see `prodockit.index`)
-    gives `"Parent!Child"` (its own `data-index-term` attribute, not the
-    span's visible text, which for that case is just `"Child"`) - every
-    occurrence recorded separately, even repeats of the same term, since
-    which page each one lands on is still unknown at this point.
+    Returns `(html_with_markers, terms, code_flags)`, where `terms[i]` is
+    the term's full path for marker number `i + 1` - a flat `\\index{Term}`
+    gives `"Term"`, a hierarchical `\\index{Parent!Child}` (see
+    `prodockit.index`) gives `"Parent!Child"` (its own `data-index-term`
+    attribute, not the span's visible text, which for that case is just
+    `"Child"`) - and `code_flags[i]` is whether that occurrence was a
+    code-styled `\\index{`Term`}` (its own `data-index-code` attribute).
+    Every occurrence recorded separately, even repeats of the same term,
+    since which page each one lands on is still unknown at this point.
     """
     soup = BeautifulSoup(html, "html.parser")
     terms: list[str] = []
+    code_flags: list[bool] = []
     for span in soup.find_all("span", class_=INDEX_TERM_CLASS):
         terms.append(span.get("data-index-term") or span.get_text())
+        code_flags.append(span.get("data-index-code") == "true")
         marker = soup.new_tag("span")
         marker["style"] = "font-size: 0.1pt !important; color: transparent !important;"
         marker.string = _marker_text(len(terms))
         span.insert_after(marker)
-    return str(soup), terms
+    return str(soup), terms, code_flags
 
 
 def extract_term_pages(pdf_path: str, occurrence_count: int) -> dict[int, int | None]:
@@ -151,11 +160,15 @@ class IndexEntry:
     `render_index_content()`'s own docstring for a real example);
     `children`, keyed the same case-insensitively-normalised way as the
     top-level dict `build_index_entries()` returns, are this node's own
-    sub-entries, already sorted (see `_sort_key()`)."""
+    sub-entries, already sorted (see `_sort_key()`); `code` is whether
+    this entry came from a code-styled `\\index{`Term`}` marker - if any
+    occurrence of this exact entry was code-styled, the whole merged
+    entry renders that way (see `render_index_content()`)."""
 
     display: str
     pages: list[int]
     children: dict[str, IndexEntry]
+    code: bool = False
 
 
 #: Strips leading characters that aren't a letter or digit, so a
@@ -194,7 +207,9 @@ def format_pages(pages: list[int]) -> str:
 
 
 def build_index_entries(
-    terms: list[str], occurrence_pages: dict[int, int | None]
+    terms: list[str],
+    occurrence_pages: dict[int, int | None],
+    code_flags: list[bool] | None = None,
 ) -> dict[str, IndexEntry]:
     """Groups `terms` (as returned by `mark_index_terms()`, one entry per
     occurrence - a flat `"Term"` or a hierarchical `"Parent!Child!
@@ -205,7 +220,11 @@ def build_index_entries(
     `i + 1` in `terms[i]` looks up its own page via `occurrence_pages` (as
     returned by `extract_term_pages()`), attached to the *last* segment's
     own node (a new intermediate/parent segment gets no page of its own
-    from this occurrence - see `IndexEntry`).
+    from this occurrence - see `IndexEntry`). `code_flags[i]` (as returned
+    by `mark_index_terms()`; defaults to all `False` if omitted) marks
+    that occurrence's own leaf node as code-styled if `True` - if any
+    occurrence of an entry is code-styled, the merged entry renders that
+    way (see `render_index_content()`).
 
     The *first* occurrence's own original casing is kept for display at
     each level (e.g. "Widget" and "widget" merge into one "Widget" entry,
@@ -233,13 +252,17 @@ def build_index_entries(
         assert node is not None  # segments is non-empty, so the loop above always runs
         if page not in node.pages:
             node.pages.append(page)
+        if code_flags is not None and code_flags[i]:
+            node.code = True
 
     def sort_tree(level: dict[str, IndexEntry]) -> dict[str, IndexEntry]:
         sorted_level: dict[str, IndexEntry] = {}
         for key in sorted(level, key=lambda k: _sort_key(level[k].display)):
             entry = level[key]
             entry.pages.sort()
-            sorted_level[key] = IndexEntry(entry.display, entry.pages, sort_tree(entry.children))
+            sorted_level[key] = IndexEntry(
+                entry.display, entry.pages, sort_tree(entry.children), entry.code
+            )
         return sorted_level
 
     return sort_tree(root)
@@ -264,6 +287,12 @@ def render_index_content(entries: dict[str, IndexEntry], level: int = 1) -> str:
     `_sort_key()` order), so a new letter group starts exactly when a
     top-level entry's own sort key first letter differs from the previous
     one, with no separate re-sorting needed here.
+
+    A code-styled entry (`entry.code` - see `IndexEntry`) wraps its own
+    `display` text in a real `<code>` element, before the page list is
+    appended - no separate CSS rule needed for this to pick up the
+    document-wide monospace `code {}` styling `prodockit.pdf.css` already
+    defines.
 
     A node with sub-entries but no page of its own (e.g. "files" grouping
     "adding"/"modified" beneath "staging area" with no "files, N" page
@@ -290,7 +319,8 @@ def render_index_content(entries: dict[str, IndexEntry], level: int = 1) -> str:
                     '<h2 class="prodockit-index-letter unnumbered unlisted">'
                     f"{html.escape(letter)}</h2>"
                 )
-        text = html.escape(entry.display)
+        escaped_display = html.escape(entry.display)
+        text = f"<code>{escaped_display}</code>" if entry.code else escaped_display
         page_list = format_pages(entry.pages)
         if page_list:
             text += f", {page_list}"

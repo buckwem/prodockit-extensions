@@ -82,6 +82,36 @@ appear inline themselves. See
 [Back-of-book index](../pdf.md#back-of-book-index) for what a nested
 index entry looks like once built.
 
+## Code-styled terms
+
+Backticks around the *last* segment mark a command or other code term -
+it displays inline in a real `<code>` element instead of plain text, and
+the generated index entry renders the same way:
+
+=== "Markdown"
+
+    ```md
+    Run \index{`git commit`} to save your changes.
+    ```
+
+=== "Result"
+
+    Run \index{`git commit`} to save your changes.
+
+Combine this with [sub-entries](#sub-entries) by putting the backticks
+around just the last segment - `\index{Git!`git commit`}` nests a
+code-styled `git commit` entry under a plain `Git` one.
+
+!!! note "Showing this syntax as literal example text"
+    Unlike a plain `\index{Term}` (protected by a real code span, the same
+    way this page's own examples above are written), the code-styled
+    pattern has to run *before* Python-Markdown's own backtick handling,
+    so it can recognise its own inner backticks - a side effect is that
+    wrapping the whole call in inline backticks doesn't protect it the
+    way it does for the plain syntax. A fenced code block (as every
+    example on this page already uses) still works, since it's stashed
+    before any inline pattern - this one included - ever runs.
+
 ## CSS hooks
 
 A flat `\index{Term}` renders as `<span class="index">Term</span>` - no
@@ -91,9 +121,14 @@ hierarchical `\index{Parent!Child}` additionally carries the full path on
 data-index-term="Parent!Child">Child</span>`), read by
 `prodockit.pdf.index` to build the nested index - harmless for a
 project's own CSS, which would only ever need to target the shared
-`.index` class either way. Unlike `prodockit.refs`/`prodockit.citations`/
-`prodockit.glossary`, there's no resolved/unresolved state to distinguish
-(nothing to resolve - a term either renders or the whole page fails to
-parse), so no extra styling hook is needed by default. A project wanting
-to visually highlight indexed terms on the live website can target
-`.index` directly.
+`.index` class either way. A code-styled `` \index{`Term`} `` further
+carries `data-index-code="true"` and wraps its own text in a real
+`<code>` element (`<span class="index" data-index-code="true"
+data-index-term="Term"><code>Term</code></span>`) - picking up whatever
+`code {}` styling your project already has, on the website and in the
+generated index alike, with nothing extra to configure. Unlike
+`prodockit.refs`/`prodockit.citations`/`prodockit.glossary`, there's no
+resolved/unresolved state to distinguish (nothing to resolve - a term
+either renders or the whole page fails to parse), so no extra styling
+hook is needed by default. A project wanting to visually highlight
+indexed terms on the live website can target `.index` directly.

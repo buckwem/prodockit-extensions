@@ -41,8 +41,9 @@ def _build_test_pdf(path: Path, pages_markers: list[list[str]]) -> None:
 
 def test_mark_index_terms_returns_unchanged_html_and_no_terms_when_none_marked() -> None:
     html = "<p>Nothing marked here.</p>"
-    result_html, terms = mark_index_terms(html)
+    result_html, terms, code_flags = mark_index_terms(html)
     assert terms == []
+    assert code_flags == []
     assert result_html == html
 
 
@@ -51,7 +52,7 @@ def test_mark_index_terms_extracts_terms_in_order() -> None:
         '<p>A <span class="index">Widget</span> and a '
         '<span class="index">Gadget</span>.</p>'
     )
-    _, terms = mark_index_terms(html)
+    _, terms, _code_flags = mark_index_terms(html)
     assert terms == ["Widget", "Gadget"]
 
 
@@ -60,7 +61,7 @@ def test_mark_index_terms_inserts_a_sequential_marker_after_each_occurrence() ->
         '<span class="index">Widget</span>'
         '<span class="index">Gadget</span>'
     )
-    result_html, _terms = mark_index_terms(html)
+    result_html, _terms, _code_flags = mark_index_terms(html)
     assert "⟦prodockit-index-1⟧" in result_html
     assert "⟦prodockit-index-2⟧" in result_html
     assert result_html.index("⟦prodockit-index-1⟧") < result_html.index("⟦prodockit-index-2⟧")
@@ -68,20 +69,31 @@ def test_mark_index_terms_inserts_a_sequential_marker_after_each_occurrence() ->
 
 def test_mark_index_terms_marker_is_near_invisible() -> None:
     html = '<span class="index">Widget</span>'
-    result_html, _ = mark_index_terms(html)
+    result_html, _, _code_flags = mark_index_terms(html)
     assert "font-size: 0.1pt" in result_html
 
 
 def test_mark_index_terms_repeated_term_gets_its_own_occurrence_each_time() -> None:
     html = '<span class="index">Widget</span><span class="index">widget</span>'
-    _, terms = mark_index_terms(html)
+    _, terms, _code_flags = mark_index_terms(html)
     assert terms == ["Widget", "widget"]
 
 
 def test_mark_index_terms_reads_the_full_path_from_data_index_term() -> None:
     html = '<span class="index" data-index-term="Git!ssh keys">ssh keys</span>'
-    _, terms = mark_index_terms(html)
+    _, terms, _code_flags = mark_index_terms(html)
     assert terms == ["Git!ssh keys"]
+
+
+def test_mark_index_terms_reads_the_code_flag() -> None:
+    html = (
+        '<span class="index" data-index-code="true" data-index-term="git commit">'
+        "<code>git commit</code></span>"
+        '<span class="index">Widget</span>'
+    )
+    _, terms, code_flags = mark_index_terms(html)
+    assert terms == ["git commit", "Widget"]
+    assert code_flags == [True, False]
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +244,29 @@ def test_build_index_entries_merges_repeated_hierarchical_paths() -> None:
     assert git.children["ssh keys"].pages == [13, 89]
 
 
+def test_build_index_entries_defaults_code_to_false_without_code_flags() -> None:
+    entries = build_index_entries(["Widget"], {1: 4})
+    assert entries["widget"].code is False
+
+
+def test_build_index_entries_marks_the_leaf_node_as_code() -> None:
+    entries = build_index_entries(
+        ["Git!git commit"], {1: 4}, code_flags=[True]
+    )
+    git = entries["git"]
+    assert git.code is False
+    assert git.children["git commit"].code is True
+
+
+def test_build_index_entries_any_code_occurrence_marks_the_merged_entry() -> None:
+    terms = ["git commit", "git commit"]
+    occurrence_pages = {1: 4, 2: 9}
+
+    entries = build_index_entries(terms, occurrence_pages, code_flags=[False, True])
+
+    assert entries["git commit"].code is True
+
+
 # ---------------------------------------------------------------------------
 # render_index_content
 # ---------------------------------------------------------------------------
@@ -299,6 +334,22 @@ def test_render_index_content_escapes_html_in_term_text() -> None:
     content = render_index_content({"<script>": IndexEntry("<script>", [1], {})})
     assert "<script>" not in content
     assert "&lt;script&gt;" in content
+
+
+def test_render_index_content_wraps_a_code_styled_entry_in_code_tags() -> None:
+    content = render_index_content(
+        {"git commit": IndexEntry("git commit", [4, 9], {}, code=True)}
+    )
+    assert (
+        '<div class="prodockit-index-entry prodockit-index-level-1">'
+        "<code>git commit</code>, 4, 9</div>" in content
+    )
+
+
+def test_render_index_content_leaves_a_plain_entry_unwrapped() -> None:
+    content = render_index_content({"widget": IndexEntry("Widget", [4], {})})
+    assert "<code>" not in content
+    assert '<div class="prodockit-index-entry prodockit-index-level-1">Widget, 4</div>' in content
 
 
 def test_index_content_id_is_a_stable_constant() -> None:

@@ -77,3 +77,74 @@ def test_hierarchical_term_strips_whitespace_around_bang_separators() -> None:
 def test_flat_term_has_no_data_index_term_attribute() -> None:
     html = _convert(r"A \index{widget} is here.")
     assert "data-index-term" not in html
+
+
+def test_code_styled_flat_term() -> None:
+    html = _convert(r"Run \index{`git commit`} to save your changes.")
+    assert (
+        '<span class="index" data-index-code="true" data-index-term="git commit">'
+        "<code>git commit</code></span>" in html
+    )
+
+
+def test_code_styled_hierarchical_term() -> None:
+    html = _convert(r"Run \index{Git!`git commit`} to save your changes.")
+    assert (
+        '<span class="index" data-index-code="true" data-index-term="Git!git commit">'
+        "<code>git commit</code></span>" in html
+    )
+
+
+def test_code_styled_three_level_hierarchical_term() -> None:
+    html = _convert(r"See \index{Git!commands!`git commit`} for details.")
+    assert (
+        '<span class="index" data-index-code="true" '
+        'data-index-term="Git!commands!git commit"><code>git commit</code></span>' in html
+    )
+
+
+def test_code_styled_term_is_not_reprocessed_for_nested_markdown() -> None:
+    """Unlike a plain \\index{Term}'s own display text, code-styled text
+    sits inside a real <code> element - Python-Markdown's own inline
+    processing doesn't recurse into it, so e.g. a literal asterisk stays
+    literal rather than becoming emphasis, matching how any other code
+    span behaves."""
+    html = _convert(r"Run \index{`git *rebase*`} carefully.")
+    assert "<code>git *rebase*</code>" in html
+    assert "<em>" not in html
+
+
+def test_inline_backticks_do_not_protect_the_code_styled_syntax() -> None:
+    """Confirmed directly: unlike the plain \\index{Term} pattern (kept at
+    the usual low priority, so a real code span always gets first look),
+    the code-styled pattern is registered *above* 'backtick' - it has to
+    be, to recognise its own inner backticks before 'backtick' stashes
+    them first (see this module's own docstring). One consequence: inline
+    backticks wrapped around the *whole* call from the outside don't
+    protect it the way they do for the plain syntax - it's still live-
+    processed either way. Showing the code-styled syntax as literal
+    example text (as this project's own docs do) needs a fenced code
+    block instead, which - unlike inline backticks - stashes its content
+    at the block-parsing stage, before any inline pattern (this one
+    included) ever runs."""
+    md = markdown.Markdown(extensions=[IndexExtension()])
+    html = md.convert(r"Use `\index{`Term`}` to mark a code term.")
+    assert '<span class="index"' in html
+
+
+def test_fenced_code_block_does_protect_the_code_styled_syntax() -> None:
+    """See test_inline_backticks_do_not_protect_the_code_styled_syntax's own
+    docstring - a fenced code block, unlike inline backticks, stashes its
+    content before any inline pattern runs at all, so it's the safe way to
+    show this syntax as literal example text (as this project's own docs
+    do for every prodockit extension's syntax, including this one)."""
+    md = markdown.Markdown(extensions=[IndexExtension(), "fenced_code"])
+    html = md.convert("```md\nRun \\index{`git commit`} to save.\n```")
+    assert '<span class="index"' not in html
+    assert "<code" in html
+
+
+def test_plain_index_still_works_alongside_the_code_pattern() -> None:
+    html = _convert(r"A \index{widget} and a \index{`git commit`} in one line.")
+    assert '<span class="index">widget</span>' in html
+    assert 'data-index-term="git commit"><code>git commit</code></span>' in html
