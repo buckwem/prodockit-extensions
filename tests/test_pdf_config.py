@@ -76,6 +76,47 @@ def test_find_tex2svg_script_returns_none_when_nothing_is_found() -> None:
     assert _find_tex2svg_script("/does/not/exist") is None
 
 
+def test_find_mmdc_bin_relative_configured_path_resolves_against_cwd_not_the_config_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Documents a real footgun, not fixed here (see the in-depth test
+    review this came from): a relative `pdf_mmdc_bin` is resolved
+    against the current working directory, not wherever `config_path`
+    itself lives. Running `prodockit pdf -f project/zensical.toml` from
+    one directory up silently fails to find a relative pdf_mmdc_bin that
+    would resolve fine if run from inside `project/` instead - even
+    though config_path itself still correctly points at the right
+    zensical.toml either way."""
+    project_dir = tmp_path / "project"
+    tools_dir = project_dir / "tools" / "mmdc"
+    tools_dir.mkdir(parents=True)
+    (tools_dir / "mmdc").write_text("", encoding="utf-8")
+    relative_configured = os.path.join("tools", "mmdc", "mmdc")
+
+    monkeypatch.chdir(project_dir)
+    assert _find_mmdc_bin(relative_configured) == relative_configured
+
+    monkeypatch.chdir(tmp_path)
+    assert _find_mmdc_bin(relative_configured) is None
+
+
+def test_find_tex2svg_script_relative_configured_path_resolves_against_cwd_not_the_config_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same footgun as _find_mmdc_bin above, for pdf_tex2svg_script."""
+    project_dir = tmp_path / "project"
+    tools_dir = project_dir / "tools" / "mathjax"
+    tools_dir.mkdir(parents=True)
+    (tools_dir / "tex2svg.js").write_text("", encoding="utf-8")
+    relative_configured = os.path.join("tools", "mathjax", "tex2svg.js")
+
+    monkeypatch.chdir(project_dir)
+    assert _find_tex2svg_script(relative_configured) is not None
+
+    monkeypatch.chdir(tmp_path)
+    assert _find_tex2svg_script(relative_configured) is None
+
+
 def test_builds_a_pdf_from_a_zensical_toml_project(project) -> None:
     root = project()
     output_path = build_pdf_from_zensical_config(str(root / "zensical.toml"))
