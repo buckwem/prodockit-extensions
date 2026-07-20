@@ -51,6 +51,46 @@ def test_colgroup_is_the_tables_first_child() -> None:
     assert html.index("<colgroup>") < html.index("<thead>")
 
 
+def test_table_nested_inside_an_admonition_is_still_sized() -> None:
+    """TableWidthTreeprocessor walks root.iter("table"), which recurses
+    into any ancestor regardless of nesting - confirmed directly for the
+    realistic case of a table inside an admonition, since the docs use
+    these together often."""
+    md = markdown.Markdown(extensions=["attr_list", "admonition", TablesExtension()])
+    indented_table = (
+        '    | Name {: width="30%" } | Description | Date {: width="15%" } |\n'
+        "    |---|---|---|\n"
+        "    | a | b | c |\n"
+    )
+    html = md.convert(f"!!! note\n\n{indented_table}")
+    assert (
+        '<colgroup><col style="width: 30%;" /><col /><col style="width: 15%;" /></colgroup>'
+        in html
+    )
+    assert '<table class="prodockit-table-sized">' in html
+
+
+def test_multiple_tables_are_each_sized_independently() -> None:
+    """Two tables in one document, one with widths and one without -
+    confirmed directly the unwidthed table is left alone while the
+    widthed one still gets its own colgroup, with no cross-contamination
+    between them."""
+    html = _convert(PLAIN_TABLE + "\n" + PERCENT_TABLE)
+    assert html.count("<colgroup>") == 1
+    assert html.count('<table class="prodockit-table-sized">') == 1
+    assert html.count("<table>") == 1
+
+
+def test_two_differently_widthed_tables_each_get_their_own_colgroup() -> None:
+    html = _convert(PERCENT_TABLE + "\n" + FIXED_TABLE)
+    assert (
+        '<colgroup><col style="width: 30%;" /><col /><col style="width: 15%;" /></colgroup>'
+        in html
+    )
+    assert '<colgroup><col style="width: 120px;" /><col /></colgroup>' in html
+    assert html.count('<table class="prodockit-table-sized">') == 2
+
+
 def test_auto_enables_the_tables_extension() -> None:
     md = markdown.Markdown(extensions=["attr_list", TablesExtension()])
     assert "table" in md.parser.blockprocessors
