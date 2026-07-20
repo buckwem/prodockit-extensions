@@ -34,6 +34,20 @@ def test_copyright_and_site_name_are_substituted_into_page_margin_boxes() -> Non
     assert 'content: "My Site Name"' in css
 
 
+def test_an_unescaped_quote_in_copyright_text_corrupts_the_content_string() -> None:
+    """Documents the real failure mode build_css()'s own docstring warns
+    about but never demonstrates: copyright_text/site_name are substituted
+    into a CSS `content: "..."` declaration with no escaping at all - a
+    caller passing a raw, un-pre-escaped quote silently truncates the
+    generated content string rather than raising or producing valid CSS
+    for the full text."""
+    css = build_css("Inter", "Fira Code", 'Copyright "2026" Corp', "My Site")
+    # The quote inside the value closes the CSS string early - only the
+    # text up to that quote survives as the actual `content` value.
+    assert 'content: "Copyright "2026" Corp"' in css
+    assert 'content: "Copyright \\"2026\\" Corp"' not in css
+
+
 def test_no_placeholder_tokens_remain_after_substitution() -> None:
     css = build_css("Inter", "Fira Code", "Copyright 2026", "My Site")
     for placeholder in (
