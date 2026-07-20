@@ -18,6 +18,10 @@ Zensical doesn't provide out of the box, each usable independently:
   ``\\cite{id}``/the reference list in any Citation Style Language (CSL)
   style (APA, IEEE, Harvard, ...) via Pandoc's own ``--citeproc`` - requires
   `pandoc` on ``PATH`` even without a PDF build.
+- ``prodockit.index`` - mark a term inline with ``\\index{Term}`` for a
+  traditional, PDF-only back-of-book index (see ``prodockit.pdf``'s own
+  ``pdf_include_index`` below) - with hierarchical sub-entries and
+  code-styled terms.
 - ``prodockit.pdf`` - build a standalone PDF from your Zensical site via
   Pandoc and WeasyPrint, the kind of downloadable, submittable document
   professional/academic reports typically need alongside the website
@@ -29,8 +33,8 @@ Zensical doesn't provide out of the box, each usable independently:
   acronym/glossary spacing that matches ``prodockit.pdf``'s own PDF output.
 
 ``prodockit.headings``/``prodockit.refs``/``prodockit.citations``/``prodockit.glossary``/
-``prodockit.tables``/``prodockit.bibliography`` are Python-Markdown extensions,
-in the spirit of pymdown-extensions - enable
+``prodockit.tables``/``prodockit.bibliography``/``prodockit.index`` are Python-Markdown
+extensions, in the spirit of pymdown-extensions - enable
 one in `zensical.toml` the same way as a built-in or pymdownx extension.
 Zensical's per-page rendering context is detected automatically where it's
 useful (see their own cross-page registry sharing). ``prodockit.pdf`` is a
@@ -42,6 +46,6 @@ macros plugin's own ``modules`` config, not a Markdown extension either.
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 __all__ = ["__version__"]
