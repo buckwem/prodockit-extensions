@@ -186,3 +186,47 @@ def test_plain_index_still_works_alongside_the_code_pattern() -> None:
     html = _convert(r"A \index{widget} and a \index{`git commit`} in one line.")
     assert '<span class="index">widget</span>' in html
     assert 'data-index-term="git commit"><code>git commit</code></span>' in html
+
+
+def test_multiple_code_styled_terms_in_one_line() -> None:
+    html = _convert(r"Run \index{`git commit`} then \index{`git push`}.")
+    assert 'data-index-term="git commit"><code>git commit</code></span>' in html
+    assert 'data-index-term="git push"><code>git push</code></span>' in html
+
+
+def test_code_styled_html_special_characters_are_escaped() -> None:
+    """`util.code_escape()` (see _index_span's own docstring) HTML-escapes
+    the code text - important for a term like a comparison operator or a
+    shell redirect that contains `<`/`>`/`&`, so it doesn't get parsed as
+    a stray HTML tag/entity once this reaches a real page."""
+    html = _convert(r"Run \index{`a < b & c`} carefully.")
+    assert "<code>a &lt; b &amp; c</code>" in html
+    assert "a < b & c" not in html
+
+
+def test_backticks_on_a_non_last_segment_are_stripped_not_code_styled() -> None:
+    """Regression test: code-styling isn't supported on any segment but
+    the last (see IndexCodeInlineProcessor's own docstring) - confirmed
+    directly this used to corrupt the whole call instead of degrading
+    gracefully. Before INDEX_CODE_RE was widened to claim this shape too,
+    Python-Markdown's own 'backtick' pattern claimed the `Git` code span
+    *first* (it's tried before the plain, low-priority \\index{} pattern),
+    replacing it with a raw internal stash placeholder that then leaked
+    into data-index-term - a real, confirmed bug, not just a hypothetical
+    one. Now the backticks are silently stripped instead: no code styling
+    on the non-last segment, but no corruption either."""
+    html = _convert(r"See \index{`Git`!commit} for details.")
+    assert '<span class="index" data-index-term="Git!commit">commit</span>' in html
+    assert "data-index-code" not in html
+    assert "klzzwxh" not in html  # Python-Markdown's own stash placeholder prefix
+
+
+def test_empty_index_call_is_left_as_literal_text() -> None:
+    """Neither pattern's regex matches an empty `{}` (both require at
+    least one character inside the braces), so this is simply never
+    recognised as a marker at all - confirmed directly, rather than
+    assumed, since it's the one boundary case where "no match" is the
+    correct, intentional outcome."""
+    html = _convert(r"An empty \index{} call.")
+    assert r"\index{}" in html
+    assert '<span class="index"' not in html

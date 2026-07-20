@@ -241,6 +241,33 @@ def test_build_index_entries_alphabetises_ignoring_leading_punctuation() -> None
     ]
 
 
+def test_build_index_entries_same_sort_key_but_different_text_stays_separate() -> None:
+    """Dedup/merge uses the exact (case-insensitive) text as its key - not
+    the punctuation-stripped sort key used for ordering - so "--foo" and
+    "-foo" are two distinct entries even though both sort under "foo".
+    This is a real, if subtle, interaction between build_index_entries()'s
+    two separate normalisation schemes, not just a hypothetical one."""
+    terms = ["--foo", "-foo"]
+    occurrence_pages = {1: 3, 2: 5}
+
+    entries = build_index_entries(terms, occurrence_pages)
+
+    assert len(entries) == 2
+    assert entries["--foo"].pages == [3]
+    assert entries["-foo"].pages == [5]
+
+
+def test_build_index_entries_purely_punctuation_term_falls_back_to_itself() -> None:
+    """_sort_key() strips leading non-alphanumeric characters, then falls
+    back to the original (lowercased) text if nothing survives the strip -
+    otherwise a term like "---" would reduce to an empty sort key. This is
+    the one input shape that actually exercises that fallback branch."""
+    entries = build_index_entries(["---"], {1: 4})
+
+    assert list(entries.keys()) == ["---"]
+    assert entries["---"].display == "---"
+
+
 def test_build_index_entries_builds_a_nested_tree_from_bang_separated_paths() -> None:
     terms = ["Staging area", "Staging area!files!adding", "Staging area!files!modified"]
     occurrence_pages = {1: 27, 2: 36, 3: 205}
@@ -324,6 +351,22 @@ def test_render_index_content_groups_entries_under_a_letter_heading() -> None:
     assert content.count(letter_a) == 1
     assert letter_b in content
     assert content.index("Avocado") < content.index(letter_b)
+
+
+def test_render_index_content_letter_group_ignores_leading_punctuation() -> None:
+    """render_index_content() computes its own letter heading via
+    _sort_key() too (not just build_index_entries() when it groups/sorts
+    the tree) - a direct test on this function specifically, since it's
+    the one that actually decides what letter heading a real PDF shows,
+    not just how entries are ordered."""
+    entry = IndexEntry("--set-upstream option", [1], {})
+    content = render_index_content({"--set-upstream option": entry})
+    assert '<h2 class="prodockit-index-letter unnumbered unlisted">S</h2>' in content
+
+
+def test_render_index_content_purely_punctuation_entry_gets_its_own_character_as_letter() -> None:
+    content = render_index_content({"---": IndexEntry("---", [1], {})})
+    assert '<h2 class="prodockit-index-letter unnumbered unlisted">-</h2>' in content
 
 
 def test_render_index_content_renders_nested_children_with_increasing_level_classes() -> None:

@@ -415,6 +415,40 @@ def test_include_index_renders_a_code_styled_entry_in_code_tags(
     )
 
 
+def test_include_index_renders_a_hierarchical_entry_nested_under_its_parent(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    """Same real two-pass build as the flat/code-styled cases above, but
+    for a hierarchical \\index{Parent!Child} marker - confirmed directly
+    build.py's own index_terms/index_code_flags threading produces a real
+    nested <div> pair through the whole pipeline, not just at the
+    build_index_entries()/render_index_content() unit level."""
+    fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
+    work_dir = tmp_path / "work"
+
+    build_pdf(
+        [
+            Page(
+                docs_rel_path="chapter1.md",
+                html='<span class="index" data-index-term="Git!ssh keys">ssh keys</span>',
+            ),
+        ],
+        str(tmp_path / "out.pdf"),
+        include_index=True,
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+    # "Git" is a pure grouping node here - no page of its own, no trailing
+    # page list - since this is the only occurrence and it's a child path.
+    assert '<div class="prodockit-index-entry prodockit-index-level-1">Git</div>' in compiled
+    assert (
+        '<div class="prodockit-index-entry prodockit-index-level-2">ssh keys, 1</div>'
+        in compiled
+    )
+
+
 def test_include_index_off_by_default_runs_only_one_pandoc_pass(
     tmp_path: Path, fake_pandoc_on_path
 ) -> None:

@@ -48,14 +48,19 @@ any backtick pair it finds - including one sitting inside `\\index{...}` -
 before a lower-priority pattern is ever tried, splitting `\\index{` and
 `}` into separate fragments with the stashed code span in between, so a
 single pattern at the usual priority could never see the whole construct.
-Going higher than 'backtick' only for this specific, narrowly-shaped
-pattern (requiring a backtick pair immediately before the closing `}`)
-leaves the plain `\\index{Term}` pattern's own priority - and, confirmed
-directly, its own "literal `` `\\index{Term}` `` stays untouched" example-
-syntax escape hatch - completely unaffected: the code-styled pattern's
-regex simply doesn't match plain text with no backticks, or a real code
-span like `` `\\index{Term}` `` where the backticks sit *outside* the
-whole call rather than immediately before its closing brace.
+Going higher than 'backtick' only when *some* backtick appears anywhere
+inside the call (a lookahead, not anchored to the last segment - a stray
+backtick on an earlier segment still needs to be claimed by this pattern
+too, rather than left for 'backtick' to grab first and corrupt the whole
+call with a raw internal stash placeholder by the time the plain pattern
+sees it - confirmed directly, this was a real bug before this pattern's
+own regex was widened to cover it) leaves the plain `\\index{Term}`
+pattern's own priority - and, confirmed directly, its own "literal
+`` `\\index{Term}` `` stays untouched" example-syntax escape hatch -
+completely unaffected: the code-styled pattern's regex simply doesn't
+match plain text with no backticks anywhere inside the call, or a real
+code span like `` `\\index{Term}` `` where the backticks sit *outside*
+the whole call rather than inside it.
 """
 
 from __future__ import annotations
@@ -73,11 +78,20 @@ INDEX_TERM_CLASS = "index"
 INDEX_RE = r"\\index\{([^}]+)\}"
 
 #: See this module's own docstring for why this needs a separate pattern,
-#: at a higher priority, rather than being folded into INDEX_RE above.
-#: Group 1 is everything before the code segment (empty for a flat term,
-#: or "Parent!"/"Parent!Child!" for a hierarchical one); group 2 is the
-#: code segment's own inner text.
-INDEX_CODE_RE = r"\\index\{([^}]*)`([^`}]+)`\}"
+#: at a higher priority, rather than being folded into INDEX_RE above. The
+#: leading lookahead - matched but not consumed - only requires *some*
+#: backtick somewhere before the closing `}`, deliberately not anchored to
+#: the last segment: confirmed directly this needs to be broad enough to
+#: claim the *whole* call whenever any segment has a backtick pair, not
+#: just the last one - otherwise a stray backtick on an earlier segment
+#: (`\index{`Git`!commit}`, say - code-styling isn't actually supported
+#: there, see IndexCodeInlineProcessor's own docstring) is left for
+#: 'backtick' to claim first, corrupting the surrounding \index{...} call
+#: with a raw internal stash placeholder by the time the plain, lower-
+#: priority INDEX_RE pattern gets to it. Group 1 is the whole path, same
+#: shape as INDEX_RE's own group 1 - segment-by-segment backtick detection
+#: happens in Python, not the regex.
+INDEX_CODE_RE = r"\\index\{(?=[^}]*`)([^}]+)\}"
 
 
 def _index_span(segments: list[str], *, code: bool) -> etree.Element:
@@ -153,14 +167,31 @@ class IndexInlineProcessor(InlineProcessor):
 class IndexCodeInlineProcessor(InlineProcessor):
     """Matches ``\\index{`Term`}``/``\\index{Parent!`Term`}`` - the code-
     styled variant. See this module's own docstring for the full syntax
-    and why this needs a separate, higher-priority pattern."""
+    and why this needs a separate, higher-priority pattern.
+
+    Only the *last* segment's own backticks actually trigger code styling -
+    an earlier segment's backticks (`\\index{`Git`!commit}`, say) are
+    silently stripped instead, treated as a plain (if odd) segment rather
+    than code-styled - not a documented/supported combination, but this
+    pattern still has to claim the whole call regardless (see INDEX_CODE_RE's
+    own comment for why), so it needs *some* sane fallback rather than
+    leaving a stray, un-stripped backtick pair in a middle segment's text.
+    """
 
     def handleMatch(  # type: ignore[override]
         self, m: re.Match[str], data: str
     ) -> tuple[etree.Element, int, int]:
-        prefix, code_text = m.group(1), m.group(2)
-        segments = [segment.strip() for segment in (prefix + code_text).split("!")]
-        el = _index_span(segments, code=True)
+        raw_segments = m.group(1).split("!")
+        segments = []
+        code = False
+        for i, raw_segment in enumerate(raw_segments):
+            segment = raw_segment.strip()
+            is_last = i == len(raw_segments) - 1
+            if len(segment) >= 2 and segment.startswith("`") and segment.endswith("`"):
+                segment = segment[1:-1].strip()
+                code = is_last
+            segments.append(segment)
+        el = _index_span(segments, code=code)
         return el, m.start(0), m.end(0)
 
 
