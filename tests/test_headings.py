@@ -47,6 +47,32 @@ def test_unnumbered_heading_has_no_number_but_gets_an_id() -> None:
     assert registry.get("introduction").number == "1"  # type: ignore[union-attr]
 
 
+def test_skipped_heading_level_backfills_the_missing_intermediate_number() -> None:
+    """Regression test: h1 followed directly by h3 (no h2) used to leave
+    the h2 counter slot at 0, numbering the h3 "1.0.1" - a document
+    skipping a level shouldn't ever show a literal "0" segment."""
+    registry = IdRegistry()
+    _convert("# Chapter\n\n### Detail\n", registry, "doc.md")
+    assert registry.get("chapter").number == "1"  # type: ignore[union-attr]
+    assert registry.get("detail").number == "1.1.1"  # type: ignore[union-attr]
+
+
+def test_document_starting_below_h1_backfills_the_missing_top_level_number() -> None:
+    """Regression test: a document whose first heading is h2 (no h1 at
+    all) used to number it "0.1" since the h1 counter was never
+    incremented."""
+    registry = IdRegistry()
+    _convert("## Setup\n", registry, "doc.md")
+    assert registry.get("setup").number == "1.1"  # type: ignore[union-attr]
+
+
+def test_numbered_heading_nested_under_an_unnumbered_one_backfills_too() -> None:
+    registry = IdRegistry()
+    _convert("# Cover Page {: .unnumbered }\n\n## Setup\n", registry, "doc.md")
+    assert registry.get("cover-page").number is None  # type: ignore[union-attr]
+    assert registry.get("setup").number == "1.1"  # type: ignore[union-attr]
+
+
 def test_explicit_id_is_respected() -> None:
     registry = IdRegistry()
     _convert("# Introduction {: #custom-id }\n", registry, "intro.md")
