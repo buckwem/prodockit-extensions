@@ -58,6 +58,12 @@ INDEX_TERM_CLASS = "index"
 #: already uses for the Table of Contents.
 DEFAULT_INDEX_TITLE = "Index"
 
+#: Deepest nesting level `prodockit.pdf.css` defines its own indent step
+#: for (`div.prodockit-index-level-3`) - render_index_content() clamps to
+#: this so a term nested deeper still gets the deepest available indent
+#: instead of silently rendering flush with the top level.
+MAX_RENDERED_INDEX_LEVEL = 3
+
 #: The div build_pdf()'s own trigger heading is followed by - empty on the
 #: first pass, replaced with the real generated index content for the
 #: second. Also this module's own `id`, so it's trivially find-and-
@@ -274,8 +280,10 @@ def render_index_content(entries: dict[str, IndexEntry], level: int = 1) -> str:
     the second pass - a traditional back-of-book layout: a letter heading
     (`<h2 class="prodockit-index-letter">`) per first letter *at the top
     level only*, then one `<div class="prodockit-index-entry
-    prodockit-index-level-N">` per entry at every level, `N` (1-3 in
-    practice) driving that entry's own indentation in `prodockit.pdf.css`.
+    prodockit-index-level-N">` per entry at every level, `N` (1-3, clamped
+    at `MAX_RENDERED_INDEX_LEVEL` for anything nested deeper - `prodockit.
+    pdf.css` only defines an indent step up to level 3) driving that
+    entry's own indentation in `prodockit.pdf.css`.
     A `<div>`, not a `<p>` - confirmed directly, Pandoc's native `Para` AST
     node has no attribute field at all, so a plain `<p class="...">` here
     (this content is inserted raw in `build_pdf()`, never passed through
@@ -324,7 +332,8 @@ def render_index_content(entries: dict[str, IndexEntry], level: int = 1) -> str:
         page_list = format_pages(entry.pages)
         if page_list:
             text += f", {page_list}"
-        div_class = f"prodockit-index-entry prodockit-index-level-{level}"
+        css_level = min(level, MAX_RENDERED_INDEX_LEVEL)
+        div_class = f"prodockit-index-entry prodockit-index-level-{css_level}"
         lines.append(f'<div class="{div_class}">{text}</div>')
         if entry.children:
             lines.append(render_index_content(entry.children, level + 1))

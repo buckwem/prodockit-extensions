@@ -398,6 +398,32 @@ def test_render_index_content_renders_nested_children_with_increasing_level_clas
     assert content.count('class="prodockit-index-letter') == 1
 
 
+def test_render_index_content_clamps_level_class_beyond_the_deepest_css_rule() -> None:
+    """Regression test: prodockit.pdf.css only defines an indent step up
+    to prodockit-index-level-3 - a 4th nesting level (\\index{A!B!C!D})
+    used to render with an unstyled prodockit-index-level-4 class,
+    silently rendering flush with the top level instead of the deepest
+    available indent."""
+    content = render_index_content(
+        {
+            "a": IndexEntry(
+                "A",
+                [],
+                {
+                    "b": IndexEntry(
+                        "B",
+                        [],
+                        {"c": IndexEntry("C", [], {"d": IndexEntry("D", [12], {})})},
+                    )
+                },
+            )
+        }
+    )
+    assert '<div class="prodockit-index-entry prodockit-index-level-3">C</div>' in content
+    assert '<div class="prodockit-index-entry prodockit-index-level-3">D, 12</div>' in content
+    assert "prodockit-index-level-4" not in content
+
+
 def test_render_index_content_escapes_html_in_term_text() -> None:
     content = render_index_content({"<script>": IndexEntry("<script>", [1], {})})
     assert "<script>" not in content
