@@ -1,5 +1,41 @@
 # Release Notes
 
+## 0.6.3 (2026-07-20)
+
+Bug fixes found by an in-depth test-coverage review of the extensions and
+PDF pipeline test suites - each paired with a new regression test.
+
+- Fixed `prodockit pdf`'s CLI command showing a raw, unhandled traceback
+  instead of a clean `Error: ...` message when `pdf_source_bundle` was
+  enabled and the underlying `git`/`weasyprint` invocation failed -
+  `SourceBundleError` wasn't in the CLI's caught exception tuple.
+- Fixed `prodockit.headings` numbering a skipped heading level (e.g. h1
+  followed directly by h3, or a document starting below h1) with a
+  literal "0" segment (e.g. "1.0.1") - a shallower level with no heading
+  of its own yet is now treated as an implicit first one instead.
+- Fixed `prodockit.pdf.mermaid` letting an uncaught `OSError`/
+  `PermissionError` (e.g. a non-executable `mmdc` binary) escape instead
+  of failing just that one diagram gracefully.
+- Fixed `prodockit.pdf.source_bundle` crashing the whole bundle build on
+  a file that's valid UTF-8 in the first 8 KiB sniffed to decide "is
+  this text?" but not further in - now skipped like any other binary
+  file instead.
+- Fixed `prodockit.pdf`'s generated Lua filter producing broken syntax
+  if a configured math/tex2svg path contained a quote or backslash -
+  both are now escaped.
+- Fixed `prodockit.pdf.build_pdf()` having no timeout on the underlying
+  `pandoc`/WeasyPrint invocation, so a hang (e.g. a pathological CSS
+  layout) could block the whole build indefinitely - added a
+  `pandoc_timeout` parameter (default 30 minutes).
+- Fixed a back-of-book index term nested more than three levels deep
+  rendering with no extra indent at all, since the generated CSS only
+  defines an indent step up to level 3 - now clamped to the deepest
+  available indent instead.
+- Substantially expanded test coverage across the extensions and PDF
+  pipeline test suites (shared registries, cross-page linking, malformed
+  input, table/index edge cases, icon/rotation/CSS edge cases) - no
+  other functional changes.
+
 ## 0.6.2 (2026-07-20)
 
 - Docs: fixed a real bug found by checking the live site after 0.6.1 -
