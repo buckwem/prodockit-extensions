@@ -101,6 +101,17 @@ def test_iframe_without_src_is_just_removed() -> None:
     assert "admonition" not in html
 
 
+def test_non_youtube_iframe_uses_its_own_src_as_the_watch_video_link() -> None:
+    """The `else: video_url = src` branch - a Vimeo (or any other) embed,
+    not YouTube - had no test at all; only the YouTube-specific
+    embed-to-watch URL rewrite was covered."""
+    html = _fix('<iframe src="https://player.vimeo.com/video/12345" title="Demo"></iframe>')
+    assert "<iframe" not in html
+    assert "admonition" in html
+    assert 'href="https://player.vimeo.com/video/12345"' in html
+    assert "Watch Video" in html
+
+
 # ---------------------------------------------------------------------------
 # Content tabs
 # ---------------------------------------------------------------------------

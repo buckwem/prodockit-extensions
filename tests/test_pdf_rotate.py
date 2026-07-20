@@ -93,6 +93,19 @@ def test_double_sided_on_alternates_rotation_by_final_page_position(tmp_path: Pa
     assert reader.pages[2].rotation == 270
 
 
+def test_a_file_that_is_not_a_valid_pdf_is_left_alone(tmp_path: Path) -> None:
+    """Documented, deliberate behaviour (see rotate_landscape_pages's own
+    docstring): anything pypdf can't parse as a PDF at all is left alone,
+    returning 0 rather than raising - build_pdf() only calls this after
+    pandoc/WeasyPrint has already reported success, but a caller's own
+    stand-in "pandoc" for testing could still write anything."""
+    pdf_path = tmp_path / "not-a-pdf.pdf"
+    pdf_path.write_bytes(b"this is not a real pdf file at all")
+
+    assert rotate_landscape_pages(str(pdf_path)) == 0
+    assert pdf_path.read_bytes() == b"this is not a real pdf file at all"
+
+
 def test_a_page_matching_neither_orientation_is_left_alone(tmp_path: Path) -> None:
     """A page that's neither the first page's own shape nor its exact
     width/height swap (e.g. a custom-sized image page) shouldn't be
