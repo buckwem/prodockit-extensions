@@ -106,6 +106,21 @@ def test_mark_index_terms_extracts_plain_text_from_a_term_containing_a_link() ->
     assert terms == ["Git"]
 
 
+def test_mark_index_terms_finds_a_term_nested_inside_an_admonition() -> None:
+    """An admonition wraps its content in a <div class="admonition"> - a
+    plain find_all("span", class_="index") reaches into it regardless of
+    ancestor nesting, so this needs no special-casing (unlike, say, a
+    heading's own text - see build_pdf()'s own TOC/Index title handling)."""
+    html = (
+        '<div class="admonition note">'
+        '<p class="admonition-title">Note</p>'
+        '<p>This mentions <span class="index">Widget</span> inside an admonition.</p>'
+        "</div>"
+    )
+    _, terms, _code_flags = mark_index_terms(html)
+    assert terms == ["Widget"]
+
+
 # ---------------------------------------------------------------------------
 # extract_term_pages
 # ---------------------------------------------------------------------------

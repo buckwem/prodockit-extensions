@@ -55,6 +55,33 @@ def test_term_can_be_a_markdown_link() -> None:
     assert '<span class="index"><a href="https://git-scm.com/">Git</a></span>' in html
 
 
+def test_term_as_a_raw_html_link_preserves_target_blank() -> None:
+    """See docs/extensions/index-terms.md's own "Linked terms" section:
+    a markdown link's own `{target="_blank"}` attr_list attaches to the
+    *outer* index span, not the link, once wrapped in \\index{} - a raw
+    inline <a target="_blank"> tag is the documented workaround, since it
+    needs no attr_list at all. Confirmed directly the attribute survives
+    untouched either way, on whichever element it was written on."""
+    html = _convert(
+        r'\index{<a href="https://git-scm.com/" target="_blank">Git</a>} '
+        "is a version control system."
+    )
+    assert (
+        '<span class="index"><a href="https://git-scm.com/" target="_blank">Git</a></span>'
+        in html
+    )
+
+
+def test_term_works_inside_an_admonition() -> None:
+    """Admonition content is still ordinary Markdown paragraphs under the
+    hood, going through the same inline-processing pipeline as top-level
+    text - confirmed directly \\index{} needs no special handling for
+    this, unlike some other block-level constructs."""
+    md = markdown.Markdown(extensions=[IndexExtension(), "admonition"])
+    html = md.convert("!!! note\n    This mentions \\index{Widget} inside an admonition.\n")
+    assert '<span class="index">Widget</span>' in html
+
+
 def test_literal_backslash_index_in_a_code_span_is_left_untouched() -> None:
     html = _convert(r"Use `\index{Term}` to mark a term.")
     assert "<code>" in html
