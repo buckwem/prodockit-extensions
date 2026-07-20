@@ -37,6 +37,25 @@ def test_gls_resolves_to_the_terms_own_text() -> None:
     assert 'This template uses <a class="prodockit-gls" href="#css">CSS</a> to style pages.' in html
 
 
+def test_data_term_on_an_element_with_no_id_is_stripped_but_not_registered() -> None:
+    """GlossaryDefTreeprocessor's `if not term_id: continue` defensive
+    path - a data-term attribute with no accompanying #id is still
+    stripped from the rendered HTML (internal bookkeeping shouldn't leak
+    either way), but obviously can't be registered under any id."""
+    html = _convert('Some text.\n{: data-term="Orphaned" }\n\nSee \\gls{orphaned}.\n')
+    assert "data-term" not in html
+    assert '<a class="prodockit-gls prodockit-gls-unresolved">?</a>' in html
+
+
+def test_empty_gls_call_is_left_as_literal_text() -> None:
+    """GLS_RE requires at least one non-brace, non-whitespace character
+    inside the braces (like prodockit.index's own \\index{}) - an empty
+    \\gls{} is simply never recognised as a marker at all."""
+    html = _convert(r"An empty \gls{} call.")
+    assert r"\gls{}" in html
+    assert '<a class="prodockit-gls"' not in html
+
+
 def test_forward_reference_within_same_document_resolves() -> None:
     html = _convert(f"See \\gls{{css}} above.\n\n{CSS_DEF}\n")
     assert '<a class="prodockit-gls" href="#css">CSS</a>' in html

@@ -52,6 +52,30 @@ def test_multiple_keys_join_with_semicolons() -> None:
     )
 
 
+def test_malformed_comma_list_drops_empty_segments() -> None:
+    """A double/trailing/leading comma in \\cite{a,,b,} is handled
+    gracefully (empty segments dropped) rather than producing an empty
+    key that always renders unresolved - CiteResolverTreeprocessor
+    already filters with `if key.strip()`, this just confirms it."""
+    html = _convert(f"{SKOU_DEF}\n\n{CHACON_DEF}\n\nSee \\cite{{,skou2023,,chacon2014,}}.\n")
+    assert (
+        '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>; '
+        '<a class="prodockit-cite-resolved" href="#chacon2014">Chacon and Straub, 2014</a>]'
+        in html
+    )
+    assert "prodockit-cite-unresolved" not in html
+
+
+def test_data_cite_text_on_an_element_with_no_id_is_stripped_but_not_registered() -> None:
+    """CitationDefTreeprocessor's `if not citation_id: continue` defensive
+    path - a data-cite-text attribute with no accompanying #id is still
+    stripped from the rendered HTML (internal bookkeeping shouldn't leak
+    either way), but obviously can't be registered under any key."""
+    html = _convert('Some text.\n{: data-cite-text="Orphaned" }\n\nSee \\cite{orphaned}.\n')
+    assert "data-cite-text" not in html
+    assert '<a class="prodockit-cite-unresolved">?</a>' in html
+
+
 def test_forward_reference_within_same_document_resolves() -> None:
     html = _convert(f"See \\cite{{skou2023}} above.\n\n{SKOU_DEF}\n")
     assert '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>' in html
