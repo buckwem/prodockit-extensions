@@ -22,6 +22,7 @@ import click
 
 from prodockit.pdf.build import PdfBuildError
 from prodockit.pdf.config import build_pdf_from_zensical_config
+from prodockit.pdf.source_bundle import SourceBundleError
 
 
 @click.group()
@@ -58,7 +59,7 @@ def pdf(config_file: str, markdown_file: str | None) -> None:
         click.echo(f"Building PDF from {config_file}...")
     try:
         output_path = build_pdf_from_zensical_config(config_file, markdown_file=markdown_file)
-    except (PdfBuildError, ValueError, OSError) as error:
+    except (PdfBuildError, SourceBundleError, ValueError, OSError) as error:
         click.echo(f"Error: {error}", err=True)
         sys.exit(1)
     click.echo(f"Wrote {output_path}")
