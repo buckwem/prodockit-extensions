@@ -1,5 +1,44 @@
 # Release Notes
 
+## 0.6.0 (2026-07-20)
+
+- New `prodockit.index` extension: mark a term inline with `\index{Term}`
+  for a traditional, PDF-only back-of-book index (browser/Ctrl-F search
+  covers this on the live website, so there's no equivalent there) - the
+  term displays inline exactly as written and is marked for indexing in
+  one go, no separate "definition" step. Needed its own extension rather
+  than the usual `attr_list` marker convention every other prodockit
+  extension uses - confirmed directly plain `attr_list` can't wrap
+  arbitrary inline text in a span on its own.
+    - **Sub-entries**: `\index{Parent!Child!Grandchild}` (up to three
+      levels deep in practice, matching LaTeX `makeidx`'s own
+      `\index{primary!secondary!tertiary}` convention) nests related
+      entries together instead of listing every term flat.
+    - **Code-styled terms**: backticks around the last segment -
+      `` \index{`git commit`} ``, or combined with sub-entries,
+      `` \index{Git!`git commit`} `` - mark a command/code term: it
+      displays inline in a real `<code>` element, and the generated index
+      entry renders the same way.
+    - A term can be a markdown link or contain nested emphasis/code -
+      confirmed directly neither needs special handling, since a term
+      isn't exempted from Python-Markdown's own later inline-pattern
+      passes the way `\ref{id}`/`\cite{id}`/`\gls{id}` are.
+- New `prodockit.pdf.index`: the two-pass build (a term's own page number
+  can only be known once WeasyPrint has already laid the PDF out once)
+  behind `pdf_include_index`/`pdf_index_title` (both off/unset by
+  default) - a traditional, two-column, letter-headed index page
+  (matching this project's own cover page hero graphic colour),
+  alphabetised ignoring leading punctuation (so `--set-upstream option`
+  files under "S", not a separate symbols section), with consecutive
+  pages collapsed into an en-dash range (`67–70`). Requires the new
+  optional `pymupdf` dependency - `pip install prodockit[index]`.
+- Fixed a real bug found while writing tests: code-styling a non-last
+  segment (`` \index{`Git`!commit} `` - never a supported combination,
+  but this shouldn't have corrupted anything either) used to leak a raw
+  Python-Markdown internal stash placeholder into the generated index
+  instead of failing gracefully - a real rendered PDF would have shown a
+  nonsense category label instead of "Git".
+
 ## 0.5.0 (2026-07-19)
 
 - New `prodockit.pdf.source_bundle`: bundles every text/source file
