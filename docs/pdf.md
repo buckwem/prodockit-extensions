@@ -305,7 +305,39 @@ The same term marked more than once merges into one entry (case-
 insensitively - "Widget" and "widget" become one "Widget" entry, keeping
 whichever casing was used first; "widgets" is still a separate entry
 from "widget" - no plural/singular normalisation), with its own page
-list deduplicated and sorted.
+list deduplicated and sorted. Consecutive pages collapse into an en-dash
+range (`67–70`) rather than listing every page individually; non-
+consecutive pages/ranges are comma-separated (`64, 175`) - standard
+back-of-book index convention.
+
+A term is alphabetised (and letter-grouped) ignoring any leading
+punctuation - `--set-upstream option (git push)` and `-u option (git
+branch)` are filed under **S** and **U** respectively (matching where
+"set-upstream"/"u" itself would sort), not lumped into a separate
+"symbols" section, the same way a technical book's own index treats
+command-line options.
+
+Nest a term under another with `\index{Parent!Child!Grandchild}` (up to
+three levels deep in practice) - see
+[Sub-entries](extensions/index-terms.md#sub-entries) - for entries closely
+related enough to group together rather than list flat, e.g.:
+
+```md
+Now generate the \index{Git!ssh keys} to use for authentication.
+```
+
+renders a nested entry like:
+
+```text
+G
+
+Git
+    ssh keys, 13, 89
+```
+
+A parent with no marker of its own anywhere (like `Git` above) still gets
+its own line - a bare category label with no trailing page list - so its
+children have somewhere to nest under.
 
 This is the one feature in `prodockit.pdf` that genuinely needs a
 two-pass build: a term's own page number can only be known once
@@ -694,24 +726,33 @@ invocation fails.
 ```python
 mark_index_terms(html: str) -> tuple[str, list[str]]
 extract_term_pages(pdf_path: str, occurrence_count: int) -> dict[int, int | None]
-build_index_entries(terms: list[str], occurrence_pages: dict[int, int | None]) -> dict[str, list[int]]
-render_index_content(entries: dict[str, list[int]]) -> str
+build_index_entries(terms: list[str], occurrence_pages: dict[int, int | None]) -> dict[str, IndexEntry]
+render_index_content(entries: dict[str, IndexEntry], level: int = 1) -> str
+format_pages(pages: list[int]) -> str
 ```
 
-The four pieces `build_pdf()`'s own `include_index` calls, in order, for
-its two-pass build - see [Back-of-book index](#back-of-book-index) above
-for the feature itself, and this module's own docstring for why a real
-two-pass build (rather than CSS's own `target-counter()`) is what backs
-it. `mark_index_terms()` finds every `[prodockit.index](extensions/index-terms.md)`
+The three main pieces `build_pdf()`'s own `include_index` calls, in
+order, for its two-pass build - see
+[Back-of-book index](#back-of-book-index) above for the feature itself,
+and this module's own docstring for why a real two-pass build (rather
+than CSS's own `target-counter()`) is what backs it. `mark_index_terms()`
+finds every `[prodockit.index](extensions/index-terms.md)`
 `<span class="index">` and inserts a unique, near-invisible text marker
-after each occurrence, returning the terms found in order.
+after each occurrence, returning the terms found in order - a flat
+`"Term"` or, for a hierarchical `\index{Parent!Child}`, `"Parent!Child"`.
 `extract_term_pages()` needs the optional `pymupdf` dependency (only
 imported here, so only required if you actually call this function) -
 raises a plain `ModuleNotFoundError` with a clear install message if it
-isn't installed. `render_index_content()` groups its entries under a
-bold letter heading per first letter (`build_css()`'s own compiled CSS
-lays the whole thing out in two columns), matching a traditional printed
-book's own back-of-book index.
+isn't installed. `build_index_entries()` builds `mark_index_terms()`'s
+flat/hierarchical paths into a nested tree of `IndexEntry(display: str,
+pages: list[int], children: dict[str, IndexEntry])` nodes, alphabetised
+ignoring leading punctuation (see [Back-of-book index](#back-of-book-index)
+above). `render_index_content()` walks that tree, grouping top-level
+entries under a bold letter heading per first letter (`build_css()`'s own
+compiled CSS lays the whole thing out in two columns) and indenting each
+deeper level - matching a traditional printed book's own back-of-book
+index - using `format_pages()` to collapse each entry's own consecutive
+pages into en-dash ranges.
 
 ## Limitations and workarounds
 

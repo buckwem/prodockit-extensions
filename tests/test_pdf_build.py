@@ -379,8 +379,10 @@ def test_include_index_runs_a_second_pandoc_pass_with_real_entries(
     assert len(invocations) == 2  # first pass (extraction) + second (real content)
 
     compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
-    assert '<p class="prodockit-index-entry">Gadget, 2</p>' in compiled
-    assert '<p class="prodockit-index-entry">Widget, 1, 2</p>' in compiled
+    assert '<div class="prodockit-index-entry prodockit-index-level-1">Gadget, 2</div>' in compiled
+    # Pages 1 and 2 are consecutive - format_pages() collapses them into a
+    # single en-dash range rather than "1, 2".
+    assert '<div class="prodockit-index-entry prodockit-index-level-1">Widget, 1–2</div>' in compiled
     assert 'id="prodockit-index-content"' in compiled
 
 

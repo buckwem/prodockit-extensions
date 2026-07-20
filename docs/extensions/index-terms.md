@@ -56,12 +56,44 @@ insensitively - "Widget" and "widget" become one entry, keeping whichever
 casing was used first; "widgets" is still a separate entry from "widget" -
 no plural/singular normalisation).
 
+## Sub-entries
+
+`\index{Parent!Child!Grandchild}` - `!` separates up to three levels in
+practice, matching LaTeX `makeidx`'s own long-established
+`\index{primary!secondary!tertiary}` convention - nests a term under
+another, the same way a printed book's own index groups related entries
+together (e.g. "staging area" with "adding"/"modified" indented beneath
+it) rather than listing every term as one flat alphabetical run:
+
+=== "Markdown"
+
+    ```md
+    Now generate the \index{Git!ssh keys} to use for authentication.
+    ```
+
+=== "Result"
+
+    Now generate the \index{Git!ssh keys} to use for authentication.
+
+Only the *last* segment displays inline (`ssh keys` above) - wherever the
+term is actually mentioned in your prose - the earlier segments (`Git`)
+are only ever used to build the generated index's own nesting, and never
+appear inline themselves. See
+[Back-of-book index](../pdf.md#back-of-book-index) for what a nested
+index entry looks like once built.
+
 ## CSS hooks
 
-`\index{Term}` always renders as `<span class="index">Term</span>` - no
-other class or attribute, and nothing left behind to strip: unlike
-`prodockit.refs`/`prodockit.citations`/`prodockit.glossary`, there's no
-resolved/unresolved state to distinguish (nothing to resolve - a term
-either renders or the whole page fails to parse), so no extra styling
-hook is needed by default. A project wanting to visually highlight
-indexed terms on the live website can target `.index` directly.
+A flat `\index{Term}` renders as `<span class="index">Term</span>` - no
+other class or attribute, and nothing left behind to strip. A
+hierarchical `\index{Parent!Child}` additionally carries the full path on
+`data-index-term` (`<span class="index"
+data-index-term="Parent!Child">Child</span>`), read by
+`prodockit.pdf.index` to build the nested index - harmless for a
+project's own CSS, which would only ever need to target the shared
+`.index` class either way. Unlike `prodockit.refs`/`prodockit.citations`/
+`prodockit.glossary`, there's no resolved/unresolved state to distinguish
+(nothing to resolve - a term either renders or the whole page fails to
+parse), so no extra styling hook is needed by default. A project wanting
+to visually highlight indexed terms on the live website can target
+`.index` directly.

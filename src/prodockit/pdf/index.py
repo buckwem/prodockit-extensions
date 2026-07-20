@@ -3,7 +3,7 @@
 
 """A back-of-book style index, PDF-only: an alphabetised list of terms
 with the page number(s) they appear on, generated automatically from
-`[Term]{.index}` markers scattered through the document.
+`\\index{Term}` markers scattered through the document.
 
 Unlike prodockit.headings/refs/citations/glossary - all "collect entries
 the author writes explicitly, in one place" - an index term's own page
@@ -30,12 +30,18 @@ standard back-of-book convention, and the only position where growing or
 shrinking its own content can't retroactively shift the page numbers
 already recorded for every earlier marker), the two passes are exactly
 two - never an iterative "rebuild until stable" loop.
+
+**Hierarchical entries**: `\\index{Parent!Child!Grandchild}` (see
+`prodockit.index`) builds a nested tree, up to three levels deep in
+practice, rendered with a fixed indent step per level - see
+`build_index_entries()`/`render_index_content()`.
 """
 
 from __future__ import annotations
 
 import html
 import re
+from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
 
@@ -66,23 +72,25 @@ def _marker_text(occurrence_number: int) -> str:
 
 def mark_index_terms(html: str) -> tuple[str, list[str]]:
     """Finds every `<span class="index">` in `html` (i.e. every
-    `[Term]{.index}` an author wrote) and inserts a unique, sequentially
+    `\\index{Term}` an author wrote) and inserts a unique, sequentially
     numbered marker (see `_marker_text`) directly after each one - a
     `font-size: 0.1pt` span, findable by `extract_term_pages()` in the
     finished PDF's own text layer while remaining visually imperceptible
     (confirmed directly: `font-size: 0` is dropped from the PDF's text
     layer entirely, unlike a merely tiny non-zero size).
 
-    Returns `(html_with_markers, terms)`, where `terms[i]` is the
-    (unnormalised, exactly-as-written) term text for marker number
-    `i + 1` - every occurrence recorded separately, even repeats of the
-    same term, since which page each one lands on is still unknown at
-    this point.
+    Returns `(html_with_markers, terms)`, where `terms[i]` is the term's
+    full path for marker number `i + 1` - a flat `\\index{Term}` gives
+    `"Term"`, a hierarchical `\\index{Parent!Child}` (see `prodockit.index`)
+    gives `"Parent!Child"` (its own `data-index-term` attribute, not the
+    span's visible text, which for that case is just `"Child"`) - every
+    occurrence recorded separately, even repeats of the same term, since
+    which page each one lands on is still unknown at this point.
     """
     soup = BeautifulSoup(html, "html.parser")
     terms: list[str] = []
     for span in soup.find_all("span", class_=INDEX_TERM_CLASS):
-        terms.append(span.get_text())
+        terms.append(span.get("data-index-term") or span.get_text())
         marker = soup.new_tag("span")
         marker["style"] = "font-size: 0.1pt !important; color: transparent !important;"
         marker.string = _marker_text(len(terms))
@@ -134,51 +142,134 @@ def extract_term_pages(pdf_path: str, occurrence_count: int) -> dict[int, int | 
         doc.close()  # type: ignore[no-untyped-call]
 
 
+@dataclass
+class IndexEntry:
+    """One node in the tree `build_index_entries()` returns - `display` is
+    this node's own text (a `\\index{Parent!Child}`'s `Child` segment, not
+    the full path); `pages` are this exact node's own resolved page
+    numbers (empty for a pure grouping node with no page of its own - see
+    `render_index_content()`'s own docstring for a real example);
+    `children`, keyed the same case-insensitively-normalised way as the
+    top-level dict `build_index_entries()` returns, are this node's own
+    sub-entries, already sorted (see `_sort_key()`)."""
+
+    display: str
+    pages: list[int]
+    children: dict[str, IndexEntry]
+
+
+#: Strips leading characters that aren't a letter or digit, so a
+#: technical term like "--set-upstream option (git push)" alphabetises
+#: (and letter-groups) under "S", not under a separate "symbols" section -
+#: standard back-of-book index practice, confirmed directly to match how
+#: e.g. an O'Reilly book's own index treats command-line options.
+_SORT_KEY_STRIP_RE = re.compile(r"^[^a-zA-Z0-9]+")
+
+
+def _sort_key(display: str) -> str:
+    stripped = _SORT_KEY_STRIP_RE.sub("", display)
+    return (stripped or display).lower()
+
+
+def format_pages(pages: list[int]) -> str:
+    """Formats a term's own resolved pages for display: a run of
+    consecutive pages collapses into an en-dash range (`"67–70"`), while
+    non-consecutive pages/ranges are comma-separated (`"64, 175"`) -
+    standard back-of-book index convention. `pages` needn't already be
+    sorted or deduplicated; this does both. Returns `""` for an empty
+    list (a pure grouping node with no page of its own)."""
+    unique_sorted = sorted(set(pages))
+    if not unique_sorted:
+        return ""
+    ranges: list[str] = []
+    start = end = unique_sorted[0]
+    for page in unique_sorted[1:]:
+        if page == end + 1:
+            end = page
+            continue
+        ranges.append(str(start) if start == end else f"{start}–{end}")
+        start = end = page
+    ranges.append(str(start) if start == end else f"{start}–{end}")
+    return ", ".join(ranges)
+
+
 def build_index_entries(
     terms: list[str], occurrence_pages: dict[int, int | None]
-) -> dict[str, list[int]]:
+) -> dict[str, IndexEntry]:
     """Groups `terms` (as returned by `mark_index_terms()`, one entry per
-    occurrence) by their own case-insensitively-normalised text, into
-    `{term: [sorted, deduplicated page numbers]}` - occurrence number
-    `i + 1` in `terms[i]` looks up its own page via `occurrence_pages`
-    (as returned by `extract_term_pages()`).
+    occurrence - a flat `"Term"` or a hierarchical `"Parent!Child!
+    Grandchild"`, up to three levels deep in practice) into a nested tree,
+    each level keyed by its own case-insensitively-normalised text and
+    alphabetised (`_sort_key()`, so e.g. a leading `--` doesn't send a
+    command-line option to its own separate section) - occurrence number
+    `i + 1` in `terms[i]` looks up its own page via `occurrence_pages` (as
+    returned by `extract_term_pages()`), attached to the *last* segment's
+    own node (a new intermediate/parent segment gets no page of its own
+    from this occurrence - see `IndexEntry`).
 
-    The *first* occurrence's own original casing is kept for display
-    (e.g. "Widget" and "widget" merge into one "Widget" entry, not two) -
-    a deliberate simplification, not true linguistic normalisation (a
-    plural "widgets" is still a separate entry from singular "widget").
-    Entries with no resolved page at all (shouldn't happen - see
-    `extract_term_pages()`) are dropped rather than shown with no pages.
+    The *first* occurrence's own original casing is kept for display at
+    each level (e.g. "Widget" and "widget" merge into one "Widget" entry,
+    not two) - a deliberate simplification, not true linguistic
+    normalisation (a plural "widgets" is still a separate entry from
+    singular "widget"). An occurrence with no resolved page at all
+    (shouldn't happen - see `extract_term_pages()`) is dropped rather than
+    shown with no pages - though an intermediate grouping node it would
+    have created (e.g. "Parent" in "Parent!Child") still exists if some
+    *other* occurrence's own path passes through it.
     """
-    entries: dict[str, list[int]] = {}
-    display_case: dict[str, str] = {}
-    for i, term in enumerate(terms):
-        occurrence_number = i + 1
-        page = occurrence_pages.get(occurrence_number)
+    root: dict[str, IndexEntry] = {}
+    for i, path in enumerate(terms):
+        page = occurrence_pages.get(i + 1)
         if page is None:
             continue
-        key = term.strip().lower()
-        display_case.setdefault(key, term.strip())
-        pages_for_term = entries.setdefault(key, [])
-        if page not in pages_for_term:
-            pages_for_term.append(page)
+        segments = [segment.strip() for segment in path.split("!") if segment.strip()]
+        if not segments:
+            continue
+        level = root
+        node = None
+        for segment in segments:
+            node = level.setdefault(segment.lower(), IndexEntry(segment, [], {}))
+            level = node.children
+        assert node is not None  # segments is non-empty, so the loop above always runs
+        if page not in node.pages:
+            node.pages.append(page)
 
-    return {
-        display_case[key]: sorted(pages)
-        for key, pages in sorted(entries.items(), key=lambda item: item[0])
-    }
+    def sort_tree(level: dict[str, IndexEntry]) -> dict[str, IndexEntry]:
+        sorted_level: dict[str, IndexEntry] = {}
+        for key in sorted(level, key=lambda k: _sort_key(level[k].display)):
+            entry = level[key]
+            entry.pages.sort()
+            sorted_level[key] = IndexEntry(entry.display, entry.pages, sort_tree(entry.children))
+        return sorted_level
+
+    return sort_tree(root)
 
 
-def render_index_content(entries: dict[str, list[int]]) -> str:
-    """Renders `build_index_entries()`'s own output as the HTML that
+def render_index_content(entries: dict[str, IndexEntry], level: int = 1) -> str:
+    """Renders `build_index_entries()`'s own nested tree as the HTML that
     replaces the empty `id="prodockit-index-content"` placeholder div for
-    the second pass - a traditional back-of-book layout, grouped under a
-    letter heading (`<h2 class="prodockit-index-letter">`) per first
-    letter, with one `<p class="prodockit-index-entry">Term, pages</p>`
-    per term - `entries` is already alphabetised (dict insertion order, as
-    `build_index_entries()` already sorted it), so a new letter group
-    starts exactly when an entry's first letter differs from the previous
+    the second pass - a traditional back-of-book layout: a letter heading
+    (`<h2 class="prodockit-index-letter">`) per first letter *at the top
+    level only*, then one `<div class="prodockit-index-entry
+    prodockit-index-level-N">` per entry at every level, `N` (1-3 in
+    practice) driving that entry's own indentation in `prodockit.pdf.css`.
+    A `<div>`, not a `<p>` - confirmed directly, Pandoc's native `Para` AST
+    node has no attribute field at all, so a plain `<p class="...">` here
+    (this content is inserted raw in `build_pdf()`, never passed through
+    `prodockit.pdf.html`'s own general `<p>`-with-a-class-or-id -> `<div>`
+    retagging, since it isn't a real page) would silently lose its class -
+    and with it, every level's own indentation - by the time Pandoc's
+    reader is done with it.
+    `entries` is already alphabetised (`build_index_entries()`'s own
+    `_sort_key()` order), so a new letter group starts exactly when a
+    top-level entry's own sort key first letter differs from the previous
     one, with no separate re-sorting needed here.
+
+    A node with sub-entries but no page of its own (e.g. "files" grouping
+    "adding"/"modified" beneath "staging area" with no "files, N" page
+    itself) renders with no trailing page list at all, matching a real
+    printed index's own use of a bare category label part-way through a
+    hierarchy.
 
     Each letter heading carries `unnumbered unlisted` (the same convention
     `build_pdf()` already uses for its own Table of Contents/Index page
@@ -190,14 +281,21 @@ def render_index_content(entries: dict[str, list[int]]) -> str:
         return ""
     lines = []
     current_letter = None
-    for term, pages in entries.items():
-        letter = term[0].upper()
-        if letter != current_letter:
-            current_letter = letter
-            lines.append(
-                '<h2 class="prodockit-index-letter unnumbered unlisted">'
-                f"{html.escape(letter)}</h2>"
-            )
-        page_list = ", ".join(str(page) for page in pages)
-        lines.append(f'<p class="prodockit-index-entry">{html.escape(term)}, {page_list}</p>')
+    for entry in entries.values():
+        if level == 1:
+            letter = (_sort_key(entry.display)[:1] or entry.display[:1]).upper()
+            if letter != current_letter:
+                current_letter = letter
+                lines.append(
+                    '<h2 class="prodockit-index-letter unnumbered unlisted">'
+                    f"{html.escape(letter)}</h2>"
+                )
+        text = html.escape(entry.display)
+        page_list = format_pages(entry.pages)
+        if page_list:
+            text += f", {page_list}"
+        div_class = f"prodockit-index-entry prodockit-index-level-{level}"
+        lines.append(f'<div class="{div_class}">{text}</div>')
+        if entry.children:
+            lines.append(render_index_content(entry.children, level + 1))
     return "\n".join(lines)

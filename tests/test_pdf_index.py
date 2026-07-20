@@ -9,8 +9,10 @@ pymupdf = pytest.importorskip("pymupdf")
 
 from prodockit.pdf.index import (  # noqa: E402
     INDEX_CONTENT_ID,
+    IndexEntry,
     build_index_entries,
     extract_term_pages,
+    format_pages,
     mark_index_terms,
     render_index_content,
 )
@@ -76,6 +78,12 @@ def test_mark_index_terms_repeated_term_gets_its_own_occurrence_each_time() -> N
     assert terms == ["Widget", "widget"]
 
 
+def test_mark_index_terms_reads_the_full_path_from_data_index_term() -> None:
+    html = '<span class="index" data-index-term="Git!ssh keys">ssh keys</span>'
+    _, terms = mark_index_terms(html)
+    assert terms == ["Git!ssh keys"]
+
+
 # ---------------------------------------------------------------------------
 # extract_term_pages
 # ---------------------------------------------------------------------------
@@ -107,6 +115,39 @@ def test_extract_term_pages_none_for_an_occurrence_not_found(tmp_path: Path) -> 
 
 
 # ---------------------------------------------------------------------------
+# format_pages
+# ---------------------------------------------------------------------------
+
+
+def test_format_pages_empty_list_returns_empty_string() -> None:
+    assert format_pages([]) == ""
+
+
+def test_format_pages_single_page() -> None:
+    assert format_pages([4]) == "4"
+
+
+def test_format_pages_non_consecutive_pages_are_comma_separated() -> None:
+    assert format_pages([64, 175]) == "64, 175"
+
+
+def test_format_pages_consecutive_pages_collapse_to_an_en_dash_range() -> None:
+    assert format_pages([67, 68, 69, 70]) == "67–70"
+
+
+def test_format_pages_two_consecutive_pages_still_collapse_to_a_range() -> None:
+    assert format_pages([27, 28]) == "27–28"
+
+
+def test_format_pages_mixes_ranges_and_singles() -> None:
+    assert format_pages([1, 2, 3, 5, 7, 8, 9]) == "1–3, 5, 7–9"
+
+
+def test_format_pages_deduplicates_and_sorts() -> None:
+    assert format_pages([5, 3, 3, 4]) == "3–5"
+
+
+# ---------------------------------------------------------------------------
 # build_index_entries
 # ---------------------------------------------------------------------------
 
@@ -117,7 +158,7 @@ def test_build_index_entries_groups_case_insensitively_keeping_first_casing() ->
 
     entries = build_index_entries(terms, occurrence_pages)
 
-    assert entries == {"Widget": [2, 5]}
+    assert list(entries.values()) == [IndexEntry("Widget", [2, 5], {})]
 
 
 def test_build_index_entries_deduplicates_same_page() -> None:
@@ -126,7 +167,7 @@ def test_build_index_entries_deduplicates_same_page() -> None:
 
     entries = build_index_entries(terms, occurrence_pages)
 
-    assert entries == {"Widget": [4]}
+    assert list(entries.values()) == [IndexEntry("Widget", [4], {})]
 
 
 def test_build_index_entries_sorts_pages_and_alphabetises_terms() -> None:
@@ -135,7 +176,7 @@ def test_build_index_entries_sorts_pages_and_alphabetises_terms() -> None:
 
     entries = build_index_entries(terms, occurrence_pages)
 
-    assert list(entries.keys()) == ["Apple", "Zebra"]
+    assert [entry.display for entry in entries.values()] == ["Apple", "Zebra"]
 
 
 def test_build_index_entries_drops_occurrences_with_no_resolved_page() -> None:
@@ -145,6 +186,50 @@ def test_build_index_entries_drops_occurrences_with_no_resolved_page() -> None:
     entries = build_index_entries(terms, occurrence_pages)
 
     assert entries == {}
+
+
+def test_build_index_entries_alphabetises_ignoring_leading_punctuation() -> None:
+    terms = ["--set-upstream option (git push)", "-u option (git branch)", "SSH"]
+    occurrence_pages = {1: 242, 2: 148, 3: 89}
+
+    entries = build_index_entries(terms, occurrence_pages)
+
+    # "-u option..." sorts under U (before "--set-upstream..." under S is
+    # wrong here - S < U), so alphabetical order once dashes are ignored is
+    # "--set-upstream option..." (s), "SSH" (s), "-u option..." (u).
+    assert [entry.display for entry in entries.values()] == [
+        "--set-upstream option (git push)",
+        "SSH",
+        "-u option (git branch)",
+    ]
+
+
+def test_build_index_entries_builds_a_nested_tree_from_bang_separated_paths() -> None:
+    terms = ["Staging area", "Staging area!files!adding", "Staging area!files!modified"]
+    occurrence_pages = {1: 27, 2: 36, 3: 205}
+
+    entries = build_index_entries(terms, occurrence_pages)
+
+    staging_area = entries["staging area"]
+    assert staging_area.display == "Staging area"
+    assert staging_area.pages == [27]
+    files = staging_area.children["files"]
+    assert files.display == "files"
+    assert files.pages == []  # a pure grouping node - no page of its own
+    assert [entry.display for entry in files.children.values()] == ["adding", "modified"]
+    assert files.children["adding"].pages == [36]
+    assert files.children["modified"].pages == [205]
+
+
+def test_build_index_entries_merges_repeated_hierarchical_paths() -> None:
+    terms = ["Git!ssh keys", "Git!ssh keys"]
+    occurrence_pages = {1: 13, 2: 89}
+
+    entries = build_index_entries(terms, occurrence_pages)
+
+    git = entries["git"]
+    assert git.pages == []
+    assert git.children["ssh keys"].pages == [13, 89]
 
 
 # ---------------------------------------------------------------------------
@@ -157,13 +242,21 @@ def test_render_index_content_empty_entries_returns_empty_string() -> None:
 
 
 def test_render_index_content_renders_one_paragraph_per_term() -> None:
-    content = render_index_content({"Gadget": [4], "Widget": [1, 3]})
-    assert '<p class="prodockit-index-entry">Gadget, 4</p>' in content
-    assert '<p class="prodockit-index-entry">Widget, 1, 3</p>' in content
+    content = render_index_content(
+        {"gadget": IndexEntry("Gadget", [4], {}), "widget": IndexEntry("Widget", [1, 3], {})}
+    )
+    assert '<div class="prodockit-index-entry prodockit-index-level-1">Gadget, 4</div>' in content
+    assert '<div class="prodockit-index-entry prodockit-index-level-1">Widget, 1, 3</div>' in content
 
 
 def test_render_index_content_groups_entries_under_a_letter_heading() -> None:
-    content = render_index_content({"Apple": [1], "Avocado": [2], "Banana": [3]})
+    content = render_index_content(
+        {
+            "apple": IndexEntry("Apple", [1], {}),
+            "avocado": IndexEntry("Avocado", [2], {}),
+            "banana": IndexEntry("Banana", [3], {}),
+        }
+    )
     letter_a = '<h2 class="prodockit-index-letter unnumbered unlisted">A</h2>'
     letter_b = '<h2 class="prodockit-index-letter unnumbered unlisted">B</h2>'
     assert content.index(letter_a) < content.index("Apple")
@@ -173,8 +266,37 @@ def test_render_index_content_groups_entries_under_a_letter_heading() -> None:
     assert content.index("Avocado") < content.index(letter_b)
 
 
+def test_render_index_content_renders_nested_children_with_increasing_level_classes() -> None:
+    content = render_index_content(
+        {
+            "staging area": IndexEntry(
+                "Staging area",
+                [27],
+                {
+                    "files": IndexEntry(
+                        "files",
+                        [],
+                        {
+                            "adding": IndexEntry("adding", [36], {}),
+                            "modified": IndexEntry("modified", [205], {}),
+                        },
+                    )
+                },
+            )
+        }
+    )
+    assert '<div class="prodockit-index-entry prodockit-index-level-1">Staging area, 27</div>' in content
+    # "files" has no page of its own - no trailing ", N" at all.
+    assert '<div class="prodockit-index-entry prodockit-index-level-2">files</div>' in content
+    assert '<div class="prodockit-index-entry prodockit-index-level-3">adding, 36</div>' in content
+    assert '<div class="prodockit-index-entry prodockit-index-level-3">modified, 205</div>' in content
+    # Only one letter heading overall - "files"/"adding"/"modified" don't
+    # start their own letter sections, only the top-level "Staging area" does.
+    assert content.count('class="prodockit-index-letter') == 1
+
+
 def test_render_index_content_escapes_html_in_term_text() -> None:
-    content = render_index_content({"<script>": [1]})
+    content = render_index_content({"<script>": IndexEntry("<script>", [1], {})})
     assert "<script>" not in content
     assert "&lt;script&gt;" in content
 

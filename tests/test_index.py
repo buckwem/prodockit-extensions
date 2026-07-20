@@ -54,3 +54,26 @@ def test_no_marker_leaves_plain_text_unchanged() -> None:
     html = _convert("Nothing marked here.")
     assert "Nothing marked here." in html
     assert '<span class="index">' not in html
+
+
+def test_hierarchical_term_displays_only_the_last_segment() -> None:
+    html = _convert(r"Now generate the \index{Git!ssh keys}.")
+    assert '<span class="index" data-index-term="Git!ssh keys">ssh keys</span>' in html
+
+
+def test_three_level_hierarchical_term() -> None:
+    html = _convert(r"See \index{Staging area!files!adding} for details.")
+    assert (
+        '<span class="index" data-index-term="Staging area!files!adding">adding</span>'
+        in html
+    )
+
+
+def test_hierarchical_term_strips_whitespace_around_bang_separators() -> None:
+    html = _convert(r"\index{ Git ! ssh keys }")
+    assert '<span class="index" data-index-term="Git!ssh keys">ssh keys</span>' in html
+
+
+def test_flat_term_has_no_data_index_term_attribute() -> None:
+    html = _convert(r"A \index{widget} is here.")
+    assert "data-index-term" not in html

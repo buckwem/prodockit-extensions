@@ -644,23 +644,45 @@ img.twemoji, i.fa-solid, i.fa-regular, i.fa-brands, i.material-icons, i[class*="
 /* Traditional two-column index layout - the same shape as a printed book's
    own back-of-book index. WeasyPrint's CSS Multi-column support (confirmed
    directly) correctly reflows content across both columns and, in turn,
-   across as many pages as the index needs. */
+   across as many pages as the index needs. column-fill: auto (rather than
+   the "balance" default outside paged media) is what actually guarantees
+   the expected reading order - fill the left column all the way down
+   first, then continue at the top of the right column - "balance" would
+   instead try to even out both columns' heights on the index's own last,
+   partially-filled page. */
 #prodockit-index-content {
     column-count: 2 !important;
+    column-fill: auto !important;
     column-gap: 1.5cm !important;
     column-rule: 0.5pt solid #e2e8f0 !important;
 }
 h2.prodockit-index-letter {
-    color: #7a1f2b !important;
+    color: #b7410e !important;
     font-size: 14pt !important;
     font-weight: bold !important;
-    margin: 0.8em 0 0.3em 0 !important;
+    /* Generous top margin - clear air setting each new letter section
+       apart from the previous one's list of entries. */
+    margin: 1.8em 0 0.3em 0 !important;
     break-after: avoid-column !important;
     break-inside: avoid-column !important;
 }
-p.prodockit-index-entry {
+/* A <div>, not a <p> - see prodockit.pdf.index's own render_index_content()
+   docstring for why: Pandoc's Para AST node has no attribute field at all,
+   so a plain <p class="..."> here would silently lose its class (and with
+   it, every level's own indentation below) by the time Pandoc's reader is
+   done with it. */
+div.prodockit-index-entry {
     margin: 0 !important;
     break-inside: avoid-column !important;
+}
+/* Fixed indent step per nesting level (see prodockit.pdf.index's own
+   IndexEntry/render_index_content docs) - level 1 sits flush with the
+   column margin; each deeper level steps in by another 12pt. */
+div.prodockit-index-level-2 {
+    margin-left: 12pt !important;
+}
+div.prodockit-index-level-3 {
+    margin-left: 24pt !important;
 }
 """
 

@@ -23,6 +23,15 @@ no shared registry or cross-page resolution at all - indexing happens
 entirely inside prodockit.pdf, once every page is already concatenated
 into a single document, so there's nothing here to coordinate across
 pages in the first place.
+
+**Hierarchical (sub-)entries**: ``\\index{Parent!Child!Grandchild}`` -
+``!`` separates up to three levels, matching LaTeX ``makeidx``'s own
+long-established ``\\index{primary!secondary!tertiary}`` convention. Only
+the *last* segment displays inline (`Grandchild`, matching wherever the
+term is actually mentioned in the prose) - the full path is carried on a
+`data-index-term` attribute instead, for `prodockit.pdf.index` to build
+the nested index from; a plain `\\index{Term}` (no `!`) has no such
+attribute and behaves exactly as before.
 """
 
 from __future__ import annotations
@@ -41,16 +50,23 @@ INDEX_RE = r"\\index\{([^}]+)\}"
 
 
 class IndexInlineProcessor(InlineProcessor):
-    """Matches ``\\index{Term}`` and emits ``<span class="index">Term</span>``.
+    """Matches ``\\index{Term}`` and emits ``<span class="index">Term</span>``
+    (or, for ``\\index{Parent!Child}``, ``<span class="index"
+    data-index-term="Parent!Child">Child</span>`` - see this module's own
+    docstring for the hierarchical syntax).
 
     Unlike `\\ref{id}`/`\\cite{id}`/`\\gls{id}` (each resolving a short id,
-    not display text, via a later treeprocessor), `Term` isn't exempted
-    from Python-Markdown's own subsequent inline-pattern passes - confirmed
-    directly, `\\index{*emphasised*}` still renders as `<em>` inside the
-    span, exactly as the same text would outside one. Harmless for
-    indexing purposes either way: `prodockit.pdf.index`'s own
+    not display text, via a later treeprocessor), the visible text isn't
+    exempted from Python-Markdown's own subsequent inline-pattern passes -
+    confirmed directly, `\\index{*emphasised*}` still renders as `<em>`
+    inside the span, exactly as the same text would outside one. Harmless
+    for indexing purposes either way: `prodockit.pdf.index`'s own
     `mark_index_terms()` reads the span's plain text via BeautifulSoup's
-    `get_text()`, which already strips any nested tags regardless.
+    `get_text()` (falling back to it whenever `data-index-term` isn't set),
+    which already strips any nested tags regardless - only a flat term's
+    *display* text can meaningfully carry nested markdown this way; a
+    `data-index-term` path's own earlier segments are plain category
+    labels, not reprocessed.
 
     Registered at a low inline-pattern priority so it runs after
     'backtick' (190) and 'escape' (180) - meaning inline code spans are
@@ -62,9 +78,15 @@ class IndexInlineProcessor(InlineProcessor):
     def handleMatch(  # type: ignore[override]
         self, m: re.Match[str], data: str
     ) -> tuple[etree.Element, int, int]:
+        raw_path = m.group(1)
+        segments = [segment.strip() for segment in raw_path.split("!")]
         el = etree.Element("span")
         el.set("class", INDEX_TERM_CLASS)
-        el.text = m.group(1)
+        if len(segments) > 1:
+            el.set("data-index-term", "!".join(segments))
+            el.text = segments[-1]
+        else:
+            el.text = raw_path
         return el, m.start(0), m.end(0)
 
 
