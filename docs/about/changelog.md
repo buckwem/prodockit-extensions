@@ -1,5 +1,21 @@
 # Release Notes
 
+## 0.6.6 (2026-07-21)
+
+- Docs: the cover page hero graphic (`docs/assets/cover-hero-*.svg`) used
+  a different colour palette in light mode (blue) than in dark mode
+  (green) - recoloured the light variant to match dark exactly, so the
+  hero reads the same regardless of theme. The "Download PDF" button
+  also picked up this same green, rather than the theme's default
+  primary colour.
+- `prodockit.pdf.css`'s back-of-book index letter-group headings
+  (`h2.prodockit-index-letter` - the "A", "B", "C" separators) were
+  hardcoded to the hero graphic's *old* light-theme blue - updated to
+  match the now-green hero, which a PDF always shows regardless of a
+  project's own website light/dark toggle.
+- No functional (Python package behaviour) changes beyond the index
+  letter colour.
+
 ## 0.6.5 (2026-07-21)
 
 Extends the 0.6.4 always-excluded-directory mechanism in
