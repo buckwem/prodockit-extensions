@@ -18,6 +18,14 @@ student-written content:
 Neither is project-configurable, matching 0.6.4's `.icons` exclusion: a
 project can't reach for the same knob to narrow what a bundle archives.
 
+Also fixes `source_bundle.pdf`'s running header naming the wrong file: a
+file's own last page could show the *next* file's name instead of its
+own, because the invisible marker that sets the header text had no page
+break of its own - only the following content did - so it rendered on
+the tail end of the previous file's last page. The break now moves onto
+the marker itself, so the string-set and the page it applies to always
+agree.
+
 ## 0.6.4 (2026-07-21)
 
 `prodockit.pdf.source_bundle` now always excludes any directory literally
