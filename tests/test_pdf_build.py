@@ -2,13 +2,22 @@
 # SPDX-License-Identifier: MIT
 
 import os
+import shutil
 import stat
 import sys
 from pathlib import Path
 
 import pytest
+from pypdf import PdfReader
 
 from prodockit.pdf.build import Page, PdfBuildError, build_pdf
+
+real_pandoc_and_weasyprint_required = pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("weasyprint") is None,
+    reason="verifying real page placement (e.g. double_sided's recto rule) "
+    "needs an actual pandoc+weasyprint render, not the fake-pandoc stub "
+    "every other test here uses.",
+)
 
 
 def _fake_pandoc(tmp_path: Path, script: str) -> Path:
@@ -508,3 +517,42 @@ def test_include_index_custom_title(tmp_path: Path, fake_pandoc_on_path) -> None
 
     compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
     assert ">Glossary of Terms<" in compiled
+
+
+@real_pandoc_and_weasyprint_required
+def test_index_starts_on_a_recto_page_under_double_sided(tmp_path: Path) -> None:
+    """The Index/TOC trigger heading build_pdf() inserts is `.unnumbered`
+    (see prodockit.pdf.index's own module docstring) - a real concern is
+    whether double_sided's `h1 { break-before: recto }` rule (see
+    prodockit.pdf.css) still applies to it, since a *different* rule
+    (`h1:not(.unnumbered) { string-set: chapter-title ... }`) deliberately
+    does exclude unnumbered headings. Confirmed here with a real
+    pandoc+weasyprint build (the fake-pandoc stub every other test in this
+    file uses can't answer this - it ignores the real HTML/CSS entirely):
+    every recto-forced heading, including the Index, lands on an odd
+    page."""
+    long_para = "<p>" + ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 40) + "</p>"
+    pages = [
+        Page(docs_rel_path="index.md", html="<h1>Cover</h1>", is_index=True),
+        Page(
+            docs_rel_path="chapter1.md",
+            html=f'<h1>Chapter One</h1>{long_para}<span class="index">Widget</span>{long_para}',
+        ),
+        Page(
+            docs_rel_path="chapter2.md",
+            html=f'<h1>Chapter Two</h1>{long_para}<span class="index">Gadget</span>{long_para}',
+        ),
+    ]
+    output_path = tmp_path / "out.pdf"
+
+    build_pdf(pages, str(output_path), double_sided=True, include_index=True)
+
+    reader = PdfReader(str(output_path))
+    index_page_numbers = [
+        i for i, page in enumerate(reader.pages, start=1)
+        if page.extract_text().strip().startswith("Index")
+    ]
+    assert index_page_numbers, "Index heading not found in the built PDF"
+    assert index_page_numbers[0] % 2 == 1, (
+        f"Index landed on page {index_page_numbers[0]}, an even (verso) page"
+    )

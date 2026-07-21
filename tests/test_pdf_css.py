@@ -121,6 +121,14 @@ def test_single_sided_h1_breaks_before_a_plain_page() -> None:
 
 
 def test_double_sided_h1_breaks_before_a_recto_page() -> None:
+    """The exact-string match matters here, not just substring presence:
+    this selector is a bare `h1`, deliberately *not* scoped with
+    `:not(.unnumbered)` the way the sibling `string-set: chapter-title`
+    rule further down is - so the Index/Table of Contents trigger heading
+    (both `.unnumbered`) still gets forced onto its own recto page too,
+    the same as any real chapter heading. Confirmed end-to-end with a
+    real pandoc+weasyprint build in
+    test_pdf_build.py::test_index_starts_on_a_recto_page_under_double_sided."""
     css = build_css("Inter", "Fira Code", "Copyright 2026", "My Site", double_sided=True)
     assert "h1 { break-before: recto !important; }" in css
 
