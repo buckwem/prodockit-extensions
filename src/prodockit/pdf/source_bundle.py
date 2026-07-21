@@ -166,23 +166,31 @@ body {
    box - confirmed directly that display: none silently drops it instead,
    leaving @top-right permanently empty. Zero-size-and-clipped (rather
    than display: none) keeps the box (and so the string-set) while still
-   taking up no visible space. */
+   taking up no visible space.
+
+   break-before belongs here, not on the following <pre> - confirmed
+   directly that putting it on <pre> instead let this marker (a real,
+   if invisible, box) render on the *previous* file's own last page,
+   right before the break - so that page's own running header showed
+   the *next* file's name instead of the file whose content actually
+   filled it. Keeping marker and break on the same element means the
+   string-set and the page it takes effect on always agree. */
 .file-marker {
     string-set: current-file content();
+    break-before: page !important;
     font-size: 0 !important;
     line-height: 0 !important;
     height: 0 !important;
     margin: 0 !important;
     overflow: hidden !important;
 }
+.file-marker:first-of-type {
+    break-before: avoid !important;
+}
 pre {
     white-space: pre-wrap !important;
     overflow-wrap: break-word !important;
-    break-before: page !important;
     margin: 0 !important;
-}
-pre:first-of-type {
-    break-before: avoid !important;
 }
 """
 
