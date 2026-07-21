@@ -870,6 +870,14 @@ before assuming it's a bug.
   correctly from wherever Pandoc happens to run in a standalone document →
   base64-embedded as `data:` URIs directly in the HTML (see
   `to_base64_data_uri()`).
+- A PDF has no light/dark toggle to make the mkdocs-material/Zensical
+  `#only-light`/`#only-dark`/`#gh-light-mode-only`/`#gh-dark-mode-only`
+  image convention meaningful → the `#only-dark`/`#gh-dark-mode-only`
+  half of a pair is dropped entirely rather than embedded, since
+  `to_base64_data_uri()`'s resulting `data:` URI has no trace of the
+  fragment left for any stylesheet to hide it by (this used to leave both
+  halves of every such pair permanently visible, stacked one after the
+  other).
 - A CSS `url()` reference (e.g. in your own website stylesheet, passed via
   `extra_css`) resolved relative to wherever Pandoc runs is meaningless
   (and can leak a local file path) to anyone reading the PDF → a project

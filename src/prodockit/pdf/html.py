@@ -375,8 +375,24 @@ def fix_up_page_html(
     # Images: base64-embed every local image reference directly into the
     # HTML, so the standalone compiled document doesn't depend on relative
     # file paths resolving correctly from wherever Pandoc happens to run.
+    #
+    # A #only-dark/#gh-dark-mode-only image is one half of a light/dark
+    # pair (the mkdocs-material/Zensical convention for "swap this image
+    # depending on the site's colour scheme toggle") - meaningless for a
+    # PDF, which is always one static, light-background document with no
+    # toggle at all. Dropped here entirely, rather than embedded and left
+    # for a stylesheet to hide: to_base64_data_uri() already strips
+    # anything from "#" onward before resolving the file (so the *right*
+    # file is still found), but that also means the resulting data: URI
+    # itself has no trace of "#only-dark" left for CSS to select against -
+    # confirmed directly, this used to leave both halves of every such
+    # pair permanently visible, stacked one after the other, with no way
+    # for print.css (or any other stylesheet) to hide either one.
     for img in soup.find_all("img"):
         src = img.get("src", "")
+        if src.endswith(("#only-dark", "#gh-dark-mode-only")):
+            img.decompose()
+            continue
         if src and not src.startswith("data:"):
             img["src"] = to_base64_data_uri(src, virtual_base_dir)
 
