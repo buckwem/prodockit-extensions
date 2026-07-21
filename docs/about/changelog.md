@@ -1,5 +1,19 @@
 # Release Notes
 
+## 0.6.4 (2026-07-21)
+
+`prodockit.pdf.source_bundle` now always excludes any directory literally
+named `.icons` (e.g. a `custom_icons` directory, per `pymdownx.emoji`'s
+own convention) from `source_bundle.pdf`, regardless of `.gitignore` -
+found via `prodockit-template`, whose own vendored icon packs
+(`overrides/.icons/bootstrap`, `overrides/.icons/gitlab` - together
+~2,500 unused SVGs) turned a source bundle meant to hold a student's own
+report content into a 3,000-page dump of unreferenced vendor assets.
+`.gitignore` alone can't fix this, since these directories are typically
+*tracked* (needed for the site/PDF to build at all) - deliberately not a
+project-configurable setting, so a project can't reach for the same knob
+to exclude something that should actually be archived.
+
 ## 0.6.3 (2026-07-20)
 
 Bug fixes found by an in-depth test-coverage review of the extensions and
