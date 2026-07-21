@@ -1,5 +1,46 @@
 # Release Notes
 
+## 0.6.8 (2026-07-21)
+
+`build_pdf_from_zensical_config()` (what `prodockit pdf` runs) now supports
+cover page markers, so a project no longer needs its own custom Python
+just to fill in a cover page's word count/repo URL/release tag - found via
+`prodockit-template`, whose `build_pdf.py` had grown to nearly nothing
+except this one piece:
+
+- `{WORDCOUNT}` - the site-wide word count (the same value a
+  `{{ word_count }}` website macro shows).
+- `{REPOURL}` - the git-detected repo URL.
+- `{RELEASE}` - the latest published GitHub/GitLab release tag - the
+  whole line is dropped instead if there isn't one.
+- `{{ site_name }}` - substituted literally, since `prodockit pdf` never
+  evaluates Jinja.
+
+All four are opt-in by literally writing the marker in your `nav`'s index
+page - no new `zensical.toml` setting needed. See
+[Cover page markers](../pdf.md#cover-page-markers).
+
+Also new: `pdf_extra_css`, a stylesheet meant *only* for the PDF (e.g. a
+rule that would look wrong on the live website), concatenated after
+`extra_css` - the same `["stylesheets/print.css"]` role a project's own
+custom PDF-build script might have hardcoded outside `zensical.toml`
+entirely before, now expressible as ordinary configuration.
+
+Also fixed two real bugs found while building this:
+
+- `extra_css`'s (and now `pdf_extra_css`'s) own relative `url(...)`
+  references (e.g. a light/dark logo swap or a header background image)
+  were passed through unresolved, pointing nowhere once compiled into the
+  PDF's own temporary work directory - now resolved and base64-embedded,
+  matching how a local `<img>` reference already was.
+- `copyright`/`site_name` were passed straight into `build_pdf()`'s
+  generated CSS `content: "..."` string with no escaping at all -
+  `project.copyright` is commonly a triple-quoted TOML string spanning
+  multiple lines, and a raw embedded newline (or a literal `"`) silently
+  broke the whole generated rule, dropping the running header/footer
+  entirely with no error. Both are now collapsed to one line and escaped
+  before being passed through.
+
 ## 0.6.7 (2026-07-21)
 
 Fixed `prodockit.pdf.html.fix_up_page_html()` permanently embedding
