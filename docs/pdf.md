@@ -257,11 +257,20 @@ Every file is rendered in 8pt Courier with wrapped lines (a genuinely
 long line wraps rather than running off the page or getting cut off),
 starting on its own page, with a running header (the project's own
 `site_name` on the left, that page's own file path on the right) and a
-"Page N of M" footer. Which files are included is decided entirely by
+"Page N of M" footer. Which files are included is decided by
 `.gitignore` - both already-tracked files and untracked-but-not-yet-added
 ones count, as long as `.gitignore` doesn't exclude them - and by content
 (anything that isn't valid UTF-8 text, e.g. an image or compiled binary,
 is silently skipped, not by file extension).
+
+Any directory literally named `.icons` (e.g. a `custom_icons` directory,
+per [pymdownx.emoji](https://facelessuser.github.io/pymdown-extensions/extensions/emoji/#custom-icons)'s
+own convention) is always excluded too, regardless of `.gitignore` -
+it's typically *tracked* (needed for the site/PDF to build at all), so
+`.gitignore` alone can't keep a vendored icon pack's hundreds or
+thousands of SVGs out of the bundle. This isn't a project-level
+setting - a vendored icon pack isn't something an author wrote, so
+there's no `zensical.toml` knob to opt it back in.
 
 Scripting this outside `prodockit pdf` (e.g. from a different build
 tool)? See [`prodockit.pdf.source_bundle`](#prodockitpdfsource_bundle)

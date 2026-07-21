@@ -113,6 +113,56 @@ def test_discover_source_files_raises_for_a_non_git_directory(tmp_path: Path) ->
         discover_source_files(str(tmp_path))
 
 
+def test_discover_source_files_excludes_a_tracked_icons_directory(tmp_path: Path) -> None:
+    """A custom_icons directory (pymdownx.emoji's own convention - see
+    zensical.toml's options.custom_icons) is typically *tracked*, not
+    gitignored - it has to be, for the site/PDF to build at all - so
+    .gitignore alone can't keep a vendored icon pack's hundreds/thousands
+    of SVGs out of the bundle. Excluded unconditionally by directory name
+    instead, regardless of where in the tree it lives."""
+    _init_git_repo(tmp_path)
+    (tmp_path / "overrides" / ".icons" / "bootstrap").mkdir(parents=True)
+    (tmp_path / "overrides" / ".icons" / "bootstrap" / "icon.svg").write_text(
+        "<svg></svg>\n", encoding="utf-8"
+    )
+    (tmp_path / "kept.txt").write_text("keep me\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "overrides/.icons/bootstrap/icon.svg", "kept.txt"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    files = discover_source_files(str(tmp_path))
+    assert "kept.txt" in files
+    assert not any(".icons" in f for f in files)
+
+
+def test_discover_source_files_excludes_a_top_level_icons_directory(tmp_path: Path) -> None:
+    """Same exclusion, regardless of which directory a project's own
+    custom_dir points .icons at - here at the repository root rather than
+    nested under a custom_dir like "overrides"."""
+    _init_git_repo(tmp_path)
+    (tmp_path / ".icons" / "gitlab").mkdir(parents=True)
+    (tmp_path / ".icons" / "gitlab" / "branch.svg").write_text("<svg></svg>\n", encoding="utf-8")
+    subprocess.run(["git", "add", ".icons/gitlab/branch.svg"], cwd=tmp_path, check=True)
+
+    assert discover_source_files(str(tmp_path)) == []
+
+
+def test_discover_source_files_excluding_icons_is_not_configurable_via_gitignore(
+    tmp_path: Path,
+) -> None:
+    """The exclusion applies even if a project's own .gitignore doesn't
+    mention .icons at all - it's not something a project (or a student
+    editing its config) can opt back into by omission."""
+    _init_git_repo(tmp_path)
+    (tmp_path / "overrides" / ".icons").mkdir(parents=True)
+    (tmp_path / "overrides" / ".icons" / "icon.svg").write_text("<svg></svg>\n", encoding="utf-8")
+    subprocess.run(["git", "add", "overrides/.icons/icon.svg"], cwd=tmp_path, check=True)
+
+    assert discover_source_files(str(tmp_path)) == []
+
+
 # ---------------------------------------------------------------------------
 # build_source_bundle
 # ---------------------------------------------------------------------------
@@ -243,6 +293,35 @@ def test_an_empty_repository_builds_a_zero_file_pdf(
 
     assert count == 0
     assert output_path.exists()
+
+
+def test_a_vendored_icons_directory_is_excluded_from_the_built_bundle(
+    tmp_path: Path, fake_weasyprint_on_path
+) -> None:
+    """End-to-end version of the discover_source_files() exclusion tests
+    above - confirms a vendored icon pack never reaches the generated
+    HTML/page count, not just discover_source_files()'s own return value."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _make_sample_repo(repo)
+    (repo / "overrides" / ".icons" / "bootstrap").mkdir(parents=True)
+    (repo / "overrides" / ".icons" / "bootstrap" / "icon.svg").write_text(
+        "<svg></svg>\n", encoding="utf-8"
+    )
+    subprocess.run(
+        ["git", "add", "overrides/.icons/bootstrap/icon.svg"], cwd=repo, check=True
+    )
+    fake_weasyprint_on_path('echo "%PDF-1.4 stub" > "$2"')
+    work_dir = tmp_path / "work"
+
+    count = build_source_bundle(
+        str(tmp_path / "out.pdf"), root=str(repo), work_dir=str(work_dir), keep_work_dir=True
+    )
+
+    # src/a.py, src/b.py, .gitignore - the vendored icon isn't counted
+    assert count == 3
+    html = (work_dir / "_prodockit_source_bundle.html").read_text(encoding="utf-8")
+    assert ".icons" not in html
 
 
 def test_work_dir_is_cleaned_up_by_default(tmp_path: Path, fake_weasyprint_on_path) -> None:

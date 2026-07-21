@@ -37,11 +37,38 @@ class SourceBundleError(RuntimeError):
         self.stderr = stderr
 
 
+# Directory names always skipped when discovering source files, regardless
+# of `.gitignore` or any project-level config - these hold vendored tooling
+# assets a project ships with (e.g. a `custom_icons` directory, per
+# pymdownx.emoji's own convention - see zensical.toml's
+# `options.custom_icons`), not content a student/author actually wrote.
+# `.gitignore` alone can't solve this: these directories are typically
+# *tracked* (committed, needed for the site/PDF to build at all), and
+# `git ls-files --exclude-standard` only omits untracked-but-ignored paths,
+# never already-tracked ones. Deliberately not a project-configurable
+# setting, so a bundle's contents can't accidentally be narrowed by a
+# project (or a student editing its config) reaching for the same knob to
+# exclude something that actually should be archived.
+_EXCLUDED_DIR_NAMES = frozenset({".icons"})
+
+
+def _is_in_excluded_dir(rel_path: str) -> bool:
+    """True if any directory component of `rel_path` (a `/`-separated,
+    root-relative path, as `git ls-files` always reports regardless of
+    OS) is one of `_EXCLUDED_DIR_NAMES` - checked by directory *name*
+    rather than a fixed path prefix, so it still matches regardless of
+    which directory a project's own `custom_dir` points `.icons` at
+    (e.g. both `overrides/.icons/...` and a top-level `.icons/...`)."""
+    return any(part in _EXCLUDED_DIR_NAMES for part in rel_path.split("/")[:-1])
+
+
 def discover_source_files(root: str = ".") -> list[str]:
     """Returns every file under `root` that `.gitignore` doesn't exclude,
     as `root`-relative paths sorted alphabetically - both already-tracked
     files and untracked-but-not-ignored ones (a brand new file nobody's
-    run `git add` on yet still counts as "not excluded by .gitignore").
+    run `git add` on yet still counts as "not excluded by .gitignore") -
+    except for anything under an always-excluded directory (see
+    `_EXCLUDED_DIR_NAMES`), which is filtered out unconditionally.
 
     Shells out to `git ls-files --cached --others --exclude-standard`
     rather than reimplementing `.gitignore`'s own matching rules (nested
@@ -68,7 +95,8 @@ def discover_source_files(root: str = ".") -> list[str]:
             returncode=result.returncode,
             stderr=result.stderr,
         )
-    return sorted(line for line in result.stdout.splitlines() if line)
+    all_files = sorted(line for line in result.stdout.splitlines() if line)
+    return [f for f in all_files if not _is_in_excluded_dir(f)]
 
 
 def is_probably_text(path: str) -> bool:
