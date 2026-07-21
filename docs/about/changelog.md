@@ -26,12 +26,20 @@ rule that would look wrong on the live website), concatenated after
 custom PDF-build script might have hardcoded outside `zensical.toml`
 entirely before, now expressible as ordinary configuration.
 
-Also fixed a real bug found while building this: `extra_css`'s (and now
-`pdf_extra_css`'s) own relative `url(...)` references (e.g. a light/dark
-logo swap or a header background image) were passed through unresolved,
-pointing nowhere once compiled into the PDF's own temporary work
-directory - now resolved and base64-embedded, matching how a local
-`<img>` reference already was.
+Also fixed two real bugs found while building this:
+
+- `extra_css`'s (and now `pdf_extra_css`'s) own relative `url(...)`
+  references (e.g. a light/dark logo swap or a header background image)
+  were passed through unresolved, pointing nowhere once compiled into the
+  PDF's own temporary work directory - now resolved and base64-embedded,
+  matching how a local `<img>` reference already was.
+- `copyright`/`site_name` were passed straight into `build_pdf()`'s
+  generated CSS `content: "..."` string with no escaping at all -
+  `project.copyright` is commonly a triple-quoted TOML string spanning
+  multiple lines, and a raw embedded newline (or a literal `"`) silently
+  broke the whole generated rule, dropping the running header/footer
+  entirely with no error. Both are now collapsed to one line and escaped
+  before being passed through.
 
 ## 0.6.6 (2026-07-21)
 

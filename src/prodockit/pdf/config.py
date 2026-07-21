@@ -69,6 +69,25 @@ def _inline_css_urls(css_text: str, css_dir: str) -> str:
     return re.sub(r'url\((["\']?)([^)"\']+)\1\)', url_replacer, css_text)
 
 
+def _css_escape_content_string(text: str) -> str:
+    """Collapses `text` to a single line and escapes it for safe use inside
+    a CSS `content: "..."` string - `build_css()`'s own docs note
+    `copyright_text`/`site_name` "should already be CSS-content-string-
+    safe" before being passed in, since it substitutes both directly into
+    such a string with no escaping of its own.
+
+    `project.copyright` is commonly a triple-quoted TOML string spanning
+    multiple lines - passed through unescaped, a raw newline or `"`
+    breaks the generated CSS rule outright, silently dropping the whole
+    running header/footer entry with no error."""
+    clean_text = text.strip().replace("\n", " ").replace("\r", " ")
+    sanitized_text = clean_text.replace("&copy;", "©").replace("&#169;", "©")
+    escaped_text = "".join(
+        f"\\{ord(char):04X} " if ord(char) > 127 else char for char in sanitized_text
+    )
+    return escaped_text.replace('"', '\\"')
+
+
 def _find_mmdc_bin(configured: str | None) -> str | None:
     """Resolves a usable `mmdc` (mermaid-cli) binary path: an explicit
     `configured` path if given and it exists, else whatever `mmdc` is found
@@ -331,8 +350,8 @@ def build_pdf_from_zensical_config(
         render_mermaid=render_mermaid,
         main_font=font.get("text") or "Inter",
         mono_font=font.get("code") or "JetBrains Mono",
-        copyright_text=config.get("copyright") or "",
-        site_name=config.get("site_name") or "",
+        copyright_text=_css_escape_content_string(config.get("copyright") or ""),
+        site_name=_css_escape_content_string(config.get("site_name") or ""),
         page_size=extra.get("pdf_page_size") or "A4",
         margin_top=extra.get("pdf_margin_top") or "2cm",
         margin_right=extra.get("pdf_margin_right") or "2cm",

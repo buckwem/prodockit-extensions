@@ -691,3 +691,100 @@ def test_extra_css_url_to_a_missing_file_is_left_unchanged(
     build_pdf_from_zensical_config(str(root / "zensical.toml"))
 
     assert 'url("does-not-exist.png")' in captured["extra_css"]
+
+
+# ---------------------------------------------------------------------------
+# copyright/site_name CSS-content-string escaping
+# ---------------------------------------------------------------------------
+
+
+def _write_custom_project(tmp_path: Path, project_toml: str) -> Path:
+    """Like _write_project(), but with full control over [project]'s own
+    keys (site_name/copyright) from the start - _ZENSICAL_TOML/project()
+    already set both, so appending a second [project] table via extra=
+    is a TOML duplicate-table error."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "index.md").write_text("# Cover\n", encoding="utf-8")
+    (docs_dir / "chapter1.md").write_text("# Chapter One\n\nBody text.\n", encoding="utf-8")
+    (tmp_path / "zensical.toml").write_text(project_toml, encoding="utf-8")
+    return tmp_path
+
+
+def test_a_multiline_copyright_is_collapsed_to_one_line_for_css(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """project.copyright is commonly a triple-quoted TOML string spanning
+    multiple lines - passed through unescaped into build_css()'s
+    `content: "..."` string, a raw embedded newline breaks the generated
+    CSS rule outright, silently dropping the whole running header/footer
+    entry with no error."""
+    root = _write_custom_project(
+        tmp_path,
+        '[project]\nsite_name = "Test project"\n'
+        'copyright = "Copyright (c)\\n2026 Example\\n"\n'
+        'nav = [{"Home" = "index.md"}, {"Chapter" = "chapter1.md"}]\n',
+    )
+    monkeypatch.chdir(root)
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["copyright_text"] = kwargs["copyright_text"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert "\n" not in captured["copyright_text"]
+    assert captured["copyright_text"] == "Copyright (c) 2026 Example"
+
+
+def test_a_quote_in_copyright_is_escaped_for_css(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _write_custom_project(
+        tmp_path,
+        '[project]\nsite_name = "Test project"\n'
+        'copyright = "Say \\"hi\\""\n'
+        'nav = [{"Home" = "index.md"}, {"Chapter" = "chapter1.md"}]\n',
+    )
+    monkeypatch.chdir(root)
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["copyright_text"] = kwargs["copyright_text"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["copyright_text"] == 'Say \\"hi\\"'
+
+
+def test_site_name_passed_to_build_pdf_is_also_css_escaped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The site_name kwarg passed to build_pdf() (the running header/footer
+    CSS) is escaped the same way copyright_text is - separate from the
+    {{ site_name }} cover-page marker substitution, which uses the raw,
+    unescaped value since it's substituted into HTML, not CSS."""
+    root = _write_custom_project(
+        tmp_path,
+        '[project]\nsite_name = "Say \\"hi\\""\n'
+        'copyright = "Copyright test"\n'
+        'nav = [{"Home" = "index.md"}, {"Chapter" = "chapter1.md"}]\n',
+    )
+    monkeypatch.chdir(root)
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["site_name"] = kwargs["site_name"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["site_name"] == 'Say \\"hi\\"'
