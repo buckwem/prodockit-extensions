@@ -263,14 +263,23 @@ ones count, as long as `.gitignore` doesn't exclude them - and by content
 (anything that isn't valid UTF-8 text, e.g. an image or compiled binary,
 is silently skipped, not by file extension).
 
-Any directory literally named `.icons` (e.g. a `custom_icons` directory,
-per [pymdownx.emoji](https://facelessuser.github.io/pymdown-extensions/extensions/emoji/#custom-icons)'s
-own convention) is always excluded too, regardless of `.gitignore` -
-it's typically *tracked* (needed for the site/PDF to build at all), so
-`.gitignore` alone can't keep a vendored icon pack's hundreds or
-thousands of SVGs out of the bundle. This isn't a project-level
-setting - a vendored icon pack isn't something an author wrote, so
-there's no `zensical.toml` knob to opt it back in.
+A few classes of vendored, never-author-written content are always
+excluded too, regardless of `.gitignore` - none of this is a
+project-level setting, so there's no `zensical.toml` knob to opt any of
+it back in:
+
+- Any directory literally named `.icons` (e.g. a `custom_icons`
+  directory, per [pymdownx.emoji](https://facelessuser.github.io/pymdown-extensions/extensions/emoji/#custom-icons)'s
+  own convention).
+- Any directory literally named `styles` (e.g. a Vale `StylesPath`,
+  holding downloaded rule packs).
+- Common dependency lockfiles by exact file name - `package-lock.json`,
+  `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, `Pipfile.lock`,
+  `poetry.lock`, `Cargo.lock`.
+
+These are typically *tracked* (needed for the site/PDF to build at all),
+so `.gitignore` alone can't keep a vendored icon pack's hundreds of SVGs,
+a Vale style pack, or a multi-thousand-line lockfile out of the bundle.
 
 Scripting this outside `prodockit pdf` (e.g. from a different build
 tool)? See [`prodockit.pdf.source_bundle`](#prodockitpdfsource_bundle)
