@@ -219,6 +219,60 @@ def test_local_image_src_is_base64_embedded(tmp_path) -> None:
     assert "data:image/png;base64," in html
 
 
+def test_only_dark_image_is_dropped_not_embedded(tmp_path) -> None:
+    """A PDF has no light/dark toggle - only the #only-light half of a
+    light/dark image pair should survive; the #only-dark half used to get
+    base64-embedded and left permanently visible, since the data: URI it
+    became has no trace of "#only-dark" left for any stylesheet to hide it
+    by."""
+    (tmp_path / "dark.svg").write_bytes(b"<svg></svg>")
+    html = _fix(
+        '<img src="dark.svg#only-dark">',
+        current_docs_rel_path="index.md",
+        docs_dir=str(tmp_path),
+    )
+    assert "<img" not in html
+    assert "data:" not in html
+
+
+def test_gh_dark_mode_only_image_is_dropped_too(tmp_path) -> None:
+    """Same convention, GitHub's own README-image spelling."""
+    (tmp_path / "dark.png").write_bytes(b"\x89PNG\r\n")
+    html = _fix(
+        '<img src="dark.png#gh-dark-mode-only">',
+        current_docs_rel_path="index.md",
+        docs_dir=str(tmp_path),
+    )
+    assert "<img" not in html
+
+
+def test_only_light_image_is_kept_and_embedded(tmp_path) -> None:
+    """The other half of the same pair is unaffected - still resolved and
+    embedded exactly as any other local image would be."""
+    (tmp_path / "light.svg").write_bytes(b"<svg></svg>")
+    html = _fix(
+        '<img src="light.svg#only-light">',
+        current_docs_rel_path="index.md",
+        docs_dir=str(tmp_path),
+    )
+    assert "data:image/svg+xml;base64," in html
+
+
+def test_a_light_dark_pair_leaves_exactly_one_image_in_the_pdf(tmp_path) -> None:
+    """End-to-end version of the two tests above: a real light/dark pair,
+    as docs/index.md's own cover page hero graphic uses, ends up as
+    exactly one <img> in the PDF, not two stacked on top of each other."""
+    (tmp_path / "hero-light.svg").write_bytes(b"<svg></svg>")
+    (tmp_path / "hero-dark.svg").write_bytes(b"<svg></svg>")
+    html = _fix(
+        '<img src="hero-light.svg#only-light">'
+        '<img src="hero-dark.svg#only-dark">',
+        current_docs_rel_path="index.md",
+        docs_dir=str(tmp_path),
+    )
+    assert html.count("<img") == 1
+
+
 # ---------------------------------------------------------------------------
 # Cross-page + repo file links
 # ---------------------------------------------------------------------------
