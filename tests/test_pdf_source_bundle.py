@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import os
+import shutil
 import stat
 import subprocess
 from pathlib import Path
@@ -13,6 +14,13 @@ from prodockit.pdf.source_bundle import (
     build_source_bundle,
     discover_source_files,
     is_probably_text,
+)
+
+real_weasyprint_required = pytest.mark.skipif(
+    shutil.which("weasyprint") is None,
+    reason="verifying the real per-page running header names the right "
+    "file needs an actual weasyprint render - the fake-weasyprint stub "
+    "every other test here uses ignores the real HTML/CSS entirely.",
 )
 
 
@@ -322,6 +330,55 @@ def test_a_vendored_icons_directory_is_excluded_from_the_built_bundle(
     assert count == 3
     html = (work_dir / "_prodockit_source_bundle.html").read_text(encoding="utf-8")
     assert ".icons" not in html
+
+
+@real_weasyprint_required
+def test_running_header_names_the_file_actually_on_that_page(tmp_path: Path) -> None:
+    """Regression test: the running header (`string(current-file)`, see
+    the CSS's own `.file-marker` rule) used to show the *next* file's
+    name on a file's own last page. `.file-marker` (which sets that CSS
+    string) had no page-break of its own - only the following `<pre>`
+    did - so a multi-line file's own marker rendered on the *previous*
+    file's last page, right at the tail end just before the break, and
+    that page's header showed the wrong (upcoming) file's name instead
+    of the one whose content actually filled it.
+
+    Confirmed directly with a real weasyprint render (the fake-weasyprint
+    stub every other test in this file uses ignores the real HTML/CSS
+    entirely, so it can't catch this): a_first.py is long enough to span
+    several pages on its own, followed by two single-line files."""
+    from pypdf import PdfReader
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_git_repo(repo)
+    (repo / "a_first.py").write_text(
+        "\n".join(f"print({i})" for i in range(400)) + "\n", encoding="utf-8"
+    )
+    (repo / "b_second.py").write_text("print(1)\n", encoding="utf-8")
+    (repo / "c_third.py").write_text("print(1)\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "a_first.py", "b_second.py", "c_third.py"], cwd=repo, check=True
+    )
+    output_path = tmp_path / "out.pdf"
+
+    build_source_bundle(str(output_path), root=str(repo), report_name="Test Report")
+
+    reader = PdfReader(str(output_path))
+    # Find a_first.py's own *last* page by its content - the unambiguous
+    # boundary where the original bug showed the wrong file's name: its
+    # very last line ("print(399)") pins down exactly which page holds
+    # a_first.py's tail end, independent of any header text.
+    last_page_text = None
+    for page in reader.pages:
+        text = page.extract_text()
+        if "print(399)" in text:
+            last_page_text = text
+            break
+    assert last_page_text is not None, "a_first.py's last line not found in any page"
+
+    assert "a_first.py" in last_page_text
+    assert "b_second.py" not in last_page_text
 
 
 def test_work_dir_is_cleaned_up_by_default(tmp_path: Path, fake_weasyprint_on_path) -> None:
