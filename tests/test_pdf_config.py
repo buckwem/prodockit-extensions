@@ -399,3 +399,222 @@ def test_include_index_reads_from_extra_and_a_custom_title(
 
     assert captured["include_index"] is True
     assert captured["index_title"] == "Glossary of Terms"
+
+
+# ---------------------------------------------------------------------------
+# Cover page markers
+# ---------------------------------------------------------------------------
+
+
+def _capture_pages(monkeypatch: pytest.MonkeyPatch):
+    import prodockit.pdf.config as config_module
+
+    captured = {}
+
+    def _spy(pages, output_path, **kwargs):
+        captured["pages"] = pages
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    return captured
+
+
+def test_wordcount_marker_is_substituted_with_the_site_wide_word_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _write_project(tmp_path)
+    (root / "docs" / "index.md").write_text("Word count: {WORDCOUNT}\n", encoding="utf-8")
+    captured = _capture_pages(monkeypatch)
+    monkeypatch.chdir(root)
+
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    cover_html = captured["pages"][0].html
+    assert "{WORDCOUNT}" not in cover_html
+    assert "Word count: 4" in cover_html  # "Chapter One Body text." on chapter1.md
+
+
+def test_repourl_marker_is_substituted_with_the_git_detected_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _write_project(tmp_path)
+    (root / "docs" / "index.md").write_text("Repo: {REPOURL}\n", encoding="utf-8")
+    captured = _capture_pages(monkeypatch)
+    monkeypatch.chdir(root)
+
+    import prodockit.pdf.config as config_module
+
+    monkeypatch.setattr(config_module, "_get_repo_url", lambda: "https://github.com/x/y")
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert "Repo: https://github.com/x/y" in captured["pages"][0].html
+
+
+def test_release_marker_is_substituted_when_a_release_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _write_project(tmp_path)
+    (root / "docs" / "index.md").write_text("Release: {RELEASE}\n", encoding="utf-8")
+    captured = _capture_pages(monkeypatch)
+    monkeypatch.chdir(root)
+
+    import prodockit.pdf.config as config_module
+
+    monkeypatch.setattr(config_module, "_get_repo_url", lambda: "https://github.com/x/y")
+    monkeypatch.setattr(config_module, "get_latest_release_tag", lambda repo_url: "v1.2.3")
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert "Release: v1.2.3" in captured["pages"][0].html
+
+
+def test_release_marker_line_is_dropped_when_no_release_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _write_project(tmp_path)
+    (root / "docs" / "index.md").write_text(
+        "Before\nRelease: {RELEASE}\nAfter\n", encoding="utf-8"
+    )
+    captured = _capture_pages(monkeypatch)
+    monkeypatch.chdir(root)
+
+    import prodockit.pdf.config as config_module
+
+    monkeypatch.setattr(config_module, "_get_repo_url", lambda: "https://github.com/x/y")
+    monkeypatch.setattr(config_module, "get_latest_release_tag", lambda repo_url: "")
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    cover_html = captured["pages"][0].html
+    assert "{RELEASE}" not in cover_html
+    assert "Release:" not in cover_html
+    assert "Before" in cover_html
+    assert "After" in cover_html
+
+
+def test_site_name_marker_is_substituted_literally(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _write_project(tmp_path)
+    (root / "docs" / "index.md").write_text("Project: {{ site_name }}\n", encoding="utf-8")
+    captured = _capture_pages(monkeypatch)
+    monkeypatch.chdir(root)
+
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert "Project: Test project" in captured["pages"][0].html
+
+
+def test_markers_are_not_substituted_for_a_markdown_file_scoped_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """There's no "cover page" concept for a single --markdown-file build -
+    even a page that happens to contain a marker-looking string should be
+    left completely alone."""
+    root = _write_project(tmp_path)
+    (root / "docs" / "chapter1.md").write_text(
+        "# Chapter One\n\nWord count: {WORDCOUNT}\n", encoding="utf-8"
+    )
+    captured = _capture_pages(monkeypatch)
+    monkeypatch.chdir(root)
+
+    build_pdf_from_zensical_config(str(root / "zensical.toml"), markdown_file="chapter1.md")
+
+    assert "{WORDCOUNT}" in captured["pages"][0].html
+
+
+def test_markers_are_not_substituted_when_index_is_the_only_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Matches build_pdf.py's own original condition (len(pages) > 1) -
+    a single-page site has no separate "content" to compute a word count
+    from, so the marker is left as literal text rather than silently
+    becoming "Word count: 0"."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "index.md").write_text("Word count: {WORDCOUNT}\n", encoding="utf-8")
+    (tmp_path / "zensical.toml").write_text(
+        '[project]\nsite_name = "Test project"\nnav = [{"Home" = "index.md"}]\n',
+        encoding="utf-8",
+    )
+    captured = _capture_pages(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    build_pdf_from_zensical_config(str(tmp_path / "zensical.toml"))
+
+    assert "{WORDCOUNT}" in captured["pages"][0].html
+
+
+# ---------------------------------------------------------------------------
+# extra_css relative url(...) inlining
+# ---------------------------------------------------------------------------
+
+
+def test_extra_css_relative_url_is_inlined_as_base64(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(extra='\nextra_css = ["stylesheets/extra.css"]\n')
+    styles_dir = root / "docs" / "stylesheets"
+    styles_dir.mkdir()
+    (styles_dir / "logo.png").write_bytes(b"\x89PNG\r\n")
+    (styles_dir / "extra.css").write_text(
+        '.md-logo img { content: url("logo.png"); }\n', encoding="utf-8"
+    )
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["extra_css"] = kwargs["extra_css"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert "data:image/png;base64," in captured["extra_css"]
+    assert "logo.png" not in captured["extra_css"]
+
+
+def test_extra_css_absolute_and_data_and_fragment_urls_are_left_alone(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(extra='\nextra_css = ["stylesheets/extra.css"]\n')
+    styles_dir = root / "docs" / "stylesheets"
+    styles_dir.mkdir()
+    (styles_dir / "extra.css").write_text(
+        "a { background: url(https://example.com/x.png); }\n"
+        'b { background: url("data:image/png;base64,AAAA"); }\n'
+        "c { clip-path: url(#my-clip); }\n",
+        encoding="utf-8",
+    )
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["extra_css"] = kwargs["extra_css"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert "url(https://example.com/x.png)" in captured["extra_css"]
+    assert 'url("data:image/png;base64,AAAA")' in captured["extra_css"]
+    assert "url(#my-clip)" in captured["extra_css"]
+
+
+def test_extra_css_url_to_a_missing_file_is_left_unchanged(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(extra='\nextra_css = ["stylesheets/extra.css"]\n')
+    styles_dir = root / "docs" / "stylesheets"
+    styles_dir.mkdir()
+    (styles_dir / "extra.css").write_text(
+        'a { background: url("does-not-exist.png"); }\n', encoding="utf-8"
+    )
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["extra_css"] = kwargs["extra_css"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert 'url("does-not-exist.png")' in captured["extra_css"]

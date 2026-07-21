@@ -16,14 +16,18 @@ additional configuration beyond what it likely already has.
 
 from __future__ import annotations
 
+import base64
 import os
+import re
 import shutil
 
 from prodockit.pdf.build import Page, build_pdf
 from prodockit.pdf.icons import build_icon_registry, discover_icon_dirs
 from prodockit.pdf.mermaid import render_mermaid_diagram
+from prodockit.pdf.release import get_latest_release_tag
 from prodockit.pdf.source_bundle import build_source_bundle
 from prodockit.settings import flatten_nav, heading_numbering_enabled, reference_style_values
+from prodockit.zensical_macros import _compute_site_word_count, _get_repo_url
 
 # Front matter flag marking a page for letter-based numbering ("A", "A.1",
 # ...) - same default name as prodockit.headings' own `appendix_attr` option,
@@ -34,6 +38,35 @@ APPENDIX_FRONT_MATTER_KEY = "is_appendix"
 # Front matter key overriding a page's own running header text - see
 # `fix_up_page_html()`'s own docstring in prodockit.pdf.html.
 RECTO_TITLE_FRONT_MATTER_KEY = "recto_title"
+
+
+def _inline_css_urls(css_text: str, css_dir: str) -> str:
+    """Rewrites every relative `url(...)` reference in `css_text` (e.g. a
+    `background-image` or a `.md-logo img { content: url(...) }` swap) into
+    a base64 `data:` URI resolved against `css_dir`, leaving anything
+    already a `data:`/`http(s):`/fragment (`#...`) URL, or a path that
+    doesn't resolve to a real file, untouched.
+
+    `build_pdf()`'s compiled CSS lives in its own temporary work directory,
+    not `css_dir` - a relative reference in a project's own `extra_css`
+    that resolves fine on the live website (relative to that stylesheet's
+    own path) would otherwise point nowhere once compiled there, silently
+    breaking e.g. a light/dark logo swap or a header background image."""
+
+    def url_replacer(match: re.Match[str]) -> str:
+        quote, ref = match.group(1), match.group(2)
+        if ref.startswith(("data:", "http://", "https://", "#")):
+            return match.group(0)
+        asset_path = os.path.abspath(os.path.join(css_dir, ref))
+        if not os.path.isfile(asset_path):
+            return match.group(0)
+        ext = os.path.splitext(asset_path)[1].lower().strip(".")
+        mime_type = {"svg": "image/svg+xml", "jpg": "image/jpeg"}.get(ext, f"image/{ext}")
+        with open(asset_path, "rb") as f:
+            b64_payload = base64.b64encode(f.read()).decode("utf-8")
+        return f"url({quote}data:{mime_type};base64,{b64_payload}{quote})"
+
+    return re.sub(r'url\((["\']?)([^)"\']+)\1\)', url_replacer, css_text)
 
 
 def _find_mmdc_bin(configured: str | None) -> str | None:
@@ -130,13 +163,39 @@ def build_pdf_from_zensical_config(
       Zensical itself reads to style the live website), passed through as
       `build_pdf()`'s own `extra_css` - so a project-specific `@media print`
       rule (e.g. hiding a website-only "Download PDF" link/button) applies
-      in the PDF too, since WeasyPrint always renders in print mode.
+      in the PDF too, since WeasyPrint always renders in print mode. Any
+      relative `url(...)` reference in it (e.g. a light/dark logo swap or
+      a header background image) is resolved and base64-embedded before
+      being passed through, since the compiled CSS `build_pdf()` writes
+      lives in its own temporary directory, not wherever your stylesheet
+      does.
 
     A page's own front matter `is_appendix: true` flag gives it letter-
     based numbering, matching `prodockit.headings`' own `appendix_attr`
     default. A page's own front matter `recto_title: "Short Title"`
     overrides that page's running header text - see `fix_up_page_html()`'s
     own docstring in `prodockit.pdf.html`.
+
+    **Cover page markers**: for a full, nav-driven build (never a
+    `markdown_file`-scoped one) whose first page is `nav`'s own index
+    page, any of these literal strings in that page's markdown are
+    substituted with a real value once its HTML exists - no configuration
+    needed beyond writing the marker itself:
+
+    - `{WORDCOUNT}` - the site-wide word count (see
+      `prodockit.zensical_macros._compute_site_word_count()` - the exact
+      same value a `{{ word_count }}` website macro would show), so a
+      submission's PDF cover page and its live website page never
+      disagree.
+    - `{REPOURL}` - the git-detected repo URL (see
+      `prodockit.zensical_macros._get_repo_url()`).
+    - `{RELEASE}` - the latest published GitHub/GitLab release tag (see
+      `prodockit.pdf.release.get_latest_release_tag()`) - the whole line
+      containing this marker is dropped instead if there isn't one (most
+      projects never publish a release at all).
+    - `{{ site_name }}` - this function never evaluates Jinja, so the
+      exact same literal text a website macro variable uses substitutes
+      directly here too.
     """
     import zensical.config as zensical_config
     from zensical.markdown.render import render as zensical_render
@@ -159,8 +218,9 @@ def build_pdf_from_zensical_config(
 
     extra_css = ""
     for css_rel_path in config.get("extra_css") or []:
-        with open(os.path.join(docs_dir, css_rel_path), encoding="utf-8") as f:
-            extra_css += f.read() + "\n"
+        full_css_path = os.path.join(docs_dir, css_rel_path)
+        with open(full_css_path, encoding="utf-8") as f:
+            extra_css += _inline_css_urls(f.read(), os.path.dirname(full_css_path)) + "\n"
 
     mmdc_bin = _find_mmdc_bin(extra.get("pdf_mmdc_bin"))
     mermaid_state = {"count": 0}
@@ -197,6 +257,44 @@ def build_pdf_from_zensical_config(
                 recto_title=result["meta"].get(RECTO_TITLE_FRONT_MATTER_KEY) or None,
             )
         )
+
+    # Cover-page markers (see this function's own docs below) - a
+    # nav-driven build's own cover page (its first page, if flagged
+    # is_index) can use {WORDCOUNT}/{REPOURL}/{RELEASE}/{{ site_name }}
+    # literally in its markdown, substituted here once the page's real
+    # HTML exists. Skipped for a single markdown_file build - there's no
+    # "cover page" to speak of, just whichever one page was requested.
+    if not markdown_file and page_objects and page_objects[0].is_index and len(page_objects) > 1:
+        cover = page_objects[0]
+        cover_html = cover.html
+        if "{WORDCOUNT}" in cover_html:
+            cover_html = cover_html.replace("{WORDCOUNT}", _compute_site_word_count(config))
+        if "{REPOURL}" in cover_html or "{RELEASE}" in cover_html:
+            # Computed from the local git remote (like the website's own
+            # {{ repo_url }} - see _get_repo_url()), not this function's
+            # own repo_url (config.get("repo_url"), passed to build_pdf()
+            # below): in practice they usually match, but they're not the
+            # same mechanism.
+            git_repo_url = _get_repo_url()
+        if "{REPOURL}" in cover_html:
+            cover_html = cover_html.replace("{REPOURL}", git_repo_url)
+        if "{RELEASE}" in cover_html:
+            # Unlike {WORDCOUNT}/{REPOURL}, which are always locally
+            # computable, most projects will never have a published
+            # release - an empty result drops the whole line rather than
+            # leaving a bare "Release: " label behind.
+            release_tag = get_latest_release_tag(git_repo_url)
+            if release_tag:
+                cover_html = cover_html.replace("{RELEASE}", release_tag)
+            else:
+                cover_html = re.sub(r"^.*\{RELEASE\}.*\n?", "", cover_html, flags=re.MULTILINE)
+        if "{{ site_name }}" in cover_html:
+            # prodockit.pdf never evaluates Jinja, so the exact same
+            # literal "{{ site_name }}" text used for the website's macro
+            # variable can just be substituted directly here too - one
+            # line of markdown works for both outputs, no separate marker.
+            cover_html = cover_html.replace("{{ site_name }}", config.get("site_name") or "")
+        cover.html = cover_html
 
     if extra.get("pdf_output"):
         output_path = str(extra["pdf_output"])

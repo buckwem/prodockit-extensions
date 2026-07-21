@@ -99,7 +99,9 @@ numbering ("A", "A.1", ...) instead of numeric, matching
 [prodockit.headings](extensions/headings.md)' own `appendix_attr` convention.
 A page's own front matter `recto_title: "Short Title"` overrides its
 running header text from the *next* page onward - see
-[Double-sided (duplex) printing](#double-sided-duplex-printing).
+[Double-sided (duplex) printing](#double-sided-duplex-printing). Your
+`nav`'s index page can also use `{WORDCOUNT}`/`{REPOURL}`/`{RELEASE}`/
+`{{ site_name }}` markers - see [Cover page markers](#cover-page-markers).
 
 ### Web-only / PDF-only content
 
@@ -133,6 +135,24 @@ so add this one line to your project's own website stylesheet:
 (see this project's own `docs/stylesheets/extra.css` for a working
 example). If your project doesn't yet use `.pdf-only` for anything, there's
 nothing to add until it does.
+
+### Cover page markers
+
+Drop any of these literal strings into your `nav`'s index page - typically
+a cover page, e.g. wrapped in `{.pdf-only}` as in the example above - and
+`prodockit pdf` substitutes a real value once that page's HTML exists, no
+configuration needed:
+
+| Marker | Becomes |
+|---|---|
+| `{WORDCOUNT}` | The site-wide word count (the same value a `{{ word_count }}` website [macro variable](macros.md#variables) would show), so a submission's PDF and its live website page never disagree. |
+| `{REPOURL}` | The git-detected repo URL (the same value `{{ repo_url }}` gives a website macro). |
+| `{RELEASE}` | The latest published GitHub/GitLab release tag (e.g. `v1.2.0`). The *whole line* containing this marker is dropped instead if there isn't one - most projects never publish a release at all, so nothing shows a bare `"Release: "` label by default. |
+| `{{ site_name }}` | Your project's own `site_name`, substituted literally - `prodockit pdf` never evaluates Jinja, so the exact same `{{ site_name }}` text a website macro variable uses works here too, one line of markdown for both outputs. |
+
+Skipped entirely for a `--markdown-file`-scoped build, or if your `nav`
+has only one page - there's no separate "cover" vs "content" to compute a
+word count from either way.
 
 ### Sideways tables
 
