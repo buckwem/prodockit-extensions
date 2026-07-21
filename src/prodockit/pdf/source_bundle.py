@@ -85,7 +85,10 @@ def _is_excluded(rel_path: str) -> bool:
     `overrides/.icons/...` and a top-level `.icons/...`) - or is itself
     named in `_EXCLUDED_FILE_NAMES`."""
     parts = rel_path.split("/")
-    return any(part in _EXCLUDED_DIR_NAMES for part in parts[:-1]) or parts[-1] in _EXCLUDED_FILE_NAMES
+    return (
+        any(part in _EXCLUDED_DIR_NAMES for part in parts[:-1])
+        or parts[-1] in _EXCLUDED_FILE_NAMES
+    )
 
 
 def discover_source_files(root: str = ".") -> list[str]:
