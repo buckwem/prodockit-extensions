@@ -1,5 +1,18 @@
 # Release Notes
 
+## 0.6.7 (2026-07-21)
+
+Fixed `prodockit.pdf.html.fix_up_page_html()` permanently embedding
+*both* halves of a `#only-light`/`#only-dark` (or GitHub's
+`#gh-light-mode-only`/`#gh-dark-mode-only`) image pair in a PDF, stacked
+one after the other, instead of just one - found via `prodockit-template`'s
+own cover page hero graphic showing twice. A PDF has no light/dark toggle
+to make that convention meaningful, but `to_base64_data_uri()` already
+strips anything from `#` onward before resolving the file (to find the
+right one), so the resulting `data:` URI has no trace of the fragment
+left for any stylesheet to hide either half by. The `#only-dark`/
+`#gh-dark-mode-only` half is now dropped entirely rather than embedded.
+
 ## 0.6.6 (2026-07-21)
 
 - Docs: the cover page hero graphic (`docs/assets/cover-hero-*.svg`) used
