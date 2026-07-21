@@ -17,13 +17,21 @@ except this one piece:
   evaluates Jinja.
 
 All four are opt-in by literally writing the marker in your `nav`'s index
-page - no new `zensical.toml` setting. See [Cover page markers](../pdf.md#cover-page-markers).
+page - no new `zensical.toml` setting needed. See
+[Cover page markers](../pdf.md#cover-page-markers).
 
-Also fixed a real bug found while building this: `extra_css`'s own
-relative `url(...)` references (e.g. a light/dark logo swap or a header
-background image) were passed through unresolved, pointing nowhere once
-compiled into the PDF's own temporary work directory - now resolved and
-base64-embedded, matching how a local `<img>` reference already was.
+Also new: `pdf_extra_css`, a stylesheet meant *only* for the PDF (e.g. a
+rule that would look wrong on the live website), concatenated after
+`extra_css` - the same `["stylesheets/print.css"]` role a project's own
+custom PDF-build script might have hardcoded outside `zensical.toml`
+entirely before, now expressible as ordinary configuration.
+
+Also fixed a real bug found while building this: `extra_css`'s (and now
+`pdf_extra_css`'s) own relative `url(...)` references (e.g. a light/dark
+logo swap or a header background image) were passed through unresolved,
+pointing nowhere once compiled into the PDF's own temporary work
+directory - now resolved and base64-embedded, matching how a local
+`<img>` reference already was.
 
 ## 0.6.6 (2026-07-21)
 

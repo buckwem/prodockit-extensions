@@ -158,7 +158,11 @@ def build_pdf_from_zensical_config(
       `pdf_source_bundle` (default `false` - see `prodockit.pdf.source_bundle`
       for what this builds and why it's a separate PDF rather than part of
       the one above; only runs for a full, nav-driven build, never for a
-      `markdown_file`-scoped one).
+      `markdown_file`-scoped one), `pdf_extra_css` (a list of `docs_dir`-
+      relative stylesheet paths, same shape as `project.extra_css` below,
+      but meant *only* for the PDF - e.g. a rule that would look wrong on
+      the live website, or one overriding something `project.extra_css`
+      itself sets - concatenated after it, so it wins the cascade).
     - `project.extra_css` - your site's own stylesheet(s) (the same setting
       Zensical itself reads to style the live website), passed through as
       `build_pdf()`'s own `extra_css` - so a project-specific `@media print`
@@ -217,7 +221,13 @@ def build_pdf_from_zensical_config(
     icon_registry = build_icon_registry(discover_icon_dirs(docs_dir))
 
     extra_css = ""
-    for css_rel_path in config.get("extra_css") or []:
+    # project.extra_css - the website's own stylesheet(s) - first, then
+    # extra.pdf_extra_css - stylesheet(s) meant *only* for the PDF (e.g. an
+    # override that would look wrong on the live website) - concatenated
+    # after, so a pdf_extra_css rule can still override one from extra_css
+    # the same way `extra_css` docs promise for build_pdf()'s own generated
+    # CSS beneath both.
+    for css_rel_path in (config.get("extra_css") or []) + list(extra.get("pdf_extra_css") or []):
         full_css_path = os.path.join(docs_dir, css_rel_path)
         with open(full_css_path, encoding="utf-8") as f:
             extra_css += _inline_css_urls(f.read(), os.path.dirname(full_css_path)) + "\n"

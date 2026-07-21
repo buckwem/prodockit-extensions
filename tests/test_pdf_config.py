@@ -310,6 +310,79 @@ def test_extra_css_defaults_to_empty_when_unset(project, monkeypatch: pytest.Mon
     assert captured["extra_css"] == ""
 
 
+def test_pdf_extra_css_is_concatenated_after_extra_css(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """pdf_extra_css is for a PDF-only override - concatenated *after*
+    extra_css so it wins the cascade against a same-specificity rule
+    there, matching what build_pdf()'s own generated CSS beneath both
+    already promises for extra_css itself."""
+    root = project(
+        extra=(
+            '\nextra_css = ["stylesheets/extra.css"]\n'
+            '[project.extra]\npdf_extra_css = ["stylesheets/print.css"]\n'
+        )
+    )
+    styles_dir = root / "docs" / "stylesheets"
+    styles_dir.mkdir()
+    (styles_dir / "extra.css").write_text(".web-only { display: block; }\n", encoding="utf-8")
+    (styles_dir / "print.css").write_text(".hidden { display: none; }\n", encoding="utf-8")
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["extra_css"] = kwargs["extra_css"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    extra_css = captured["extra_css"]
+    assert ".web-only" in extra_css
+    assert ".hidden" in extra_css
+    assert extra_css.index(".web-only") < extra_css.index(".hidden")
+
+
+def test_pdf_extra_css_relative_url_is_also_inlined(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(extra='\n[project.extra]\npdf_extra_css = ["stylesheets/print.css"]\n')
+    styles_dir = root / "docs" / "stylesheets"
+    styles_dir.mkdir()
+    (styles_dir / "logo.png").write_bytes(b"\x89PNG\r\n")
+    (styles_dir / "print.css").write_text(
+        '.logo { content: url("logo.png"); }\n', encoding="utf-8"
+    )
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["extra_css"] = kwargs["extra_css"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert "data:image/png;base64," in captured["extra_css"]
+
+
+def test_pdf_extra_css_defaults_to_empty_when_unset(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["extra_css"] = kwargs["extra_css"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["extra_css"] == ""
+
+
 def test_source_bundle_is_not_built_by_default(project, monkeypatch: pytest.MonkeyPatch) -> None:
     root = project()
 

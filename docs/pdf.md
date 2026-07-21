@@ -93,6 +93,7 @@ lives under `[project.extra]`, all optional:
 | `pdf_mmdc_bin` | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found. |
 | `pdf_tex2svg_script` / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found. |
 | `pdf_source_bundle` | `false` | Bundle this repository's own source code into a separate `source_bundle.pdf` - see [Bundling source code into a PDF](#bundling-source-code-into-a-pdf). Only runs for a full, nav-driven build - never for a `--markdown-file`-scoped one. |
+| `pdf_extra_css` | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF - e.g. a rule that would look wrong on the live website, or one overriding something `extra_css` itself sets (concatenated after it, so it wins the cascade). |
 
 A page's own front matter `is_appendix: true` gives it letter-based
 numbering ("A", "A.1", ...) instead of numeric, matching
