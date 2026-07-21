@@ -165,6 +165,21 @@
   margin: 0 0 1.5rem;
 }
 
+/* Matches the hero graphic's own innermost, most saturated stroke colour
+   (docs/assets/cover-hero-*.svg - both light and dark variants use the
+   same green now) rather than the theme's default primary colour, which
+   .md-button--primary would otherwise use unmodified. Scoped to the hero's
+   own "Download PDF" button, not the bare ".md-button--primary" class, so
+   any other primary button elsewhere keeps the theme's default colour. */
+.cover-hero-text .md-button--primary {
+  background-color: #22c55e !important;
+  border-color: #22c55e !important;
+}
+.cover-hero-text .md-button--primary:hover {
+  background-color: #16a34a !important;
+  border-color: #16a34a !important;
+}
+
 .cover-hero-graphic {
   flex: 1 1 480px;
   max-width: 640px;
