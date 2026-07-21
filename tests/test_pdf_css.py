@@ -65,6 +65,18 @@ def test_h3_through_h6_override_page_break_after_to_auto() -> None:
     assert "h3, h4, h5, h6 { page-break-after: auto !important" in css
 
 
+def test_index_letter_heading_matches_the_hero_graphics_green() -> None:
+    """h2.prodockit-index-letter's colour is meant to match the cover
+    hero graphic's own innermost stroke colour (docs/assets/
+    cover-hero-*.svg - both light and dark variants share this green) -
+    a PDF always shows the light hero graphic regardless of a project's
+    own website light/dark toggle."""
+    css = build_css("Inter", "Fira Code", "Copyright 2026", "My Site")
+    assert "h2.prodockit-index-letter {" in css
+    rule = css.split("h2.prodockit-index-letter {")[1].split("}")[0]
+    assert "color: #22c55e !important;" in rule
+
+
 def test_rotated_table_page_uses_the_configured_page_size_landscape() -> None:
     css = build_css(
         "Inter", "Fira Code", "Copyright 2026", "My Site",
