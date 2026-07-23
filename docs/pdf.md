@@ -79,6 +79,7 @@ lives under `[project.extra]`, all optional:
 | Setting | Default | What it does |
 |---|---|---|
 | `pdf_output` | `"<docs_dir>/site_documentation.pdf"` | Where the PDF is written. |
+| `pdf_copyright` | falls back to `copyright` | Overrides `copyright` for the PDF's own footer only - see [Copyright text](#copyright-text). |
 | `pdf_page_size` | `"A4"` | Any WeasyPrint-supported CSS page size (`"Letter"`, ...). |
 | `pdf_margin_top` / `_right` / `_bottom` / `_left` | `"2cm"` each | Page margins, as CSS lengths. |
 | `pdf_double_sided` | `false` | Duplex-printing layout - see [Double-sided (duplex) printing](#double-sided-duplex-printing). |
@@ -136,6 +137,51 @@ so add this one line to your project's own website stylesheet:
 (see this project's own `docs/stylesheets/extra.css` for a working
 example). If your project doesn't yet use `.pdf-only` for anything, there's
 nothing to add until it does.
+
+### Copyright text
+
+`copyright` (a native Zensical setting, not one of prodockit's own -
+see [Building a single file](#building-a-single-file) above) feeds both
+the live website's own footer *and* the PDF's running footer, by
+default - whatever you set once shows, unchanged, in both places.
+
+`pdf_copyright` (under `[project.extra]`) overrides it for the PDF's own
+footer only, leaving the website's copyright text completely untouched
+either way. Unset by default, so an existing project's PDF and website
+keep matching unless you deliberately add it - useful when you want the
+PDF to show something the website version wouldn't make sense showing
+(or vice versa), without having to keep two near-identical strings in
+sync by hand.
+
+A literal `\A ` inside either value forces a line break in the PDF's own
+footer - CSS's own escape for a line feed inside a `content` string,
+supported by prodockit's generated CSS (`white-space: pre-line` on the
+footer box) specifically so this works. The obvious use: crediting the
+tools your report was built with, on their own second line, without
+touching the copyright/licence text itself:
+
+```toml
+[project.extra]
+pdf_copyright = '''
+Author: Jane Doe. Licensed under the MIT License.\A Made with Zensical and prodockit.
+'''
+```
+
+Use a TOML *literal* string (single quotes - `'...'` or, for a value
+spanning its own line as above, `'''...'''`) for a value containing
+`\A `, not a basic one (`"..."`/`"""..."""`): a basic string's own
+backslash-escape processing doesn't recognise `\A` as a valid escape and
+fails to parse at all, since TOML has no such sequence of its own - a
+literal string passes both characters straight through unprocessed,
+letting the PDF's generated CSS interpret them instead.
+
+The equivalent website-side credit (if your project wants a "Made with
+Zensical and *X*" line on the live site too) isn't a prodockit setting
+at all - prodockit has no reach into the website's own Jinja partials.
+It's a Zensical theme override instead: with `custom_dir` set (see
+Zensical's own docs), drop your own `overrides/partials/copyright.html`
+based on the bundled version, adding a second credit line after the
+existing "Made with Zensical" one.
 
 ### Cover page markers
 
