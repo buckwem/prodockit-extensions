@@ -171,6 +171,16 @@ header, nav, footer, .md-sidebar, .md-header, .md-footer, .md-search, #search {
     @bottom-center { content: none !important; }
     @bottom-left {
         content: "__COPYRIGHT__" !important;
+        /* Confirmed directly: a literal "\\A " CSS escape inside a
+           generated content string (see prodockit.pdf.config's own
+           pdf_copyright setting) needs white-space: pre-line to actually
+           render as a line break - under the normal (default) value, an
+           embedded "\\A " renders as a plain space instead, silently
+           collapsing a deliberate second line back into one. Harmless
+           for every copyright/site_name value that doesn't contain one,
+           since there's no other embedded whitespace run for pre-line to
+           treat differently from normal. */
+        white-space: pre-line !important;
         font-family: "__MAIN_FONT__", sans-serif !important;
         font-size: __PDF_HEADER_FOOTER_FONT_SIZE__ !important;
         color: __PDF_HEADER_FOOTER_COLOR__ !important;
@@ -748,6 +758,10 @@ div.prodockit-index-level-3 {
     }
     @bottom-right {
         content: "__COPYRIGHT__" !important;
+        /* See the single-sided @bottom-left rule above for why this is
+           here - the copyright box just lives on the opposite corner on
+           a verso page. */
+        white-space: pre-line !important;
         font-family: "__MAIN_FONT__", sans-serif !important;
         font-size: __PDF_HEADER_FOOTER_FONT_SIZE__ !important;
         color: __PDF_HEADER_FOOTER_COLOR__ !important;

@@ -763,6 +763,63 @@ def test_a_quote_in_copyright_is_escaped_for_css(
     assert captured["copyright_text"] == 'Say \\"hi\\"'
 
 
+def test_pdf_copyright_falls_back_to_project_copyright_when_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _write_custom_project(
+        tmp_path,
+        '[project]\nsite_name = "Test project"\n'
+        'copyright = "Copyright test"\n'
+        'nav = [{"Home" = "index.md"}, {"Chapter" = "chapter1.md"}]\n',
+    )
+    monkeypatch.chdir(root)
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["copyright_text"] = kwargs["copyright_text"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["copyright_text"] == "Copyright test"
+
+
+def test_pdf_copyright_overrides_project_copyright_for_the_pdf_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """extra.pdf_copyright, when set, is what the PDF's own running
+    footer shows instead of project.copyright - e.g. a second, forced
+    line (CSS's own "\\A " line-break escape) crediting the PDF pipeline
+    specifically, without also injecting that same escape sequence into
+    the live website's copyright text (which always reads
+    project.copyright directly, untouched by this setting)."""
+    root = _write_custom_project(
+        tmp_path,
+        '[project]\nsite_name = "Test project"\n'
+        'copyright = "Copyright test"\n'
+        'nav = [{"Home" = "index.md"}, {"Chapter" = "chapter1.md"}]\n\n'
+        "[project.extra]\n"
+        'pdf_copyright = "Copyright test\\\\A Made with Zensical and prodockit."\n',
+    )
+    monkeypatch.chdir(root)
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["copyright_text"] = kwargs["copyright_text"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert (
+        captured["copyright_text"]
+        == "Copyright test\\A Made with Zensical and prodockit."
+    )
+
+
 def test_site_name_passed_to_build_pdf_is_also_css_escaped(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

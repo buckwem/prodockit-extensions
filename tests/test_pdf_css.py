@@ -171,6 +171,23 @@ def test_double_sided_verso_page_swaps_all_four_header_footer_corners() -> None:
     assert 'content: "My Copyright"' in left_block.split("@bottom-right {")[1].split("}")[0]
 
 
+def test_copyright_box_allows_a_forced_line_break() -> None:
+    """white-space: pre-line on the copyright box - both the single-sided
+    @bottom-left one and the double-sided verso @bottom-right one - is
+    what lets a literal "\\A " CSS escape in copyright_text (see
+    prodockit.pdf.config's own pdf_copyright setting) actually render as
+    a real line break rather than collapsing to a plain space (confirmed
+    directly: without this, WeasyPrint renders "\\A " as a space under
+    the default white-space: normal). Confirmed end-to-end with a real
+    weasyprint build in test_pdf_build.py."""
+    css_single = build_css("Inter", "Fira Code", "Copyright 2026", "My Site")
+    assert "white-space: pre-line !important;" in css_single.split("@bottom-left {")[1].split("}")[0]
+
+    css_double = build_css("Inter", "Fira Code", "Copyright 2026", "My Site", double_sided=True)
+    left_block = css_double.split("@page :left {")[1].split("\n@page")[0]
+    assert "white-space: pre-line !important;" in left_block.split("@bottom-right {")[1].split("}")[0]
+
+
 def test_double_sided_recto_title_string_set_rule_always_present() -> None:
     css_single = build_css("Inter", "Fira Code", "Copyright 2026", "My Site")
     css_double = build_css("Inter", "Fira Code", "Copyright 2026", "My Site", double_sided=True)
