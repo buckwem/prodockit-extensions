@@ -9,6 +9,7 @@ import pytest
 
 import prodockit.bibliography as prodockit_bibliography
 from prodockit.bibliography import BibliographyError, BibliographyExtension
+from prodockit.citations import CitationsExtension
 
 pandoc_required = pytest.mark.skipif(
     shutil.which("pandoc") is None,
@@ -55,10 +56,47 @@ def _convert(text: str, bib_file: str, **kwargs: object) -> str:
 
 
 def test_multi_key_citation_is_not_matched(bib_file: str) -> None:
-    """\\cite{id1,id2} isn't supported (see module docstring) - falls
+    """\\citebib{id1,id2} isn't supported (see module docstring) - falls
     through as literal text rather than being silently mishandled."""
-    html = _convert("See \\cite{chacon2014,skou2023}.", bib_file)
-    assert "\\cite{chacon2014,skou2023}" in html
+    html = _convert("See \\citebib{chacon2014,skou2023}.", bib_file)
+    assert "\\citebib{chacon2014,skou2023}" in html
+
+
+def test_the_old_bare_cite_syntax_no_longer_resolves(bib_file: str) -> None:
+    """Regression test: prodockit.bibliography used to also respond to
+    plain \\cite{id} (the same syntax prodockit.citations uses), which
+    made the two extensions conflict if both were enabled in the same
+    build. Renamed to \\citebib{id} specifically so they no longer
+    collide - a bare \\cite{id} now falls through as literal text here,
+    same as any other unrecognised syntax."""
+    html = _convert("See \\cite{chacon2014}.", bib_file)
+    assert "\\cite{chacon2014}" in html
+    assert "prodockit-bib-cite" not in html
+
+
+@pandoc_required
+def test_citations_and_bibliography_can_be_enabled_together(bib_file: str) -> None:
+    """The whole point of \\citebib{id} being distinct from
+    prodockit.citations' own \\cite{id}: both extensions can now be
+    enabled in the same build without one hijacking the other's syntax -
+    e.g. a project citing some sources via a hand-written data-cite-text
+    paragraph and others via a shared .bib file, or (as here) a docs site
+    demonstrating both features side by side."""
+    md = markdown.Markdown(
+        extensions=[
+            "attr_list",
+            CitationsExtension(),
+            BibliographyExtension(bib_file=bib_file, source="doc.md"),
+        ]
+    )
+    html = md.convert(
+        'Skoulikari, A. (2023) *Learning Git*.\n'
+        '{: #hand2023 .reference data-cite-text="Skoulikari, 2023" }\n\n'
+        "See \\cite{hand2023} and \\citebib{chacon2014}.\n"
+    )
+    assert '<a class="prodockit-cite-resolved" href="#hand2023">Skoulikari, 2023</a>' in html
+    assert 'class="prodockit-bib-cite"' in html
+    assert "Chacon" in html
 
 
 def test_run_pandoc_citeproc_includes_csl_only_when_configured(
@@ -106,7 +144,7 @@ def test_pandoc_failure_raises_a_clear_error(monkeypatch: pytest.MonkeyPatch) ->
 
 @pandoc_required
 def test_resolves_a_known_citation(bib_file: str) -> None:
-    html = _convert("See \\cite{chacon2014}.", bib_file)
+    html = _convert("See \\citebib{chacon2014}.", bib_file)
     assert 'class="prodockit-bib-cite"' in html
     assert "Chacon" in html
     assert "2014" in html
@@ -114,25 +152,25 @@ def test_resolves_a_known_citation(bib_file: str) -> None:
 
 @pandoc_required
 def test_unknown_citation_renders_the_unresolved_marker(bib_file: str) -> None:
-    html = _convert("See \\cite{doesnotexist}.", bib_file)
+    html = _convert("See \\citebib{doesnotexist}.", bib_file)
     assert '<span class="prodockit-bib-cite prodockit-bib-cite-unresolved">?</span>' in html
 
 
 @pandoc_required
 def test_custom_unresolved_marker(bib_file: str) -> None:
-    html = _convert("See \\cite{doesnotexist}.", bib_file, unresolved="[MISSING]")
+    html = _convert("See \\citebib{doesnotexist}.", bib_file, unresolved="[MISSING]")
     assert ">[MISSING]</span>" in html
 
 
 @pandoc_required
 def test_same_page_citation_links_to_a_bare_fragment(bib_file: str) -> None:
-    html = _convert("See \\cite{chacon2014}.\n\n\\bibliography\n", bib_file)
+    html = _convert("See \\citebib{chacon2014}.\n\n\\bibliography\n", bib_file)
     assert 'href="#ref-chacon2014"' in html
 
 
 @pandoc_required
 def test_unresolved_citation_has_no_link(bib_file: str) -> None:
-    html = _convert("See \\cite{doesnotexist}.\n\n\\bibliography\n", bib_file)
+    html = _convert("See \\citebib{doesnotexist}.\n\n\\bibliography\n", bib_file)
     assert "href" not in html.split("</span>")[0].split("<span")[-1]
 
 
@@ -164,6 +202,6 @@ def test_no_bibliography_marker_means_citations_are_unlinked(bib_file: str) -> N
     """No \\bibliography anywhere means there's nowhere to link a resolved
     citation to - it should still resolve/format correctly, just without
     an <a href>."""
-    html = _convert("See \\cite{chacon2014}.", bib_file)
+    html = _convert("See \\citebib{chacon2014}.", bib_file)
     assert "Chacon" in html
     assert "<a href" not in html

@@ -15,7 +15,7 @@ Zensical doesn't provide out of the box, each usable independently:
   ``width`` attribute already attachable to a header cell with ``attr_list``.
 - ``prodockit.bibliography`` - an alternative to ``prodockit.citations``: define
   sources in a BibTeX/BibLaTeX ``.bib`` file instead of by hand, and format
-  ``\\cite{id}``/the reference list in any Citation Style Language (CSL)
+  ``\\citebib{id}``/the reference list in any Citation Style Language (CSL)
   style (APA, IEEE, Harvard, ...) via Pandoc's own ``--citeproc`` - requires
   `pandoc` on ``PATH`` even without a PDF build.
 - ``prodockit.index`` - mark a term inline with ``\\index{Term}`` for a

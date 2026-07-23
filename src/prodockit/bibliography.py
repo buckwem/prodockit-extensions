@@ -7,14 +7,19 @@ Style Language (CSL) style - APA, IEEE, Harvard, Vancouver, and hundreds
 more, the same open, actively-maintained style ecosystem Zotero/Mendeley/
 EndNote already use.
 
-An alternative to :mod:`prodockit.citations`, not a companion to it - both
-provide ``\cite{id}``, so enable one or the other, not both. Where
-prodockit.citations resolves a citation against a hand-authored
-``data-cite-text`` paragraph elsewhere in the document (you write the
-formatted reference-list entry yourself, once, by hand),
-prodockit.bibliography resolves against structured bibliographic data in a
-``.bib`` file and generates the formatted entry - inline citation and
-reference-list entry alike - for you.
+An alternative to :mod:`prodockit.citations`, covering the same job a
+different way - rather than a hand-authored ``data-cite-text`` paragraph
+elsewhere in the document (you write the formatted reference-list entry
+yourself, once, by hand), prodockit.bibliography resolves against
+structured bibliographic data in a ``.bib`` file and generates the
+formatted entry - inline citation and reference-list entry alike - for
+you.
+
+Uses its own ``\citebib{id}`` syntax, deliberately distinct from
+prodockit.citations' ``\cite{id}`` - both extensions can be enabled in the
+same build without conflict (e.g. this project's own docs, demonstrating
+both side by side), even though a typical single project only needs one
+workflow or the other.
 
 The actual citation-style formatting is delegated to Pandoc's own
 ``--citeproc`` (confirmed directly: a plain ``.bib`` file plus a chosen
@@ -28,12 +33,12 @@ dependency for this extension specifically - including for a project that
 never builds a PDF at all, unlike every other prodockit extension, which
 needs nothing beyond Python-Markdown itself.
 
-Only single-key ``\cite{id}`` is supported (not
+Only single-key ``\citebib{id}`` is supported (not
 prodockit.citations' ``\cite{id1,id2,...}``) - Pandoc's own multi-source
 citation formatting (``[@id1; @id2]``) returns one joined, opaque string
 per CSL style's own rules for how to combine them, which can't be reliably
 split back into individually-linkable pieces afterward. A multi-key
-`\cite{...}` is therefore left completely unmatched by this extension's
+`\citebib{...}` is therefore left completely unmatched by this extension's
 own syntax (falls through as literal text) rather than silently mishandled.
 """
 
@@ -55,7 +60,7 @@ from prodockit.util import cross_page_href
 
 BIBLIOGRAPHY_MARKER = "\\bibliography"
 
-CITE_RE = r"\\cite\{([^}\s,]+)\}"
+CITE_RE = r"\\citebib\{([^}\s,]+)\}"
 BIBLIOGRAPHY_RE = r"\\bibliography\b"
 
 _NOT_FOUND_RE = re.compile(r"citeproc: citation (\S+) not found", re.IGNORECASE)
@@ -159,13 +164,13 @@ def _run_pandoc_citeproc(
 
 
 class BibCiteInlineProcessor(InlineProcessor):
-    """Matches `\\cite{id}` (a single key only - see module docstring) and
+    """Matches `\\citebib{id}` (a single key only - see module docstring) and
     emits an unresolved placeholder `<span>` carrying the key in a
     `data-prodockit-bib-cite` attribute.
 
     Registered at a low inline-pattern priority so it runs after 'backtick'
     (190) and 'escape' (180) - meaning inline code spans are already
-    stashed out of reach by the time this pattern runs, so `\\cite{...}`
+    stashed out of reach by the time this pattern runs, so `\\citebib{...}`
     shown as literal example syntax survives untouched, the same
     protection fenced code blocks get from being stashed even earlier,
     during preprocessing."""
@@ -290,7 +295,7 @@ class BibliographyResolverTreeprocessor(Treeprocessor):
 
 
 class BibliographyExtension(Extension):
-    """Python-Markdown extension resolving `.bib`-backed `\\cite{id}`
+    """Python-Markdown extension resolving `.bib`-backed `\\citebib{id}`
     citations and a `\\bibliography` reference-list marker via Pandoc's own
     `--citeproc`."""
 
@@ -312,13 +317,13 @@ class BibliographyExtension(Extension):
             ],
             "unresolved": [
                 "?",
-                "Text rendered by \\cite{id} when id doesn't resolve to a "
+                "Text rendered by \\citebib{id} when id doesn't resolve to a "
                 ".bib entry.",
             ],
             "source": [
                 "",
                 "Identifier for the current document (e.g. its path), used "
-                "to build a correct link from a \\cite{id} to \\bibliography's "
+                "to build a correct link from a \\citebib{id} to \\bibliography's "
                 "own page. Auto-detected under Zensical if not set.",
             ],
         }

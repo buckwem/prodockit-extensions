@@ -22,7 +22,7 @@ It's a kit for professional documentation, built on Zensical's own Markdown and 
 | [prodockit.citations](extensions/citations.md) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
 | [prodockit.glossary](extensions/glossary.md) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
 | [prodockit.tables](extensions/tables.md) | Percentage or fixed column widths on a table, via a `width` attribute already attachable to a header cell with `attr_list`. |
-| [prodockit.bibliography](extensions/bibliography.md) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\cite{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
+| [prodockit.bibliography](extensions/bibliography.md) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\citebib{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
 
 ## PDF generation
 

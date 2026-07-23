@@ -2,16 +2,19 @@
 
 `prodockit.bibliography` is an alternative to [prodockit.citations](citations.md):
 define your sources once in a BibTeX/BibLaTeX `.bib` file, cite them by key
-with `\cite{id}` from anywhere in a build, and get a fully formatted,
+with `\citebib{id}` from anywhere in a build, and get a fully formatted,
 sorted reference list generated for you - in any
 [Citation Style Language (CSL)](https://citationstyles.org/) style (APA,
 IEEE, Harvard, Vancouver, and hundreds more), the same open, actively-
 maintained style ecosystem Zotero/Mendeley/EndNote already use.
 
-Enable one or the other, not both - both provide `\cite{id}`. Where
-`prodockit.citations` resolves a citation against a hand-authored
-`data-cite-text` paragraph elsewhere in the document (you write the
-formatted reference-list entry yourself, once, by hand),
+Uses its own `\citebib{id}` syntax, deliberately distinct from
+`prodockit.citations`' `\cite{id}` - the two can be enabled together in
+the same build without conflict (this project's own docs do, to
+demonstrate both side by side), though a typical single project only
+needs one. Where `prodockit.citations` resolves a citation against a
+hand-authored `data-cite-text` paragraph elsewhere in the document (you
+write the formatted reference-list entry yourself, once, by hand),
 `prodockit.bibliography` resolves against structured bibliographic data in
 a `.bib` file and generates the formatted entry - inline citation and
 reference-list entry alike - for you. See
@@ -38,7 +41,7 @@ brew install pandoc   # or see https://pandoc.org/installing.html
 ```
 
 How the two tools relate: Zensical renders your site as usual, but each
-time this extension resolves a `\cite{id}` or `\bibliography` marker it
+time this extension resolves a `\citebib{id}` or `\bibliography` marker it
 shells out to `pandoc --citeproc`, once per distinct citation and once for
 the full reference list, each memoized for the rest of the build - Pandoc
 never sees, and has no part in rendering, anything else on the page:
@@ -46,7 +49,7 @@ never sees, and has no part in rendering, anything else on the page:
 ```mermaid
 flowchart LR
     bib[".bib file<br>.csl style"]
-    md["Markdown source<br>\cite{id} / \bibliography"]
+    md["Markdown source<br>\citebib{id} / \bibliography"]
     ext["prodockit.bibliography<br>(Python-Markdown extension)"]
     pandoc["pandoc --citeproc"]
     web["Zensical<br>(live website)"]
@@ -82,10 +85,10 @@ bib_file = "references.bib"
 }
 ```
 
-Cite it from anywhere with `\cite{id}`:
+Cite it from anywhere with `\citebib{id}`:
 
 ```md
-Git is a distributed version control system \cite{chacon2014}.
+Git is a distributed version control system \citebib{chacon2014}.
 ```
 
 renders to (default style shown; see
@@ -112,8 +115,8 @@ already use:
 Every entry in `bib_file` appears, in the order your chosen CSL style
 sorts them (alphabetically by default) - not just the ones actually
 cited, the same way LaTeX's `\nocite{*}` includes every `.bib` entry
-regardless of whether it's cited in the document. A `\cite{id}` written on
-any page links directly to its own entry here, adjusted for that page's
+regardless of whether it's cited in the document. A `\citebib{id}` written
+on any page links directly to its own entry here, adjusted for that page's
 own directory depth - a real Zensical clean-URL link like
 `prodockit.refs`/`prodockit.citations` already build, not a bare `#id`
 fragment that would 404 from a different page.
@@ -159,7 +162,7 @@ A key that doesn't resolve to a `.bib` entry renders the `unresolved`
 marker (`?` by default), unlinked:
 
 ```md
-\cite{does-not-exist}
+\citebib{does-not-exist}
 ```
 
 renders `?`, with no link.
@@ -169,7 +172,7 @@ renders `?`, with no link.
 ### Syntax
 
 ```
-\cite{<id>}
+\citebib{<id>}
 ```
 
 Only a single key is supported - unlike `prodockit.citations`'
@@ -178,7 +181,7 @@ extension's own syntax at all (falls through as literal text, a visible,
 honest "not supported" rather than a silently wrong result) - see
 [Comparing the two approaches](#comparing-the-two-approaches) for why.
 
-Like [prodockit.citations](citations.md#syntax), `\cite{...}` is
+Like [prodockit.citations](citations.md#syntax), `\citebib{...}` is
 recognised the same way Python-Markdown's own inline syntax is, so it's
 protected inside inline code spans and fenced code blocks.
 
@@ -188,15 +191,15 @@ protected inside inline code spans and fenced code blocks.
 |---|---|---|---|
 | `bib_file` | `str` | `"references.bib"` | Path to a BibTeX/BibLaTeX `.bib` file, relative to wherever `zensical build`/`zensical serve` (or your own script) is run from. |
 | `csl_style` | `str` | `""` (Pandoc's own default) | Path to a Citation Style Language (`.csl`) file. |
-| `unresolved` | `str` | `"?"` | Text rendered for a `\cite{id}` key that doesn't resolve to a `.bib` entry. |
-| `source` | `str` | `""`, auto-detected under Zensical | Identifier for the current document, used to build a correct link from `\cite{id}` to `\bibliography`'s own page. |
+| `unresolved` | `str` | `"?"` | Text rendered for a `\citebib{id}` key that doesn't resolve to a `.bib` entry. |
+| `source` | `str` | `""`, auto-detected under Zensical | Identifier for the current document, used to build a correct link from `\citebib{id}` to `\bibliography`'s own page. |
 
 ### CSS hooks
 
 | Element | Condition | Hook |
 |---|---|---|
-| `<span>` wrapping a resolved `\cite{id}` | always | `class="prodockit-bib-cite"` |
-| `<span>` wrapping an unresolved `\cite{id}` | always | `class="prodockit-bib-cite prodockit-bib-cite-unresolved"` |
+| `<span>` wrapping a resolved `\citebib{id}` | always | `class="prodockit-bib-cite"` |
+| `<span>` wrapping an unresolved `\citebib{id}` | always | `class="prodockit-bib-cite prodockit-bib-cite-unresolved"` |
 | Each generated reference-list entry | always | `class="csl-entry reference"` |
 
 Every generated reference-list entry also gets `class="reference"` (in
