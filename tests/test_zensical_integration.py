@@ -471,7 +471,7 @@ def test_bibliography_forward_reference_resolves_via_nav_prescan(
         lambda: (str(docs_dir), ["section1.md", "references.md"]),
     )
     html = _convert_as_zensical_page_with_bibliography(
-        "See \\cite{skou2023}.\n", "section1.md", str(bib_file)
+        "See \\citebib{skou2023}.\n", "section1.md", str(bib_file)
     )
     assert 'href="references.md#ref-skou2023"' in html
 
@@ -491,7 +491,7 @@ def test_bibliography_cross_page_citation_from_nested_page_uses_relative_path(
         lambda: (str(docs_dir), ["starthere/customise.md", "references.md"]),
     )
     html = _convert_as_zensical_page_with_bibliography(
-        "See \\cite{skou2023}.\n", "starthere/customise.md", str(bib_file)
+        "See \\citebib{skou2023}.\n", "starthere/customise.md", str(bib_file)
     )
     assert 'href="../references.md#ref-skou2023"' in html
 
@@ -517,6 +517,6 @@ def test_bibliography_prescan_ignores_fenced_documentation_examples(
         lambda: (str(docs_dir), ["extending.md", "section1.md", "references.md"]),
     )
     html = _convert_as_zensical_page_with_bibliography(
-        "See \\cite{skou2023}.\n", "section1.md", str(bib_file)
+        "See \\citebib{skou2023}.\n", "section1.md", str(bib_file)
     )
     assert 'href="references.md#ref-skou2023"' in html

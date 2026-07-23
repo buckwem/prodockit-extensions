@@ -990,7 +990,7 @@ that: genuine gaps in Pandoc/WeasyPrint's own HTML handling, not gaps in
 markdown-dialect translation.
 
 **`prodockit.bibliography` is a partial exception to this pattern, worth
-flagging explicitly**: resolving `\cite{id}`/`\bibliography` itself calls
+flagging explicitly**: resolving `\citebib{id}`/`\bibliography` itself calls
 out to a *separate*, independent `pandoc --citeproc` invocation at
 markdown-render time (see
 [prodockit.bibliography](extensions/bibliography.md#requirements)) -
