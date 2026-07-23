@@ -24,7 +24,7 @@ It's a kit for professional documentation, built on Zensical's own Markdown and 
 | [prodockit.tables](extensions/tables.md) | Percentage or fixed column widths on a table, via a `width` attribute already attachable to a header cell with `attr_list`. |
 | [prodockit.bibliography](extensions/bibliography.md) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\citebib{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
 
-## PDF generation
+## PDF generation {: #introduction-pdf-generation }
 
 | Module | Description |
 |---|---|
@@ -37,7 +37,7 @@ prodockit pdf
 See [PDF generation](pdf.md) for the `zensical.toml` settings it reads, and
 for the Python API if you're scripting your own build pipeline instead.
 
-## Website macros
+## Website macros {: #introduction-website-macros }
 
 | Module | Description |
 |---|---|
@@ -78,7 +78,7 @@ heading it points to - and `\cite{skou2023}` resolves to `[Skoulikari,
 headings/sources are reordered, since resolution happens fresh on every
 conversion.
 
-## Status
+## Status {: #introduction-status }
 
 Early, but functional. `prodockit.headings`, `prodockit.refs`, `prodockit.citations`,
 `prodockit.glossary`, `prodockit.tables`, `prodockit.bibliography`, `prodockit.pdf`,

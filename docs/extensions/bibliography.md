@@ -21,7 +21,7 @@ reference-list entry alike - for you. See
 [Comparing the two approaches](#comparing-the-two-approaches) below for the
 full tradeoffs.
 
-## Requirements
+## Requirements {: #bibliography-requirements }
 
 Citation/bibliography formatting is delegated entirely to
 [Pandoc](https://pandoc.org/)'s own `--citeproc` (confirmed directly: a
@@ -63,7 +63,7 @@ flowchart LR
     ext --> pdf
 ```
 
-## Quick start
+## Quick start {: #bibliography-quick-start }
 
 Enable it in `zensical.toml`, pointing `bib_file` at your own `.bib` file
 (a path relative to wherever `zensical build`/`zensical serve` is run
@@ -156,7 +156,7 @@ parenthetical citations and a hanging-indent reference list for APA,
 numbered `[1]` citations and a numbered list for IEEE, and so on - with no
 other configuration.
 
-### Unresolved citations
+### Unresolved citations {: #bibliography-unresolved-citations }
 
 A key that doesn't resolve to a `.bib` entry renders the `unresolved`
 marker (`?` by default), unlinked:
@@ -167,9 +167,9 @@ marker (`?` by default), unlinked:
 
 renders `?`, with no link.
 
-## Reference
+## Reference {: #bibliography-reference }
 
-### Syntax
+### Syntax {: #bibliography-syntax }
 
 ```
 \citebib{<id>}
@@ -181,11 +181,11 @@ extension's own syntax at all (falls through as literal text, a visible,
 honest "not supported" rather than a silently wrong result) - see
 [Comparing the two approaches](#comparing-the-two-approaches) for why.
 
-Like [prodockit.citations](citations.md#syntax), `\citebib{...}` is
+Like [prodockit.citations](citations.md#citations-syntax), `\citebib{...}` is
 recognised the same way Python-Markdown's own inline syntax is, so it's
 protected inside inline code spans and fenced code blocks.
 
-### Options
+### Options {: #bibliography-options }
 
 | Option | Type | Default | Description |
 |---|---|---|---|
@@ -194,7 +194,7 @@ protected inside inline code spans and fenced code blocks.
 | `unresolved` | `str` | `"?"` | Text rendered for a `\citebib{id}` key that doesn't resolve to a `.bib` entry. |
 | `source` | `str` | `""`, auto-detected under Zensical | Identifier for the current document, used to build a correct link from `\citebib{id}` to `\bibliography`'s own page. |
 
-### CSS hooks
+### CSS hooks {: #bibliography-css-hooks }
 
 | Element | Condition | Hook |
 |---|---|---|
@@ -253,7 +253,7 @@ an entirely new requirement). A project outgrowing that - a longer,
 frequently-updated bibliography, or needing to match a specific CSL style
 - is exactly the case `prodockit.bibliography` is built for instead.
 
-## Status
+## Status {: #bibliography-status }
 
 New, less battle-tested than `prodockit.citations` - no formal, versioned
 public API stability contract yet (see

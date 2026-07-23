@@ -18,7 +18,7 @@ unwanted visual side effect just to mark a term). Raw inline HTML
 all, but is exactly the "disrupts normal writing flow" outcome a good
 marker syntax should avoid.
 
-## Quick start
+## Quick start {: #index-terms-quick-start }
 
 Enable it in `zensical.toml`:
 
@@ -153,7 +153,7 @@ plain "Git" text correctly either way - it already strips a nested
     \index{<a href="https://git-scm.com/" target="_blank">Git</a>} is a version control system.
     ```
 
-## CSS hooks
+## CSS hooks {: #index-terms-css-hooks }
 
 A flat `\index{Term}` renders as `<span class="index">Term</span>` - no
 other class or attribute, and nothing left behind to strip. A

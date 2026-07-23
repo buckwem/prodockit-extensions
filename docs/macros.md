@@ -1,4 +1,4 @@
-# Website macros
+# Website macros {: #macros-website-macros }
 
 `prodockit.zensical_macros` provides a handful of Jinja variables and macros
 for Zensical's own [macros plugin](https://zensical.org/docs/authoring/macros/)
@@ -8,7 +8,7 @@ repository URL, chapter/appendix numbering that continues across pages, and
 reference/acronym/glossary list spacing that matches
 [`prodockit.pdf`](pdf.md)'s own PDF output.
 
-## Quick start
+## Quick start {: #macros-quick-start }
 
 Add it alongside your own project's `macros.py` (which keeps anything
 genuinely project-specific - a custom macro, institution branding, and so
@@ -75,7 +75,7 @@ one configured value:
 | `reference_indent_global` | `"1.27cm"` | Hanging indent on wrapped lines, "global" style. |
 | `reference_spacing_global` | `"2em"` | Gap between entries, "global" style. |
 
-## Status
+## Status {: #macros-status }
 
 No formal, versioned public API stability contract yet (see
 [prodockit-extensions#7](https://github.com/buckwem/prodockit-extensions/issues/7)).

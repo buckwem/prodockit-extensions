@@ -7,7 +7,7 @@ no new syntax to learn. Builds on Python-Markdown's own `tables` extension
 (auto-enabled if not already present, the same way
 [prodockit.refs](refs.md) auto-enables [prodockit.headings](headings.md)).
 
-## Quick start
+## Quick start {: #tables-quick-start }
 
 Enable it in `zensical.toml`:
 
@@ -146,9 +146,9 @@ for the full syntax. This isn't a `prodockit.tables` feature; it's
 documented here because it's the natural companion to `width` when
 sizing a column, not something `prodockit.tables` needs to reimplement.
 
-## Reference
+## Reference {: #tables-reference }
 
-### Syntax
+### Syntax {: #tables-syntax }
 
 Attach `width` to a header cell (`th`), not a body cell - a column's width
 is a property of the whole column, so it's declared once, on the heading:
@@ -164,7 +164,7 @@ generated `<colgroup>` as-is, with no validation of its own; an invalid
 value behaves exactly as it would in any other hand-written CSS, since
 `prodockit.tables` doesn't parse or interpret it beyond that.
 
-### CSS hooks
+### CSS hooks {: #tables-css-hooks }
 
 A table with at least one `width`-attributed header cell gets a
 `<colgroup>` (one `<col>` per column, `style="width: ..."` set only on the

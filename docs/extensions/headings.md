@@ -7,7 +7,7 @@ text and level - in a shared registry other prodockit extensions build on
 in exactly this registry). You can also enable it on its own if you just
 want ids/numbers on your headings without cross-references.
 
-## Quick start
+## Quick start {: #headings-quick-start }
 
 Enable it in `zensical.toml`:
 
@@ -118,7 +118,7 @@ doesn't consume a counter position:
 `Introduction` above is still numbered `1`, as if `Cover Page` weren't
 there at all.
 
-## Reference
+## Reference {: #headings-reference }
 
 ### Continuous numbering across pages (Zensical)
 
@@ -157,7 +157,7 @@ An id comes from one of, in order of precedence:
    registered at all (this should not normally happen, since
    `prodockit.headings` enables it).
 
-### Options
+### Options {: #headings-options }
 
 | Option | Type | Default | Description |
 |---|---|---|---|
@@ -173,7 +173,7 @@ To resolve cross-page references, every page in a build needs to write into
 distinct `source`.
 
 Under [Zensical](https://zensical.org/), this happens automatically with no
-configuration - see [prodockit.refs](refs.md#multi-page-builds) for details:
+configuration - see [prodockit.refs](refs.md#refs-multi-page-builds) for details:
 `prodockit.headings` detects Zensical's per-page context (each page gets its
 own fresh `Markdown` instance) and uses it to derive `source` from the
 page's own path, sharing one registry across the whole build. This
@@ -219,7 +219,7 @@ for that page's first heading (see
 [prodockit.zensical_macros](../macros.md#heading_counter_resetpage)). Returns
 `None` outside a Zensical build.
 
-### CSS hooks
+### CSS hooks {: #headings-css-hooks }
 
 `prodockit.headings` doesn't add any class of its own to a heading - only an
 `id` (see above), the class(es) already on the heading (e.g. `unnumbered`),

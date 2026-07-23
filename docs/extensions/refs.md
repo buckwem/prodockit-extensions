@@ -7,7 +7,7 @@ heading with that id. It depends on the id/number registry that
 transparently enables `prodockit.headings` too, with matching defaults, so a
 single document works with no extra configuration.
 
-## Quick start
+## Quick start {: #refs-quick-start }
 
 Enable it in `zensical.toml`:
 
@@ -34,12 +34,12 @@ renders to:
 Because the number is looked up fresh on every conversion, it stays correct
 even if sections are added, removed, or reordered - you never have to
 manually renumber a cross-reference. Referencing a heading defined on a
-*different* page (see [Multi-page builds](#multi-page-builds) below) links
+*different* page (see [Multi-page builds](#refs-multi-page-builds) below) links
 to that page directly (e.g. `other.md#intro`, which Zensical rewrites into
 the correct clean URL) rather than a bare `#intro` fragment, which would
 only work if the target happened to be on the same page.
 
-### Forward references
+### Forward references {: #refs-forward-references }
 
 A reference to a heading defined *later* in the same document resolves
 correctly:
@@ -50,7 +50,7 @@ See \ref{background} below.
 ## Background {: #background }
 ```
 
-### Unresolved references
+### Unresolved references {: #refs-unresolved-references }
 
 `\ref{id}` renders the `unresolved` marker (`??` by default) instead of a
 number when:
@@ -71,9 +71,9 @@ See \ref{cover-page}.
 
 renders `\ref{cover-page}` as `??`, linked to `#cover-page`.
 
-## Reference
+## Reference {: #refs-reference }
 
-### Syntax
+### Syntax {: #refs-syntax }
 
 ```
 \ref{<id>}
@@ -100,7 +100,7 @@ Type `\ref{intro}` to reference a section.
 
 Neither of the two shown above is resolved; both render the literal text.
 
-### Options
+### Options {: #refs-options }
 
 | Option | Type | Default | Description |
 |---|---|---|---|
@@ -108,9 +108,9 @@ Neither of the two shown above is resolved; both render the literal text.
 | `source` | `str` | `""`, auto-detected under Zensical | Identifier for the current document (e.g. its path) - used only to decide whether a resolved target is on this same page (bare `#id`) or a different one (a real link to it). Doesn't affect resolution itself. |
 | `registry` | `IdRegistry \| None` | discovered from a sibling `prodockit.headings`, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
 
-### Multi-page builds
+### Multi-page builds {: #refs-multi-page-builds }
 
-#### Under Zensical: automatic
+#### Under Zensical: automatic {: #refs-under-zensical-automatic }
 
 Under [Zensical](https://zensical.org/), cross-page references work with no
 extra configuration - just enable both extensions in `zensical.toml` as
@@ -137,7 +137,7 @@ built keeps that id, and the collision is logged as a warning rather than
 raised as an error - give one of them an explicit id via `attr_list` (`##
 Overview {: #api-overview }`) to disambiguate and make both referenceable.
 
-#### Under other tools: manual
+#### Under other tools: manual {: #refs-under-other-tools-manual }
 
 Outside Zensical, give `prodockit.headings` and `prodockit.refs` the *same*
 `IdRegistry` on every page yourself, converting pages in the order
@@ -171,7 +171,7 @@ Here, a genuine id collision between two different `source`s *does* raise
 registry means you're expected to notice and fix a collision, unlike the
 best-effort automatic Zensical case above.
 
-### CSS hooks
+### CSS hooks {: #refs-css-hooks }
 
 `prodockit.refs` always sets a class on the `\ref{id}` link it renders -
 resolved or not - so a stylesheet has a stable hook either way:
@@ -181,7 +181,7 @@ resolved or not - so a stylesheet has a stable hook either way:
 | Resolved | `prodockit-ref` |
 | Unresolved | `prodockit-ref prodockit-ref-unresolved` |
 
-An unresolved reference (see [Unresolved references](#unresolved-references)
+An unresolved reference (see [Unresolved references](#refs-unresolved-references)
 above) still gets a `class` either way; style `prodockit-ref-unresolved`
 distinctly (e.g. a warning colour) to make a broken cross-reference
 visually obvious without inspecting the page source. No `data-*`

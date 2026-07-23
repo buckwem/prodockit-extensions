@@ -7,7 +7,7 @@ around the term's own text at every use. Like
 [prodockit.citations](citations.md), defining and inserting are bundled into
 one extension: a definition is useless without somewhere to use it.
 
-## Quick start
+## Quick start {: #glossary-quick-start }
 
 Enable it in `zensical.toml`:
 
@@ -47,11 +47,11 @@ organised across two differently-named pages (see
 [Acronyms and Glossary: one registry, two pages](#acronyms-and-glossary-one-registry-two-pages)
 below).
 
-### Forward references
+### Forward references {: #glossary-forward-references }
 
 A `\gls{id}` pointing at a term defined *later* in the same document
 resolves correctly, the same way
-[prodockit.refs](refs.md#forward-references)/[prodockit.citations](citations.md#forward-references)
+[prodockit.refs](refs.md#refs-forward-references)/[prodockit.citations](citations.md#citations-forward-references)
 do:
 
 ```md
@@ -61,7 +61,7 @@ See \gls{css} above.
 {: #css data-term="CSS" }
 ```
 
-### Unresolved references
+### Unresolved references {: #glossary-unresolved-references }
 
 An id that doesn't resolve to a definition renders the `unresolved` marker
 (`?` by default), unlinked:
@@ -125,9 +125,9 @@ at that point in the sentence, and a plain link when the link text needs
 to say something else entirely - a "see also", a page name, or any other
 custom wording.
 
-## Reference
+## Reference {: #glossary-reference }
 
-### Syntax
+### Syntax {: #glossary-syntax }
 
 #### Defining a term
 
@@ -167,7 +167,7 @@ Type `\gls{css}` to insert a term.
 
 Neither of the two shown above is resolved; both render the literal text.
 
-### Options
+### Options {: #glossary-options }
 
 | Option | Type | Default | Description |
 |---|---|---|---|
@@ -175,14 +175,14 @@ Neither of the two shown above is resolved; both render the literal text.
 | `unresolved` | `str` | `"?"` | Text rendered for a `\gls{id}` that doesn't resolve to a definition. |
 | `registry` | `GlossaryRegistry \| None` | discovered automatically, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
 
-### Multi-page builds
+### Multi-page builds {: #glossary-multi-page-builds }
 
-#### Under Zensical: automatic
+#### Under Zensical: automatic {: #glossary-under-zensical-automatic }
 
 Under [Zensical](https://zensical.org/), referencing a term defined on a
 *different* page (the common case - Acronyms/Glossary appendix pages
 separate from the pages that use them) works with no extra configuration,
-the same way [prodockit.citations](citations.md#under-zensical-automatic)
+the same way [prodockit.citations](citations.md#citations-under-zensical-automatic)
 shares its registry across pages:
 
 ```toml
@@ -200,10 +200,10 @@ Two different sources that happen to define the same id don't fail the
 build: the first one scanned keeps that id, and the collision is logged as
 a warning rather than raised as an error.
 
-#### Under other tools: manual
+#### Under other tools: manual {: #glossary-under-other-tools-manual }
 
 Outside Zensical, share a `GlossaryRegistry` yourself, the same way as
-[prodockit.citations](citations.md#under-other-tools-manual):
+[prodockit.citations](citations.md#citations-under-other-tools-manual):
 
 ```python
 import markdown
@@ -223,7 +223,7 @@ A genuine id collision between two different `source`s raises
 `prodockit.util.DuplicateIdError` here, rather than warning - a deliberately
 shared registry means you're expected to notice and fix it.
 
-### CSS hooks
+### CSS hooks {: #glossary-css-hooks }
 
 `prodockit.glossary` always sets a class on the `\gls{id}` link it renders -
 resolved or not - so a stylesheet has a stable hook either way:
@@ -234,7 +234,7 @@ resolved or not - so a stylesheet has a stable hook either way:
 | Unresolved | `prodockit-gls prodockit-gls-unresolved` |
 
 An unresolved id's `<a>` has no `href` (see
-[Unresolved references](#unresolved-references) above) - style
+[Unresolved references](#glossary-unresolved-references) above) - style
 `prodockit-gls-unresolved` distinctly (e.g. a warning colour) to make a
 missing term visually obvious without inspecting the page source. No
 `data-*` attribute is left in the rendered output - the internal

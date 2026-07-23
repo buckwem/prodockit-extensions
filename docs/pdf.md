@@ -1,4 +1,4 @@
-# PDF generation
+# PDF generation {: #pdf-pdf-generation }
 
 `prodockit.pdf` builds a standalone PDF from your Zensical site - the kind of
 downloadable, submittable document professional and academic reports
@@ -6,7 +6,7 @@ commonly need alongside the website itself. It reads the same
 `zensical.toml` your site already has, so there's nothing new to learn or
 configure beyond a couple of optional settings.
 
-## Requirements
+## Requirements {: #pdf-requirements }
 
 The PDF is built via [Pandoc](https://pandoc.org/) and
 [WeasyPrint](https://weasyprint.org/), so both need to be installed and on
@@ -25,7 +25,7 @@ for your platform (e.g. `brew install pandoc` on macOS).
 `pdf_include_index` on; every other feature on this page needs nothing
 beyond Pandoc/WeasyPrint above.
 
-## Quick start
+## Quick start {: #pdf-quick-start }
 
 From your project root (wherever `zensical.toml` lives):
 
@@ -314,7 +314,7 @@ heading (A, B, C, ...), each followed by the page number(s) it appears
 on - appended as its own page(s) at the very end of the document.
 PDF-only: there's no equivalent on the live website, where readers use
 browser/Ctrl-F search instead. Requires the optional `pymupdf`
-dependency - see [Requirements](#requirements) above.
+dependency - see [Requirements](#pdf-requirements) above.
 
 Mark a term inline, wherever it's actually discussed, with the new
 `prodockit.index` extension's own `\index{Term}` syntax (enable it in
@@ -993,7 +993,7 @@ markdown-dialect translation.
 flagging explicitly**: resolving `\citebib{id}`/`\bibliography` itself calls
 out to a *separate*, independent `pandoc --citeproc` invocation at
 markdown-render time (see
-[prodockit.bibliography](extensions/bibliography.md#requirements)) -
+[prodockit.bibliography](extensions/bibliography.md#bibliography-requirements)) -
 unrelated to, and already finished well before, `prodockit.pdf`'s own
 `pandoc --pdf-engine=weasyprint` call below. By the time `prodockit.pdf`
 sees the page, citations and the reference list are already resolved,
@@ -1002,7 +1002,7 @@ content - so none of the fixups documented above apply to it specially;
 a build using both ends up invoking Pandoc twice, for two entirely
 unrelated reasons.
 
-## Status
+## Status {: #pdf-status }
 
 No formal, versioned public API stability contract yet (see
 [prodockit-extensions#7](https://github.com/buckwem/prodockit-extensions/issues/7)).
