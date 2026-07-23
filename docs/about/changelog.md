@@ -1,5 +1,18 @@
 # Release Notes
 
+## 0.7.0 (2026-07-24)
+
+**Breaking:** `prodockit.bibliography` now uses its own `\citebib{id}`
+syntax instead of `\cite{id}`. Previously it registered the same
+`\cite{id}` pattern `prodockit.citations` uses, at the same inline-pattern
+priority - enabling both extensions together left it undefined which one
+actually resolved a given `\cite{...}` occurrence. Renaming
+`prodockit.bibliography`'s own syntax removes the conflict entirely: both
+extensions can now be enabled in the same build with no interference,
+each citing its own sources by its own marker. A project still using
+`prodockit.bibliography` on its own needs to update every `\cite{id}` in
+its source to `\citebib{id}` - the old syntax no longer resolves.
+
 ## 0.6.8 (2026-07-21)
 
 `build_pdf_from_zensical_config()` (what `prodockit pdf` runs) now supports

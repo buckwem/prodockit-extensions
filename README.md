@@ -38,7 +38,7 @@ pip install prodockit
 | [`prodockit.citations`](https://buckwem.github.io/prodockit-extensions/extensions/citations/) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
 | [`prodockit.glossary`](https://buckwem.github.io/prodockit-extensions/extensions/glossary/) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
 | [`prodockit.tables`](https://buckwem.github.io/prodockit-extensions/extensions/tables/) | Percentage or fixed column widths on a table, via a `width` attribute already attachable to a header cell with `attr_list`. |
-| [`prodockit.bibliography`](https://buckwem.github.io/prodockit-extensions/extensions/bibliography/) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\cite{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
+| [`prodockit.bibliography`](https://buckwem.github.io/prodockit-extensions/extensions/bibliography/) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\citebib{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
 | [`prodockit.index`](https://buckwem.github.io/prodockit-extensions/extensions/index-terms/) | Mark a term inline with `\index{Term}` for a traditional, PDF-only back-of-book index - with hierarchical sub-entries and code-styled terms. |
 
 ```python
