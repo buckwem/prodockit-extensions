@@ -109,6 +109,21 @@ permalink = true
 [project.markdown_extensions.admonition]
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.md_in_html]
+# Every prodockit extension this project itself documents, enabled on its
+# own docs site too - not because any of these pages actually need live
+# \ref{}/\cite{}/\citebib{}/\gls{} cross-references (every example of
+# each syntax is shown inside a fenced code block/backtick span, exactly
+# as its own docs recommend, so none of this resolves anything live
+# today), but so the extensions this project ships are always available
+# to use here too, and prodockit.citations/prodockit.bibliography (see
+# their own docs' "Comparing the two approaches") can now be enabled
+# together with no conflict - see \citebib{id} vs \cite{id}.
+[project.markdown_extensions."prodockit.headings"]
+numbering = "continuous"
+[project.markdown_extensions."prodockit.refs"]
+[project.markdown_extensions."prodockit.citations"]
+[project.markdown_extensions."prodockit.glossary"]
+[project.markdown_extensions."prodockit.bibliography"]
 [project.markdown_extensions."prodockit.tables"]
 [project.markdown_extensions."prodockit.index"]
 [project.markdown_extensions.pymdownx.emoji]

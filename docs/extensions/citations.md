@@ -15,7 +15,7 @@ useless without somewhere to cite it, so there's no independently useful
     see [prodockit.bibliography](bibliography.md) and its
     [comparison of both approaches](bibliography.md#comparing-the-two-approaches).
 
-## Quick start
+## Quick start {: #citations-quick-start }
 
 Enable it in `zensical.toml`:
 
@@ -58,7 +58,7 @@ term's own registered text in place, `\cite{id}` *generates* new bracketed
 citation text around a link - closer to a bibliography citation than a
 glossary/acronym expansion.
 
-### Forward references
+### Forward references {: #citations-forward-references }
 
 A citation to a source defined *later* in the same document resolves
 correctly:
@@ -70,7 +70,7 @@ Skoulikari, A. (2023) *Learning Git*.
 {: #skou2023 data-cite-text="Skoulikari, 2023" }
 ```
 
-### Unresolved citations
+### Unresolved citations {: #citations-unresolved-citations }
 
 A key that doesn't resolve to a definition renders the `unresolved` marker
 (`?` by default) in place of that one entry - the rest of a multi-key
@@ -83,9 +83,9 @@ citation still resolves normally:
 renders `[Skoulikari, 2023; ?]` - the unresolved entry has no link, unlike
 a resolved one.
 
-## Reference
+## Reference {: #citations-reference }
 
-### Syntax
+### Syntax {: #citations-syntax }
 
 #### Defining a source
 
@@ -122,7 +122,7 @@ Type `\cite{skou2023}` to cite a source.
 
 Neither of the two shown above is resolved; both render the literal text.
 
-### Options
+### Options {: #citations-options }
 
 | Option | Type | Default | Description |
 |---|---|---|---|
@@ -130,14 +130,14 @@ Neither of the two shown above is resolved; both render the literal text.
 | `unresolved` | `str` | `"?"` | Text rendered for a `\cite{id}` key that doesn't resolve to a definition. |
 | `registry` | `CitationRegistry \| None` | discovered automatically, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
 
-### Multi-page builds
+### Multi-page builds {: #citations-multi-page-builds }
 
-#### Under Zensical: automatic
+#### Under Zensical: automatic {: #citations-under-zensical-automatic }
 
 Under [Zensical](https://zensical.org/), citing a source defined on a
 *different* page (the common case - a references page separate from the
 pages that cite it) works with no extra configuration, the same way
-[prodockit.refs](refs.md#under-zensical-automatic) shares its registry across
+[prodockit.refs](refs.md#refs-under-zensical-automatic) shares its registry across
 pages: `prodockit.citations` detects Zensical's per-page context and shares
 one registry across the whole build automatically.
 
@@ -162,7 +162,7 @@ Two different sources that happen to share the same key don't fail the
 build: the first one scanned keeps that key, and the collision is logged as
 a warning rather than raised as an error.
 
-#### Under other tools: manual
+#### Under other tools: manual {: #citations-under-other-tools-manual }
 
 Outside Zensical, share a `CitationRegistry` yourself, the same way as
 [prodockit.headings](headings.md#sharing-a-registry-across-a-multi-page-build):
@@ -196,7 +196,7 @@ like today. See [prodockit.bibliography](bibliography.md) for the
 alternative that does exactly this, from a `.bib` file, in any citation
 style - and for the tradeoffs between the two approaches.
 
-### CSS hooks
+### CSS hooks {: #citations-css-hooks }
 
 `prodockit.citations` emits three hooks - one on the outer wrapper, one on
 each individual key's own link:
@@ -208,7 +208,7 @@ each individual key's own link:
 | Each key's own `<a>` | unresolved | `prodockit-cite-unresolved` |
 
 An unresolved key's `<a>` has no `href` (see
-[Unresolved citations](#unresolved-citations) above) - style
+[Unresolved citations](#citations-unresolved-citations) above) - style
 `prodockit-cite-unresolved` distinctly (e.g. a muted colour, no underline)
 to make a missing citation visually obvious without inspecting the page
 source. No `data-*` attribute is left in the rendered output - the
