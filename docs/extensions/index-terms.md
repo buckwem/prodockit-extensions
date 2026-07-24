@@ -1,11 +1,17 @@
 # Index terms
 
 `prodockit.index` marks a term inline, wherever it's actually discussed,
-for [prodockit.pdf](../pdf.md)'s own PDF-only back-of-book index (an
-alphabetised list of terms with the page number(s) they appear on) - the
-term both displays exactly as written and is marked for indexing in one
-go, no separate "definition" step needed anywhere else, unlike
+for a PDF-only back-of-book index (an alphabetised list of terms with the
+page number(s) they appear on) - the term both displays exactly as
+written and is marked for indexing in one go, no separate "definition"
+step needed anywhere else, unlike
 [prodockit.citations](citations.md)/[prodockit.glossary](glossary.md).
+Marking and generating the index are both covered on this page - PDF-only
+(there's no equivalent on the live website, where readers use
+browser/Ctrl-F search instead), but the actual index page is built by
+[prodockit.pdf](../pdf.md), via the `prodockit.pdf.index` module - see
+[`prodockit.pdf.index`](../pdf.md#prodockitpdfindex) if you're scripting
+your own build pipeline rather than using `prodockit pdf`/`zensical.toml`.
 
 This is a Markdown extension at all - rather than the `attr_list`
 convention every other prodockit extension's own marker syntax uses -
@@ -17,6 +23,18 @@ unwanted visual side effect just to mark a term). Raw inline HTML
 (`<span class="index">Term</span>`) works today with no extension at
 all, but is exactly the "disrupts normal writing flow" outcome a good
 marker syntax should avoid.
+
+## Requirements {: #index-terms-requirements }
+
+Marking a term needs nothing beyond the extension itself. Actually
+*generating* the index page additionally needs the optional `pymupdf`
+dependency (a term's own page number can only be known once WeasyPrint
+has already laid the PDF out once - see
+[Generating the index](#index-terms-generating-the-index) below for why):
+
+```bash
+pip install prodockit[index]   # or plain: pip install pymupdf
+```
 
 ## Quick start {: #index-terms-quick-start }
 
@@ -45,18 +63,65 @@ then mark a term with `\index{Term}`:
 Every marked term renders inline exactly as written - `\index{widget}`
 becomes plain "widget" text, nothing more, on the live website. The
 marker only has an effect on the *PDF*, and only once `pdf_include_index`
-is on - there's no back-of-book index on a website at all, since readers
-use browser/Ctrl-F search instead. See
-[Back-of-book index](../pdf.md#back-of-book-index) for what the
-generated index page itself looks like, and why it needs a real two-pass
-PDF build.
+is on - see [Generating the index](#index-terms-generating-the-index)
+below for the generated index page itself.
 
 The same term marked more than once merges into one index entry (case-
 insensitively - "Widget" and "widget" become one entry, keeping whichever
 casing was used first; "widgets" is still a separate entry from "widget" -
 no plural/singular normalisation).
 
-## Sub-entries
+## Generating the index {: #index-terms-generating-the-index }
+
+Set `pdf_include_index = true` under `[project.extra]` in `zensical.toml`
+for a traditional, two-column back-of-book index - terms grouped under a
+bold letter heading (A, B, C, ...), each followed by the page number(s)
+it appears on - appended as its own page(s) at the very end of the
+document:
+
+```toml
+[project.extra]
+pdf_include_index = true
+pdf_index_title = "Index"   # optional - that page's own heading text
+```
+
+The `\index{widget}`/`\index{gadget}` example above renders to an index
+page like:
+
+```text
+Index
+
+G
+Gadget, 3
+
+W
+Widget, 1, 3
+```
+
+with its own page list deduplicated and sorted; consecutive pages
+collapse into an en-dash range (`67–70`) rather than listing every page
+individually, and non-consecutive pages/ranges are comma-separated (`64,
+175`) - standard back-of-book index convention.
+
+A term is alphabetised (and letter-grouped) ignoring any leading
+punctuation - `--set-upstream option (git push)` and `-u option (git
+branch)` are filed under **S** and **U** respectively (matching where
+"set-upstream"/"u" itself would sort), not lumped into a separate
+"symbols" section, the same way a technical book's own index treats
+command-line options.
+
+This is the one feature in `prodockit.pdf` that genuinely needs a
+two-pass build: a term's own page number can only be known once
+WeasyPrint has already laid the whole PDF out once - confirmed directly,
+before settling on this design, that CSS's own `target-counter()` *can*
+resolve a page number in a single pass, but can't deduplicate two markers
+that land on the same page (nothing on the Python side can know that
+without already knowing the layout) - accepted as a real limitation and
+not used here, in favour of a genuinely clean, deduplicated index. See
+[`prodockit.pdf.index`](../pdf.md#prodockitpdfindex) for exactly how the
+two passes work, if you're scripting your own build pipeline.
+
+## Sub-entries {: #index-terms-sub-entries }
 
 `\index{Parent!Child!Grandchild}` - `!` separates up to three levels in
 practice, matching LaTeX `makeidx`'s own long-established
@@ -78,9 +143,18 @@ it) rather than listing every term as one flat alphabetical run:
 Only the *last* segment displays inline (`ssh keys` above) - wherever the
 term is actually mentioned in your prose - the earlier segments (`Git`)
 are only ever used to build the generated index's own nesting, and never
-appear inline themselves. See
-[Back-of-book index](../pdf.md#back-of-book-index) for what a nested
-index entry looks like once built.
+appear inline themselves. Renders a nested entry like:
+
+```text
+G
+
+Git
+    ssh keys, 13, 89
+```
+
+A parent with no marker of its own anywhere (like `Git` above) still gets
+its own line - a bare category label with no trailing page list - so its
+children have somewhere to nest under.
 
 ## Code-styled terms
 
@@ -98,12 +172,22 @@ the generated index entry renders the same way:
 
     Run \index{`git commit`} to save your changes.
 
-Combine this with [sub-entries](#sub-entries) by putting the backticks
-around just the last segment - nesting a code-styled `git commit` entry
-under a plain `Git` one:
+Combine this with [sub-entries](#index-terms-sub-entries) by putting the
+backticks around just the last segment - nesting a code-styled `git
+commit` entry under a plain `Git` one:
 
 ```md
 \index{Git!`git commit`}
+```
+
+Both render an index entry in your document's own monospace font,
+matching how the term already displays inline:
+
+```text
+G
+
+Git
+    git commit, 13, 89
 ```
 
 !!! note "Showing this syntax as literal example text"
