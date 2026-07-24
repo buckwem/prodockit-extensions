@@ -304,6 +304,7 @@ about where the formatted text comes from.
 | Multi-key citations (`\cite{a,b}`) | Yes - each key individually linked | Not supported (falls through as literal text) |
 | External dependencies | None | `pandoc` on `PATH`, even without a PDF build |
 | Editing a reference | Edit the prose by hand, on the references page | Edit the `.bib` entry once, everywhere it's cited updates |
+| Separate References/Bibliography sections | Not built in - would need two hand-authored lists kept in sync manually | Built in - `\bibliography{<file>}{<true\|false>}` generates a strict cited-only list and/or a broader everything-included list, see [Multiple sections](#bibliography-multiple-sections) |
 
 **Where `prodockit.citations` fits best**: a short reference list, a house
 style unlikely to ever change, or a project that doesn't want a `pandoc`
