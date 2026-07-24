@@ -1,5 +1,19 @@
 # Release Notes
 
+## 0.10.1 (2026-07-24)
+
+Docs: `prodockit.index`'s marking syntax and `prodockit.pdf`'s back-of-book
+index *generation* were split across two pages (`extensions/index-terms.md`
+and `pdf.md` respectively), even though the marker is useless without
+turning `pdf_include_index` on and vice versa - `prodockit.bibliography`'s
+own docs already combine marking and generation into one page. Moved the
+generation content into `extensions/index-terms.md` as a new "Generating
+the index" section, merged the per-feature rendered-output examples into
+their existing marking sections instead of duplicating them, and renamed
+the page from "Index terms" to "Index (pdf-only)" now that it covers the
+whole feature. `pdf.md` keeps only a short pointer, matching how
+`prodockit.bibliography` is treated there. No code changes.
+
 ## 0.10.0 (2026-07-24)
 
 `prodockit.bibliography`'s `\bibliography` marker now takes two optional,

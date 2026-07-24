@@ -46,6 +46,6 @@ macros plugin's own ``modules`` config, not a Markdown extension either.
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.10.0"
+__version__ = "0.10.1"
 
 __all__ = ["__version__"]
