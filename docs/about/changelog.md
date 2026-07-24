@@ -1,5 +1,36 @@
 # Release Notes
 
+## 0.10.0 (2026-07-24)
+
+`prodockit.bibliography`'s `\bibliography` marker now takes two optional,
+positional parameters - `\bibliography{<file>}{<true|false>}` - so a
+project can generate both a strict **References** section (only sources
+actually `\citebib{}`-cited in the text) and a broader **Bibliography**
+section (every entry, including background reading that's never
+individually cited) in one build, from the same or different `.bib`
+files:
+
+```md
+<!-- references.md -->
+\bibliography{}{true}
+```
+
+```md
+<!-- bibliography.md -->
+\bibliography{background.bib}
+```
+
+Bare `\bibliography` is completely unchanged - fully backward compatible,
+no breaking change. A `\citebib{id}` citation now cross-links to
+whichever marker's page actually defines that entry (via a new,
+lightweight `.bib` entry-key discovery helper, not a CSL reimplementation)
+rather than assuming a single global bibliography page - the common
+single-file case is unaffected. See
+[Multiple sections: References and Bibliography](../extensions/bibliography.md#bibliography-multiple-sections)
+for the full syntax and worked examples.
+
+Fixes [#89](https://github.com/buckwem/prodockit-extensions/issues/89).
+
 ## 0.9.0 (2026-07-24)
 
 **Breaking:** `copyright`/`pdf_copyright` are now a real HTML fragment,
