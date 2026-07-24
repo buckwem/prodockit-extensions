@@ -9,7 +9,7 @@ for a project that wants its PDF footer to say something different from
 its website's (e.g. adding a "Made with Zensical and prodockit" credit
 line only to the downloadable PDF, not the live site). Write a forced
 line break in either setting with a literal `\A ` inside a TOML *literal*
-string (`'''...'''`) - see [Copyright text](pdf.md#copyright-text) for
+string (`'''...'''`) - see [Copyright text](../pdf.md#copyright-text) for
 the full mechanism and why a literal string is required.
 
 Also fixed a real, previously-undocumented rendering gap found while
