@@ -8,9 +8,9 @@ prodockit.citations, prodockit.glossary, and prodockit.bibliography, all of
 which face the same problem: Zensical builds each page with its own fresh
 ``Markdown`` instance, so a plain per-instance default registry can never
 see another page's entries. ``nav_pages``/``preseed_attr_from_nav``/
-``find_page_with_marker`` additionally address pages being built in a
-single, one-shot pass: a forward reference to a page not yet built can't
-resolve without pre-scanning ahead of time.
+``find_page_with_marker``/``prescan_bibliography`` additionally address
+pages being built in a single, one-shot pass: a forward reference to a
+page not yet built can't resolve without pre-scanning ahead of time.
 """
 
 from __future__ import annotations
@@ -284,3 +284,51 @@ def find_page_with_marker(marker: str) -> str | None:
         if marker in _strip_fences(text):
             return rel_path
     return None
+
+
+def prescan_bibliography(
+    cite_re: str, marker_re: str, default_bib_file: str
+) -> tuple[set[str], dict[str, str]] | None:
+    """Returns ``(all_cited_keys, first_page_for_file)``, by pre-scanning
+    every page in the current Zensical build's nav before any page has
+    actually been converted - the same ordering problem
+    find_page_with_marker() solves, generalized to also collect *which*
+    citation keys were used and *which* distinct ``.bib`` file each
+    ``\\bibliography{...}`` marker references (falling back to
+    `default_bib_file` for a marker that omits its own file argument).
+
+    ``all_cited_keys`` is every distinct key ever passed to a citation
+    pattern (`cite_re`) anywhere in nav - used to filter a
+    ``cited_only=True`` marker down to just what's actually cited.
+
+    ``first_page_for_file`` maps each distinct ``.bib`` file path
+    referenced by any marker anywhere in nav to the first nav-order page
+    with a marker for that specific file - used to cross-link a
+    ``\\citebib{id}`` citation to whichever page's marker actually lists
+    that entry, rather than assuming a single global bibliography page.
+    In the common single-file case this map has exactly one entry, so
+    cross-linking stays exactly as it was before per-marker file
+    overrides existed.
+
+    Returns None outside a Zensical build (mirrors nav_pages()).
+    """
+    located = nav_pages()
+    if located is None:
+        return None
+    docs_dir, pages = located
+    all_cited_keys: set[str] = set()
+    first_page_for_file: dict[str, str] = {}
+    cite_pattern = re.compile(cite_re)
+    marker_pattern = re.compile(marker_re)
+    for rel_path in pages:
+        try:
+            text = (Path(docs_dir) / rel_path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        text = _strip_fences(text)
+        for match in cite_pattern.finditer(text):
+            all_cited_keys.add(match.group(1))
+        for match in marker_pattern.finditer(text):
+            file = (match.group(1) or "").strip() or default_bib_file
+            first_page_for_file.setdefault(file, rel_path)
+    return all_cited_keys, first_page_for_file

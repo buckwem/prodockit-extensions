@@ -520,3 +520,60 @@ def test_bibliography_prescan_ignores_fenced_documentation_examples(
         "See \\citebib{skou2023}.\n", "section1.md", str(bib_file)
     )
     assert 'href="references.md#ref-skou2023"' in html
+
+
+@pandoc_required
+def test_bibliography_cross_links_to_the_page_whose_marker_defines_the_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#89: a build with two \\bibliography{...}
+    markers on two different pages, drawing from two different files -
+    a References page (cited_only=true, the default bib_file) and a
+    separate Bibliography/Further-reading page (a broader background.bib).
+    A \\citebib{id} should cross-link to whichever page's marker actually
+    lists that entry - here, references.md, since skou2023 lives in
+    refs.bib, not background.bib."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    bib_file = tmp_path / "refs.bib"
+    bib_file.write_text(_BIB_FIXTURE, encoding="utf-8")
+    background_file = tmp_path / "background.bib"
+    background_file.write_text(
+        "@book{knuth1997,\n"
+        "  author = {Knuth, Donald},\n"
+        "  title = {The Art of Computer Programming},\n"
+        "  year = {1997},\n"
+        "  publisher = {Addison-Wesley}\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "section1.md").write_text(
+        "See \\citebib{skou2023}.\n", encoding="utf-8"
+    )
+    (docs_dir / "references.md").write_text(
+        "# References\n\n\\bibliography{}{true}\n", encoding="utf-8"
+    )
+    (docs_dir / "bibliography.md").write_text(
+        f"# Bibliography\n\n\\bibliography{{{background_file}}}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["section1.md", "references.md", "bibliography.md"]),
+    )
+    html = _convert_as_zensical_page_with_bibliography(
+        "See \\citebib{skou2023}.\n", "section1.md", str(bib_file)
+    )
+    assert 'href="references.md#ref-skou2023"' in html
+
+    references_html = _convert_as_zensical_page_with_bibliography(
+        "\\bibliography{}{true}\n", "references.md", str(bib_file)
+    )
+    assert "Skoulikari" in references_html
+    assert "Knuth" not in references_html
+
+    bibliography_html = _convert_as_zensical_page_with_bibliography(
+        f"\\bibliography{{{background_file}}}\n", "bibliography.md", str(bib_file)
+    )
+    assert "Knuth" in bibliography_html
+    assert "Skoulikari" not in bibliography_html
