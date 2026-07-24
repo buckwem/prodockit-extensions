@@ -694,7 +694,9 @@ def test_extra_css_url_to_a_missing_file_is_left_unchanged(
 
 
 # ---------------------------------------------------------------------------
-# copyright/site_name CSS-content-string escaping
+# copyright/site_name: copyright is a raw HTML fragment (real DOM element -
+# see prodockit.pdf.css/build.py), site_name is still CSS-content-string
+# escaped (a plain content: "..." string)
 # ---------------------------------------------------------------------------
 
 
@@ -711,18 +713,18 @@ def _write_custom_project(tmp_path: Path, project_toml: str) -> Path:
     return tmp_path
 
 
-def test_a_multiline_copyright_is_collapsed_to_one_line_for_css(
+def test_copyright_with_a_real_link_is_passed_through_unescaped(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """project.copyright is commonly a triple-quoted TOML string spanning
-    multiple lines - passed through unescaped into build_css()'s
-    `content: "..."` string, a raw embedded newline breaks the generated
-    CSS rule outright, silently dropping the whole running header/footer
-    entry with no error."""
+    """project.copyright is a real HTML fragment now (see
+    prodockit.pdf.build.build_pdf's own copyright_text docs) - a real
+    <a href="..."> link (or any other markup) passes straight through to
+    build_pdf(), not escaped/flattened into a CSS content string the way
+    site_name still is."""
     root = _write_custom_project(
         tmp_path,
         '[project]\nsite_name = "Test project"\n'
-        'copyright = "Copyright (c)\\n2026 Example\\n"\n'
+        'copyright = "Copyright 2026. Made with <a href=\\"https://zensical.org/\\">Zensical</a>."\n'
         'nav = [{"Home" = "index.md"}, {"Chapter" = "chapter1.md"}]\n',
     )
     monkeypatch.chdir(root)
@@ -736,31 +738,9 @@ def test_a_multiline_copyright_is_collapsed_to_one_line_for_css(
     monkeypatch.setattr(config_module, "build_pdf", _spy)
     build_pdf_from_zensical_config(str(root / "zensical.toml"))
 
-    assert "\n" not in captured["copyright_text"]
-    assert captured["copyright_text"] == "Copyright (c) 2026 Example"
-
-
-def test_a_quote_in_copyright_is_escaped_for_css(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    root = _write_custom_project(
-        tmp_path,
-        '[project]\nsite_name = "Test project"\n'
-        'copyright = "Say \\"hi\\""\n'
-        'nav = [{"Home" = "index.md"}, {"Chapter" = "chapter1.md"}]\n',
+    assert captured["copyright_text"] == (
+        'Copyright 2026. Made with <a href="https://zensical.org/">Zensical</a>.'
     )
-    monkeypatch.chdir(root)
-
-    captured = {}
-    import prodockit.pdf.config as config_module
-
-    def _spy(pages, output_path, **kwargs):
-        captured["copyright_text"] = kwargs["copyright_text"]
-
-    monkeypatch.setattr(config_module, "build_pdf", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
-
-    assert captured["copyright_text"] == 'Say \\"hi\\"'
 
 
 def test_pdf_copyright_falls_back_to_project_copyright_when_unset(
@@ -790,18 +770,18 @@ def test_pdf_copyright_overrides_project_copyright_for_the_pdf_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """extra.pdf_copyright, when set, is what the PDF's own running
-    footer shows instead of project.copyright - e.g. a second, forced
-    line (CSS's own "\\A " line-break escape) crediting the PDF pipeline
-    specifically, without also injecting that same escape sequence into
-    the live website's copyright text (which always reads
-    project.copyright directly, untouched by this setting)."""
+    footer shows instead of project.copyright - e.g. a second line (a real
+    <br>, now that this is a real HTML fragment rather than a CSS content
+    string) crediting the PDF pipeline specifically, without also adding
+    that same markup to the live website's copyright text (which always
+    reads project.copyright directly, untouched by this setting)."""
     root = _write_custom_project(
         tmp_path,
         '[project]\nsite_name = "Test project"\n'
         'copyright = "Copyright test"\n'
         'nav = [{"Home" = "index.md"}, {"Chapter" = "chapter1.md"}]\n\n'
         "[project.extra]\n"
-        'pdf_copyright = "Copyright test\\\\A Made with Zensical and prodockit."\n',
+        'pdf_copyright = "Copyright test<br>Made with Zensical and prodockit."\n',
     )
     monkeypatch.chdir(root)
 
@@ -816,7 +796,7 @@ def test_pdf_copyright_overrides_project_copyright_for_the_pdf_only(
 
     assert (
         captured["copyright_text"]
-        == "Copyright test\\A Made with Zensical and prodockit."
+        == "Copyright test<br>Made with Zensical and prodockit."
     )
 
 

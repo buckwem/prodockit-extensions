@@ -140,11 +140,22 @@ def build_pdf(
     available to WeasyPrint - this function doesn't fetch fonts).
     `page_size` is any WeasyPrint-supported CSS page size (`"A4"`,
     `"Letter"`, ...). `margin_*`/`header_footer_*` are CSS length/colour
-    values for the page margins and running header/footer. `copyright_text`/
-    `site_name` appear in the running footer/header. `reference_style_global`
-    and its `reference_*` spacing values control `.reference`/`.acronym`/
-    `.glossary` paragraph spacing - see `prodockit.pdf.css.build_css` for what
-    each style looks like.
+    values for the page margins and running header/footer. `site_name`
+    appears in the running header as plain text. `copyright_text` appears in
+    the running footer too, but - unlike `site_name` - as a real HTML
+    fragment (matching Zensical's own website-side `copyright` setting,
+    which already accepts one): a real `<a href="...">` link inside it
+    renders as a real, clickable link in the PDF, not escaped/flattened to
+    plain text. Written once into the document as a real (CSS `position:
+    running()`) element rather than a generated CSS `content: "..."` string
+    - see `prodockit.pdf.css`'s own module docstring for why, and use a real
+    `<br>` for a forced line break (no more `\\A ` CSS-escape trick - that
+    only ever worked for a plain string, not real markup). Shown on every
+    page except the cover page (`@page :first` always suppresses it),
+    regardless of where in the document this element itself physically
+    sits. `reference_style_global` and its `reference_*` spacing values
+    control `.reference`/`.acronym`/`.glossary` paragraph spacing - see
+    `prodockit.pdf.css.build_css` for what each style looks like.
 
     `double_sided` (default off) switches the whole document to a duplex-
     printing layout: header/footer content mirrors between left-hand
@@ -298,9 +309,24 @@ def build_pdf(
 
         concatenated_html_path = os.path.join(resolved_work_dir, "_prodockit_pdf_compiled.html")
 
+        # A real DOM element, not a generated CSS content string - see
+        # prodockit.pdf.css's own module docstring for why (real <a href>
+        # links inside copyright_text survive this way). Written once, near
+        # the very top of the document rather than per-page: CSS Paged
+        # Media's position: running() only needs one occurrence to become
+        # "current" for every following page's @bottom-left/@bottom-right
+        # box (confirmed directly) - the same way a string-set value stays
+        # current until the next one overrides it.
+        copyright_html = (
+            f'<div class="prodockit-pdf-copyright">{copyright_text}</div>'
+            if copyright_text
+            else ""
+        )
+
         def write_concatenated_html(body: str) -> None:
             with open(concatenated_html_path, "w", encoding="utf-8") as f:
                 f.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>\n")
+                f.write(copyright_html)
                 f.write(body)
                 f.write("\n</body></html>")
 
@@ -320,7 +346,6 @@ def build_pdf(
         css = build_css(
             main_font=main_font,
             mono_font=mono_font,
-            copyright_text=copyright_text,
             site_name=site_name,
             page_size=page_size,
             margin_top=margin_top,

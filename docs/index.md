@@ -9,7 +9,7 @@ hide:
 
 # <span class="cover-hero-title-light">prodockit</span> {: .cover-hero-title }
 
-A docs-as-code workflow for professional and academic documentation, built on [Zensical](https://zensical.org/){target="_blank"}.
+A docs-as-code workflow for professional and academic documentation, built on Zensical.
 {: .cover-hero-subtitle }
 
 [:material-file-pdf-box: Download PDF](site_documentation.pdf){ .md-button .md-button--primary target="_blank" .web-only } [Continue... :material-arrow-right:](introduction.md){ .md-button .web-only }
