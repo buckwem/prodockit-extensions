@@ -157,7 +157,18 @@ def build_pdf_from_zensical_config(
       if you've customised them (used to give admonitions an icon in the
       PDF the same way your website already shows one).
     - Under `project.extra`: `pdf_output` (default
-      `"<docs_dir>/site_documentation.pdf"`), `pdf_page_size`,
+      `"<docs_dir>/site_documentation.pdf"`), `pdf_copyright` (overrides
+      `project.copyright` for the PDF's own running footer only - the live
+      website's copyright text, which always reads `project.copyright`
+      directly, is untouched either way; unset by default, so every
+      existing project's PDF and website keep showing the exact same text
+      they always have. The one thing a PDF-only value makes possible that
+      the shared one can't: a forced line break via a literal `\\A ` in the
+      string - CSS's own escape for a line feed inside a `content` value,
+      rendered as a real line break in the PDF regardless of `white-space`,
+      but shown literally, as text, on the website - e.g. crediting the PDF
+      pipeline on its own second line without also injecting a raw escape
+      sequence into the website's copyright text), `pdf_page_size`,
       `pdf_margin_{top,right,bottom,left}`, `pdf_double_sided` (default
       `false`) and its own `pdf_margin_{inner,outer}` (replace
       `pdf_margin_{left,right}` when set - see `build_pdf()`'s own
@@ -350,7 +361,9 @@ def build_pdf_from_zensical_config(
         render_mermaid=render_mermaid,
         main_font=font.get("text") or "Inter",
         mono_font=font.get("code") or "JetBrains Mono",
-        copyright_text=_css_escape_content_string(config.get("copyright") or ""),
+        copyright_text=_css_escape_content_string(
+            extra.get("pdf_copyright") or config.get("copyright") or ""
+        ),
         site_name=_css_escape_content_string(config.get("site_name") or ""),
         page_size=extra.get("pdf_page_size") or "A4",
         margin_top=extra.get("pdf_margin_top") or "2cm",

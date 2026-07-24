@@ -556,3 +556,34 @@ def test_index_starts_on_a_recto_page_under_double_sided(tmp_path: Path) -> None
     assert index_page_numbers[0] % 2 == 1, (
         f"Index landed on page {index_page_numbers[0]}, an even (verso) page"
     )
+
+
+@real_pandoc_and_weasyprint_required
+def test_copyright_text_with_a_forced_line_break_renders_as_two_lines(
+    tmp_path: Path,
+) -> None:
+    """A literal "\\A " CSS escape in copyright_text (see
+    prodockit.pdf.config's own pdf_copyright setting - e.g. crediting the
+    PDF pipeline on its own second line, distinct from the live website's
+    copyright text) needs white-space: pre-line on the footer box to
+    actually render as a line break rather than collapsing to a plain
+    space (see prodockit.pdf.css's own @bottom-left rule). Confirmed here
+    with a real weasyprint build, since a CSS-string-level test can't
+    tell the difference between "renders as a space" and "renders as a
+    line break" - only a real render can."""
+    pymupdf = pytest.importorskip("pymupdf")
+
+    pages = [Page(docs_rel_path="chapter1.md", html="<h1>Chapter One</h1><p>Body</p>")]
+    output_path = tmp_path / "out.pdf"
+
+    build_pdf(
+        pages,
+        str(output_path),
+        copyright_text="Copyright test\\A Made with Zensical and prodockit.",
+        site_name="Test Site",
+    )
+
+    doc = pymupdf.open(str(output_path))
+    footer_text = doc[-1].get_text()
+    doc.close()
+    assert "Copyright test\nMade with Zensical and prodockit." in footer_text
