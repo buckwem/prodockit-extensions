@@ -19,6 +19,20 @@ edit_uri = "edit/main/docs/"
 # in the PDF footer instead of the symbol.
 copyright = "Copyright © 2026 Mark Buckwell and contributors"
 
+# Overrides `copyright` for the PDF's own footer only (the live website's
+# footer instead gets its own "Made with Zensical and prodockit" credit
+# from overrides/partials/copyright.html) - matching the same credit line
+# on this one, separate, PDF-only footer. Kept as its own distinct line
+# (the "\A " forces a line break; requires white-space: pre-line on the
+# footer box, which prodockit.pdf.css already sets), so removing just
+# this one line back to a plain `copyright`-only footer never touches the
+# copyright text itself. A TOML *literal* string ('''...'''), not a basic
+# one - a basic string would try to parse \A as an (invalid) escape
+# sequence instead of passing it through untouched.
+extra.pdf_copyright = '''
+Copyright © 2026 Mark Buckwell and contributors.\A Made with Zensical and prodockit.
+'''
+
 extra_css = ["stylesheets/extra.css"]
 
 nav = [

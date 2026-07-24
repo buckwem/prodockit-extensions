@@ -1,0 +1,27 @@
+<!-- Copyright (c) 2026 Mark Buckwell and contributors -->
+<!-- SPDX-License-Identifier: MIT -->
+
+{#-
+  Overrides Zensical's own bundled partials/copyright.html (see
+  custom_dir="overrides" in zensical.toml) only to credit prodockit
+  alongside Zensical itself in the "Made with ..." footer line - this
+  site is prodockit's own documentation, so it should credit itself the
+  same way a project built with it does.
+-#}
+<div class="md-copyright">
+  {% if config.copyright %}
+    <div class="md-copyright__highlight">
+      {{ config.copyright }}
+    </div>
+  {% endif %}
+  {% if not config.extra.generator == false %}
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+    and
+    <a href="https://buckwem.github.io/prodockit-extensions/" target="_blank" rel="noopener">
+      prodockit
+    </a>
+  {% endif %}
+</div>
