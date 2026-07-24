@@ -153,27 +153,30 @@ PDF to show something the website version wouldn't make sense showing
 (or vice versa), without having to keep two near-identical strings in
 sync by hand.
 
-A literal `\A ` inside either value forces a line break in the PDF's own
-footer - CSS's own escape for a line feed inside a `content` string,
-supported by prodockit's generated CSS (`white-space: pre-line` on the
-footer box) specifically so this works. The obvious use: crediting the
-tools your report was built with, on their own second line, without
-touching the copyright/licence text itself:
+Both `copyright` and `pdf_copyright` accept a real HTML fragment, the
+same as Zensical's own website-side `copyright` setting already does -
+a real `<a href="...">` link renders as a real, clickable link in the
+PDF too, not flattened to plain text. Use a real `<br>` for a forced
+line break. The obvious use: crediting the tools your report was built
+with, on their own second line, without touching the copyright/licence
+text itself:
 
 ```toml
 [project.extra]
-pdf_copyright = '''
-Author: Jane Doe. Licensed under the MIT License.\A Made with Zensical and prodockit.
-'''
+pdf_copyright = 'Author: Jane Doe. Licensed under the MIT License.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://buckwem.github.io/prodockit-extensions/">prodockit</a>.'
 ```
 
-Use a TOML *literal* string (single quotes - `'...'` or, for a value
-spanning its own line as above, `'''...'''`) for a value containing
-`\A `, not a basic one (`"..."`/`"""..."""`): a basic string's own
-backslash-escape processing doesn't recognise `\A` as a valid escape and
-fails to parse at all, since TOML has no such sequence of its own - a
-literal string passes both characters straight through unprocessed,
-letting the PDF's generated CSS interpret them instead.
+Under the hood, this isn't a generated CSS `content: "..."` string the
+way most other running header/footer values are (e.g. `site_name`) - a
+CSS content string can't contain a real link at all. Instead, prodockit
+writes `copyright`/`pdf_copyright` once as a real (hidden until the
+footer clones it) HTML element, and the PDF's own generated CSS pulls it
+into the footer on every page via CSS Paged Media's `position:
+running()`/`content: element()` - confirmed directly against real
+WeasyPrint output. You don't need to know any of this to use the
+setting; it only matters if you're digging into why the PDF's footer
+behaves differently from a plain `content` string elsewhere in
+`prodockit.pdf.css`.
 
 The equivalent website-side credit (if your project wants a "Made with
 Zensical and *X*" line on the live site too) isn't a prodockit setting

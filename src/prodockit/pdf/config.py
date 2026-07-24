@@ -71,15 +71,19 @@ def _inline_css_urls(css_text: str, css_dir: str) -> str:
 
 def _css_escape_content_string(text: str) -> str:
     """Collapses `text` to a single line and escapes it for safe use inside
-    a CSS `content: "..."` string - `build_css()`'s own docs note
-    `copyright_text`/`site_name` "should already be CSS-content-string-
-    safe" before being passed in, since it substitutes both directly into
-    such a string with no escaping of its own.
+    a CSS `content: "..."` string - `build_css()`'s own docs note `site_name`
+    "should already be CSS-content-string-safe" before being passed in,
+    since it substitutes it directly into such a string with no escaping of
+    its own.
 
-    `project.copyright` is commonly a triple-quoted TOML string spanning
-    multiple lines - passed through unescaped, a raw newline or `"`
-    breaks the generated CSS rule outright, silently dropping the whole
-    running header/footer entry with no error."""
+    Only `site_name` needs this now - `copyright_text` is a real HTML
+    fragment rendered as a real DOM element instead (see `build_pdf()`'s and
+    `prodockit.pdf.css`'s own docs), not escaped into a CSS `content`
+    string, so a real link inside it survives. `project.site_name` is
+    typically a short, single-line, plain-text value, but passed through
+    unescaped, a raw newline or `"` would still break the generated CSS rule
+    outright, silently dropping the whole running header entry with no
+    error."""
     clean_text = text.strip().replace("\n", " ").replace("\r", " ")
     sanitized_text = clean_text.replace("&copy;", "©").replace("&#169;", "©")
     escaped_text = "".join(
@@ -162,13 +166,14 @@ def build_pdf_from_zensical_config(
       website's copyright text, which always reads `project.copyright`
       directly, is untouched either way; unset by default, so every
       existing project's PDF and website keep showing the exact same text
-      they always have. The one thing a PDF-only value makes possible that
-      the shared one can't: a forced line break via a literal `\\A ` in the
-      string - CSS's own escape for a line feed inside a `content` value,
-      rendered as a real line break in the PDF regardless of `white-space`,
-      but shown literally, as text, on the website - e.g. crediting the PDF
-      pipeline on its own second line without also injecting a raw escape
-      sequence into the website's copyright text), `pdf_page_size`,
+      they always have. Both accept a real HTML fragment, same as
+      Zensical's own website-side `copyright` setting already does - a real
+      `<a href="...">` link renders as a real, clickable link in the PDF
+      too, not flattened to plain text; use a real `<br>` for a forced line
+      break. The one thing a PDF-only value makes possible that the shared
+      one can't: a second line crediting the PDF pipeline specifically,
+      without also adding that same markup to the website's copyright
+      text), `pdf_page_size`,
       `pdf_margin_{top,right,bottom,left}`, `pdf_double_sided` (default
       `false`) and its own `pdf_margin_{inner,outer}` (replace
       `pdf_margin_{left,right}` when set - see `build_pdf()`'s own
@@ -361,9 +366,7 @@ def build_pdf_from_zensical_config(
         render_mermaid=render_mermaid,
         main_font=font.get("text") or "Inter",
         mono_font=font.get("code") or "JetBrains Mono",
-        copyright_text=_css_escape_content_string(
-            extra.get("pdf_copyright") or config.get("copyright") or ""
-        ),
+        copyright_text=(extra.get("pdf_copyright") or config.get("copyright") or "").strip(),
         site_name=_css_escape_content_string(config.get("site_name") or ""),
         page_size=extra.get("pdf_page_size") or "A4",
         margin_top=extra.get("pdf_margin_top") or "2cm",

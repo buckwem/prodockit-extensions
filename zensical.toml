@@ -8,30 +8,20 @@ repo_url = "https://github.com/buckwem/prodockit-extensions"
 repo_name = "buckwem/prodockit-extensions"
 edit_uri = "edit/main/docs/"
 
-# Single-line, not a triple-quoted block: prodockit.pdf substitutes this
-# verbatim into a CSS `content: "..."` string for the PDF's running
-# footer - a triple-quoted string's own embedded newlines break that CSS
-# declaration, silently dropping the whole footer with no error (harmless
-# on the website, whose own copy renders through normal HTML instead,
-# which collapses whitespace). A literal "©" character, not the "&copy;"
-# HTML entity, for the same reason - CSS content strings don't decode
-# HTML entities, so "&copy;" would show up as those 6 literal characters
-# in the PDF footer instead of the symbol.
+# A real HTML fragment - prodockit.pdf renders this as a real DOM element
+# in the PDF's running footer now (CSS Paged Media's position: running()/
+# content: element(), not a generated CSS content string), matching how
+# Zensical's own website-side copyright already works. A literal "©"
+# character or the "&copy;" HTML entity both work equally well here.
 copyright = "Copyright © 2026 Mark Buckwell and contributors"
 
 # Overrides `copyright` for the PDF's own footer only (the live website's
 # footer instead gets its own "Made with Zensical and prodockit" credit
-# from overrides/partials/copyright.html) - matching the same credit line
-# on this one, separate, PDF-only footer. Kept as its own distinct line
-# (the "\A " forces a line break; requires white-space: pre-line on the
-# footer box, which prodockit.pdf.css already sets), so removing just
-# this one line back to a plain `copyright`-only footer never touches the
-# copyright text itself. A TOML *literal* string ('''...'''), not a basic
-# one - a basic string would try to parse \A as an (invalid) escape
-# sequence instead of passing it through untouched.
-extra.pdf_copyright = '''
-Copyright © 2026 Mark Buckwell and contributors.\A Made with Zensical and prodockit.
-'''
+# from overrides/partials/copyright.html) - matching the same credit line,
+# with real links, on this one, separate, PDF-only footer. Removing just
+# this one line falls back to a plain `copyright`-only footer without
+# touching the copyright text itself.
+extra.pdf_copyright = 'Copyright © 2026 Mark Buckwell and contributors.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://buckwem.github.io/prodockit-extensions/">prodockit</a>.'
 
 extra_css = ["stylesheets/extra.css"]
 

@@ -27,7 +27,6 @@ from __future__ import annotations
 def build_css(
     main_font: str,
     mono_font: str,
-    copyright_text: str,
     site_name: str,
     page_size: str = "A4",
     margin_top: str = "2cm",
@@ -47,10 +46,30 @@ def build_css(
 ) -> str:
     """Returns the complete compiled CSS for a PDF build.
 
-    `copyright_text`/`site_name` should already be CSS-content-string-safe
-    (escaped quotes, non-ASCII characters as CSS ``\\XXXX `` escapes) before
-    being passed in - this function only substitutes them into ``content:
-    "..."`` declarations, it doesn't escape them itself.
+    `site_name` should already be CSS-content-string-safe (escaped quotes,
+    non-ASCII characters as CSS ``\\XXXX `` escapes) before being passed in -
+    this function only substitutes it into a ``content: "..."`` declaration,
+    it doesn't escape it itself.
+
+    There's no `copyright_text` parameter here (unlike `site_name`, which is
+    still a plain ``content: "..."`` string) - the copyright footer box
+    instead reads ``content: element(prodockit-pdf-copyright)`` (CSS Paged
+    Media's ``position: running()``/``content: element()``, confirmed
+    directly against real WeasyPrint output), cloning whatever real DOM
+    element with class ``prodockit-pdf-copyright`` the caller placed
+    somewhere in the document body (see `prodockit.pdf.build.build_pdf`) -
+    onto every page's footer, not just the one it's actually written on.
+    Unlike a generated ``content`` string, a cloned real element can contain
+    a real, clickable ``<a href="...">`` link - the whole reason for this
+    approach: `project.copyright`/`pdf_copyright` can now contain a real
+    HTML fragment (e.g. crediting Zensical/prodockit with actual links),
+    matching Zensical's own website-side ``copyright`` setting, which
+    already accepts one. A cloned element keeps only its *own* CSS (the
+    `.prodockit-pdf-copyright` rule below), not whatever's declared on the
+    ``@bottom-left``/``@bottom-right`` box itself (confirmed directly) - so
+    typography (font/size/color) lives on that selector instead, while the
+    box itself keeps only true box-layout properties (border/padding/
+    margin/width/text-align), which *do* still apply to a cloned element.
 
     `reference_style_global` mirrors a project's own website-side
     reference-style macro (typically driven by a
@@ -170,20 +189,15 @@ header, nav, footer, .md-sidebar, .md-header, .md-footer, .md-search, #search {
     }
     @bottom-center { content: none !important; }
     @bottom-left {
-        content: "__COPYRIGHT__" !important;
-        /* Confirmed directly: a literal "\\A " CSS escape inside a
-           generated content string (see prodockit.pdf.config's own
-           pdf_copyright setting) needs white-space: pre-line to actually
-           render as a line break - under the normal (default) value, an
-           embedded "\\A " renders as a plain space instead, silently
-           collapsing a deliberate second line back into one. Harmless
-           for every copyright/site_name value that doesn't contain one,
-           since there's no other embedded whitespace run for pre-line to
-           treat differently from normal. */
-        white-space: pre-line !important;
-        font-family: "__MAIN_FONT__", sans-serif !important;
-        font-size: __PDF_HEADER_FOOTER_FONT_SIZE__ !important;
-        color: __PDF_HEADER_FOOTER_COLOR__ !important;
+        /* See prodockit.pdf.build.build_pdf's own copyright_text docs, and
+           this module's docstring above, for why this is content: element()
+           (a cloned real DOM node - real <a href="..."> links survive)
+           instead of a generated content: "..." string. Only true box-
+           layout properties belong here - font/color live on the cloned
+           element's own .prodockit-pdf-copyright rule below instead;
+           confirmed directly that a box's own font-family/font-size/color/
+           white-space have no effect on a content: element()'d node. */
+        content: element(prodockit-pdf-copyright) !important;
         vertical-align: top !important;
         border-top: 1px solid __PDF_HEADER_FOOTER_DIVIDER_COLOR__ !important;
         padding-top: 8px !important;
@@ -209,6 +223,30 @@ header, nav, footer, .md-sidebar, .md-header, .md-footer, .md-search, #search {
         text-align: right !important;
     }
 }
+
+/* The real DOM element `prodockit.pdf.build.build_pdf` places once in the
+   document, cloned into the @bottom-left (or, double-sided, verso
+   @bottom-right) box above on every page via content: element() - see this
+   module's own docstring for why. Styled directly (a box's own font/color
+   don't apply to a cloned element); its own <a> links inherit this same
+   color rather than a browser/Pandoc default link color, matching plain
+   copyright text either side of them. position: running() itself needs
+   !important - confirmed directly that without it, the "CRITICAL WEASYPRINT
+   STRUCTURAL CANVAS RESET" rule above (div { position: static !important })
+   otherwise wins despite this selector's higher specificity, since a
+   plain (non-!important) declaration always loses to any !important one
+   regardless of specificity - leaving this element in normal flow as an
+   ordinary, visible block instead of pulling it out as running content. */
+.prodockit-pdf-copyright {
+    position: running(prodockit-pdf-copyright) !important;
+    font-family: "__MAIN_FONT__", sans-serif !important;
+    font-size: __PDF_HEADER_FOOTER_FONT_SIZE__ !important;
+    color: __PDF_HEADER_FOOTER_COLOR__ !important;
+}
+.prodockit-pdf-copyright a {
+    color: __PDF_HEADER_FOOTER_COLOR__ !important;
+}
+
 __PDF_DOUBLE_SIDED_PAGE_RULES__
 @page :first {
     @top-left { content: none !important; border-bottom: none !important; }
@@ -757,14 +795,10 @@ div.prodockit-index-level-3 {
         text-align: left !important;
     }
     @bottom-right {
-        content: "__COPYRIGHT__" !important;
         /* See the single-sided @bottom-left rule above for why this is
-           here - the copyright box just lives on the opposite corner on
-           a verso page. */
-        white-space: pre-line !important;
-        font-family: "__MAIN_FONT__", sans-serif !important;
-        font-size: __PDF_HEADER_FOOTER_FONT_SIZE__ !important;
-        color: __PDF_HEADER_FOOTER_COLOR__ !important;
+           content: element() - the copyright box just lives on the
+           opposite corner on a verso page. */
+        content: element(prodockit-pdf-copyright) !important;
         vertical-align: top !important;
         border-top: 1px solid __PDF_HEADER_FOOTER_DIVIDER_COLOR__ !important;
         padding-top: 8px !important;
@@ -783,7 +817,6 @@ div.prodockit-index-level-3 {
         .replace("__PDF_H1_BREAK_BEFORE__", "recto" if double_sided else "page")
         .replace("__MAIN_FONT__", main_font)
         .replace("__MONO_FONT__", mono_font)
-        .replace("__COPYRIGHT__", copyright_text)
         .replace("__SITE_NAME__", site_name)
         .replace("__PDF_PAGE_SIZE__", page_size)
         .replace("__PDF_MARGIN_TOP__", margin_top)

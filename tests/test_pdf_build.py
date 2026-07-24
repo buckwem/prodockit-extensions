@@ -559,31 +559,47 @@ def test_index_starts_on_a_recto_page_under_double_sided(tmp_path: Path) -> None
 
 
 @real_pandoc_and_weasyprint_required
-def test_copyright_text_with_a_forced_line_break_renders_as_two_lines(
+def test_copyright_text_with_a_line_break_and_a_real_link_renders_correctly(
     tmp_path: Path,
 ) -> None:
-    """A literal "\\A " CSS escape in copyright_text (see
-    prodockit.pdf.config's own pdf_copyright setting - e.g. crediting the
-    PDF pipeline on its own second line, distinct from the live website's
-    copyright text) needs white-space: pre-line on the footer box to
-    actually render as a line break rather than collapsing to a plain
-    space (see prodockit.pdf.css's own @bottom-left rule). Confirmed here
-    with a real weasyprint build, since a CSS-string-level test can't
-    tell the difference between "renders as a space" and "renders as a
-    line break" - only a real render can."""
+    """copyright_text is a real HTML fragment (see prodockit.pdf.build's own
+    docs, and prodockit.pdf.css's module docstring, for why): a real <br>
+    forces a line break, and a real <a href="..."> renders as a real,
+    clickable link in the PDF, on every page it appears on - not just the
+    one page the source element itself physically sits on (CSS Paged
+    Media's position: running()/content: element(), confirmed directly
+    against real WeasyPrint output). Confirmed here with a real weasyprint
+    build across two pages, since a CSS-string-level test can't tell the
+    difference between "renders as a space"/"flattened to plain text" and
+    a real line break/real link annotation - only a real render can."""
     pymupdf = pytest.importorskip("pymupdf")
 
-    pages = [Page(docs_rel_path="chapter1.md", html="<h1>Chapter One</h1><p>Body</p>")]
+    pages = [
+        Page(docs_rel_path="chapter1.md", html="<h1>Chapter One</h1><p>Body</p>"),
+        Page(docs_rel_path="chapter2.md", html="<h1>Chapter Two</h1><p>Body</p>"),
+    ]
     output_path = tmp_path / "out.pdf"
 
     build_pdf(
         pages,
         str(output_path),
-        copyright_text="Copyright test\\A Made with Zensical and prodockit.",
+        copyright_text=(
+            'Copyright test.<br>Made with <a href="https://zensical.org/">Zensical</a>'
+            ' and <a href="https://buckwem.github.io/prodockit-extensions/">prodockit</a>.'
+        ),
         site_name="Test Site",
     )
 
+    # The very first page (the auto-generated Table of Contents, @page
+    # :first) always suppresses the copyright footer regardless - only
+    # real chapter pages (identified by their own "Body" text) are checked.
     doc = pymupdf.open(str(output_path))
-    footer_text = doc[-1].get_text()
+    chapter_pages = [page for page in doc if "Body" in page.get_text()]
+    assert len(chapter_pages) == 2
+    for page in chapter_pages:
+        footer_text = page.get_text()
+        assert "Copyright test.\nMade with Zensical and prodockit." in footer_text
+        links = {link.get("uri") for link in page.get_links()}
+        assert "https://zensical.org/" in links
+        assert "https://buckwem.github.io/prodockit-extensions/" in links
     doc.close()
-    assert "Copyright test\nMade with Zensical and prodockit." in footer_text
