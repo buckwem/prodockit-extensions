@@ -1,5 +1,30 @@
 # Release Notes
 
+## 0.9.0 (2026-07-24)
+
+**Breaking:** `copyright`/`pdf_copyright` are now a real HTML fragment,
+rendered as a real DOM element in the PDF's running footer via CSS Paged
+Media's `position: running()`/`content: element()`, instead of being
+escaped into a CSS `content: "..."` string. This is what makes a real
+`<a href="...">` link inside either value survive as a real, clickable
+link in the PDF - on every page, not just wherever the source element
+itself sits - matching how Zensical's own website-side `copyright`
+setting already works. Use a real `<br>` for a forced line break; the
+`\A ` CSS-escape trick added in 0.8.0 only ever worked for a plain
+string, not real markup, and no longer applies - update any existing
+`pdf_copyright` using it to a real `<br>` instead.
+
+`prodockit.pdf.css.build_css()` no longer takes a `copyright_text`
+parameter (`site_name` is unaffected, still a plain CSS content string)
+- no formal, versioned public API surface yet for `prodockit.pdf` (see
+prodockit-extension#7), so this is an acceptable break at this stage.
+
+This project's own cover page (`docs/index.md`'s hero subtitle) no
+longer hyperlinks the word "Zensical" - it stays as plain text, matching
+this project's own PDF footer now crediting Zensical/prodockit with
+real links instead of the cover page doing it via a website-only,
+PDF-invisible link.
+
 ## 0.8.1 (2026-07-24)
 
 Docs: this project's own docs site and PDF were missing the "Made with
