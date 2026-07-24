@@ -1,4 +1,4 @@
-# Index terms
+# Index (pdf-only)
 
 `prodockit.index` marks a term inline, wherever it's actually discussed,
 for a PDF-only back-of-book index (an alphabetised list of terms with the

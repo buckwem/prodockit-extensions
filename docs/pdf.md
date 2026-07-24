@@ -89,7 +89,7 @@ lives under `[project.extra]`, all optional:
 | `reference_style` | `"european"` | `"european"` (tight, single-line citation entries) or `"global"` (double-spaced, hanging indent - the common APA/MLA/Chicago style). |
 | `pdf_include_table_of_contents` | `true` | Whether to generate and insert a table of contents. |
 | `pdf_table_of_contents_title` | `"Table of Contents"` | That page's own heading text. |
-| `pdf_include_index` | `false` | A back-of-book index from every `\index{Term}` marker - see [Index terms](extensions/index-terms.md#index-terms-generating-the-index). Requires the optional `pymupdf` dependency. |
+| `pdf_include_index` | `false` | A back-of-book index from every `\index{Term}` marker - see [Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index). Requires the optional `pymupdf` dependency. |
 | `pdf_index_title` | `"Index"` | That page's own heading text. |
 | `pdf_mmdc_bin` | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found. |
 | `pdf_tex2svg_script` / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found. |
@@ -362,7 +362,7 @@ A traditional, two-column back-of-book index, generated from every
 `pdf_include_index`/`pdf_index_title` - PDF-only, there's no equivalent
 on the live website. Marking terms, turning the setting on, and what the
 generated page itself looks like are all covered together in
-[Index terms](extensions/index-terms.md#index-terms-generating-the-index),
+[Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index),
 since (unlike every other feature on this page) marking and generation
 are two different extensions - see that page for the full syntax and
 worked examples. If you're scripting your own build pipeline rather than
@@ -755,7 +755,7 @@ format_pages(pages: list[int]) -> str
 
 The three main pieces `build_pdf()`'s own `include_index` calls, in
 order, for its two-pass build - see
-[Index terms](extensions/index-terms.md#index-terms-generating-the-index)
+[Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index)
 for the feature itself, and this module's own docstring for why a real
 two-pass build (rather than CSS's own `target-counter()`) is what backs
 it. `mark_index_terms()`
@@ -773,7 +773,7 @@ flat/hierarchical paths (plus its own `code_flags`) into a nested tree of
 `IndexEntry(display: str, pages: list[int], children: dict[str,
 IndexEntry], code: bool = False)` nodes, alphabetised ignoring leading
 punctuation (see
-[Index terms](extensions/index-terms.md#index-terms-generating-the-index)
+[Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index)
 above).
 `render_index_content()` walks that tree, grouping top-level entries
 under a bold letter heading per first letter (`build_css()`'s own

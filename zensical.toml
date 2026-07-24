@@ -36,7 +36,7 @@ nav = [
     {"Acronyms and Glossary" = "extensions/glossary.md"},
     {"Tables" = "extensions/tables.md"},
     {"Bibliography" = "extensions/bibliography.md"},
-    {"Index terms" = "extensions/index-terms.md"},
+    {"Index (pdf-only)" = "extensions/index-terms.md"},
   ]},
   {"PDF generation" = "pdf.md"},
   {"Website macros" = "macros.md"},
