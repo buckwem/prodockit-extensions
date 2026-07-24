@@ -1,5 +1,15 @@
 # Release Notes
 
+## 0.8.1 (2026-07-24)
+
+Docs: this project's own docs site and PDF were missing the "Made with
+Zensical and prodockit" credit line that `overrides/partials/
+copyright.html`/`pdf_copyright` (new in 0.8.0) already give a downstream
+project - added both here too, via a new `overrides/partials/
+copyright.html` for the website and `extra.pdf_copyright` in
+`zensical.toml` for the PDF, so this site credits itself the same way a
+project built with it does. No library code changed.
+
 ## 0.8.0 (2026-07-24)
 
 New `pdf_copyright` setting: `project.copyright` (a plain, native Zensical
