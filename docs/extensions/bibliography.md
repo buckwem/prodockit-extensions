@@ -121,6 +121,76 @@ own directory depth - a real Zensical clean-URL link like
 `prodockit.refs`/`prodockit.citations` already build, not a bare `#id`
 fragment that would 404 from a different page.
 
+`\bibliography` takes two optional parameters narrowing this down to just
+what's actually cited, and/or a different `.bib` file than the configured
+default - see
+[Multiple sections: References and Bibliography](#bibliography-multiple-sections)
+below.
+
+### Multiple sections: References and Bibliography {: #bibliography-multiple-sections }
+
+A style guide often distinguishes two different lists:
+
+- **References** (or "Works Cited") - a strict list of only the sources
+  actually cited in the text.
+- **Bibliography** - a broader list: everything cited, *plus* background
+  reading the author wants to list even though it's never individually
+  cited inline.
+
+`\bibliography` takes two optional, positional parameters for exactly
+this:
+
+```
+\bibliography{<file>}{<true|false>}
+```
+
+- `<file>` - which `.bib` file *this* marker draws from. Leave it empty
+  (`{}`) or omit it entirely to use the configured `bib_file`.
+- `<true|false>` - `true` restricts this marker's list to only entries
+  actually `\citebib{}`-cited somewhere in the build; `false` (the
+  default, and the only behaviour before these parameters existed) keeps
+  every entry, cited or not.
+
+Write two markers to get both sections from the same `.bib` file:
+
+```md
+<!-- references.md -->
+# References
+
+\bibliography{}{true}
+```
+
+```md
+<!-- bibliography.md -->
+# Bibliography
+
+\bibliography{}{false}
+```
+
+or from two different files, if background/further-reading sources live
+separately from the ones actually cited:
+
+```md
+<!-- references.md -->
+# References
+
+\bibliography{references.bib}{true}
+```
+
+```md
+<!-- bibliography.md -->
+# Bibliography
+
+\bibliography{background.bib}
+```
+
+A `\citebib{id}` links to whichever marker's page actually lists that
+entry, based on which `.bib` file defines it - in the common single-file
+case (one bare `\bibliography`, as in
+[Quick start](#bibliography-quick-start) above), that's still just the
+one page, exactly as before. `csl_style` stays a single, extension-wide
+setting - only the file and cited-only flag are per-marker.
+
 ### Choosing a citation style
 
 Point `csl_style` at any `.csl` file - your institution's own house style,
@@ -185,6 +255,17 @@ Like [prodockit.citations](citations.md#citations-syntax), `\citebib{...}` is
 recognised the same way Python-Markdown's own inline syntax is, so it's
 protected inside inline code spans and fenced code blocks.
 
+```
+\bibliography
+\bibliography{<file>}
+\bibliography{<file>}{<true|false>}
+```
+
+`<file>` and `<true|false>` are both optional - see
+[Multiple sections: References and Bibliography](#bibliography-multiple-sections)
+above for what they do and when to use them. Put the marker alone on its
+own paragraph/line.
+
 ### Options {: #bibliography-options }
 
 | Option | Type | Default | Description |
@@ -223,6 +304,7 @@ about where the formatted text comes from.
 | Multi-key citations (`\cite{a,b}`) | Yes - each key individually linked | Not supported (falls through as literal text) |
 | External dependencies | None | `pandoc` on `PATH`, even without a PDF build |
 | Editing a reference | Edit the prose by hand, on the references page | Edit the `.bib` entry once, everywhere it's cited updates |
+| Separate References/Bibliography sections | Not built in - would need two hand-authored lists kept in sync manually | Built in - `\bibliography{<file>}{<true\|false>}` generates a strict cited-only list and/or a broader everything-included list, see [Multiple sections](#bibliography-multiple-sections) |
 
 **Where `prodockit.citations` fits best**: a short reference list, a house
 style unlikely to ever change, or a project that doesn't want a `pandoc`
