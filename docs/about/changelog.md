@@ -1,5 +1,28 @@
 # Release Notes
 
+## 0.7.1 (2026-07-24)
+
+This project's own documentation site now enables every prodockit
+extension (`prodockit.headings`, `prodockit.refs`, `prodockit.citations`,
+`prodockit.glossary`, `prodockit.bibliography`, in addition to the
+`prodockit.tables`/`prodockit.index` already enabled) via `zensical.toml`,
+dogfooding the full set rather than just the two used to build this
+site previously.
+
+Doing so surfaced a real bug: Zensical does not render pages in a stable
+order between builds, so a heading name shared across two or more pages
+(e.g. "Quick start", "Syntax", "Options") non-deterministically resolves
+its id collision differently from one `zensical build` to the next -
+confirmed by running repeated clean builds and observing the reported
+"keeping the first" winner change between runs. Fixed by giving every
+colliding heading across the docs an explicit, unique, page-prefixed id
+via `attr_list` (e.g. `## Quick start {: #refs-quick-start }`), rather
+than relying on build order at all. No library code changed - this is a
+docs-content-only fix, and not something a project sharing a heading
+name across its own pages will normally have to think about, since a
+one-off name collision is far less likely there than in this project's
+consciously-parallel per-extension documentation structure.
+
 ## 0.7.0 (2026-07-24)
 
 **Breaking:** `prodockit.bibliography` now uses its own `\citebib{id}`
