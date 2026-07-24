@@ -1,5 +1,25 @@
 # Release Notes
 
+## 0.8.0 (2026-07-24)
+
+New `pdf_copyright` setting: `project.copyright` (a plain, native Zensical
+setting) already feeds the footer of both the website and the PDF by
+default - `pdf_copyright` is an opt-in override for the PDF's footer only,
+for a project that wants its PDF footer to say something different from
+its website's (e.g. adding a "Made with Zensical and prodockit" credit
+line only to the downloadable PDF, not the live site). Write a forced
+line break in either setting with a literal `\A ` inside a TOML *literal*
+string (`'''...'''`) - see [Copyright text](pdf.md#copyright-text) for
+the full mechanism and why a literal string is required.
+
+Also fixed a real, previously-undocumented rendering gap found while
+building this: a `\A ` forced line break inside a `content` string only
+actually renders as a line break under `white-space: pre-line` - under
+WeasyPrint's default `white-space: normal` it silently collapsed to a
+plain space instead. Both the single-sided and double-sided verso
+copyright footer boxes now set `white-space: pre-line` so the forced
+break always works as expected.
+
 ## 0.7.1 (2026-07-24)
 
 This project's own documentation site now enables every prodockit
