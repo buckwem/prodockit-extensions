@@ -374,6 +374,17 @@ def build_pdf(
             "--pdf-engine=weasyprint",
             "--pdf-engine-opt=-q",
             "--mathjax",
+            # Pandoc's HTML writer hard-wraps its output text at ~72 columns
+            # by default, inserting newlines *inside* elements. Those are
+            # insignificant whitespace in HTML, but WeasyPrint's
+            # float: footnote width computation treats them as hard break
+            # opportunities when sizing the footnote area, collapsing a
+            # footnote's rendered text to roughly the longest source line
+            # (~304pt) instead of the page's content width (~475pt) - see
+            # the .pdf-footnote rule in prodockit.pdf.css. This only governs
+            # newlines in the generated HTML source, never the engine's own
+            # line breaking, so footnotes still wrap normally in the PDF.
+            "--wrap=none",
             f"--lua-filter={lua_filter_path}",
             "-f", "html",
             "--resource-path=.",
