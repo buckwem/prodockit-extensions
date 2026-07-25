@@ -408,13 +408,19 @@ blockquote {
 .pdf-footnote {
     float: footnote !important;
     font-size: 9pt !important;
-    /* KNOWN LIMITATION: WeasyPrint 69's float: footnote renders the
-       footnote-area text in a fixed, narrow column (confirmed directly -
-       neither an explicit percentage nor absolute-point width override
-       changes it), instead of the page's full content width, so a
-       footnote often wraps to 2-3 short lines rather than one. Correct
-       page and font-size are unaffected. Tracked upstream rather than
-       worked around here, since no CSS-side override changes it. */
+    /* Deliberately sets no width: WeasyPrint sizes the footnote area to the
+       page's content width on its own, and a width override is silently
+       ignored for floated footnote content anyway.
+
+       This used to carry a "KNOWN LIMITATION" note claiming WeasyPrint 69
+       rendered footnote-area text in a fixed narrow column that no CSS
+       could widen. That was a misdiagnosis (see issue #101): the real
+       cause was pandoc's HTML writer hard-wrapping its output at ~72
+       columns, inserting newlines inside this span, which WeasyPrint's
+       float: footnote width computation treats as hard break opportunities
+       - collapsing the rendered text to ~304pt rather than the ~475pt
+       content width. prodockit.pdf.build passes --wrap=none to fix that,
+       so don't reintroduce a width here. */
 }
 /* A caller's own ".pdf-only" convention (content meant to show only in the
    PDF, e.g. a cover page's word-count/repo-link markers) is commonly hidden

@@ -25,9 +25,10 @@ def _fake_pandoc(tmp_path: Path, script: str) -> Path:
     test can exercise build_pdf() without a real Pandoc/WeasyPrint install.
     The real invocation shape is:
     pandoc <html> -o <output> --pdf-engine=weasyprint --pdf-engine-opt=-q
-    --mathjax --lua-filter=<lua> -f html --resource-path=. --resource-path=<docs_dir>
-    --css=<css>, so $1=<html> $3=<output> (after -o) ... - written to accept
-    any args and just run `script`, which can inspect $@ itself if needed."""
+    --mathjax --wrap=none --lua-filter=<lua> -f html --resource-path=.
+    --resource-path=<docs_dir> --css=<css>, so $1=<html> $3=<output> (after
+    -o) ... - written to accept any args and just run `script`, which can
+    inspect $@ itself if needed."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     pandoc_path = bin_dir / "pandoc"
@@ -603,3 +604,87 @@ def test_copyright_text_with_a_line_break_and_a_real_link_renders_correctly(
         assert "https://zensical.org/" in links
         assert "https://buckwem.github.io/prodockit-extensions/" in links
     doc.close()
+
+
+def test_pandoc_is_invoked_with_wrap_none(tmp_path: Path, fake_pandoc_on_path) -> None:
+    """Regression test (#101): pandoc's HTML writer hard-wraps its output at
+    ~72 columns by default, inserting newlines inside elements. They're
+    insignificant whitespace in HTML, but WeasyPrint's float: footnote width
+    computation treats them as hard break opportunities when sizing the
+    footnote area - collapsing a footnote's rendered text to roughly the
+    longest source line instead of the page's content width. --wrap=none is
+    what stops that; see the .pdf-footnote rule in prodockit.pdf.css.
+    Asserted at the command level too (not just via the real-render test
+    below) so the flag can't be dropped silently where pandoc isn't
+    installed."""
+    args_path = tmp_path / "args.txt"
+    fake_pandoc_on_path(f'echo "$@" > "{args_path}"; echo "%PDF-1.4 stub" > "$3"')
+
+    build_pdf(
+        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+        str(tmp_path / "out.pdf"),
+    )
+
+    assert "--wrap=none" in args_path.read_text(encoding="utf-8").split()
+
+
+@real_pandoc_and_weasyprint_required
+def test_footnote_text_renders_at_the_page_content_width(tmp_path: Path) -> None:
+    """Regression test (#101): a footnote's own text must lay out across the
+    page's full content width, not a narrow column. Before --wrap=none was
+    passed to pandoc (see test_pandoc_is_invoked_with_wrap_none above), the
+    newlines pandoc inserted inside the <span class="pdf-footnote"> collapsed
+    the rendered text to ~304pt of the ~482pt content width, wrapping a
+    footnote onto five short lines whose first held just two words.
+
+    Only a real render catches this: the CSS is identical either way (the
+    rule deliberately sets no width, and a width override is silently ignored
+    for floated footnote content), so nothing short of measuring the laid-out
+    text can tell the two apart."""
+    pymupdf = pytest.importorskip("pymupdf")
+
+    footnote_text = (
+        "This is a deliberately long footnote whose rendered line width is "
+        "measured against the page content width to prove it is not being "
+        "collapsed into a narrow column by pandoc's own source wrapping."
+    )
+    output_path = tmp_path / "out.pdf"
+
+    build_pdf(
+        [
+            Page(
+                docs_rel_path="chapter1.md",
+                html=(
+                    "<h1>Chapter One</h1><p>Body with a footnote."
+                    f'<span class="pdf-footnote">{footnote_text}</span></p>'
+                ),
+            )
+        ],
+        str(output_path),
+        site_name="Test Site",
+    )
+
+    doc = pymupdf.open(str(output_path))
+    try:
+        # A4 at the default 2cm margins: 595pt - 2 * 56.7pt of margin.
+        content_width = 595 - 2 * 56.7
+        # The footnote is the only 9pt text in the document - the header/
+        # footer margin boxes are 10pt, body text larger still.
+        widest = 0.0
+        for page in doc:
+            for block in page.get_text("dict")["blocks"]:
+                if block.get("type") != 0:
+                    continue
+                for line in block.get("lines", []):
+                    for span in line["spans"]:
+                        if span["text"].strip() and 8.5 < span["size"] < 9.5:
+                            x0, _, x1, _ = span["bbox"]
+                            widest = max(widest, x1 - x0)
+        assert widest > 0, "Expected to find the 9pt footnote text in the PDF"
+        assert widest > content_width * 0.9, (
+            f"Footnote text laid out {widest:.0f}pt wide, well short of the "
+            f"{content_width:.0f}pt content width - pandoc's source wrapping "
+            "has most likely crept back in (see #101)"
+        )
+    finally:
+        doc.close()
