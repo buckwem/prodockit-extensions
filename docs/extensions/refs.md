@@ -124,12 +124,21 @@ usual:
 Zensical builds each page with its own, fresh `Markdown` instance, so
 `prodockit.headings` detects this (via Zensical's own per-page context) and
 transparently shares one registry across every page of the build, keyed by
-each page's own path - no explicit `registry`/`source` needed. A reference
-to a page not yet converted in the current build still resolves to
-`unresolved`, the same way an undefined LaTeX `\ref` does until a later
-compilation pass - so list your pages, or build more than once (e.g. via
-`zensical serve`'s live reload), if a forward cross-page reference doesn't
-resolve on the first pass.
+each page's own path - no explicit `registry`/`source` needed.
+
+**Referencing a heading on a page built later works too**, in a single
+`zensical build` pass: `prodockit.headings` pre-scans every page in the
+current build's nav for its headings' ids and section numbers before any
+page has actually been converted, the same way
+[prodockit.citations](citations.md#citations-under-zensical-automatic)
+pre-scans for citation definitions. Pages aren't necessarily built in nav
+order - or even all within one shared Python process - so without this a
+cross-page `\ref{id}` could resolve on one build and fall back to
+`unresolved` (`??`) on the next, from the same unchanged source (see
+[prodockit-extensions#54](https://github.com/buckwem/prodockit-extensions/issues/54)).
+A page that *is* converted in the same process supersedes its own
+pre-scanned entries with the real ones from the parsed document, so the
+pre-scan only ever fills a gap.
 
 Two pages that happen to share an identically-titled heading (e.g. both
 have their own "Overview" section) don't fail the build: the *first* one

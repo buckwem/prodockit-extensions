@@ -8,18 +8,23 @@ prodockit.citations, prodockit.glossary, and prodockit.bibliography, all of
 which face the same problem: Zensical builds each page with its own fresh
 ``Markdown`` instance, so a plain per-instance default registry can never
 see another page's entries. ``nav_pages``/``preseed_attr_from_nav``/
-``find_page_with_marker``/``prescan_bibliography`` additionally address
-pages being built in a single, one-shot pass: a forward reference to a
-page not yet built can't resolve without pre-scanning ahead of time.
+``preseed_heading_ids_from_nav``/``find_page_with_marker``/
+``prescan_bibliography`` additionally address pages being built in a
+single, one-shot pass - and, under ``zensical build``, not necessarily all
+within one shared Python context at all (see prodockit-extensions#54): a
+reference to a page this context never rendered can't resolve without
+pre-scanning ahead of time.
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, TypeVar
 
 from markdown import Markdown
+from markdown.extensions.toc import unique
 
 T = TypeVar("T")
 
@@ -113,6 +118,12 @@ def _flatten_nav(items: object) -> list[str]:
 
 class _Preseedable(Protocol):
     def preseed(self, source: str, id: str, text: str) -> None: ...
+
+
+class _HeadingPreseedable(Protocol):
+    def preseed(
+        self, source: str, id: str, level: int, text: str, number: str | None = None
+    ) -> None: ...
 
 
 _ATTR_RE = re.compile(r"\{:\s*([^}]+?)\s*\}")
@@ -214,6 +225,153 @@ def prescan_headings(appendix_attr: str) -> tuple[dict[str, int], dict[str, str]
         start_counts[rel_path] = running_total
         running_total += _count_top_level_headings(text)
     return start_counts, appendix_letters
+
+
+_HEADING_LINE_RE = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
+_TRAILING_ATTR_RE = re.compile(r"\s*\{:\s*([^}]*?)\s*\}\s*$")
+_INLINE_MARKUP_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)|[*_`~]")
+
+
+def _strip_front_matter(text: str) -> str:
+    """Drops a leading YAML front matter block, so its own ``---`` fences
+    and keys can't be mistaken for content by a raw-text heading scan."""
+    if not text.startswith("---"):
+        return text
+    parts = text.split("---", 2)
+    return parts[2].lstrip("\n") if len(parts) >= 3 else text
+
+
+def _heading_display_text(raw: str) -> str:
+    """Approximates the rendered text of a heading line - what
+    ``HeadingsTreeprocessor`` sees via ``itertext()`` once Python-Markdown
+    has parsed it - by unwrapping links and dropping emphasis/code markers.
+    Best-effort: it only has to be good enough to slugify a heading that
+    has no explicit ``{: #id }`` of its own."""
+    return _INLINE_MARKUP_RE.sub(lambda m: m.group(1) or "", raw).strip()
+
+
+def _scan_page_headings(text: str) -> list[tuple[int, str, str | None, bool]]:
+    """Returns ``(level, display_text, explicit_id, unnumbered)`` for every
+    ATX heading in one page's raw markdown, in document order - skipping
+    fenced code blocks and HTML comments, the same way
+    _count_top_level_headings() does, so a heading shown as a literal
+    example isn't mistaken for a real one."""
+    headings: list[tuple[int, str, str | None, bool]] = []
+    in_fence = False
+    in_comment = False
+    for line in _strip_front_matter(text).splitlines():
+        stripped = line.strip()
+        if not in_comment and (stripped.startswith("```") or stripped.startswith("~~~")):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if not in_comment and "<!--" in stripped:
+            in_comment = True
+        if in_comment:
+            if "-->" in stripped:
+                in_comment = False
+            continue
+        match = _HEADING_LINE_RE.match(line)
+        if match is None:
+            continue
+        level = len(match.group(1))
+        rest = match.group(2)
+        explicit_id: str | None = None
+        unnumbered = False
+        if attr_match := _TRAILING_ATTR_RE.search(rest):
+            attrs = attr_match.group(1)
+            if id_match := _ID_RE.search(attrs):
+                explicit_id = id_match.group(1)
+            unnumbered = ".unnumbered" in attrs
+            rest = rest[: attr_match.start()]
+        # A closed ATX heading ("## Title ##") - the trailing hashes aren't
+        # part of the text.
+        rest = re.sub(r"\s+#+\s*$", "", rest)
+        headings.append((level, _heading_display_text(rest), explicit_id, unnumbered))
+    return headings
+
+
+def preseed_heading_ids_from_nav(
+    registry: _HeadingPreseedable,
+    appendix_attr: str,
+    continuous: bool,
+    slugify: Callable[[str, str], str],
+    separator: str = "-",
+) -> bool:
+    """Pre-scans every page in the current Zensical build's nav for its
+    headings' ids and section numbers, provisionally registering each one
+    (via ``registry.preseed``) before any page has actually been converted -
+    the same idea as ``preseed_attr_from_nav`` for citation/glossary
+    definitions, applied to headings.
+
+    Fixes prodockit-extensions#54: a ``\\ref{id}`` pointing at a heading on
+    another page can only resolve if that page's own real registration is
+    visible from the rendering context resolving the reference. Under
+    ``zensical build`` that isn't guaranteed - a page rendered in a
+    different process/interpreter never populated *this* context's shared
+    registry, so the reference silently fell back to ``??`` for every id
+    defined on such a page (reported on Linux CI for the first nav page
+    specifically, while ids from later pages resolved fine). Pre-scanning
+    every nav page's raw text up front makes resolution independent of
+    which pages this particular context happens to render.
+
+    Numbers mirror ``HeadingsTreeprocessor``'s own computation exactly
+    (skipped levels backfilled rather than left at 0, ``.unnumbered``
+    headings given an id but no number and no counter position, and - when
+    `continuous` - h1 numbering carried across pages in nav order with
+    ``appendix_attr``-flagged pages lettered instead). A real registration
+    always supersedes what's preseeded here, so a page this context *does*
+    render is unaffected.
+
+    Returns True if the scan actually ran. Does nothing and returns False
+    outside a Zensical build (mirrors nav_pages()) - so a caller that only
+    wants to do this once can tell "already done" apart from "not
+    applicable yet", and retry on a later page rather than latching a
+    no-op.
+    """
+    located = nav_pages()
+    if located is None:
+        return False
+    docs_dir, pages = located
+
+    start_counts: dict[str, int] = {}
+    appendix_letters: dict[str, str] = {}
+    if continuous:
+        prescanned = prescan_headings(appendix_attr)
+        if prescanned is not None:
+            start_counts, appendix_letters = prescanned
+
+    for rel_path in pages:
+        try:
+            text = (Path(docs_dir) / rel_path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        appendix_letter = appendix_letters.get(rel_path)
+        counters = [start_counts.get(rel_path, 0), 0, 0, 0, 0, 0]
+        seen_ids: set[str] = set()
+        for level, text_content, explicit_id, unnumbered in _scan_page_headings(text):
+            heading_id = explicit_id or unique(slugify(text_content, separator), seen_ids)
+            seen_ids.add(heading_id)
+            if unnumbered:
+                number = None
+            else:
+                for shallower in range(level - 1):
+                    if counters[shallower] == 0:
+                        counters[shallower] = 1
+                counters[level - 1] += 1
+                for deeper in range(level, 6):
+                    counters[deeper] = 0
+                first = appendix_letter if appendix_letter is not None else str(counters[0])
+                number = ".".join([first] + [str(c) for c in counters[1:level]])
+            registry.preseed(
+                source=rel_path,
+                id=heading_id,
+                level=level,
+                text=text_content,
+                number=number,
+            )
+    return True
 
 
 def preseed_attr_from_nav(registry: _Preseedable, attr_name: str) -> None:

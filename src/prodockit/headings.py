@@ -16,7 +16,12 @@ from markdown.extensions import Extension
 from markdown.extensions.toc import TocExtension
 from markdown.treeprocessors import Treeprocessor
 
-from prodockit._zensical import page_source, prescan_headings, share
+from prodockit._zensical import (
+    page_source,
+    prescan_headings,
+    preseed_heading_ids_from_nav,
+    share,
+)
 from prodockit.util import IdRegistry
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
@@ -39,6 +44,17 @@ def _slugify(text: str) -> str:
 # context is actually detected, so it has no effect under any other tool, or
 # on a caller who passes their own explicit registry/source.
 _ZENSICAL_SHARED_REGISTRY = IdRegistry()
+
+# The numbering settings the nav-wide heading pre-scan last ran with in this
+# process, or None if it hasn't successfully run yet. Not a plain bool for two
+# reasons: the scan reads every nav page, so repeating it per page would be
+# O(pages^2) file reads for no benefit; but it also has to re-run if a
+# differently-configured HeadingsExtension turns up later, since the numbers it
+# computes depend on these settings. That happens routinely - extension order
+# isn't guaranteed, so prodockit.refs may create a *default* HeadingsExtension
+# (numbering="per-document") and trigger the first scan through it before the
+# project's own configured instance runs. See _preseed_from_nav.
+_ZENSICAL_PRESEED_SETTINGS: tuple[bool, str] | None = None
 
 
 class HeadingsTreeprocessor(Treeprocessor):
@@ -195,6 +211,7 @@ class HeadingsExtension(Extension):
                 source = detected_source
                 registry = _ZENSICAL_SHARED_REGISTRY
                 strict = False
+                self._preseed_from_nav(md, registry)
         registry = share(md, "prodockit_registry", registry)
         self.registry = registry
 
@@ -219,6 +236,59 @@ class HeadingsExtension(Extension):
             "prodockit-headings",
             4,
         )
+
+    def _preseed_from_nav(self, md: Markdown, registry: IdRegistry) -> None:
+        """Provisionally registers every nav page's heading ids/numbers, so a
+        `\\ref{id}` resolves even when the page defining that id was never
+        rendered in *this* Python context - see
+        prodockit._zensical.preseed_heading_ids_from_nav and
+        prodockit-extensions#54.
+
+        Runs once per process per distinct numbering configuration: the scan
+        reads every nav page, so repeating it for every page would be
+        pointless work, but the numbers it computes depend on `numbering`/
+        `appendix_attr`, so a later instance configured differently has to be
+        allowed to redo it. That isn't hypothetical - extension order isn't
+        guaranteed, so prodockit.refs can create a *default*
+        HeadingsExtension and trigger the first scan through it (numbering
+        per-document) before the project's own `numbering="continuous"`
+        instance runs, which without this would leave every cross-page
+        reference showing a per-document number. Previous provisional
+        entries are dropped first, since `preseed()` is otherwise
+        first-wins.
+
+        Slugs come from the 'toc' treeprocessor's own configured slugify/
+        separator (already registered by the caller above), so a preseeded id
+        matches exactly what 'toc' will assign when that page really is
+        converted - including a project's own custom slugify.
+        """
+        global _ZENSICAL_PRESEED_SETTINGS
+        settings = (
+            self.getConfig("numbering") == "continuous",
+            self.getConfig("appendix_attr"),
+        )
+        if settings == _ZENSICAL_PRESEED_SETTINGS:
+            return
+        # Not `.get()` (which SIM401 would suggest): Python-Markdown's own
+        # Registry implements __contains__/__getitem__ but no .get().
+        toc = md.treeprocessors["toc"] if "toc" in md.treeprocessors else None  # noqa: SIM401
+        slugify = getattr(toc, "slugify", None)
+        if slugify is None:
+            return
+        if _ZENSICAL_PRESEED_SETTINGS is not None:
+            registry.clear_preseeded()
+        ran = preseed_heading_ids_from_nav(
+            registry,
+            appendix_attr=settings[1],
+            continuous=settings[0],
+            slugify=slugify,
+            separator=getattr(toc, "sep", "-"),
+        )
+        # Only latch on a scan that actually happened - outside a Zensical
+        # build (or before its config is populated) there's nothing to
+        # record, and a later page may well succeed.
+        if ran:
+            _ZENSICAL_PRESEED_SETTINGS = settings
 
 
 def prescan(appendix_attr: str = "is_appendix") -> tuple[dict[str, int], dict[str, str]] | None:

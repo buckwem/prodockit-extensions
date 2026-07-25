@@ -35,6 +35,7 @@ def _isolated_zensical_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     singletons (which, in production, are deliberately shared for the whole
     build's lifetime)."""
     monkeypatch.setattr(prodockit_headings, "_ZENSICAL_SHARED_REGISTRY", IdRegistry())
+    monkeypatch.setattr(prodockit_headings, "_ZENSICAL_PRESEED_SETTINGS", None)
     monkeypatch.setattr(prodockit_citations, "_ZENSICAL_SHARED_REGISTRY", CitationRegistry())
     monkeypatch.setattr(prodockit_glossary, "_ZENSICAL_SHARED_REGISTRY", GlossaryRegistry())
     monkeypatch.setattr(prodockit_bibliography, "_ZENSICAL_SHARED_CACHES", {})
@@ -121,6 +122,170 @@ def test_non_zensical_use_is_unaffected() -> None:
     # Page 2 never saw page 1's heading - falls back to unresolved, exactly
     # as it did before Zensical auto-detection existed.
     assert '<a class="prodockit-ref prodockit-ref-unresolved">??</a>' in html
+
+
+def test_ref_resolves_for_a_page_never_rendered_in_this_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for prodockit-extensions#54: `zensical build` doesn't
+    guarantee every page renders in one shared Python context, so a page's
+    own real registration may never reach the context resolving a
+    \\ref{} to it - reported as every id defined on the *first* nav page
+    silently rendering "??" on Linux CI, while later pages resolved fine.
+
+    Reproduced deterministically here by converting *only* the referencing
+    page, never the page defining the ids - which is exactly what a
+    context that didn't render section1.md sees. The nav pre-scan must
+    resolve them anyway."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "section1.md").write_text(
+        "# Section One\n\n"
+        "## Citations example {: #citations-example }\n\n"
+        "## Acronyms example {: #acronyms-example }\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "section4.md").write_text(
+        "# Section Four\n\nSee \\ref{citations-example}.\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["section1.md", "section4.md"]),
+    )
+    html = _convert_as_zensical_page(
+        "# Section Four\n\nSee \\ref{citations-example} and \\ref{acronyms-example}.\n",
+        "section4.md",
+    )
+    assert '<a class="prodockit-ref" href="section1.md#citations-example">1.1</a>' in html
+    assert '<a class="prodockit-ref" href="section1.md#acronyms-example">1.2</a>' in html
+    assert "??" not in html
+
+
+def test_preseeded_heading_is_superseded_by_its_real_registration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Preseeded data is only ever a stand-in - once the defining page is
+    actually converted in this context, its real registration (the
+    authoritative text/level/number from the parsed tree) must win."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "intro.md").write_text("# Introduction\n", encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["intro.md"])
+    )
+    _convert_as_zensical_page("# Introduction\n", "intro.md")
+    registry = prodockit_headings._ZENSICAL_SHARED_REGISTRY
+    assert registry._headings["introduction"].source == "intro.md"
+    assert "introduction" not in registry._preseeded
+
+
+def test_preseed_ignores_headings_inside_fenced_examples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A docs page showing heading syntax as a literal example inside a
+    fenced code block must not be preseeded as a real heading - the same
+    protection the citation/glossary nav pre-scans already have."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "guide.md").write_text(
+        "# Guide\n\n```md\n## Not A Real Heading {: #not-real }\n```\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["guide.md"])
+    )
+    html = _convert_as_zensical_page("See \\ref{not-real}.\n", "other.md")
+    assert '<a class="prodockit-ref prodockit-ref-unresolved">??</a>' in html
+
+
+def _convert_as_zensical_page_with_attr_list(text: str, path: str) -> str:
+    """As _convert_as_zensical_page, plus 'attr_list' - which every prodockit
+    project enables (it's what makes `{: #id }`/`{: .unnumbered }` mean
+    anything at all), and which the nav pre-scan therefore assumes when it
+    reads those same markers straight out of raw text."""
+    md = markdown.Markdown(
+        extensions=[
+            ContextExtension(page=Page(url=path, path=path), config={}),
+            "attr_list",
+            "prodockit.headings",
+            "prodockit.refs",
+        ]
+    )
+    return md.convert(text)
+
+
+def test_preseeded_numbers_match_a_real_conversion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The pre-scan computes section numbers itself, from raw text - they
+    have to agree with what HeadingsTreeprocessor produces from the parsed
+    tree, including a skipped level (h1 -> h3 numbers "1.1.1", not "1.0.1")
+    and an .unnumbered heading consuming no counter position."""
+    page = (
+        "# Cover {: .unnumbered }\n\n"
+        "# One\n\n"
+        "### Deep\n\n"
+        "## Two\n\n"
+        "# Three\n"
+    )
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "page.md").write_text(page, encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["page.md"])
+    )
+    # Preseeded only - this context never converts page.md itself.
+    _convert_as_zensical_page_with_attr_list("placeholder\n", "other.md")
+    preseeded = dict(prodockit_headings._ZENSICAL_SHARED_REGISTRY._preseeded)
+
+    # Now the real thing, in a registry of its own.
+    monkeypatch.setattr(prodockit_headings, "_ZENSICAL_SHARED_REGISTRY", IdRegistry())
+    monkeypatch.setattr(prodockit_headings, "_ZENSICAL_PRESEED_SETTINGS", (False, "is_appendix"))
+    _convert_as_zensical_page_with_attr_list(page, "page.md")
+    real = prodockit_headings._ZENSICAL_SHARED_REGISTRY._headings
+
+    assert {k: v.number for k, v in preseeded.items()} == {
+        k: v.number for k, v in real.items()
+    }
+    assert real["deep"].number == "1.1.1"
+    assert real["cover"].number is None
+
+
+def test_preseeded_numbers_are_redone_when_refs_preseeds_first_with_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Extension order isn't guaranteed, so prodockit.refs' extendMarkdown can
+    run first and create a *default* HeadingsExtension (per-document
+    numbering) of its own - which would otherwise trigger the nav pre-scan
+    with the wrong settings and latch it, leaving every cross-page reference
+    showing a per-document number instead of the configured continuous one.
+
+    Caught by real repeated `zensical build` runs: ~1 in 12 rendered
+    \\ref{} to a heading on page two as "1.1" instead of "2.1"."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "one.md").write_text("# Page One\n", encoding="utf-8")
+    (docs_dir / "two.md").write_text(
+        "# Page Two\n\n## Target {: #target }\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["one.md", "two.md"])
+    )
+    # 'prodockit.refs' listed *before* 'prodockit.headings' - the order that
+    # makes refs build its own default HeadingsExtension first.
+    md = markdown.Markdown(
+        extensions=[
+            ContextExtension(page=Page(url="one.md", path="one.md"), config={}),
+            "attr_list",
+            "prodockit.refs",
+            "prodockit.headings",
+        ],
+        extension_configs={"prodockit.headings": {"numbering": "continuous"}},
+    )
+    html = md.convert("# Page One\n\nSee \\ref{target}.\n")
+    # Page Two's h1 is the second in nav order, so its "Target" subheading is
+    # 2.1 under continuous numbering - not 1.1.
+    assert '<a class="prodockit-ref" href="two.md#target">2.1</a>' in html
 
 
 def test_default_numbering_is_still_per_document_under_zensical() -> None:
