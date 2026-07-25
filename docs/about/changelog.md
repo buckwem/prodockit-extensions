@@ -1,5 +1,39 @@
 # Release Notes
 
+## 0.10.5 (2026-07-25)
+
+Fixed a real bug found by reproducing it directly: a cross-page
+`\ref{id}` under `zensical build` depended on whether the page defining
+`id` happened to be rendered before the page referencing it, in the same
+Python process - `zensical build` renders pages neither in nav order nor
+necessarily all in one process, so this was pure luck. Reproduced
+locally on a 3-page site: the previous release left 1-5 references as
+`??` per build, varying from one otherwise-identical build to the next
+(only 2 of 12 clean builds fully resolved).
+
+`prodockit.headings` now pre-scans every nav page's headings (ids,
+levels, section numbers) into the shared registry before any page is
+converted - the same idea `prodockit.citations`/`prodockit.glossary`
+already use for their own cross-page definitions - so resolution no
+longer depends on build order. A page actually rendered in this process
+still supersedes its own pre-scanned entries with the real ones. 20
+consecutive clean builds now produce byte-identical, fully-resolved
+output; `prodockit-template`'s entire built site is byte-identical
+before and after this change.
+
+Also fixed a second bug found while testing the above: extension order
+isn't guaranteed, so `prodockit.refs` can construct its own default
+`HeadingsExtension` and trigger the pre-scan with per-document numbering
+before a project's configured `numbering = "continuous"` instance runs
+- silently showing a cross-page reference's number one step behind
+(`1.1` instead of `2.1`) roughly 1 build in 12. The pre-scan now reruns
+if a differently-configured instance appears.
+
+Fixes [#54](https://github.com/buckwem/prodockit-extensions/issues/54).
+See [#99](https://github.com/buckwem/prodockit-extensions/issues/99) for
+a related, separate limitation found along the way (this pre-scan can go
+stale under `zensical serve`'s live-reload - not fixed here).
+
 ## 0.10.4 (2026-07-25)
 
 - Added `CONTRIBUTING.md` and a `.github/pull_request_template.md`,
