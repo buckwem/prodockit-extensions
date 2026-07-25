@@ -8,60 +8,23 @@ sorted reference list generated for you - in any
 IEEE, Harvard, Vancouver, and hundreds more), the same open, actively-
 maintained style ecosystem Zotero/Mendeley/EndNote already use.
 
-Uses its own `\citebib{id}` syntax, deliberately distinct from
-`prodockit.citations`' `\cite{id}` - the two can be enabled together in
-the same build without conflict (this project's own docs do, to
-demonstrate both side by side), though a typical single project only
-needs one. Where `prodockit.citations` resolves a citation against a
-hand-authored `data-cite-text` paragraph elsewhere in the document (you
-write the formatted reference-list entry yourself, once, by hand),
-`prodockit.bibliography` resolves against structured bibliographic data in
-a `.bib` file and generates the formatted entry - inline citation and
-reference-list entry alike - for you. See
+Uses its own `\citebib{id}` syntax, distinct from `prodockit.citations`'
+`\cite{id}` - see
 [Comparing the two approaches](#comparing-the-two-approaches) below for the
 full tradeoffs.
 
 ## Requirements {: #bibliography-requirements }
 
-Citation/bibliography formatting is delegated entirely to
-[Pandoc](https://pandoc.org/)'s own `--citeproc` (confirmed directly: a
-plain `.bib` file plus a chosen `.csl` style produces correctly formatted,
-sorted output with no custom code at all) rather than reimplemented here -
-CSL processing (sorting, disambiguation, locale-specific formatting) is a
-mature-tool-sized problem, the same reasoning
-[prodockit.pdf](../pdf.md#limitations-and-workarounds) already gives for why
-it feeds Pandoc real HTML instead of hand-translating every markdown
-feature. This makes `pandoc` a required, on-`PATH` dependency for this
-extension specifically - **including for a project that never builds a
-PDF at all**, unlike every other prodockit extension, which needs nothing
-beyond Python-Markdown itself:
+[Pandoc](https://pandoc.org/) needs to be installed and on `PATH` -
+**including for a project that never builds a PDF at all**, unlike every
+other prodockit extension, which needs nothing beyond Python-Markdown
+itself:
 
 ```bash
 brew install pandoc   # or see https://pandoc.org/installing.html
 ```
 
-How the two tools relate: Zensical renders your site as usual, but each
-time this extension resolves a `\citebib{id}` or `\bibliography` marker it
-shells out to `pandoc --citeproc`, once per distinct citation and once for
-the full reference list, each memoized for the rest of the build - Pandoc
-never sees, and has no part in rendering, anything else on the page:
-
-```mermaid
-flowchart LR
-    bib[".bib file<br>.csl style"]
-    md["Markdown source<br>\citebib{id} / \bibliography"]
-    ext["prodockit.bibliography<br>(Python-Markdown extension)"]
-    pandoc["pandoc --citeproc"]
-    web["Zensical<br>(live website)"]
-    pdf["prodockit.pdf<br>(WeasyPrint PDF)"]
-
-    bib --> ext
-    md --> ext
-    ext -- "subprocess call,<br>memoized per build" --> pandoc
-    pandoc -- "formatted citation /<br>reference list HTML" --> ext
-    ext --> web
-    ext --> pdf
-```
+See [How it works](#bibliography-how-it-works) below for why.
 
 ## Quick start {: #bibliography-quick-start }
 
@@ -290,11 +253,49 @@ addition to Pandoc's own `csl-entry`) - matching the class
 [prodockit.pdf](../pdf.md)'s own `reference_style` setting apply uniformly,
 whether an entry was hand-typed or generated.
 
+## How it works {: #bibliography-how-it-works }
+
+Citation/bibliography formatting is delegated entirely to
+[Pandoc](https://pandoc.org/)'s own `--citeproc` (confirmed directly: a
+plain `.bib` file plus a chosen `.csl` style produces correctly formatted,
+sorted output with no custom code at all) rather than reimplemented here -
+CSL processing (sorting, disambiguation, locale-specific formatting) is a
+mature-tool-sized problem, the same reasoning
+[prodockit.pdf](../pdf.md#limitations-and-workarounds) already gives for why
+it feeds Pandoc real HTML instead of hand-translating every markdown
+feature.
+
+Zensical renders your site as usual, but each time this extension resolves
+a `\citebib{id}` or `\bibliography` marker it shells out to `pandoc
+--citeproc`, once per distinct citation and once per generated list, each
+memoized for the rest of the build - Pandoc never sees, and has no part in
+rendering, anything else on the page:
+
+```mermaid
+flowchart LR
+    bib[".bib file<br>.csl style"]
+    md["Markdown source<br>\citebib{id} / \bibliography"]
+    ext["prodockit.bibliography<br>(Python-Markdown extension)"]
+    pandoc["pandoc --citeproc"]
+    web["Zensical<br>(live website)"]
+    pdf["prodockit.pdf<br>(WeasyPrint PDF)"]
+
+    bib --> ext
+    md --> ext
+    ext -- "subprocess call,<br>memoized per build" --> pandoc
+    pandoc -- "formatted citation /<br>reference list HTML" --> ext
+    ext --> web
+    ext --> pdf
+```
+
 ## Comparing the two approaches
 
 Both extensions solve the same problem - cite a source by key, get a
 formatted reference list - but make a fundamentally different tradeoff
-about where the formatted text comes from.
+about where the formatted text comes from. They can be enabled together in
+the same build without conflict (this project's own docs do, to
+demonstrate both side by side), though a typical single project only
+needs one.
 
 | | [prodockit.citations](citations.md) | prodockit.bibliography |
 |---|---|---|
