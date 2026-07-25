@@ -158,32 +158,101 @@ def _front_matter_flag(text: str, key: str) -> bool:
     )
 
 
+# An h1 underline is one or more "=" (a "-" underline is a setext *h2*),
+# optionally trailing whitespace, indented no more than 3 spaces - 4 or more
+# makes it an indented code block instead. Confirmed directly against the
+# real renderer: a single "=" is enough, and trailing spaces are fine.
+_SETEXT_H1_UNDERLINE_RE = re.compile(r"^ {0,3}=+[ \t]*$")
+_ATX_H1_RE = re.compile(r"^#\s+\S")
+_ANY_ATX_HEADING_RE = re.compile(r"^#{1,6}\s")
+
+
+def _is_numbered_atx_h1(line: str) -> bool:
+    """True for a ``# Heading`` line that isn't tagged ``{.unnumbered}``."""
+    return bool(_ATX_H1_RE.match(line)) and ".unnumbered" not in line
+
+
+def _is_numbered_setext_h1_underline(
+    line: str, text_line: str, *, text_line_opens_a_block: bool
+) -> bool:
+    """True when `line` is a setext h1 underline genuinely heading
+    `text_line` - the line immediately above it.
+
+    Matching the real renderer's own rules, confirmed directly rather than
+    assumed: the underline heads a *single* text line, so a two-line
+    paragraph followed by ``=====`` is no heading at all
+    (`text_line_opens_a_block` carries whether the line above `text_line`
+    was blank); an underline split from its text by a blank line isn't one
+    either; four spaces of indent makes both lines an indented code block;
+    and ``attr_list`` puts a setext heading's own ``{: .unnumbered }`` on
+    the text line rather than after the underline.
+    """
+    if not _SETEXT_H1_UNDERLINE_RE.match(line):
+        return False
+    return bool(
+        text_line_opens_a_block
+        and text_line.strip()
+        and not text_line.startswith("    ")
+        # An ATX heading has already counted itself; a "=====" line under it
+        # is a paragraph to the renderer, not a second heading.
+        and not _ANY_ATX_HEADING_RE.match(text_line)
+        and ".unnumbered" not in text_line
+    )
+
+
 def _count_top_level_headings(text: str) -> int:
-    """Counts top-level (single ``#``) ATX headings in raw markdown text,
-    skipping fenced code blocks, HTML comments, and headings tagged
-    ``{.unnumbered}`` - used by prescan_headings() to work out how many
-    numbered h1s appear on a page before any page has actually been
-    converted. Line-based rather than a single regex (unlike _strip_fences()
-    above) since it also needs to track HTML comments, not just fences, in
-    one pass."""
+    """Counts top-level h1s in raw markdown text - both ``# ATX`` and
+    ``Setext``/``=====`` styles - skipping fenced code blocks, HTML
+    comments, and headings tagged ``{.unnumbered}``. Used by
+    prescan_headings() to work out how many numbered h1s appear on a page
+    before any page has actually been converted. Line-based rather than a
+    single regex (unlike _strip_fences() above) since it also needs to track
+    HTML comments, not just fences, in one pass.
+
+    Setext support matters because nothing else in either pipeline
+    distinguishes the two styles - Zensical's renderer and Pandoc both
+    produce a real h1 either way - so missing them here silently
+    desynchronised continuous chapter numbering: later pages' start counts
+    came out short, duplicating a chapter number on the website and putting
+    it one behind the PDF (see issue #106).
+
+    Matching the real renderer's own rules, confirmed directly rather than
+    assumed: the underline has to follow a *single* text line (a two-line
+    paragraph followed by ``=====`` is no heading at all), that line has to
+    open its own block (a blank line, or the start of the page, before it),
+    and neither line may be indented into a code block. ``attr_list`` puts a
+    setext heading's own ``{: .unnumbered }`` on the *text* line, not after
+    the underline, so that's where it's checked.
+    """
     count = 0
     in_fence = False
     in_comment = False
+    # The previous line, and whether the line before *it* was blank - a
+    # setext underline is only a heading if its text line stands alone.
+    previous_line = ""
+    line_before_previous_was_blank = True
     for line in text.splitlines():
         stripped = line.strip()
         if not in_comment and (stripped.startswith("```") or stripped.startswith("~~~")):
             in_fence = not in_fence
+            previous_line, line_before_previous_was_blank = "", True
             continue
         if in_fence:
+            previous_line, line_before_previous_was_blank = "", True
             continue
         if not in_comment and "<!--" in stripped:
             in_comment = True
         if in_comment:
             if "-->" in stripped:
                 in_comment = False
+            previous_line, line_before_previous_was_blank = "", True
             continue
-        if re.match(r"^#\s+\S", line) and ".unnumbered" not in line:
+        if _is_numbered_atx_h1(line) or _is_numbered_setext_h1_underline(
+            line, previous_line, text_line_opens_a_block=line_before_previous_was_blank
+        ):
             count += 1
+        line_before_previous_was_blank = not previous_line.strip()
+        previous_line = line
     return count
 
 
