@@ -125,6 +125,10 @@ pytest
 `prodockit` is installed - no extra step needed to build the documentation
 locally.
 
+## Contributing
+
+Contributions are welcome - see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## License
 
 MIT - see [LICENSE](LICENSE).
