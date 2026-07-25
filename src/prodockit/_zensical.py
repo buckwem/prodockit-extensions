@@ -158,32 +158,75 @@ def _front_matter_flag(text: str, key: str) -> bool:
     )
 
 
+# An h1 underline is one or more "=" (a "-" underline is a setext *h2*),
+# optionally trailing whitespace, indented no more than 3 spaces - 4 or more
+# makes it an indented code block instead. Confirmed directly against the
+# real renderer: a single "=" is enough, and trailing spaces are fine.
+_SETEXT_H1_UNDERLINE_RE = re.compile(r"^ {0,3}=+[ \t]*$")
+
+
 def _count_top_level_headings(text: str) -> int:
-    """Counts top-level (single ``#``) ATX headings in raw markdown text,
-    skipping fenced code blocks, HTML comments, and headings tagged
-    ``{.unnumbered}`` - used by prescan_headings() to work out how many
-    numbered h1s appear on a page before any page has actually been
-    converted. Line-based rather than a single regex (unlike _strip_fences()
-    above) since it also needs to track HTML comments, not just fences, in
-    one pass."""
+    """Counts top-level h1s in raw markdown text - both ``# ATX`` and
+    ``Setext``/``=====`` styles - skipping fenced code blocks, HTML
+    comments, and headings tagged ``{.unnumbered}``. Used by
+    prescan_headings() to work out how many numbered h1s appear on a page
+    before any page has actually been converted. Line-based rather than a
+    single regex (unlike _strip_fences() above) since it also needs to track
+    HTML comments, not just fences, in one pass.
+
+    Setext support matters because nothing else in either pipeline
+    distinguishes the two styles - Zensical's renderer and Pandoc both
+    produce a real h1 either way - so missing them here silently
+    desynchronised continuous chapter numbering: later pages' start counts
+    came out short, duplicating a chapter number on the website and putting
+    it one behind the PDF (see issue #106).
+
+    Matching the real renderer's own rules, confirmed directly rather than
+    assumed: the underline has to follow a *single* text line (a two-line
+    paragraph followed by ``=====`` is no heading at all), that line has to
+    open its own block (a blank line, or the start of the page, before it),
+    and neither line may be indented into a code block. ``attr_list`` puts a
+    setext heading's own ``{: .unnumbered }`` on the *text* line, not after
+    the underline, so that's where it's checked.
+    """
     count = 0
     in_fence = False
     in_comment = False
+    # The previous line, and whether the line before *it* was blank - a
+    # setext underline is only a heading if its text line stands alone.
+    previous_line = ""
+    line_before_previous_was_blank = True
     for line in text.splitlines():
         stripped = line.strip()
         if not in_comment and (stripped.startswith("```") or stripped.startswith("~~~")):
             in_fence = not in_fence
+            previous_line, line_before_previous_was_blank = "", True
             continue
         if in_fence:
+            previous_line, line_before_previous_was_blank = "", True
             continue
         if not in_comment and "<!--" in stripped:
             in_comment = True
         if in_comment:
             if "-->" in stripped:
                 in_comment = False
+            previous_line, line_before_previous_was_blank = "", True
             continue
         if re.match(r"^#\s+\S", line) and ".unnumbered" not in line:
             count += 1
+        elif (
+            _SETEXT_H1_UNDERLINE_RE.match(line)
+            and line_before_previous_was_blank
+            and previous_line.strip()
+            and not previous_line.startswith("    ")
+            # An ATX heading already counted itself just above; a following
+            # "=====" is a paragraph to the renderer, not a second heading.
+            and not re.match(r"^#{1,6}\s", previous_line)
+            and ".unnumbered" not in previous_line
+        ):
+            count += 1
+        line_before_previous_was_blank = not previous_line.strip()
+        previous_line = line
     return count
 
 

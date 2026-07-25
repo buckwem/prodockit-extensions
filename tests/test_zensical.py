@@ -54,6 +54,74 @@ def test_count_top_level_headings_skips_unnumbered() -> None:
     assert _count_top_level_headings(text) == 1
 
 
+# ---------------------------------------------------------------------------
+# Setext h1s (#106)
+#
+# Nothing else in either pipeline distinguishes setext from ATX - Zensical's
+# renderer and Pandoc both produce a real h1 either way - so an uncounted
+# setext heading silently desynchronised continuous chapter numbering:
+# later pages' start counts came out short, duplicating a chapter number on
+# the website and leaving it one behind the PDF. Each expectation below was
+# checked against the real renderer's own output rather than assumed.
+# ---------------------------------------------------------------------------
+
+def test_count_top_level_headings_counts_setext_h1() -> None:
+    assert _count_top_level_headings("Title\n=====\n") == 1
+
+
+def test_count_top_level_headings_counts_a_single_equals_underline() -> None:
+    """One "=" is enough for the real renderer, so it has to be enough here."""
+    assert _count_top_level_headings("Title\n=\n") == 1
+
+
+def test_count_top_level_headings_allows_trailing_space_after_the_underline() -> None:
+    assert _count_top_level_headings("Title\n=====   \n") == 1
+
+
+def test_count_top_level_headings_ignores_a_dash_underline() -> None:
+    """A "-" underline is a setext *h2*, not an h1."""
+    assert _count_top_level_headings("Title\n-----\n") == 0
+
+
+def test_count_top_level_headings_ignores_an_underline_after_a_two_line_paragraph() -> None:
+    """The renderer produces no heading at all here - a setext underline
+    only applies to a single text line - so neither should this."""
+    assert _count_top_level_headings("Line one\nLine two\n========\n") == 0
+
+
+def test_count_top_level_headings_ignores_an_underline_split_from_its_text() -> None:
+    assert _count_top_level_headings("Title\n\n=====\n") == 0
+
+
+def test_count_top_level_headings_ignores_an_indented_setext_block() -> None:
+    """Four spaces makes it an indented code block, not a heading."""
+    assert _count_top_level_headings("    Title\n    =====\n") == 0
+
+
+def test_count_top_level_headings_skips_setext_inside_a_fence() -> None:
+    assert _count_top_level_headings("```\nTitle\n=====\n```\n") == 0
+
+
+def test_count_top_level_headings_skips_setext_inside_an_html_comment() -> None:
+    assert _count_top_level_headings("<!--\nTitle\n=====\n-->\n") == 0
+
+
+def test_count_top_level_headings_skips_unnumbered_setext() -> None:
+    """attr_list attaches a setext heading's own attributes to the *text*
+    line, not the line after the underline."""
+    assert _count_top_level_headings("Title {: .unnumbered }\n=====\n") == 0
+
+
+def test_count_top_level_headings_does_not_double_count_an_atx_heading() -> None:
+    """A "=====" line under an ATX heading is a paragraph to the renderer,
+    not a second heading - the ATX line has already counted itself."""
+    assert _count_top_level_headings("# Title\n=====\n") == 1
+
+
+def test_count_top_level_headings_counts_mixed_atx_and_setext() -> None:
+    assert _count_top_level_headings("# One\n\nTwo\n===\n\n# Three\n") == 3
+
+
 def test_prescan_headings_returns_none_outside_zensical(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
