@@ -8,7 +8,8 @@ step needed anywhere else, unlike
 [prodockit.citations](citations.md)/[prodockit.glossary](glossary.md).
 Marking and generating the index are both covered on this page - PDF-only
 (there's no equivalent on the live website, where readers use
-browser/Ctrl-F search instead), but the actual index page is built by
+[Zensical's own site search](https://zensical.org/docs/setup/search/)
+instead), but the actual index page is built by
 [prodockit.pdf](../pdf.md), via the `prodockit.pdf.index` module - see
 [`prodockit.pdf.index`](../pdf.md#prodockitpdfindex) if you're scripting
 your own build pipeline rather than using `prodockit pdf`/`zensical.toml`.
