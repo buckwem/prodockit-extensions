@@ -163,6 +163,41 @@ def _front_matter_flag(text: str, key: str) -> bool:
 # makes it an indented code block instead. Confirmed directly against the
 # real renderer: a single "=" is enough, and trailing spaces are fine.
 _SETEXT_H1_UNDERLINE_RE = re.compile(r"^ {0,3}=+[ \t]*$")
+_ATX_H1_RE = re.compile(r"^#\s+\S")
+_ANY_ATX_HEADING_RE = re.compile(r"^#{1,6}\s")
+
+
+def _is_numbered_atx_h1(line: str) -> bool:
+    """True for a ``# Heading`` line that isn't tagged ``{.unnumbered}``."""
+    return bool(_ATX_H1_RE.match(line)) and ".unnumbered" not in line
+
+
+def _is_numbered_setext_h1_underline(
+    line: str, text_line: str, *, text_line_opens_a_block: bool
+) -> bool:
+    """True when `line` is a setext h1 underline genuinely heading
+    `text_line` - the line immediately above it.
+
+    Matching the real renderer's own rules, confirmed directly rather than
+    assumed: the underline heads a *single* text line, so a two-line
+    paragraph followed by ``=====`` is no heading at all
+    (`text_line_opens_a_block` carries whether the line above `text_line`
+    was blank); an underline split from its text by a blank line isn't one
+    either; four spaces of indent makes both lines an indented code block;
+    and ``attr_list`` puts a setext heading's own ``{: .unnumbered }`` on
+    the text line rather than after the underline.
+    """
+    if not _SETEXT_H1_UNDERLINE_RE.match(line):
+        return False
+    return bool(
+        text_line_opens_a_block
+        and text_line.strip()
+        and not text_line.startswith("    ")
+        # An ATX heading has already counted itself; a "=====" line under it
+        # is a paragraph to the renderer, not a second heading.
+        and not _ANY_ATX_HEADING_RE.match(text_line)
+        and ".unnumbered" not in text_line
+    )
 
 
 def _count_top_level_headings(text: str) -> int:
@@ -212,17 +247,8 @@ def _count_top_level_headings(text: str) -> int:
                 in_comment = False
             previous_line, line_before_previous_was_blank = "", True
             continue
-        if re.match(r"^#\s+\S", line) and ".unnumbered" not in line:
-            count += 1
-        elif (
-            _SETEXT_H1_UNDERLINE_RE.match(line)
-            and line_before_previous_was_blank
-            and previous_line.strip()
-            and not previous_line.startswith("    ")
-            # An ATX heading already counted itself just above; a following
-            # "=====" is a paragraph to the renderer, not a second heading.
-            and not re.match(r"^#{1,6}\s", previous_line)
-            and ".unnumbered" not in previous_line
+        if _is_numbered_atx_h1(line) or _is_numbered_setext_h1_underline(
+            line, previous_line, text_line_opens_a_block=line_before_previous_was_blank
         ):
             count += 1
         line_before_previous_was_blank = not previous_line.strip()
