@@ -205,6 +205,33 @@ but logs a warning and keeps the first registration instead of raising -
 appropriate for a best-effort default rather than a setup you configured
 deliberately.)
 
+!!! warning "The 'keeping the first' winner isn't stable across builds"
+    A heading name shared across two or more pages (e.g. every page having
+    its own "Quick start"/"Options"/"Syntax" section - common in a set of
+    parallel extension/module docs) produces a "collides with ... -
+    keeping the first" warning under Zensical's automatic sharing above -
+    but *which* page's registration actually wins isn't something you can
+    rely on: Zensical doesn't render pages in a guaranteed stable order,
+    confirmed directly by running `zensical build` repeatedly against
+    identical source and observing the reported winner change from one
+    run to the next. Anything depending on that id - a `\ref{id}`/a hand-
+    typed anchor link - can silently point at the wrong page's heading
+    depending on which build produced it.
+
+    The fix is to give every colliding heading its own explicit, unique
+    id via `attr_list`, rather than leaving it to whichever page happens
+    to register first:
+
+    ```md
+    ## Quick start {: #refs-quick-start }
+    ```
+
+    A page-prefixed slug (`<page>-<heading>`) is a simple, collision-proof
+    convention - this project's own documentation uses exactly this
+    scheme throughout (every extension page shares several heading names
+    with the others), so its own markdown source is a worked example if
+    you want to see it applied across a whole site.
+
 ### Looking up the same numbers from your own build tooling
 
 `prodockit.headings.prescan(appendix_attr="is_appendix")` returns
