@@ -2,10 +2,7 @@
 
 `prodockit.citations` lets you define a source once and cite it by key from
 anywhere in a build, instead of hand-typing a bracketed link at every
-citation site. Defining and citing are bundled into one extension, unlike
-[prodockit.headings](headings.md)/[prodockit.refs](refs.md): a definition is
-useless without somewhere to cite it, so there's no independently useful
-"just defining" half to split out.
+citation site.
 
 !!! tip "Looking for an auto-generated bibliography instead?"
     `prodockit.citations` is one of two alternatives for citing sources -
@@ -86,6 +83,11 @@ a resolved one.
 ## Reference {: #citations-reference }
 
 ### Syntax {: #citations-syntax }
+
+Defining and citing are bundled into one extension, unlike
+[prodockit.headings](headings.md)/[prodockit.refs](refs.md): a definition is
+useless without somewhere to cite it, so there's no independently useful
+"just defining" half to split out.
 
 #### Defining a source
 

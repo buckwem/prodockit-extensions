@@ -3,9 +3,7 @@
 `prodockit.glossary` lets you define a term once - an acronym expansion, a
 glossary definition, anything with a short name and a longer explanation -
 and insert it by id from anywhere in a build, instead of hand-typing a link
-around the term's own text at every use. Like
-[prodockit.citations](citations.md), defining and inserting are bundled into
-one extension: a definition is useless without somewhere to use it.
+around the term's own text at every use.
 
 ## Quick start {: #glossary-quick-start }
 
@@ -128,6 +126,9 @@ custom wording.
 ## Reference {: #glossary-reference }
 
 ### Syntax {: #glossary-syntax }
+
+Like [prodockit.citations](citations.md), defining and inserting are bundled
+into one extension: a definition is useless without somewhere to use it.
 
 #### Defining a term
 

@@ -3,9 +3,7 @@
 `prodockit.tables` gives a table column a percentage or fixed width, via a
 `width` attribute already attachable to a header cell with
 [`attr_list`](https://python-markdown.github.io/extensions/attr_list/) -
-no new syntax to learn. Builds on Python-Markdown's own `tables` extension
-(auto-enabled if not already present, the same way
-[prodockit.refs](refs.md) auto-enables [prodockit.headings](headings.md)).
+no new syntax to learn.
 
 ## Quick start {: #tables-quick-start }
 
@@ -149,6 +147,10 @@ sizing a column, not something `prodockit.tables` needs to reimplement.
 ## Reference {: #tables-reference }
 
 ### Syntax {: #tables-syntax }
+
+Builds on Python-Markdown's own `tables` extension (auto-enabled if not
+already present, the same way [prodockit.refs](refs.md) auto-enables
+[prodockit.headings](headings.md)).
 
 Attach `width` to a header cell (`th`), not a body cell - a column's width
 is a property of the whole column, so it's declared once, on the heading:
