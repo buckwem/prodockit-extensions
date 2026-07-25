@@ -1,5 +1,25 @@
 # Release Notes
 
+## 0.10.4 (2026-07-25)
+
+- Added `CONTRIBUTING.md` and a `.github/pull_request_template.md`,
+  adapted from [prodockit-template](https://github.com/buckwem/prodockit-template)'s
+  own - library-specific setup (`pip install -e ".[dev]"`,
+  `pytest`/`ruff`/`mypy`, the real-`pandoc` requirement for
+  `prodockit.bibliography`'s own tests) rather than the template's
+  assignment-writing framing. Linked from README.md's Development
+  section.
+- Docs: added an admonition to `headings.md` documenting a real gap this
+  project's own docs hit directly while enabling every prodockit
+  extension on its own site (#87) - Zensical's automatic cross-page id
+  sharing only warns (rather than raising) on a heading name shared
+  across pages, and build order isn't guaranteed stable, so the "keeping
+  the first" winner can change between builds. Documents the fix - an
+  explicit, page-prefixed id via `attr_list` - pointing to this
+  project's own docs as a worked example.
+
+No code changes.
+
 ## 0.10.3 (2026-07-25)
 
 Docs: several extension pages mixed "why it was built this way" design
