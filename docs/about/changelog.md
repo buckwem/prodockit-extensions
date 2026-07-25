@@ -1,5 +1,57 @@
 # Release Notes
 
+## 0.10.7 (2026-07-25)
+
+Two numbering fixes, both cases of the same shape: a raw-text pre-scan and
+a parsed-document count applying different rules to the same content.
+
+**Website and PDF disagreeing on appendix letters.** Appendix lettering was
+computed twice. The website gave a letter to any page whose front matter
+set `is_appendix`, unconditionally; the PDF's Lua filter counted appendix
+h1s instead. An appendix page contributing no numbered h1 - none at all, or
+one marked `unnumbered`, which the filter skips - gave Lua nothing to
+count, so every later appendix came out a letter early. Reproduced against
+`prodockit-template`: the same Bibliography page rendered as "Appendix E"
+on the website but "Appendix D" in the PDF.
+
+`prodockit.pdf.build` now assigns every appendix page's letter once, by
+position in the page list, and stamps it on that page's heading for
+`Header()` to read rather than counting for itself. A page with no numbered
+h1 still consumes its letter, so the two stay in step.
+
+**Setext headings invisible to the nav pre-scan.** `_count_top_level_headings()`
+matched ATX headings only, so a title underlined with `=` was never
+counted - though Zensical's renderer and Pandoc both produce a real h1
+either way, and both number it. Later pages' start counts came out short,
+which broke numbering twice over: the website contradicted itself, giving
+the next page the chapter number a setext heading had already taken, and it
+fell one behind the PDF. Each rule of the setext syntax was checked against
+the real renderer rather than assumed - a single `=` is enough, a `-`
+underline is an h2, a two-line paragraph followed by `=====` is no heading
+at all, and `attr_list` puts `{: .unnumbered }` on the text line.
+
+**Stale cross-page references under `zensical serve`.** `preseed()` is
+deliberately first-wins so a duplicate id resolves to the first page in nav
+order. Under `zensical build` that is all it has to do; under
+`zensical serve` the process outlives the files, and first-wins silently
+discarded fresh data - an edited definition kept its original text, and a
+deleted one stayed resolvable, until the dev server restarted.
+`preseed_attr_from_nav()` now rebuilds the provisional set from scratch on
+each scan, and `prodockit.headings` keys its cached scan on every nav
+page's mtime and size as well as the numbering settings, so an edit to a
+page a given render doesn't touch still invalidates it.
+
+Note this fixes the pre-scan, not Zensical's incremental rebuild: verified
+against a live `zensical serve`, editing page A does not cause page B to
+re-render, so B's output still only catches up when B itself is
+re-rendered. What is guaranteed now is that a page being re-rendered
+resolves against current disk state rather than a snapshot from server
+startup.
+
+Fixes [#104](https://github.com/buckwem/prodockit-extensions/issues/104),
+[#106](https://github.com/buckwem/prodockit-extensions/issues/106) and
+[#99](https://github.com/buckwem/prodockit-extensions/issues/99).
+
 ## 0.10.6 (2026-07-25)
 
 Fixed footnote text in the PDF rendering in a column roughly two thirds
