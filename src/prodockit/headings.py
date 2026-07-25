@@ -17,6 +17,7 @@ from markdown.extensions.toc import TocExtension
 from markdown.treeprocessors import Treeprocessor
 
 from prodockit._zensical import (
+    nav_signature,
     page_source,
     prescan_headings,
     preseed_heading_ids_from_nav,
@@ -54,7 +55,16 @@ _ZENSICAL_SHARED_REGISTRY = IdRegistry()
 # isn't guaranteed, so prodockit.refs may create a *default* HeadingsExtension
 # (numbering="per-document") and trigger the first scan through it before the
 # project's own configured instance runs. See _preseed_from_nav.
-_ZENSICAL_PRESEED_SETTINGS: tuple[bool, str] | None = None
+#
+# Also keyed on nav_signature() - every nav page's mtime/size - so the cached
+# scan is invalidated when a page changes on disk, not just when the settings
+# do. Under `zensical build` the files never change mid-run, so this is
+# constant and the scan still happens once; under `zensical serve`'s
+# long-lived process it's what stops a reference resolving against a stale
+# pre-scan of a page edited since (issue #99).
+_ZENSICAL_PRESEED_STATE: tuple[tuple[bool, str], tuple[tuple[str, int, int], ...] | None] | None = (
+    None
+)
 
 
 class HeadingsTreeprocessor(Treeprocessor):
@@ -262,12 +272,17 @@ class HeadingsExtension(Extension):
         matches exactly what 'toc' will assign when that page really is
         converted - including a project's own custom slugify.
         """
-        global _ZENSICAL_PRESEED_SETTINGS
+        global _ZENSICAL_PRESEED_STATE
         settings = (
             self.getConfig("numbering") == "continuous",
             self.getConfig("appendix_attr"),
         )
-        if settings == _ZENSICAL_PRESEED_SETTINGS:
+        # Keyed on the nav's on-disk state as well as the settings, so an
+        # edit to a page this render doesn't touch still invalidates the
+        # cached scan. Cheap enough to check per page (one stat() each)
+        # unlike the scan itself, which reads and parses every nav page.
+        state = (settings, nav_signature())
+        if state == _ZENSICAL_PRESEED_STATE:
             return
         # Not `.get()` (which SIM401 would suggest): Python-Markdown's own
         # Registry implements __contains__/__getitem__ but no .get().
@@ -275,7 +290,7 @@ class HeadingsExtension(Extension):
         slugify = getattr(toc, "slugify", None)
         if slugify is None:
             return
-        if _ZENSICAL_PRESEED_SETTINGS is not None:
+        if _ZENSICAL_PRESEED_STATE is not None:
             registry.clear_preseeded()
         ran = preseed_heading_ids_from_nav(
             registry,
@@ -288,7 +303,7 @@ class HeadingsExtension(Extension):
         # build (or before its config is populated) there's nothing to
         # record, and a later page may well succeed.
         if ran:
-            _ZENSICAL_PRESEED_SETTINGS = settings
+            _ZENSICAL_PRESEED_STATE = state
 
 
 def prescan(appendix_attr: str = "is_appendix") -> tuple[dict[str, int], dict[str, str]] | None:

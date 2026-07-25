@@ -35,7 +35,7 @@ def _isolated_zensical_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     singletons (which, in production, are deliberately shared for the whole
     build's lifetime)."""
     monkeypatch.setattr(prodockit_headings, "_ZENSICAL_SHARED_REGISTRY", IdRegistry())
-    monkeypatch.setattr(prodockit_headings, "_ZENSICAL_PRESEED_SETTINGS", None)
+    monkeypatch.setattr(prodockit_headings, "_ZENSICAL_PRESEED_STATE", None)
     monkeypatch.setattr(prodockit_citations, "_ZENSICAL_SHARED_REGISTRY", CitationRegistry())
     monkeypatch.setattr(prodockit_glossary, "_ZENSICAL_SHARED_REGISTRY", GlossaryRegistry())
     monkeypatch.setattr(prodockit_bibliography, "_ZENSICAL_SHARED_CACHES", {})
@@ -240,7 +240,9 @@ def test_preseeded_numbers_match_a_real_conversion(
 
     # Now the real thing, in a registry of its own.
     monkeypatch.setattr(prodockit_headings, "_ZENSICAL_SHARED_REGISTRY", IdRegistry())
-    monkeypatch.setattr(prodockit_headings, "_ZENSICAL_PRESEED_SETTINGS", (False, "is_appendix"))
+    monkeypatch.setattr(
+        prodockit_headings, "_ZENSICAL_PRESEED_STATE", ((False, "is_appendix"), None)
+    )
     _convert_as_zensical_page_with_attr_list(page, "page.md")
     real = prodockit_headings._ZENSICAL_SHARED_REGISTRY._headings
 
@@ -742,3 +744,49 @@ def test_bibliography_cross_links_to_the_page_whose_marker_defines_the_key(
     )
     assert "Knuth" in bibliography_html
     assert "Skoulikari" not in bibliography_html
+
+
+def test_heading_prescan_picks_up_a_page_edited_since_the_last_render(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test (#99): under `zensical serve` the process outlives the
+    files. prodockit.headings caches its nav-wide pre-scan because the scan
+    reads every page (repeating it per page would be O(pages^2)), but that
+    cache used to be keyed on the numbering settings alone - so an edit to a
+    page *this* render doesn't touch was invisible, and a \\ref{} to it kept
+    resolving against the pre-scan taken when the server started.
+
+    Keying the cache on nav_signature() as well - one stat() per page, far
+    cheaper than the scan - invalidates it when a page really does change.
+    Simulated here by rendering one page, editing a *different* page on
+    disk, then rendering the first page again in the same process.
+    """
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    referencing = docs_dir / "page.md"
+    referencing.write_text("# Page\n", encoding="utf-8")
+    defining = docs_dir / "other.md"
+    defining.write_text("# Other\n\n## Target {: #target }\n", encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["page.md", "other.md"]),
+    )
+
+    _convert_as_zensical_page_with_attr_list(referencing.read_text(), "page.md")
+    before = prodockit_headings._ZENSICAL_SHARED_REGISTRY.get("target")
+    assert before is not None and before.number == "1.1"
+
+    # The author adds a heading ahead of the target, on a page this render
+    # never touches - "1.1" is now "1.2".
+    defining.write_text(
+        "# Other\n\n## Inserted {: #inserted }\n\n## Target {: #target }\n", encoding="utf-8"
+    )
+    _convert_as_zensical_page_with_attr_list(referencing.read_text(), "page.md")
+
+    after = prodockit_headings._ZENSICAL_SHARED_REGISTRY.get("target")
+    assert after is not None
+    assert after.number == "1.2", (
+        f"Heading pre-scan went stale: target still numbered {after.number}, "
+        "so the cached scan survived an edit to another page (#99)"
+    )

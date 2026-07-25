@@ -12,7 +12,14 @@ from pathlib import Path
 import pytest
 
 import prodockit._zensical as prodockit_zensical
-from prodockit._zensical import _count_top_level_headings, _front_matter_flag, prescan_headings
+from prodockit._zensical import (
+    _count_top_level_headings,
+    _front_matter_flag,
+    nav_signature,
+    prescan_headings,
+    preseed_attr_from_nav,
+)
+from prodockit.util import CitationRegistry
 
 
 def test_front_matter_flag_true_when_set() -> None:
@@ -191,3 +198,137 @@ def test_prescan_headings_respects_a_custom_appendix_attr_name(
     assert result is not None
     _, appendix_letters = result
     assert appendix_letters == {"appendix.md": "A"}
+
+
+# ---------------------------------------------------------------------------
+# Stale pre-scan under a long-lived process (#99)
+#
+# preseed() is deliberately first-wins so a genuine duplicate id resolves to
+# the first page in nav order. Under `zensical build` (short-lived, files
+# immutable) that's all it has to do. Under `zensical serve` the process
+# outlives the files: the scan re-runs on every page render and re-reads
+# from disk, but first-wins silently discarded the fresh values, so an
+# edited definition kept its original text - and a deleted one stayed
+# resolvable - until the dev server restarted.
+# ---------------------------------------------------------------------------
+
+def _nav(monkeypatch: pytest.MonkeyPatch, docs_dir: Path, pages: list[str]) -> None:
+    monkeypatch.setattr(prodockit_zensical, "nav_pages", lambda: (str(docs_dir), pages))
+
+
+def test_preseed_attr_from_nav_picks_up_an_edited_definition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    page = docs_dir / "refs.md"
+    page.write_text('Ref\n{: #r1 data-cite-text="ORIGINAL (2020)" }\n', encoding="utf-8")
+    _nav(monkeypatch, docs_dir, ["refs.md"])
+    registry = CitationRegistry()
+
+    preseed_attr_from_nav(registry, "data-cite-text")
+    assert registry.get("r1").text == "ORIGINAL (2020)"
+
+    # The author edits the defining page while the dev server keeps running.
+    page.write_text('Ref\n{: #r1 data-cite-text="EDITED (2026)" }\n', encoding="utf-8")
+    preseed_attr_from_nav(registry, "data-cite-text")
+    assert registry.get("r1").text == "EDITED (2026)"
+
+
+def test_preseed_attr_from_nav_drops_a_deleted_definition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A definition removed from the page has to stop resolving, not linger
+    as a provisional entry nothing will ever overwrite."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    page = docs_dir / "refs.md"
+    page.write_text('Ref\n{: #r1 data-cite-text="Gone soon" }\n', encoding="utf-8")
+    _nav(monkeypatch, docs_dir, ["refs.md"])
+    registry = CitationRegistry()
+
+    preseed_attr_from_nav(registry, "data-cite-text")
+    assert "r1" in registry
+
+    page.write_text("Ref with no definition any more.\n", encoding="utf-8")
+    preseed_attr_from_nav(registry, "data-cite-text")
+    assert "r1" not in registry
+
+
+def test_preseed_attr_from_nav_keeps_first_in_nav_order_across_pages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The constraint the rebuild must not break: when two different pages
+    define the same id, the first in nav order still wins - re-scanning in
+    nav order restores that, it isn't relying on entries left behind."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "a.md").write_text('A\n{: #dup data-cite-text="FROM A" }\n', encoding="utf-8")
+    (docs_dir / "b.md").write_text('B\n{: #dup data-cite-text="FROM B" }\n', encoding="utf-8")
+    _nav(monkeypatch, docs_dir, ["a.md", "b.md"])
+    registry = CitationRegistry()
+
+    for _ in range(3):  # repeated renders must not flip the winner
+        preseed_attr_from_nav(registry, "data-cite-text")
+        record = registry.get("dup")
+        assert (record.text, record.source) == ("FROM A", "a.md")
+
+
+def test_preseed_attr_from_nav_leaves_real_registrations_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Clearing provisional entries must not touch what a really-rendered
+    page registered - that always supersedes a pre-scan."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "refs.md").write_text(
+        'Ref\n{: #r1 data-cite-text="Preseeded" }\n', encoding="utf-8"
+    )
+    _nav(monkeypatch, docs_dir, ["refs.md"])
+    registry = CitationRegistry()
+    registry.register("refs.md", "r1", "Really registered")
+
+    preseed_attr_from_nav(registry, "data-cite-text")
+
+    assert registry.get("r1").text == "Really registered"
+
+
+def test_nav_signature_changes_when_a_page_is_edited(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What lets prodockit.headings cache its much heavier scan without going
+    stale: one stat() per page, rather than re-reading them all to find out
+    whether anything changed."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    page = docs_dir / "page.md"
+    page.write_text("# One\n", encoding="utf-8")
+    _nav(monkeypatch, docs_dir, ["page.md"])
+
+    before = nav_signature()
+    assert before == nav_signature()  # stable while nothing changes
+
+    page.write_text("# One\n\n# Two\n", encoding="utf-8")
+    assert nav_signature() != before
+
+
+def test_nav_signature_is_none_outside_zensical(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(prodockit_zensical, "nav_pages", lambda: None)
+    assert nav_signature() is None
+
+
+def test_nav_signature_still_moves_when_a_page_disappears(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable page contributes a zeroed entry rather than being
+    skipped, so its removal is still visible in the signature."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    page = docs_dir / "page.md"
+    page.write_text("# One\n", encoding="utf-8")
+    _nav(monkeypatch, docs_dir, ["page.md"])
+
+    before = nav_signature()
+    page.unlink()
+    assert nav_signature() != before
+    assert nav_signature() == (("page.md", 0, 0),)
