@@ -118,12 +118,44 @@ def _flatten_nav(items: object) -> list[str]:
 
 class _Preseedable(Protocol):
     def preseed(self, source: str, id: str, text: str) -> None: ...
+    def clear_preseeded(self) -> None: ...
 
 
 class _HeadingPreseedable(Protocol):
     def preseed(
         self, source: str, id: str, level: int, text: str, number: str | None = None
     ) -> None: ...
+    def clear_preseeded(self) -> None: ...
+
+
+def nav_signature() -> tuple[tuple[str, int, int], ...] | None:
+    """A cheap fingerprint of every nav page's on-disk state - each page's
+    path, modification time, and size - or None outside a Zensical build.
+
+    Lets a caller that caches a pre-scan tell "nothing has changed since I
+    last scanned" from "a page was edited underneath me", without re-reading
+    and re-parsing every file to find out. Under `zensical build` (one
+    short-lived process, files immutable for its duration) this never
+    changes, so a cached scan stays cached; under `zensical serve`'s
+    long-lived process it changes the moment an author saves, which is
+    exactly when a cached scan has to be thrown away (see issue #99).
+
+    A page that can't be stat'd contributes a zeroed entry rather than being
+    dropped, so a file appearing or disappearing still moves the signature.
+    """
+    located = nav_pages()
+    if located is None:
+        return None
+    docs_dir, pages = located
+    signature = []
+    for rel_path in pages:
+        try:
+            stat = (Path(docs_dir) / rel_path).stat()
+        except OSError:
+            signature.append((rel_path, 0, 0))
+        else:
+            signature.append((rel_path, stat.st_mtime_ns, stat.st_size))
+    return tuple(signature)
 
 
 _ATTR_RE = re.compile(r"\{:\s*([^}]+?)\s*\}")
@@ -472,6 +504,16 @@ def preseed_attr_from_nav(registry: _Preseedable, attr_name: str) -> None:
     if located is None:
         return
     docs_dir, pages = located
+    # Rebuild the provisional set from scratch rather than adding to what a
+    # previous call left behind. preseed() is deliberately first-wins (so
+    # that a genuine duplicate id resolves to the first page in nav order),
+    # which without this would also mean an edited definition kept its
+    # original value for the life of the process, and a deleted one stayed
+    # resolvable forever - the live-reload staleness in issue #99. Scanning
+    # in nav order immediately afterwards restores first-wins across pages
+    # exactly as before. Real registrations live separately and are
+    # untouched.
+    registry.clear_preseeded()
     value_re = re.compile(attr_name + r'="([^"]*)"')
     for rel_path in pages:
         try:

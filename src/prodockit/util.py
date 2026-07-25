@@ -211,6 +211,19 @@ class CitationRegistry:
         if id not in self._preseeded:
             self._preseeded[id] = CitationRecord(source=source, id=id, text=text)
 
+    def clear_preseeded(self) -> None:
+        """Drops every provisional `preseed()` entry, leaving real
+        registrations untouched.
+
+        Lets a re-scan rebuild the provisional set from scratch rather than
+        being blocked by its own previous results - `preseed()` is
+        deliberately first-wins, so without this a definition edited (or
+        deleted) on disk would keep resolving to its original value for the
+        life of the process, which is exactly what goes wrong under
+        `zensical serve`'s live-reload (see issue #99).
+        """
+        self._preseeded.clear()
+
     def get(self, id: str) -> CitationRecord | None:
         return self._citations.get(id) or self._preseeded.get(id)
 
@@ -273,6 +286,11 @@ class GlossaryRegistry:
         CitationRegistry.preseed for why this matters."""
         if id not in self._preseeded:
             self._preseeded[id] = GlossaryRecord(source=source, id=id, text=text)
+
+    def clear_preseeded(self) -> None:
+        """Drops every provisional `preseed()` entry, leaving real
+        registrations untouched - see CitationRegistry.clear_preseeded."""
+        self._preseeded.clear()
 
     def get(self, id: str) -> GlossaryRecord | None:
         return self._terms.get(id) or self._preseeded.get(id)
