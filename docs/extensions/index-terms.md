@@ -248,13 +248,14 @@ either renders or the whole page fails to parse), so no extra styling
 hook is needed by default. A project wanting to visually highlight
 indexed terms on the live website can target `.index` directly.
 
-This is a Markdown extension at all - rather than the `attr_list`
-convention every other prodockit extension's own marker syntax uses -
-because plain `attr_list` can't wrap arbitrary inline text in a span on
-its own: confirmed directly, `` [Term]{.index} `` is left as literal
-text (attr_list only reaches inline content already wrapped in something
-it recognises - emphasis, a link, code - each of which would force an
-unwanted visual side effect just to mark a term). Raw inline HTML
-(`<span class="index">Term</span>`) works today with no extension at
-all, but is exactly the "disrupts normal writing flow" outcome a good
-marker syntax should avoid.
+!!! note "Why a Markdown extension, not `attr_list`?"
+    Every other prodockit extension's own marker syntax builds on
+    `attr_list` - `prodockit.index` needs a real Markdown extension
+    instead because plain `attr_list` can't wrap arbitrary inline text in
+    a span on its own: confirmed directly, `` [Term]{.index} `` is left
+    as literal text (`attr_list` only reaches inline content already
+    wrapped in something it recognises - emphasis, a link, code - each of
+    which would force an unwanted visual side effect just to mark a
+    term). Raw inline HTML (`<span class="index">Term</span>`) works
+    today with no extension at all, but is exactly the "disrupts normal
+    writing flow" outcome a good marker syntax should avoid.
