@@ -1,5 +1,45 @@
 # Release Notes
 
+## 0.10.6 (2026-07-25)
+
+Fixed footnote text in the PDF rendering in a column roughly two thirds
+of the page's content width, wrapping a footnote onto five short lines
+whose first held just two words.
+
+This had been documented in `prodockit.pdf.css`'s own `.pdf-footnote`
+rule as an unfixable WeasyPrint `float: footnote` limitation being
+tracked upstream. That was a misdiagnosis. The real cause is Pandoc's
+HTML writer hard-wrapping its output at ~72 columns, inserting newlines
+*inside* the `<span class="pdf-footnote">` carrying a footnote's text.
+Those newlines are insignificant whitespace in HTML, but WeasyPrint's
+`float: footnote` width computation treats them as hard break
+opportunities when sizing the footnote area, so the rendered text
+collapses toward the longest *source* line rather than the page's
+content width.
+
+Confirmed by holding the HTML and CSS constant and varying only the
+Pandoc step: the same document rendered 304.1pt wide through Pandoc but
+462.9pt straight through WeasyPrint. `prodockit.pdf.build` now passes
+`--wrap=none`, giving 474.2pt of a ~482pt content width. WeasyPrint 69.0
+is already the latest release, so waiting upstream had no path forward.
+
+This does not stop footnotes wrapping in the PDF - `--wrap=none` governs
+only newlines in the generated HTML source, never the engine's own line
+breaking. A long footnote still occupies as many lines as it needs, each
+now using the full measure: a seven-sentence footnote renders on six
+full-width lines rather than ten narrow ones.
+
+The misleading `KNOWN LIMITATION` comment in `prodockit.pdf.css` has been
+replaced with the real cause so it isn't re-derived, and two regression
+tests added - one asserting the flag at the command level (so it can't be
+dropped where Pandoc isn't installed), one measuring real rendered text
+width via a genuine Pandoc/WeasyPrint build, since the CSS is identical
+either way and only a real render can tell the two apart.
+
+Fixes [#101](https://github.com/buckwem/prodockit-extensions/issues/101),
+reported downstream as
+[prodockit-template#95](https://github.com/buckwem/prodockit-template/issues/95).
+
 ## 0.10.5 (2026-07-25)
 
 Fixed a real bug found by reproducing it directly: a cross-page
