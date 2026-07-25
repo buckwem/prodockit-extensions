@@ -606,6 +606,58 @@ def test_copyright_text_with_a_line_break_and_a_real_link_renders_correctly(
     doc.close()
 
 
+@real_pandoc_and_weasyprint_required
+@pytest.mark.parametrize(
+    ("filler_html", "case"),
+    [
+        ("<p>An appendix page with no heading at all.</p>", "no h1"),
+        (
+            '<h1 class="unnumbered">Unnumbered</h1><p>Body.</p>',
+            "unnumbered h1",
+        ),
+    ],
+)
+def test_an_appendix_page_without_a_numbered_h1_still_consumes_its_letter(
+    tmp_path: Path, filler_html: str, case: str
+) -> None:
+    """Regression test (#104): appendix letters are assigned per *page* that
+    sets is_appendix - the same rule the website's own lettering uses
+    (prodockit._zensical.prescan_headings) - so a page contributing no
+    numbered h1 still consumes its letter and later appendixes stay in step.
+
+    The Lua filter used to count appendix headings itself, so such a page
+    gave it nothing to count and every later appendix came out one letter
+    early: reproduced against prodockit-template, the same Bibliography page
+    rendered as "Appendix E" on the website but "Appendix D" in the PDF.
+    Both triggers are covered - a page with no h1, and one whose h1 is
+    explicitly unnumbered (which the filter skips outright)."""
+    pymupdf = pytest.importorskip("pymupdf")
+
+    pages = [
+        Page(docs_rel_path="chapter1.md", html="<h1>Chapter One</h1><p>Body</p>"),
+        Page(docs_rel_path="acronyms.md", html="<h1>Acronyms</h1>", is_appendix=True),
+        Page(docs_rel_path="filler.md", html=filler_html, is_appendix=True),
+        Page(docs_rel_path="references.md", html="<h1>References</h1>", is_appendix=True),
+    ]
+    output_path = tmp_path / "out.pdf"
+
+    build_pdf(pages, str(output_path), site_name="Test Site")
+
+    doc = pymupdf.open(str(output_path))
+    try:
+        text = "\n".join(page.get_text() for page in doc)
+    finally:
+        doc.close()
+
+    assert "Appendix A. Acronyms" in text
+    # The filler page took B, whether or not it had a heading to show it on.
+    assert "Appendix C. References" in text, (
+        f"With an appendix page having {case}, References should still be "
+        "lettered C - counting appendix headings rather than appendix pages "
+        "brings it out as B and desynchronises the PDF from the website (#104)"
+    )
+
+
 def test_pandoc_is_invoked_with_wrap_none(tmp_path: Path, fake_pandoc_on_path) -> None:
     """Regression test (#101): pandoc's HTML writer hard-wraps its output at
     ~72 columns by default, inserting newlines inside elements. They're

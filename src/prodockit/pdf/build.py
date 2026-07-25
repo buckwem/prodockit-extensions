@@ -248,6 +248,19 @@ def build_pdf(
     try:
         page_anchor_map = build_page_anchor_map([page.docs_rel_path for page in pages])
 
+        # Every appendix page's letter, assigned here once by position in
+        # `pages` - the same page-based rule the website's own lettering uses
+        # (prodockit._zensical.prescan_headings: a page marked is_appendix
+        # takes the next letter, whatever headings it happens to contain).
+        # Stamped onto each page's own heading by fix_up_page_html() for the
+        # Lua filter's Header() to read back, rather than left to Lua to
+        # count for itself - an appendix page contributing no numbered h1
+        # gave Lua nothing to count, silently shifting every later appendix
+        # one letter out of step with the website (issue #104).
+        appendix_letters = {}
+        for index, appendix_page in enumerate(page for page in pages if page.is_appendix):
+            appendix_letters[appendix_page.docs_rel_path] = chr(ord("A") + index)
+
         fixed_html_parts = []
         for page in pages:
             fixed_html_parts.append(
@@ -258,6 +271,7 @@ def build_pdf(
                     page_anchor_map=page_anchor_map,
                     is_index=page.is_index,
                     is_appendix=page.is_appendix,
+                    appendix_letter=appendix_letters.get(page.docs_rel_path, ""),
                     recto_title=page.recto_title,
                     repo_url=repo_url,
                     admonition_icon_config=admonition_icon_config,

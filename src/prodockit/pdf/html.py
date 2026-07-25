@@ -133,6 +133,7 @@ def fix_up_page_html(
     page_anchor_map: dict[str, str],
     is_index: bool = False,
     is_appendix: bool = False,
+    appendix_letter: str = "",
     recto_title: str | None = None,
     repo_url: str = "",
     admonition_icon_config: dict[str, Any] | None = None,
@@ -155,7 +156,13 @@ def fix_up_page_html(
     content is wrapped in a ``.cover-page`` div. `is_appendix` gives this
     page's first heading an ``appendix`` class, for a Lua filter's own
     ``Header()`` handler (see :mod:`prodockit.pdf.lua`) to letter instead of
-    number it. `recto_title` (a page's own front matter, e.g. `recto_title:
+    number it. `appendix_letter` is that page's already-computed letter
+    (``"A"``, ``"B"``, ...), stamped on the same heading as a
+    ``data-appendix-letter`` attribute for ``Header()`` to use directly
+    rather than counting appendix headings itself - see :func:`build_pdf`,
+    which computes them, and issue #104 for why counting in Lua drifted from
+    the website. Optional: omitted, ``Header()`` falls back to its own
+    count. `recto_title` (a page's own front matter, e.g. `recto_title:
     "Short Title"`) overrides the running header's auto-detected chapter
     title text from the *next* page onward - the H1 itself is untouched,
     only the header - by inserting a hidden element carrying the override
@@ -524,6 +531,10 @@ def fix_up_page_html(
             classes = list(first_heading.get("class", []))
             classes.append("appendix")
             first_heading["class"] = classes
+            # Pandoc's HTML reader strips the "data-" prefix, so Header()
+            # reads this back as block.attributes['appendix-letter'].
+            if appendix_letter:
+                first_heading["data-appendix-letter"] = appendix_letter
 
     # recto_title (see docstring above): inserted directly *after* the real
     # heading, not before, so its own string-set (see prodockit.pdf.css) is
