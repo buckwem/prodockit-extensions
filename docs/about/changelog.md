@@ -1,5 +1,13 @@
 # Release Notes
 
+## 0.10.2 (2026-07-25)
+
+Docs: `extensions/index-terms.md` described the live website's search as
+generic "browser/Ctrl-F search" - updated to point at
+[Zensical's own built-in site search](https://zensical.org/docs/setup/search/)
+instead, a more accurate and discoverable description of how a reader
+actually finds a term on the live website. No code changes.
+
 ## 0.10.1 (2026-07-24)
 
 Docs: `prodockit.index`'s marking syntax and `prodockit.pdf`'s back-of-book
