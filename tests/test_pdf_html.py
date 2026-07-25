@@ -429,6 +429,35 @@ def test_appendix_page_flags_its_first_heading() -> None:
     assert "appendix" in soup.find("h1")["class"]
 
 
+def test_appendix_letter_is_stamped_on_the_heading_for_lua_to_read() -> None:
+    """Regression test (#104): the Lua filter used to count appendix
+    headings itself, which silently drifted from the website whenever an
+    appendix page contributed no numbered h1. build_pdf() now computes each
+    page's letter and passes it here to stamp on the heading instead."""
+    html = _fix(
+        "<h1>References</h1>",
+        current_docs_rel_path="references.md",
+        page_anchor_map={"references.md": "page-references"},
+        is_appendix=True,
+        appendix_letter="C",
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    assert soup.find("h1")["data-appendix-letter"] == "C"
+
+
+def test_appendix_letter_is_omitted_when_not_supplied() -> None:
+    """Optional: without a letter the attribute is left off entirely, and
+    the Lua filter falls back to counting appendix headings itself."""
+    html = _fix(
+        "<h1>References</h1>",
+        current_docs_rel_path="references.md",
+        page_anchor_map={"references.md": "page-references"},
+        is_appendix=True,
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    assert soup.find("h1").get("data-appendix-letter") is None
+
+
 # ---------------------------------------------------------------------------
 # recto_title
 # ---------------------------------------------------------------------------
