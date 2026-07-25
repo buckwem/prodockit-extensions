@@ -39,6 +39,7 @@ class DuplicateIdError(ValueError):
 class IdRegistry:
     def __init__(self) -> None:
         self._headings: dict[str, HeadingRecord] = {}
+        self._preseeded: dict[str, HeadingRecord] = {}
 
     def register(
         self,
@@ -80,12 +81,44 @@ class IdRegistry:
         self._headings[id] = HeadingRecord(
             source=source, id=id, level=level, text=text, number=number
         )
+        # A real registration always supersedes a provisional preseed()
+        # for the same id - no collision check needed, since preseed data
+        # was only ever a stand-in for this.
+        self._preseeded.pop(id, None)
+
+    def preseed(
+        self,
+        source: str,
+        id: str,
+        level: int,
+        text: str,
+        number: str | None = None,
+    ) -> None:
+        """Provisionally records a heading's id/number/defining page ahead
+        of that page actually being converted - used by prodockit.headings'
+        Zensical pre-scan so a `\\ref{id}` referencing a heading on a page
+        not yet processed in this build pass (or a page whose real
+        registration this rendering context never sees at all - Zensical
+        doesn't guarantee every page renders in one shared Python context,
+        see prodockit-extensions#54) still resolves to the right number and
+        cross-page link.
+
+        Doesn't participate in collision checking at all: it's advisory
+        data, always superseded automatically once the real page registers
+        this id via `register()`. A repeat `preseed()` call for an id
+        that's already been preseeded is a no-op - the first scan wins,
+        consistent with how a real duplicate is handled.
+        """
+        if id not in self._preseeded:
+            self._preseeded[id] = HeadingRecord(
+                source=source, id=id, level=level, text=text, number=number
+            )
 
     def get(self, id: str) -> HeadingRecord | None:
-        return self._headings.get(id)
+        return self._headings.get(id) or self._preseeded.get(id)
 
     def __contains__(self, id: str) -> bool:
-        return id in self._headings
+        return id in self._headings or id in self._preseeded
 
     def clear_source(self, source: str) -> None:
         """Drops every entry previously registered from source.
@@ -96,6 +129,21 @@ class IdRegistry:
         """
         for stale_id in [k for k, v in self._headings.items() if v.source == source]:
             del self._headings[stale_id]
+
+    def clear_preseeded(self) -> None:
+        """Drops every provisional `preseed()` entry, leaving real
+        registrations untouched.
+
+        Needed because the numbers a pre-scan computes depend on the
+        numbering configuration it was given, and prodockit.refs may trigger
+        a first pre-scan through a *default* HeadingsExtension it creates
+        itself (extension order isn't guaranteed - see
+        prodockit.refs.RefsExtension.extendMarkdown) before the project's
+        own configured instance gets to run. The configured instance then
+        needs to replace those provisional numbers, not be blocked by
+        them, since `preseed()` itself is deliberately first-wins.
+        """
+        self._preseeded.clear()
 
 
 @dataclass(frozen=True)
