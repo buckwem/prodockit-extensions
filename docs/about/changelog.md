@@ -1,5 +1,29 @@
 # Release Notes
 
+## 0.10.3 (2026-07-25)
+
+Docs: several extension pages mixed "why it was built this way" design
+rationale into their opening paragraph, ahead of the practical "what it
+does"/"how to use it" content most readers want first - moved that
+reasoning further down each page instead:
+
+- `bibliography.md`: trimmed the intro to the core value proposition,
+  moved the Pandoc-delegation rationale and architecture diagram out of
+  Requirements (now just what to install) into a new "How it works"
+  section after Reference, and folded the "can be enabled alongside
+  prodockit.citations" note into Comparing the two approaches.
+- `citations.md`/`glossary.md`: moved the "why bundled into one
+  extension, unlike headings/refs" rationale from the intro into their
+  own Syntax section.
+- `tables.md`: moved the "auto-enables Python-Markdown's own tables
+  extension" implementation note from the intro into Syntax.
+- `index-terms.md`: moved the "why a Markdown extension, not attr_list"
+  rationale from the intro to the end of CSS hooks, wrapped in its own
+  admonition naming the subject explicitly.
+
+`headings.md`/`refs.md` were already lean and needed no changes. No
+syntax, behaviour, or code changes.
+
 ## 0.10.2 (2026-07-25)
 
 Docs: `extensions/index-terms.md` described the live website's search as
