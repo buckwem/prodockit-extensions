@@ -1,5 +1,32 @@
 # Release Notes
 
+## 0.10.8 (2026-07-26)
+
+**Breaking:** the two citation extensions swap syntaxes.
+`prodockit.bibliography` now uses `\cite{id}` - the natural spelling for
+the workflow most projects reach for first - and `prodockit.citations`
+moves to `\citeref{id}`.
+
+**If you use `prodockit.citations`, replace every `\cite{id}` in your
+content with `\citeref{id}`.** A `\cite{id}` left behind will no longer
+resolve: with `prodockit.citations` alone it falls through as literal
+text, and in a build that also enables `prodockit.bibliography` it will be
+read as a `.bib` key instead.
+
+The two extensions still own distinct syntaxes, so either can be enabled
+alongside the other without hijacking it - only which name belongs to
+which has changed. Each is now pinned by a test asserting it leaves the
+other's syntax alone; neither had one before, so nothing would have caught
+the two silently overlapping.
+
+Multi-key citations remain a `prodockit.citations` feature
+(`\citeref{id1,id2}`); `prodockit.bibliography` matches single keys only,
+for the reasons its own documentation gives.
+
+Part of [#111](https://github.com/buckwem/prodockit-extensions/issues/111);
+the matching updates to `prodockit-template` and `prodockit-userguide`
+follow separately.
+
 ## 0.10.7 (2026-07-25)
 
 Two numbering fixes, both cases of the same shape: a raw-text pre-scan and
