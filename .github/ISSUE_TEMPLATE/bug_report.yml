@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a problem with a prodockit extension, the PDF pipeline, or its documentation
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including any error messages.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this? Include a minimal `zensical.toml`/markdown snippet and the command run.
+      placeholder: |
+        1. Enable `prodockit.___` with this config: ...
+        2. Run `zensical build` / `prodockit pdf`
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, `prodockit` version, and whether this happens on the website build, the PDF build, or both.
+      placeholder: e.g. macOS 15, Python 3.12, prodockit 0.10.8, PDF build only
+    validations:
+      required: false
