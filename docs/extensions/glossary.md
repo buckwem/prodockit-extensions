@@ -34,8 +34,8 @@ renders to:
 correct clean URL for the citing page's own location, the same way a
 hand-typed `[CSS](acronyms.md#css)` link already gets rewritten.
 
-**Unlike [prodockit.citations](citations.md)'s `\cite{id}`**, which *generates*
-new bracketed citation text (`\cite{id}` → `[Skoulikari, 2023]`), `\gls{id}`
+**Unlike [prodockit.citations](citations.md)'s `\citeref{id}`**, which *generates*
+new bracketed citation text (`\citeref{id}` → `[Skoulikari, 2023]`), `\gls{id}`
 inserts the term's *own* registered text in place - closer to LaTeX's
 `glossaries` package (`\gls{key}` expands to the term's own name) than to a
 citation. One shared registry covers both acronym entries and glossary
@@ -150,7 +150,7 @@ visible), while `id` stays, since references link straight to it.
 \gls{<id>}
 ```
 
-Unlike `\cite{...}`, `\gls{...}` only ever takes a single id - there's no
+Unlike `\citeref{...}`, `\gls{...}` only ever takes a single id - there's no
 multi-term/bracketed form, since inserting a term's own text doesn't
 compose the way a citation list does.
 

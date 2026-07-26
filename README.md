@@ -35,10 +35,10 @@ pip install prodockit
 |---|---|
 | [`prodockit.headings`](https://buckwem.github.io/prodockit-extensions/extensions/headings/) | Gives every heading an id and a hierarchical section number ("1", "1.1", "1.2", "2", ...). |
 | [`prodockit.refs`](https://buckwem.github.io/prodockit-extensions/extensions/refs/) | `\ref{id}` section cross-references, resolving to the target's current number - similar in spirit to LaTeX's `\ref`. |
-| [`prodockit.citations`](https://buckwem.github.io/prodockit-extensions/extensions/citations/) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
+| [`prodockit.citations`](https://buckwem.github.io/prodockit-extensions/extensions/citations/) | Define a source once, cite it by key anywhere with `\citeref{id}` - auto-generates the bracketed, linked citation text. |
 | [`prodockit.glossary`](https://buckwem.github.io/prodockit-extensions/extensions/glossary/) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
 | [`prodockit.tables`](https://buckwem.github.io/prodockit-extensions/extensions/tables/) | Percentage or fixed column widths on a table, via a `width` attribute already attachable to a header cell with `attr_list`. |
-| [`prodockit.bibliography`](https://buckwem.github.io/prodockit-extensions/extensions/bibliography/) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\citebib{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
+| [`prodockit.bibliography`](https://buckwem.github.io/prodockit-extensions/extensions/bibliography/) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\cite{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
 | [`prodockit.index`](https://buckwem.github.io/prodockit-extensions/extensions/index-terms/) | Mark a term inline with `\index{Term}` for a traditional, PDF-only back-of-book index - with hierarchical sub-entries and code-styled terms. |
 
 ```python
@@ -55,7 +55,7 @@ html = markdown.markdown(
 ```md
 # Introduction {: #intro }
 
-See \ref{intro} for background.\cite{skou2023} This uses \gls{css}.
+See \ref{intro} for background.\citeref{skou2023} This uses \gls{css}.
 
 Skoulikari, A. (2023) *Learning Git*.
 {: #skou2023 data-cite-text="Skoulikari, 2023" }
@@ -65,7 +65,7 @@ Skoulikari, A. (2023) *Learning Git*.
 ```
 
 `\ref{intro}` resolves to a link reading `1` - the heading's current
-section number; `\cite{skou2023}` resolves to `[Skoulikari, 2023]`, linked
+section number; `\citeref{skou2023}` resolves to `[Skoulikari, 2023]`, linked
 to that source; `\gls{css}` resolves to `CSS`, linked to its own
 definition. All three stay correct if content is reordered, since
 resolution happens fresh on every conversion. See the

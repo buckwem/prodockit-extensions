@@ -22,10 +22,10 @@ Enable it in `zensical.toml`:
 
 Define a source's paragraph with an id and a short display text via
 [`attr_list`](https://python-markdown.github.io/extensions/attr_list/),
-then cite it from anywhere with `\cite{id}`:
+then cite it from anywhere with `\citeref{id}`:
 
 ```md
-Git is a tool used to manage version control.\cite{skou2023}
+Git is a tool used to manage version control.\citeref{skou2023}
 
 Skoulikari, A. (2023) *Learning Git: A Hands-On and Visual Guide to the
 Basics of Git*. Sebastopol, CA: O'Reilly Media.
@@ -47,11 +47,11 @@ display text, or fix every citation site if the display text needs to
 change - it's defined once.
 
 Multiple comma-separated keys join into one bracket:
-`\cite{skou2023,chacon2014}` → `[Skoulikari, 2023; Chacon and Straub,
+`\citeref{skou2023,chacon2014}` → `[Skoulikari, 2023; Chacon and Straub,
 2014]`.
 
 **Unlike [prodockit.glossary](glossary.md)'s `\gls{id}`**, which inserts a
-term's own registered text in place, `\cite{id}` *generates* new bracketed
+term's own registered text in place, `\citeref{id}` *generates* new bracketed
 citation text around a link - closer to a bibliography citation than a
 glossary/acronym expansion.
 
@@ -61,7 +61,7 @@ A citation to a source defined *later* in the same document resolves
 correctly:
 
 ```md
-See \cite{skou2023} above.
+See \citeref{skou2023} above.
 
 Skoulikari, A. (2023) *Learning Git*.
 {: #skou2023 data-cite-text="Skoulikari, 2023" }
@@ -74,7 +74,7 @@ A key that doesn't resolve to a definition renders the `unresolved` marker
 citation still resolves normally:
 
 ```md
-\cite{skou2023,does-not-exist}
+\citeref{skou2023,does-not-exist}
 ```
 
 renders `[Skoulikari, 2023; ?]` - the unresolved entry has no link, unlike
@@ -106,19 +106,19 @@ be visible), while `id` stays, since citations link straight to it.
 #### Citing a source
 
 ```
-\cite{<id>}
-\cite{<id1>,<id2>,...}
+\citeref{<id>}
+\citeref{<id1>,<id2>,...}
 ```
 
-Like [prodockit.refs](refs.md), `\cite{...}` is recognised the same way
+Like [prodockit.refs](refs.md), `\citeref{...}` is recognised the same way
 Python-Markdown's own inline syntax is, so it's protected inside inline
 code spans and fenced code blocks:
 
 ````md
-Type `\cite{skou2023}` to cite a source.
+Type `\citeref{skou2023}` to cite a source.
 
 ```
-\cite{skou2023}
+\citeref{skou2023}
 ```
 ````
 
@@ -129,7 +129,7 @@ Neither of the two shown above is resolved; both render the literal text.
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `source` | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's own citation definitions in the registry. |
-| `unresolved` | `str` | `"?"` | Text rendered for a `\cite{id}` key that doesn't resolve to a definition. |
+| `unresolved` | `str` | `"?"` | Text rendered for a `\citeref{id}` key that doesn't resolve to a definition. |
 | `registry` | `CitationRegistry \| None` | discovered automatically, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
 
 ### Multi-page builds {: #citations-multi-page-builds }
@@ -205,7 +205,7 @@ each individual key's own link:
 
 | Element | State | Class |
 |---|---|---|
-| Outer `<span>` wrapping the whole `\cite{...}` citation | always | `prodockit-cite` |
+| Outer `<span>` wrapping the whole `\citeref{...}` citation | always | `prodockit-cite` |
 | Each key's own `<a>` | resolved | `prodockit-cite-resolved` |
 | Each key's own `<a>` | unresolved | `prodockit-cite-unresolved` |
 

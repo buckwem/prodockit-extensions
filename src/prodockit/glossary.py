@@ -12,7 +12,7 @@ Mark a term's paragraph (or any block) with an id and its display text via
 then insert it from anywhere in the build with ``\\gls{css}``, which
 resolves to the term's own text, linked to its definition: ``CSS``.
 
-Unlike :mod:`prodockit.citations`' ``\\cite{id}`` (which generates new
+Unlike :mod:`prodockit.citations`' ``\\citeref{id}`` (which generates new
 bracketed citation text), ``\\gls{id}`` inserts the term's *own* text
 in-line - closer to LaTeX's ``glossaries`` package (``\\gls{key}`` expands
 to the term's own name) than to a citation. One shared registry covers

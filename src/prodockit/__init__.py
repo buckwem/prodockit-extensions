@@ -8,14 +8,14 @@ Zensical doesn't provide out of the box, each usable independently:
 - ``prodockit.headings`` - heading ids and hierarchical section numbers.
 - ``prodockit.refs`` - ``\\ref{id}`` section cross-references.
 - ``prodockit.citations`` - define a source once, cite it by key anywhere with
-  ``\\cite{id}``.
+  ``\\citeref{id}``.
 - ``prodockit.glossary`` - define a term once, insert it by id anywhere with
   ``\\gls{id}``.
 - ``prodockit.tables`` - percentage or fixed column widths on a table, via a
   ``width`` attribute already attachable to a header cell with ``attr_list``.
 - ``prodockit.bibliography`` - an alternative to ``prodockit.citations``: define
   sources in a BibTeX/BibLaTeX ``.bib`` file instead of by hand, and format
-  ``\\citebib{id}``/the reference list in any Citation Style Language (CSL)
+  ``\\cite{id}``/the reference list in any Citation Style Language (CSL)
   style (APA, IEEE, Harvard, ...) via Pandoc's own ``--citeproc`` - requires
   `pandoc` on ``PATH`` even without a PDF build.
 - ``prodockit.index`` - mark a term inline with ``\\index{Term}`` for a

@@ -19,10 +19,10 @@ It's a kit for professional documentation, built on Zensical's own Markdown and 
 |---|---|
 | [prodockit.headings](extensions/headings.md) | Gives every heading an id and a hierarchical section number ("1", "1.1", "1.2", "2", ...). |
 | [prodockit.refs](extensions/refs.md) | `\ref{id}` section cross-references, resolving to the target's current number - similar in spirit to LaTeX's `\ref`. |
-| [prodockit.citations](extensions/citations.md) | Define a source once, cite it by key anywhere with `\cite{id}` - auto-generates the bracketed, linked citation text. |
+| [prodockit.citations](extensions/citations.md) | Define a source once, cite it by key anywhere with `\citeref{id}` - auto-generates the bracketed, linked citation text. |
 | [prodockit.glossary](extensions/glossary.md) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
 | [prodockit.tables](extensions/tables.md) | Percentage or fixed column widths on a table, via a `width` attribute already attachable to a header cell with `attr_list`. |
-| [prodockit.bibliography](extensions/bibliography.md) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\citebib{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
+| [prodockit.bibliography](extensions/bibliography.md) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\cite{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
 
 ## PDF generation {: #introduction-pdf-generation }
 
@@ -59,7 +59,7 @@ html = markdown.markdown(
     """
 # Introduction
 
-See \\ref{background} for context.\\cite{skou2023}
+See \\ref{background} for context.\\citeref{skou2023}
 
 ## Background
 
@@ -73,7 +73,7 @@ Skoulikari, A. (2023) *Learning Git*.
 ```
 
 `\ref{background}` resolves to `1.1` - the current section number of the
-heading it points to - and `\cite{skou2023}` resolves to `[Skoulikari,
+heading it points to - and `\citeref{skou2023}` resolves to `[Skoulikari,
 2023]`, linked to that source's own paragraph. Both stay correct if
 headings/sources are reordered, since resolution happens fresh on every
 conversion.

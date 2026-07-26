@@ -9,9 +9,9 @@ text via ``attr_list``:
     Skoulikari, A. (2023) *Learning Git*. Sebastopol, CA: O'Reilly Media.
     {: #skou2023 .reference data-cite-text="Skoulikari, 2023" }
 
-then cite it from anywhere in the build with ``\\cite{skou2023}``, which
+then cite it from anywhere in the build with ``\\citeref{skou2023}``, which
 resolves to a linked, bracketed citation: ``[Skoulikari, 2023]``. Multiple
-keys in one citation (``\\cite{skou2023,chacon2014}``) render as
+keys in one citation (``\\citeref{skou2023,chacon2014}``) render as
 ``[Skoulikari, 2023; Chacon and Straub, 2014]``.
 
 Unlike prodockit.headings/prodockit.refs, defining and citing are bundled into one
@@ -34,7 +34,7 @@ from markdown.treeprocessors import Treeprocessor
 from prodockit._zensical import page_source, preseed_attr_from_nav, share
 from prodockit.util import CitationRegistry, cross_page_href
 
-CITE_RE = r"\\cite\{([^}]+)\}"
+CITE_RE = r"\\citeref\{([^}]+)\}"
 
 # Shared across every page of a single Zensical build - see prodockit._zensical
 # and CitationsExtension.extendMarkdown. Never touched unless Zensical's
@@ -80,13 +80,13 @@ class CitationDefTreeprocessor(Treeprocessor):
 
 
 class CiteInlineProcessor(InlineProcessor):
-    """Matches ``\\cite{id}`` or ``\\cite{id1,id2,...}`` and emits an
+    """Matches ``\\citeref{id}`` or ``\\citeref{id1,id2,...}`` and emits an
     unresolved placeholder ``<span>`` carrying the raw, comma-separated keys
     in a ``data-prodockit-cite`` attribute.
 
     Registered at a low inline-pattern priority so it runs after 'backtick'
     (190) and 'escape' (180) - meaning inline code spans are already stashed
-    out of reach by the time this pattern runs, so ``\\cite{...}`` shown as
+    out of reach by the time this pattern runs, so ``\\citeref{...}`` shown as
     literal example syntax survives untouched, the same protection fenced
     code blocks get from being stashed even earlier, during preprocessing.
     """
@@ -143,7 +143,7 @@ class CiteResolverTreeprocessor(Treeprocessor):
 
 class CitationsExtension(Extension):
     """Python-Markdown extension providing citation-key definitions and the
-    ``\\cite{id}`` syntax."""
+    ``\\citeref{id}`` syntax."""
 
     def __init__(self, **kwargs: object) -> None:
         # See prodockit.headings.HeadingsExtension for why this is popped
@@ -163,7 +163,7 @@ class CitationsExtension(Extension):
             ],
             "unresolved": [
                 "?",
-                "Text rendered for a \\cite{id} key that doesn't resolve to "
+                "Text rendered for a \\citeref{id} key that doesn't resolve to "
                 "a definition.",
             ],
         }

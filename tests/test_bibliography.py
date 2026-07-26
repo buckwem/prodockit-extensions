@@ -56,28 +56,27 @@ def _convert(text: str, bib_file: str, **kwargs: object) -> str:
 
 
 def test_multi_key_citation_is_not_matched(bib_file: str) -> None:
-    """\\citebib{id1,id2} isn't supported (see module docstring) - falls
+    """\\cite{id1,id2} isn't supported (see module docstring) - falls
     through as literal text rather than being silently mishandled."""
-    html = _convert("See \\citebib{chacon2014,skou2023}.", bib_file)
-    assert "\\citebib{chacon2014,skou2023}" in html
+    html = _convert("See \\cite{chacon2014,skou2023}.", bib_file)
+    assert "\\cite{chacon2014,skou2023}" in html
 
 
-def test_the_old_bare_cite_syntax_no_longer_resolves(bib_file: str) -> None:
-    """Regression test: prodockit.bibliography used to also respond to
-    plain \\cite{id} (the same syntax prodockit.citations uses), which
-    made the two extensions conflict if both were enabled in the same
-    build. Renamed to \\citebib{id} specifically so they no longer
-    collide - a bare \\cite{id} now falls through as literal text here,
-    same as any other unrecognised syntax."""
-    html = _convert("See \\cite{chacon2014}.", bib_file)
-    assert "\\cite{chacon2014}" in html
+def test_citations_own_syntax_is_not_matched_here(bib_file: str) -> None:
+    """The two extensions own distinct syntaxes so they can be enabled in
+    the same build without one hijacking the other: \\cite{id} is this
+    extension's, \\citeref{id} is prodockit.citations'. A \\citeref{id}
+    therefore falls through as literal text here, same as any other
+    unrecognised syntax."""
+    html = _convert("See \\citeref{chacon2014}.", bib_file)
+    assert "\\citeref{chacon2014}" in html
     assert "prodockit-bib-cite" not in html
 
 
 @pandoc_required
 def test_citations_and_bibliography_can_be_enabled_together(bib_file: str) -> None:
-    """The whole point of \\citebib{id} being distinct from
-    prodockit.citations' own \\cite{id}: both extensions can now be
+    """The whole point of \\cite{id} being distinct from
+    prodockit.citations' own \\citeref{id}: both extensions can now be
     enabled in the same build without one hijacking the other's syntax -
     e.g. a project citing some sources via a hand-written data-cite-text
     paragraph and others via a shared .bib file, or (as here) a docs site
@@ -92,7 +91,7 @@ def test_citations_and_bibliography_can_be_enabled_together(bib_file: str) -> No
     html = md.convert(
         'Skoulikari, A. (2023) *Learning Git*.\n'
         '{: #hand2023 .reference data-cite-text="Skoulikari, 2023" }\n\n'
-        "See \\cite{hand2023} and \\citebib{chacon2014}.\n"
+        "See \\citeref{hand2023} and \\cite{chacon2014}.\n"
     )
     assert '<a class="prodockit-cite-resolved" href="#hand2023">Skoulikari, 2023</a>' in html
     assert 'class="prodockit-bib-cite"' in html
@@ -171,7 +170,7 @@ def test_pandoc_failure_raises_a_clear_error(monkeypatch: pytest.MonkeyPatch) ->
 
 @pandoc_required
 def test_resolves_a_known_citation(bib_file: str) -> None:
-    html = _convert("See \\citebib{chacon2014}.", bib_file)
+    html = _convert("See \\cite{chacon2014}.", bib_file)
     assert 'class="prodockit-bib-cite"' in html
     assert "Chacon" in html
     assert "2014" in html
@@ -179,25 +178,25 @@ def test_resolves_a_known_citation(bib_file: str) -> None:
 
 @pandoc_required
 def test_unknown_citation_renders_the_unresolved_marker(bib_file: str) -> None:
-    html = _convert("See \\citebib{doesnotexist}.", bib_file)
+    html = _convert("See \\cite{doesnotexist}.", bib_file)
     assert '<span class="prodockit-bib-cite prodockit-bib-cite-unresolved">?</span>' in html
 
 
 @pandoc_required
 def test_custom_unresolved_marker(bib_file: str) -> None:
-    html = _convert("See \\citebib{doesnotexist}.", bib_file, unresolved="[MISSING]")
+    html = _convert("See \\cite{doesnotexist}.", bib_file, unresolved="[MISSING]")
     assert ">[MISSING]</span>" in html
 
 
 @pandoc_required
 def test_same_page_citation_links_to_a_bare_fragment(bib_file: str) -> None:
-    html = _convert("See \\citebib{chacon2014}.\n\n\\bibliography\n", bib_file)
+    html = _convert("See \\cite{chacon2014}.\n\n\\bibliography\n", bib_file)
     assert 'href="#ref-chacon2014"' in html
 
 
 @pandoc_required
 def test_unresolved_citation_has_no_link(bib_file: str) -> None:
-    html = _convert("See \\citebib{doesnotexist}.\n\n\\bibliography\n", bib_file)
+    html = _convert("See \\cite{doesnotexist}.\n\n\\bibliography\n", bib_file)
     assert "href" not in html.split("</span>")[0].split("<span")[-1]
 
 
@@ -230,7 +229,7 @@ def test_bibliography_marker_file_argument_overrides_the_default(
     """prodockit-extensions#89: \\bibliography{file.bib} draws from a
     specific file instead of the extension's configured default - e.g. a
     broader background-reading list kept separate from the main
-    references.bib used for in-text \\citebib{} citations."""
+    references.bib used for in-text \\cite{} citations."""
     background = tmp_path / "background.bib"
     background.write_text(
         "@book{knuth1997,\n"
@@ -249,11 +248,11 @@ def test_bibliography_marker_file_argument_overrides_the_default(
 @pandoc_required
 def test_bibliography_marker_cited_only_includes_only_cited_entries(bib_file: str) -> None:
     """\\bibliography{file}{true} (prodockit-extensions#89) restricts the
-    generated list to entries actually \\citebib{}-cited somewhere in the
+    generated list to entries actually \\cite{}-cited somewhere in the
     build - chacon2014 is cited here, skou2023 isn't, so only chacon2014
     should appear."""
     html = _convert(
-        f"See \\citebib{{chacon2014}}.\n\n\\bibliography{{{bib_file}}}{{true}}\n", bib_file
+        f"See \\cite{{chacon2014}}.\n\n\\bibliography{{{bib_file}}}{{true}}\n", bib_file
     )
     assert "Chacon" in html
     assert "Skoulikari" not in html
@@ -263,7 +262,7 @@ def test_bibliography_marker_cited_only_includes_only_cited_entries(bib_file: st
 def test_bibliography_marker_empty_file_argument_falls_back_to_default(bib_file: str) -> None:
     """\\bibliography{}{true} - an empty first argument still means "use
     the configured default bib_file", only toggling cited_only."""
-    html = _convert("See \\citebib{chacon2014}.\n\n\\bibliography{}{true}\n", bib_file)
+    html = _convert("See \\cite{chacon2014}.\n\n\\bibliography{}{true}\n", bib_file)
     assert "Chacon" in html
     assert "Skoulikari" not in html
 
@@ -274,7 +273,7 @@ def test_two_markers_one_cited_only_one_full_same_file(bib_file: str) -> None:
     (cited_only=true) and a broader Bibliography section (cited_only=false,
     i.e. every entry) generated from the same .bib file in one build."""
     html = _convert(
-        f"See \\citebib{{chacon2014}}.\n\n"
+        f"See \\cite{{chacon2014}}.\n\n"
         f"## References\n\n\\bibliography{{{bib_file}}}{{true}}\n\n"
         f"## Bibliography\n\n\\bibliography{{{bib_file}}}{{false}}\n",
         bib_file,
@@ -292,6 +291,6 @@ def test_no_bibliography_marker_means_citations_are_unlinked(bib_file: str) -> N
     """No \\bibliography anywhere means there's nowhere to link a resolved
     citation to - it should still resolve/format correctly, just without
     an <a href>."""
-    html = _convert("See \\citebib{chacon2014}.", bib_file)
+    html = _convert("See \\cite{chacon2014}.", bib_file)
     assert "Chacon" in html
     assert "<a href" not in html

@@ -406,7 +406,7 @@ def test_cross_page_citation_resolves_under_zensical() -> None:
         "references.md",
     )
     html = _convert_as_zensical_page_with_citations(
-        "See \\cite{skou2023}.\n", "section1.md"
+        "See \\citeref{skou2023}.\n", "section1.md"
     )
     # A real cross-page link (references.md#skou2023), not a bare
     # same-page fragment - the latter would 404 on the actual website.
@@ -424,7 +424,7 @@ def test_cross_page_citation_from_nested_page_uses_relative_path() -> None:
         "references.md",
     )
     html = _convert_as_zensical_page_with_citations(
-        "See \\cite{skou2023}.\n", "starthere/customise.md"
+        "See \\citeref{skou2023}.\n", "starthere/customise.md"
     )
     assert '<a class="prodockit-cite-resolved" href="../references.md#skou2023">Skoulikari, 2023</a>' in html
 
@@ -433,7 +433,7 @@ def test_same_page_citation_still_uses_bare_fragment_under_zensical() -> None:
     html = _convert_as_zensical_page_with_citations(
         'Skoulikari, A. (2023) *Learning Git*.\n'
         '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n\n'
-        'See \\cite{skou2023}.\n',
+        'See \\citeref{skou2023}.\n',
         "references.md",
     )
     assert '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>' in html
@@ -473,7 +473,7 @@ def test_forward_citation_resolves_via_nav_preseed(
         lambda: (str(docs_dir), ["section1.md", "references.md"]),
     )
     html = _convert_as_zensical_page_with_citations(
-        "See \\cite{skou2023}.\n", "section1.md"
+        "See \\citeref{skou2023}.\n", "section1.md"
     )
     assert '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>' in html
 
@@ -487,7 +487,7 @@ def test_nav_preseed_ignores_fenced_documentation_examples(
     CitationDefTreeprocessor, isn't fence-aware via the real parser).
     Regression test for a real bug: a page with such an example earlier in
     nav order than the real references page was "winning" the preseed
-    slot, sending every \\cite{skou2023} to the wrong page."""
+    slot, sending every \\citeref{skou2023} to the wrong page."""
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
     (docs_dir / "customise.md").write_text(
@@ -509,7 +509,7 @@ def test_nav_preseed_ignores_fenced_documentation_examples(
         lambda: (str(docs_dir), ["customise.md", "section1.md", "references.md"]),
     )
     html = _convert_as_zensical_page_with_citations(
-        "See \\cite{skou2023}.\n", "section1.md"
+        "See \\citeref{skou2023}.\n", "section1.md"
     )
     assert '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>' in html
 
@@ -638,7 +638,7 @@ def test_bibliography_forward_reference_resolves_via_nav_prescan(
         lambda: (str(docs_dir), ["section1.md", "references.md"]),
     )
     html = _convert_as_zensical_page_with_bibliography(
-        "See \\citebib{skou2023}.\n", "section1.md", str(bib_file)
+        "See \\cite{skou2023}.\n", "section1.md", str(bib_file)
     )
     assert 'href="references.md#ref-skou2023"' in html
 
@@ -658,7 +658,7 @@ def test_bibliography_cross_page_citation_from_nested_page_uses_relative_path(
         lambda: (str(docs_dir), ["starthere/customise.md", "references.md"]),
     )
     html = _convert_as_zensical_page_with_bibliography(
-        "See \\citebib{skou2023}.\n", "starthere/customise.md", str(bib_file)
+        "See \\cite{skou2023}.\n", "starthere/customise.md", str(bib_file)
     )
     assert 'href="../references.md#ref-skou2023"' in html
 
@@ -684,7 +684,7 @@ def test_bibliography_prescan_ignores_fenced_documentation_examples(
         lambda: (str(docs_dir), ["extending.md", "section1.md", "references.md"]),
     )
     html = _convert_as_zensical_page_with_bibliography(
-        "See \\citebib{skou2023}.\n", "section1.md", str(bib_file)
+        "See \\cite{skou2023}.\n", "section1.md", str(bib_file)
     )
     assert 'href="references.md#ref-skou2023"' in html
 
@@ -697,7 +697,7 @@ def test_bibliography_cross_links_to_the_page_whose_marker_defines_the_key(
     markers on two different pages, drawing from two different files -
     a References page (cited_only=true, the default bib_file) and a
     separate Bibliography/Further-reading page (a broader background.bib).
-    A \\citebib{id} should cross-link to whichever page's marker actually
+    A \\cite{id} should cross-link to whichever page's marker actually
     lists that entry - here, references.md, since skou2023 lives in
     refs.bib, not background.bib."""
     docs_dir = tmp_path / "docs"
@@ -715,7 +715,7 @@ def test_bibliography_cross_links_to_the_page_whose_marker_defines_the_key(
         encoding="utf-8",
     )
     (docs_dir / "section1.md").write_text(
-        "See \\citebib{skou2023}.\n", encoding="utf-8"
+        "See \\cite{skou2023}.\n", encoding="utf-8"
     )
     (docs_dir / "references.md").write_text(
         "# References\n\n\\bibliography{}{true}\n", encoding="utf-8"
@@ -729,7 +729,7 @@ def test_bibliography_cross_links_to_the_page_whose_marker_defines_the_key(
         lambda: (str(docs_dir), ["section1.md", "references.md", "bibliography.md"]),
     )
     html = _convert_as_zensical_page_with_bibliography(
-        "See \\citebib{skou2023}.\n", "section1.md", str(bib_file)
+        "See \\cite{skou2023}.\n", "section1.md", str(bib_file)
     )
     assert 'href="references.md#ref-skou2023"' in html
 

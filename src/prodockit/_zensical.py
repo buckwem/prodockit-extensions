@@ -573,7 +573,7 @@ def prescan_bibliography(
     ``first_page_for_file`` maps each distinct ``.bib`` file path
     referenced by any marker anywhere in nav to the first nav-order page
     with a marker for that specific file - used to cross-link a
-    ``\\citebib{id}`` citation to whichever page's marker actually lists
+    ``\\cite{id}`` citation to whichever page's marker actually lists
     that entry, rather than assuming a single global bibliography page.
     In the common single-file case this map has exactly one entry, so
     cross-linking stays exactly as it was before per-marker file
