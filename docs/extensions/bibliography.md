@@ -322,19 +322,26 @@ list, correctly formatted, with no hand-typing at all.
 
 ### What this project's own template and user guide currently do
 
-Neither has adopted `prodockit.bibliography` yet - both
-[prodockit-template](https://github.com/buckwem/prodockit-template) and
-[prodockit-userguide](https://github.com/buckwem/prodockit-userguide) use
-`prodockit.citations`' hand-authored approach exclusively: a
-`references.md` page listing each source as its own hand-typed paragraph,
-tagged `{: #id .reference data-cite-text="..." }`. This is a reasonable,
-deliberate choice for both - each is a short, relatively static reference
-list (around ten entries), and neither wants a `pandoc` dependency added
-to its website build purely for citations (`prodockit-userguide` in
-particular has no PDF build at all today, so `pandoc` would otherwise be
-an entirely new requirement). A project outgrowing that - a longer,
-frequently-updated bibliography, or needing to match a specific CSL style
-- is exactly the case `prodockit.bibliography` is built for instead.
+[prodockit-template](https://github.com/buckwem/prodockit-template) has
+adopted `prodockit.bibliography`, and is a worked example of
+[Multiple sections](#bibliography-multiple-sections) in a real project: a
+`references.md` page (`\bibliography{}{true}`) listing only the sources
+actually `\cite{}`-cited in the document, from a `references.bib` file,
+and a separate `bibliography.md` page (`\bibliography{bibliography.bib}`)
+listing everything in a distinct `bibliography.bib` - further reading the
+author wants to list even though it's never individually cited inline.
+Both pages share one `csl_style` (Cite Them Right Harvard), configured
+once on the extension.
+
+[prodockit-userguide](https://github.com/buckwem/prodockit-userguide)
+still uses `prodockit.citations`' hand-authored approach for its own
+reference list - a short, relatively static one (around ten entries) -
+and enables `prodockit.bibliography` alongside it only to demonstrate the
+two coexisting without conflict, the same way this project's own docs do,
+not as its real reference mechanism. A project outgrowing a short,
+hand-typed list - a longer, frequently-updated bibliography, or needing
+to match a specific CSL style - is exactly the case `prodockit.bibliography`
+is built for, as prodockit-template's own adoption shows.
 
 ## Status {: #bibliography-status }
 
