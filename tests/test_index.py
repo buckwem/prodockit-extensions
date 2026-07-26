@@ -33,7 +33,7 @@ def test_term_can_contain_spaces() -> None:
 
 
 def test_term_text_still_gets_normal_inline_markdown_processing() -> None:
-    """Confirmed directly: unlike \\ref{id}/\\cite{id}/\\gls{id} (each
+    """Confirmed directly: unlike \\ref{id}/\\citeref{id}/\\gls{id} (each
     resolving a short id, not display text), the span this emits isn't
     exempted from Python-Markdown's own later inline-pattern passes - a
     term behaves exactly like the surrounding prose would. Harmless for

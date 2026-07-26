@@ -15,8 +15,8 @@ structured bibliographic data in a ``.bib`` file and generates the
 formatted entry - inline citation and reference-list entry alike - for
 you.
 
-Uses its own ``\citebib{id}`` syntax, deliberately distinct from
-prodockit.citations' ``\cite{id}`` - both extensions can be enabled in the
+Uses its own ``\cite{id}`` syntax, deliberately distinct from
+prodockit.citations' ``\citeref{id}`` - both extensions can be enabled in the
 same build without conflict (e.g. this project's own docs, demonstrating
 both side by side), even though a typical single project only needs one
 workflow or the other.
@@ -33,12 +33,12 @@ dependency for this extension specifically - including for a project that
 never builds a PDF at all, unlike every other prodockit extension, which
 needs nothing beyond Python-Markdown itself.
 
-Only single-key ``\citebib{id}`` is supported (not
-prodockit.citations' ``\cite{id1,id2,...}``) - Pandoc's own multi-source
+Only single-key ``\cite{id}`` is supported (not
+prodockit.citations' ``\citeref{id1,id2,...}``) - Pandoc's own multi-source
 citation formatting (``[@id1; @id2]``) returns one joined, opaque string
 per CSL style's own rules for how to combine them, which can't be reliably
 split back into individually-linkable pieces afterward. A multi-key
-`\citebib{...}` is therefore left completely unmatched by this extension's
+`\cite{...}` is therefore left completely unmatched by this extension's
 own syntax (falls through as literal text) rather than silently mishandled.
 """
 
@@ -60,7 +60,7 @@ from markdown.treeprocessors import Treeprocessor
 from prodockit._zensical import page_source, prescan_bibliography, share
 from prodockit.util import cross_page_href
 
-CITE_RE = r"\\citebib\{([^}\s,]+)\}"
+CITE_RE = r"\\cite\{([^}\s,]+)\}"
 BIBLIOGRAPHY_RE = r"\\bibliography(?!\w)(?:\{([^{}]*)\})?(?:\{(true|false)\})?"
 
 _NOT_FOUND_RE = re.compile(r"citeproc: citation (\S+) not found", re.IGNORECASE)
@@ -72,7 +72,7 @@ def _bib_file_keys(path: str) -> frozenset[str]:
     """Returns the set of entry keys defined in a `.bib` file, via a plain
     regex over its raw text - not a BibTeX/CSL reimplementation, just
     "does this file define key X", which is all that's needed to know
-    which specific file's marker a `\\citebib{id}` should cross-link to,
+    which specific file's marker a `\\cite{id}` should cross-link to,
     and to correctly scope a `cited_only=True` marker to just its own
     file's entries (see _BibliographyCache.bibliography_html). Actual
     citation/bibliography *formatting* is still delegated entirely to
@@ -107,7 +107,7 @@ class _BibliographyCache:
 
     A build may reference more than one distinct `.bib` file - each
     `\\bibliography{file}{...}` marker can name its own - so a single
-    `\\citebib{id}` needs to resolve against the *union* of every distinct
+    `\\cite{id}` needs to resolve against the *union* of every distinct
     file referenced anywhere (`all_bib_files`), while each individual
     marker's own generated list (`bibliography_html`) is scoped to just
     its own one file.
@@ -154,7 +154,7 @@ class _BibliographyCache:
         `\\nocite{*}` provides.
 
         `cited_only=True`: only entries in `bib_file` that were also
-        actually `\\citebib{}`-cited somewhere in this build
+        actually `\\cite{}`-cited somewhere in this build
         (`self.all_cited_keys`, from the nav pre-scan) - built as one
         `[@key]` citation per matching key and handed to Pandoc with *no*
         `nocite` front matter at all, so its own normal citeproc behaviour
@@ -228,13 +228,13 @@ def _run_pandoc_citeproc(
 
 
 class BibCiteInlineProcessor(InlineProcessor):
-    """Matches `\\citebib{id}` (a single key only - see module docstring) and
+    """Matches `\\cite{id}` (a single key only - see module docstring) and
     emits an unresolved placeholder `<span>` carrying the key in a
     `data-prodockit-bib-cite` attribute.
 
     Registered at a low inline-pattern priority so it runs after 'backtick'
     (190) and 'escape' (180) - meaning inline code spans are already
-    stashed out of reach by the time this pattern runs, so `\\citebib{...}`
+    stashed out of reach by the time this pattern runs, so `\\cite{...}`
     shown as literal example syntax survives untouched, the same
     protection fenced code blocks get from being stashed even earlier,
     during preprocessing."""
@@ -389,7 +389,7 @@ class BibliographyResolverTreeprocessor(Treeprocessor):
 
 
 class BibliographyExtension(Extension):
-    """Python-Markdown extension resolving `.bib`-backed `\\citebib{id}`
+    """Python-Markdown extension resolving `.bib`-backed `\\cite{id}`
     citations and a `\\bibliography` reference-list marker via Pandoc's own
     `--citeproc`."""
 
@@ -411,13 +411,13 @@ class BibliographyExtension(Extension):
             ],
             "unresolved": [
                 "?",
-                "Text rendered by \\citebib{id} when id doesn't resolve to a "
+                "Text rendered by \\cite{id} when id doesn't resolve to a "
                 ".bib entry.",
             ],
             "source": [
                 "",
                 "Identifier for the current document (e.g. its path), used "
-                "to build a correct link from a \\citebib{id} to \\bibliography's "
+                "to build a correct link from a \\cite{id} to \\bibliography's "
                 "own page. Auto-detected under Zensical if not set.",
             ],
         }

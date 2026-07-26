@@ -155,7 +155,7 @@ class CitationRecord:
 
 class CitationRegistry:
     """Registry of citation keys, defined once (e.g. on a references page)
-    and looked up by :mod:`prodockit.citations`' ``\\cite{id}`` syntax from
+    and looked up by :mod:`prodockit.citations`' ``\\citeref{id}`` syntax from
     anywhere in a build. Same shape and collision semantics as
     :class:`IdRegistry`, kept as a separate registry/id-namespace rather
     than merged with it - a citation key isn't a heading, and the two
@@ -193,7 +193,7 @@ class CitationRegistry:
     def preseed(self, source: str, id: str, text: str) -> None:
         """Provisionally records a citation's display text and defining
         page ahead of that page actually being converted - used by
-        prodockit.citations' Zensical pre-scan to unblock a `\\cite{id}` that
+        prodockit.citations' Zensical pre-scan to unblock a `\\citeref{id}` that
         cites a source defined on a page not yet processed in this build
         pass (e.g. a references page at the end of nav, cited from an early
         chapter - the classic "cited before defined" ordering problem

@@ -36,7 +36,7 @@ def test_citation_definition_strips_internal_attribute_but_keeps_id_and_class() 
 
 
 def test_cite_resolves_to_bracketed_link() -> None:
-    html = _convert(f"{SKOU_DEF}\n\nSee \\cite{{skou2023}}.\n")
+    html = _convert(f"{SKOU_DEF}\n\nSee \\citeref{{skou2023}}.\n")
     assert (
         '<span class="prodockit-cite">[<a class="prodockit-cite-resolved" '
         'href="#skou2023">Skoulikari, 2023</a>]</span>' in html
@@ -44,7 +44,7 @@ def test_cite_resolves_to_bracketed_link() -> None:
 
 
 def test_multiple_keys_join_with_semicolons() -> None:
-    html = _convert(f"{SKOU_DEF}\n\n{CHACON_DEF}\n\nSee \\cite{{skou2023,chacon2014}}.\n")
+    html = _convert(f"{SKOU_DEF}\n\n{CHACON_DEF}\n\nSee \\citeref{{skou2023,chacon2014}}.\n")
     assert (
         '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>; '
         '<a class="prodockit-cite-resolved" href="#chacon2014">Chacon and Straub, 2014</a>]'
@@ -53,11 +53,11 @@ def test_multiple_keys_join_with_semicolons() -> None:
 
 
 def test_malformed_comma_list_drops_empty_segments() -> None:
-    """A double/trailing/leading comma in \\cite{a,,b,} is handled
+    """A double/trailing/leading comma in \\citeref{a,,b,} is handled
     gracefully (empty segments dropped) rather than producing an empty
     key that always renders unresolved - CiteResolverTreeprocessor
     already filters with `if key.strip()`, this just confirms it."""
-    html = _convert(f"{SKOU_DEF}\n\n{CHACON_DEF}\n\nSee \\cite{{,skou2023,,chacon2014,}}.\n")
+    html = _convert(f"{SKOU_DEF}\n\n{CHACON_DEF}\n\nSee \\citeref{{,skou2023,,chacon2014,}}.\n")
     assert (
         '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>; '
         '<a class="prodockit-cite-resolved" href="#chacon2014">Chacon and Straub, 2014</a>]'
@@ -71,34 +71,34 @@ def test_data_cite_text_on_an_element_with_no_id_is_stripped_but_not_registered(
     path - a data-cite-text attribute with no accompanying #id is still
     stripped from the rendered HTML (internal bookkeeping shouldn't leak
     either way), but obviously can't be registered under any key."""
-    html = _convert('Some text.\n{: data-cite-text="Orphaned" }\n\nSee \\cite{orphaned}.\n')
+    html = _convert('Some text.\n{: data-cite-text="Orphaned" }\n\nSee \\citeref{orphaned}.\n')
     assert "data-cite-text" not in html
     assert '<a class="prodockit-cite-unresolved">?</a>' in html
 
 
 def test_forward_reference_within_same_document_resolves() -> None:
-    html = _convert(f"See \\cite{{skou2023}} above.\n\n{SKOU_DEF}\n")
+    html = _convert(f"See \\citeref{{skou2023}} above.\n\n{SKOU_DEF}\n")
     assert '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>' in html
 
 
 def test_unknown_key_is_unresolved() -> None:
-    html = _convert("See \\cite{does-not-exist}.\n")
+    html = _convert("See \\citeref{does-not-exist}.\n")
     assert '<span class="prodockit-cite">[<a class="prodockit-cite-unresolved">?</a>]</span>' in html
 
 
 def test_unresolved_key_has_no_href() -> None:
-    html = _convert("See \\cite{does-not-exist}.\n")
+    html = _convert("See \\citeref{does-not-exist}.\n")
     assert "href" not in html.split("</span>")[0].split("<span")[-1]
 
 
 def test_custom_unresolved_marker() -> None:
     md = markdown.Markdown(extensions=[CitationsExtension(unresolved="[MISSING]")])
-    html = md.convert("See \\cite{nope}.\n")
+    html = md.convert("See \\citeref{nope}.\n")
     assert ">[MISSING]</a>" in html
 
 
 def test_partial_resolution_in_multi_key_citation() -> None:
-    html = _convert(f"{SKOU_DEF}\n\nSee \\cite{{skou2023,does-not-exist}}.\n")
+    html = _convert(f"{SKOU_DEF}\n\nSee \\citeref{{skou2023,does-not-exist}}.\n")
     assert (
         '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>; '
         '<a class="prodockit-cite-unresolved">?</a>]' in html
@@ -106,21 +106,21 @@ def test_partial_resolution_in_multi_key_citation() -> None:
 
 
 def test_cite_inside_code_span_is_not_resolved() -> None:
-    html = _convert(f"{SKOU_DEF}\n\nType `\\cite{{skou2023}}` literally.\n")
-    assert "\\cite{skou2023}" in html
+    html = _convert(f"{SKOU_DEF}\n\nType `\\citeref{{skou2023}}` literally.\n")
+    assert "\\citeref{skou2023}" in html
     assert "prodockit-cite" not in html
 
 
 def test_cite_inside_fenced_code_block_is_not_resolved() -> None:
-    html = _convert(f"{SKOU_DEF}\n\n```\n\\cite{{skou2023}}\n```\n")
-    assert "\\cite{skou2023}" in html
+    html = _convert(f"{SKOU_DEF}\n\n```\n\\citeref{{skou2023}}\n```\n")
+    assert "\\citeref{skou2023}" in html
     assert "prodockit-cite" not in html
 
 
 def test_shares_registry_across_explicit_sources() -> None:
     registry = CitationRegistry()
     _convert(SKOU_DEF, registry=registry, source="references.md")
-    html = _convert("See \\cite{skou2023}.\n", registry=registry, source="section1.md")
+    html = _convert("See \\citeref{skou2023}.\n", registry=registry, source="section1.md")
     # A different source cites this, so the link must be a real cross-page
     # reference (references.md#skou2023), not a bare same-page fragment -
     # a bare "#skou2023" would 404 on the actual multi-page website, even
@@ -137,5 +137,26 @@ def test_duplicate_key_across_explicit_sources_raises() -> None:
 
 def test_entry_point_name_resolves() -> None:
     md = markdown.Markdown(extensions=["attr_list", "prodockit.citations"])
-    html = md.convert(f"{SKOU_DEF}\n\nSee \\cite{{skou2023}}.\n")
+    html = md.convert(f"{SKOU_DEF}\n\nSee \\citeref{{skou2023}}.\n")
     assert '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>' in html
+
+
+def test_bibliographys_own_syntax_is_not_matched_here() -> None:
+    """The two extensions own distinct syntaxes so they can be enabled in
+    the same build without one hijacking the other: \\citeref{id} is this
+    extension's, \\cite{id} is prodockit.bibliography's. A \\cite{id}
+    therefore falls through as literal text here, same as any other
+    unrecognised syntax (see #111)."""
+    html = _convert(SKOU_DEF + "\n\nSee \\cite{skou2023}.")
+    assert "\\cite{skou2023}" in html
+    assert "prodockit-cite-resolved" not in html
+
+
+def test_multi_key_bibliography_syntax_is_not_matched_here() -> None:
+    """The multi-key form goes the same way. Worth pinning separately:
+    prodockit.bibliography deliberately matches single keys only, so a
+    multi-key \\cite{a,b} is claimed by neither extension - literal text,
+    not silently mishandled by either."""
+    html = _convert(SKOU_DEF + "\n\n" + CHACON_DEF + "\n\nSee \\cite{skou2023,chacon2014}.")
+    assert "\\cite{skou2023,chacon2014}" in html
+    assert "prodockit-cite-resolved" not in html

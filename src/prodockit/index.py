@@ -15,7 +15,7 @@ extension at all, but is exactly the "disrupts normal writing flow"
 outcome the original issue wanted to avoid.
 
 ``\\index{Term}`` instead, matching this package's own established
-convention for "mark something inline" (``\\ref{id}``, ``\\cite{id}``,
+convention for "mark something inline" (``\\ref{id}``, ``\\citeref{id}``,
 ``\\gls{id}``) - unlike those, there's no separate "definition" step:
 the term both displays inline exactly as written and is marked for
 indexing in one go, and (unlike prodockit.refs/citations/glossary) needs
@@ -128,7 +128,7 @@ class IndexInlineProcessor(InlineProcessor):
     data-index-term="Parent!Child">Child</span>`` - see this module's own
     docstring for the hierarchical syntax).
 
-    Unlike `\\ref{id}`/`\\cite{id}`/`\\gls{id}` (each resolving a short id,
+    Unlike `\\ref{id}`/`\\citeref{id}`/`\\gls{id}` (each resolving a short id,
     not display text, via a later treeprocessor), the visible text isn't
     exempted from Python-Markdown's own subsequent inline-pattern passes -
     confirmed directly, `\\index{*emphasised*}` still renders as `<em>`

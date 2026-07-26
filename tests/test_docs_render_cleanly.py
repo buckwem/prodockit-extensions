@@ -6,7 +6,7 @@ project's own docs (docs/**/*.md) accidentally showing a prodockit
 extension's own backslash-command syntax as literal example text using
 inline backticks, when the syntax in question (a code-styled
 `\\index{`Term`}`) isn't actually protected by inline backticks the way
-a plain `\\index{Term}`/`\\ref{id}`/`\\cite{id}`/`\\gls{id}` is - see
+a plain `\\index{Term}`/`\\ref{id}`/`\\citeref{id}`/`\\gls{id}` is - see
 prodockit.index's own module docstring, and tests/test_index.py's
 `test_pymdownx_inlinehilite_also_fails_to_protect_inline_backticks`, for
 the mechanism.
