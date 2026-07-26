@@ -31,7 +31,7 @@ For anything beyond a small fix (typos, broken links), please open an issue firs
 
 ## Reporting bugs and requesting features
 
-Please open an issue describing the bug or feature - what you expected, what happened instead, and enough detail (a minimal `zensical.toml`/markdown snippet, if relevant) to reproduce it.
+Please use the issue templates when opening an issue - they help make sure we get the information needed to act on it.
 
 ## License
 
