@@ -113,6 +113,23 @@ modules = ["prodockit.zensical_macros"]
 See the [docs](https://buckwem.github.io/prodockit-extensions/macros/) for the
 full variable/macro list.
 
+## Repository metadata
+
+[`prodockit sync-repo`](https://buckwem.github.io/prodockit-extensions/repository-metadata/)
+keeps `repo_url`, `repo_name`, the header brand icon, `edit_uri` and your
+README's badge row matching the git remote your checkout actually uses -
+so forking or mirroring a project between GitHub, GitLab and Bitbucket
+doesn't leave stale links or the wrong icon behind:
+
+```bash
+prodockit sync-repo          # update everything from `origin`
+prodockit sync-repo --check  # report drift and exit non-zero, for CI
+```
+
+It also sets `edit_uri` explicitly, which fixes the "edit this page"
+button on a self-hosted GitLab and stops it pointing at a `master` branch
+that may not exist.
+
 ## Development
 
 ```bash

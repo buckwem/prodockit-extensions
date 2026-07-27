@@ -40,6 +40,7 @@ nav = [
   ]},
   {"PDF generation" = "pdf.md"},
   {"Website macros" = "macros.md"},
+  {"Repository metadata" = "repository-metadata.md"},
   {"Limitations and workarounds" = "limitations.md"},
   {"About" = [
     {"Release Notes" = "about/changelog.md"},

@@ -1,5 +1,31 @@
 # Release Notes
 
+## 0.13.0 (2026-07-27)
+
+- New `prodockit sync-repo` command, and the `prodockit.sync_repo` module
+  behind it: keeps `repo_url`, `repo_name`, `[project.theme.icon] repo`,
+  `edit_uri` and your README's badge row matching the git remote a
+  checkout actually uses, so forking or mirroring a project between
+  GitHub, GitLab and Bitbucket doesn't leave stale links, the wrong brand
+  icon, or badges pointing at somebody else's repository. `--check` writes
+  nothing and exits non-zero on drift, for CI. See
+  [Repository metadata](../repository-metadata.md).
+
+    This was previously a `sync_repo_icon.py` script copied byte-for-byte
+    between two consuming projects
+    ([#124](https://github.com/buckwem/prodockit-extensions/issues/124)).
+    Two things changed in promoting it: the default branch is now detected
+    from the remote rather than hardcoded to `main`, and `repo_name` keeps
+    whichever shape (`owner/repo` or bare `repo`) your config already uses,
+    since Zensical prints it verbatim in the site header and the script's
+    fixed choice would have restyled the header of any project using the
+    other one.
+
+- The command-line entry point moved from `prodockit.pdf.cli` to
+  `prodockit.cli`, now that it has commands unrelated to the PDF build.
+  `prodockit.pdf.cli` re-exports `main`, so an entry point recorded in an
+  already-installed environment keeps working.
+
 ## 0.12.0 (2026-07-27)
 
 - `prodockit pdf` now warns when a document contains Mermaid diagrams or
