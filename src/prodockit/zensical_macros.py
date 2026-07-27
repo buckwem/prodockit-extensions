@@ -4,9 +4,10 @@
 """Generic Jinja macros/variables for a Zensical project's own `macros.py`
 (via Zensical's `zensical.extensions.macros` plugin) - the pieces a
 professional/academic report commonly wants that aren't specific to any one
-project: a site-wide word count, the git-detected repository URL, chapter/
-appendix numbering that continues across pages, and reference/acronym/
-glossary list spacing that matches `prodockit.pdf`'s own PDF output.
+project: a site-wide word count, the git-detected repository URL, the
+latest release tag, chapter/appendix numbering that continues across pages,
+and reference/acronym/glossary list spacing that matches `prodockit.pdf`'s
+own PDF output.
 
 Add it alongside your own project's `macros.py` (which keeps anything
 genuinely project-specific - institution branding, a custom macro, and so
@@ -118,6 +119,33 @@ def _get_repo_url() -> str:
     return remote_url
 
 
+def _get_release() -> str:
+    """Returns the latest git tag reachable from HEAD (e.g. `"1.2.0"`), or
+    `""` if this checkout has no tags at all - same defensive shell-out
+    pattern as `_get_repo_url()` above.
+
+    Deliberately a local git tag lookup (`git describe --tags --abbrev=0`)
+    rather than a call to the GitHub/GitLab REST API for the latest
+    *published* release: no host API token/rate limit to worry about, and
+    it resolves identically for the website and for `prodockit pdf`, since
+    both render through this same macro environment - unlike
+    `prodockit.pdf`'s own `{RELEASE}` cover-page marker (see
+    [Cover page markers](pdf.md#cover-page-markers)), which is PDF-only and
+    does query the host API, for a project whose cover page isn't part of
+    a live, macro-rendered site at all."""
+    try:
+        return (
+            subprocess.check_output(
+                ["git", "describe", "--tags", "--abbrev=0"],
+                stderr=subprocess.DEVNULL,
+            )
+            .decode("utf-8")
+            .strip()
+        )
+    except Exception:
+        return ""
+
+
 def define_env(env: Any) -> None:
     """Registers this module's variables/macros on `env` - see the module
     docstring for how to wire this into `zensical.toml`."""
@@ -125,6 +153,7 @@ def define_env(env: Any) -> None:
 
     env.variables["word_count"] = _compute_site_word_count(config)
     env.variables["repo_url"] = _get_repo_url()
+    env.variables["release"] = _get_release()
     env.variables["site_name"] = config.get("site_name") or ""
 
     @env.macro  # type: ignore[untyped-decorator]

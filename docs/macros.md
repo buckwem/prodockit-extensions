@@ -4,9 +4,9 @@
 for Zensical's own [macros plugin](https://zensical.org/docs/authoring/macros/)
 - the pieces a professional/academic report's website commonly wants that
 aren't specific to any one project: a site-wide word count, the git-detected
-repository URL, chapter/appendix numbering that continues across pages, and
-reference/acronym/glossary list spacing that matches
-[`prodockit.pdf`](pdf.md)'s own PDF output.
+repository URL, the latest release tag, chapter/appendix numbering that
+continues across pages, and reference/acronym/glossary list spacing that
+matches [`prodockit.pdf`](pdf.md)'s own PDF output.
 
 ## Quick start {: #macros-quick-start }
 
@@ -36,6 +36,7 @@ modules = ["prodockit.zensical_macros"]
 |---|---|
 | `{{ word_count }}` | Prose word count across every nav page except the first (assumed to be the cover page) and any page flagged `exclude_from_word_count: true` in its own front matter - a comma-formatted string (e.g. `"9,971"`). |
 | `{{ repo_url }}` | The fully-qualified `https://` URL for the current checkout's git `origin` remote (converted from `git@host:path.git` SSH syntax, with any embedded CI credentials stripped) - `""` if there's no git remote configured. |
+| `{{ release }}` | The latest git tag reachable from `HEAD` (e.g. `"1.2.0"`) - `""` if this checkout has no tags at all. Resolves identically for the website and for `prodockit pdf`, since both render through this same macro environment - unlike `prodockit.pdf`'s own [`{RELEASE}` cover-page marker](pdf.md#cover-page-markers), which queries the host's GitHub/GitLab API instead, for a project whose cover page isn't part of a live, macro-rendered site at all. |
 | `{{ site_name }}` | `project.site_name` from `zensical.toml`. |
 
 ## Macros
