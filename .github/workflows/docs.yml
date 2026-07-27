@@ -22,6 +22,22 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+
+# Publishing a release right after merging its version bump starts two
+# deploys at once - one for the push, one for the release - and without a
+# concurrency group they race. That happened on 0.15.1: the push run had
+# checked out `main` before the tag existed, so its build saw the *previous*
+# tag, and its deployment is the one that ended up live, even though the
+# release run started later, finished later, and reported success. The site
+# sat on the old release number until a manual redeploy.
+#
+# `cancel-in-progress: false` rather than true: a queued deploy should wait
+# and then supersede, not be thrown away. GitHub's own Pages starter
+# workflow uses this same pairing.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 permissions:
   contents: read
   pages: write
