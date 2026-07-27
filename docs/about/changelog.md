@@ -1,5 +1,29 @@
 # Release Notes
 
+## 0.10.9 (2026-07-26)
+
+Docs only, no code changes:
+
+- New [Limitations and workarounds](../limitations.md) page, consolidating
+  every confirmed limitation across prodockit's three surfaces (the
+  Python-Markdown extensions, `prodockit.pdf`, and
+  `prodockit.zensical_macros`) and its workaround in one place, including
+  cross-page resolution going stale under `zensical serve`'s live reload
+  ([#99](https://github.com/buckwem/prodockit-extensions/issues/99)) -
+  previously scattered across `pdf.md`'s own "Limitations and
+  workarounds" section, which is now a short pointer here instead.
+- `bibliography.md`'s "What this project's own template and user guide
+  currently do" section no longer says neither downstream project has
+  adopted `prodockit.bibliography` -
+  [prodockit-template](https://github.com/buckwem/prodockit-template) has
+  since migrated, and is now a real worked example of
+  [Multiple sections](../extensions/bibliography.md#bibliography-multiple-sections):
+  a cited-only `references.md` and a separate, everything-included
+  `bibliography.md` from a distinct further-reading `.bib` file.
+- Added GitHub issue templates (bug report, feature request), matching
+  [prodockit-template](https://github.com/buckwem/prodockit-template)'s
+  own.
+
 ## 0.10.8 (2026-07-26)
 
 **Breaking:** the two citation extensions swap syntaxes.
