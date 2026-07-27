@@ -1,0 +1,127 @@
+# Testing your built site {: #testing-testing-your-built-site }
+
+`prodockit.testing` gives a project pytest fixtures pointing at its own
+*built* output - the site directory and the PDF - plus checks for the
+failure modes that are the same in every prodockit project.
+
+Install it with:
+
+```bash
+pip install prodockit[testing]
+```
+
+The fixtures test artifacts that already exist; they never build anything.
+Run your builds first:
+
+```bash
+prodockit pdf
+zensical build
+python -m pytest
+```
+
+## Quick start {: #testing-quick-start }
+
+No `conftest.py` wiring is needed - the fixtures register themselves
+through pytest's plugin entry point:
+
+```python
+from prodockit.testing import assert_no_unrendered_mermaid, assert_no_unrendered_tex
+
+
+def test_the_pdf_built(prodockit_pdf):
+    assert prodockit_pdf.page_count > 5
+
+
+def test_diagrams_and_maths_actually_rendered(prodockit_pdf_page_texts):
+    assert_no_unrendered_mermaid(prodockit_pdf_page_texts)
+    assert_no_unrendered_tex(prodockit_pdf_page_texts)
+```
+
+## Why the rendering checks exist {: #testing-why-rendering-checks }
+
+`prodockit.pdf` pre-renders Mermaid diagrams and TeX maths to static
+images, because WeasyPrint has no JS engine. When a renderer isn't
+installed, the content is left exactly as it is rather than failing the
+build - the right default for a project using neither feature, and a
+silent disaster for one that does.
+
+Three separate projects published PDFs containing raw `flowchart LR ...`
+source and literal LaTeX before anyone noticed.
+[`prodockit pdf` warns about it](pdf.md#mermaid-diagrams-and-tex-maths)
+since 0.12.0, but a warning in build output is easy to scroll past. These
+checks turn it into a test failure.
+
+They are deliberately narrow about what counts as evidence. Several Mermaid
+diagram types are also ordinary English words - `graph`, `pie`, `journey`,
+`timeline` - and line breaks in a PDF fall wherever the text happens to
+wrap. A check that flagged any line starting with one of those read "a
+visual commit graph and richer history browsing" as an unrendered diagram,
+passing locally and failing in CI only because different fonts there wrapped
+the sentence differently. So a diagram-type keyword is only evidence when
+Mermaid's own link syntax follows shortly after it.
+
+## Fixtures {: #testing-fixtures }
+
+All are session-scoped and prefixed `prodockit_`, so they can't collide
+with names in your own `conftest.py`.
+
+| Fixture | What it gives you |
+| --- | --- |
+| `prodockit_paths` | Resolved `root`, `config_file`, `docs_dir`, `site_dir`, `pdf` |
+| `prodockit_config` | Your Zensical config as plain parsed TOML |
+| `prodockit_resolved_config` | The same, through Zensical's own loader - `nav` resolved to a tree |
+| `prodockit_nav_pages` | Every nav markdown file, `docs_dir`-relative, in nav order |
+| `prodockit_pdf` | The built PDF, opened with `pymupdf` |
+| `prodockit_pdf_page_texts` | The PDF's text, one string per page |
+| `prodockit_site_dir` | The built site directory |
+| `prodockit_site_html_files` | Every built HTML page, sorted |
+| `prodockit_soup_for` | Factory: parses one built HTML file with BeautifulSoup |
+
+Paths come from your config rather than an assumed layout: `site_dir`
+defaults to `site` but is commonly set to `public`, and the PDF follows
+`pdf_output` when you set it.
+
+## Configuration {: #testing-configuration }
+
+Two `pytest` ini options, both usually unnecessary:
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `prodockit_config_file` | `zensical.toml` | Your Zensical config, relative to the pytest rootdir. |
+| `prodockit_pdf` | from the config | Override the PDF location. |
+
+```ini
+[pytest]
+prodockit_pdf = dist/report.pdf
+```
+
+!!! note "Paths resolve against pytest's rootdir"
+
+    Not against the test file. If your tests live outside the project root,
+    or you invoke `pytest` from elsewhere, set `prodockit_config_file` or
+    pass `--rootdir`.
+
+## Checks {: #testing-checks }
+
+From `prodockit.testing`:
+
+| Function | Purpose |
+| --- | --- |
+| `assert_no_unrendered_mermaid(page_texts)` | Fails if any page carries raw Mermaid source. |
+| `assert_no_unrendered_tex(page_texts)` | Fails if any page carries raw TeX. |
+| `find_unrendered_mermaid_pages(page_texts)` | The offending page indexes, for a custom message. |
+| `find_unrendered_tex_pages(page_texts)` | As above, for maths. |
+| `contains_unrendered_mermaid(text)` | Single-page predicate. |
+| `contains_unrendered_tex(text)` | Single-page predicate. |
+
+Both assertions name the fix (`prodockit init-tools`) in their failure
+message rather than only reporting the symptom.
+
+## A note on installing this everywhere {: #testing-plugin-safety }
+
+The plugin loads into *every* pytest run in an environment where prodockit
+is installed, including projects unrelated to it. It is written so that
+this costs nothing: no heavy imports at module scope, `pymupdf` and
+BeautifulSoup imported only inside the fixtures that need them, and a
+missing `zensical.toml` failing the individual fixture rather than
+collection.

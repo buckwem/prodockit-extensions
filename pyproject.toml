@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "prodockit"
-version = "0.14.0"
+version = "0.15.0"
 description = "A family of extensions for Zensical needed for professional and academic documentation: section cross-references, bibliography/citation handling, a glossary, a back-of-book index, a Pandoc/WeasyPrint PDF pipeline, Jinja macros for word counts and reference-style spacing, and repo-metadata syncing"
 readme = "README.md"
 license = "MIT"
@@ -69,6 +69,21 @@ dev = [
 index = [
   "pymupdf>=1.24",
 ]
+# Only needed to use prodockit.testing - the pytest fixtures and checks a
+# consuming project can point at its own built site/PDF. The plugin itself
+# imports nothing heavy at module scope, so a project that installs
+# prodockit without this extra is unaffected even though pytest still
+# discovers the plugin.
+testing = [
+  "pytest>=7.0",
+  "pymupdf>=1.24",
+  "tomli>=2.0; python_version < '3.11'",
+]
+
+# Makes the prodockit_* fixtures available without any conftest.py wiring.
+# See prodockit.testing.plugin for why it is safe to load everywhere.
+[project.entry-points.pytest11]
+prodockit = "prodockit.testing.plugin"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/prodockit"]
