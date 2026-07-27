@@ -24,7 +24,14 @@ classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
+  # Kept in step with requires-python above and ci.yml's test matrix - these
+  # are what PyPI shows in its sidebar, and `Programming Language :: Python
+  # :: 3` alone told a reader nothing about which 3.x actually work.
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Text Processing :: Markup :: Markdown",
 ]
 

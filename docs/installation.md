@@ -1,15 +1,36 @@
 # Installation
 
+## Requirements
+
+**Python 3.10 or later.** Tested on 3.10, 3.11, 3.12 and 3.13; `pip` will
+refuse to install on anything older rather than failing later at import.
+
+Everything below is pulled in automatically by `pip install prodockit`,
+except where noted:
+
+| Requirement | Needed for |
+| --- | --- |
+| [`Markdown`](https://python-markdown.github.io/) (>= 3.4) | every extension |
+| [`zensical`](https://zensical.org/) | Zensical integration and `prodockit.zensical_macros` |
+| [`beautifulsoup4`](https://www.crummy.com/software/BeautifulSoup/) (>= 4.12) | `prodockit.pdf` |
+| `click` (>= 8.0) | the `prodockit` command-line tool |
+| `pypdf` (>= 4.0) | `prodockit.pdf` |
+| `pandoc` **(external binary)** | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build |
+| `weasyprint` **(external binary)** | `prodockit.pdf` |
+| `pymupdf` | only the back-of-book index - `pip install prodockit[index]` |
+| `mermaid-cli`, `mathjax-full` **(external, Node)** | only Mermaid diagrams and TeX maths in the PDF |
+
+The external tools aren't Python packages and aren't installed by `pip` -
+see [PDF generation](pdf.md) for how `prodockit.pdf` locates them, and
+[Limitations and workarounds](limitations.md) for why the Node ones are
+needed at all. A build with neither Mermaid diagrams nor maths needs
+neither of them.
+
 ## From PyPI
 
 ```bash
 pip install prodockit
 ```
-
-`prodockit` depends on [`Markdown`](https://python-markdown.github.io/)
-(>= 3.4), [`zensical`](https://zensical.org/), and
-[`beautifulsoup4`](https://www.crummy.com/software/BeautifulSoup/) (>= 4.12,
-used by `prodockit.pdf` - see [PDF generation](pdf.md)).
 
 ## Enabling an extension
 
