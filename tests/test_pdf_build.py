@@ -766,7 +766,7 @@ def test_warns_when_a_mermaid_diagram_has_no_renderer(
     build_pdf([_MERMAID_PAGE], str(tmp_path / "out.pdf"))
     out = capsys.readouterr().out
     assert "contains Mermaid diagrams" in out
-    assert "npm ci --prefix tools/mermaid" in out, (
+    assert "prodockit init-tools" in out, (
         "the warning should name the fix, not just the symptom"
     )
 
@@ -778,7 +778,7 @@ def test_warns_when_maths_has_no_renderer(
     build_pdf([_MATHS_PAGE], str(tmp_path / "out.pdf"))
     out = capsys.readouterr().out
     assert "contains TeX maths" in out
-    assert "npm ci --prefix tools/mathjax" in out
+    assert "prodockit init-tools" in out
 
 
 def test_does_not_warn_when_the_renderers_are_available(

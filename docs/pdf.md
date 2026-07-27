@@ -22,8 +22,50 @@ for your platform (e.g. `brew install pandoc` on macOS).
 [Back-of-book indexes](extensions/index-terms.md#index-terms-requirements)
 additionally need [`pymupdf`](https://pymupdf.readthedocs.io/) - `pip
 install prodockit[index]` (or plain `pip install pymupdf`) - but only if
-you actually turn `pdf_include_index` on; every other feature on this
-page needs nothing beyond Pandoc/WeasyPrint above.
+you actually turn `pdf_include_index` on.
+
+Mermaid diagrams and TeX maths need a little Node tooling on top - see
+[below](#mermaid-diagrams-and-tex-maths). Every other feature on this page
+needs nothing beyond Pandoc/WeasyPrint.
+
+### Mermaid diagrams and TeX maths {: #mermaid-diagrams-and-tex-maths }
+
+WeasyPrint has no JS engine, so neither can be rendered the way your live
+website renders them. Both are pre-rendered to static images before Pandoc
+sees them - Mermaid via [mermaid-cli](https://github.com/mermaid-js/mermaid-cli),
+maths via a small MathJax script.
+
+Set both up with:
+
+```bash
+prodockit init-tools
+```
+
+That writes `tools/mermaid/package.json`, `tools/mathjax/package.json` and
+`tools/mathjax/tex2svg.js` - the exact layout `prodockit pdf` looks for -
+then prints the `npm` commands to install them, the `.gitignore` lines you
+want, and the environment variables a CI run needs. It won't overwrite
+files you already have unless you pass `--force`, and `--no-mermaid` /
+`--no-mathjax` skip either half.
+
+!!! warning "The failure here is quiet by default"
+
+    If a renderer isn't found, the content is left exactly as it is rather
+    than failing the build - the right default for a project using neither
+    feature. A project that *does* use them would otherwise get a PDF full
+    of raw `flowchart LR ...` source or literal LaTeX with nothing having
+    gone wrong as far as the build is concerned, so since 0.12.0
+    `prodockit pdf` prints a warning naming the missing renderer whenever
+    that combination occurs.
+
+!!! tip "In CI, use `PUPPETEER_SKIP_DOWNLOAD`"
+
+    mermaid-cli drives Chrome through Puppeteer. The older
+    `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` is the one most people reach for,
+    and puppeteer 25.x - what mermaid-cli 11.x resolves to - ignores it,
+    so a full Chrome build is downloaded on every run before being
+    discarded in favour of `PUPPETEER_EXECUTABLE_PATH`. `init-tools`
+    prints the correct pair.
 
 ## Quick start {: #pdf-quick-start }
 
@@ -91,8 +133,8 @@ lives under `[project.extra]`, all optional:
 | `pdf_table_of_contents_title` | `"Table of Contents"` | That page's own heading text. |
 | `pdf_include_index` | `false` | A back-of-book index from every `\index{Term}` marker - see [Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index). Requires the optional `pymupdf` dependency. |
 | `pdf_index_title` | `"Index"` | That page's own heading text. |
-| `pdf_mmdc_bin` | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found. |
-| `pdf_tex2svg_script` / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found. |
+| `pdf_mmdc_bin` | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
+| `pdf_tex2svg_script` / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
 | `pdf_source_bundle` | `false` | Bundle this repository's own source code into a separate `source_bundle.pdf` - see [Bundling source code into a PDF](#bundling-source-code-into-a-pdf). Only runs for a full, nav-driven build - never for a `--markdown-file`-scoped one. |
 | `pdf_extra_css` | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF - e.g. a rule that would look wrong on the live website, or one overriding something `extra_css` itself sets (concatenated after it, so it wins the cascade). |
 

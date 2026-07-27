@@ -37,6 +37,11 @@ Zensical doesn't provide out of the box, each usable independently:
   checkout actually uses, so forking or mirroring a project between GitHub,
   GitLab and Bitbucket doesn't leave stale links behind. Run
   ``prodockit sync-repo`` from your project root.
+- ``prodockit.init_tools`` - scaffold the Node tooling ``prodockit.pdf``
+  needs to pre-render Mermaid diagrams and TeX maths into the PDF (neither
+  can be rendered client-side there, since WeasyPrint has no JS engine).
+  Run ``prodockit init-tools`` from your project root; a project using
+  neither feature needs none of it.
 
 ``prodockit.headings``/``prodockit.refs``/``prodockit.citations``/``prodockit.glossary``/
 ``prodockit.tables``/``prodockit.bibliography``/``prodockit.index`` are Python-Markdown
@@ -54,6 +59,6 @@ plain Python API alongside it.
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 
 __all__ = ["__version__"]
