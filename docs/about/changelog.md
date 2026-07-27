@@ -1,5 +1,35 @@
 # Release Notes
 
+## 0.11.0 (2026-07-27)
+
+New `{{ release }}` variable in `prodockit.zensical_macros`: the latest
+git tag reachable from `HEAD` (e.g. `"1.2.0"`, `""` if the checkout has no
+tags at all), matching `word_count`/`repo_url`'s existing pattern.
+Promotes a one-off custom macro `prodockit-userguide` already had in its
+own project-local `macros.py` into the shared library, so every project
+gets it for free instead of hand-rolling the same
+`git describe --tags --abbrev=0` shell-out. Resolves identically for the
+website and for `prodockit pdf`, since both render through the same
+macro environment - unlike `prodockit.pdf`'s own `{RELEASE}` cover-page
+marker, which queries the host's GitHub/GitLab API instead, for a
+project whose cover page isn't part of a live, macro-rendered site at
+all.
+
+This project's own docs site now shows "Release: `<tag>`" on its cover
+page, using the `.cover-hero-release` CSS class that was already defined
+but never actually used - enabling the macros plugin here for the first
+time in the process. Also fixed a real bug found while wiring this up:
+`.cover-hero-release` rendered in a bold weight in the PDF
+(`Inter-Ultra-Bold` instead of `Inter`, confirmed via the PDF's own
+extracted font info) - it was missing the `font-weight: 400` its sibling
+`.cover-hero-subtitle` already has, for the same Pandoc-pipeline reason.
+
+Fixes [#116](https://github.com/buckwem/prodockit-extensions/issues/116).
+See [#120](https://github.com/buckwem/prodockit-extensions/issues/120)
+for a related, separate rendering issue found along the way (both
+`.cover-hero-subtitle` and `.cover-hero-release` render in black rather
+than the intended light gray in the PDF - not fixed here).
+
 ## 0.10.9 (2026-07-26)
 
 Docs only, no code changes:

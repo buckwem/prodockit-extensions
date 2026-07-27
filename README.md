@@ -99,10 +99,11 @@ if you're scripting your own build pipeline instead.
 ## Website macros
 
 [`prodockit.zensical_macros`](https://buckwem.github.io/prodockit-extensions/macros/)
-provides a site-wide word count, the git-detected repository URL, chapter/
-appendix numbering that continues across pages, and reference/acronym/
-glossary spacing that matches `prodockit.pdf`'s own PDF output - as Jinja
-variables/macros for Zensical's own macros plugin:
+provides a site-wide word count, the git-detected repository URL, the
+latest release tag, chapter/appendix numbering that continues across
+pages, and reference/acronym/glossary spacing that matches
+`prodockit.pdf`'s own PDF output - as Jinja variables/macros for
+Zensical's own macros plugin:
 
 ```toml
 [project.markdown_extensions.zensical.extensions.macros]

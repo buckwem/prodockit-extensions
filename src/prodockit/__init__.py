@@ -29,8 +29,9 @@ Zensical doesn't provide out of the box, each usable independently:
   it reads the same ``zensical.toml`` your site already has.
 - ``prodockit.zensical_macros`` - Jinja variables/macros for Zensical's own
   macros plugin: a site-wide word count, the git-detected repository URL,
-  chapter/appendix numbering that continues across pages, and reference/
-  acronym/glossary spacing that matches ``prodockit.pdf``'s own PDF output.
+  the latest release tag, chapter/appendix numbering that continues across
+  pages, and reference/acronym/glossary spacing that matches
+  ``prodockit.pdf``'s own PDF output.
 
 ``prodockit.headings``/``prodockit.refs``/``prodockit.citations``/``prodockit.glossary``/
 ``prodockit.tables``/``prodockit.bibliography``/``prodockit.index`` are Python-Markdown
@@ -46,6 +47,6 @@ macros plugin's own ``modules`` config, not a Markdown extension either.
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.10.9"
+__version__ = "0.11.0"
 
 __all__ = ["__version__"]
