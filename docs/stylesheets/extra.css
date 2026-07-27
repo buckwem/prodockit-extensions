@@ -145,6 +145,23 @@
   font-weight: 400 !important;
 }
 
+/* Our own explicit fallback for --md-default-fg-color--light (Zensical's
+   own bundled theme CSS defines it, currently rgba(0, 0, 0, 0.55) in light
+   mode) - used only where that variable is undefined, e.g.
+   prodockit.pdf's own generated CSS, which doesn't include Zensical's
+   theme stylesheet at all (confirmed directly: .cover-hero-subtitle/
+   .cover-hero-release both rendered pure black in a real built PDF
+   instead of this lighter grey, prodockit-extensions#120). Defining our
+   own copy here - rather than depending on Zensical's variable resolving
+   *somewhere*, with no fallback - means a future Zensical theme change
+   (renaming or dropping the variable) can't silently break this
+   project's own PDF-visible text again (prodockit-extensions#121); the
+   live website still gets the real, theme-adaptive value whenever it's
+   actually defined, via the var() fallback below. */
+:root {
+  --prodockit-fg-color-light: rgba(0, 0, 0, 0.55);
+}
+
 /* Given its own class (rather than staying a bare, unstyled <p>) for the
    same reason .cover-hero-release needs one: prodockit.pdf's Pandoc-based
    PDF pipeline resolved a class-less paragraph placed directly after an h1
@@ -155,7 +172,7 @@
 .cover-hero-subtitle {
   font-size: 1.15rem;
   font-weight: 400;
-  color: var(--md-default-fg-color--light);
+  color: var(--md-default-fg-color--light, var(--prodockit-fg-color-light));
   margin: 0 0 1rem;
 }
 
@@ -167,7 +184,7 @@
 .cover-hero-release {
   font-size: 1rem;
   font-weight: 400;
-  color: var(--md-default-fg-color--light);
+  color: var(--md-default-fg-color--light, var(--prodockit-fg-color-light));
   margin: 0 0 1.5rem;
 }
 
