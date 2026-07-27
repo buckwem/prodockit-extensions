@@ -740,3 +740,92 @@ def test_footnote_text_renders_at_the_page_content_width(tmp_path: Path) -> None
         )
     finally:
         doc.close()
+
+
+# --- Unrendered Mermaid/maths warnings -------------------------------------
+#
+# Both renderers are optional and both fall back to leaving the content
+# untouched rather than failing the build. That silence is how raw
+# `flowchart LR ...` source and literal LaTeX reached published PDFs in
+# three separate projects, so the degradation is now announced.
+
+_MERMAID_PAGE = Page(
+    docs_rel_path="diagrams.md",
+    html='<p>Before</p><pre class="mermaid">flowchart LR\n  A --&gt; B</pre>',
+)
+_MATHS_PAGE = Page(
+    docs_rel_path="maths.md",
+    html='<p>Before</p><div class="arithmatex">\\[ x^2 \\]</div>',
+)
+
+
+def test_warns_when_a_mermaid_diagram_has_no_renderer(
+    tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf([_MERMAID_PAGE], str(tmp_path / "out.pdf"))
+    out = capsys.readouterr().out
+    assert "contains Mermaid diagrams" in out
+    assert "npm ci --prefix tools/mermaid" in out, (
+        "the warning should name the fix, not just the symptom"
+    )
+
+
+def test_warns_when_maths_has_no_renderer(
+    tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf([_MATHS_PAGE], str(tmp_path / "out.pdf"))
+    out = capsys.readouterr().out
+    assert "contains TeX maths" in out
+    assert "npm ci --prefix tools/mathjax" in out
+
+
+def test_does_not_warn_when_the_renderers_are_available(
+    tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [_MERMAID_PAGE, _MATHS_PAGE],
+        str(tmp_path / "out.pdf"),
+        render_mermaid=lambda source: None,
+        mathjax_available=True,
+    )
+    out = capsys.readouterr().out
+    assert "⚠️" not in out
+
+
+def test_does_not_warn_when_the_document_uses_neither(
+    tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The common case - a project using neither feature must not be nagged
+    about tooling it has no reason to install. Prose that merely mentions
+    the words must not trigger it either."""
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [
+            Page(
+                docs_rel_path="index.md",
+                html="<h1>Report</h1><p>We considered mermaid diagrams and "
+                "arithmatex maths, but used neither.</p>",
+                is_index=True,
+            )
+        ],
+        str(tmp_path / "out.pdf"),
+    )
+    assert "⚠️" not in capsys.readouterr().out
+
+
+def test_warns_about_both_independently(
+    tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Only the missing one is reported when the other is available."""
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [_MERMAID_PAGE, _MATHS_PAGE],
+        str(tmp_path / "out.pdf"),
+        mathjax_available=True,
+    )
+    out = capsys.readouterr().out
+    assert "contains Mermaid diagrams" in out
+    assert "contains TeX maths" not in out

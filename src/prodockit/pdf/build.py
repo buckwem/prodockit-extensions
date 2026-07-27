@@ -16,10 +16,11 @@ generating the Lua filter and CSS, concatenating everything, and running
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -71,6 +72,56 @@ class PdfBuildError(RuntimeError):
         super().__init__(message)
         self.returncode = returncode
         self.stderr = stderr
+
+
+# The same two things the PDF pipeline pre-renders to static images because
+# WeasyPrint has no JS engine: `<pre class="mermaid">` (matching
+# `fix_up_page_html()`'s own `pre.mermaid` selector) and pymdownx.arithmatex's
+# generic-mode `<div|span class="arithmatex">` (matching the Lua filter's own
+# `arithmatex` class check). Matched with a regex rather than a second
+# BeautifulSoup parse of every page - this only decides whether to print a
+# warning, and each page is already parsed properly moments later.
+_MERMAID_BLOCK_RE = re.compile(r'<pre\b[^>]*\bclass="[^"]*\bmermaid\b', re.IGNORECASE)
+_ARITHMATEX_RE = re.compile(r'\bclass="[^"]*\barithmatex\b', re.IGNORECASE)
+
+
+def _warn_about_unrendered_content(
+    pages: Sequence[Page],
+    *,
+    render_mermaid: Callable[[str], str | None] | None,
+    mathjax_available: bool,
+) -> list[str]:
+    """Warns when the document contains Mermaid diagrams or TeX maths but
+    the renderer needed to turn them into static images wasn't found, and
+    returns the warnings printed (for tests, and for a caller that wants to
+    log them itself).
+
+    Both renderers are optional and both deliberately fall back to leaving
+    the content untouched rather than failing the build - the right default
+    for a project using neither, but silent for one that *is* using them,
+    which is how raw ``flowchart LR ...`` source and literal LaTeX reached
+    published PDFs in three separate projects before this existed. The
+    build still succeeds; this only makes the degradation visible.
+    """
+    warnings = []
+    if render_mermaid is None and any(_MERMAID_BLOCK_RE.search(page.html) for page in pages):
+        warnings.append(
+            "⚠️  This document contains Mermaid diagrams, but no `mmdc` "
+            "(mermaid-cli) binary was found - they will appear in the PDF as "
+            "raw diagram source instead of rendered images. Install it with "
+            "`npm ci --prefix tools/mermaid`, or set `pdf_mmdc_bin` in your "
+            "config to an existing install."
+        )
+    if not mathjax_available and any(_ARITHMATEX_RE.search(page.html) for page in pages):
+        warnings.append(
+            "⚠️  This document contains TeX maths, but no `tex2svg` script was "
+            "found - formulas will appear in the PDF as raw LaTeX instead of "
+            "rendered images. Install it with `npm ci --prefix tools/mathjax`, "
+            "or set `pdf_tex2svg_script` in your config to an existing install."
+        )
+    for warning in warnings:
+        print(warning)
+    return warnings
 
 
 def build_pdf(
@@ -246,6 +297,12 @@ def build_pdf(
     os.makedirs(resolved_work_dir, exist_ok=True)
 
     try:
+        # Before anything else, so the warning is visible at the top of the
+        # build output rather than buried under Pandoc/WeasyPrint chatter.
+        _warn_about_unrendered_content(
+            pages, render_mermaid=render_mermaid, mathjax_available=mathjax_available
+        )
+
         page_anchor_map = build_page_anchor_map([page.docs_rel_path for page in pages])
 
         # Every appendix page's letter, assigned here once by position in

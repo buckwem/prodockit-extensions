@@ -1,0 +1,8 @@
+{
+  "name": "prodockit-extensions-mermaid-tools",
+  "private": true,
+  "description": "Local mermaid-cli install used by `prodockit pdf` to pre-render mermaid diagrams for this project's own PDF build.",
+  "dependencies": {
+    "@mermaid-js/mermaid-cli": "^11.4.2"
+  }
+}

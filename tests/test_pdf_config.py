@@ -65,13 +65,25 @@ def test_find_mmdc_bin_prefers_an_explicit_configured_path_that_exists(tmp_path:
     assert _find_mmdc_bin(str(configured)) == str(configured)
 
 
-def test_find_mmdc_bin_returns_none_when_nothing_is_found(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_find_mmdc_bin_returns_none_when_nothing_is_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Both an empty PATH *and* an empty working directory: the local-install
+    # fallbacks are CWD-relative, so running from a checkout that has its own
+    # tools/mermaid install would otherwise find that and fail this test for
+    # reasons that have nothing to do with the code under test.
     monkeypatch.setenv("PATH", "")
+    monkeypatch.chdir(tmp_path)
     assert _find_mmdc_bin(None) is None
     assert _find_mmdc_bin("/does/not/exist") is None
 
 
-def test_find_tex2svg_script_returns_none_when_nothing_is_found() -> None:
+def test_find_tex2svg_script_returns_none_when_nothing_is_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Same CWD isolation as the mmdc case above - tools/mathjax/tex2svg.js is
+    # resolved relative to the working directory.
+    monkeypatch.chdir(tmp_path)
     assert _find_tex2svg_script(None) is None
     assert _find_tex2svg_script("/does/not/exist") is None
 

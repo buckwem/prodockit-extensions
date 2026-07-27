@@ -17,6 +17,18 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    env:
+      # mermaid-cli drives Chrome through Puppeteer to rasterise diagrams.
+      # Point it at the apt-installed Chrome below rather than letting
+      # Puppeteer download its own, and skip that download entirely.
+      #
+      # PUPPETEER_SKIP_DOWNLOAD, not the older
+      # PUPPETEER_SKIP_CHROMIUM_DOWNLOAD - Puppeteer renamed it, and
+      # mermaid-cli ^11.4.2 resolves to puppeteer 25.x, which only honours
+      # the new name. Under the old name the skip silently does nothing and
+      # a full Chrome build is downloaded on every run.
+      PUPPETEER_SKIP_DOWNLOAD: "true"
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome-stable
     steps:
       - uses: actions/configure-pages@v5
       - uses: actions/checkout@v5
@@ -32,7 +44,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - run: sudo apt-get update && sudo apt-get install -y pandoc fonts-inter fonts-jetbrains-mono
+      # mermaid-cli, so the ```mermaid diagram in extensions/bibliography.md
+      # is pre-rendered to a static SVG for the PDF - WeasyPrint has no JS
+      # engine to run Mermaid.js the way the live site does, and without
+      # this the PDF shows raw `flowchart LR ...` source instead.
+      - run: curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg > /dev/null
+      - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+      - run: sudo apt-get update && sudo apt-get install -y google-chrome-stable
+      - run: npm ci --prefix tools/mermaid
       - run: pip install -e . weasyprint
       - run: prodockit pdf
       - run: prodockit pdf -m introduction.md
