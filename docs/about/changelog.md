@@ -1,5 +1,32 @@
 # Release Notes
 
+## 0.11.1 (2026-07-27)
+
+No code changes - fixes a regression in 0.11.0's own release:
+
+- The "Release: `<tag>`" cover-page line added in 0.11.0 never actually
+  appeared on the deployed site or PDF - `actions/checkout`'s default
+  shallow clone (`fetch-depth: 1`) fetches no tags at all, so
+  `prodockit.zensical_macros`' `{{ release }}` (`git describe --tags
+  --abbrev=0`) always returned `""` in CI, even though it worked
+  correctly in any full local checkout. Fixed by adding `fetch-depth: 0`
+  to this project's own `docs.yml`/`ci.yml` checkout steps. Confirmed
+  directly against the redeployed live site.
+- Fixed [#120](https://github.com/buckwem/prodockit-extensions/issues/120):
+  `.cover-hero-subtitle`/`.cover-hero-release` (this project's own
+  `docs/stylesheets/extra.css`) both rendered in black rather than the
+  intended grey in the PDF - `color: var(--md-default-fg-color--light)`
+  is undefined in `prodockit.pdf`'s own generated CSS, and an unresolved
+  `var()` with no fallback falls back to the *inherited* value instead
+  of erroring.
+- Fixed [#121](https://github.com/buckwem/prodockit-extensions/issues/121):
+  rather than just special-casing the PDF, added a `var()` fallback
+  pointing at this project's own explicit `--prodockit-fg-color-light`
+  custom property - the live website still gets the real, theme-adaptive
+  Zensical variable whenever it's actually defined, but a future
+  Zensical rename/removal of that variable can no longer silently break
+  this project's own PDF-visible text again.
+
 ## 0.11.0 (2026-07-27)
 
 New `{{ release }}` variable in `prodockit.zensical_macros`: the latest
