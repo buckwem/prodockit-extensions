@@ -74,6 +74,20 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
       recognises `$...$` as a real Math node) → matched by CSS class in
       dedicated `Div()`/`Span()` Lua handlers instead of the `Math()`
       function.
+
+!!! warning "Both renderers are optional, and their absence is announced"
+
+    `mermaid-cli` and the `tex2svg` script are external Node tools, not
+    Python dependencies, so neither is guaranteed to be present. When one
+    is missing, the affected content is left exactly as it is rather than
+    failing the build - a document with no diagrams and no maths should
+    never need either tool installed.
+
+    The catch is that a document which *does* use them then gets a PDF
+    containing raw `flowchart LR ...` source or literal LaTeX, with
+    nothing having gone wrong as far as the build is concerned. Since
+    0.12.0, `prodockit pdf` prints a warning naming the missing renderer
+    and how to install it whenever that combination occurs.
 - A live site's own header repo widget (release/version info) fetches it
   client-side via JS; Pandoc/WeasyPrint has no JS engine to do the same →
   a project embedding similar info in a PDF cover page needs to fetch and

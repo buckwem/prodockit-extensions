@@ -1,5 +1,22 @@
 # Release Notes
 
+## 0.12.0 (2026-07-27)
+
+- `prodockit pdf` now warns when a document contains Mermaid diagrams or
+  TeX maths but the renderer needed to turn them into static images
+  wasn't found. Both have always been optional, and both deliberately
+  leave the content untouched rather than failing the build - the right
+  default for a project using neither, but silent for one that *is*
+  using them. That silence let raw `flowchart LR ...` source and literal
+  LaTeX reach the published PDFs of three separate projects, including
+  this one's own. The build still succeeds; the degradation is simply
+  announced, and the warning names the fix rather than just the symptom.
+- Fixed this project's own docs: the architecture diagram in
+  `extensions/bibliography.md` had never rendered in any published PDF,
+  for exactly the reason above. `tools/mermaid` and the CI steps to
+  install it are now in place - so the page describing how Mermaid
+  fences are pre-rendered finally demonstrates it.
+
 ## 0.11.1 (2026-07-27)
 
 No code changes - fixes a regression in 0.11.0's own release:

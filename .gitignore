@@ -16,3 +16,7 @@ site/
 docs/*.pdf
 docs/.prodockit-pdf-mermaid/
 /source_bundle.pdf
+# mermaid-cli, used by `prodockit pdf` to pre-render this project's own
+# ```mermaid diagrams for the PDF. Installed with
+# `npm ci --prefix tools/mermaid`.
+tools/mermaid/node_modules/
