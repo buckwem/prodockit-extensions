@@ -1,5 +1,21 @@
 # Release Notes
 
+## 0.15.1 (2026-07-27)
+
+- Documentation only. New
+  [Continuous integration](../continuous-integration.md) page: complete,
+  working GitHub Actions and GitLab CI recipes for building a prodockit
+  site, and the reasoning behind each part
+  ([#124](https://github.com/buckwem/prodockit-extensions/issues/124)).
+
+    This knowledge previously existed only as comments scattered across
+    three projects' workflow files, which is why the same mistakes kept
+    recurring. The page is organised around the failure modes that are
+    *silent* - fonts not installed (WeasyPrint substitutes one and the PDF
+    just looks wrong), a shallow clone fetching no tags (the release line
+    vanishes), the renamed Puppeteer variable, and a release deploying
+    before its own tag exists.
+
 ## 0.15.0 (2026-07-27)
 
 - New `prodockit.testing` package - `pip install prodockit[testing]`. A
