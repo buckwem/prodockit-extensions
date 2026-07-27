@@ -32,6 +32,11 @@ Zensical doesn't provide out of the box, each usable independently:
   the latest release tag, chapter/appendix numbering that continues across
   pages, and reference/acronym/glossary spacing that matches
   ``prodockit.pdf``'s own PDF output.
+- ``prodockit.sync_repo`` - keep ``repo_url``/``repo_name``/brand icon/
+  ``edit_uri`` and your README's badge row matching the git remote a
+  checkout actually uses, so forking or mirroring a project between GitHub,
+  GitLab and Bitbucket doesn't leave stale links behind. Run
+  ``prodockit sync-repo`` from your project root.
 
 ``prodockit.headings``/``prodockit.refs``/``prodockit.citations``/``prodockit.glossary``/
 ``prodockit.tables``/``prodockit.bibliography``/``prodockit.index`` are Python-Markdown
@@ -42,11 +47,13 @@ useful (see their own cross-page registry sharing). ``prodockit.pdf`` is a
 command-line tool instead (there's no ``markdown.extensions`` entry point
 for it - a PDF build pipeline isn't a Markdown syntax extension).
 ``prodockit.zensical_macros`` is a plain ``define_env()`` module for Zensical's
-macros plugin's own ``modules`` config, not a Markdown extension either.
+macros plugin's own ``modules`` config, not a Markdown extension either, and
+``prodockit.sync_repo`` is a command-line tool (``prodockit sync-repo``) with a
+plain Python API alongside it.
 
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"
 
 __all__ = ["__version__"]
