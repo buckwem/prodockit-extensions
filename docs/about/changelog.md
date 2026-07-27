@@ -2,6 +2,16 @@
 
 ## 0.13.0 (2026-07-27)
 
+- Documented the Python version requirement. `requires-python = ">=3.10"`
+  has always been enforced by `pip`, and CI has always tested 3.10-3.13,
+  but nothing said so anywhere a reader would look: the PyPI classifiers
+  listed only `Programming Language :: Python :: 3`, and neither the
+  README nor the installation page mentioned a version at all. Per-version
+  classifiers added, and [Installation](../installation.md) now opens with
+  the requirement plus a full table of what `pip` does and doesn't install
+  - including `pandoc`/`weasyprint`, and the Node tooling needed only for
+  Mermaid diagrams and TeX maths in the PDF.
+
 - New `prodockit sync-repo` command, and the `prodockit.sync_repo` module
   behind it: keeps `repo_url`, `repo_name`, `[project.theme.icon] repo`,
   `edit_uri` and your README's badge row matching the git remote a

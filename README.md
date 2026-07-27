@@ -25,9 +25,18 @@ Markdown and Pandoc/WeasyPrint PDF pipeline.
 
 ## Installation
 
+Requires **Python 3.10 or later** (tested on 3.10-3.13).
+
 ```bash
 pip install prodockit
 ```
+
+`prodockit.pdf` and `prodockit.bibliography` additionally need `pandoc`,
+and the PDF build needs `weasyprint` - external binaries, not Python
+packages, so `pip` doesn't install them. See
+[Installation](https://buckwem.github.io/prodockit-extensions/installation/)
+for the full list, including the optional Node tooling for Mermaid
+diagrams and TeX maths in the PDF.
 
 ## Extensions
 
