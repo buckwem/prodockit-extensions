@@ -36,8 +36,9 @@ def _write_project(tmp_path: Path) -> dict:
 def _no_real_git_remote(monkeypatch: pytest.MonkeyPatch) -> None:
     """Every test in this file runs against a fake project, not this
     repository's own git checkout - stub out the git subprocess call so
-    _get_repo_url() (and therefore define_env()) doesn't pick up whatever
-    remote happens to be configured wherever the test suite is run."""
+    _get_repo_url()/_get_release() (and therefore define_env()) don't pick
+    up whatever remote/tags happen to be configured wherever the test
+    suite is run."""
 
     def _raise(*args: object, **kwargs: object) -> None:
         raise subprocess.CalledProcessError(128, "git")
@@ -45,7 +46,7 @@ def _no_real_git_remote(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(zensical_macros.subprocess, "check_output", _raise)
 
 
-def test_define_env_sets_word_count_repo_url_and_site_name(tmp_path: Path) -> None:
+def test_define_env_sets_word_count_repo_url_release_and_site_name(tmp_path: Path) -> None:
     env = MacroEnv(conf=_write_project(tmp_path))
     define_env(env)
     # chapter1.md only ("Chapter One" + "one two three four five") - the
@@ -53,6 +54,7 @@ def test_define_env_sets_word_count_repo_url_and_site_name(tmp_path: Path) -> No
     # exclude_from_word_count: true) are both left out.
     assert env.variables["word_count"] == "7"
     assert env.variables["repo_url"] == ""
+    assert env.variables["release"] == ""
     assert env.variables["site_name"] == "Test project"
 
 
@@ -72,6 +74,23 @@ def test_get_repo_url_strips_embedded_ci_credentials(monkeypatch: pytest.MonkeyP
         lambda *a, **k: b"https://gitlab-ci-token:abc123@gitlab.example.com/group/project.git\n",
     )
     assert zensical_macros._get_repo_url() == "https://gitlab.example.com/group/project"
+
+
+def test_get_release_returns_the_latest_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        zensical_macros.subprocess,
+        "check_output",
+        lambda *a, **k: b"1.2.0\n",
+    )
+    assert zensical_macros._get_release() == "1.2.0"
+
+
+def test_get_release_is_empty_with_no_tags(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise(*args: object, **kwargs: object) -> None:
+        raise subprocess.CalledProcessError(128, "git")
+
+    monkeypatch.setattr(zensical_macros.subprocess, "check_output", _raise)
+    assert zensical_macros._get_release() == ""
 
 
 def test_reference_style_defaults_to_the_tight_european_look(tmp_path: Path) -> None:

@@ -145,3 +145,9 @@ custom_fences = [
 ]
 [project.markdown_extensions.pymdownx.tabbed]
 alternate_style = true
+
+[project.markdown_extensions.zensical.extensions.macros]
+# prodockit.zensical_macros is imported directly by macros.py's own
+# define_env() instead of being listed here as a second `modules` entry -
+# see macros.py's docstring for why (zensical/zensical#823).
+module_name = "macros"

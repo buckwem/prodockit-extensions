@@ -159,8 +159,14 @@
   margin: 0 0 1rem;
 }
 
+/* font-weight: 400 for the same reason .cover-hero-subtitle needs it above
+   - without it, prodockit.pdf's Pandoc-based pipeline renders this
+   paragraph in a bold weight (confirmed directly: Inter-Ultra-Bold
+   instead of Inter, via a real PDF's own extracted font info) instead of
+   regular. */
 .cover-hero-release {
   font-size: 1rem;
+  font-weight: 400;
   color: var(--md-default-fg-color--light);
   margin: 0 0 1.5rem;
 }
