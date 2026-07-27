@@ -42,6 +42,10 @@ Zensical doesn't provide out of the box, each usable independently:
   can be rendered client-side there, since WeasyPrint has no JS engine).
   Run ``prodockit init-tools`` from your project root; a project using
   neither feature needs none of it.
+- ``prodockit.testing`` - pytest fixtures pointing at your project's own
+  built site and PDF, plus checks for the failure modes every prodockit
+  project shares (chiefly diagrams and maths reaching the PDF unrendered).
+  ``pip install prodockit[testing]``; nothing else in prodockit imports it.
 
 ``prodockit.headings``/``prodockit.refs``/``prodockit.citations``/``prodockit.glossary``/
 ``prodockit.tables``/``prodockit.bibliography``/``prodockit.index`` are Python-Markdown
@@ -59,6 +63,6 @@ plain Python API alongside it.
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"
 
 __all__ = ["__version__"]

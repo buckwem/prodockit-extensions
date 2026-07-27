@@ -1,5 +1,33 @@
 # Release Notes
 
+## 0.15.0 (2026-07-27)
+
+- New `prodockit.testing` package - `pip install prodockit[testing]`. A
+  pytest plugin giving a project `prodockit_*` fixtures for its own built
+  site and PDF, resolved from its Zensical config rather than an assumed
+  layout, plus checks for the failure modes every prodockit project shares.
+  See [Testing your built site](../testing.md).
+
+    Chiefly `assert_no_unrendered_mermaid()` and
+    `assert_no_unrendered_tex()`, which turn the 0.12.0 build warning into
+    a test failure - three projects published PDFs full of raw
+    `flowchart LR ...` source and literal LaTeX before anyone noticed
+    ([#124](https://github.com/buckwem/prodockit-extensions/issues/124)).
+
+    The Mermaid check requires a diagram-type keyword *and* Mermaid's own
+    link syntax nearby. Several diagram types (`graph`, `pie`, `journey`,
+    `timeline`) are ordinary English words, and PDF line breaks fall
+    wherever text wraps, so a keyword-only check read "a visual commit
+    graph and richer history browsing" as an unrendered diagram - passing
+    locally and failing in CI only because different fonts wrapped that
+    sentence differently.
+
+    The plugin registers through pytest's entry point, so it loads into
+    every test run in an environment where prodockit is installed. It
+    imports nothing heavy at module scope, prefixes every fixture, and
+    fails individual fixtures rather than collection, so an unrelated
+    project is unaffected.
+
 ## 0.14.0 (2026-07-27)
 
 - New `prodockit init-tools` command: scaffolds the Node tooling
