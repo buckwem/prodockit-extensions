@@ -20,6 +20,15 @@ jobs:
     steps:
       - uses: actions/configure-pages@v5
       - uses: actions/checkout@v5
+        with:
+          # actions/checkout's default shallow clone (fetch-depth: 1) fetches
+          # no tags at all, so prodockit.zensical_macros' {{ release }}
+          # variable (git describe --tags --abbrev=0) always returned ""
+          # here - the cover page's "Release: ..." line silently never
+          # appeared on the deployed site/PDF, even though it worked in any
+          # full local checkout. Full history needed so the nearest tag
+          # reachable from HEAD is actually present to describe.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
