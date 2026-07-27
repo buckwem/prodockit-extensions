@@ -1,5 +1,32 @@
 # Release Notes
 
+## 0.14.0 (2026-07-27)
+
+- New `prodockit init-tools` command: scaffolds the Node tooling
+  `prodockit pdf` needs to render Mermaid diagrams and TeX maths, then
+  prints the `npm` commands, `.gitignore` lines and CI environment
+  variables to finish the job. See
+  [Mermaid diagrams and TeX maths](../pdf.md#mermaid-diagrams-and-tex-maths).
+
+    `prodockit.pdf` has always looked for `tools/mermaid/node_modules/.bin/mmdc`
+    and `tools/mathjax/tex2svg.js` while shipping neither, leaving every
+    project to hand-write the same two manifests and the same `tex2svg.js`
+    ([#124](https://github.com/buckwem/prodockit-extensions/issues/124)).
+    All three projects using it got that wrong independently: one had no
+    `tools/` directory at all and published PDFs full of raw
+    `flowchart LR ...` source, two set the pre-rename
+    `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` that puppeteer 25.x ignores, and one
+    committed two config files nothing reads. The canonical copies now live
+    in the library, pinned in one place.
+
+    Existing files are never overwritten without `--force`, since a project
+    will have run `npm ci` against its own committed lockfile.
+
+- The missing-renderer warning added in 0.12.0 now points at
+  `prodockit init-tools` rather than `npm ci --prefix tools/mermaid`, which
+  could not work in the case that actually happened - no `tools/`
+  directory to install into.
+
 ## 0.13.0 (2026-07-27)
 
 - Documented the Python version requirement. `requires-python = ">=3.10"`

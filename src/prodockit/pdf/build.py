@@ -108,16 +108,16 @@ def _warn_about_unrendered_content(
         warnings.append(
             "⚠️  This document contains Mermaid diagrams, but no `mmdc` "
             "(mermaid-cli) binary was found - they will appear in the PDF as "
-            "raw diagram source instead of rendered images. Install it with "
-            "`npm ci --prefix tools/mermaid`, or set `pdf_mmdc_bin` in your "
-            "config to an existing install."
+            "raw diagram source instead of rendered images. Run "
+            "`prodockit init-tools` to set it up, or set `pdf_mmdc_bin` in "
+            "your config to an existing install."
         )
     if not mathjax_available and any(_ARITHMATEX_RE.search(page.html) for page in pages):
         warnings.append(
             "⚠️  This document contains TeX maths, but no `tex2svg` script was "
             "found - formulas will appear in the PDF as raw LaTeX instead of "
-            "rendered images. Install it with `npm ci --prefix tools/mathjax`, "
-            "or set `pdf_tex2svg_script` in your config to an existing install."
+            "rendered images. Run `prodockit init-tools` to set it up, or set "
+            "`pdf_tex2svg_script` in your config to an existing install."
         )
     for warning in warnings:
         print(warning)

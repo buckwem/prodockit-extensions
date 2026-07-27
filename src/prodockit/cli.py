@@ -25,6 +25,14 @@ import sys
 
 import click
 
+from prodockit.init_tools import (
+    COMPONENT_PURPOSE,
+    InitToolsError,
+    ci_environment,
+    gitignore_lines,
+    init_tools,
+    install_commands,
+)
 from prodockit.pdf.build import PdfBuildError
 from prodockit.pdf.config import build_pdf_from_zensical_config
 from prodockit.pdf.source_bundle import SourceBundleError
@@ -153,3 +161,80 @@ def sync_repo(
         )
         sys.exit(1)
     click.echo(f"Detected {result.label} remote ({result.repo_url}); updated: {changed}")
+
+
+@main.command("init-tools")
+@click.option(
+    "--dir",
+    "tools_dir",
+    default="tools",
+    show_default=True,
+    help="Directory to scaffold into. Must match what prodockit.pdf looks for.",
+)
+@click.option(
+    "--mermaid/--no-mermaid",
+    default=True,
+    show_default=True,
+    help="Scaffold the mermaid-cli tooling, for ```mermaid diagrams in the PDF.",
+)
+@click.option(
+    "--mathjax/--no-mathjax",
+    default=True,
+    show_default=True,
+    help="Scaffold the mathjax-full tooling, for TeX maths in the PDF.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite files that already exist, instead of leaving them alone.",
+)
+def init_tools_command(tools_dir: str, mermaid: bool, mathjax: bool, force: bool) -> None:
+    """Set up the Node tooling needed to render Mermaid diagrams and TeX
+    maths in your PDF.
+
+    WeasyPrint has no JS engine, so both are pre-rendered to static images
+    by external tools before Pandoc sees them. This writes the manifests
+    `prodockit pdf` expects to find, and prints the commands to install
+    them. A project using neither feature doesn't need any of this.
+    """
+    components = tuple(
+        name for name, wanted in (("mermaid", mermaid), ("mathjax", mathjax)) if wanted
+    )
+    if not components:
+        click.echo("Nothing to do: both --no-mermaid and --no-mathjax were given.", err=True)
+        sys.exit(1)
+
+    try:
+        result = init_tools(tools_dir, components=components, force=force)
+    except InitToolsError as error:
+        click.echo(f"Error: {error}", err=True)
+        sys.exit(1)
+
+    for path in result.written:
+        click.echo(f"Wrote {path}")
+    for path in result.skipped:
+        click.echo(f"Kept existing {path} (use --force to overwrite)")
+
+    click.echo("\nScaffolded for:")
+    for component in result.components:
+        click.echo(f"  - {COMPONENT_PURPOSE[component]}")
+
+    click.echo("\nNext, install them:")
+    for command in install_commands(result):
+        click.echo(f"  {command}")
+
+    click.echo("\nAdd to .gitignore (commit the manifests and lockfiles, not the installs):")
+    for line in gitignore_lines(result):
+        click.echo(f"  {line}")
+
+    if "mermaid" in result.components:
+        click.echo(
+            "\nIn CI, mermaid-cli drives Chrome through Puppeteer. Install "
+            "Chrome and set:"
+        )
+        for name, value in ci_environment().items():
+            click.echo(f"  {name}: {value}")
+        click.echo(
+            "  (PUPPETEER_SKIP_DOWNLOAD, not the older "
+            "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD, which puppeteer 25.x ignores)"
+        )
