@@ -113,3 +113,54 @@ def test_assertions_fail_with_the_page_number_and_the_fix() -> None:
 
     with pytest.raises(AssertionError, match="prodockit init-tools"):
         assert_no_unrendered_tex([UNRENDERED_TEX])
+
+
+# --- Ligature-mangled arrows, and the precision needed to allow them -------
+#
+# A PDF set in a font with programming ligatures - JetBrains Mono, a common
+# choice for code blocks - renders "-->" as one glyph, which extracts back
+# out as "//>". Every arrow pattern is then blind to it. Node-definition
+# brackets survive, so they count as evidence too.
+#
+# Accepting brackets is only safe because the keyword that precedes them has
+# to prove itself first: "graph"/"flowchart" now require their direction
+# token, and the genuinely ambiguous English words don't accept brackets at
+# all. Found in prodockit-template, whose own PDF uses that font.
+
+LIGATURE_MANGLED = "graph LR\n  A[Start] //> B{Error?};\n  B //>|Yes| C[Hmm];\n"
+
+
+def test_detects_a_diagram_whose_arrows_were_eaten_by_font_ligatures() -> None:
+    assert contains_unrendered_mermaid(LIGATURE_MANGLED)
+
+
+def test_direction_token_is_what_makes_a_graph_keyword_trustworthy() -> None:
+    """`graph LR` is unmistakably Mermaid; a sentence starting with the word
+    "graph" is not, and no longer matches at all."""
+    assert contains_unrendered_mermaid("graph TD\n  A[One] //> B[Two]\n")
+    assert not contains_unrendered_mermaid(
+        "graph traversal is covered below.\nUse items[0] to read the first.\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # A footnote or citation marker after a line beginning "timeline".
+        "timeline of the project follows.\nThe survey data[1] shows a rise.\n",
+        # An array index after a line beginning "pie".
+        "pie charts are supported.\nUse the format{spec} helper.\n",
+        # A config lookup after a line beginning "journey".
+        "journey mapping is useful.\nSee config[key] for details.\n",
+    ],
+)
+def test_ambiguous_keywords_do_not_accept_bracket_evidence(text: str) -> None:
+    """`gantt`, `journey`, `pie` and `timeline` are ordinary English words
+    that Mermaid gives no distinguishing token, so they need arrows or ER
+    pairs - bracket syntax is far too common in technical prose."""
+    assert not contains_unrendered_mermaid(text)
+
+
+def test_ambiguous_keywords_are_still_detected_on_arrow_evidence() -> None:
+    """Narrowing them must not make them undetectable."""
+    assert contains_unrendered_mermaid("pie\n  A --> B\n")

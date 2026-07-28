@@ -1,5 +1,24 @@
 # Release Notes
 
+## 0.15.2 (2026-07-28)
+
+- `prodockit.testing`'s Mermaid check now detects a diagram whose arrows
+  were swallowed by font ligatures. A PDF set in a font with programming
+  ligatures - JetBrains Mono, a common choice for code blocks - renders
+  `-->` as a single glyph that extracts back out as `//>`, leaving every
+  arrow-based pattern blind to an unrendered diagram. Node-definition
+  brackets (`id[Label]`) survive extraction, so they now count as evidence
+  too. Found in `prodockit-template`, whose own PDF uses that font.
+
+    Accepting bracket syntax needed the keywords tightened first, or it
+    would have fired on ordinary prose. `graph`/`flowchart` now require
+    their direction token (`graph LR`), which no sentence produces by
+    accident, and the four diagram types that are also plain English words
+    - `gantt`, `journey`, `pie`, `timeline` - accept only arrow or
+    entity-relationship evidence, never brackets. Without that, a line
+    beginning "timeline of the project" followed by `data[1]` read as an
+    unrendered diagram.
+
 ## 0.15.1 (2026-07-27)
 
 - Documentation only. New

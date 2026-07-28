@@ -35,16 +35,53 @@ from collections.abc import Iterable, Sequence
 # So: a keyword *and* Mermaid's own link syntax shortly after it. An
 # unrendered fence dumps the whole block, so the arrows are always present;
 # wrapped prose has nothing resembling them.
-MERMAID_KEYWORD_RE = re.compile(
-    r"^\s*(graph|flowchart|sequenceDiagram|stateDiagram(?:-v2)?|classDiagram|erDiagram|"
-    r"gantt|journey|pie|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram)\b",
+# Keywords split by how much they prove on their own.
+#
+# `graph`/`flowchart` always carry a direction token in Mermaid
+# (`graph LR`, `flowchart TD`), and that pairing does not occur in prose -
+# so matching it makes the keyword line self-evidently a diagram. Bare
+# "graph traversal is covered below" no longer matches at all, which is the
+# false positive that started all of this.
+#
+# The rest of this group are names no sentence begins with by accident.
+MERMAID_STRONG_KEYWORD_RE = re.compile(
+    r"^\s*(?:(?:graph|flowchart)\s+(?:LR|RL|TB|BT|TD)\b"
+    r"|sequenceDiagram|stateDiagram(?:-v2)?|classDiagram|erDiagram"
+    r"|gitGraph|mindmap|quadrantChart|requirementDiagram)",
 )
-#: Flowchart/sequence arrows, plus entity-relationship cardinality pairs.
-#: The ER form (`CUSTOMER ||--o{ ORDER : places`) has no arrowhead at all,
-#: so an arrow-only pattern silently misses every unrendered ER diagram -
-#: its left-hand cardinality token followed by the `--`/`..` connector is
-#: what identifies it.
+
+# These are ordinary English words that also happen to be diagram types, and
+# Mermaid gives them no distinguishing token to key on. They are accepted
+# only on the strongest evidence (see WEAK_LINK_RE below).
+MERMAID_WEAK_KEYWORD_RE = re.compile(r"^\s*(?:gantt|journey|pie|timeline)\b")
+#: Syntax that only a Mermaid diagram's own source contains. Three families,
+#: because no single one survives every document:
+#:
+#: - Flowchart and sequence arrows (`-->`, `-->|`, `->>`, `==>`, `-.->`).
+#: - Entity-relationship cardinality pairs. The ER form
+#:   (`CUSTOMER ||--o{ ORDER : places`) has no arrowhead at all, so an
+#:   arrow-only pattern silently misses every unrendered ER diagram.
+#: - Node definitions (`id[Label]`, `id{Label}`). These matter because a
+#:   PDF set in a font with programming ligatures - JetBrains Mono, a common
+#:   choice for code blocks - renders `-->` as a single ligature glyph, and
+#:   it extracts back out as `//>` rather than the characters written. The
+#:   arrows are then invisible to any pattern looking for them, while the
+#:   brackets, which are in no ligature set, survive intact. Found in
+#:   prodockit-template, whose own PDF uses that font.
+#:
+#: Any one of the three is enough after a *strong* keyword.
 MERMAID_LINK_RE = re.compile(
+    r"--+>|--+\||-\.->|==+>|->>|--\s*$"
+    r"|(?:\|\||\|o|\}o|\}\|)(?:--|\.\.)"
+    r"|\w+\[[^\]\n]+\]|\w+\{[^}\n]+\}"
+)
+
+#: What a *weak* keyword needs: arrows or ER pairs only, never the node
+#: brackets. `data[1]`, `items[0]` and `format{spec}` are all ordinary
+#: technical prose, and a line beginning "pie charts are supported" or
+#: "timeline of the project" followed by any of them would otherwise read as
+#: an unrendered diagram.
+MERMAID_WEAK_LINK_RE = re.compile(
     r"--+>|--+\||-\.->|==+>|->>|--\s*$|(?:\|\||\|o|\}o|\}\|)(?:--|\.\.)"
 )
 
@@ -61,13 +98,21 @@ TEX_SOURCE_RE = re.compile(r"\\\[|\\\]|\\sum_|\\frac\{|\\infty|\\begin\{|\\alpha
 
 def contains_unrendered_mermaid(text: str) -> bool:
     """True if `text` (one PDF page) looks like it contains a Mermaid block
-    that was never rendered."""
+    that was never rendered.
+
+    Needs a diagram-type keyword *and* corroborating syntax shortly after
+    it, with how much corroboration depending on how much the keyword
+    proved on its own - see the two keyword patterns above.
+    """
     lines = text.splitlines()
     for index, line in enumerate(lines):
-        if not MERMAID_KEYWORD_RE.match(line):
+        strong = MERMAID_STRONG_KEYWORD_RE.match(line)
+        weak = MERMAID_WEAK_KEYWORD_RE.match(line) if not strong else None
+        if not strong and not weak:
             continue
+        pattern = MERMAID_LINK_RE if strong else MERMAID_WEAK_LINK_RE
         window = lines[index : index + 1 + MERMAID_LOOKAHEAD_LINES]
-        if any(MERMAID_LINK_RE.search(candidate) for candidate in window):
+        if any(pattern.search(candidate) for candidate in window):
             return True
     return False
 
