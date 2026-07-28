@@ -1,5 +1,33 @@
 # Release Notes
 
+## 0.16.0 (2026-07-28)
+
+- The website's `{{ release }}` and the PDF's `{RELEASE}` come from
+  deliberately different sources - `git describe --tags` on the local
+  checkout, and the host's releases API - and could disagree with nothing
+  saying so
+  ([#125](https://github.com/buckwem/prodockit-extensions/issues/125)). A
+  reader comparing a published site with its downloadable PDF could see two
+  different release numbers, and neither build had failed.
+
+    Neither source changes: each is right for its own context. `{{ release }}`
+    is re-evaluated on every website rebuild, including every save under
+    `zensical serve`, so it must not make a network call; `{RELEASE}` serves
+    a cover page that isn't part of a macro-rendered site at all. What was
+    missing is that the disagreement was invisible.
+
+    `prodockit pdf` now warns when the two will show different things,
+    naming both values and where each came from. The macros pass warns
+    separately when `{{ release }}` came back empty *because* the checkout
+    is a shallow clone, which fetches no tags even from a repository that
+    has them - the failure behind #122, silent because an empty value just
+    renders as a missing line. The warning names `fetch-depth: 0` and
+    `GIT_DEPTH`, and fires once per process rather than once per rebuild.
+
+    A project with no tags at all stays silent: that is a normal state, and
+    warning about it would only train people to ignore the message. See
+    [Limitations and workarounds](../limitations.md#limitations-pdf-generation).
+
 ## 0.15.2 (2026-07-28)
 
 - `prodockit.testing`'s Mermaid check now detects a diagram whose arrows

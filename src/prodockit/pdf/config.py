@@ -27,7 +27,11 @@ from prodockit.pdf.mermaid import render_mermaid_diagram
 from prodockit.pdf.release import get_latest_release_tag
 from prodockit.pdf.source_bundle import build_source_bundle
 from prodockit.settings import flatten_nav, heading_numbering_enabled, reference_style_values
-from prodockit.zensical_macros import _compute_site_word_count, _get_repo_url
+from prodockit.zensical_macros import (
+    _compute_site_word_count,
+    _get_release,
+    _get_repo_url,
+)
 
 # Front matter flag marking a page for letter-based numbering ("A", "A.1",
 # ...) - same default name as prodockit.headings' own `appendix_attr` option,
@@ -133,6 +137,51 @@ def _find_tex2svg_script(configured: str | None) -> str | None:
     if os.path.exists(candidate):
         return os.path.abspath(candidate)
     return None
+
+
+def _warn_if_release_sources_disagree(api_release_tag: str) -> str | None:
+    """Warns when the PDF's `{RELEASE}` marker and the website's
+    `{{ release }}` will show different things, and returns the message.
+
+    They are resolved from deliberately different sources.
+    `{{ release }}` is `git describe --tags` on the local checkout, chosen so
+    the website's hot rebuild path - every save under `zensical serve` -
+    never makes a network call. `{RELEASE}` queries the host's releases API,
+    chosen for a cover page that isn't part of a macro-rendered site at all.
+    Both are right for their context, so neither is changed here.
+
+    What was missing is that a disagreement was invisible. A reader
+    comparing the published site with its downloadable PDF could see two
+    different release numbers, with nothing in either build having failed.
+    See prodockit-extensions#125 for the cases: a tag with no published
+    release, a published release in a checkout with no tags (a shallow
+    clone), and the window during a release when the version-bump commit is
+    pushed before its tag.
+    """
+    local_tag = _get_release()
+    if local_tag == api_release_tag:
+        return None
+    if local_tag and api_release_tag:
+        message = (
+            f"⚠️  Release mismatch: this PDF will show {api_release_tag!r} (from "
+            f"the host's releases API) while the website's `{{{{ release }}}}` "
+            f"shows {local_tag!r} (from `git describe --tags`)."
+        )
+    elif local_tag:
+        message = (
+            f"⚠️  Release mismatch: the website's `{{{{ release }}}}` shows "
+            f"{local_tag!r}, but no published release was found via the host's "
+            "API, so this PDF's `{RELEASE}` line will be dropped entirely."
+        )
+    else:
+        message = (
+            f"⚠️  Release mismatch: this PDF will show {api_release_tag!r} (from "
+            "the host's releases API) while the website's `{{ release }}` will "
+            "be empty - `git describe --tags` found no tag, which usually means "
+            "a shallow clone."
+        )
+    print(message)
+    return message
 
 
 def build_pdf_from_zensical_config(
@@ -329,6 +378,7 @@ def build_pdf_from_zensical_config(
             # release - an empty result drops the whole line rather than
             # leaving a bare "Release: " label behind.
             release_tag = get_latest_release_tag(git_repo_url)
+            _warn_if_release_sources_disagree(release_tag)
             if release_tag:
                 cover_html = cover_html.replace("{RELEASE}", release_tag)
             else:
