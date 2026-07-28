@@ -146,6 +146,53 @@ def _get_release() -> str:
         return ""
 
 
+#: Set once a shallow-clone warning has been printed, so a `zensical serve`
+#: session that rebuilds on every save doesn't repeat it endlessly.
+_warned_about_shallow_clone = False
+
+
+def _repository_is_shallow() -> bool:
+    """True if this checkout is a shallow clone, which fetches no tags."""
+    try:
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "--is-shallow-repository"],
+                stderr=subprocess.DEVNULL,
+            )
+            .decode("utf-8")
+            .strip()
+            == "true"
+        )
+    except Exception:
+        return False
+
+
+def _warn_if_release_lost_to_a_shallow_clone(release: str) -> bool:
+    """Warns when `release` came back empty *because* the checkout is
+    shallow, and returns whether it warned.
+
+    A project with no tags at all is a perfectly normal state and is not
+    worth a warning. A shallow clone is different: it fetches no tags even
+    when the repository has them, so `{{ release }}` silently resolves to
+    an empty string and the cover line simply disappears - correct-looking
+    output, no error, and it works in every full local clone. That combination
+    has caused this exact bug twice (see prodockit-extensions#122).
+
+    Warned once per process rather than per build, since `zensical serve`
+    re-enters this on every save.
+    """
+    global _warned_about_shallow_clone
+    if release or _warned_about_shallow_clone or not _repository_is_shallow():
+        return False
+    _warned_about_shallow_clone = True
+    print(
+        "⚠️  `release` is empty because this is a shallow clone, which fetches "
+        "no git tags - any `{{ release }}` line will silently disappear. Use "
+        "`fetch-depth: 0` (GitHub Actions) or `GIT_DEPTH: \"0\"` (GitLab CI)."
+    )
+    return True
+
+
 def define_env(env: Any) -> None:
     """Registers this module's variables/macros on `env` - see the module
     docstring for how to wire this into `zensical.toml`."""
@@ -153,7 +200,9 @@ def define_env(env: Any) -> None:
 
     env.variables["word_count"] = _compute_site_word_count(config)
     env.variables["repo_url"] = _get_repo_url()
-    env.variables["release"] = _get_release()
+    release = _get_release()
+    _warn_if_release_lost_to_a_shallow_clone(release)
+    env.variables["release"] = release
     env.variables["site_name"] = config.get("site_name") or ""
 
     @env.macro  # type: ignore[untyped-decorator]

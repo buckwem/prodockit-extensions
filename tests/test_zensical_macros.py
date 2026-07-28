@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -170,3 +171,76 @@ def test_heading_counter_reset_letters_an_appendix_page(
     assert 'content: "A." counter(h2-count) "." counter(h3-count) " " !important;' in css
     assert 'content: "Figure A." !important;' in css
     assert 'content: "Table A." !important;' in css
+
+
+# --- The shallow-clone case (#125) ------------------------------------------
+#
+# `git describe --tags` returns nothing in a shallow clone even when the
+# repository has tags, so `{{ release }}` resolves to an empty string and the
+# cover line simply disappears - correct-looking output, no error, and it
+# works in every full local clone. That combination shipped twice.
+#
+# Having no tags at all is a normal state and stays silent; only the shallow
+# case warns, because that is the one where a tag was expected.
+
+
+def _reset_shallow_warning() -> None:
+    zensical_macros._warned_about_shallow_clone = False
+
+
+def test_warns_when_a_shallow_clone_lost_the_release(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _reset_shallow_warning()
+    monkeypatch.setattr(zensical_macros, "_repository_is_shallow", lambda: True)
+    assert zensical_macros._warn_if_release_lost_to_a_shallow_clone("") is True
+    out = capsys.readouterr().out
+    assert "shallow clone" in out
+    # Names the fix for both CI systems, not just the symptom.
+    assert "fetch-depth: 0" in out
+    assert "GIT_DEPTH" in out
+
+
+def test_does_not_warn_when_a_full_clone_simply_has_no_tags(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A project that has never tagged is perfectly normal - warning there
+    would train people to ignore the message."""
+    _reset_shallow_warning()
+    monkeypatch.setattr(zensical_macros, "_repository_is_shallow", lambda: False)
+    assert zensical_macros._warn_if_release_lost_to_a_shallow_clone("") is False
+    assert capsys.readouterr().out == ""
+
+
+def test_does_not_warn_when_the_release_resolved(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _reset_shallow_warning()
+    monkeypatch.setattr(zensical_macros, "_repository_is_shallow", lambda: True)
+    assert zensical_macros._warn_if_release_lost_to_a_shallow_clone("1.2.0") is False
+    assert capsys.readouterr().out == ""
+
+
+def test_warns_only_once_per_process(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`zensical serve` re-enters define_env() on every save, so a per-build
+    warning would scroll the terminal for the whole session."""
+    _reset_shallow_warning()
+    monkeypatch.setattr(zensical_macros, "_repository_is_shallow", lambda: True)
+    assert zensical_macros._warn_if_release_lost_to_a_shallow_clone("") is True
+    capsys.readouterr()
+    assert zensical_macros._warn_if_release_lost_to_a_shallow_clone("") is False
+    assert capsys.readouterr().out == ""
+
+
+def test_shallow_detection_against_a_real_repository(tmp_path: Path) -> None:
+    """The detection itself, against real git rather than a stub - a full
+    clone must not be reported as shallow, or every project would warn."""
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    original = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        assert zensical_macros._repository_is_shallow() is False
+    finally:
+        os.chdir(original)

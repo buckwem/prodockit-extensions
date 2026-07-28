@@ -10,6 +10,7 @@ import pytest
 from prodockit.pdf.config import (
     _find_mmdc_bin,
     _find_tex2svg_script,
+    _warn_if_release_sources_disagree,
     build_pdf_from_zensical_config,
 )
 
@@ -837,3 +838,56 @@ def test_site_name_passed_to_build_pdf_is_also_css_escaped(
     build_pdf_from_zensical_config(str(root / "zensical.toml"))
 
     assert captured["site_name"] == 'Say \\"hi\\"'
+
+
+# --- Release-source disagreement (#125) ------------------------------------
+#
+# `{{ release }}` (website) is `git describe --tags` on the local checkout;
+# `{RELEASE}` (PDF) queries the host's releases API. Both are deliberate, and
+# neither changes here - but a disagreement between them used to be entirely
+# invisible, so a reader could see two different release numbers with nothing
+# having failed.
+
+
+def test_no_warning_when_both_release_sources_agree(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("prodockit.pdf.config._get_release", lambda: "v1.2.0")
+    assert _warn_if_release_sources_disagree("v1.2.0") is None
+    assert capsys.readouterr().out == ""
+
+
+def test_warns_when_the_two_release_sources_differ(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("prodockit.pdf.config._get_release", lambda: "v1.1.0")
+    message = _warn_if_release_sources_disagree("v1.2.0")
+    assert message is not None
+    out = capsys.readouterr().out
+    # Both values named, so the reader can tell which output shows which.
+    assert "v1.2.0" in out
+    assert "v1.1.0" in out
+
+
+def test_warns_when_a_tag_exists_but_no_release_is_published(monkeypatch, capsys) -> None:
+    """The website shows a release line here and the PDF drops it - a
+    divergence that looks like nothing went wrong."""
+    monkeypatch.setattr("prodockit.pdf.config._get_release", lambda: "v1.2.0")
+    _warn_if_release_sources_disagree("")
+    out = capsys.readouterr().out
+    assert "v1.2.0" in out
+    assert "dropped" in out
+
+
+def test_warns_when_the_checkout_has_no_tags(monkeypatch, capsys) -> None:
+    """The shallow-clone case: the PDF shows a release, the website shows
+    nothing at all."""
+    monkeypatch.setattr("prodockit.pdf.config._get_release", lambda: "")
+    _warn_if_release_sources_disagree("v1.2.0")
+    out = capsys.readouterr().out
+    assert "v1.2.0" in out
+    assert "shallow clone" in out
+
+
+def test_no_warning_when_neither_source_has_a_release(monkeypatch, capsys) -> None:
+    """The common case for a project that has never tagged or released -
+    nothing is wrong, so nothing should be said."""
+    monkeypatch.setattr("prodockit.pdf.config._get_release", lambda: "")
+    assert _warn_if_release_sources_disagree("") is None
+    assert capsys.readouterr().out == ""

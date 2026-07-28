@@ -93,6 +93,37 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
   a project embedding similar info in a PDF cover page needs to fetch and
   substitute it directly before the page ever reaches `build_pdf()`.
 
+!!! warning "The website and the PDF resolve the release differently"
+
+    The two release values come from deliberately different sources, and
+    they can disagree:
+
+    | | Source |
+    | --- | --- |
+    | `{{ release }}` (website, and any macro-rendered page) | `git describe --tags` on the local checkout |
+    | `{RELEASE}` (PDF cover marker) | The host's releases API |
+
+    Each is right for its own context. `{{ release }}` is re-evaluated on
+    every website rebuild, including every save under `zensical serve`, so
+    it must not make a network call. `{RELEASE}` serves a cover page that
+    isn't part of a macro-rendered site at all, so a local git lookup isn't
+    always available to it.
+
+    They diverge when a tag exists with no published release (the website
+    shows a version, the PDF drops the line), when a release exists but the
+    checkout has no tags (the reverse - usually a shallow clone), and during
+    the window in a release where the version-bump commit is pushed before
+    its tag.
+
+    Since 0.16.0 neither is silent about it: `prodockit pdf` warns when the
+    two will show different things, and the macros pass warns when
+    `{{ release }}` came back empty *because* the clone was shallow, naming
+    `fetch-depth: 0` / `GIT_DEPTH`. A project with no tags at all is a
+    normal state and says nothing.
+
+    If you need them guaranteed identical, set the value explicitly rather
+    than relying on either mechanism.
+
 **Multi-page → single-document concatenation**
 
 - A link that resolves fine on a website (a separate page) has nothing to
