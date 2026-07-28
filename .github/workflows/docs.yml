@@ -87,7 +87,9 @@ jobs:
       - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
       - run: sudo apt-get update && sudo apt-get install -y google-chrome-stable
       - run: npm ci --prefix tools/mermaid
-      - run: pip install -e . weasyprint
+      # The [testing] extra brings pytest/pymupdf for the built-output
+      # checks below.
+      - run: pip install -e ".[testing]" weasyprint
       - run: prodockit pdf
       - run: prodockit pdf -m introduction.md
       - run: prodockit pdf -m installation.md
@@ -102,6 +104,12 @@ jobs:
       - run: prodockit pdf -m about/changelog.md
       - run: prodockit pdf -m about/license.md
       - run: zensical build --clean --strict
+      # Checks what the builds above actually produced, using this project's
+      # own pytest plugin - deselected from the normal unit run, which needs
+      # no build. Catches a Mermaid diagram or formula reaching the PDF as
+      # raw source, and a nav page missing from the site, before either is
+      # published (see tests/test_built_docs.py).
+      - run: python -m pytest tests/test_built_docs.py -m built -v
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
