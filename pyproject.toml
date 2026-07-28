@@ -90,6 +90,15 @@ packages = ["src/prodockit"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Tests marked `built` inspect this project's own built site and PDF, which
+# only exist after `prodockit pdf` and `zensical build` have run. They are
+# excluded by default so the ordinary unit run needs no build, and are run
+# explicitly by docs.yml after it builds. Deselecting rather than skipping,
+# so an unbuilt checkout doesn't report a silent pass.
+addopts = "-m 'not built'"
+markers = [
+  "built: needs this project's own built site/PDF on disk (run by docs.yml)",
+]
 
 [tool.ruff]
 line-length = 100
