@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import os
+import re
 import shutil
 import stat
 import sys
@@ -353,24 +354,31 @@ pymupdf = pytest.importorskip("pymupdf")
 def _fake_pandoc_building_a_real_pdf(tmp_path: Path) -> str:
     """Writes a fake `pandoc` (a shell script) that - unlike the plain
     "%PDF-1.4 stub" text file every other test here uses - builds a real,
-    two-page PDF via pymupdf's own `insert_htmlbox()` (confirmed directly
-    to support the non-ASCII bracket markers mark_index_terms() inserts,
-    unlike its simpler insert_text()), with one marker on page 1 and two
-    on page 2 - so build_pdf()'s own extract_term_pages() call has a real,
-    searchable PDF to inspect after the first pass. Returns the script's
-    own text, for the caller to pass to fake_pandoc_on_path."""
+    two-page PDF carrying the marker ids mark_index_terms() inserts as PDF
+    named destinations (what WeasyPrint emits for an element `id`), one on
+    page 1 and two on page 2 - so build_pdf()'s own extract_term_pages()
+    call has a real destination tree to resolve after the first pass.
+    Returns the script's own text, for the caller to pass to
+    fake_pandoc_on_path."""
     helper_path = tmp_path / "_build_fake_pdf.py"
     helper_path.write_text(
         "import sys\n"
         "import pymupdf\n"
         "doc = pymupdf.open()\n"
-        "p1 = doc.new_page()\n"
-        "p1.insert_htmlbox(pymupdf.Rect(20, 20, 500, 200), "
-        "'chapter one \\u27e6prodockit-index-1\\u27e7 text')\n"
-        "p2 = doc.new_page()\n"
-        "p2.insert_htmlbox(pymupdf.Rect(20, 20, 500, 200), "
-        "'chapter two \\u27e6prodockit-index-2\\u27e7 and "
-        "\\u27e6prodockit-index-3\\u27e7 text')\n"
+        "doc.new_page()\n"
+        "doc.new_page()\n"
+        "items = []\n"
+        "for name, pno in [('prodockit-index-mark-1', 0), "
+        "('prodockit-index-mark-2', 1), ('prodockit-index-mark-3', 1)]:\n"
+        "    xref = doc.get_new_xref()\n"
+        "    doc.update_object(xref, "
+        "'<< /D [ %s 0 R /XYZ 0 800 0 ] >>' % doc.page_xref(pno))\n"
+        "    items.append('(%s) %s 0 R' % (name, xref))\n"
+        "dests = doc.get_new_xref()\n"
+        "doc.update_object(dests, '<< /Names [ ' + ' '.join(items) + ' ] >>')\n"
+        "names = doc.get_new_xref()\n"
+        "doc.update_object(names, '<< /Dests %s 0 R >>' % dests)\n"
+        "doc.xref_set_key(doc.pdf_catalog(), 'Names', '%s 0 R' % names)\n"
         "doc.save(sys.argv[1])\n",
         encoding="utf-8",
     )
@@ -557,6 +565,62 @@ def test_index_starts_on_a_recto_page_under_double_sided(tmp_path: Path) -> None
     assert index_page_numbers[0] % 2 == 1, (
         f"Index landed on page {index_page_numbers[0]}, an even (verso) page"
     )
+
+
+@real_pandoc_and_weasyprint_required
+def test_index_markers_leave_no_trace_in_the_pdf_text_layer(tmp_path: Path) -> None:
+    """prodockit-extensions#133: the marker inserted after each
+    \\index{Term} used to be real text (`⟦prodockit-index-N⟧` at
+    0.1pt), invisible on the page but present in the finished PDF's text
+    layer - so in copy and paste, the reader's own search, text extraction
+    and screen readers, mid-sentence.
+
+    Only a real pandoc+weasyprint build can answer this: it needs the
+    actual text layer WeasyPrint produces, which the fake-pandoc stub
+    elsewhere in this file cannot supply. Asserts both halves - that the
+    markers are gone *and* that the index still resolves real page
+    numbers, since deleting the markers outright would satisfy the first
+    on its own while destroying the feature."""
+    long_para = "<p>" + ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 40) + "</p>"
+    pages = [
+        Page(docs_rel_path="index.md", html="<h1>Cover</h1>", is_index=True),
+        Page(
+            docs_rel_path="chapter1.md",
+            html=f'<h1>Chapter One</h1>{long_para}<span class="index">Widget</span>{long_para}',
+        ),
+        Page(
+            docs_rel_path="chapter2.md",
+            html=f'<h1>Chapter Two</h1>{long_para}<span class="index">Gadget</span>{long_para}',
+        ),
+    ]
+    output_path = tmp_path / "out.pdf"
+
+    build_pdf(pages, str(output_path), include_index=True)
+
+    reader = PdfReader(str(output_path))
+    full_text = "\n".join(page.extract_text() for page in reader.pages)
+    assert "prodockit-index" not in full_text, "index marker leaked into the PDF text layer"
+    assert "⟦" not in full_text and "⟧" not in full_text
+
+    # The index itself must still be real: an entry per term, each citing
+    # the page that term actually appears on. Read from the index page
+    # only - "Widget" also occurs in the prose it was marked in, so
+    # scanning the whole document would match those lines too.
+    index_text = next(
+        (
+            text
+            for page in reader.pages
+            if (text := page.extract_text()).strip().startswith("Index")
+        ),
+        "",
+    )
+    assert index_text, "no Index page found in the built PDF"
+    entries = dict(re.findall(r"^(Widget|Gadget), (\d+)\s*$", index_text, re.MULTILINE))
+    assert set(entries) == {"Widget", "Gadget"}, f"unexpected index entries: {index_text!r}"
+    for term, cited_page in entries.items():
+        assert term in reader.pages[int(cited_page) - 1].extract_text(), (
+            f"index says {term!r} is on page {cited_page}, but that page doesn't contain it"
+        )
 
 
 @real_pandoc_and_weasyprint_required

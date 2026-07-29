@@ -10,8 +10,8 @@ the author writes explicitly, in one place" - an index term's own page
 number can only be known *after* WeasyPrint has laid the PDF out, not
 while still preprocessing Markdown/HTML. This needs a real two-pass
 build: render once (with each `.index` occurrence carrying a unique,
-near-invisible text marker), inspect that first-pass PDF with PyMuPDF to
-find which page each marker landed on, then render again with the real
+empty marker element), inspect that first-pass PDF with PyMuPDF to find
+which page each marker landed on, then render again with the real
 generated index content substituted in.
 
 Confirmed directly, before settling on this design: WeasyPrint does
@@ -20,10 +20,28 @@ no second render), but it can't deduplicate a term mentioned twice on
 the same page (Python-side code has no way to know two markers share a
 page without already knowing layout) - accepted as a real limitation and
 deliberately not used here in favour of a genuinely clean, deduplicated
-index. Also confirmed directly: a `font-size: 0` marker is dropped from
-the rendered PDF's own text layer entirely (nothing for PyMuPDF to find),
-but a merely tiny non-zero size (`0.1pt`) survives and is reliably
-findable, while remaining visually imperceptible.
+index.
+
+**Markers carry no text.** Each occurrence is marked with an *empty*
+`<span id="prodockit-index-mark-N">`, and its page is read back from the
+PDF's own named destinations - WeasyPrint emits one per element `id`,
+whether or not anything links to it (confirmed directly, including
+through the real Pandoc-to-WeasyPrint path this module actually uses, and
+for a marker inside a heading, list item, table cell and blockquote).
+
+This replaces an earlier design that inserted the literal text
+`⟦prodockit-index-N⟧` in a `font-size: 0.1pt` span and found it by
+searching each page's text layer. That worked, and was invisible on the
+page, but the tokens were real text in the finished PDF: they showed up
+in copy and paste, in the reader's own search, in text extraction, and -
+worst - in screen readers, mid-sentence (prodockit-extensions#133). A
+`font-size: 0` span was already known to be dropped from the text layer
+entirely, so shrinking it further was never an option; the fix was to
+stop encoding the marker as text at all. An empty span generates no
+glyphs, so nothing reaches the text layer, and it occupies no width -
+which also removes the old design's uncomfortable question of whether
+removing 67 tiny spans between passes could reflow the very pages whose
+numbers they had just recorded.
 
 Because the index is always placed at the very end of the document (the
 standard back-of-book convention, and the only position where growing or
@@ -70,25 +88,31 @@ MAX_RENDERED_INDEX_LEVEL = 3
 #: replaceable in the concatenated HTML between passes.
 INDEX_CONTENT_ID = "prodockit-index-content"
 
-_MARKER_PATTERN = re.compile(r"⟦prodockit-index-(\d+)⟧")
+#: Prefix for the `id` of the empty span inserted after each `.index`
+#: occurrence - deliberately distinctive, since it shares the document's
+#: single `id` namespace with every heading/anchor an author writes.
+MARKER_ID_PREFIX = "prodockit-index-mark-"
 
 
-def _marker_text(occurrence_number: int) -> str:
-    """The literal (near-invisible, but real) text inserted right after
-    each `.index` occurrence - `⟦`/`⟧` (mathematical white
-    square brackets) chosen only because real prose is vanishingly
-    unlikely to contain them, not for any semantic meaning."""
-    return f"⟦prodockit-index-{occurrence_number}⟧"
+def _marker_id(occurrence_number: int) -> str:
+    """The `id` of the empty marker span for a given occurrence - the name
+    `extract_term_pages()` later looks up among the PDF's own named
+    destinations. Carries no text (see this module's own docstring)."""
+    return f"{MARKER_ID_PREFIX}{occurrence_number}"
 
 
 def mark_index_terms(html: str) -> tuple[str, list[str], list[bool]]:
     """Finds every `<span class="index">` in `html` (i.e. every
     `\\index{Term}` an author wrote) and inserts a unique, sequentially
-    numbered marker (see `_marker_text`) directly after each one - a
-    `font-size: 0.1pt` span, findable by `extract_term_pages()` in the
-    finished PDF's own text layer while remaining visually imperceptible
-    (confirmed directly: `font-size: 0` is dropped from the PDF's text
-    layer entirely, unlike a merely tiny non-zero size).
+    numbered marker (see `_marker_id`) directly after each one - an
+    *empty* span carrying only an `id`, which WeasyPrint turns into a
+    named destination `extract_term_pages()` can look up by name.
+
+    The marker contributes no text and no width, so it can't appear in
+    the finished PDF's text layer (copy and paste, search, extraction,
+    screen readers) and can't reflow the page it sits on - see this
+    module's own docstring for the text-based design this replaced, and
+    why.
 
     Returns `(html_with_markers, terms, code_flags)`, where `terms[i]` is
     the term's full path for marker number `i + 1` - a flat `\\index{Term}`
@@ -107,18 +131,19 @@ def mark_index_terms(html: str) -> tuple[str, list[str], list[bool]]:
         terms.append(span.get("data-index-term") or span.get_text())
         code_flags.append(span.get("data-index-code") == "true")
         marker = soup.new_tag("span")
-        marker["style"] = "font-size: 0.1pt !important; color: transparent !important;"
-        marker.string = _marker_text(len(terms))
+        marker["id"] = _marker_id(len(terms))
         span.insert_after(marker)
     return str(soup), terms, code_flags
 
 
 def extract_term_pages(pdf_path: str, occurrence_count: int) -> dict[int, int | None]:
     """Opens the first-pass PDF at `pdf_path` and finds which page each
-    marker `mark_index_terms()` inserted landed on, by searching every
-    page's own text layer for that marker's own (near-invisible) text -
-    confirmed directly to work even for two occurrences of the same term
-    landing on the same page (both correctly resolve to that one page).
+    marker `mark_index_terms()` inserted landed on, by resolving that
+    marker's own `id` (see `_marker_id`) among the PDF's named
+    destinations - WeasyPrint emits one per element `id`, so nothing has
+    to be findable as *text* on the page. Two occurrences of the same term
+    landing on one page still resolve correctly, each having its own
+    distinct marker `id`.
 
     Returns `{occurrence_number: page_number}` (1-indexed, matching the
     numbers `mark_index_terms()` assigned) for every occurrence found;
@@ -146,12 +171,18 @@ def extract_term_pages(pdf_path: str, occurrence_count: int) -> dict[int, int | 
     # otherwise cover.
     doc = pymupdf.open(pdf_path)  # type: ignore[no-untyped-call]
     try:
-        pages: dict[int, int | None] = dict.fromkeys(range(1, occurrence_count + 1), None)
-        for page_number, page in enumerate(doc, start=1):  # type: ignore[arg-type,var-annotated]
-            for match in _MARKER_PATTERN.finditer(page.get_text()):
-                occurrence_number = int(match.group(1))
-                if occurrence_number in pages:
-                    pages[occurrence_number] = page_number
+        # Every named destination in the document, keyed by name - the
+        # marker ids among them are ours, the rest are ordinary heading
+        # and anchor ids, which are simply never looked up here.
+        destinations = doc.resolve_names()  # type: ignore[no-untyped-call]
+        pages: dict[int, int | None] = {}
+        for occurrence_number in range(1, occurrence_count + 1):
+            destination = destinations.get(_marker_id(occurrence_number))
+            # `page` is 0-indexed in a named destination, but every page
+            # number this module deals with elsewhere - and every page
+            # number a reader ever sees - is 1-indexed.
+            page_index = destination.get("page") if destination else None
+            pages[occurrence_number] = None if page_index is None else int(page_index) + 1
         return pages
     finally:
         doc.close()  # type: ignore[no-untyped-call]
