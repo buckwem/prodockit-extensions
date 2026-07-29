@@ -802,8 +802,13 @@ for the feature itself, and this module's own docstring for why a real
 two-pass build (rather than CSS's own `target-counter()`) is what backs
 it. `mark_index_terms()`
 finds every `[prodockit.index](extensions/index-terms.md)`
-`<span class="index">` and inserts a unique, near-invisible text marker
-after each occurrence, returning the terms found in order - a flat
+`<span class="index">` and inserts a unique, *empty* marker span after
+each occurrence - carrying only an `id`, which WeasyPrint turns into a
+PDF named destination that `extract_term_pages()` resolves back to a page
+number. Since 0.17.0 the marker holds no text at all, so it cannot reach
+the finished PDF's text layer, where earlier versions left it visible to
+copy and paste, search, text extraction and screen readers. It returns
+the terms found in order - a flat
 `"Term"` or, for a hierarchical `\index{Parent!Child}`, `"Parent!Child"` -
 alongside whether each one was a
 [code-styled term](extensions/index-terms.md#code-styled-terms).

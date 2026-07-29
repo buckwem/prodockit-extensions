@@ -4,6 +4,7 @@
 from pathlib import Path
 
 import pytest
+from bs4 import BeautifulSoup
 
 pymupdf = pytest.importorskip("pymupdf")
 
@@ -19,17 +20,31 @@ from prodockit.pdf.index import (  # noqa: E402
 
 
 def _build_test_pdf(path: Path, pages_markers: list[list[str]]) -> None:
-    """Builds a real, minimal multi-page PDF with the given marker text on
-    each page, via pymupdf's own `insert_htmlbox()` (unlike its simpler
-    `insert_text()`, confirmed directly to actually support the
-    non-ASCII bracket characters `mark_index_terms()` uses - `insert_text()`
-    silently substitutes an unrelated placeholder glyph instead) - avoids
-    needing a real WeasyPrint install just to test extract_term_pages()."""
+    """Builds a real, minimal multi-page PDF carrying the given marker
+    *names* as PDF named destinations on each page - what WeasyPrint emits
+    for an element `id`, and what `extract_term_pages()` resolves. Written
+    directly into the catalog's `/Names /Dests` tree, so this needs no
+    WeasyPrint install.
+
+    Being hand-built, this fixture proves `extract_term_pages()` reads a
+    destination tree correctly, but not that WeasyPrint produces one -
+    that claim belongs to the real pandoc+weasyprint build in
+    `tests/test_pdf_build.py`, which is where a change in WeasyPrint's own
+    anchor behaviour would surface.
+    """
     doc = pymupdf.open()
-    for markers in pages_markers:
-        page = doc.new_page()
-        text = " ".join(f"filler {m} filler" for m in markers) or "filler only"
-        page.insert_htmlbox(pymupdf.Rect(20, 20, 500, 200), text)
+    destinations = []
+    for page_index, markers in enumerate(pages_markers):
+        doc.new_page()
+        for name in markers:
+            xref = doc.get_new_xref()
+            doc.update_object(xref, f"<< /D [ {doc.page_xref(page_index)} 0 R /XYZ 0 800 0 ] >>")
+            destinations.append(f"({name}) {xref} 0 R")
+    dests_xref = doc.get_new_xref()
+    doc.update_object(dests_xref, "<< /Names [ " + " ".join(destinations) + " ] >>")
+    names_xref = doc.get_new_xref()
+    doc.update_object(names_xref, f"<< /Dests {dests_xref} 0 R >>")
+    doc.xref_set_key(doc.pdf_catalog(), "Names", f"{names_xref} 0 R")
     doc.save(str(path))
     doc.close()
 
@@ -62,15 +77,25 @@ def test_mark_index_terms_inserts_a_sequential_marker_after_each_occurrence() ->
         '<span class="index">Gadget</span>'
     )
     result_html, _terms, _code_flags = mark_index_terms(html)
-    assert "⟦prodockit-index-1⟧" in result_html
-    assert "⟦prodockit-index-2⟧" in result_html
-    assert result_html.index("⟦prodockit-index-1⟧") < result_html.index("⟦prodockit-index-2⟧")
+    assert 'id="prodockit-index-mark-1"' in result_html
+    assert 'id="prodockit-index-mark-2"' in result_html
+    assert result_html.index("prodockit-index-mark-1") < result_html.index(
+        "prodockit-index-mark-2"
+    )
 
 
-def test_mark_index_terms_marker_is_near_invisible() -> None:
-    html = '<span class="index">Widget</span>'
+def test_mark_index_terms_marker_contributes_no_text_at_all() -> None:
+    """The whole point of prodockit-extensions#133: a marker that carries
+    text ends up in the finished PDF's text layer, and so in copy and
+    paste, search, extraction and screen readers. The marker span must be
+    genuinely empty - asserted on the rendered text, not on the tag, so
+    that any future style of marker content (a zero-width space, an
+    `aria-hidden` label) fails this too."""
+    html = '<p>Alpha <span class="index">Widget</span> omega.</p>'
     result_html, _, _code_flags = mark_index_terms(html)
-    assert "font-size: 0.1pt" in result_html
+
+    assert 'id="prodockit-index-mark-1"' in result_html
+    assert BeautifulSoup(result_html, "html.parser").get_text() == "Alpha Widget omega."
 
 
 def test_mark_index_terms_repeated_term_gets_its_own_occurrence_each_time() -> None:
@@ -131,9 +156,9 @@ def test_extract_term_pages_maps_occurrence_to_the_correct_page(tmp_path: Path) 
     _build_test_pdf(
         pdf_path,
         [
-            ["⟦prodockit-index-1⟧"],
+            ["prodockit-index-mark-1"],
             [],
-            ["⟦prodockit-index-2⟧", "⟦prodockit-index-3⟧"],
+            ["prodockit-index-mark-2", "prodockit-index-mark-3"],
         ],
     )
 
@@ -144,7 +169,7 @@ def test_extract_term_pages_maps_occurrence_to_the_correct_page(tmp_path: Path) 
 
 def test_extract_term_pages_none_for_an_occurrence_not_found(tmp_path: Path) -> None:
     pdf_path = tmp_path / "test.pdf"
-    _build_test_pdf(pdf_path, [["⟦prodockit-index-1⟧"]])
+    _build_test_pdf(pdf_path, [["prodockit-index-mark-1"]])
 
     pages = extract_term_pages(str(pdf_path), 2)
 

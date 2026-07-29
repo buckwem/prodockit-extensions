@@ -1,5 +1,33 @@
 # Release Notes
 
+## 0.17.0 (2026-07-28)
+
+- Back-of-book index markers no longer leave anything in the PDF's text
+  layer ([#133](https://github.com/buckwem/prodockit-extensions/issues/133)).
+  Every `\index{Term}` used to deposit a `⟦prodockit-index-N⟧` token
+  next to the word it marked - 67 of them in this project's own User
+  Guide. They were invisible on the page, but real text in the file, so
+  they surfaced in copy and paste, in the reader's own search, in text
+  extraction, and, worst, in screen readers, read out mid-sentence.
+
+    The markers had to stay findable, which is why they were text: the
+    second pass locates each one to learn its page number, and a
+    `font-size: 0` span is dropped from the text layer entirely, leaving
+    nothing to find. Shrinking further was never an option.
+
+    Each occurrence is now marked with an *empty* span carrying only an
+    `id`, and its page is read back from the PDF's own named destinations
+    - WeasyPrint emits one per element `id`, whether or not anything
+    links to it. Nothing is encoded as text, so nothing can leak. An
+    empty span also occupies no width, which removes the previous
+    design's awkward question of whether stripping 67 tiny spans between
+    passes might reflow the very pages whose numbers they had just
+    recorded.
+
+    Needs no configuration change, and no new dependency: `pymupdf` was
+    already required for `pdf_include_index`, and the API used has been
+    available since well below the existing floor.
+
 ## 0.16.0 (2026-07-28)
 
 - The website's `{{ release }}` and the PDF's `{RELEASE}` come from
