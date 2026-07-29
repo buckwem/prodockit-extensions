@@ -1,6 +1,6 @@
 # Headings
 
-`prodockit.headings` gives every heading in a document an `id` and a
+\index{`prodockit.headings`} gives every heading in a document an `id` and a
 hierarchical section number, and records both - along with the heading's
 text and level - in a shared registry other prodockit extensions build on
 (e.g. [prodockit.refs](refs.md), which resolves `\ref{id}` by looking an id up
@@ -48,13 +48,13 @@ the next build - there's no stored/stale numbering state.
 
 ### Appendices
 
-Flag a page's front matter with `is_appendix: true` to give it letter-based
+Flag a page's \index{front matter} with `is_appendix: true` to give it letter-based
 numbering instead of the normal numeric sequence - `"A"`, `"A.1"`,
 `"A.1.1"` - once you've enabled
 [continuous numbering](#continuous-numbering-across-pages-zensical) (see
-Reference below). An appendix page doesn't consume a number from the
+Reference below). An \index{appendix} page doesn't consume a number from the
 numeric sequence at all, so pages after it aren't left with a gap. Letters
-are assigned sequentially in nav order - the first `is_appendix` page
+are assigned sequentially in \index{nav order} - the first `is_appendix` page
 becomes `"A"`, the second `"B"`, and so on, independent of how many
 numbered pages come before them.
 
@@ -105,7 +105,7 @@ meaningful under [Zensical](https://zensical.org/); ignored otherwise.
 
 ### Unnumbered headings
 
-A heading with an `unnumbered` class - e.g. a cover page or title slide -
+A heading with an \index{headings!`unnumbered`} class - e.g. a cover page or title slide -
 still gets an id, but is skipped when computing section numbers, so it
 doesn't consume a counter position:
 
@@ -161,15 +161,15 @@ An id comes from one of, in order of precedence:
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `source` | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's entries in the registry, and to safely clear/replace them on a rebuild of the same document. |
-| `registry` | `IdRegistry \| None` | a new `IdRegistry()` | Share one registry across multiple documents/conversions - see below. Passed as a constructor keyword, not a string-based config value (Python-Markdown's config system can't carry arbitrary Python objects safely). |
-| `numbering` | `"per-document" \| "continuous"` | `"per-document"` | `"continuous"` makes `h1` numbering carry on across pages in Zensical nav order, instead of restarting at 1 on every page - see [above](#continuous-numbering-across-pages-zensical). Only meaningful under Zensical; ignored otherwise. |
-| `appendix_attr` | `str` | `"is_appendix"` | Front matter flag name marking a page for letter-based numbering ("A", "A.1", ...) instead of the normal numeric sequence, when `numbering="continuous"`. |
+| \index{prodockit.headings!`source`} | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's entries in the registry, and to safely clear/replace them on a rebuild of the same document. |
+| \index{prodockit.headings!`registry`} | `IdRegistry \| None` | a new `IdRegistry()` | Share one registry across multiple documents/conversions - see below. Passed as a constructor keyword, not a string-based config value (Python-Markdown's config system can't carry arbitrary Python objects safely). |
+| \index{prodockit.headings!`numbering`} | `"per-document" \| "continuous"` | `"per-document"` | `"continuous"` makes `h1` numbering carry on across pages in Zensical nav order, instead of restarting at 1 on every page - see [above](#continuous-numbering-across-pages-zensical). Only meaningful under Zensical; ignored otherwise. |
+| \index{prodockit.headings!`appendix_attr`} | `str` | `"is_appendix"` | Front matter flag name marking a page for letter-based numbering ("A", "A.1", ...) instead of the normal numeric sequence, when `numbering="continuous"`. |
 
 ### Sharing a registry across a multi-page build
 
 To resolve cross-page references, every page in a build needs to write into
-- and read from - the *same* `IdRegistry` instance, each scoped by its own,
+- and read from - the *same* \index{`IdRegistry`} instance, each scoped by its own,
 distinct `source`.
 
 Under [Zensical](https://zensical.org/), this happens automatically with no

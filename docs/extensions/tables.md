@@ -1,6 +1,6 @@
 # Tables
 
-`prodockit.tables` gives a table column a percentage or fixed width, via a
+\index{`prodockit.tables`} gives a table column a percentage or fixed width, via a
 `width` attribute already attachable to a header cell with
 [`attr_list`](https://python-markdown.github.io/extensions/attr_list/) -
 no new syntax to learn.

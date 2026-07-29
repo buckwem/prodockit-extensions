@@ -1,6 +1,6 @@
 # Limitations and workarounds
 
-Confirmed limitations across prodockit's three surfaces - the Python-
+Confirmed \index{limitations} across prodockit's three surfaces - the Python-
 Markdown extensions, `prodockit.pdf`, and `prodockit.zensical_macros` -
 and the workaround each one gets, so a project hitting unexpected output
 has somewhere to check *why* before assuming it's a bug.

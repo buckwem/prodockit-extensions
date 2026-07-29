@@ -17,13 +17,39 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          # Caches ~/.cache/pip, which holds pip's own *built* wheels as
+          # well as its downloads. That matters here because adding
+          # weasyprint below pulls in packages with no wheel published for
+          # every interpreter this matrix covers - on 3.13 the install
+          # step spent 13 minutes compiling them from source, against ~20
+          # seconds on 3.10-3.12. Cached, that cost is paid once per
+          # interpreter rather than on every run. Keyed on pyproject.toml,
+          # so it only re-resolves when the dependencies actually change.
+          cache: pip
+          cache-dependency-path: pyproject.toml
       # prodockit.bibliography's own tests need a real pandoc install - its
       # citation/bibliography formatting is delegated entirely to `pandoc
       # --citeproc`, so a fake stand-in (unlike the plain stub used
       # elsewhere for prodockit.pdf's own orchestration-only tests)
       # wouldn't actually test anything meaningful.
-      - run: sudo apt-get update && sudo apt-get install -y pandoc
-      - run: pip install -e ".[dev]"
+      #
+      # The Pango/HarfBuzz libraries are WeasyPrint's own rendering stack
+      # (it is a real native dependency, not a pure-Python package) - see
+      # the weasyprint install below for why this job needs it at all.
+      - run: >
+          sudo apt-get update && sudo apt-get install -y
+          pandoc libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
+      # weasyprint on top of [dev]: tests/test_pdf_build.py's
+      # `real_pandoc_and_weasyprint_required` cases render a real PDF and
+      # then assert on where things actually landed - which page a heading
+      # starts on, what the running header says, whether a long index term
+      # stayed inside its column. The fake-pandoc stub every other test in
+      # that file uses writes a placeholder file and cannot answer any of
+      # those. Without weasyprint here they skipped silently on every run,
+      # so the behaviour they exist to pin was never checked by CI at all -
+      # `docs.yml` installs weasyprint but only runs `-m built` against
+      # tests/test_built_docs.py, so it never reaches them either.
+      - run: pip install -e ".[dev]" weasyprint
       - run: ruff check .
       - run: mypy src
       - run: pytest --cov=prodockit

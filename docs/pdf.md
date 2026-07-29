@@ -30,10 +30,10 @@ needs nothing beyond Pandoc/WeasyPrint.
 
 ### Mermaid diagrams and TeX maths {: #mermaid-diagrams-and-tex-maths }
 
-WeasyPrint has no JS engine, so neither can be rendered the way your live
-website renders them. Both are pre-rendered to static images before Pandoc
-sees them - Mermaid via [mermaid-cli](https://github.com/mermaid-js/mermaid-cli),
-maths via a small MathJax script.
+\index{WeasyPrint} has no JS engine, so neither can be rendered the way your live
+website renders them. Both are pre-rendered to static images before \index{Pandoc}
+sees them - \index{Mermaid} via [mermaid-cli](https://github.com/mermaid-js/mermaid-cli),
+maths via a small \index{TeX maths!MathJax} script.
 
 Set both up with:
 
@@ -120,23 +120,23 @@ lives under `[project.extra]`, all optional:
 
 | Setting | Default | What it does |
 |---|---|---|
-| `pdf_output` | `"<docs_dir>/site_documentation.pdf"` | Where the PDF is written. |
-| `pdf_copyright` | falls back to `copyright` | Overrides `copyright` for the PDF's own footer only - see [Copyright text](#copyright-text). |
-| `pdf_page_size` | `"A4"` | Any WeasyPrint-supported CSS page size (`"Letter"`, ...). |
-| `pdf_margin_top` / `_right` / `_bottom` / `_left` | `"2cm"` each | Page margins, as CSS lengths. |
-| `pdf_double_sided` | `false` | Duplex-printing layout - see [Double-sided (duplex) printing](#double-sided-duplex-printing). |
-| `pdf_margin_inner` / `_outer` | `"2cm"` each | Spine-side/fore-edge margins, used instead of `pdf_margin_left`/`_right` when `pdf_double_sided` is on. |
-| `pdf_header_footer_font_size` / `_color` / `_divider_color` | `"10pt"` / `"#555555"` / `"#e2e8f0"` | Running header/footer styling. |
-| `heading_numbering` | `true` | Chapter/appendix numbering on headings and captions. |
-| `reference_style` | `"european"` | `"european"` (tight, single-line citation entries) or `"global"` (double-spaced, hanging indent - the common APA/MLA/Chicago style). |
-| `pdf_include_table_of_contents` | `true` | Whether to generate and insert a table of contents. |
-| `pdf_table_of_contents_title` | `"Table of Contents"` | That page's own heading text. |
-| `pdf_include_index` | `false` | A back-of-book index from every `\index{Term}` marker - see [Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index). Requires the optional `pymupdf` dependency. |
-| `pdf_index_title` | `"Index"` | That page's own heading text. |
-| `pdf_mmdc_bin` | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
-| `pdf_tex2svg_script` / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
-| `pdf_source_bundle` | `false` | Bundle this repository's own source code into a separate `source_bundle.pdf` - see [Bundling source code into a PDF](#bundling-source-code-into-a-pdf). Only runs for a full, nav-driven build - never for a `--markdown-file`-scoped one. |
-| `pdf_extra_css` | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF - e.g. a rule that would look wrong on the live website, or one overriding something `extra_css` itself sets (concatenated after it, so it wins the cascade). |
+| \index{PDF settings!`pdf_output`} | `"<docs_dir>/site_documentation.pdf"` | Where the PDF is written. |
+| \index{PDF settings!`pdf_copyright`} | falls back to `copyright` | Overrides `copyright` for the PDF's own footer only - see [Copyright text](#copyright-text). |
+| \index{PDF settings!`pdf_page_size`} | `"A4"` | Any WeasyPrint-supported CSS page size (`"Letter"`, ...). |
+| \index{PDF settings!`pdf_margin_top`} / `_right` / `_bottom` / `_left` | `"2cm"` each | Page margins, as CSS lengths. |
+| \index{PDF settings!`pdf_double_sided`} | `false` | Duplex-printing layout - see [Double-sided (duplex) printing](#double-sided-duplex-printing). |
+| \index{PDF settings!`pdf_margin_inner`} / `_outer` | `"2cm"` each | Spine-side/fore-edge margins, used instead of `pdf_margin_left`/`_right` when `pdf_double_sided` is on. |
+| \index{PDF settings!`pdf_header_footer_font_size`} / `_color` / `_divider_color` | `"10pt"` / `"#555555"` / `"#e2e8f0"` | Running header/footer styling. |
+| \index{PDF settings!`heading_numbering`} | `true` | Chapter/appendix numbering on headings and captions. |
+| \index{PDF settings!`reference_style`} | `"european"` | `"european"` (tight, single-line citation entries) or `"global"` (double-spaced, hanging indent - the common APA/MLA/Chicago style). |
+| \index{PDF settings!`pdf_include_table_of_contents`} | `true` | Whether to generate and insert a table of contents. |
+| \index{PDF settings!`pdf_table_of_contents_title`} | `"Table of Contents"` | That page's own heading text. |
+| \index{PDF settings!`pdf_include_index`} | `false` | A back-of-book index from every `\index{Term}` marker - see [Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index). Requires the optional `pymupdf` dependency. |
+| \index{PDF settings!`pdf_index_title`} | `"Index"` | That page's own heading text. |
+| \index{PDF settings!`pdf_mmdc_bin`} | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
+| \index{PDF settings!`pdf_tex2svg_script`} / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
+| \index{PDF settings!`pdf_source_bundle`} | `false` | Bundle this repository's own source code into a separate `source_bundle.pdf` - see [Bundling source code into a PDF](#bundling-source-code-into-a-pdf). Only runs for a full, nav-driven build - never for a `--markdown-file`-scoped one. |
+| \index{PDF settings!`pdf_extra_css`} | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF - e.g. a rule that would look wrong on the live website, or one overriding something `extra_css` itself sets (concatenated after it, so it wins the cascade). |
 
 A page's own front matter `is_appendix: true` gives it letter-based
 numbering ("A", "A.1", ...) instead of numeric, matching
@@ -184,7 +184,7 @@ nothing to add until it does.
 
 `copyright` (a native Zensical setting, not one of prodockit's own -
 see [Building a single file](#building-a-single-file) above) feeds both
-the live website's own footer *and* the PDF's running footer, by
+the live website's own footer *and* the PDF's \index{running footer}, by
 default - whatever you set once shows, unchanged, in both places.
 
 `pdf_copyright` (under `[project.extra]`) overrides it for the PDF's own
@@ -231,7 +231,7 @@ existing "Made with Zensical" one.
 ### Cover page markers
 
 Drop any of these literal strings into your `nav`'s index page - typically
-a cover page, e.g. wrapped in `{.pdf-only}` as in the example above - and
+a \index{cover page}, e.g. wrapped in `{.pdf-only}` as in the example above - and
 `prodockit pdf` substitutes a real value once that page's HTML exists, no
 configuration needed:
 
@@ -399,7 +399,7 @@ below.
 
 ### Back-of-book index
 
-A traditional, two-column back-of-book index, generated from every
+A traditional, two-column \index{back-of-book index}, generated from every
 `\index{Term}` marker (the `prodockit.index` extension) via
 `pdf_include_index`/`pdf_index_title` - PDF-only, there's no equivalent
 on the live website. Marking terms, turning the setting on, and what the

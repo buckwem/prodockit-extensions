@@ -1,6 +1,6 @@
 # Acronyms and Glossary
 
-`prodockit.glossary` lets you define a term once - an acronym expansion, a
+\index{`prodockit.glossary`} lets you define a term once - an \index{acronym} expansion, a
 glossary definition, anything with a short name and a longer explanation -
 and insert it by id from anywhere in a build, instead of hand-typing a link
 around the term's own text at every use.
@@ -172,9 +172,9 @@ Neither of the two shown above is resolved; both render the literal text.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `source` | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's own term definitions in the registry, and to build a correct link when a `\gls{id}` target lives on a different page. |
-| `unresolved` | `str` | `"?"` | Text rendered for a `\gls{id}` that doesn't resolve to a definition. |
-| `registry` | `GlossaryRegistry \| None` | discovered automatically, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
+| \index{prodockit.glossary!`source`} | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's own term definitions in the registry, and to build a correct link when a `\gls{id}` target lives on a different page. |
+| \index{prodockit.glossary!`unresolved`} | `str` | `"?"` | Text rendered for a `\gls{id}` that doesn't resolve to a definition. |
+| \index{prodockit.glossary!`registry`} | `GlossaryRegistry \| None` | discovered automatically, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
 
 ### Multi-page builds {: #glossary-multi-page-builds }
 

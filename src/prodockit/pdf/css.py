@@ -330,6 +330,17 @@ h1:not(.unnumbered) { string-set: chapter-title content() !important; }
    Applies to both single- and double-sided layouts - the running chapter
    title appears in both, just in a different header corner. */
 .prodockit-recto-title { string-set: chapter-title content() !important; }
+/* The generated index's own title heading. It carries `unnumbered` (it is
+   not a chapter, and must not take a number or a Table of Contents entry),
+   so the rule above deliberately skips it - which is right for the Table
+   of Contents, sitting at the *front* where `chapter-title` is still
+   empty, but wrong for the index, which is always the very last thing in
+   the document. There, skipping it left the previous chapter's own title
+   standing in the running header for every index page - this project's
+   own PDF showed "18. License" across its index. Setting it here restores
+   the standard back-of-book behaviour: the index's own pages are headed
+   "Index" (or whatever `pdf_index_title` says). */
+h1.prodockit-index-title { string-set: chapter-title content() !important; }
 
 /* ==========================================================================
    TABLE LAYOUT
@@ -735,6 +746,16 @@ h2.prodockit-index-letter {
 div.prodockit-index-entry {
     margin: 0 !important;
     break-inside: avoid-column !important;
+    /* An index term is frequently a single unbroken token with no space
+       to wrap at - a dotted module path, a long option name, a function
+       signature. Without this, such a term overflows its own column box
+       instead of wrapping: it runs straight over the column rule and
+       into the entries of the next column, and off the page edge
+       entirely from the right-hand one. Confirmed directly against a
+       real render before and after. break-word (not break-all) so
+       ordinary multi-word terms still break at their spaces first, and
+       only a token with nowhere else to break is split mid-word. */
+    overflow-wrap: break-word !important;
 }
 /* Fixed indent step per nesting level (see prodockit.pdf.index's own
    IndexEntry/render_index_content docs) - level 1 sits flush with the

@@ -28,6 +28,7 @@ from prodockit.pdf.css import build_css
 from prodockit.pdf.html import build_page_anchor_map, fix_up_page_html
 from prodockit.pdf.index import (
     INDEX_CONTENT_ID,
+    INDEX_TITLE_CLASS,
     build_index_entries,
     extract_term_pages,
     mark_index_terms,
@@ -372,9 +373,16 @@ def build_pdf(
                 # the only one where this section's own content growing
                 # or shrinking can't retroactively shift the page numbers
                 # already recorded for every earlier marker.
+                # INDEX_TITLE_CLASS alongside unnumbered/unlisted: those two
+                # keep this heading out of the numbering and the Table of
+                # Contents, but `unnumbered` is also what stops it feeding
+                # the running header's chapter-title string - so without a
+                # hook of its own the previous chapter's title would stand
+                # in the header across every index page (see
+                # prodockit.pdf.css's own rule for it).
                 body_html += (
                     '<div class="page-break"></div>'
-                    f'<h1 class="unnumbered unlisted">{index_title}</h1>'
+                    f'<h1 class="unnumbered unlisted {INDEX_TITLE_CLASS}">{index_title}</h1>'
                     f'<div id="{INDEX_CONTENT_ID}"></div>'
                 )
 

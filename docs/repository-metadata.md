@@ -1,6 +1,6 @@
 # Repository metadata {: #sync-repo-repository-metadata }
 
-`prodockit sync-repo` keeps the repo-hosting-specific parts of your project
+\index{`prodockit sync-repo`} keeps the repo-hosting-specific parts of your project
 in step with the git remote the checkout actually uses, so forking or
 mirroring it between GitHub, GitLab and Bitbucket doesn't leave stale links,
 the wrong brand icon, or README badges pointing at somebody else's
@@ -45,10 +45,10 @@ prodockit sync-repo --check
 | Option | Default | What it does |
 | --- | --- | --- |
 | `-f`, `--config-file` | `zensical.toml` | Which Zensical config to update. |
-| `--readme` | `README.md` | README to update the badge block in. Pass an empty value to skip it. |
-| `--remote` | `origin` | Which git remote to read the repository URL from. |
-| `--branch` | detected | Default branch for `edit_uri` and GitLab build-badge links. |
-| `--check` | off | Report what would change, write nothing, exit non-zero if anything would. |
+| \index{prodockit sync-repo!`--readme`} | `README.md` | README to update the badge block in. Pass an empty value to skip it. |
+| \index{prodockit sync-repo!`--remote`} | `origin` | Which git remote to read the repository URL from. |
+| \index{prodockit sync-repo!`--branch`} | detected | Default branch for `edit_uri` and GitLab build-badge links. |
+| \index{prodockit sync-repo!`--check`} | off | Report what would change, write nothing, exit non-zero if anything would. |
 
 ## What it does, and why {: #sync-repo-what-it-does }
 

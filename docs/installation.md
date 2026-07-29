@@ -13,12 +13,12 @@ except where noted:
 | [`Markdown`](https://python-markdown.github.io/) (>= 3.4) | every extension |
 | [`zensical`](https://zensical.org/) | Zensical integration and `prodockit.zensical_macros` |
 | [`beautifulsoup4`](https://www.crummy.com/software/BeautifulSoup/) (>= 4.12) | `prodockit.pdf` |
-| `click` (>= 8.0) | the `prodockit` command-line tool |
-| `pypdf` (>= 4.0) | `prodockit.pdf` |
-| `pandoc` **(external binary)** | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build |
-| `weasyprint` **(external binary)** | `prodockit.pdf` |
-| `pymupdf` | only the back-of-book index - `pip install prodockit[index]` |
-| `mermaid-cli`, `mathjax-full` **(external, Node)** | only Mermaid diagrams and TeX maths in the PDF |
+| \index{dependencies!`click`} (>= 8.0) | the `prodockit` command-line tool |
+| \index{dependencies!`pypdf`} (>= 4.0) | `prodockit.pdf` |
+| \index{dependencies!`pandoc`} **(external binary)** | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build |
+| \index{dependencies!`weasyprint`} **(external binary)** | `prodockit.pdf` |
+| \index{dependencies!`pymupdf`} | only the back-of-book index - `pip install prodockit[index]` |
+| \index{dependencies!`mermaid-cli`}, `mathjax-full` **(external, Node)** | only Mermaid diagrams and TeX maths in the PDF |
 
 The external tools aren't Python packages and aren't installed by `pip` -
 see [PDF generation](pdf.md) for how `prodockit.pdf` locates them, and

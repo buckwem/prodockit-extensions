@@ -1,7 +1,7 @@
 # Index (pdf-only)
 
-`prodockit.index` marks a term inline, wherever it's actually discussed,
-for a PDF-only back-of-book index (an alphabetised list of terms with the
+\index{`prodockit.index`} marks a term inline, wherever it's actually discussed,
+for a PDF-only \index{back-of-book index} (an alphabetised list of terms with the
 page number(s) they appear on) - the term both displays exactly as
 written and is marked for indexing in one go, no separate "definition"
 step needed anywhere else, unlike

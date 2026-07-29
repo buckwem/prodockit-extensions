@@ -12,6 +12,7 @@ import pytest
 from pypdf import PdfReader
 
 from prodockit.pdf.build import Page, PdfBuildError, build_pdf
+from prodockit.pdf.index import INDEX_TITLE_CLASS
 
 real_pandoc_and_weasyprint_required = pytest.mark.skipif(
     shutil.which("pandoc") is None or shutil.which("weasyprint") is None,
@@ -893,3 +894,128 @@ def test_warns_about_both_independently(
     out = capsys.readouterr().out
     assert "contains Mermaid diagrams" in out
     assert "contains TeX maths" not in out
+
+
+def test_index_title_heading_carries_the_running_header_class(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    """`unnumbered`/`unlisted` keep this heading out of the numbering and
+    the Table of Contents, but `unnumbered` is also what stops it feeding
+    the running header - hence the third class (see
+    prodockit.pdf.index.INDEX_TITLE_CLASS)."""
+    fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
+    work_dir = tmp_path / "work"
+
+    build_pdf(
+        [Page(docs_rel_path="c1.md", html='<h1>One</h1><span class="index">Widget</span>')],
+        str(tmp_path / "out.pdf"),
+        include_index=True,
+        index_title="Index",
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+    assert f'<h1 class="unnumbered unlisted {INDEX_TITLE_CLASS}">Index</h1>' in compiled
+
+
+@real_pandoc_and_weasyprint_required
+def test_the_index_pages_are_headed_by_the_index_title_not_the_last_chapter(
+    tmp_path: Path,
+) -> None:
+    """The index is always the last thing in the document, so before
+    INDEX_TITLE_CLASS existed the running header still held whatever
+    chapter came last - this project's own PDF was headed "18. License"
+    across its whole index. Only a real render answers this: the header is
+    a CSS Paged Media margin box fed by `string-set`, which the
+    fake-pandoc stub never evaluates."""
+    long_para = "<p>" + ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 40) + "</p>"
+    pages = [
+        Page(docs_rel_path="index.md", html="<h1>Cover</h1>", is_index=True),
+        Page(
+            docs_rel_path="chapter1.md",
+            html=f'<h1>Chapter One</h1>{long_para}<span class="index">Widget</span>{long_para}',
+        ),
+        Page(
+            docs_rel_path="lastchapter.md",
+            html=f'<h1>Zebra Chapter</h1>{long_para}<span class="index">Gadget</span>{long_para}',
+        ),
+    ]
+    output_path = tmp_path / "out.pdf"
+
+    build_pdf(pages, str(output_path), include_index=True, index_title="Index")
+
+    doc = pymupdf.open(str(output_path))
+    try:
+        index_pages = [
+            i for i, page in enumerate(doc) if page.get_text().strip().startswith("Index")
+        ]
+        assert index_pages, "no Index page found in the built PDF"
+        # The header is a margin box, so read it by position: everything
+        # above the 2cm top margin is header, not body.
+        top_margin_pt = 2 / 2.54 * 72
+        for page_number in index_pages:
+            header = " ".join(
+                block[4]
+                for block in doc[page_number].get_text("blocks")
+                if block[3] < top_margin_pt
+            )
+            assert "Index" in header, (
+                f"page {page_number + 1}'s running header is {header!r} - expected the index title"
+            )
+            assert "Zebra Chapter" not in header, (
+                f"page {page_number + 1} is still headed by the last chapter: {header!r}"
+            )
+    finally:
+        doc.close()
+
+
+@real_pandoc_and_weasyprint_required
+def test_a_long_index_term_stays_inside_its_own_column(tmp_path: Path) -> None:
+    """A term with no space to wrap at used to overflow its column box
+    rather than break: it ran over the column rule into the next column's
+    entries, and off the page edge entirely from the right-hand column.
+    Measured geometrically, because it renders as perfectly ordinary text
+    either way - only its position gives it away.
+
+    One entry, so the whole index sits in the left column; every glyph
+    must therefore stay left of the column rule, which runs down the
+    middle of the content box.
+    """
+    term = "assert_no_unrendered_mermaid_diagram_pages(page_texts)"
+    pages = [
+        Page(docs_rel_path="index.md", html="<h1>Cover</h1>", is_index=True),
+        Page(
+            docs_rel_path="chapter1.md",
+            html=(
+                "<h1>Chapter One</h1><p>see "
+                '<span class="index" data-index-code="true" '
+                f'data-index-term="prodockit.testing!checks!{term}"><code>{term}</code></span>'
+                " here</p>"
+            ),
+        ),
+    ]
+    output_path = tmp_path / "out.pdf"
+
+    build_pdf(pages, str(output_path), include_index=True)
+
+    doc = pymupdf.open(str(output_path))
+    try:
+        index_page = next(
+            i for i, page in enumerate(doc) if page.get_text().strip().startswith("Index")
+        )
+        page = doc[index_page]
+        margin_pt = 2 / 2.54 * 72
+        column_rule_x = margin_pt + (page.rect.width - 2 * margin_pt) / 2
+        # Body only - the running header/footer legitimately span the full
+        # content width.
+        overflowing = [
+            (word[4], round(word[2], 1))
+            for word in page.get_text("words")
+            if margin_pt < word[1] < page.rect.height - margin_pt and word[2] > column_rule_x
+        ]
+        assert not overflowing, (
+            f"index entries crossed the column rule at x={column_rule_x:.1f}: {overflowing}"
+        )
+    finally:
+        doc.close()

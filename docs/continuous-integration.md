@@ -1,6 +1,6 @@
 # Continuous integration {: #ci-continuous-integration }
 
-Building a prodockit site in CI needs more than `pip install`. The PDF
+Building a prodockit site in \index{continuous integration!CI} needs more than `pip install`. The PDF
 pipeline shells out to external binaries, and several of the ways it goes
 wrong are silent - the build succeeds and publishes something subtly wrong.
 
