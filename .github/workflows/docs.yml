@@ -48,6 +48,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    # Consumed by the verify job below.
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+      index_sha: ${{ steps.fingerprint.outputs.index_sha }}
     env:
       # mermaid-cli drives Chrome through Puppeteer to rasterise diagrams.
       # Point it at the apt-installed Chrome below rather than letting
@@ -119,8 +123,68 @@ jobs:
       # raw source, and a nav page missing from the site, before either is
       # published (see tests/test_built_docs.py).
       - run: python -m pytest tests/test_built_docs.py -m built -v
+      # Fingerprint what we are about to publish, so the verify job below can
+      # tell whether the live site is actually serving *this* build. Taken
+      # from the same directory upload-pages-artifact packs, immediately
+      # before it packs it.
+      - id: fingerprint
+        run: echo "index_sha=$(sha256sum site/index.html | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
       - uses: actions/deploy-pages@v4
         id: deployment
+
+  # A successful deploy does not mean the site serves it. Three of the four
+  # releases up to 0.17.1 published fine and then kept serving the previous
+  # build - deployment reported `success`, the superseded one reported
+  # `inactive`, and the origin carried on returning the old bytes until
+  # someone noticed and re-ran this workflow by hand. Nothing in the run
+  # itself was wrong, so nothing went red.
+  #
+  # This closes that gap: compare the live page against the fingerprint of
+  # the build we just uploaded, and fail the run if they never converge.
+  # Separate job rather than another step, so the deploy itself is never
+  # gated on delivery - the artifact is published either way, and this only
+  # decides whether the run reports success.
+  verify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      # Pages serves `cache-control: max-age=600`, so up to ~10 minutes of
+      # staleness is normal and expected rather than a fault. 15 minutes of
+      # polling clears that window with room to spare; past it, every
+      # occurrence so far has needed a manual redeploy. A `?cb=` query buster
+      # would not help - the CDN normalises query strings - so this waits the
+      # TTL out rather than trying to defeat it.
+      - name: Verify the live site serves this build
+        env:
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+          WANT: ${{ needs.deploy.outputs.index_sha }}
+        run: |
+          set -u
+          for attempt in $(seq 1 30); do
+            # Download to a file rather than piping or capturing. Piping into
+            # sha256sum reports the *pipe's* exit status, so a failed fetch
+            # silently hashes empty input instead of being noticed; capturing
+            # the body in $(...) strips its trailing newline, so the hash
+            # would never match the file on disk.
+            if curl -fsSL --max-time 30 -o live-index.html "$PAGE_URL"; then
+              got=$(sha256sum live-index.html | cut -d' ' -f1)
+            else
+              got="fetch-failed"
+            fi
+            if [ "$got" = "$WANT" ]; then
+              echo "Live after ~$(( (attempt - 1) * 30 ))s: $PAGE_URL is serving this build."
+              exit 0
+            fi
+            echo "attempt $attempt/30: live index.html is $got, want $WANT"
+            sleep 30
+          done
+          # One line: a ::error:: annotation is terminated by the newline, and
+          # a backslash continuation would fold this block's own indentation
+          # into the message as runs of spaces.
+          echo "::error::$PAGE_URL is not serving this build after 15 minutes. The deploy succeeded but delivery did not - this has happened on most releases so far. Re-run with: gh workflow run docs.yml --ref main"
+          echo "Live page headers for diagnosis (last-modified predating this run means the old build is still being served):"
+          curl -sI "$PAGE_URL" | grep -iE 'last-modified|etag|age' || true
+          exit 1
