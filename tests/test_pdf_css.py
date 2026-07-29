@@ -205,3 +205,29 @@ def test_dead_gridcard_matrix_classes_are_not_present() -> None:
     assert ".gridcard-matrix" not in css
     assert ".gridcard-item" not in css
     assert ".gridcard-title" not in css
+
+
+def test_index_entry_breaks_a_long_term_instead_of_overflowing_its_column() -> None:
+    """An index term is often one unbroken token with nowhere to wrap - a
+    dotted module path, a long option name. Without overflow-wrap it runs
+    straight out of its own column, over the column rule and into the next
+    column's entries (and off the page from the right-hand column). See
+    test_pdf_build.py for the real-render check that it actually stays
+    inside the column; this pins the rule itself."""
+    css = build_css("Inter", "Fira Code", "My Site")
+    assert "div.prodockit-index-entry {" in css
+    rule = css.split("div.prodockit-index-entry {")[1].split("}")[0]
+    assert "overflow-wrap: break-word !important;" in rule
+
+
+def test_index_title_heading_sets_the_running_chapter_title() -> None:
+    """The index's own h1 carries `unnumbered`, so the general
+    `h1:not(.unnumbered)` string-set rule skips it. That is right for the
+    Table of Contents - it sits at the front, where chapter-title is still
+    empty - but wrong for the index, which is always the very last thing
+    in the document: the previous chapter's title would otherwise head
+    every index page. Needed in both layouts, since the running chapter
+    title appears in both (just in a different header corner)."""
+    rule = "h1.prodockit-index-title { string-set: chapter-title content() !important; }"
+    assert rule in build_css("Inter", "Fira Code", "My Site")
+    assert rule in build_css("Inter", "Fira Code", "My Site", double_sided=True)

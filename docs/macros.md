@@ -1,6 +1,6 @@
 # Website macros {: #macros-website-macros }
 
-`prodockit.zensical_macros` provides a handful of Jinja variables and macros
+\index{`prodockit.zensical_macros`} provides a handful of Jinja variables and macros
 for Zensical's own [macros plugin](https://zensical.org/docs/authoring/macros/)
 - the pieces a professional/academic report's website commonly wants that
 aren't specific to any one project: a site-wide word count, the git-detected
@@ -71,10 +71,10 @@ one configured value:
 
 | Setting | Default | What it does |
 |---|---|---|
-| `reference_style` | `"european"` | `"european"`: single line spacing throughout, no indent, entries close together. `"global"`: single line spacing within each entry, double spacing *between* entries, with a hanging indent on wrapped lines (the common APA/MLA/Chicago style). Only `reference_style()`/the References page switches look - acronyms/glossary always use the tight "european" spacing. |
-| `reference_spacing_european` | `"-0.8em"` | Gap between entries, "european" style - also used unconditionally for the acronym/glossary lists. |
-| `reference_indent_global` | `"1.27cm"` | Hanging indent on wrapped lines, "global" style. |
-| `reference_spacing_global` | `"2em"` | Gap between entries, "global" style. |
+| \index{prodockit.zensical_macros!`reference_style`} | `"european"` | `"european"`: single line spacing throughout, no indent, entries close together. `"global"`: single line spacing within each entry, double spacing *between* entries, with a hanging indent on wrapped lines (the common APA/MLA/Chicago style). Only `reference_style()`/the References page switches look - acronyms/glossary always use the tight "european" spacing. |
+| \index{prodockit.zensical_macros!`reference_spacing_european`} | `"-0.8em"` | Gap between entries, "european" style - also used unconditionally for the acronym/glossary lists. |
+| \index{prodockit.zensical_macros!`reference_indent_global`} | `"1.27cm"` | Hanging indent on wrapped lines, "global" style. |
+| \index{prodockit.zensical_macros!`reference_spacing_global`} | `"2em"` | Gap between entries, "global" style. |
 
 ## Status {: #macros-status }
 

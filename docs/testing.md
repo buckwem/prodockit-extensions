@@ -1,6 +1,6 @@
 # Testing your built site {: #testing-testing-your-built-site }
 
-`prodockit.testing` gives a project pytest fixtures pointing at its own
+\index{`prodockit.testing`} gives a project \index{pytest} fixtures pointing at its own
 *built* output - the site directory and the PDF - plus checks for the
 failure modes that are the same in every prodockit project.
 
@@ -67,15 +67,15 @@ with names in your own `conftest.py`.
 
 | Fixture | What it gives you |
 | --- | --- |
-| `prodockit_paths` | Resolved `root`, `config_file`, `docs_dir`, `site_dir`, `pdf` |
-| `prodockit_config` | Your Zensical config as plain parsed TOML |
-| `prodockit_resolved_config` | The same, through Zensical's own loader - `nav` resolved to a tree |
-| `prodockit_nav_pages` | Every nav markdown file, `docs_dir`-relative, in nav order |
-| `prodockit_pdf` | The built PDF, opened with `pymupdf` |
-| `prodockit_pdf_page_texts` | The PDF's text, one string per page |
-| `prodockit_site_dir` | The built site directory |
-| `prodockit_site_html_files` | Every built HTML page, sorted |
-| `prodockit_soup_for` | Factory: parses one built HTML file with BeautifulSoup |
+| \index{prodockit.testing!fixtures!`prodockit_paths`} | Resolved `root`, `config_file`, `docs_dir`, `site_dir`, `pdf` |
+| \index{prodockit.testing!fixtures!`prodockit_config`} | Your Zensical config as plain parsed TOML |
+| \index{prodockit.testing!fixtures!`prodockit_resolved_config`} | The same, through Zensical's own loader - `nav` resolved to a tree |
+| \index{prodockit.testing!fixtures!`prodockit_nav_pages`} | Every nav markdown file, `docs_dir`-relative, in nav order |
+| \index{prodockit.testing!fixtures!`prodockit_pdf`} | The built PDF, opened with `pymupdf` |
+| \index{prodockit.testing!fixtures!`prodockit_pdf_page_texts`} | The PDF's text, one string per page |
+| \index{prodockit.testing!fixtures!`prodockit_site_dir`} | The built site directory |
+| \index{prodockit.testing!fixtures!`prodockit_site_html_files`} | Every built HTML page, sorted |
+| \index{prodockit.testing!fixtures!`prodockit_soup_for`} | Factory: parses one built HTML file with BeautifulSoup |
 
 Paths come from your config rather than an assumed layout: `site_dir`
 defaults to `site` but is commonly set to `public`, and the PDF follows

@@ -1,10 +1,10 @@
 # Bibliography
 
-`prodockit.bibliography` is an alternative to [prodockit.citations](citations.md):
-define your sources once in a BibTeX/BibLaTeX `.bib` file, cite them by key
+\index{`prodockit.bibliography`} is an alternative to [prodockit.citations](citations.md):
+define your sources once in a \index{BibTeX}/BibLaTeX `.bib` file, cite them by key
 with `\cite{id}` from anywhere in a build, and get a fully formatted,
 sorted reference list generated for you - in any
-[Citation Style Language (CSL)](https://citationstyles.org/) style (APA,
+[\index{Citation Style Language} (CSL)](https://citationstyles.org/) style (APA,
 IEEE, Harvard, Vancouver, and hundreds more), the same open, actively-
 maintained style ecosystem Zotero/Mendeley/EndNote already use.
 
@@ -233,10 +233,10 @@ own paragraph/line.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `bib_file` | `str` | `"references.bib"` | Path to a BibTeX/BibLaTeX `.bib` file, relative to wherever `zensical build`/`zensical serve` (or your own script) is run from. |
-| `csl_style` | `str` | `""` (Pandoc's own default) | Path to a Citation Style Language (`.csl`) file. |
-| `unresolved` | `str` | `"?"` | Text rendered for a `\cite{id}` key that doesn't resolve to a `.bib` entry. |
-| `source` | `str` | `""`, auto-detected under Zensical | Identifier for the current document, used to build a correct link from `\cite{id}` to `\bibliography`'s own page. |
+| \index{prodockit.bibliography!`bib_file`} | `str` | `"references.bib"` | Path to a BibTeX/BibLaTeX `.bib` file, relative to wherever `zensical build`/`zensical serve` (or your own script) is run from. |
+| \index{prodockit.bibliography!`csl_style`} | `str` | `""` (Pandoc's own default) | Path to a Citation Style Language (`.csl`) file. |
+| \index{prodockit.bibliography!`unresolved`} | `str` | `"?"` | Text rendered for a `\cite{id}` key that doesn't resolve to a `.bib` entry. |
+| \index{prodockit.bibliography!`source`} | `str` | `""`, auto-detected under Zensical | Identifier for the current document, used to build a correct link from `\cite{id}` to `\bibliography`'s own page. |
 
 ### CSS hooks {: #bibliography-css-hooks }
 

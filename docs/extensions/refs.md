@@ -1,6 +1,6 @@
 # Refs
 
-`prodockit.refs` adds a `\ref{id}` cross-reference syntax - similar in spirit
+\index{`prodockit.refs`} adds a `\ref{id}` cross-reference syntax - similar in spirit
 to LaTeX's `\ref` - that resolves to the *current* section number of the
 heading with that id. It depends on the id/number registry that
 [prodockit.headings](headings.md) builds; enabling `prodockit.refs` on its own
@@ -104,9 +104,9 @@ Neither of the two shown above is resolved; both render the literal text.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `unresolved` | `str` | `"??"` | Text rendered when `id` doesn't resolve to a numbered heading. |
-| `source` | `str` | `""`, auto-detected under Zensical | Identifier for the current document (e.g. its path) - used only to decide whether a resolved target is on this same page (bare `#id`) or a different one (a real link to it). Doesn't affect resolution itself. |
-| `registry` | `IdRegistry \| None` | discovered from a sibling `prodockit.headings`, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
+| \index{prodockit.refs!`unresolved`} | `str` | `"??"` | Text rendered when `id` doesn't resolve to a numbered heading. |
+| \index{prodockit.refs!`source`} | `str` | `""`, auto-detected under Zensical | Identifier for the current document (e.g. its path) - used only to decide whether a resolved target is on this same page (bare `#id`) or a different one (a real link to it). Doesn't affect resolution itself. |
+| \index{prodockit.refs!`registry`} | `IdRegistry \| None` | discovered from a sibling `prodockit.headings`, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
 
 ### Multi-page builds {: #refs-multi-page-builds }
 
@@ -148,7 +148,7 @@ Overview {: #api-overview }`) to disambiguate and make both referenceable.
 
 #### Under other tools: manual {: #refs-under-other-tools-manual }
 
-Outside Zensical, give `prodockit.headings` and `prodockit.refs` the *same*
+Outside \index{Zensical}, give `prodockit.headings` and `prodockit.refs` the *same*
 `IdRegistry` on every page yourself, converting pages in the order
 cross-references should become resolvable in:
 

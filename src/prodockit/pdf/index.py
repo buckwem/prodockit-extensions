@@ -82,6 +82,14 @@ DEFAULT_INDEX_TITLE = "Index"
 #: instead of silently rendering flush with the top level.
 MAX_RENDERED_INDEX_LEVEL = 3
 
+#: Class on the index's own title heading (build_pdf() writes it; see
+#: `prodockit.pdf.css` for the rule that reads it). The heading is also
+#: `unnumbered`, which keeps it out of the numbering and the Table of
+#: Contents but equally stops it setting the running header's chapter
+#: title - so, sitting at the very end of the document, it would otherwise
+#: leave the last real chapter's title heading every index page.
+INDEX_TITLE_CLASS = "prodockit-index-title"
+
 #: The div build_pdf()'s own trigger heading is followed by - empty on the
 #: first pass, replaced with the real generated index content for the
 #: second. Also this module's own `id`, so it's trivially find-and-

@@ -88,8 +88,17 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y google-chrome-stable
       - run: npm ci --prefix tools/mermaid
       # The [testing] extra brings pytest/pymupdf for the built-output
-      # checks below.
+      # checks below. pymupdf is also what extra.pdf_include_index needs to
+      # read page numbers back out of the first pass, so this one install
+      # covers both - no separate [index] extra needed here.
       - run: pip install -e ".[testing]" weasyprint
+      # Two pandoc+WeasyPrint passes, not one: extra.pdf_include_index is on
+      # in zensical.toml, and the back-of-book index can only be built once
+      # WeasyPrint has laid the document out (see prodockit.pdf.index). The
+      # single-page builds below stay single-pass - build_pdf() skips the
+      # second pass for a document with no \index{} markers, and the only
+      # live markers in these docs are in extensions/index-terms.md, which
+      # has no single-page build of its own.
       - run: prodockit pdf
       - run: prodockit pdf -m introduction.md
       - run: prodockit pdf -m installation.md

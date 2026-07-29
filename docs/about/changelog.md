@@ -1,5 +1,71 @@
 # Release Notes
 
+## 0.17.1 (2026-07-29)
+
+- This project's own PDF now has the back-of-book index its own docs
+  describe. `zensical.toml` never set `extra.pdf_include_index`, which
+  defaults to off, so the live `\index{}` markers in
+  `docs/extensions/index-terms.md`'s `=== "Result"` tabs produced nothing:
+  the page documenting the feature sat in a PDF that didn't have it.
+
+    Turning the setting on alone would only have indexed those five demo
+    markers, so the docs are now marked properly throughout: every module
+    at its own page's opening sentence, every option/setting/fixture in
+    the reference table that defines it, and the concepts and external
+    tools where each is introduced. Options are nested under what they
+    belong to, so the `source`/`registry`/`unresolved` that five different
+    extensions each define group per module instead of collapsing into one
+    misleading entry. That gives a real two-page index of about 95
+    entries, covering every marker shape the extension supports.
+
+    Costs one extra `pandoc`+WeasyPrint pass on that one build. The
+    twelve single-page `prodockit pdf -m` builds in `docs.yml` pay
+    nothing: `build_pdf()` skips the second pass entirely for a document
+    with no markers, and none of those pages has any. Mermaid and TeX
+    pre-rendering both happen before either pass, so neither is repeated.
+    Measured locally at roughly 8s → 12s for a 119-page document, against
+    a docs workflow dominated by apt, Chrome and npm setup.
+
+- The 0.17.0 fix above now has a permanent CI guard. Its regression test
+  needs a real `pandoc`+WeasyPrint install, so it is deselected in the
+  `test` job, which installs neither - the shipped fix was effectively
+  unguarded. `tests/test_built_docs.py` gains three `built`-marked checks,
+  which run in `docs.yml` after a real build: that no marker reached the
+  PDF's text layer, that the index was generated with every marked term in
+  it, and that each entry cites a page the term is actually on.
+
+    The text-layer check matches only a marker followed by a real digit,
+    rather than the blunter substring the synthetic test can afford. These
+    release notes legitimately print `⟦prodockit-index-N⟧` (with a literal
+    "N") in the 0.17.0 entry below, and name the
+    `h2.prodockit-index-letter` CSS class in an earlier one - both are
+    prose about the feature, and both belong in the text layer.
+
+- A long index term no longer overflows its own column. An index entry is
+  often a single unbroken token with nowhere to wrap - a dotted module
+  path, a long option name, a function signature - and
+  `div.prodockit-index-entry` set no `overflow-wrap`, so such a term ran
+  straight over the column rule into the next column's entries, and off
+  the page edge entirely from the right-hand column. Found while indexing
+  this project's own docs. `overflow-wrap: break-word` (not `break-all`,
+  so ordinary multi-word terms still break at their spaces first) fixes
+  it. Covered by a real-render test that measures where the glyphs
+  actually land, since it renders as perfectly ordinary text either way
+  and only its position gives it away.
+
+- The generated index's pages are now headed "Index" (or whatever
+  `pdf_index_title` says) rather than by the last chapter of the
+  document. The index's own `h1` is `unnumbered` - correct, since it must
+  not take a section number or a Table of Contents entry - but
+  `unnumbered` is also what excludes a heading from feeding the running
+  header's `chapter-title` string. That exclusion suits the Table of
+  Contents, which sits at the front where `chapter-title` is still empty,
+  and fails for the index, which is always the very last thing in the
+  document: whatever chapter came last simply stayed in the header. This
+  project's own PDF was headed "18. License" across its entire index. The
+  heading now carries a `prodockit-index-title` class with a `string-set`
+  rule of its own; nothing else about it changes.
+
 ## 0.17.0 (2026-07-28)
 
 - Back-of-book index markers no longer leave anything in the PDF's text

@@ -1,6 +1,6 @@
 # Citations or References
 
-`prodockit.citations` lets you define a source once and cite it by key from
+\index{`prodockit.citations`} lets you define a source once and cite it by key from
 anywhere in a build, instead of hand-typing a bracketed link at every
 citation site.
 
@@ -128,9 +128,9 @@ Neither of the two shown above is resolved; both render the literal text.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `source` | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's own citation definitions in the registry. |
-| `unresolved` | `str` | `"?"` | Text rendered for a `\citeref{id}` key that doesn't resolve to a definition. |
-| `registry` | `CitationRegistry \| None` | discovered automatically, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
+| \index{prodockit.citations!`source`} | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's own citation definitions in the registry. |
+| \index{prodockit.citations!`unresolved`} | `str` | `"?"` | Text rendered for a `\citeref{id}` key that doesn't resolve to a definition. |
+| \index{prodockit.citations!`registry`} | `CitationRegistry \| None` | discovered automatically, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
 
 ### Multi-page builds {: #citations-multi-page-builds }
 

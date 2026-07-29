@@ -3,15 +3,15 @@
 prodockit is a family of extensions for [Zensical](https://zensical.org/)
 needed for professional and academic documentation - the pieces a report,
 dissertation, or technical document commonly needs that Zensical doesn't
-provide out of the box: section cross-references, bibliography/citation
-handling, a glossary, and a Pandoc/WeasyPrint PDF pipeline for the
+provide out of the box: section \index{cross-references}, bibliography/citation
+handling, a \index{glossary}, and a \index{Pandoc}/\index{WeasyPrint} PDF pipeline for the
 downloadable, submittable document these usually need alongside the
 website itself.
 
-Most of prodockit is [Python-Markdown](https://python-markdown.github.io/)
+Most of prodockit is [\index{Python-Markdown}](https://python-markdown.github.io/)
 extensions, that are enabled in `zensical.toml`. [prodockit.pdf](pdf.md) is a command-line tool instead, since a PDF build pipeline isn't a Markdown syntax extension - no Python required, it reads the same `zensical.toml` too. In addition, there are a set of website macros to help use the features of prodockit.
 
-It's a kit for professional documentation, built on Zensical's own Markdown and Pandoc/WeasyPrint PDF pipeline.
+It's a kit for professional documentation, built on \index{Zensical}'s own Markdown and Pandoc/WeasyPrint PDF pipeline.
 
 ## Extensions
 
