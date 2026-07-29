@@ -66,6 +66,24 @@
   heading now carries a `prodockit-index-title` class with a `string-set`
   rule of its own; nothing else about it changes.
 
+- CI now installs WeasyPrint for the `test` job, so the nine real-render
+  tests that assert on where things actually land in a finished PDF -
+  which page a heading starts on, what the running header says, whether a
+  long index term stayed inside its column - finally run. They are gated
+  on a real `pandoc`+`weasyprint` install and `ci.yml` had only `pandoc`,
+  so they skipped silently on every run; `docs.yml` does install
+  WeasyPrint, but runs only `-m built` against `tests/test_built_docs.py`,
+  so it never reached them either. The behaviour they exist to pin was
+  going unchecked everywhere, including both fixes above.
+
+    The tests themselves add about 20 seconds per matrix entry. Installing
+    WeasyPrint costs more, and unevenly: it pulls in packages with no
+    wheel published for every interpreter the matrix covers, and on 3.13
+    the install step spent 13 minutes compiling them from source against
+    roughly 20 seconds on 3.10-3.12. `actions/setup-python`'s own pip
+    cache is now enabled to hold the built wheels, so that cost is paid
+    once per interpreter rather than on every run.
+
 ## 0.17.0 (2026-07-28)
 
 - Back-of-book index markers no longer leave anything in the PDF's text
