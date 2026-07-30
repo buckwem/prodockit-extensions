@@ -46,6 +46,21 @@
   rather than fails, and keeps one open issue updated in place: a
   scheduled job that goes red every week trains everyone to ignore it.
 
+- CI runners are pinned to `ubuntu-24.04` rather than `ubuntu-latest`.
+  The image is the build input pip cannot reach: `pandoc` comes from it
+  (and distribution packages lag upstream far enough that some markdown
+  edge cases parse differently), as do the fonts the PDF embeds and the
+  Chrome that rasterises Mermaid diagrams. On `ubuntu-latest` all three
+  move the day GitHub migrates the label, with nothing committed - the
+  same silent change the package pins exist to prevent, one layer down.
+
+    `ubuntu-latest` already *is* 24.04, so nothing changes today; it takes
+    effect at the migration, which is exactly when a documentation build
+    wants to be told rather than surprised. Pinned images are retired
+    about a year after the following LTS and the job then fails outright
+    rather than drifting - the better failure, and at a time of your
+    choosing.
+
 - New [Version pinning and drift](../version-pinning.md) page documenting
   the whole arrangement - where a version gets declared and why the forms
   differ, `prodockit pins`, and a drift job for **both** GitHub Actions

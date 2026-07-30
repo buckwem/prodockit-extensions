@@ -246,6 +246,40 @@ drift:
 `allow_failure: true` keeps the pipeline green: the job's purpose is the
 issue it opens, not its own exit status.
 
+## The input pip cannot reach {: #pinning-runner-image }
+
+`prodockit pins` manages Python packages. The CI runner image is the other
+half, and nothing in `pyproject.toml` or a workflow's `pip install` line
+touches it:
+
+- **`pandoc`** comes from the image's own package archive. Distribution
+  packages lag upstream far enough that some markdown edge cases parse
+  differently - see [Pandoc version drift](continuous-integration.md#ci-pandoc-version).
+- **Fonts** the PDF embeds (`fonts-inter`, `fonts-jetbrains-mono`).
+- **Chrome**, which rasterises Mermaid diagrams.
+
+On `runs-on: ubuntu-latest` all three move the day the label migrates to a
+new LTS, with nothing committed - the same silent change the package pins
+exist to prevent, one layer down. Naming the image freezes them together:
+
+```yaml
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04   # not ubuntu-latest
+```
+
+GitLab's equivalent is the job `image:`, which most projects already pin by
+habit - `python:3.13` rather than `python:latest`.
+
+!!! note "What this costs"
+    `ubuntu-latest` already *is* 24.04 today, so pinning changes nothing
+    immediately. It takes effect at the migration - which is the point.
+
+    Pinned images are retired roughly a year after the following LTS, and
+    the job then fails outright rather than drifting. That is the better
+    failure: loud, and at a time you choose. Treat a retirement notice as
+    the prompt to rebuild, diff, and move up deliberately.
+
 ## Taking an upgrade {: #pinning-taking-an-upgrade }
 
 When drift reports something worth having:
@@ -270,8 +304,8 @@ Specific to pinning:
   does. Both exist deliberately - see the table above.
 - **Only pip packages are watched.** `pandoc` and Chrome arrive from the
   runner image, so a drift job that installs both builds in one job cannot
-  see them change between weeks. Pinning the image (`runs-on: ubuntu-24.04`
-  rather than `ubuntu-latest`) is the lever for those.
+  see them change between weeks. Pinning the image is the lever for those -
+  see below.
 - **`prodockit pins` needs network** for `--latest` and the suggested
   default. Use `--offline` to report what the files declare without asking
   PyPI.

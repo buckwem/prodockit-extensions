@@ -47,7 +47,26 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest, for the same reason zensical and
+    # weasyprint are pinned below: this job publishes an artifact, and its
+    # inputs should move when someone decides they should.
+    #
+    # The image is the input pip cannot reach. `pandoc` comes from it (and
+    # distribution packages lag upstream far enough that some markdown edge
+    # cases parse differently), as do the Inter/JetBrains Mono fonts the
+    # PDF embeds and the base Chrome renders Mermaid against. On
+    # ubuntu-latest all three move the day GitHub migrates the label, with
+    # nothing committed - the same silent-change failure the package pins
+    # exist to prevent, one layer down.
+    #
+    # ubuntu-latest already *is* 24.04 today, so this changes nothing now.
+    # It only takes effect at the migration, which is exactly when a
+    # documentation build wants to be told rather than surprised.
+    #
+    # The cost: pinned images are retired roughly a year after the next
+    # LTS, and the job then fails outright instead of drifting. That is the
+    # right failure - loud, and at a time of your choosing.
+    runs-on: ubuntu-24.04
     # Consumed by the verify job below.
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
@@ -172,7 +191,7 @@ jobs:
   # decides whether the run reports success.
   verify:
     needs: deploy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # Pages serves `cache-control: max-age=600`, so up to ~10 minutes of
       # staleness is normal and expected rather than a fault. 15 minutes of
