@@ -2,6 +2,79 @@
 
 ## 0.17.2 (2026-07-30)
 
+- New `prodockit pins` command: shows every place a build-input version is
+  declared across a project, and moves them all together. Pinning a build
+  means writing the same version in several files at once - a floor in
+  `pyproject.toml`, an exact pin in each CI job that builds the docs,
+  another in whatever job checks for drift - and nothing enforces that
+  they agree. When they disagree the failure is quiet: CI builds with one
+  version while the declared floor says another.
+
+    Run it with no options for a prompt per package - press ++enter++ to
+    take the newest release on PyPI, or type a version. Each site keeps
+    **its own operator**, so a library floor stays a floor and a build pin
+    stays exact; one answer updates every file correctly.
+
+    Three shapes of declaration are recognised, because a build input is
+    not always a pip package: a pip specifier (`zensical==0.0.52`), a
+    GitHub runner label (`runs-on: ubuntu-24.04`) and a container image tag
+    (`image: python:3.13`). The last two carry `pandoc`, the fonts a PDF
+    embeds and the Chrome that rasterises diagrams - none of which pip can
+    reach - so they belong in the same inventory. Neither has a package
+    index to ask, so the suggested default is simply what is already set.
+
+    `--check` reports and exits non-zero if anything is behind PyPI *or*
+    if the files disagree with each other, for a scheduled job.
+    `--set PACKAGE=VERSION`, `--latest` and `--offline` cover the
+    non-interactive cases.
+
+    Scans both CI layouts - `.github/workflows/` and
+    `.gitlab-ci.yml`/`.gitlab/` - plus `pyproject.toml`, `setup.cfg` and
+    root `requirements`/`constraints` files, so the same command works
+    whichever host a project uses. Build output and virtualenvs are
+    skipped, so a stale copy of a workflow inside `site/` or `.venv/` is
+    not mistaken for a declaration.
+
+- `weasyprint` is now pinned in the docs build and the test job, alongside
+  `zensical`. It decides pagination, so a release that lays out one
+  paragraph differently shifts every page number after it - and those page
+  numbers are content, resolved into the back-of-book index and the table
+  of contents. That is a silently wrong document rather than a failed
+  build. Pinned in `ci.yml` too, because the real-render tests assert on
+  where things physically land, which makes the layout engine an input to
+  those assertions rather than an implementation detail.
+
+- New `drift.yml`, so pinning does not mean going quietly stale. Weekly it
+  builds the docs twice in one job - once with the pinned versions, once
+  with the newest - diffs the results byte for byte, runs the
+  built-output checks against the newer build, and opens an issue saying
+  what an upgrade would change. Both builds share a job, so pandoc,
+  Chrome, fonts and the runner image are identical between them and any
+  difference is attributable to the upgraded packages alone. It reports
+  rather than fails, and keeps one open issue updated in place: a
+  scheduled job that goes red every week trains everyone to ignore it.
+
+- CI runners are pinned to `ubuntu-24.04` rather than `ubuntu-latest`.
+  The image is the build input pip cannot reach: `pandoc` comes from it
+  (and distribution packages lag upstream far enough that some markdown
+  edge cases parse differently), as do the fonts the PDF embeds and the
+  Chrome that rasterises Mermaid diagrams. On `ubuntu-latest` all three
+  move the day GitHub migrates the label, with nothing committed - the
+  same silent change the package pins exist to prevent, one layer down.
+
+    `ubuntu-latest` already *is* 24.04, so nothing changes today; it takes
+    effect at the migration, which is exactly when a documentation build
+    wants to be told rather than surprised. Pinned images are retired
+    about a year after the following LTS and the job then fails outright
+    rather than drifting - the better failure, and at a time of your
+    choosing.
+
+- New [Version pinning and drift](../version-pinning.md) page documenting
+  the whole arrangement - where a version gets declared and why the forms
+  differ, `prodockit pins`, and a drift job for **both** GitHub Actions
+  and GitLab CI, the latter using pipeline schedules and the GitLab issues
+  API.
+
 - `zensical` now declares a floor (`>=0.0.52`) rather than being left
   entirely open. It records the version prodockit is developed and built
   against - not a minimum below which anything breaks, since 0.0.50 and

@@ -47,7 +47,26 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest, for the same reason zensical and
+    # weasyprint are pinned below: this job publishes an artifact, and its
+    # inputs should move when someone decides they should.
+    #
+    # The image is the input pip cannot reach. `pandoc` comes from it (and
+    # distribution packages lag upstream far enough that some markdown edge
+    # cases parse differently), as do the Inter/JetBrains Mono fonts the
+    # PDF embeds and the base Chrome renders Mermaid against. On
+    # ubuntu-latest all three move the day GitHub migrates the label, with
+    # nothing committed - the same silent-change failure the package pins
+    # exist to prevent, one layer down.
+    #
+    # ubuntu-latest already *is* 24.04 today, so this changes nothing now.
+    # It only takes effect at the migration, which is exactly when a
+    # documentation build wants to be told rather than surprised.
+    #
+    # The cost: pinned images are retired roughly a year after the next
+    # LTS, and the job then fails outright instead of drifting. That is the
+    # right failure - loud, and at a time of your choosing.
+    runs-on: ubuntu-24.04
     # Consumed by the verify job below.
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
@@ -95,7 +114,30 @@ jobs:
       # checks below. pymupdf is also what extra.pdf_include_index needs to
       # read page numbers back out of the first pass, so this one install
       # covers both - no separate [index] extra needed here.
-      - run: pip install -e ".[testing]" weasyprint
+      #
+      # zensical is pinned exactly *here* rather than in pyproject.toml,
+      # which deliberately declares only a floor (>=0.0.52): prodockit is a
+      # library, so an exact pin in its metadata would propagate to every
+      # consumer and conflict with any project needing a different Zensical.
+      # This is the build side, where the opposite applies - the site and
+      # PDF published from this job are artifacts, and they should change
+      # because someone decided to change them, not because a transitive
+      # resolution moved overnight. 0.0.52 silently redrew the GitHub brand
+      # icon (Font Awesome 7.2.0 -> 7.3.1) on every page; the PDF was
+      # byte-identical.
+      #
+      # weasyprint is pinned for a sharper reason than zensical: it decides
+      # pagination. A release that lays out one paragraph differently shifts
+      # every page number after it - and those page numbers are content
+      # here, resolved into the back-of-book index and the Table of
+      # Contents. That is a silently wrong document, not a failed build.
+      #
+      # Raising either is deliberate work: bump here (and zensical also in
+      # pyproject.toml's floor), rebuild, and diff the built site and PDF
+      # against the previous version before committing. drift.yml watches
+      # for newer releases weekly and opens an issue when one would change
+      # the output.
+      - run: pip install -e ".[testing]" "zensical==0.0.52" "weasyprint==69.0"
       # Two pandoc+WeasyPrint passes, not one: extra.pdf_include_index is on
       # in zensical.toml, and the back-of-book index can only be built once
       # WeasyPrint has laid the document out (see prodockit.pdf.index). The
@@ -149,7 +191,7 @@ jobs:
   # decides whether the run reports success.
   verify:
     needs: deploy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # Pages serves `cache-control: max-age=600`, so up to ~10 minutes of
       # staleness is normal and expected rather than a fault. 15 minutes of

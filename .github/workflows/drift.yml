@@ -1,0 +1,160 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+# docs.yml and ci.yml pin `zensical` and `weasyprint` exactly, so the
+# published site and PDF only change when someone decides they should. The
+# cost of pinning is going quietly stale: nothing says a newer release
+# exists, or what it would do to the output.
+#
+# This closes that. Weekly, it builds the docs twice in one job - once with
+# the pinned versions, once with the newest - and diffs the results byte for
+# byte. If an upgrade would change the published output, or break the
+# built-output tests, it opens an issue saying exactly what moved.
+#
+# The diff is meaningful because the builds are deterministic: two builds of
+# identical inputs produce byte-identical `site/` and PDF (verified when the
+# pins were introduced). The one trap is ordering - `zensical build` copies
+# the PDF into `site/`, so it has to run *after* `prodockit pdf` or the
+# copied PDF lags a generation and every comparison is a false positive.
+#
+# Reports rather than fails: a newer release is information, not a broken
+# build, and a red cross on a schedule is noise nobody reads.
+name: Dependency drift
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-24.04
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: "true"
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome-stable
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Same reason as docs.yml: the cover page's release line comes
+          # from `git describe --tags`, and a shallow clone has no tags. A
+          # missing release line would otherwise show up as a spurious diff.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: sudo apt-get update && sudo apt-get install -y pandoc fonts-inter fonts-jetbrains-mono
+      - run: curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg > /dev/null
+      - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+      - run: sudo apt-get update && sudo apt-get install -y google-chrome-stable
+      - run: npm ci --prefix tools/mermaid
+
+      # Keep these in step with docs.yml's own install line.
+      - name: Build with the pinned versions
+        run: |
+          pip install -e ".[testing]" "zensical==0.0.52" "weasyprint==69.0"
+          prodockit pdf
+          zensical build --clean --strict
+          mkdir -p /tmp/pinned
+          cp -R site /tmp/pinned/site
+          cp docs/site_documentation.pdf /tmp/pinned/doc.pdf
+          {
+            echo "pinned_zensical=$(pip show zensical | awk '/^Version:/{print $2}')"
+            echo "pinned_weasyprint=$(pip show weasyprint | awk '/^Version:/{print $2}')"
+          } >> "$GITHUB_ENV"
+
+      - name: Build with the newest versions
+        run: |
+          pip install -qU zensical weasyprint
+          prodockit pdf
+          zensical build --clean --strict
+          mkdir -p /tmp/latest
+          cp -R site /tmp/latest/site
+          cp docs/site_documentation.pdf /tmp/latest/doc.pdf
+          {
+            echo "latest_zensical=$(pip show zensical | awk '/^Version:/{print $2}')"
+            echo "latest_weasyprint=$(pip show weasyprint | awk '/^Version:/{print $2}')"
+          } >> "$GITHUB_ENV"
+
+      # Against the *newest* build, so a release that breaks the real
+      # rendering checks is caught here rather than on the day someone
+      # raises the pin. Never fails the job - the result is reported.
+      - name: Run the built-output checks against the newest build
+        id: tests
+        continue-on-error: true
+        run: python -m pytest tests/test_built_docs.py -m built -q
+
+      - name: Compare, and open an issue if anything moved
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+        run: |
+          set -u
+          pdf_state=$(cmp -s /tmp/pinned/doc.pdf /tmp/latest/doc.pdf \
+            && echo "identical" || echo "**differs**")
+          site_changed=$(diff -rq /tmp/pinned/site /tmp/latest/site 2>/dev/null | wc -l | tr -d ' ')
+
+          versions_moved="no"
+          [ "$pinned_zensical" != "$latest_zensical" ] && versions_moved="yes"
+          [ "$pinned_weasyprint" != "$latest_weasyprint" ] && versions_moved="yes"
+
+          if [ "$versions_moved" = "no" ]; then
+            echo "Pins are current: zensical $pinned_zensical, weasyprint $pinned_weasyprint. Nothing to report."
+            exit 0
+          fi
+
+          # One open issue at a time - a weekly job that opens a fresh issue
+          # every Monday until someone acts is worse than no job at all.
+          existing=$(gh issue list --state open --search "in:title Dependency drift" \
+            --json number --jq '.[0].number // empty')
+
+          # Written to a file rather than captured with $( ), and passed as
+          # --body-file. A heredoc inside command substitution is parsed for
+          # quotes, so a single apostrophe in the prose - "zensical's floor"
+          # - opens a quote that never closes and the whole script fails to
+          # parse. Backticks still need escaping either way: the delimiter
+          # is unquoted so that the version variables expand.
+          cat > /tmp/drift-issue.md <<EOF
+          A newer \`zensical\` or \`weasyprint\` is available than the docs build pins.
+
+          | | Pinned | Newest |
+          |---|---|---|
+          | \`zensical\` | $pinned_zensical | $latest_zensical |
+          | \`weasyprint\` | $pinned_weasyprint | $latest_weasyprint |
+
+          Built the docs with each, in the same job, and compared byte for byte:
+
+          - **PDF**: $pdf_state
+          - **Website**: $site_changed files differ
+          - **Built-output checks against the newest build**: $TESTS_OUTCOME
+
+          Both builds used the same pandoc, Chrome, fonts and runner image, so
+          any difference above is attributable to these two packages alone.
+
+          A difference is not automatically a problem - when the pins last
+          moved, 0.0.52 changed every page of the site (Font Awesome redrew the
+          GitHub icon) and left the PDF byte-identical. The point is to decide,
+          rather than have it arrive unnoticed.
+
+          To take the upgrade: bump the versions in \`.github/workflows/docs.yml\`
+          and \`.github/workflows/ci.yml\`, and \`zensical\`'s floor in
+          \`pyproject.toml\`, then rebuild and diff before committing.
+
+          <sub>Opened by \`drift.yml\`. Updated in place rather than reopened while this stays open.</sub>
+          EOF
+
+          if [ -n "$existing" ]; then
+            echo "Updating existing issue #$existing"
+            gh issue comment "$existing" --body-file /tmp/drift-issue.md
+          else
+            gh issue create \
+              --title "Dependency drift: newer zensical/weasyprint than the docs build pins" \
+              --body-file /tmp/drift-issue.md
+          fi

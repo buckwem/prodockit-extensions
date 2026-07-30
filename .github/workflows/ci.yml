@@ -8,7 +8,7 @@ on:
   pull_request:
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
@@ -49,13 +49,20 @@ jobs:
       # so the behaviour they exist to pin was never checked by CI at all -
       # `docs.yml` installs weasyprint but only runs `-m built` against
       # tests/test_built_docs.py, so it never reaches them either.
-      - run: pip install -e ".[dev]" weasyprint
+      #
+      # Pinned to the same version docs.yml builds with. These tests assert
+      # on where things physically land in a rendered PDF - which page a
+      # heading starts on, whether a long index term stayed inside its
+      # column - so the layout engine is an input to the assertions, not an
+      # implementation detail. An unpinned bump would move the measurements
+      # and read as a code regression. drift.yml watches for newer releases.
+      - run: pip install -e ".[dev]" "weasyprint==69.0"
       - run: ruff check .
       - run: mypy src
       - run: pytest --cov=prodockit
 
   docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
         with:
