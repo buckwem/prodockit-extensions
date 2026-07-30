@@ -1,5 +1,32 @@
 # Release Notes
 
+## 0.17.2 (2026-07-30)
+
+- `zensical` now declares a floor (`>=0.0.52`) rather than being left
+  entirely open. It records the version prodockit is developed and built
+  against - not a minimum below which anything breaks, since 0.0.50 and
+  0.0.51 both work. Zensical is pre-1.0 and prodockit reaches well past
+  its public surface (the config loader, the per-page render context
+  `prodockit.headings` detects, the icon set `prodockit.pdf.icons`
+  resolves against), so which version produced a given build is worth
+  recording. A floor rather than an exact pin because prodockit is a
+  library: `==` would propagate to every consumer and conflict with any
+  project needing a different Zensical.
+
+    What prompted this is worth keeping visible. Rebuilding against 0.0.52
+    and diffing the output byte for byte against 0.0.51: the PDF is
+    identical, and every page of the website differs - Font Awesome moved
+    7.2.0 to 7.3.1 and redrew the GitHub brand icon used in the header's
+    repository link and the social footer. One visible change out of the
+    nine icons the site uses, arriving with nothing committed. The rest is
+    the generator version string, content-hashed asset filenames, and
+    minified bundle churn.
+
+    A floor does not prevent that recurring: dependency resolution still
+    takes whatever is newest, so the next Zensical release can change the
+    published site the same way. Reproducible builds need a constraint on
+    the *build* side - in `docs.yml` - rather than in library metadata.
+
 ## 0.17.1 (2026-07-29)
 
 - This project's own PDF now has the back-of-book index its own docs

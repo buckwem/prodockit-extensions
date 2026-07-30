@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "prodockit"
-version = "0.17.1"
+version = "0.17.2"
 description = "A family of extensions for Zensical needed for professional and academic documentation: section cross-references, bibliography/citation handling, a glossary, a back-of-book index, a Pandoc/WeasyPrint PDF pipeline, Jinja macros for word counts and reference-style spacing, and repo-metadata syncing"
 readme = "README.md"
 license = "MIT"
@@ -15,7 +15,23 @@ requires-python = ">=3.10"
 keywords = ["markdown", "python-markdown", "zensical", "extension", "pdf", "pandoc"]
 dependencies = [
   "Markdown>=3.4",
-  "zensical",
+  # A floor, not an exact pin: prodockit is a library, and `==` here would
+  # propagate to every consumer and hard-conflict with any project needing a
+  # different Zensical.
+  #
+  # 0.0.52 is the version this is developed and built against, not a minimum
+  # below which anything breaks - 0.0.50 and 0.0.51 both work. It is recorded
+  # because Zensical is pre-1.0 and prodockit reaches well past its public
+  # surface (the config loader, the per-page render context prodockit.
+  # headings detects, the icon set prodockit.pdf.icons resolves against), so
+  # which version was used is worth knowing when output changes.
+  #
+  # Be clear about what this does *not* buy: a floor still resolves to
+  # whatever is newest, so the published site can still change with nothing
+  # committed. 0.0.52 silently redrew the GitHub brand icon (Font Awesome
+  # 7.2.0 -> 7.3.1) on every page. Reproducibility needs a pin on the
+  # *build* side - a constraint in docs.yml - not in library metadata.
+  "zensical>=0.0.52",
   "beautifulsoup4>=4.12",
   "click>=8.0",
   "pypdf>=4.0",
