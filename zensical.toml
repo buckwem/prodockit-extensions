@@ -65,6 +65,7 @@ nav = [
   {"Repository metadata" = "repository-metadata.md"},
   {"Testing your built site" = "testing.md"},
   {"Continuous integration" = "continuous-integration.md"},
+  {"Version pinning and drift" = "version-pinning.md"},
   {"Limitations and workarounds" = "limitations.md"},
   {"About" = [
     {"Release Notes" = "about/changelog.md"},
