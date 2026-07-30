@@ -2,6 +2,10 @@
 
 ## 0.17.2 (2026-07-30)
 
+- README, the package description and the module docstring now cover
+  `prodockit pins` alongside the other commands, so a reader arriving from
+  PyPI sees it exists.
+
 - New `prodockit pins` command: shows every place a build-input version is
   declared across a project, and moves them all together. Pinning a build
   means writing the same version in several files at once - a floor in
