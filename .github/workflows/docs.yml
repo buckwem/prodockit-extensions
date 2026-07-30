@@ -107,10 +107,18 @@ jobs:
       # icon (Font Awesome 7.2.0 -> 7.3.1) on every page; the PDF was
       # byte-identical.
       #
-      # Raising it is deliberate work: bump here and in pyproject.toml's
-      # floor together, rebuild, and diff the built site and PDF against the
-      # previous version before committing.
-      - run: pip install -e ".[testing]" "zensical==0.0.52" weasyprint
+      # weasyprint is pinned for a sharper reason than zensical: it decides
+      # pagination. A release that lays out one paragraph differently shifts
+      # every page number after it - and those page numbers are content
+      # here, resolved into the back-of-book index and the Table of
+      # Contents. That is a silently wrong document, not a failed build.
+      #
+      # Raising either is deliberate work: bump here (and zensical also in
+      # pyproject.toml's floor), rebuild, and diff the built site and PDF
+      # against the previous version before committing. drift.yml watches
+      # for newer releases weekly and opens an issue when one would change
+      # the output.
+      - run: pip install -e ".[testing]" "zensical==0.0.52" "weasyprint==69.0"
       # Two pandoc+WeasyPrint passes, not one: extra.pdf_include_index is on
       # in zensical.toml, and the back-of-book index can only be built once
       # WeasyPrint has laid the document out (see prodockit.pdf.index). The
