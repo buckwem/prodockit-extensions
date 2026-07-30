@@ -139,6 +139,32 @@ It also sets `edit_uri` explicitly, which fixes the "edit this page"
 button on a self-hosted GitLab and stops it pointing at a `master` branch
 that may not exist.
 
+## Version pinning and drift
+
+A documentation build has more inputs than its own source: `zensical`
+renders the site, `weasyprint` lays out the PDF, and the CI runner image
+carries `pandoc`, the fonts and Chrome. Left unpinned, an upgrade doesn't
+fail the build - it quietly publishes a different document.
+
+Pinning them means declaring the same version in several files at once,
+which nothing keeps in step.
+[`prodockit pins`](https://buckwem.github.io/prodockit-extensions/version-pinning/)
+finds every declaration and moves them together, keeping each one's own
+operator so a library floor stays a floor and a build pin stays exact:
+
+```bash
+prodockit pins               # prompt per package; Enter takes the newest
+prodockit pins --check       # behind PyPI, or files disagreeing? exit non-zero
+prodockit pins -p ubuntu     # runner images and container tags too
+```
+
+It reads `pyproject.toml`, GitHub Actions workflows, `.gitlab-ci.yml` and
+`requirements`/`constraints` files, so the same command works on either
+host. The docs also carry a weekly drift job for GitHub Actions and
+GitLab CI that rebuilds with the newest versions, diffs the output byte
+for byte, and opens an issue when an upgrade would change what you
+publish.
+
 ## Development
 
 ```bash

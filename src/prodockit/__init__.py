@@ -37,6 +37,13 @@ Zensical doesn't provide out of the box, each usable independently:
   checkout actually uses, so forking or mirroring a project between GitHub,
   GitLab and Bitbucket doesn't leave stale links behind. Run
   ``prodockit sync-repo`` from your project root.
+- ``prodockit.pins`` - find every place a build-input version is declared
+  across a project (``pyproject.toml``, GitHub Actions workflows,
+  ``.gitlab-ci.yml``, requirements/constraints files) and move them
+  together, keeping each site's own operator so a library floor stays a
+  floor and a build pin stays exact. Handles runner labels
+  (``runs-on: ubuntu-24.04``) and container tags (``image: python:3.13``)
+  as well as pip specifiers. Run ``prodockit pins`` from your project root.
 - ``prodockit.init_tools`` - scaffold the Node tooling ``prodockit.pdf``
   needs to pre-render Mermaid diagrams and TeX maths into the PDF (neither
   can be rendered client-side there, since WeasyPrint has no JS engine).
