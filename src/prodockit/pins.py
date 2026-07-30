@@ -85,6 +85,22 @@ _SPEC_RE_TEMPLATE = (
     r"(?P<version>[0-9][\w.*+!-]*)"
 )
 
+#: A GitHub Actions runner label - `runs-on: ubuntu-24.04`. Not a pip
+#: specifier: there is no operator, the version is joined to the name by a
+#: hyphen, and it names an image rather than a package. It is pinned for
+#: the same reason all the same, because it carries `pandoc`, the fonts a
+#: PDF embeds and the Chrome that rasterises diagrams - none of which pip
+#: can reach - so it belongs in the same inventory.
+_RUNNER_RE_TEMPLATE = r"runs-on:\s*[\"']?(?P<name>{names})(?P<op>-)(?P<version>[\w.]+)"
+
+#: A container image tag - GitLab CI's `image: python:3.13`, and the same
+#: shape in any workflow that names one. An optional registry/namespace
+#: prefix is skipped so `image: docker.io/library/python:3.13` matches on
+#: `python`.
+_IMAGE_RE_TEMPLATE = (
+    r"image:\s*[\"']?(?:[\w.-]+(?:/[\w.-]+)*/)?(?P<name>{names})(?P<op>:)(?P<version>[\w.-]+)"
+)
+
 #: PyPI's own JSON metadata endpoint - no dependency needed to read it.
 PYPI_URL = "https://pypi.org/pypi/{package}/json"
 
@@ -107,6 +123,11 @@ class PinSite:
     package: str
     op: str
     version: str
+    #: How this declaration is written: a pip specifier (`zensical==0.0.52`),
+    #: a GitHub runner label (`runs-on: ubuntu-24.04`), or a container image
+    #: tag (`image: python:3.13`). Decides whether PyPI can say what the
+    #: newest release is - for the last two, nothing can.
+    kind: str = "pip"
 
     @property
     def spec(self) -> str:
@@ -152,6 +173,14 @@ class PackageState:
         if self.latest is None or self.current is None:
             return False
         return version_key(self.latest) > version_key(self.current)
+
+    @property
+    def on_pypi(self) -> bool:
+        """Whether PyPI can answer what the newest release is. A runner
+        label or an image tag is still worth inventorying and rewriting -
+        it is a build input like any other - but there is no package index
+        to ask, so the current value is the only sensible default."""
+        return any(site.kind == "pip" for site in self.sites) or not self.sites
 
 
 def version_key(version: str) -> tuple[object, ...]:
@@ -213,10 +242,14 @@ def discover(
     omitted.
     """
     states = {package: PackageState(package=package) for package in packages}
-    pattern = re.compile(
-        _SPEC_RE_TEMPLATE.format(names="|".join(re.escape(p) for p in packages)),
-        re.IGNORECASE,
-    )
+    names = "|".join(re.escape(p) for p in packages)
+    # Three shapes, because a build input is not always a pip specifier -
+    # see each template for what it matches and why it counts.
+    patterns = [
+        ("pip", re.compile(_SPEC_RE_TEMPLATE.format(names=names), re.IGNORECASE)),
+        ("runner", re.compile(_RUNNER_RE_TEMPLATE.format(names=names), re.IGNORECASE)),
+        ("image", re.compile(_IMAGE_RE_TEMPLATE.format(names=names), re.IGNORECASE)),
+    ]
 
     for rel_path in _candidate_files(root):
         try:
@@ -226,19 +259,21 @@ def discover(
             # Unreadable or binary - not a declaration site anyone edits.
             continue
         for number, text in enumerate(lines, start=1):
-            for match in pattern.finditer(text):
-                package = match.group("name").lower()
-                if package not in states:
-                    continue
-                states[package].sites.append(
-                    PinSite(
-                        path=rel_path,
-                        line=number,
-                        package=package,
-                        op=match.group("op"),
-                        version=match.group("version"),
+            for kind, pattern in patterns:
+                for match in pattern.finditer(text):
+                    package = match.group("name").lower()
+                    if package not in states:
+                        continue
+                    states[package].sites.append(
+                        PinSite(
+                            path=rel_path,
+                            line=number,
+                            package=package,
+                            op=match.group("op"),
+                            version=match.group("version"),
+                            kind=kind,
+                        )
                     )
-                )
     return states
 
 
@@ -272,6 +307,12 @@ def resolve_latest(
     skips the lookup entirely, for a run that only reports what the files
     already say."""
     for state in states.values():
+        if not state.on_pypi:
+            # A runner label or image tag. Asking PyPI for "ubuntu" would
+            # either miss or, worse, find an unrelated package of that name
+            # and report a nonsense upgrade.
+            state.latest_error = "not a PyPI package - set the version yourself"
+            continue
         if offline:
             state.latest_error = "skipped (offline)"
             continue

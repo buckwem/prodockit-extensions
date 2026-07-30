@@ -341,7 +341,11 @@ def pins(
             any_sites = True
             for site in state.sites:
                 click.echo(f"  {site.path}:{site.line}  {site.spec}")
-        if state.latest:
+        if not state.on_pypi:
+            # A runner label or image tag - inventoried and rewritable, but
+            # there is no package index to ask what is newest.
+            click.echo("  not on PyPI - set the version yourself")
+        elif state.latest:
             marker = "  <- newer available" if state.is_behind else ""
             click.echo(f"  newest on PyPI: {state.latest}{marker}")
         elif state.latest_error:

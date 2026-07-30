@@ -106,11 +106,20 @@ Build output and virtualenvs (`site/`, `public/`, `.venv/`,
 `node_modules/`, …) are skipped, so a stale copy of a workflow inside one
 is not mistaken for a declaration.
 
-!!! note "Only versioned specifiers are found"
-    `prodockit pins` matches `package==version`-style declarations. A
-    dependency installed with no version at all is not a declaration site,
-    so it will not appear - pin it once by hand and the tool manages it
-    from then on.
+Three shapes of declaration are recognised, because a build input is not
+always a pip package:
+
+| Shape | Example | Where |
+| --- | --- | --- |
+| pip specifier | `zensical==0.0.52`, `zensical>=0.0.52` | anywhere |
+| runner label | `runs-on: ubuntu-24.04` | GitHub Actions |
+| image tag | `image: python:3.13` | GitLab CI, or any container |
+
+!!! note "Only versioned declarations are found"
+    A dependency installed with no version at all is not a declaration
+    site, so it will not appear - pin it once by hand and the tool manages
+    it from then on. The same applies to `runs-on: ubuntu-latest`, which
+    names no version to move.
 
 ## Watching for drift {: #pinning-watching-for-drift }
 
@@ -270,6 +279,35 @@ jobs:
 
 GitLab's equivalent is the job `image:`, which most projects already pin by
 habit - `python:3.13` rather than `python:latest`.
+
+`prodockit pins` manages both, so the image is inventoried and moved the
+same way as everything else - name it with `-p`:
+
+```bash
+prodockit pins -p ubuntu       # runs-on: ubuntu-24.04, across every workflow
+prodockit pins -p python       # image: python:3.13, in GitLab CI
+```
+
+```text
+ubuntu
+  .github/workflows/ci.yml:11  ubuntu-24.04
+  .github/workflows/docs.yml:69  ubuntu-24.04
+  .github/workflows/drift.yml:36  ubuntu-24.04
+  .github/workflows/publish.yml:10  ubuntu-24.04
+  not on PyPI - set the version yourself
+
+ubuntu: version to set [24.04]:
+```
+
+There is no suggested version for these: PyPI has nothing to say about a
+runner image, and asking it for "ubuntu" would at best miss and at worst
+find an unrelated package of that name and propose a nonsense upgrade. The
+default is what is currently set, so ++enter++ is a no-op and you type the
+new one deliberately - which suits a change you make once every couple of
+years.
+
+`--check` still applies, and catches the failure that matters here: some
+jobs left on the old image after a partial migration.
 
 !!! note "What this costs"
     `ubuntu-latest` already *is* 24.04 today, so pinning changes nothing

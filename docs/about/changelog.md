@@ -15,6 +15,14 @@
     **its own operator**, so a library floor stays a floor and a build pin
     stays exact; one answer updates every file correctly.
 
+    Three shapes of declaration are recognised, because a build input is
+    not always a pip package: a pip specifier (`zensical==0.0.52`), a
+    GitHub runner label (`runs-on: ubuntu-24.04`) and a container image tag
+    (`image: python:3.13`). The last two carry `pandoc`, the fonts a PDF
+    embeds and the Chrome that rasterises diagrams - none of which pip can
+    reach - so they belong in the same inventory. Neither has a package
+    index to ask, so the suggested default is simply what is already set.
+
     `--check` reports and exits non-zero if anything is behind PyPI *or*
     if the files disagree with each other, for a scheduled job.
     `--set PACKAGE=VERSION`, `--latest` and `--offline` cover the

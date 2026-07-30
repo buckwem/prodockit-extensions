@@ -212,3 +212,88 @@ def test_is_behind_is_false_when_no_latest_is_known() -> None:
     )
 
     assert state.is_behind is False
+
+
+def test_discover_finds_github_runner_labels(tmp_path: Path) -> None:
+    """`runs-on: ubuntu-24.04` is a build input like any other - it carries
+    pandoc, the fonts a PDF embeds and the Chrome that rasterises diagrams -
+    but it is not a pip specifier: no operator, and the version is joined by
+    a hyphen."""
+    _project(
+        tmp_path,
+        {
+            ".github/workflows/ci.yml": "jobs:\n  test:\n    runs-on: ubuntu-24.04\n",
+            ".github/workflows/docs.yml": '    runs-on: "ubuntu-24.04"\n',
+        },
+    )
+
+    state = discover(str(tmp_path), ["ubuntu"])["ubuntu"]
+
+    assert [s.version for s in state.sites] == ["24.04", "24.04"]
+    assert {s.kind for s in state.sites} == {"runner"}
+    assert state.sites[0].spec == "ubuntu-24.04"
+
+
+def test_discover_finds_container_image_tags(tmp_path: Path) -> None:
+    """GitLab CI pins its job image the same way most projects pin any
+    container - `image: python:3.13`."""
+    _project(
+        tmp_path,
+        {
+            ".gitlab-ci.yml": "drift:\n  image: python:3.13\n",
+            ".gitlab/ci/build.yml": "  image: docker.io/library/python:3.12\n",
+        },
+    )
+
+    state = discover(str(tmp_path), ["python"])["python"]
+
+    assert {s.version for s in state.sites} == {"3.13", "3.12"}
+    assert {s.kind for s in state.sites} == {"image"}
+
+
+def test_runner_and_image_states_are_not_looked_up_on_pypi(tmp_path: Path) -> None:
+    """Asking PyPI for "ubuntu" would either miss or, worse, find an
+    unrelated package of that name and report a nonsense upgrade."""
+    from prodockit.pins import resolve_latest
+
+    _project(tmp_path, {".github/workflows/ci.yml": "    runs-on: ubuntu-24.04\n"})
+    states = discover(str(tmp_path), ["ubuntu"])
+
+    resolve_latest(states)  # would hit the network for a pip package
+
+    assert states["ubuntu"].on_pypi is False
+    assert states["ubuntu"].latest is None
+    assert "not a PyPI package" in (states["ubuntu"].latest_error or "")
+    assert states["ubuntu"].is_behind is False
+
+
+def test_apply_version_rewrites_a_runner_label_keeping_its_separator(tmp_path: Path) -> None:
+    _project(
+        tmp_path,
+        {
+            ".github/workflows/ci.yml": "jobs:\n  test:\n    runs-on: ubuntu-24.04\n",
+            ".gitlab-ci.yml": "  image: python:3.13\n",
+        },
+    )
+    ubuntu = discover(str(tmp_path), ["ubuntu"])["ubuntu"]
+    python = discover(str(tmp_path), ["python"])["python"]
+
+    apply_version(str(tmp_path), ubuntu, "26.04")
+    apply_version(str(tmp_path), python, "3.14")
+
+    assert "runs-on: ubuntu-26.04" in (
+        tmp_path / ".github" / "workflows" / "ci.yml"
+    ).read_text(encoding="utf-8")
+    assert "image: python:3.14" in (tmp_path / ".gitlab-ci.yml").read_text(encoding="utf-8")
+
+
+def test_a_runner_label_is_not_mistaken_for_a_pip_specifier(tmp_path: Path) -> None:
+    """The pip pattern requires a real operator, so a hyphenated label must
+    not match it - otherwise the same line would be recorded twice and
+    rewritten twice."""
+    _project(tmp_path, {".github/workflows/ci.yml": "    runs-on: ubuntu-24.04\n"})
+
+    sites = discover(str(tmp_path), ["ubuntu"])["ubuntu"].sites
+
+    assert len(sites) == 1
+    assert sites[0].kind == "runner"
