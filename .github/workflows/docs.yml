@@ -95,7 +95,22 @@ jobs:
       # checks below. pymupdf is also what extra.pdf_include_index needs to
       # read page numbers back out of the first pass, so this one install
       # covers both - no separate [index] extra needed here.
-      - run: pip install -e ".[testing]" weasyprint
+      #
+      # zensical is pinned exactly *here* rather than in pyproject.toml,
+      # which deliberately declares only a floor (>=0.0.52): prodockit is a
+      # library, so an exact pin in its metadata would propagate to every
+      # consumer and conflict with any project needing a different Zensical.
+      # This is the build side, where the opposite applies - the site and
+      # PDF published from this job are artifacts, and they should change
+      # because someone decided to change them, not because a transitive
+      # resolution moved overnight. 0.0.52 silently redrew the GitHub brand
+      # icon (Font Awesome 7.2.0 -> 7.3.1) on every page; the PDF was
+      # byte-identical.
+      #
+      # Raising it is deliberate work: bump here and in pyproject.toml's
+      # floor together, rebuild, and diff the built site and PDF against the
+      # previous version before committing.
+      - run: pip install -e ".[testing]" "zensical==0.0.52" weasyprint
       # Two pandoc+WeasyPrint passes, not one: extra.pdf_include_index is on
       # in zensical.toml, and the back-of-book index can only be built once
       # WeasyPrint has laid the document out (see prodockit.pdf.index). The
