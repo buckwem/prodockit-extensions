@@ -148,11 +148,50 @@ a release is normally tagged *after* the commit is pushed - which is what
 triggers the deploy. So the first deploy after a release shows the
 *previous* one.
 
-The `release: [published]` trigger above fixes that by redeploying once the
-tag exists. On GitHub Pages this also needs a matching tag entry in the
-environment's deployment branch policies, since a release event runs
-against `refs/tags/<tag>` rather than a branch - without it the run is
-rejected at the environment gate instead of deploying.
+So something has to rebuild once the tag exists. The obvious way - adding
+`release: [published]` to the deploy workflow itself - is a trap on GitHub
+Pages, and a quiet one.
+
+!!! danger "Do not deploy directly from a release event"
+    A release event runs against `refs/tags/<tag>`, so the Pages
+    deployment it creates carries a **tag ref**. With Pages configured
+    `source: {branch: main}`, that deployment is accepted, reports
+    `success`, and is then never served - the site carries on returning
+    the previous build.
+
+    Nothing fails. The run is green, the deployment shows `success`, the
+    one it superseded shows `inactive`, and the site is simply a release
+    behind. This project shipped three releases that way before a
+    [delivery check](version-pinning.md#pinning-watching-for-drift) caught
+    it: every deployment from `main` went live, every one from a tag ref
+    did not, across nine deployments with no counterexamples.
+
+Trigger the rebuild against your default branch instead. A tiny separate
+workflow, which builds nothing itself:
+
+```yaml
+name: Redeploy docs after a release
+on:
+  release:
+    types: [published]
+permissions:
+  actions: write        # lets GITHUB_TOKEN start another run
+jobs:
+  redeploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run docs.yml --ref main
+```
+
+The deploy workflow then needs only `push` and `workflow_dispatch`, and no
+tag entry in the environment's deployment branch policies - nothing
+deploys from a tag any more.
+
+On GitLab this does not arise: Pages serves whatever the most recent
+successful job published, with no branch-scoped source to disagree with.
 
 ### Pandoc version drift {: #ci-pandoc-version }
 

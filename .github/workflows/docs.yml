@@ -6,21 +6,17 @@ on:
   push:
     branches:
       - main
-  # Also redeploy whenever a release is published. The cover page's
-  # "Release: <tag>" line comes from `git describe --tags --abbrev=0`, so it
-  # can only ever show a tag that already exists at build time - and in the
-  # normal flow the version-bump commit is pushed (triggering the deploy
-  # above) *before* the release and its tag are created. Without this
-  # trigger, the site and PDF sit one release behind until something else
-  # happens to redeploy them, which is exactly what needed fixing by hand
-  # after 0.11.1 and again after 0.12.0.
+  # Deliberately *no* `release: [published]` trigger, though the cover
+  # page's "Release: <tag>" line does need a rebuild once the tag exists.
+  # That rebuild now comes from release-redeploy.yml, which re-triggers
+  # this workflow against `main`.
   #
-  # A release event runs against refs/tags/<tag>, not a branch, so this also
-  # needed a matching `tag: prodockit-v*` entry alongside `branch: main` in
-  # the github-pages environment's deployment branch policies - without it
-  # the run is rejected at the environment gate rather than deploying.
-  release:
-    types: [published]
+  # Deploying straight from the release event is what the old trigger did,
+  # and it never worked: a release event runs against `refs/tags/<tag>`, so
+  # the Pages deployment carried a tag ref, and Pages - configured with
+  # `source: {branch: main}` - accepted it, reported `success`, and carried
+  # on serving the previous build. Silently, on every release from 0.17.0
+  # to 0.17.2 (prodockit-extensions#147).
   workflow_dispatch:
 
 # Publishing a release right after merging its version bump starts two

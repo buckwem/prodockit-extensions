@@ -1,0 +1,57 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+# The cover page's "Release: <tag>" line can only ever show a tag that
+# already exists when the build runs, and a release is tagged *after* the
+# version-bump commit is pushed - which is what triggers the deploy. So
+# something has to rebuild the docs once the release exists.
+#
+# docs.yml used to do that itself, with its own `release: [published]`
+# trigger. That never worked, and failed silently: a release event runs
+# against `refs/tags/<tag>`, so the Pages deployment it created carried a
+# tag ref, and GitHub Pages - configured with `source: {branch: main}` -
+# accepted the deployment, reported `success`, and went on serving the
+# previous build. Every release from 0.17.0 to 0.17.2 did this, each
+# needing a manual `gh workflow run docs.yml --ref main` afterwards
+# (prodockit-extensions#147).
+#
+# Every Pages deployment from `main` went live; every one from a tag ref
+# did not - nine deployments, no counterexamples. So this workflow does
+# not build or deploy anything. It re-triggers docs.yml *against main*,
+# which is the one thing known to work, and is exactly what the manual fix
+# did each time.
+#
+# Consequences worth knowing:
+#
+# - The `tag: prodockit-v*` entry in the github-pages environment's
+#   deployment branch policies is now redundant. Nothing here deploys from
+#   a tag. It is harmless to leave, and harmless to remove.
+# - This costs one extra docs build per release. That is the price of the
+#   cover line being right, and it is what was already happening by hand.
+name: Redeploy docs after a release
+
+on:
+  release:
+    types: [published]
+  # So the dispatch mechanism itself can be exercised without cutting a
+  # release - the failure mode this replaces was one nobody could test.
+  workflow_dispatch:
+
+# `actions: write` is what lets GITHUB_TOKEN start another workflow run.
+# Nothing else is needed: this job checks nothing out and builds nothing.
+permissions:
+  actions: write
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Rebuild and deploy the docs from main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # No checkout, so `gh` cannot infer the repository from a git
+          # remote and has to be told.
+          GH_REPO: ${{ github.repository }}
+        run: |
+          echo "Triggering docs.yml against main so the deployment carries a branch ref."
+          gh workflow run docs.yml --ref main
