@@ -36,15 +36,17 @@ The three marked rows are where every mistake has actually happened.
 
 ### GitHub Actions {: #ci-github-actions }
 
+No `release:` trigger, deliberately - see [Release numbering](#ci-release-numbering)
+below for why deploying straight from one looks like the obvious fix and
+is actually a trap that fails silently. The cover page's release line
+still needs a rebuild once a tag exists; that comes from a small separate
+workflow instead.
+
 ```yaml
 name: Documentation
 on:
   push:
     branches: [main]
-  # Redeploy when a release is published, so the cover page's release
-  # number isn't a release behind - see "Release numbering" below.
-  release:
-    types: [published]
   workflow_dispatch:
 permissions:
   contents: read
@@ -56,6 +58,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    # Consumed by the verify job below.
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+      index_sha: ${{ steps.fingerprint.outputs.index_sha }}
     env:
       PUPPETEER_SKIP_DOWNLOAD: "true"
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome-stable
@@ -86,11 +92,56 @@ jobs:
       - run: prodockit pdf
       - run: zensical build --clean --strict
 
+      # Fingerprint what's about to publish, for the verify job below -
+      # taken from the same directory upload-pages-artifact packs,
+      # immediately before it packs it.
+      - id: fingerprint
+        run: echo "index_sha=$(sha256sum site/index.html | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site               # or "public", matching your site_dir
       - uses: actions/deploy-pages@v4
         id: deployment
+```
+
+A successful deploy is not proof the site serves it. GitHub Pages has,
+more than once, reported `success` and quietly kept serving the previous
+build - see [Watching for drift](#pinning-watching-for-drift) below for
+the same idea applied to package versions, and
+[Release numbering](#ci-release-numbering) for the specific way this bit
+this project. A separate `verify` job closes the gap: it polls the live
+page and fails the run if it never matches the build just deployed,
+without ever gating the deploy itself on delivery.
+
+```yaml
+  verify:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify the live site serves this build
+        env:
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+          WANT: ${{ needs.deploy.outputs.index_sha }}
+        run: |
+          set -u
+          # Pages serves cache-control: max-age=600, so ~10 minutes of
+          # staleness is normal rather than a fault. 15 minutes of polling
+          # clears that window with room to spare.
+          for attempt in $(seq 1 30); do
+            # Download to a file rather than piping into sha256sum or
+            # capturing with $(...) - a failed fetch would otherwise
+            # silently hash empty input, or the captured body would lose
+            # its trailing newline and never match the file on disk.
+            if curl -fsSL --max-time 30 -o live-index.html "$PAGE_URL"; then
+              got=$(sha256sum live-index.html | cut -d' ' -f1)
+            else
+              got="fetch-failed"
+            fi
+            [ "$got" = "$WANT" ] && exit 0
+            sleep 30
+          done
+          echo "::error::$PAGE_URL is not serving this build after 15 minutes."
+          exit 1
 ```
 
 ### GitLab CI {: #ci-gitlab-ci }
@@ -122,6 +173,11 @@ pages:
   artifacts:
     paths: [public]
 ```
+
+No `verify` job here - GitLab Pages serves whatever the most recent
+successful job published, with no branch-scoped source to disagree with,
+so the failure mode the GitHub `verify` job guards against doesn't arise
+on this host.
 
 ### The traps {: #ci-the-traps }
 
