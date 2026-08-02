@@ -1,5 +1,36 @@
 # Release Notes
 
+## 0.17.4 (2026-08-02)
+
+Documentation only - no library, CLI or CI behaviour changes.
+
+- The three pages covering how a prodockit build is run and kept stable -
+  repository metadata, continuous integration, and version pinning and
+  drift - are now one page, **Managing the build**. They were written
+  separately and read as three answers to the same question; a reader
+  setting up a pipeline needed all three and had no reason to expect the
+  third. Each is now a section, introduced by a short chapter overview
+  naming all three, and continuous integration keeps its own H2 rather
+  than being the page's implicit subject.
+
+    Existing links still resolve: `version-pinning.md` and
+    `repository-metadata.md` are gone, and every reference to them - in
+    the README, in these release notes - now points at the corresponding
+    anchor on the merged page.
+
+- The GitHub Actions example in that page now shows the `verify` job from
+  0.17.2, so the recipe a reader copies includes the delivery check rather
+  than the version that predates it.
+
+- The 0.17.1 entry below now carries the CI costs that were actually
+  measured, rather than describing them as "paid once per interpreter".
+  Installing WeasyPrint took the 3.13 job from 59 seconds to about 14
+  minutes - a 13-minute install, compiling from source, against roughly 20
+  seconds on 3.10-3.12 - and enabling the pip cache brought that install
+  back to 15 seconds and the job to under two minutes. Those are the
+  figures that tell a reader whether the cache is worth enabling in their
+  own matrix.
+
 ## 0.17.3 (2026-08-02)
 
 - Docs deploys no longer run from a release event, which never worked and
