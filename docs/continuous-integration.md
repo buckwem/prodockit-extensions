@@ -3,11 +3,19 @@
 Building a prodockit site in \index{continuous integration!CI} needs more than `pip install`. The PDF
 pipeline shells out to external binaries, and several of the ways it goes
 wrong are silent - the build succeeds and publishes something subtly wrong.
+This page is three things that close that gap, in the order you'd set them up:
 
-This page is the recipe, the reasoning behind each part of it, and the two
-further checks - keeping repository metadata in step with your git remote,
-and keeping build inputs pinned and watched for drift - that close the
-remaining gaps.
+1. **The build itself** - what it actually needs, working recipes for both
+   GitHub Actions and GitLab CI, and the traps that catch almost everyone
+   at least once.
+2. **[Repository metadata](#sync-repo-repository-metadata)** - keeping your
+   repo links, brand icon and README badges in step with whichever git
+   remote you actually publish from, so forking or mirroring doesn't leave
+   stale ones behind.
+3. **[Version pinning and drift](#pinning-version-pinning-and-drift)** -
+   pinning the versions of Zensical, WeasyPrint and the runner image the
+   build renders with, and watching for a newer release that would
+   actually change what gets published.
 
 ## What the build actually needs {: #ci-what-the-build-needs }
 
