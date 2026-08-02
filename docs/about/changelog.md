@@ -103,7 +103,7 @@
     rather than drifting - the better failure, and at a time of your
     choosing.
 
-- New [Version pinning and drift](../version-pinning.md) page documenting
+- New [Version pinning and drift](../continuous-integration.md#pinning-version-pinning-and-drift) page documenting
   the whole arrangement - where a version gets declared and why the forms
   differ, `prodockit pins`, and a drift job for **both** GitHub Actions
   and GitLab CI, the latter using pipeline schedules and the GitLab issues
@@ -383,7 +383,7 @@
   GitHub, GitLab and Bitbucket doesn't leave stale links, the wrong brand
   icon, or badges pointing at somebody else's repository. `--check` writes
   nothing and exits non-zero on drift, for CI. See
-  [Repository metadata](../repository-metadata.md).
+  [Repository metadata](../continuous-integration.md#sync-repo-repository-metadata).
 
     This was previously a `sync_repo_icon.py` script copied byte-for-byte
     between two consuming projects
