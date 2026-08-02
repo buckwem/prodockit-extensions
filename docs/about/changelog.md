@@ -210,13 +210,16 @@
   so it never reached them either. The behaviour they exist to pin was
   going unchecked everywhere, including both fixes above.
 
-    The tests themselves add about 20 seconds per matrix entry. Installing
-    WeasyPrint costs more, and unevenly: it pulls in packages with no
-    wheel published for every interpreter the matrix covers, and on 3.13
-    the install step spent 13 minutes compiling them from source against
-    roughly 20 seconds on 3.10-3.12. `actions/setup-python`'s own pip
-    cache is now enabled to hold the built wheels, so that cost is paid
-    once per interpreter rather than on every run.
+    The tests themselves add about 20 seconds per matrix entry.
+    Installing WeasyPrint costs more, and unevenly: it pulls in packages
+    with no wheel published for every interpreter the matrix covers. On
+    3.10-3.12 the install step took roughly 20 seconds; on 3.13 it spent
+    **13 minutes** compiling them from source, taking that job from 59
+    seconds to about 14 minutes.
+
+    `actions/setup-python`'s own pip cache is now enabled, which holds
+    pip's *built* wheels as well as its downloads. That brought the same
+    3.13 install back to **15 seconds** and the job to under two minutes.
 
 ## 0.17.0 (2026-07-28)
 
