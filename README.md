@@ -31,6 +31,9 @@ Requires **Python 3.10 or later** (tested on 3.10-3.13).
 pip install prodockit
 ```
 
+Check what you have with `prodockit --version`, which prints the bare
+number the same way `zensical --version` does.
+
 `prodockit.pdf` and `prodockit.bibliography` additionally need `pandoc`,
 and the PDF build needs `weasyprint` - external binaries, not Python
 packages, so `pip` doesn't install them. See
