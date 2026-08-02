@@ -1,13 +1,13 @@
-# Continuous integration {: #ci-continuous-integration }
+# Managing the build {: #managing-the-build }
 
 Building a prodockit site in \index{continuous integration!CI} needs more than `pip install`. The PDF
 pipeline shells out to external binaries, and several of the ways it goes
 wrong are silent - the build succeeds and publishes something subtly wrong.
 This page is three things that close that gap, in the order you'd set them up:
 
-1. **The build itself** - what it actually needs, working recipes for both
-   GitHub Actions and GitLab CI, and the traps that catch almost everyone
-   at least once.
+1. **[Continuous integration](#ci-continuous-integration)** - what the
+   build actually needs, working recipes for both GitHub Actions and
+   GitLab CI, and the traps that catch almost everyone at least once.
 2. **[Repository metadata](#sync-repo-repository-metadata)** - keeping your
    repo links, brand icon and README badges in step with whichever git
    remote you actually publish from, so forking or mirroring doesn't leave
@@ -17,7 +17,11 @@ This page is three things that close that gap, in the order you'd set them up:
    build renders with, and watching for a newer release that would
    actually change what gets published.
 
-## What the build actually needs {: #ci-what-the-build-needs }
+## Continuous integration {: #ci-continuous-integration }
+
+The recipe, and the reasoning behind each part of it.
+
+### What the build actually needs {: #ci-what-the-build-needs }
 
 | Requirement | Needed for | Silent if missing? |
 | --- | --- | --- |
@@ -30,7 +34,7 @@ This page is three things that close that gap, in the order you'd set them up:
 
 The three marked rows are where every mistake has actually happened.
 
-## GitHub Actions {: #ci-github-actions }
+### GitHub Actions {: #ci-github-actions }
 
 ```yaml
 name: Documentation
@@ -89,7 +93,7 @@ jobs:
         id: deployment
 ```
 
-## GitLab CI {: #ci-gitlab-ci }
+### GitLab CI {: #ci-gitlab-ci }
 
 The same steps on a slimmer base image, which needs Node and Pango
 installing too:
@@ -119,9 +123,9 @@ pages:
     paths: [public]
 ```
 
-## The traps {: #ci-the-traps }
+### The traps {: #ci-the-traps }
 
-### `PUPPETEER_SKIP_DOWNLOAD`, not `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` {: #ci-puppeteer-variable }
+#### `PUPPETEER_SKIP_DOWNLOAD`, not `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` {: #ci-puppeteer-variable }
 
 Puppeteer renamed this. `mermaid-cli` 11.x resolves to puppeteer 25.x,
 which honours only the new name - under the old one the skip does nothing,
@@ -132,7 +136,7 @@ that download is blocked or times out.
 Three separate projects had the old name. `prodockit init-tools` prints
 the correct pair.
 
-### Fonts must actually be installed {: #ci-fonts }
+#### Fonts must actually be installed {: #ci-fonts }
 
 Your website loads its fonts from a CDN at view time. WeasyPrint has no
 such fallback - it needs the font files present to embed them, and
@@ -143,7 +147,7 @@ Install the packages matching your configured fonts (`fonts-inter` and
 `fonts-jetbrains-mono` above), and consider a test asserting the expected
 font is embedded.
 
-### A shallow clone has no tags {: #ci-shallow-clone }
+#### A shallow clone has no tags {: #ci-shallow-clone }
 
 `actions/checkout` defaults to `fetch-depth: 1`, which fetches **no tags at
 all**. `prodockit.zensical_macros`' `{{ release }}` is `git describe
@@ -152,7 +156,7 @@ silently disappears - while working perfectly in any local clone.
 
 Set `fetch-depth: 0` (GitHub) or `GIT_DEPTH: "0"` (GitLab).
 
-### Release numbering is one behind by default {: #ci-release-numbering }
+#### Release numbering is one behind by default {: #ci-release-numbering }
 
 `{{ release }}` can only report a tag that exists when the build runs, and
 a release is normally tagged *after* the commit is pushed - which is what
@@ -204,14 +208,14 @@ deploys from a tag any more.
 On GitLab this does not arise: Pages serves whatever the most recent
 successful job published, with no branch-scoped source to disagree with.
 
-### Pandoc version drift {: #ci-pandoc-version }
+#### Pandoc version drift {: #ci-pandoc-version }
 
 Distribution `pandoc` packages lag well behind upstream - far enough that
 some markdown edge cases parse differently than on a contributor's machine.
 If that matters to you, install a pinned `.deb` from Pandoc's own releases
 instead of `apt-get install pandoc`.
 
-## Checks worth adding {: #ci-checks-worth-adding }
+### Checks worth adding {: #ci-checks-worth-adding }
 
 Three prodockit features exist specifically to make CI catch these:
 
