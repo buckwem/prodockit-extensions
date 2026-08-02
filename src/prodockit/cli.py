@@ -25,6 +25,7 @@ import sys
 
 import click
 
+from prodockit import __version__
 from prodockit.init_tools import (
     COMPONENT_PURPOSE,
     InitToolsError,
@@ -39,7 +40,12 @@ from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
 
+# `message="%(version)s"` prints the bare version, matching what
+# `zensical --version` does - these two are normally installed and
+# reported together, and click's own default ("prodockit, version X.Y.Z")
+# would need parsing to compare them.
 @click.group()
+@click.version_option(__version__, "--version", message="%(version)s")
 def main() -> None:
     """prodockit - extensions for Zensical needed for professional and
     academic documentation."""
