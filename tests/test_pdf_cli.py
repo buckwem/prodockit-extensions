@@ -2,12 +2,14 @@
 # SPDX-License-Identifier: MIT
 
 import os
+import re
 import stat
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
+from prodockit import __version__
 from prodockit.pdf.cli import main
 
 _ZENSICAL_TOML = """
@@ -129,3 +131,41 @@ def test_pdf_command_accepts_a_markdown_file_option(
     assert "Wrote docs/chapter1.pdf" in result.output
     assert (tmp_path / "docs" / "chapter1.pdf").exists()
     assert not (tmp_path / "docs" / "site_documentation.pdf").exists()
+
+
+def test_version_flag_prints_the_bare_version() -> None:
+    """Matches `zensical --version`, which prints just the number. The two
+    are normally installed and reported together, and click's own default
+    ("prodockit, version X.Y.Z") would need parsing to compare them."""
+    result = CliRunner().invoke(main, ["--version"])
+
+    assert result.exit_code == 0
+    assert result.output.strip() == __version__
+
+
+def test_version_flag_matches_the_version_declared_in_pyproject() -> None:
+    """The flag exists to answer "which version is this", so the number it
+    prints has to be the project's real one.
+
+    Compared against `pyproject.toml` rather than
+    `importlib.metadata.version()`: in an editable checkout the installed
+    metadata is only regenerated on reinstall, so it still reports the
+    version from whenever `pip install -e .` last ran. That made this test
+    fail against a freshly bumped tree - the stale oracle, not the flag.
+    `pyproject.toml` is the declaration a release is actually cut from."""
+    pyproject = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+    declared = re.search(r'^version = "([^"]+)"', pyproject, re.MULTILINE)
+    assert declared is not None, "no version found in pyproject.toml"
+
+    result = CliRunner().invoke(main, ["--version"])
+
+    assert result.output.strip() == declared.group(1)
+
+
+def test_version_appears_in_help() -> None:
+    result = CliRunner().invoke(main, ["--help"])
+
+    assert "--version" in result.output
+    assert "Show the version and exit." in result.output

@@ -2,6 +2,16 @@
 
 ## 0.17.5 (2026-08-02)
 
+- `prodockit --version` prints the installed version
+  ([#149](https://github.com/buckwem/prodockit-extensions/issues/149)).
+  There was no way to tell which version a checkout or CI job was actually
+  running short of `pip show prodockit`.
+
+    Prints the bare number, matching `zensical --version` rather than
+    click's own default of `prodockit, version X.Y.Z` - the two are
+    normally installed and reported together, and a matching format means
+    neither needs parsing to compare them.
+
 - `prodockit pins` now sees a requirement with extras
   ([#156](https://github.com/buckwem/prodockit-extensions/issues/156)).
   `package[extra]==version` is an ordinary shape - `prodockit[index]`,
