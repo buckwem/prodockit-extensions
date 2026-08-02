@@ -1,5 +1,26 @@
 # Release Notes
 
+## 0.17.5 (2026-08-02)
+
+- `prodockit pins` now sees a requirement with extras
+  ([#156](https://github.com/buckwem/prodockit-extensions/issues/156)).
+  `package[extra]==version` is an ordinary shape - `prodockit[index]`,
+  `uvicorn[standard]`, `celery[redis]` - and the bracket sits between the
+  name and the operator, exactly where the matcher expected one to
+  follow the other. Such a declaration was invisible.
+
+    The failure mode was the bad one: `pins` reported "not declared
+    anywhere", which reads as *nothing to do* rather than *could not parse
+    this*. A project could pin something, run `pins --check` in CI, and get
+    a pass while the declaration drifted untouched.
+
+    Extras are recorded per site and written back on rewrite, the same way
+    each site's operator already is, so `prodockit[index]>=0.17.2` becomes
+    `prodockit[index]==0.17.4` rather than `prodockit==0.17.4`. Dropping
+    them would silently stop installing an optional dependency - for
+    `prodockit[index]` that means the back-of-book index quietly stops
+    being generated.
+
 ## 0.17.4 (2026-08-02)
 
 Documentation only - no library, CLI or CI behaviour changes.

@@ -297,3 +297,88 @@ def test_a_runner_label_is_not_mistaken_for_a_pip_specifier(tmp_path: Path) -> N
 
     assert len(sites) == 1
     assert sites[0].kind == "runner"
+
+
+def test_discover_finds_a_requirement_with_extras(tmp_path: Path) -> None:
+    """`package[extra]==version` is an ordinary shape, not an edge case -
+    prodockit[index], uvicorn[standard], celery[redis]. The bracket sits
+    between the name and the operator, which the first implementation could
+    not see at all: it reported "not declared anywhere", which reads as
+    nothing to do rather than could not parse."""
+    _project(tmp_path, {"requirements.txt": "prodockit[index]>=0.17.2\n"})
+
+    sites = discover(str(tmp_path), ["prodockit"])["prodockit"].sites
+
+    assert len(sites) == 1
+    assert sites[0].extras == "[index]"
+    assert sites[0].version == "0.17.2"
+    assert sites[0].spec == "prodockit[index]>=0.17.2"
+
+
+def test_apply_version_keeps_extras_on_rewrite(tmp_path: Path) -> None:
+    """Dropping the extras would silently stop installing an optional
+    dependency - for prodockit[index] the back-of-book index simply stops
+    being generated, with no error anywhere."""
+    _project(tmp_path, {"requirements.txt": "prodockit[index]>=0.17.2\n"})
+    state = discover(str(tmp_path), ["prodockit"])["prodockit"]
+
+    apply_version(str(tmp_path), state, "0.17.4")
+
+    assert (tmp_path / "requirements.txt").read_text(encoding="utf-8") == (
+        "prodockit[index]>=0.17.4\n"
+    )
+
+
+def test_multiple_extras_round_trip(tmp_path: Path) -> None:
+    _project(tmp_path, {"requirements.txt": "prodockit[index,testing]==0.17.2\n"})
+    state = discover(str(tmp_path), ["prodockit"])["prodockit"]
+
+    assert state.sites[0].extras == "[index,testing]"
+    apply_version(str(tmp_path), state, "0.17.4")
+
+    assert "prodockit[index,testing]==0.17.4" in (
+        tmp_path / "requirements.txt"
+    ).read_text(encoding="utf-8")
+
+
+def test_a_plain_requirement_gains_no_bracket(tmp_path: Path) -> None:
+    """The extras group is optional; a bare specifier must round-trip
+    unchanged rather than acquiring an empty `[]`."""
+    _project(tmp_path, {"requirements.txt": "prodockit==0.17.2\n"})
+    state = discover(str(tmp_path), ["prodockit"])["prodockit"]
+
+    assert state.sites[0].extras == ""
+    apply_version(str(tmp_path), state, "0.17.4")
+
+    assert (tmp_path / "requirements.txt").read_text(encoding="utf-8") == "prodockit==0.17.4\n"
+
+
+def test_extras_and_plain_declarations_of_one_package_are_both_found(tmp_path: Path) -> None:
+    """The real shape this has to handle: a consuming project declaring the
+    extras form in requirements.txt and a plain pin on a CI install line."""
+    _project(
+        tmp_path,
+        {
+            "requirements.txt": "prodockit[index]>=0.17.2\n",
+            ".github/workflows/docs.yml": '    - run: pip install "prodockit==0.17.2"\n',
+        },
+    )
+
+    state = discover(str(tmp_path), ["prodockit"])["prodockit"]
+    apply_version(str(tmp_path), state, "0.17.4")
+
+    assert "prodockit[index]>=0.17.4" in (tmp_path / "requirements.txt").read_text(encoding="utf-8")
+    assert '"prodockit==0.17.4"' in (
+        tmp_path / ".github" / "workflows" / "docs.yml"
+    ).read_text(encoding="utf-8")
+
+
+def test_runner_labels_still_carry_no_extras(tmp_path: Path) -> None:
+    """The runner/image patterns gained an empty extras group so the shared
+    construction can read it unconditionally - it must stay empty."""
+    _project(tmp_path, {".github/workflows/ci.yml": "    runs-on: ubuntu-24.04\n"})
+
+    site = discover(str(tmp_path), ["ubuntu"])["ubuntu"].sites[0]
+
+    assert site.extras == ""
+    assert site.spec == "ubuntu-24.04"

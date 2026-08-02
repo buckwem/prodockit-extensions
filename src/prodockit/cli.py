@@ -407,7 +407,7 @@ def pins(
             click.echo(f"Error: {error}", err=True)
             sys.exit(1)
         for site in changed:
-            new_spec = f"{site.package}{site.op}{version}"
+            new_spec = f"{site.package}{site.extras}{site.op}{version}"
             click.echo(f"  {site.path}:{site.line}  {site.spec} -> {new_spec}")
             updated += 1
 
