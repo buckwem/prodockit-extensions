@@ -80,7 +80,13 @@ CI_DIRS = (os.path.join(".github", "workflows"), ".gitlab")
 #: package name must not be preceded by a word character, so
 #: `my-zensical-fork==1.0` is left alone.
 _SPEC_RE_TEMPLATE = (
-    r"(?<![\w.-])(?P<name>{names})\s*"
+    r"(?<![\w.-])(?P<name>{names})"
+    # Optional extras, as in `prodockit[index]==0.17.4`. Captured rather
+    # than skipped: they have to be written back on rewrite, or the pin
+    # silently stops installing an optional dependency - for
+    # `prodockit[index]` that means the back-of-book index stops being
+    # generated, with no error anywhere.
+    r"(?P<extras>\[[\w.,\s-]*\])?\s*"
     r"(?P<op>==|>=|~=|<=|!=|>|<)\s*"
     r"(?P<version>[0-9][\w.*+!-]*)"
 )
@@ -91,14 +97,14 @@ _SPEC_RE_TEMPLATE = (
 #: the same reason all the same, because it carries `pandoc`, the fonts a
 #: PDF embeds and the Chrome that rasterises diagrams - none of which pip
 #: can reach - so it belongs in the same inventory.
-_RUNNER_RE_TEMPLATE = r"runs-on:\s*[\"']?(?P<name>{names})(?P<op>-)(?P<version>[\w.]+)"
+_RUNNER_RE_TEMPLATE = r"runs-on:\s*[\"']?(?P<name>{names})(?P<extras>)(?P<op>-)(?P<version>[\w.]+)"
 
 #: A container image tag - GitLab CI's `image: python:3.13`, and the same
 #: shape in any workflow that names one. An optional registry/namespace
 #: prefix is skipped so `image: docker.io/library/python:3.13` matches on
 #: `python`.
 _IMAGE_RE_TEMPLATE = (
-    r"image:\s*[\"']?(?:[\w.-]+(?:/[\w.-]+)*/)?(?P<name>{names})(?P<op>:)(?P<version>[\w.-]+)"
+    r"image:\s*[\"']?(?:[\w.-]+(?:/[\w.-]+)*/)?(?P<name>{names})(?P<extras>)(?P<op>:)(?P<version>[\w.-]+)"
 )
 
 #: PyPI's own JSON metadata endpoint - no dependency needed to read it.
@@ -123,6 +129,10 @@ class PinSite:
     package: str
     op: str
     version: str
+    #: Extras as written, brackets included (`"[index]"`), or `""`. Kept
+    #: verbatim so a rewrite reproduces the declaration rather than a
+    #: reconstruction of it.
+    extras: str = ""
     #: How this declaration is written: a pip specifier (`zensical==0.0.52`),
     #: a GitHub runner label (`runs-on: ubuntu-24.04`), or a container image
     #: tag (`image: python:3.13`). Decides whether PyPI can say what the
@@ -131,7 +141,7 @@ class PinSite:
 
     @property
     def spec(self) -> str:
-        return f"{self.package}{self.op}{self.version}"
+        return f"{self.package}{self.extras}{self.op}{self.version}"
 
 
 @dataclass
@@ -271,6 +281,7 @@ def discover(
                             package=package,
                             op=match.group("op"),
                             version=match.group("version"),
+                            extras=match.group("extras") or "",
                             kind=kind,
                         )
                     )
@@ -346,12 +357,13 @@ def apply_version(root: str, state: PackageState, version: str) -> list[PinSite]
             index = site.line - 1
             if index >= len(lines):
                 raise PinError(f"{rel_path}:{site.line} no longer exists - re-run discovery")
-            old = f"{site.package}{site.op}{site.version}"
-            new = f"{site.package}{site.op}{version}"
-            # Tolerate whitespace around the operator as written.
+            old = site.spec
+            new = f"{site.package}{site.extras}{site.op}{version}"
+            # Tolerate whitespace around the operator as written, and carry
+            # any extras through untouched.
             spaced = re.compile(
-                rf"(?<![\w.-]){re.escape(site.package)}\s*{re.escape(site.op)}\s*"
-                rf"{re.escape(site.version)}(?![\w.])",
+                rf"(?<![\w.-]){re.escape(site.package)}{re.escape(site.extras)}\s*"
+                rf"{re.escape(site.op)}\s*{re.escape(site.version)}(?![\w.])",
                 re.IGNORECASE,
             )
             replaced, count = spaced.subn(new, lines[index])
