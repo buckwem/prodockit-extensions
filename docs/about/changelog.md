@@ -1,6 +1,6 @@
 # Release Notes
 
-## 0.17.3 (2026-07-31)
+## 0.17.3 (2026-08-02)
 
 - Docs deploys no longer run from a release event, which never worked and
   failed silently. A release event runs against `refs/tags/<tag>`, so the
