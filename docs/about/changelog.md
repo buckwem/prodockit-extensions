@@ -1,5 +1,35 @@
 # Release Notes
 
+## 0.17.3 (2026-07-31)
+
+- Docs deploys no longer run from a release event, which never worked and
+  failed silently. A release event runs against `refs/tags/<tag>`, so the
+  Pages deployment it created carried a tag ref - and with Pages
+  configured `source: {branch: main}`, that deployment was accepted,
+  reported `success`, and was then never served. The site simply carried
+  on returning the previous build.
+
+    Every release from 0.17.0 to 0.17.2 did this, each needing a manual
+    `gh workflow run docs.yml --ref main` afterwards. The evidence is
+    unambiguous: across nine Pages deployments, every one from `main` went
+    live and every one from a tag ref did not
+    ([#147](https://github.com/buckwem/prodockit-extensions/issues/147)).
+
+    It was not a race between the push-triggered and release-triggered
+    runs, which is what it looked like for a long time. The concurrency
+    group serialised them correctly - on 0.17.2 the release run started
+    only after the push run had finished, deployed later, and still lost.
+
+    `docs.yml` now triggers on `push` and `workflow_dispatch` only. A new
+    `release-redeploy.yml` handles the post-release rebuild by
+    re-triggering `docs.yml` against `main`, so the deployment carries a
+    branch ref - automating exactly what the manual fix did each time. The
+    `tag: prodockit-v*` entry in the github-pages environment's deployment
+    branch policies is now redundant.
+
+    [Continuous integration](../continuous-integration.md#ci-release-numbering)
+    documents the trap, since the obvious fix is the broken one.
+
 ## 0.17.2 (2026-07-30)
 
 - README, the package description and the module docstring now cover
