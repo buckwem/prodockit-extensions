@@ -50,29 +50,6 @@
     back-of-book index, which has to deduplicate a term repeated on one
     page and therefore cannot use it.
 
-## 0.17.6 (2026-08-02)
-
-- New `\autoref{id}` in `prodockit.refs`, for references that still work on
-  paper ([#151](https://github.com/buckwem/prodockit-extensions/issues/151)).
-  `\ref{id}` gives a section number, which is fine on a website where the
-  target is one click away and useless in print - "see 1.1" gives a reader
-  holding a printout nothing to turn to.
-
-    `\autoref{id}` targets the same heading and renders its **name**, with
-    the page number appended in the PDF: *"Configuration is covered in
-    Configuration on page 12."* The suffix comes from the PDF stylesheet,
-    so it appears only there - a page number on a scrolling website would
-    be meaningless - and needs no configuration.
-
-    It also resolves an `unnumbered` heading, which `\ref{id}` cannot: a
-    cover page has no number to show but does have a name. Only a genuinely
-    unknown id is unresolved.
-
-    Implemented with CSS `target-counter()`, which resolves the target's
-    page at layout time and so needs no second pass - unlike the
-    back-of-book index, which has to deduplicate a term repeated on one
-    page and therefore cannot use it.
-
 - The generated index now appears in the Table of Contents
   ([#141](https://github.com/buckwem/prodockit-extensions/issues/141)). Its
   heading carried Pandoc's `unlisted` class, which is exactly what
