@@ -376,16 +376,28 @@ def build_pdf(
                 # the only one where this section's own content growing
                 # or shrinking can't retroactively shift the page numbers
                 # already recorded for every earlier marker.
-                # INDEX_TITLE_CLASS alongside unnumbered/unlisted: those two
-                # keep this heading out of the numbering and the Table of
-                # Contents, but `unnumbered` is also what stops it feeding
-                # the running header's chapter-title string - so without a
-                # hook of its own the previous chapter's title would stand
-                # in the header across every index page (see
-                # prodockit.pdf.css's own rule for it).
+                # `unnumbered` but deliberately *not* `unlisted`: an index
+                # is a section of the document a reader looks for, so it
+                # belongs in the Table of Contents even though it takes no
+                # chapter number (prodockit-extensions#141).
+                #
+                # `unlisted` is what Pandoc's own
+                # `pandoc.structure.table_of_contents()` honours - the Lua
+                # filter builds the contents from it - so carrying that
+                # class was what kept the index out. The Table of Contents
+                # heading above keeps it, since a contents listing itself is
+                # noise, and so do the index's own A/B/C letter headings
+                # (see prodockit.pdf.index.render_index_content), which
+                # would otherwise fill the contents with single letters.
+                #
+                # INDEX_TITLE_CLASS is separate again: `unnumbered` is also
+                # what stops a heading feeding the running header's
+                # chapter-title string, so without a hook of its own the
+                # previous chapter's title would stand in the header across
+                # every index page (see prodockit.pdf.css's own rule).
                 body_html += (
                     '<div class="page-break"></div>'
-                    f'<h1 class="unnumbered unlisted {INDEX_TITLE_CLASS}">{index_title}</h1>'
+                    f'<h1 class="unnumbered {INDEX_TITLE_CLASS}">{index_title}</h1>'
                     f'<div id="{INDEX_CONTENT_ID}"></div>'
                 )
 

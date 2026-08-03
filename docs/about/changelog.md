@@ -2,6 +2,18 @@
 
 ## 0.17.6 (2026-08-02)
 
+- The generated index now appears in the Table of Contents
+  ([#141](https://github.com/buckwem/prodockit-extensions/issues/141)). Its
+  heading carried Pandoc's `unlisted` class, which is exactly what
+  `pandoc.structure.table_of_contents()` honours - so an index a reader
+  goes looking for was the one section the contents never mentioned.
+
+    It stays `unnumbered`, so it takes no chapter number and appears at the
+    end alongside the last chapter. Two things deliberately keep
+    `unlisted`: the Table of Contents heading itself, since a contents
+    listing itself is noise, and the index's own A/B/C letter headings,
+    which would otherwise fill the contents with single letters.
+
 - The default bottom margin is now `2.5cm` rather than `2cm`, so a
   multi-line running footer is not cropped when printed
   ([#139](https://github.com/buckwem/prodockit-extensions/issues/139)).
