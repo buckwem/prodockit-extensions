@@ -899,10 +899,14 @@ def test_warns_about_both_independently(
 def test_index_title_heading_carries_the_running_header_class(
     tmp_path: Path, fake_pandoc_on_path
 ) -> None:
-    """`unnumbered`/`unlisted` keep this heading out of the numbering and
-    the Table of Contents, but `unnumbered` is also what stops it feeding
-    the running header - hence the third class (see
-    prodockit.pdf.index.INDEX_TITLE_CLASS)."""
+    """`unnumbered` keeps this heading out of the numbering, but it is also
+    what stops it feeding the running header - hence the second class (see
+    prodockit.pdf.index.INDEX_TITLE_CLASS).
+
+    No `unlisted`: that class is what kept the index out of the Table of
+    Contents, and it was dropped deliberately in #141. Asserted as an exact
+    string so a change to either class has to be a decision rather than a
+    side effect - which is how this test caught #141's change."""
     fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
     work_dir = tmp_path / "work"
 
@@ -916,7 +920,7 @@ def test_index_title_heading_carries_the_running_header_class(
     )
 
     compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
-    assert f'<h1 class="unnumbered unlisted {INDEX_TITLE_CLASS}">Index</h1>' in compiled
+    assert f'<h1 class="unnumbered {INDEX_TITLE_CLASS}">Index</h1>' in compiled
 
 
 @real_pandoc_and_weasyprint_required
@@ -1063,3 +1067,69 @@ def test_a_two_line_footer_clears_the_paper_edge(tmp_path: Path) -> None:
         )
     finally:
         doc.close()
+
+
+def test_index_title_is_listed_in_the_contents(tmp_path: Path, fake_pandoc_on_path) -> None:
+    """prodockit-extensions#141: the index heading carried Pandoc's
+    `unlisted` class, which is what
+    `pandoc.structure.table_of_contents()` honours - so the generated
+    index never appeared in the Table of Contents. An index is a section a
+    reader goes looking for; it belongs there.
+
+    Still `unnumbered`, so it takes no chapter number."""
+    fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
+    work_dir = tmp_path / "work"
+
+    build_pdf(
+        [Page(docs_rel_path="c1.md", html='<h1>One</h1><span class="index">Widget</span>')],
+        str(tmp_path / "out.pdf"),
+        include_index=True,
+        index_title="Index",
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+
+    assert f'<h1 class="unnumbered {INDEX_TITLE_CLASS}">Index</h1>' in compiled
+    assert "unlisted" not in compiled.split("Index</h1>")[0].split("<h1")[-1]
+
+
+def test_the_contents_heading_itself_stays_unlisted(tmp_path: Path, fake_pandoc_on_path) -> None:
+    """A contents listing itself is noise - only the index changed."""
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    work_dir = tmp_path / "work"
+
+    build_pdf(
+        [Page(docs_rel_path="c1.md", html="<h1>One</h1>")],
+        str(tmp_path / "out.pdf"),
+        table_of_contents_title="Table of Contents",
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+
+    assert '<h1 class="unnumbered unlisted">Table of Contents</h1>' in compiled
+
+
+def test_index_letter_headings_stay_unlisted(tmp_path: Path, fake_pandoc_on_path) -> None:
+    """The A/B/C separators inside the index must not become contents
+    entries, or the listing fills with single letters."""
+    fake_pandoc_on_path(_fake_pandoc_building_a_real_pdf(tmp_path))
+    work_dir = tmp_path / "work"
+
+    build_pdf(
+        [
+            Page(docs_rel_path="c1.md", html='<h1>One</h1><span class="index">Widget</span>'),
+            Page(docs_rel_path="c2.md", html='<span class="index">Gadget</span>'),
+        ],
+        str(tmp_path / "out.pdf"),
+        include_index=True,
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
+
+    assert '<h2 class="prodockit-index-letter unnumbered unlisted">' in compiled
