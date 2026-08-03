@@ -1192,3 +1192,55 @@ def test_autoref_renders_the_targets_real_page_number(tmp_path: Path) -> None:
         )
     finally:
         doc.close()
+
+
+@real_pandoc_and_weasyprint_required
+def test_a_reference_to_a_page_title_heading_resolves_in_the_pdf(tmp_path: Path) -> None:
+    """prodockit-extensions#163: the page anchor used to replace the first
+    heading's id, so a reference to a page's *title* heading pointed at an
+    anchor that no longer existed.
+
+    Asserted on the PDF's own named destinations and on the rendered page
+    number, not on the text: the reference still rendered its text while
+    broken, and `\\autoref` printed "on page" followed by a blank - so an
+    assertion that the output *contains* "on page" would have passed
+    against the bug.
+    """
+    filler = "<p>" + ("Lorem ipsum dolor sit amet. " * 90) + "</p>"
+    pages = [
+        Page(
+            docs_rel_path="chapter1.md",
+            html=(
+                "<h1>Chapter One</h1>"
+                '<p>Title: <a class="prodockit-autoref" href="#chapter-two">2 Chapter Two</a>.</p>'
+                f"{filler}"
+            ),
+        ),
+        Page(
+            docs_rel_path="chapter2.md",
+            html=f'<h1 id="chapter-two">Chapter Two</h1>{filler}<h2 id="deep">Deep</h2><p>x</p>',
+        ),
+    ]
+    output_path = tmp_path / "out.pdf"
+
+    build_pdf(pages, str(output_path), include_table_of_contents=False)
+
+    doc = pymupdf.open(str(output_path))
+    try:
+        names = doc.resolve_names()
+        # Both anchors: the heading's own, and the page's - a cross-page
+        # link with no fragment still needs the latter.
+        assert "chapter-two" in names, "the title heading's own anchor is missing from the PDF"
+        assert "page-chapter2" in names, "the page's own anchor is missing from the PDF"
+
+        target_page = names["chapter-two"]["page"] + 1
+        reference = next(
+            (line for page in doc for line in page.get_text().split("\n") if "Title:" in line),
+            "",
+        )
+        assert f"on page {target_page}" in reference, (
+            f"reference reads {reference.strip()!r} but the title heading's anchor "
+            f"is on page {target_page}"
+        )
+    finally:
+        doc.close()

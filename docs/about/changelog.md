@@ -2,6 +2,24 @@
 
 ## 0.18.0 (2026-08-02)
 
+- A reference to a page's *title* heading now resolves in the PDF
+  ([#163](https://github.com/buckwem/prodockit-extensions/issues/163)).
+  Each page's own anchor was written onto its first heading, **replacing**
+  whatever id that heading already had - so `\ref{chapter-two}` pointed at
+  an anchor that no longer existed. The reference still rendered its text,
+  so nothing looked wrong; the link was simply dead, and `\autoref` printed
+  "on page" with nothing after it.
+
+    Sections *within* a page were unaffected, which is why it went
+    unnoticed - the broken case is the most natural reference to write.
+
+    The page anchor is now carried by an empty span inside that heading, so
+    both exist: the page's own anchor for a cross-page link with no
+    fragment, and the heading's for a reference to the heading itself.
+    Inside rather than before, because a numbered `h1` breaks to a new page
+    and an anchor placed before one would sit at the foot of the previous
+    page, reporting a page number one too low.
+
 - Cross-references say what they point at. `\ref{id}` renders the target's
   **number and name** - "1.1 Configuration" - because a bare "see 1.1"
   tells a reader nothing about what they are being sent to, and having to
