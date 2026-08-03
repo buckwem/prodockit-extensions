@@ -1133,3 +1133,62 @@ def test_index_letter_headings_stay_unlisted(tmp_path: Path, fake_pandoc_on_path
     compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
 
     assert '<h2 class="prodockit-index-letter unnumbered unlisted">' in compiled
+
+
+@real_pandoc_and_weasyprint_required
+def test_autoref_renders_the_targets_real_page_number(tmp_path: Path) -> None:
+    """prodockit-extensions#151: `\\ref{}` gives a section number, which is
+    no help to someone holding a printout - there is nothing to turn to.
+    `\\autoref{}` renders the heading's name and the PDF stylesheet appends
+    its page number via CSS `target-counter()`.
+
+    Only a real render can check this: the number does not exist until
+    WeasyPrint has laid the document out, and the risk is not that the
+    suffix is missing but that it resolves to nothing and prints "on page"
+    followed by a blank - which is what an unresolvable anchor does.
+
+    The target is deliberately *not* its page's first heading, whose id
+    `fix_up_page_html()` replaces with the page's own anchor.
+    """
+    filler = "<p>" + ("Lorem ipsum dolor sit amet. " * 90) + "</p>"
+    pages = [
+        Page(
+            docs_rel_path="chapter1.md",
+            html=(
+                '<h1>Chapter One</h1><p>See '
+                '<a class="prodockit-autoref" href="#deep">Deep Section</a> here.</p>'
+                f"{filler}"
+            ),
+        ),
+        Page(
+            docs_rel_path="chapter2.md",
+            html=f'<h1>Chapter Two</h1>{filler}<h2 id="deep">Deep Section</h2><p>here</p>',
+        ),
+    ]
+    output_path = tmp_path / "out.pdf"
+
+    # No contents page: it lists "Deep Section" too, and would be found
+    # before the heading itself when locating the target below.
+    build_pdf(pages, str(output_path), include_table_of_contents=False)
+
+    doc = pymupdf.open(str(output_path))
+    try:
+        reference = next(
+            (line for page in doc for line in page.get_text().split("\n") if "See Deep" in line),
+            "",
+        )
+        # The heading carries its section number by the time it is rendered
+        # ("2.1 Deep Section"), so match on the text rather than the start of
+        # the block, and exclude the block holding the reference itself.
+        heading_page = next(
+            i + 1
+            for i, page in enumerate(doc)
+            for block in page.get_text("blocks")
+            if "Deep Section" in block[4] and "See Deep" not in block[4]
+        )
+        assert f"on page {heading_page}" in reference, (
+            f"reference reads {reference.strip()!r} but the target heading is on "
+            f"page {heading_page}"
+        )
+    finally:
+        doc.close()

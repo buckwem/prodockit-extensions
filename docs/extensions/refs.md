@@ -1,8 +1,8 @@
 # Refs
 
 \index{`prodockit.refs`} adds a `\ref{id}` cross-reference syntax - similar in spirit
-to LaTeX's `\ref` - that resolves to the *current* section number of the
-heading with that id. It depends on the id/number registry that
+to LaTeX's `\ref` - that resolves to the *current* number and name of the
+heading with that id, e.g. "1.1 Configuration". It depends on the id/number registry that
 [prodockit.headings](headings.md) builds; enabling `prodockit.refs` on its own
 transparently enables `prodockit.headings` too, with matching defaults, so a
 single document works with no extra configuration.
@@ -28,7 +28,7 @@ See \ref{intro} for background.
 renders to:
 
 <h1 id="intro">Introduction</h1>
-<p>See <a class="prodockit-ref" href="#intro">1</a> for background.</p>
+<p>See <a class="prodockit-ref" href="#intro">1 Introduction</a> for background.</p>
 <h2 id="background">Background</h2>
 
 Because the number is looked up fresh on every conversion, it stays correct
@@ -53,23 +53,67 @@ See \ref{background} below.
 ### Unresolved references {: #refs-unresolved-references }
 
 `\ref{id}` renders the `unresolved` marker (`??` by default) instead of a
-number when:
+reference when `id` doesn't exist in the registry at all - a typo, or a
+reference to a heading in a page that hasn't been converted yet in a
+multi-page build (the same way an undefined LaTeX `\ref` shows `??` until
+a later compilation pass).
 
-- `id` doesn't exist in the registry at all - e.g. a typo, or a reference
-  to a heading in a page that hasn't been converted yet in a multi-page
-  build (the same way an undefined LaTeX `\ref` shows `??` until a later
-  compilation pass).
-- `id` exists but belongs to a heading marked `unnumbered` (see
-  [prodockit.headings](headings.md#unnumbered-headings)) - it's still a valid
-  link target in this case, just without a number to show.
+A heading marked `unnumbered` (see
+[prodockit.headings](headings.md#unnumbered-headings)) is *not* unresolved:
+it has no number, but it does have a name, so it renders as just the name.
 
 ```md
-# Cover Page {: .unnumbered }
+# Cover Page {: .unnumbered #cover-page }
 
 See \ref{cover-page}.
 ```
 
-renders `\ref{cover-page}` as `??`, linked to `#cover-page`.
+renders `\ref{cover-page}` as `Cover Page`, linked to `#cover-page`.
+
+## Referencing by name and page {: #refs-autoref }
+
+`\ref{id}` and `\autoref{id}` render exactly the same text - the target's
+number and name. The difference is that `\autoref{id}` also carries the
+target's **page number** in the PDF, which is what a reader holding a
+printout needs and what a website reader has no use for:
+
+=== "Markdown"
+
+    ```md
+    Configuration is covered in \autoref{configuration}.
+    ```
+
+=== "Website"
+
+    Configuration is covered in [1.1 Configuration](#refs-autoref).
+
+=== "PDF"
+
+    Configuration is covered in 1.1 Configuration on page 12.
+
+The " on page N" suffix comes from [prodockit.pdf](../pdf.md)'s own
+stylesheet, so it appears only in the PDF - a page number on a scrolling
+website would be meaningless. Nothing to enable: build the PDF and it is
+there.
+
+Which to use is a per-reference decision rather than a project-wide
+setting: use `\autoref{id}` where a printed reader needs to turn to
+something, and `\ref{id}` where the extra "on page N" would just be noise.
+
+An appendix needs nothing special - its letter is already the first
+segment of its number, so `\ref{terms}` renders "A.1 Terms".
+
+### CSS hooks {: #refs-autoref-css-hooks }
+
+| State | Class |
+|---|---|
+| Resolved | `prodockit-autoref` |
+| Unresolved | `prodockit-autoref prodockit-autoref-unresolved` |
+
+The page-number suffix is attached with `target-counter()` on
+`a.prodockit-autoref[href^="#"]::after`, scoped to in-document links: an
+unresolved reference carries no `href` at all, and any other link would
+resolve to nothing and print a stray "on page" with no number after it.
 
 ## Reference {: #refs-reference }
 

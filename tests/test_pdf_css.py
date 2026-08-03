@@ -243,3 +243,27 @@ def test_bottom_margin_default_is_deeper_than_the_others() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
 
     assert "margin: 2cm 2cm 2.5cm 2cm !important;" in css
+
+
+def test_autoref_gets_a_page_number_in_the_pdf() -> None:
+    """`\\autoref{id}` renders only the heading's name on the website, where
+    the section is one click away. On paper that is useless, so the PDF
+    stylesheet appends the target's own page number.
+
+    `target-counter()` resolves it at layout time, so no second pass is
+    needed - unlike the back-of-book index, which has to deduplicate a term
+    repeated on one page and therefore cannot use it."""
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    assert 'a.prodockit-autoref[href^="#"]::after {' in css
+    rule = css.split('a.prodockit-autoref[href^="#"]::after {')[1].split("}")[0]
+    assert "target-counter(attr(href url), page)" in rule
+
+
+def test_autoref_page_number_is_scoped_to_in_document_links() -> None:
+    """An unresolved \\autoref carries no href at all, and an external link
+    resolves to nothing - either would print a stray "on page" with no
+    number after it."""
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    assert "a.prodockit-autoref::after" not in css

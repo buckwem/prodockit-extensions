@@ -1,6 +1,59 @@
 # Release Notes
 
+## 0.18.0 (2026-08-02)
+
+- Cross-references say what they point at. `\ref{id}` renders the target's
+  **number and name** - "1.1 Configuration" - because a bare "see 1.1"
+  tells a reader nothing about what they are being sent to, and having to
+  look it up in the contents defeats the point of the cross-reference
+  ([#151](https://github.com/buckwem/prodockit-extensions/issues/151)).
+
+    An appendix needs nothing special: its letter is already the first
+    segment of its number, so a reference to an appendix section renders
+    "A.1 Terms".
+
+    An `unnumbered` heading - a cover page, appendix front matter - has no
+    number but does have a name, so it resolves to just the name. Only a
+    genuinely unknown id is unresolved.
+
+- New `\autoref{id}`, for references that still work on paper. It renders
+  the same text as `\ref{id}` and additionally carries the target's
+  **page number** in the PDF: *"Configuration is covered in 1.1
+  Configuration on page 12."*
+
+    The suffix comes from prodockit.pdf's own stylesheet, so it appears
+    only there - a page number on a scrolling website would be meaningless
+    - and needs no configuration. Which to use is a per-reference
+    decision: `\autoref{id}` where a printed reader needs to turn to
+    something, `\ref{id}` where "on page N" would just be noise.
+
+    Implemented with CSS `target-counter()`, which resolves the target's
+    page at layout time and so needs no second pass - unlike the
+    back-of-book index, which has to deduplicate a term repeated on one
+    page and therefore cannot use it.
+
 ## 0.17.6 (2026-08-02)
+
+- New `\autoref{id}` in `prodockit.refs`, for references that still work on
+  paper ([#151](https://github.com/buckwem/prodockit-extensions/issues/151)).
+  `\ref{id}` gives a section number, which is fine on a website where the
+  target is one click away and useless in print - "see 1.1" gives a reader
+  holding a printout nothing to turn to.
+
+    `\autoref{id}` targets the same heading and renders its **name**, with
+    the page number appended in the PDF: *"Configuration is covered in
+    Configuration on page 12."* The suffix comes from the PDF stylesheet,
+    so it appears only there - a page number on a scrolling website would
+    be meaningless - and needs no configuration.
+
+    It also resolves an `unnumbered` heading, which `\ref{id}` cannot: a
+    cover page has no number to show but does have a name. Only a genuinely
+    unknown id is unresolved.
+
+    Implemented with CSS `target-counter()`, which resolves the target's
+    page at layout time and so needs no second pass - unlike the
+    back-of-book index, which has to deduplicate a term repeated on one
+    page and therefore cannot use it.
 
 - The generated index now appears in the Table of Contents
   ([#141](https://github.com/buckwem/prodockit-extensions/issues/141)). Its
