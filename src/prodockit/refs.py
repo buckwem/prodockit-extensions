@@ -23,6 +23,14 @@ from prodockit.util import IdRegistry, cross_page_href
 
 REF_RE = r"\\ref\{([^}\s]+)\}"
 
+#: ``\autoref{id}`` - the same target as ``\ref{id}``, rendered as the
+#: heading's own *text* instead of its number, and followed by "on page N"
+#: in a PDF (see `prodockit.pdf.css`). Registered as its own pattern rather
+#: than an option on ``\ref``, because which one to use is a per-reference
+#: decision: a number reads better mid-sentence in a document nobody
+#: prints, a name and page number is what a printed one needs.
+AUTOREF_RE = r"\\autoref\{([^}\s]+)\}"
+
 
 class RefInlineProcessor(InlineProcessor):
     """Matches ``\\ref{id}`` and emits an unresolved placeholder ``<a>``
@@ -51,6 +59,25 @@ class RefInlineProcessor(InlineProcessor):
         return el, m.start(0), m.end(0)
 
 
+class AutoRefInlineProcessor(InlineProcessor):
+    """Matches ``\\autoref{id}`` and emits an unresolved placeholder ``<a>``
+    carrying the referenced id in a ``data-prodockit-autoref`` attribute.
+
+    Same deferral as :class:`RefInlineProcessor` - the heading being
+    referenced may not be registered yet when this pattern runs - and the
+    same inline-pattern priority, so the syntax is equally safe to show
+    inside a code span.
+    """
+
+    def handleMatch(  # type: ignore[override]
+        self, m: re.Match[str], data: str
+    ) -> tuple[etree.Element, int, int]:
+        el = etree.Element("a")
+        el.set("data-prodockit-autoref", m.group(1))
+        el.set("class", "prodockit-autoref")
+        return el, m.start(0), m.end(0)
+
+
 class RefResolverTreeprocessor(Treeprocessor):
     """Resolves the placeholder ``<a data-prodockit-ref="id">`` elements left by
     :class:`RefInlineProcessor` to the referenced heading's section number,
@@ -76,24 +103,49 @@ class RefResolverTreeprocessor(Treeprocessor):
     def run(self, root: etree.Element) -> None:
         for el in root.iter("a"):
             ref_id = el.get("data-prodockit-ref")
-            if ref_id is None:
+            if ref_id is not None:
+                del el.attrib["data-prodockit-ref"]
+                self._resolve_number(el, ref_id)
                 continue
-            del el.attrib["data-prodockit-ref"]
-            record = self.registry.get(ref_id)
-            if record is None or record.number is None:
-                el.text = self.unresolved
-                el.set("class", "prodockit-ref prodockit-ref-unresolved")
-                if record is not None:
-                    # Known heading, just unnumbered (e.g. {: .unnumbered }) -
-                    # still a valid link target, unlike a genuinely unknown id.
-                    el.set("href", cross_page_href(record.source, self.source, ref_id))
-            else:
-                el.text = record.number
+            auto_id = el.get("data-prodockit-autoref")
+            if auto_id is not None:
+                del el.attrib["data-prodockit-autoref"]
+                self._resolve_name(el, auto_id)
+
+    def _resolve_number(self, el: etree.Element, ref_id: str) -> None:
+        record = self.registry.get(ref_id)
+        if record is None or record.number is None:
+            el.text = self.unresolved
+            el.set("class", "prodockit-ref prodockit-ref-unresolved")
+            if record is not None:
+                # Known heading, just unnumbered (e.g. {: .unnumbered }) -
+                # still a valid link target, unlike a genuinely unknown id.
                 el.set("href", cross_page_href(record.source, self.source, ref_id))
+        else:
+            el.text = record.number
+            el.set("href", cross_page_href(record.source, self.source, ref_id))
+
+    def _resolve_name(self, el: etree.Element, ref_id: str) -> None:
+        """Resolves ``\\autoref{id}`` to the heading's own text.
+
+        Unlike ``\\ref{id}`` this resolves for an *unnumbered* heading too:
+        a cover page or appendix front matter has no number to show but it
+        does have a name, and "see Cover Page on page 1" is exactly as
+        useful as a numbered reference. Only a genuinely unknown id falls
+        back to `unresolved`.
+        """
+        record = self.registry.get(ref_id)
+        if record is None:
+            el.text = self.unresolved
+            el.set("class", "prodockit-autoref prodockit-autoref-unresolved")
+            return
+        el.text = record.text
+        el.set("href", cross_page_href(record.source, self.source, ref_id))
 
 
 class RefsExtension(Extension):
-    """Python-Markdown extension providing the ``\\ref{id}`` syntax."""
+    """Python-Markdown extension providing the ``\\ref{id}`` and
+    ``\\autoref{id}`` syntaxes."""
 
     def __init__(self, **kwargs: object) -> None:
         # See HeadingsExtension for why this is popped rather than run
@@ -146,6 +198,15 @@ class RefsExtension(Extension):
             RefInlineProcessor(REF_RE, md),
             "prodockit-ref",
             45,
+        )
+        # Above \ref's own priority so `\autoref{id}` is matched whole -
+        # REF_RE would otherwise never see it (it requires a literal
+        # `\ref{`), but registering the more specific pattern first keeps
+        # that independent of REF_RE's exact wording.
+        md.inlinePatterns.register(
+            AutoRefInlineProcessor(AUTOREF_RE, md),
+            "prodockit-autoref",
+            46,
         )
         md.treeprocessors.register(
             RefResolverTreeprocessor(md, registry, source, unresolved),

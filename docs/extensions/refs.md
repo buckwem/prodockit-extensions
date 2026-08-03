@@ -71,6 +71,63 @@ See \ref{cover-page}.
 
 renders `\ref{cover-page}` as `??`, linked to `#cover-page`.
 
+## Referencing by name and page {: #refs-autoref }
+
+`\ref{id}` gives a section *number*, which works on a website where the
+target is one click away. On paper it does not: "see 1.1" gives a reader
+holding a printout nothing to turn to.
+
+`\autoref{id}` targets the same heading and renders its **name** instead,
+with the page number appended in the PDF:
+
+=== "Markdown"
+
+    ```md
+    Configuration is covered in \autoref{configuration}.
+    ```
+
+=== "Website"
+
+    Configuration is covered in [Configuration](#refs-autoref).
+
+=== "PDF"
+
+    Configuration is covered in Configuration on page 12.
+
+The " on page N" suffix comes from [prodockit.pdf](../pdf.md)'s own
+stylesheet, so it appears only in the PDF - a page number on a scrolling
+website would be meaningless. Nothing to enable: build the PDF and it is
+there.
+
+Which to use is a per-reference decision rather than a project-wide
+setting. A number reads better mid-sentence in a document nobody prints;
+a name and a page number is what a printed one needs.
+
+### It resolves an unnumbered heading, where `\ref{}` cannot {: #refs-autoref-unnumbered }
+
+A heading marked `unnumbered` (a cover page, appendix front matter) has no
+number for `\ref{id}` to show, so that falls back to the `unresolved`
+marker. It does have a *name*, so `\autoref{id}` resolves normally:
+
+```md
+\ref{cover}      renders ??
+\autoref{cover}  renders Cover Page
+```
+
+Only a genuinely unknown id is unresolved for `\autoref{id}`.
+
+### CSS hooks {: #refs-autoref-css-hooks }
+
+| State | Class |
+|---|---|
+| Resolved | `prodockit-autoref` |
+| Unresolved | `prodockit-autoref prodockit-autoref-unresolved` |
+
+The page-number suffix is attached with `target-counter()` on
+`a.prodockit-autoref[href^="#"]::after`, scoped to in-document links: an
+unresolved reference carries no `href` at all, and any other link would
+resolve to nothing and print a stray "on page" with no number after it.
+
 ## Reference {: #refs-reference }
 
 ### Syntax {: #refs-syntax }

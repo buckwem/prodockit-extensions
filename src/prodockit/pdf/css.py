@@ -359,6 +359,27 @@ h1:not(.unnumbered) { string-set: chapter-title content() !important; }
 h1.prodockit-index-title { string-set: chapter-title content() !important; }
 
 /* ==========================================================================
+   CROSS-REFERENCES
+   ========================================================================== */
+/* `\autoref{id}` (see prodockit.refs) renders the target heading's own
+   name, and nothing more, on the website - where the section is one click
+   away and a page number would be meaningless. On paper it is the opposite:
+   "see Introduction" gives a reader holding a printout nothing to turn to.
+   This is the whole reason \autoref exists alongside \ref.
+
+   target-counter() reads the referenced anchor's own page number at layout
+   time, so no second pass is needed - unlike the back-of-book index, which
+   has to deduplicate a term repeated on one page and therefore cannot use
+   it (see prodockit.pdf.index's own module docstring for that comparison).
+
+   Scoped to in-document links: an unresolved \autoref carries no href at
+   all, and any other link would resolve to nothing, printing a stray "on
+   page" with no number after it. */
+a.prodockit-autoref[href^="#"]::after {
+    content: " on page " target-counter(attr(href url), page) !important;
+}
+
+/* ==========================================================================
    TABLE LAYOUT
    ========================================================================== */
 table {

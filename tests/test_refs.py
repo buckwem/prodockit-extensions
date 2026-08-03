@@ -100,3 +100,55 @@ def test_entry_point_names_resolve_in_reverse_order() -> None:
     # Only one heading treeprocessor's worth of ids should exist - not a
     # duplicate registration from two independently-created registries.
     assert html.count('id="introduction"') == 1
+
+
+def test_autoref_resolves_to_the_heading_name() -> None:
+    """`\\ref{}` gives the number, `\\autoref{}` gives the name - the thing a
+    printed reference needs, since "see 1.1" tells a reader holding paper
+    nothing about where to turn."""
+    html = _convert("# Introduction\n\nSee \\autoref{introduction}.\n")
+
+    assert '<a class="prodockit-autoref" href="#introduction">Introduction</a>' in html
+
+
+def test_autoref_resolves_an_unnumbered_heading_where_ref_cannot() -> None:
+    """A cover page or appendix front matter has no number to show, so
+    `\\ref{}` falls back to `unresolved` - but it does have a name, and
+    "see Cover Page on page 1" is exactly as useful as a numbered
+    reference. Only a genuinely unknown id is unresolved for `\\autoref`."""
+    text = "# Cover Page {: .unnumbered #cover }\n\nRef: \\ref{cover}. Auto: \\autoref{cover}.\n"
+
+    html = _convert(text)
+
+    assert '<a class="prodockit-ref prodockit-ref-unresolved" href="#cover">??</a>' in html
+    assert '<a class="prodockit-autoref" href="#cover">Cover Page</a>' in html
+
+
+def test_autoref_falls_back_for_an_unknown_id() -> None:
+    html = _convert("# Introduction\n\nSee \\autoref{nope}.\n")
+
+    assert '<a class="prodockit-autoref prodockit-autoref-unresolved">??</a>' in html
+
+
+def test_autoref_resolves_a_forward_reference() -> None:
+    """Same deferral as `\\ref{}` - resolution happens in a treeprocessor,
+    after every heading in the document has been registered."""
+    html = _convert("See \\autoref{background} below.\n\n## Background\n")
+
+    assert '<a class="prodockit-autoref" href="#background">Background</a>' in html
+
+
+def test_autoref_is_protected_inside_a_code_span() -> None:
+    """Registered at the same low inline priority as `\\ref{}`, so the
+    syntax can be shown as literal example text."""
+    html = _convert("Type `\\autoref{intro}` to reference a section.\n\n# Intro\n")
+
+    assert "prodockit-autoref" not in html
+    assert "\\autoref{intro}" in html
+
+
+def test_ref_and_autoref_can_target_the_same_heading() -> None:
+    html = _convert("# Introduction\n\n\\ref{introduction} and \\autoref{introduction}.\n")
+
+    assert '<a class="prodockit-ref" href="#introduction">1</a>' in html
+    assert '<a class="prodockit-autoref" href="#introduction">Introduction</a>' in html
