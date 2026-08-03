@@ -142,7 +142,10 @@ def build_pdf(
     page_size: str = "A4",
     margin_top: str = "2cm",
     margin_right: str = "2cm",
-    margin_bottom: str = "2cm",
+    # Deeper than the other three so a multi-line running footer is not
+    # cropped by a printer's unprintable edge - see prodockit.pdf.css's own
+    # margin_bottom for the measurement behind it.
+    margin_bottom: str = "2.5cm",
     margin_left: str = "2cm",
     double_sided: bool = False,
     margin_inner: str = "2cm",

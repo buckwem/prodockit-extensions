@@ -123,7 +123,7 @@ lives under `[project.extra]`, all optional:
 | \index{PDF settings!`pdf_output`} | `"<docs_dir>/site_documentation.pdf"` | Where the PDF is written. |
 | \index{PDF settings!`pdf_copyright`} | falls back to `copyright` | Overrides `copyright` for the PDF's own footer only - see [Copyright text](#copyright-text). |
 | \index{PDF settings!`pdf_page_size`} | `"A4"` | Any WeasyPrint-supported CSS page size (`"Letter"`, ...). |
-| \index{PDF settings!`pdf_margin_top`} / `_right` / `_bottom` / `_left` | `"2cm"` each | Page margins, as CSS lengths. |
+| \index{PDF settings!`pdf_margin_top`} / `_right` / `_bottom` / `_left` | `"2cm"`, except `_bottom` at `"2.5cm"` | Page margins, as CSS lengths. The bottom is deeper because the running footer sits in it - see [Copyright text](#copyright-text). |
 | \index{PDF settings!`pdf_double_sided`} | `false` | Duplex-printing layout - see [Double-sided (duplex) printing](#double-sided-duplex-printing). |
 | \index{PDF settings!`pdf_margin_inner`} / `_outer` | `"2cm"` each | Spine-side/fore-edge margins, used instead of `pdf_margin_left`/`_right` when `pdf_double_sided` is on. |
 | \index{PDF settings!`pdf_header_footer_font_size`} / `_color` / `_divider_color` | `"10pt"` / `"#555555"` / `"#e2e8f0"` | Running header/footer styling. |
@@ -227,6 +227,20 @@ It's a Zensical theme override instead: with `custom_dir` set (see
 Zensical's own docs), drop your own `overrides/partials/copyright.html`
 based on the bundled version, adding a second credit line after the
 existing "Made with Zensical" one.
+
+
+!!! note "Why the bottom margin is deeper than the others"
+    The footer is top-aligned in the bottom margin and grows *downward* as
+    it gains lines, so whatever the margin does not use is the space left
+    before the paper edge. A two-line footer at a 2cm bottom margin ends
+    about 6.1mm from the edge - inside the 5-6.4mm many consumer and office
+    printers cannot print at all, so the second line risks being cropped
+    even though the PDF itself is correct.
+
+    `pdf_margin_bottom` therefore defaults to `2.5cm`, which leaves about
+    11.1mm. A footer of three or more lines needs more again: set
+    `pdf_margin_bottom` explicitly and check the result on paper, not just
+    on screen.
 
 ### Cover page markers
 
@@ -463,7 +477,7 @@ build_pdf(
     page_size: str = "A4",
     margin_top: str = "2cm",
     margin_right: str = "2cm",
-    margin_bottom: str = "2cm",
+    margin_bottom: str = "2.5cm",
     margin_left: str = "2cm",
     double_sided: bool = False,
     margin_inner: str = "2cm",
@@ -700,7 +714,7 @@ build_css(
     page_size: str = "A4",
     margin_top: str = "2cm",
     margin_right: str = "2cm",
-    margin_bottom: str = "2cm",
+    margin_bottom: str = "2.5cm",
     margin_left: str = "2cm",
     double_sided: bool = False,
     margin_inner: str = "2cm",

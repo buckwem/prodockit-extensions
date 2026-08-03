@@ -1,5 +1,31 @@
 # Release Notes
 
+## 0.17.6 (2026-08-02)
+
+- The default bottom margin is now `2.5cm` rather than `2cm`, so a
+  multi-line running footer is not cropped when printed
+  ([#139](https://github.com/buckwem/prodockit-extensions/issues/139)).
+
+    The footer is top-aligned in the bottom margin and grows *downward* as
+    it gains lines, so whatever the margin does not use is the space left
+    before the paper edge. This project's own footer is two lines - a
+    copyright line and a "Made with" credit - and measured on a real render
+    it ended **6.1mm** from the edge. Consumer and office printers commonly
+    cannot print within 5-6.4mm, so the second line was at real risk of
+    being cropped: the PDF was correct and the paper was not.
+
+    2.5cm leaves about 11.1mm. The other three margins are unchanged, so
+    pages are 5mm shorter and a long document gains a few pages - this
+    project's own went from 134 to 139. Set `pdf_margin_bottom` to `"2cm"`
+    to restore the previous layout, and set it higher for a footer of three
+    or more lines.
+
+    Raising the margin rather than moving the footer within it: both footer
+    boxes are top-aligned with matching `margin-top`/`padding-top` so their
+    border-tops form one continuous rule across the page. Bottom-aligning
+    them to guarantee clearance instead would let a two-line box and the
+    one-line page number sit at different heights and break that rule.
+
 ## 0.17.5 (2026-08-02)
 
 - `prodockit --version` prints the installed version

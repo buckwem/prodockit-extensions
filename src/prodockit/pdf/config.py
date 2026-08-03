@@ -421,7 +421,10 @@ def build_pdf_from_zensical_config(
         page_size=extra.get("pdf_page_size") or "A4",
         margin_top=extra.get("pdf_margin_top") or "2cm",
         margin_right=extra.get("pdf_margin_right") or "2cm",
-        margin_bottom=extra.get("pdf_margin_bottom") or "2cm",
+        # 2.5cm, not 2cm like the others: the running footer lives in this
+        # margin and a two-line one came within 6.1mm of the paper edge -
+        # see prodockit.pdf.css's own margin_bottom.
+        margin_bottom=extra.get("pdf_margin_bottom") or "2.5cm",
         margin_left=extra.get("pdf_margin_left") or "2cm",
         double_sided=bool(extra.get("pdf_double_sided", False)),
         margin_inner=extra.get("pdf_margin_inner") or "2cm",
