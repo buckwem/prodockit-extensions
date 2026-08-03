@@ -61,7 +61,7 @@ def test_cross_page_reference_resolves_under_zensical() -> None:
     html = _convert_as_zensical_page("See \\ref{introduction}.\n", "usage.md")
     # A real cross-page link (intro.md#introduction), not a bare same-page
     # fragment - the latter would 404 on the actual multi-page website.
-    assert '<a class="prodockit-ref" href="intro.md#introduction">1</a>' in html
+    assert '<a class="prodockit-ref" href="intro.md#introduction">1 Introduction</a>' in html
 
 
 def test_cross_page_reference_from_nested_page_uses_relative_path() -> None:
@@ -71,7 +71,7 @@ def test_cross_page_reference_from_nested_page_uses_relative_path() -> None:
     pages would need (see the equivalent test for prodockit.citations)."""
     _convert_as_zensical_page("# Introduction\n", "intro.md")
     html = _convert_as_zensical_page("See \\ref{introduction}.\n", "starthere/usage.md")
-    assert '<a class="prodockit-ref" href="../intro.md#introduction">1</a>' in html
+    assert '<a class="prodockit-ref" href="../intro.md#introduction">1 Introduction</a>' in html
 
 
 def test_each_page_gets_its_own_source_automatically() -> None:
@@ -84,8 +84,8 @@ def test_each_page_gets_its_own_source_automatically() -> None:
     html = _convert_as_zensical_page(
         "See \\ref{introduction} and \\ref{setup}.\n", "summary.md"
     )
-    assert '<a class="prodockit-ref" href="intro.md#introduction">1</a>' in html
-    assert '<a class="prodockit-ref" href="setup.md#setup">1</a>' in html
+    assert '<a class="prodockit-ref" href="intro.md#introduction">1 Introduction</a>' in html
+    assert '<a class="prodockit-ref" href="setup.md#setup">1 Setup</a>' in html
 
 
 def test_same_page_reference_still_uses_bare_fragment_under_zensical() -> None:
@@ -95,7 +95,7 @@ def test_same_page_reference_still_uses_bare_fragment_under_zensical() -> None:
     html = _convert_as_zensical_page(
         "# Introduction\n\nSee \\ref{introduction}.\n", "intro.md"
     )
-    assert '<a class="prodockit-ref" href="#introduction">1</a>' in html
+    assert '<a class="prodockit-ref" href="#introduction">1 Introduction</a>' in html
 
 
 def test_duplicate_heading_text_across_pages_does_not_crash_the_build() -> None:
@@ -157,8 +157,8 @@ def test_ref_resolves_for_a_page_never_rendered_in_this_context(
         "# Section Four\n\nSee \\ref{citations-example} and \\ref{acronyms-example}.\n",
         "section4.md",
     )
-    assert '<a class="prodockit-ref" href="section1.md#citations-example">1.1</a>' in html
-    assert '<a class="prodockit-ref" href="section1.md#acronyms-example">1.2</a>' in html
+    assert '<a class="prodockit-ref" href="section1.md#citations-example">1.1 Citations example</a>' in html
+    assert '<a class="prodockit-ref" href="section1.md#acronyms-example">1.2 Acronyms example</a>' in html
     assert "??" not in html
 
 
@@ -287,7 +287,7 @@ def test_preseeded_numbers_are_redone_when_refs_preseeds_first_with_defaults(
     html = md.convert("# Page One\n\nSee \\ref{target}.\n")
     # Page Two's h1 is the second in nav order, so its "Target" subheading is
     # 2.1 under continuous numbering - not 1.1.
-    assert '<a class="prodockit-ref" href="two.md#target">2.1</a>' in html
+    assert '<a class="prodockit-ref" href="two.md#target">2.1 Target</a>' in html
 
 
 def test_default_numbering_is_still_per_document_under_zensical() -> None:
@@ -385,7 +385,7 @@ def test_ref_to_a_continuously_numbered_heading_on_another_page_shows_the_right_
     _convert("# One\n", "page1.md")
     _convert("# Two\n", "page2.md")
     html = _convert("See \\ref{two}.\n", "page3.md")
-    assert '<a class="prodockit-ref" href="page2.md#two">2</a>' in html
+    assert '<a class="prodockit-ref" href="page2.md#two">2 Two</a>' in html
 
 
 def _convert_as_zensical_page_with_citations(text: str, path: str) -> str:

@@ -105,41 +105,39 @@ class RefResolverTreeprocessor(Treeprocessor):
             ref_id = el.get("data-prodockit-ref")
             if ref_id is not None:
                 del el.attrib["data-prodockit-ref"]
-                self._resolve_number(el, ref_id)
+                self._resolve(el, ref_id, "prodockit-ref")
                 continue
             auto_id = el.get("data-prodockit-autoref")
             if auto_id is not None:
                 del el.attrib["data-prodockit-autoref"]
-                self._resolve_name(el, auto_id)
+                self._resolve(el, auto_id, "prodockit-autoref")
 
-    def _resolve_number(self, el: etree.Element, ref_id: str) -> None:
-        record = self.registry.get(ref_id)
-        if record is None or record.number is None:
-            el.text = self.unresolved
-            el.set("class", "prodockit-ref prodockit-ref-unresolved")
-            if record is not None:
-                # Known heading, just unnumbered (e.g. {: .unnumbered }) -
-                # still a valid link target, unlike a genuinely unknown id.
-                el.set("href", cross_page_href(record.source, self.source, ref_id))
-        else:
-            el.text = record.number
-            el.set("href", cross_page_href(record.source, self.source, ref_id))
+    def _resolve(self, el: etree.Element, ref_id: str, css_class: str) -> None:
+        """Renders a reference as the target heading's number and name.
 
-    def _resolve_name(self, el: etree.Element, ref_id: str) -> None:
-        """Resolves ``\\autoref{id}`` to the heading's own text.
+        Both syntaxes render the same text - "1.1 Configuration", or
+        "A.1 Terms" for an appendix, whose letter is already the first
+        segment of its number. A bare "1.1" tells a reader nothing about
+        what they are being sent to, and having to look it up defeats the
+        cross-reference; the number alone was what ``\\ref{id}`` used to
+        render.
 
-        Unlike ``\\ref{id}`` this resolves for an *unnumbered* heading too:
-        a cover page or appendix front matter has no number to show but it
-        does have a name, and "see Cover Page on page 1" is exactly as
-        useful as a numbered reference. Only a genuinely unknown id falls
-        back to `unresolved`.
+        The only difference between the two is that ``\\autoref{id}``
+        additionally gets " on page N" in a PDF, from
+        `prodockit.pdf.css` - which is why they need separate classes even
+        though the resolution is identical.
+
+        An *unnumbered* heading (a cover page, appendix front matter) has
+        no number but does have a name, so it renders as just the name
+        rather than falling back to `unresolved` - it is a perfectly good
+        thing to point at. Only a genuinely unknown id is unresolved.
         """
         record = self.registry.get(ref_id)
         if record is None:
             el.text = self.unresolved
-            el.set("class", "prodockit-autoref prodockit-autoref-unresolved")
+            el.set("class", f"{css_class} {css_class}-unresolved")
             return
-        el.text = record.text
+        el.text = f"{record.number} {record.text}" if record.number else record.text
         el.set("href", cross_page_href(record.source, self.source, ref_id))
 
 
