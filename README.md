@@ -46,7 +46,7 @@ diagrams and TeX maths in the PDF.
 | Extension | Description |
 |---|---|
 | [`prodockit.headings`](https://buckwem.github.io/prodockit-extensions/extensions/headings/) | Gives every heading an id and a hierarchical section number ("1", "1.1", "1.2", "2", ...). |
-| [`prodockit.refs`](https://buckwem.github.io/prodockit-extensions/extensions/refs/) | `\ref{id}` section cross-references, resolving to the target's current number - similar in spirit to LaTeX's `\ref`. |
+| [`prodockit.refs`](https://buckwem.github.io/prodockit-extensions/extensions/refs/) | `\ref{id}` section cross-references, resolving to the target's current number and name - and `\autoref{id}`, which additionally carries the target's page number in the PDF. |
 | [`prodockit.citations`](https://buckwem.github.io/prodockit-extensions/extensions/citations/) | Define a source once, cite it by key anywhere with `\citeref{id}` - auto-generates the bracketed, linked citation text. |
 | [`prodockit.glossary`](https://buckwem.github.io/prodockit-extensions/extensions/glossary/) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
 | [`prodockit.tables`](https://buckwem.github.io/prodockit-extensions/extensions/tables/) | Percentage or fixed column widths on a table, via a `width` attribute already attachable to a header cell with `attr_list`. |
@@ -76,8 +76,9 @@ Skoulikari, A. (2023) *Learning Git*.
 {: #css data-term="CSS" }
 ```
 
-`\ref{intro}` resolves to a link reading `1` - the heading's current
-section number; `\citeref{skou2023}` resolves to `[Skoulikari, 2023]`, linked
+`\ref{intro}` resolves to a link reading `1 Introduction` - the heading's
+number and name, with `\autoref{intro}` additionally carrying its page
+number in the PDF; `\citeref{skou2023}` resolves to `[Skoulikari, 2023]`, linked
 to that source; `\gls{css}` resolves to `CSS`, linked to its own
 definition. All three stay correct if content is reordered, since
 resolution happens fresh on every conversion. See the

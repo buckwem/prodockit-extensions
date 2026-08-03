@@ -6,7 +6,9 @@ the pieces professional and academic documentation commonly needs that
 Zensical doesn't provide out of the box, each usable independently:
 
 - ``prodockit.headings`` - heading ids and hierarchical section numbers.
-- ``prodockit.refs`` - ``\\ref{id}`` section cross-references.
+- ``prodockit.refs`` - ``\\ref{id}`` section cross-references, resolving to
+  the target's number and name, and ``\\autoref{id}``, which additionally
+  carries the target's page number in the PDF.
 - ``prodockit.citations`` - define a source once, cite it by key anywhere with
   ``\\citeref{id}``.
 - ``prodockit.glossary`` - define a term once, insert it by id anywhere with
