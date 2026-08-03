@@ -31,7 +31,23 @@ def build_css(
     page_size: str = "A4",
     margin_top: str = "2cm",
     margin_right: str = "2cm",
-    margin_bottom: str = "2cm",
+    # Deeper than the other three, deliberately. The running footer sits in
+    # this margin, top-aligned below a divider rule, and grows *downward* as
+    # it gains lines - so the space left between it and the paper edge is
+    # whatever the margin does not use. A two-line footer (this project's
+    # own: a copyright line plus a "Made with" credit) left only 6.1mm at
+    # 2cm, measured on a real render. Consumer and office printers commonly
+    # cannot print within 5-6.4mm of the edge, so the second line was at
+    # real risk of being cropped (prodockit-extensions#139). 2.5cm leaves
+    # 11.4mm, which clears that comfortably.
+    #
+    # Raising the margin rather than moving the footer within it: both
+    # footer boxes are top-aligned with a matching `margin-top`/
+    # `padding-top` so their border-tops form one continuous rule across the
+    # page. Bottom-aligning them to guarantee clearance instead would let a
+    # two-line box and the one-line page number sit at different heights and
+    # break that rule.
+    margin_bottom: str = "2.5cm",
     margin_left: str = "2cm",
     double_sided: bool = False,
     margin_inner: str = "2cm",

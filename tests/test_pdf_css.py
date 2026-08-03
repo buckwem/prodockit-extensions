@@ -231,3 +231,15 @@ def test_index_title_heading_sets_the_running_chapter_title() -> None:
     rule = "h1.prodockit-index-title { string-set: chapter-title content() !important; }"
     assert rule in build_css("Inter", "Fira Code", "My Site")
     assert rule in build_css("Inter", "Fira Code", "My Site", double_sided=True)
+
+
+def test_bottom_margin_default_is_deeper_than_the_others() -> None:
+    """The running footer sits in the bottom margin and grows downward as it
+    gains lines, so what is left between it and the paper edge is whatever
+    the margin does not use. A two-line footer left only 6.1mm at 2cm, well
+    inside the 5-6.4mm many printers cannot print at all
+    (prodockit-extensions#139). See test_pdf_build.py for the real-render
+    measurement; this pins the default that produces it."""
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    assert "margin: 2cm 2cm 2.5cm 2cm !important;" in css

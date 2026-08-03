@@ -1019,3 +1019,47 @@ def test_a_long_index_term_stays_inside_its_own_column(tmp_path: Path) -> None:
         )
     finally:
         doc.close()
+
+
+@real_pandoc_and_weasyprint_required
+def test_a_two_line_footer_clears_the_paper_edge(tmp_path: Path) -> None:
+    """prodockit-extensions#139: the running footer is top-aligned in the
+    bottom margin and grows *downward* as it gains lines, so a second line
+    eats into the space left before the paper edge rather than pushing the
+    footer up.
+
+    This project's own footer is two lines - a copyright line and a "Made
+    with" credit - and at the old 2cm default it ended 6.1mm from the edge.
+    Consumer and office printers commonly cannot print within 5-6.4mm, so
+    the second line was at real risk of being cropped: the PDF was correct
+    and the paper was not.
+
+    Measured on a real render rather than asserted about the CSS, because
+    the margin only reserves the space - whether the footer actually fits
+    inside it depends on how the text lays out.
+    """
+    long_para = "<p>" + ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 40) + "</p>"
+    pages = [
+        Page(docs_rel_path="index.md", html="<h1>Cover</h1>", is_index=True),
+        Page(docs_rel_path="chapter1.md", html=f"<h1>Chapter One</h1>{long_para}"),
+    ]
+    output_path = tmp_path / "out.pdf"
+
+    build_pdf(
+        pages,
+        str(output_path),
+        copyright_text="Copyright © 2026 Example.<br>Made with Zensical and prodockit.",
+    )
+
+    doc = pymupdf.open(str(output_path))
+    try:
+        # A body page, not the cover - @page :first blanks the footer.
+        page = doc[1]
+        lowest = max(block[3] for block in page.get_text("blocks"))
+        clearance_mm = (page.rect.height - lowest) / 72 * 25.4
+        assert clearance_mm >= 8.0, (
+            f"the two-line footer ends {clearance_mm:.1f}mm from the paper edge - "
+            "inside the range many printers cannot print, so it risks being cropped"
+        )
+    finally:
+        doc.close()
