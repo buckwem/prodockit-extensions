@@ -519,14 +519,36 @@ def fix_up_page_html(
             cover_div.append(child)
         soup.append(cover_div)
 
-    # This page's own anchor (see build_page_anchor_map()): give the first
-    # real heading that id directly, and flag it .appendix if this page is
-    # one, for a Lua filter's Header() (see prodockit.pdf.lua) to letter
-    # instead of number it.
+    # This page's own anchor (see build_page_anchor_map()), carried by an
+    # empty span *inside* the first real heading rather than by replacing
+    # that heading's own id.
+    #
+    # Overwriting the id was what this used to do, and it silently broke
+    # every reference to a page's title heading: `\ref{chapter-two}` still
+    # rendered its text, but the anchor it linked to no longer existed, so
+    # the link was dead and `\autoref` printed "on page" with nothing after
+    # it (prodockit-extensions#163). Sections *within* a page were fine,
+    # which is why it went unnoticed - the broken case is the most natural
+    # reference to write.
+    #
+    # Inside the heading, not before it: a numbered h1 carries
+    # `break-before: page` (recto, under double_sided), so an anchor placed
+    # immediately before one sits at the foot of the *previous* page - and
+    # `target-counter()` would then report a page number one too low.
+    #
+    # An empty span generates no glyphs and occupies no width, so it cannot
+    # disturb the heading's own text, its numbering, or the running header -
+    # the same property prodockit.pdf.index relies on for its own markers.
     own_anchor = page_anchor_map.get(current_docs_rel_path)
     first_heading = soup.find(HEADING_TAGS)
     if own_anchor and isinstance(first_heading, Tag):
-        first_heading["id"] = own_anchor
+        if first_heading.get("id"):
+            anchor_span = soup.new_tag("span")
+            anchor_span["id"] = own_anchor
+            first_heading.insert(0, anchor_span)
+        else:
+            # No id of its own to preserve - carry the anchor directly.
+            first_heading["id"] = own_anchor
         if is_appendix:
             classes = list(first_heading.get("class", []))
             classes.append("appendix")

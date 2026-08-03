@@ -485,3 +485,76 @@ def test_recto_title_empty_string_inserts_nothing() -> None:
     html = _fix("<h1>Chapter</h1><p>Body text.</p>", recto_title="")
     soup = BeautifulSoup(html, "html.parser")
     assert soup.find(class_="prodockit-recto-title") is None
+
+
+def test_first_heading_keeps_its_own_id_and_gains_the_page_anchor() -> None:
+    """prodockit-extensions#163: the page anchor used to *replace* the first
+    heading's id, so every `\\ref{}`/`\\autoref{}` pointing at a page's title
+    heading linked to an anchor that no longer existed. The reference still
+    rendered its text, so nothing looked wrong - the link was simply dead,
+    and `\\autoref` printed "on page" with nothing after it.
+
+    Both anchors are needed: the page's own, for a cross-page link with no
+    fragment, and the heading's, for a reference to the heading itself."""
+    html = _fix(
+        '<h1 id="chapter-two">Chapter Two</h1><h2 id="deep">Deep</h2>',
+        current_docs_rel_path="chapter2.md",
+        page_anchor_map={"chapter2.md": "page-chapter2"},
+    )
+    soup = BeautifulSoup(html, "html.parser")
+
+    heading = soup.find("h1")
+    assert heading["id"] == "chapter-two", "the heading's own id must survive"
+    assert soup.find(id="page-chapter2") is not None, "the page anchor must still exist"
+    assert soup.find("h2")["id"] == "deep"
+
+
+def test_the_page_anchor_sits_inside_the_heading_not_before_it() -> None:
+    """A numbered h1 carries `break-before: page` (recto under
+    double_sided), so an anchor placed immediately *before* one sits at the
+    foot of the previous page - and `target-counter()` would report a page
+    number one too low."""
+    html = _fix(
+        '<h1 id="chapter-two">Chapter Two</h1>',
+        current_docs_rel_path="chapter2.md",
+        page_anchor_map={"chapter2.md": "page-chapter2"},
+    )
+    soup = BeautifulSoup(html, "html.parser")
+
+    anchor = soup.find(id="page-chapter2")
+    assert anchor.name == "span"
+    assert anchor.parent.name == "h1"
+    assert anchor.get_text() == "", "an empty span generates no glyphs and no width"
+
+
+def test_a_heading_with_no_id_carries_the_page_anchor_directly() -> None:
+    """Nothing to preserve, so no extra element is needed."""
+    html = _fix(
+        "<h1>Chapter</h1>",
+        current_docs_rel_path="chapter1.md",
+        page_anchor_map={"chapter1.md": "page-chapter1"},
+    )
+    soup = BeautifulSoup(html, "html.parser")
+
+    assert soup.find("h1")["id"] == "page-chapter1"
+    assert soup.find("h1").find("span") is None
+
+
+def test_an_appendix_page_still_flags_a_heading_that_has_its_own_id() -> None:
+    """The `.appendix` class and its letter are read by the Lua filter to
+    letter rather than number the heading - preserving the id must not cost
+    that."""
+    html = _fix(
+        '<h1 id="glossary">Glossary</h1>',
+        current_docs_rel_path="glossary.md",
+        page_anchor_map={"glossary.md": "page-glossary"},
+        is_appendix=True,
+        appendix_letter="A",
+    )
+    soup = BeautifulSoup(html, "html.parser")
+
+    heading = soup.find("h1")
+    assert heading["id"] == "glossary"
+    assert "appendix" in heading["class"]
+    assert heading["data-appendix-letter"] == "A"
+    assert soup.find(id="page-glossary") is not None
