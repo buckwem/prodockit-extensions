@@ -2,6 +2,29 @@
 
 ## 0.18.1 (2026-08-04)
 
+- New [Zensical coupling](../zensical-coupling.md) page, listing every
+  Zensical API prodockit depends on that Zensical neither documents nor
+  treats as public
+  ([#166](https://github.com/buckwem/prodockit-extensions/issues/166)).
+
+    Zensical exports exactly three names - `build`, `serve`, `version` -
+    and prodockit uses none of them. Everything else it reaches for is a
+    module-level import from inside the package, so any of it can be
+    renamed in a *patch* release without that counting as a breaking change
+    upstream. Nothing in these docs said which, so the coupling was
+    invisible until a release broke it.
+
+    The page records each API with its call site and why it is needed, the
+    undocumented *data shapes* prodockit reads (the resolved nav tree's
+    `url`/`is_index`/`children`, `env.conf`, the packaged icon directory
+    layout), and - deliberately - a list of the Zensical features that
+    *are* documented, so it doubles as a triage aid when something breaks.
+
+    It also sets out what a Zensical upgrade actually needs: not a green
+    test run, but a build of both site and PDF with the **output compared**,
+    since 0.0.52 silently redrew an icon with no source change. Recorded as
+    last verified against 0.0.52.
+
 - prodockit now says so when an undocumented Zensical API it depends on
   moves, instead of failing in a way that points at its own internals
   ([#167](https://github.com/buckwem/prodockit-extensions/issues/167)).
