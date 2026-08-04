@@ -128,7 +128,7 @@ full variable/macro list.
 
 ## Repository metadata
 
-[`prodockit sync-repo`](https://buckwem.github.io/prodockit-extensions/continuous-integration/#sync-repo-repository-metadata)
+[`prodockit sync-repo`](https://buckwem.github.io/prodockit-extensions/devcons/repo-metadata/#sync-repo-repository-metadata)
 keeps `repo_url`, `repo_name`, the header brand icon, `edit_uri` and your
 README's badge row matching the git remote your checkout actually uses -
 so forking or mirroring a project between GitHub, GitLab and Bitbucket
@@ -152,7 +152,7 @@ fail the build - it quietly publishes a different document.
 
 Pinning them means declaring the same version in several files at once,
 which nothing keeps in step.
-[`prodockit pins`](https://buckwem.github.io/prodockit-extensions/continuous-integration/#pinning-version-pinning-and-drift)
+[`prodockit pins`](https://buckwem.github.io/prodockit-extensions/devcons/pinning-drift/#pinning-version-pinning-and-drift)
 finds every declaration and moves them together, keeping each one's own
 operator so a library floor stays a floor and a build pin stays exact:
 

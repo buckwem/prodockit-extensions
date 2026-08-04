@@ -849,7 +849,7 @@ en-dash ranges.
 `prodockit.pdf` pipes your site's own rendered HTML through Pandoc and
 WeasyPrint to produce the PDF - two tools with their own reader/writer
 quirks and no JS engine, quite different from a browser rendering your
-live website. See [Limitations and workarounds](limitations.md#limitations-pdf-generation)
+live website. See [Limitations and workarounds](devcons/limitations.md#limitations-pdf-generation)
 for the confirmed limitations this shapes in `prodockit.pdf.html`/`.lua`/
 `.css`, and the workaround each one gets.
 

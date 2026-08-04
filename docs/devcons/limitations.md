@@ -27,7 +27,7 @@ incremental-rebuild behaviour, not prodockit's.
 
 **Duplicate heading names across pages**: `prodockit.headings`' automatic
 Zensical registry sharing (see [Sharing a registry across a multi-page
-build](extensions/headings.md#sharing-a-registry-across-a-multi-page-build))
+build](../extensions/headings.md#sharing-a-registry-across-a-multi-page-build))
 logs a warning and keeps the first registration rather than raising, and
 *which* page's registration wins isn't stable across builds - see the
 warning admonition partway through that same section for why, and the fix
@@ -37,7 +37,7 @@ warning admonition partway through that same section for why, and the fix
 `\cite{id1,id2}` isn't supported, unlike `prodockit.citations`' own
 `\cite{id1,id2,...}` → falls through as literal text rather than being
 silently mishandled; see [Comparing the two
-approaches](extensions/bibliography.md#comparing-the-two-approaches) for
+approaches](../extensions/bibliography.md#comparing-the-two-approaches) for
 why.
 
 **`prodockit.index`'s nested sub-entries are visually capped at three
@@ -59,7 +59,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
 
 - Mermaid diagrams: no JS engine to run Mermaid.js client-side → each
   ` ```mermaid ` fence is pre-rendered to a static SVG via `mermaid-cli`
-  before Pandoc ever sees it (see [`prodockit.pdf.mermaid`](pdf.md#prodockitpdfmermaid)).
+  before Pandoc ever sees it (see [`prodockit.pdf.mermaid`](../pdf.md#prodockitpdfmermaid)).
     - Mermaid's default node/edge labels are HTML `<foreignObject>`
       content, which WeasyPrint's SVG renderer can't display (text
       silently vanishes) → `htmlLabels` is forced off, so Mermaid emits
@@ -67,7 +67,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
 - Math (`$...$`/`$$...$$`, `pymdownx.arithmatex`): no JS engine to run
   MathJax client-side → each formula is pre-rendered to a static SVG via
   a Lua filter `Math()` handler piping to a `tex2svg` script (see
-  [`prodockit.pdf.lua`](pdf.md#prodockitpdflua)).
+  [`prodockit.pdf.lua`](../pdf.md#prodockitpdflua)).
     - `arithmatex`'s *generic*-mode math (`<div class="arithmatex">`/
       `<span class="arithmatex">`) has no native Math AST node in
       Pandoc's *HTML* reader (unlike its *markdown* reader, which
@@ -131,7 +131,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
   as a link to an external file at whatever absolute path the PDF happened
   to be built from → rewritten to in-document anchors instead (see
   `build_page_anchor_map()`/`build_virtual_page_map()` in
-  [`prodockit.pdf.html`](pdf.md#prodockitpdfhtml)).
+  [`prodockit.pdf.html`](../pdf.md#prodockitpdfhtml)).
 - Local image/file references can't depend on relative paths resolving
   correctly from wherever Pandoc happens to run in a standalone document →
   base64-embedded as `data:` URIs directly in the HTML (see
@@ -155,7 +155,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
 WeasyPrint at all** (confirmed directly, isolated test) - affects
 admonition icons, grid-card title icons, and pre-rendered Mermaid diagrams
 alike → every `<svg>` is converted to a base64 `data:` URI `<img>` instead
-(see [`prodockit.pdf.icons`](pdf.md#prodockitpdficons)).
+(see [`prodockit.pdf.icons`](../pdf.md#prodockitpdficons)).
 
 **Content tabs (`pymdownx.blocks.tab`)**: each tab's label renders as an
 inline `<label>` sibling with no block boundary between them; Pandoc's
@@ -165,7 +165,7 @@ unseparated run of text with no way to recover the boundary afterward in a
 Lua filter → each `<label>` is rewritten into its own `<p>` *before*
 Pandoc's reader ever sees it, then the Lua filter reconstructs the
 `tabbed-set`/`tabbed-labels`/`tabbed-content` structure into a `tabbox`
-shape (see [`prodockit.pdf.lua`](pdf.md#prodockitpdflua)).
+shape (see [`prodockit.pdf.lua`](../pdf.md#prodockitpdflua)).
 
 **Figure/table captions in "prepend" position**: Pandoc's `Figure` AST
 node stores `Caption` and content as two separate, independently-typed
@@ -184,8 +184,8 @@ children *are* emitted in original document order), with the
 confirmed: a `<p id="..." class="...">` comes out the other end as a bare
 `Para` with both the `id` and the `class` silently gone, with no error.
 This is exactly the shape every `attr_list` citation/acronym/glossary
-definition takes (see [prodockit.citations](extensions/citations.md)/
-[prodockit.glossary](extensions/glossary.md)) → any `<p>` carrying an `id` or
+definition takes (see [prodockit.citations](../extensions/citations.md)/
+[prodockit.glossary](../extensions/glossary.md)) → any `<p>` carrying an `id` or
 `class` is retagged to a `<div>` instead (which Pandoc's reader does
 preserve attributes on).
 
@@ -203,7 +203,7 @@ page content) → replaced with a link-styled reference to the video instead
 
 **No Jinja evaluation**: Pandoc/`prodockit.pdf` never evaluates Jinja - a
 `{{ site_name }}` placeholder that resolves via macro evaluation on the
-live site (see [prodockit.zensical_macros](macros.md)) is left as literal
+live site (see [prodockit.zensical_macros](../macros.md)) is left as literal
 text unless a project substitutes it directly in its own page HTML before
 handing it to `build_pdf()`.
 
@@ -212,14 +212,14 @@ output has no `.md-typeset` wrapper element, so website CSS rules scoped
 to `.md-typeset ...` (reference/acronym/glossary spacing, a `.screenshot`
 class, and so on) never match in the PDF → `prodockit.pdf.css` duplicates the
 relevant rules as plain, unscoped selectors instead (see
-[`prodockit.pdf.css`](pdf.md#prodockitpdfcss)).
+[`prodockit.pdf.css`](../pdf.md#prodockitpdfcss)).
 
 **Footnotes**: Pandoc's default behaviour collects every footnote in the
 whole document into one section at the very end of the PDF, rather than at
 the bottom of the page it's referenced on like a printed book → a Lua
 filter handler replaces each footnote reference with an inline span styled
-via CSS `float: footnote` instead (see [`prodockit.pdf.lua`](pdf.md#prodockitpdflua)/
-[`prodockit.pdf.css`](pdf.md#prodockitpdfcss)).
+via CSS `float: footnote` instead (see [`prodockit.pdf.lua`](../pdf.md#prodockitpdflua)/
+[`prodockit.pdf.css`](../pdf.md#prodockitpdfcss)).
 
 **WeasyPrint's CSS Grid support is too limited to trust for an actual
 side-by-side multi-column layout** → a Zensical grid-cards block renders
@@ -259,7 +259,7 @@ markdown-dialect translation.
 flagging explicitly**: resolving `\cite{id}`/`\bibliography` itself calls
 out to a *separate*, independent `pandoc --citeproc` invocation at
 markdown-render time (see
-[prodockit.bibliography](extensions/bibliography.md#bibliography-requirements)) -
+[prodockit.bibliography](../extensions/bibliography.md#bibliography-requirements)) -
 unrelated to, and already finished well before, `prodockit.pdf`'s own
 `pandoc --pdf-engine=weasyprint` call below. By the time `prodockit.pdf`
 sees the page, citations and the reference list are already resolved,
@@ -272,7 +272,7 @@ unrelated reasons.
 
 **`heading_counter_reset(page)` inherits the same `zensical serve`
 staleness bound as extensions above**: it calls
-[`prodockit.headings.prescan()`](extensions/headings.md#looking-up-the-same-numbers-from-your-own-build-tooling)
+[`prodockit.headings.prescan()`](../extensions/headings.md#looking-up-the-same-numbers-from-your-own-build-tooling)
 directly - the identical pre-scan continuous numbering itself uses - so a
 page's displayed chapter/section number can lag behind an edit to an
 *earlier* page's heading count until that later page is itself rebuilt

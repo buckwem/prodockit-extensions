@@ -47,7 +47,7 @@ silent disaster for one that does.
 
 Three separate projects published PDFs containing raw `flowchart LR ...`
 source and literal LaTeX before anyone noticed.
-[`prodockit pdf` warns about it](pdf.md#mermaid-diagrams-and-tex-maths)
+[`prodockit pdf` warns about it](../pdf.md#mermaid-diagrams-and-tex-maths)
 since 0.12.0, but a warning in build output is easy to scroll past. These
 checks turn it into a test failure.
 

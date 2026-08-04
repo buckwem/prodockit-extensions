@@ -22,7 +22,7 @@ except where noted:
 
 The external tools aren't Python packages and aren't installed by `pip` -
 see [PDF generation](pdf.md) for how `prodockit.pdf` locates them, and
-[Limitations and workarounds](limitations.md) for why the Node ones are
+[Limitations and workarounds](devcons/limitations.md) for why the Node ones are
 needed at all. A build with neither Mermaid diagrams nor maths needs
 neither of them.
 
