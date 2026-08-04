@@ -261,7 +261,7 @@ plain `.bib` file plus a chosen `.csl` style produces correctly formatted,
 sorted output with no custom code at all) rather than reimplemented here -
 CSL processing (sorting, disambiguation, locale-specific formatting) is a
 mature-tool-sized problem, the same reasoning
-[prodockit.pdf](../limitations.md#limitations-pdf-generation) already gives for why
+[prodockit.pdf](../devcons/limitations.md#limitations-pdf-generation) already gives for why
 it feeds Pandoc real HTML instead of hand-translating every markdown
 feature.
 

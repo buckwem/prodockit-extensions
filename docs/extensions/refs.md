@@ -1,4 +1,4 @@
-# Refs
+# Cross-References
 
 \index{`prodockit.refs`} adds a `\ref{id}` cross-reference syntax - similar in spirit
 to LaTeX's `\ref` - that resolves to the *current* number and name of the

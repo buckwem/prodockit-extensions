@@ -1,8 +1,33 @@
 # Release Notes
 
+## Unreleased
+
+- Documentation restructured: the six build-and-operate pages are now
+  grouped under a **Dev Considerations** section, and `Refs` is renamed
+  **Cross-References**
+  ([#170](https://github.com/buckwem/prodockit-extensions/issues/170)).
+
+    The nav had grown to thirteen top-level entries, enough that the theme
+    cut the tabs off. Nine now, with `docs/devcons/` holding continuous
+    integration, repository metadata, version pinning and drift, testing
+    your built site, Zensical coupling, and limitations and workarounds
+    behind a short introduction.
+
+    `Managing the build` was one 747-line page carrying three unrelated
+    subjects; it is split at its own level-2 boundaries into
+    `continuous-integration.md`, `repo-metadata.md` and `pinning-drift.md`,
+    each promoted one heading level so it reads as a page rather than a
+    fragment. **Every existing heading anchor is unchanged**, so the only
+    part of a link that moved is the file it points at.
+
+    Page URLs *have* moved - `/continuous-integration/`, `/testing/`,
+    `/limitations/` and `/zensical-coupling/` are now under `/devcons/`.
+    Every link inside the docs and the README was updated with them; any
+    external bookmark to an old URL will 404.
+
 ## 0.18.1 (2026-08-04)
 
-- New [Zensical coupling](../zensical-coupling.md) page, listing every
+- New [Zensical coupling](../devcons/zensical-coupling.md) page, listing every
   Zensical API prodockit depends on that Zensical neither documents nor
   treats as public
   ([#166](https://github.com/buckwem/prodockit-extensions/issues/166)).
@@ -229,7 +254,7 @@ Documentation only - no library, CLI or CI behaviour changes.
     `tag: prodockit-v*` entry in the github-pages environment's deployment
     branch policies is now redundant.
 
-    [Continuous integration](../continuous-integration.md#ci-release-numbering)
+    [Continuous integration](../devcons/continuous-integration.md#ci-release-numbering)
     documents the trap, since the obvious fix is the broken one.
 
 ## 0.17.2 (2026-07-30)
@@ -305,7 +330,7 @@ Documentation only - no library, CLI or CI behaviour changes.
     rather than drifting - the better failure, and at a time of your
     choosing.
 
-- New [Version pinning and drift](../continuous-integration.md#pinning-version-pinning-and-drift) page documenting
+- New [Version pinning and drift](../devcons/pinning-drift.md#pinning-version-pinning-and-drift) page documenting
   the whole arrangement - where a version gets declared and why the forms
   differ, `prodockit pins`, and a drift job for **both** GitHub Actions
   and GitLab CI, the latter using pipeline schedules and the GitLab issues
@@ -477,7 +502,7 @@ Documentation only - no library, CLI or CI behaviour changes.
 
     A project with no tags at all stays silent: that is a normal state, and
     warning about it would only train people to ignore the message. See
-    [Limitations and workarounds](../limitations.md#limitations-pdf-generation).
+    [Limitations and workarounds](../devcons/limitations.md#limitations-pdf-generation).
 
 ## 0.15.2 (2026-07-28)
 
@@ -501,7 +526,7 @@ Documentation only - no library, CLI or CI behaviour changes.
 ## 0.15.1 (2026-07-27)
 
 - Documentation only. New
-  [Continuous integration](../continuous-integration.md) page: complete,
+  [Continuous integration](../devcons/continuous-integration.md) page: complete,
   working GitHub Actions and GitLab CI recipes for building a prodockit
   site, and the reasoning behind each part
   ([#124](https://github.com/buckwem/prodockit-extensions/issues/124)).
@@ -520,7 +545,7 @@ Documentation only - no library, CLI or CI behaviour changes.
   pytest plugin giving a project `prodockit_*` fixtures for its own built
   site and PDF, resolved from its Zensical config rather than an assumed
   layout, plus checks for the failure modes every prodockit project shares.
-  See [Testing your built site](../testing.md).
+  See [Testing your built site](../devcons/testing.md).
 
     Chiefly `assert_no_unrendered_mermaid()` and
     `assert_no_unrendered_tex()`, which turn the 0.12.0 build warning into
@@ -588,7 +613,7 @@ Documentation only - no library, CLI or CI behaviour changes.
   GitHub, GitLab and Bitbucket doesn't leave stale links, the wrong brand
   icon, or badges pointing at somebody else's repository. `--check` writes
   nothing and exits non-zero on drift, for CI. See
-  [Repository metadata](../continuous-integration.md#sync-repo-repository-metadata).
+  [Repository metadata](../devcons/repo-metadata.md#sync-repo-repository-metadata).
 
     This was previously a `sync_repo_icon.py` script copied byte-for-byte
     between two consuming projects
@@ -683,7 +708,7 @@ than the intended light gray in the PDF - not fixed here).
 
 Docs only, no code changes:
 
-- New [Limitations and workarounds](../limitations.md) page, consolidating
+- New [Limitations and workarounds](../devcons/limitations.md) page, consolidating
   every confirmed limitation across prodockit's three surfaces (the
   Python-Markdown extensions, `prodockit.pdf`, and
   `prodockit.zensical_macros`) and its workaround in one place, including

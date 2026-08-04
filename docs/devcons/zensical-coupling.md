@@ -149,7 +149,7 @@ not enough**. A Zensical bump needs a deliberate pass:
    checking both exit zero. Zensical 0.0.52 silently redrew the GitHub
    brand icon (Font Awesome 7.2.0 → 7.3.1) with no source change, which is
    exactly the drift a pass/fail check misses. The
-   [drift job](continuous-integration.md#pinning-watching-for-drift) does
+   [drift job](pinning-drift.md#pinning-watching-for-drift) does
    this comparison automatically.
 3. **Check cross-page `\ref` / `\citeref` / `\gls` resolution
    specifically.** These depend on the nav pre-scans and on
@@ -159,7 +159,7 @@ not enough**. A Zensical bump needs a deliberate pass:
    `url`/`is_index`/`children`, and `render()` should still return
    `content`/`meta`.
 
-`zensical` is [pinned exactly in the build](continuous-integration.md#pinning-version-pinning-and-drift)
+`zensical` is [pinned exactly in the build](pinning-drift.md#pinning-version-pinning-and-drift)
 so an upgrade is a decision rather than something that happens overnight -
 which is what makes a deliberate pass possible at all.
 
@@ -169,5 +169,5 @@ which is what makes a deliberate pass possible at all.
   coupling - `.md-typeset` targeting, glightbox wrappers, and Zensical's own
   `LinksTreeprocessor` URL rewriting. Those are HTML/CSS shapes rather than
   APIs, and equally undocumented.
-- [Managing the build](continuous-integration.md) covers pinning `zensical`
+- [Version pinning and drift](pinning-drift.md) covers pinning `zensical`
   and watching for a newer release.
