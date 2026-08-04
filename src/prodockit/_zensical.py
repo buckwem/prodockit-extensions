@@ -19,6 +19,7 @@ pre-scanning ahead of time.
 from __future__ import annotations
 
 import re
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, TypeVar
@@ -27,6 +28,50 @@ from markdown import Markdown
 from markdown.extensions.toc import unique
 
 T = TypeVar("T")
+
+#: Zensical APIs already reported as moved, so a build logs each once rather
+#: than once per page. `page_source()` runs on every render, and a per-page
+#: warning would bury the rest of the build log in copies of itself.
+_warned_apis: set[str] = set()
+
+
+def _warn_api_moved(api: str, error: Exception) -> None:
+    """Reports that an undocumented Zensical API prodockit depends on no
+    longer works as expected.
+
+    Deliberately loud. The alternative - returning None silently - is worse
+    than the crash it replaces: `page_source()` returning None makes every
+    page fall back to the same default source, so each render wipes the
+    previous page's registry entries and cross-page `\\ref`/citation/
+    glossary resolution degrades to "??" on a site that still builds and
+    exits zero. That is prodockit-extensions#54 in a form no test would
+    catch, so the failure has to say what happened.
+
+    Names the API and the installed Zensical version, because the reader
+    needs to connect a suddenly-degraded build to the version bump that
+    caused it - none of these APIs is public (`zensical/__init__.py`
+    exports only build/serve/version), so upstream can rename one in a
+    patch release without it registering as a breaking change.
+    """
+    if api in _warned_apis:
+        return
+    _warned_apis.add(api)
+    try:
+        import zensical
+
+        installed = zensical.version()
+    except Exception:  # pragma: no cover - version lookup is itself best-effort
+        installed = "unknown"
+    warnings.warn(
+        f"prodockit expected Zensical's {api}, which raised "
+        f"{type(error).__name__}: {error}. Zensical {installed} appears to have "
+        "moved it. prodockit falls back to non-Zensical behaviour, so cross-page "
+        "references, citations and glossary terms may resolve to their unresolved "
+        "marker instead of the real target. Please report this at "
+        "https://github.com/buckwem/prodockit-extensions/issues.",
+        RuntimeWarning,
+        stacklevel=3,
+    )
 
 
 def page_source(md: Markdown) -> str | None:
@@ -45,11 +90,23 @@ def page_source(md: Markdown) -> str | None:
     try:
         from zensical.extensions.context import ContextPreprocessor
     except ImportError:
+        # Not running under Zensical at all - a legitimate, expected state
+        # for any other Python-Markdown consumer, so no warning.
         return None
-    context = ContextPreprocessor.from_markdown(md)
-    if context is None or context.page is None:
+    try:
+        # Everything below is undocumented Zensical API, so all of it is
+        # inside the guard - not just the import. A rename of
+        # `from_markdown` or of `Page.path` raises AttributeError, and a
+        # changed signature raises TypeError; guarding only the import
+        # would let either surface as a stack trace from deep inside
+        # `zensical build`, with nothing pointing at the version bump.
+        context = ContextPreprocessor.from_markdown(md)
+        if context is None or context.page is None:
+            return None
+        return str(context.page.path)
+    except (AttributeError, TypeError) as error:
+        _warn_api_moved("ContextPreprocessor.from_markdown(md).page.path", error)
         return None
-    return context.page.path
 
 
 def share(md: Markdown, attr: str, value: T) -> T:
@@ -88,14 +145,18 @@ def nav_pages() -> tuple[str, list[str]] | None:
         from zensical.config import get_config
     except ImportError:
         return None
-    config = get_config()
-    if not config:
+    try:
+        config = get_config()
+        if not config:
+            return None
+        docs_dir = config.get("docs_dir")
+        nav = config.get("nav")
+        if not docs_dir or not nav:
+            return None
+        return str(docs_dir), _flatten_nav(nav)
+    except (AttributeError, TypeError) as error:
+        _warn_api_moved("config.get_config()", error)
         return None
-    docs_dir = config.get("docs_dir")
-    nav = config.get("nav")
-    if not docs_dir or not nav:
-        return None
-    return str(docs_dir), _flatten_nav(nav)
 
 
 def _flatten_nav(items: object) -> list[str]:

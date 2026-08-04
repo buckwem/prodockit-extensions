@@ -7,6 +7,7 @@ separate from the full markdown-conversion integration tests in
 test_zensical_integration.py so a regression here (e.g. in the fence/comment
 skipping) points straight at the broken primitive."""
 
+import warnings
 from pathlib import Path
 
 import pytest
@@ -332,3 +333,145 @@ def test_nav_signature_still_moves_when_a_page_disappears(
     page.unlink()
     assert nav_signature() != before
     assert nav_signature() == (("page.md", 0, 0),)
+
+
+class _StubPage:
+    def __init__(self, path: str) -> None:
+        self.path = path
+
+
+class _StubContext:
+    def __init__(self, page: object) -> None:
+        self.page = page
+
+
+@pytest.fixture(autouse=True)
+def _reset_api_warnings():
+    """`_warn_api_moved` reports each API once per process, so a test that
+    relies on the warning firing has to start from a clean slate."""
+    prodockit_zensical._warned_apis.clear()
+    yield
+    prodockit_zensical._warned_apis.clear()
+
+
+def _install_context(monkeypatch, cls: object) -> None:
+    """Puts a stand-in ContextPreprocessor where page_source() imports it
+    from, so the failure modes below can be provoked without a real
+    Zensical."""
+    module = pytest.importorskip("zensical.extensions.context")
+    monkeypatch.setattr(module, "ContextPreprocessor", cls, raising=False)
+
+
+def test_page_source_returns_the_page_path(monkeypatch) -> None:
+    class Ok:
+        @staticmethod
+        def from_markdown(md):
+            return _StubContext(_StubPage("guide/intro.md"))
+
+    _install_context(monkeypatch, Ok)
+
+    assert prodockit_zensical.page_source(object()) == "guide/intro.md"
+
+
+def test_page_source_warns_when_from_markdown_has_been_renamed(monkeypatch) -> None:
+    """prodockit-extensions#167: the guard used to cover only the import, so
+    a rename surfaced as a stack trace from deep inside `zensical build`
+    with nothing pointing at the version bump that caused it."""
+
+    class Renamed:
+        pass  # no from_markdown at all -> AttributeError
+
+    _install_context(monkeypatch, Renamed)
+
+    with pytest.warns(RuntimeWarning, match="from_markdown"):
+        assert prodockit_zensical.page_source(object()) is None
+
+
+def test_page_source_warns_when_the_signature_changed(monkeypatch) -> None:
+    class Resignatured:
+        @staticmethod
+        def from_markdown(md, required_new_argument):
+            return None
+
+    _install_context(monkeypatch, Resignatured)
+
+    with pytest.warns(RuntimeWarning, match="moved it"):
+        assert prodockit_zensical.page_source(object()) is None
+
+
+def test_page_source_warns_when_page_path_has_been_renamed(monkeypatch) -> None:
+    """A `Page.path` -> `Page.src_path` rename is invisible to an import
+    guard: everything imports, and the attribute access is what fails."""
+
+    class RenamedPath:
+        @staticmethod
+        def from_markdown(md):
+            return _StubContext(object())  # a page with no .path
+
+    _install_context(monkeypatch, RenamedPath)
+
+    with pytest.warns(RuntimeWarning):
+        assert prodockit_zensical.page_source(object()) is None
+
+
+def test_the_api_warning_names_the_api_and_the_installed_version(monkeypatch) -> None:
+    """The reader has to be able to connect a degraded build to the Zensical
+    upgrade that caused it - none of these APIs is public, so a rename can
+    arrive in a patch release."""
+
+    class Renamed:
+        pass
+
+    _install_context(monkeypatch, Renamed)
+
+    with pytest.warns(RuntimeWarning) as recorded:
+        prodockit_zensical.page_source(object())
+
+    message = str(recorded[0].message)
+    assert "ContextPreprocessor.from_markdown(md).page.path" in message
+    assert "Zensical" in message
+    # Says what actually degrades, not just that something broke.
+    assert "cross-page" in message
+
+
+def test_the_api_warning_fires_once_per_process_not_once_per_page(monkeypatch) -> None:
+    """`page_source()` runs on every render; a per-page warning would bury
+    the rest of the build log in copies of itself."""
+
+    class Renamed:
+        pass
+
+    _install_context(monkeypatch, Renamed)
+
+    with pytest.warns(RuntimeWarning) as recorded:
+        for _ in range(5):
+            prodockit_zensical.page_source(object())
+
+    assert len(recorded) == 1
+
+
+def test_page_source_is_silent_when_zensical_is_absent(monkeypatch) -> None:
+    """"Not running under Zensical" is a legitimate, expected state for any
+    other Python-Markdown consumer - warning there would cry wolf."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def no_zensical(name, *args, **kwargs):
+        if name.startswith("zensical"):
+            raise ImportError("no zensical")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_zensical)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # any warning becomes a failure
+        assert prodockit_zensical.page_source(object()) is None
+
+
+def test_nav_pages_warns_when_get_config_stops_behaving_like_a_mapping(monkeypatch) -> None:
+    module = pytest.importorskip("zensical.config")
+    monkeypatch.setattr(module, "get_config", lambda: object(), raising=False)
+
+    with pytest.warns(RuntimeWarning, match="get_config"):
+        assert prodockit_zensical.nav_pages() is None
