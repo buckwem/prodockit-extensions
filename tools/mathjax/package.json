@@ -1,0 +1,8 @@
+{
+  "name": "prodockit-mathjax-tools",
+  "private": true,
+  "description": "Local mathjax-full install used by `prodockit pdf` to pre-render TeX maths for the PDF build. Scaffolded by `prodockit init-tools`.",
+  "dependencies": {
+    "mathjax-full": "^3.2.2"
+  }
+}
