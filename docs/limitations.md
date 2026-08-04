@@ -302,3 +302,8 @@ implementation details of the theme itself, not a public API it commits
 to - so a future Zensical theme restructuring could change or remove them
 without warning, silently breaking the numbering/spacing display with no
 error raised.
+
+These CSS-shape couplings are the theme-side counterpart to the Python
+ones - see [Zensical coupling](zensical-coupling.md) for the full list of
+undocumented Zensical APIs prodockit depends on, and what regression
+testing a Zensical upgrade actually needs.

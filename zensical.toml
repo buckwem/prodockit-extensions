@@ -65,6 +65,7 @@ nav = [
   {"Testing your built site" = "testing.md"},
   {"Managing the build" = "continuous-integration.md"},
   {"Limitations and workarounds" = "limitations.md"},
+  {"Zensical coupling" = "zensical-coupling.md"},
   {"About" = [
     {"Release Notes" = "about/changelog.md"},
     {"License" = "about/license.md"},
