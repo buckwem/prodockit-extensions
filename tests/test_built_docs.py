@@ -29,7 +29,9 @@ from typing import Any
 
 import pytest
 
+from prodockit._zensical import _front_matter_flag, _scan_page_headings
 from prodockit.pdf.index import DEFAULT_INDEX_TITLE, MARKER_ID_PREFIX
+from prodockit.settings import flatten_nav
 from prodockit.testing import assert_no_unrendered_mermaid, assert_no_unrendered_tex
 
 pytestmark = pytest.mark.built
@@ -91,6 +93,16 @@ EXPECTED_INDEX_TERMS = (
     "Pandoc",
 )
 
+#: A numbered chapter in the PDF's bookmark outline - "4. Refs". The cover,
+#: "Table of Contents" and the generated index are level-1 outline entries
+#: too, but carry no number, which is what separates them here.
+OUTLINE_CHAPTER_RE = re.compile(r"^\d+\.\s+\S")
+
+#: `prodockit.headings`' own `appendix_attr` default - the front matter flag
+#: naming a page that gets a letter ("Appendix A") rather than a number, and
+#: so sits outside the numbered sequence checked below.
+APPENDIX_ATTR = "is_appendix"
+
 
 def _mermaid_node_shapes(page):
     shapes = []
@@ -106,6 +118,69 @@ def _mermaid_node_shapes(page):
 
 def test_the_pdf_built_and_has_pages(prodockit_pdf):
     assert prodockit_pdf.page_count > 5
+
+
+@pytest.fixture(scope="session")
+def documents_own_chapters(prodockit_paths, prodockit_resolved_config) -> list[str]:
+    """Each nav page's own first numbered h1, in nav order - what the PDF's
+    chapters *should* be, read from the markdown rather than from the PDF.
+
+    Scanned with `prodockit.headings`' own `_scan_page_headings()`, the
+    scanner that drives the website's continuous numbering, so a mismatch
+    against the PDF means the two pipelines disagree about what a chapter
+    is - not that this test picked a different rule.
+
+    The cover page is excluded because `prodockit.pdf` forces every heading
+    on it unnumbered (see `prodockit.pdf.html.fix_page_html`), and an
+    appendix because it is lettered instead of numbered.
+    """
+    chapters = []
+    for page in flatten_nav(prodockit_resolved_config.get("nav") or []):
+        if page.get("is_index"):
+            continue
+        text = (prodockit_paths.docs_dir / page["url"]).read_text(encoding="utf-8")
+        if _front_matter_flag(text, APPENDIX_ATTR):
+            continue
+        first_h1 = next(
+            (
+                title
+                for level, title, _, unnumbered in _scan_page_headings(text)
+                if level == 1 and not unnumbered
+            ),
+            None,
+        )
+        if first_h1 is not None:
+            chapters.append(first_h1)
+    return chapters
+
+
+def test_the_pdf_outline_lists_the_documents_own_chapters_and_nothing_else(
+    prodockit_pdf, documents_own_chapters
+):
+    """A heading that isn't this document's structure must not reach the
+    PDF's bookmark outline as a chapter.
+
+    The regression that shipped for real: `extensions/refs.md` illustrates
+    `\\ref{}` by showing its real rendered output, which on that page means
+    real `<h1>`/`<h2>` elements. Pandoc numbered that example `<h1>` as a
+    chapter of its own, so every later chapter was renumbered one too high
+    and the page's own sections nested under the example instead of under
+    the page.
+
+    Neither half of that is caught by looking at the outline alone - the
+    numbering stays internally consistent, just wrong - so this compares it
+    against the markdown, and asserts on the whole span from the first
+    numbered chapter to the last rather than on the numbered entries
+    within it: an example heading marked `.unnumbered` but still bookmarked
+    would otherwise slip through the gaps between chapters unnoticed, while
+    still swallowing the sections that follow it.
+    """
+    level_one = [title for level, title, _ in prodockit_pdf.get_toc() if level == 1]
+    numbered = [i for i, title in enumerate(level_one) if OUTLINE_CHAPTER_RE.match(title)]
+    assert numbered, f"No numbered chapter in the PDF outline at all: {level_one}"
+
+    expected = [f"{n}. {title}" for n, title in enumerate(documents_own_chapters, 1)]
+    assert level_one[numbered[0] : numbered[-1] + 1] == expected
 
 
 def test_no_page_contains_unrendered_mermaid_source(prodockit_pdf_page_texts):
