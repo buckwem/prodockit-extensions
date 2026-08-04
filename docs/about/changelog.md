@@ -1,5 +1,36 @@
 # Release Notes
 
+## 0.18.1 (2026-08-04)
+
+- prodockit now says so when an undocumented Zensical API it depends on
+  moves, instead of failing in a way that points at its own internals
+  ([#167](https://github.com/buckwem/prodockit-extensions/issues/167)).
+
+    `prodockit._zensical`'s two Zensical lookups guarded the *import* and
+    nothing after it, so they handled exactly one failure mode - "Zensical
+    isn't installed". A renamed `ContextPreprocessor.from_markdown`, a
+    changed signature, or a `Page.path` renamed to something else all
+    import perfectly and then raise `AttributeError`/`TypeError` from deep
+    inside a `zensical build`, with nothing connecting it to the version
+    bump that caused it. None of these APIs is public - `zensical` exports
+    only `build`/`serve`/`version` - so a rename can arrive in a patch
+    release.
+
+    The guards now cover the attribute access and the call as well, and
+    emit a warning naming the API, the installed Zensical version, and what
+    actually degrades. Deliberately *not* a bare `except Exception: return
+    None`: `page_source()` returning None silently makes every page share
+    one default source, each render wiping the previous page's registry
+    entries, so cross-page references, citations and glossary terms resolve
+    to `??` on a site that still builds and exits zero. That is
+    [#54](https://github.com/buckwem/prodockit-extensions/issues/54) again,
+    in a form no test would catch.
+
+    A plain `ImportError` stays silent - not running under Zensical is a
+    legitimate state for any other Python-Markdown consumer - and each API
+    is reported once per process rather than once per page, since
+    `page_source()` runs on every render.
+
 ## 0.18.0 (2026-08-02)
 
 - A reference to a page's *title* heading now resolves in the PDF
