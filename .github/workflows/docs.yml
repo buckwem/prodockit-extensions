@@ -106,6 +106,12 @@ jobs:
       - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
       - run: sudo apt-get update && sudo apt-get install -y google-chrome-stable
       - run: npm ci --prefix tools/mermaid
+      # MathJax, the same arrangement for TeX maths. These docs carry no
+      # formulas today, so this renders nothing yet - it is here so that the
+      # first page to add one is rendered rather than silently published as
+      # raw LaTeX, the way the Mermaid diagram above once was. Needs no
+      # browser: tex2svg.js is plain Node.
+      - run: npm ci --prefix tools/mathjax
       # The [testing] extra brings pytest/pymupdf for the built-output
       # checks below. pymupdf is also what extra.pdf_include_index needs to
       # read page numbers back out of the first pass, so this one install
