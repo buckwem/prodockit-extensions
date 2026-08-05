@@ -56,17 +56,33 @@ prodockit pins
 ```text
 zensical
   pyproject.toml:34  zensical>=0.0.53
-  .github/workflows/docs.yml:136  zensical==0.0.53
-  .github/workflows/drift.yml:62  zensical==0.0.53
+  .github/workflows/docs.yml:164  zensical==0.0.53
+  .github/workflows/drift.yml:69  zensical==0.0.53
   newest on PyPI: 0.0.53  <- newer available
 
 weasyprint
   .github/workflows/ci.yml:59  weasyprint==69.0
-  .github/workflows/docs.yml:121  weasyprint==69.0
+  .github/workflows/docs.yml:164  weasyprint==69.0
   newest on PyPI: 69.0
+
+markdown
+  pyproject.toml:25  markdown>=3.10.3
+  .github/workflows/docs.yml:164  markdown==3.10.3
+  .github/workflows/drift.yml:69  markdown==3.10.3
+  newest on PyPI: 3.10.3
+
+pymdown-extensions
+  .github/workflows/docs.yml:164  pymdown-extensions==11.0.1
+  .github/workflows/drift.yml:69  pymdown-extensions==11.0.1
+  newest on PyPI: 11.0.1
 
 zensical: version to set [0.0.53]:
 ```
+
+`Markdown` and `pymdown-extensions` are in that list even though nothing
+installs them directly - they arrive under Zensical, which declares only
+floors for them. See [the limitations below](#pinning-limitations) for why
+pinning Zensical alone left them free to move.
 
 Press ++enter++ to take the newest release, or type a version. Each site
 keeps **its own operator** - the floor stays a floor, the pins stay
@@ -77,7 +93,7 @@ pinned - so one answer updates every file correctly.
 | Option | What it does |
 | --- | --- |
 | `-r`, `--root` | Project root to scan. Defaults to the current directory. |
-| `-p`, `--package` | Package to manage, repeatable. Defaults to `zensical` and `weasyprint`. |
+| `-p`, `--package` | Package to manage, repeatable. Defaults to `zensical`, `weasyprint`, `Markdown` and `pymdown-extensions`. |
 | `--set PACKAGE=VERSION` | Set a version without prompting, repeatable. Implies `--no-input`. |
 | `--latest` | Take PyPI's newest for every package without prompting. Implies `--no-input`. |
 | `--no-input` | Never prompt. Packages given a version are updated; the rest are reported and left untouched. |
@@ -108,12 +124,28 @@ half-finish because one appeared.
 `--check` is the one to put in CI:
 
 ```bash
-prodockit pins --check
+prodockit pins --check --offline
 ```
 
 It fails when a package is behind PyPI **or** when the files disagree with
 each other - the second being the failure that pinning across several
 files invites.
+
+!!! tip "Add `--offline` when it gates a pull request"
+
+    Those two failures belong in different places. *Files disagreeing* is a
+    property of the repository: a real mistake, introduced by a commit,
+    fixable by its author. *Behind PyPI* is a property of the world, and
+    turns every open pull request red the day upstream ships a release,
+    with nothing in the branch having changed and nothing the author can do
+    about it. A gate that fails for reasons outside the contributor's
+    control is one people learn to ignore.
+
+    `--offline` keeps the first check and drops the second, and needs no
+    network. Leave "is there something newer" to a
+    [drift job](#pinning-watching-for-drift), which reports on a schedule
+    rather than failing a build. This project's own `ci.yml` runs the
+    offline form for exactly this reason.
 
 ### What it scans {: #pinning-what-it-scans }
 
@@ -203,7 +235,7 @@ jobs:
       # ... same build tooling as your docs job ...
       - name: Build with the pinned versions
         run: |
-          pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0"
+          pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
           prodockit pdf                      # PDF first ...
           zensical build --clean --strict    # ... then the site
           cp -R site /tmp/pinned-site
@@ -241,7 +273,7 @@ drift:
   before_script:
     - apt-get update && apt-get install -y pandoc libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 jq curl
   script:
-    - pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0"
+    - pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
     - prodockit pdf                     # PDF first ...
     - zensical build --clean --strict   # ... then the site
     - cp -R site /tmp/pinned-site && cp docs/site_documentation.pdf /tmp/pinned.pdf
@@ -362,6 +394,19 @@ Specific to pinning:
 - **A floor still floats.** `zensical>=0.0.53` in `pyproject.toml` records
   a version; it does not control one. Only the exact pin in the build job
   does. Both exist deliberately - see the table above.
+- **A pinned package's own dependencies float too**, which is the sharper
+  version of the same trap: pinning a direct dependency exactly does
+  nothing for the transitive ones underneath it, because *their* versions
+  come from floors in *its* metadata. Zensical is pinned exactly here, and
+  still declares only floors for `Markdown` and `pymdown-extensions` - the
+  two packages that actually turn every page into HTML. A build pinning
+  Zensical alone therefore rendered with whatever those two resolved to on
+  the morning it ran. Both are now pinned alongside it, and both are
+  managed by `prodockit pins`
+  ([#178](https://github.com/buckwem/prodockit-extensions/issues/178)).
+  If your project pins something whose rendering you depend on, check what
+  it pulls in: `pip show <package>` lists its requirements, and a floor
+  there is a version you are not controlling.
 - **Only pip packages are watched.** `pandoc` and Chrome arrive from the
   runner image, so a drift job that installs both builds in one job cannot
   see them change between weeks. Pinning the image is the lever for those -

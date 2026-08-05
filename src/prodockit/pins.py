@@ -46,7 +46,21 @@ from dataclasses import dataclass, field
 #: pagination - which is content here, since page numbers resolve into the
 #: back-of-book index and the Table of Contents. Override with
 #: `packages=` for a project that pins something else too.
-DEFAULT_PACKAGES = ("zensical", "weasyprint")
+#:
+#: Markdown and pymdown-extensions are here despite being *transitive* -
+#: they arrive under Zensical, not as anything a project installs directly.
+#: That is exactly why they need watching: Zensical declares only floors
+#: for them, so pinning Zensical itself fixes nothing about the library
+#: that actually turns every page's Markdown into HTML - a floor still
+#: resolves to whatever is newest on the day the build runs
+#: (prodockit-extensions#178).
+#:
+#: They matter more to prodockit than to most projects that render
+#: Markdown, because prodockit does not merely display the result:
+#: :mod:`prodockit.pdf.css` and :mod:`prodockit.pdf.lua` both match on the
+#: specific class shapes pymdownx emits, so the renderer is an input to the
+#: PDF's own correctness rather than only to the website's appearance.
+DEFAULT_PACKAGES = ("zensical", "weasyprint", "markdown", "pymdown-extensions")
 
 #: Directories never worth scanning - build output, virtualenvs, caches.
 #: A stale copy of a workflow inside one of these would otherwise be

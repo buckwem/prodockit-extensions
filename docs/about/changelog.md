@@ -40,6 +40,41 @@
     `.example-heading { bookmark-level: none; }` in
     `docs/stylesheets/extra.css`) now uses `unbookmarked` directly instead.
 
+- The docs build now pins `Markdown` and `pymdown-extensions`, and
+  `prodockit pins` manages them
+  ([#178](https://github.com/buckwem/prodockit-extensions/issues/178)).
+
+    Pinning a dependency exactly does nothing for the packages underneath
+    it. `zensical` was pinned; it declares only floors for the two
+    libraries that actually turn every page's Markdown into HTML, so every
+    build rendered with whatever those resolved to that morning. A release
+    of either could have changed the HTML on every page, and the site would
+    have published it, green, with nothing committed.
+
+    That matters more here than in most projects that render Markdown:
+    `prodockit.pdf.css` and `prodockit.pdf.lua` both match on the specific
+    class shapes pymdownx emits, so the renderer is an input to the PDF's
+    own correctness, not only to the website's appearance.
+
+    `prodockit pins` covers both by default now, so `--check` and the
+    weekly drift job watch them alongside `zensical` and `weasyprint`. The
+    drift job installs and reports them on both sides of its comparison -
+    without that, a pymdownx release would have appeared in *both* builds
+    and diffed to nothing.
+
+    `Markdown`'s floor in `pyproject.toml` moves from 3.4 to 3.10.3 to
+    match the pinned version, the same convention `zensical` already
+    follows. Older releases are not known to break; the floor records what
+    this is built and tested against.
+
+    `ci.yml` now runs `prodockit pins --check --offline`, so a commit that
+    moves a version in one file and forgets another fails the build instead
+    of reaching `main`. The `--offline` form is deliberate: plain `--check`
+    also fails when a package is behind PyPI, which would turn every open
+    pull request red the day upstream ships a release, for a reason no
+    contributor could act on. Watching for newer releases stays with the
+    weekly drift job, which reports rather than fails.
+
 - `prodockit pins --set PACKAGE=VERSION` no longer prompts for the packages
   it was not given, and no longer throws away the one it was.
 
