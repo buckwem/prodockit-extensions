@@ -55,6 +55,7 @@ jobs:
       - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
       - run: sudo apt-get update && sudo apt-get install -y google-chrome-stable
       - run: npm ci --prefix tools/mermaid
+      - run: npm ci --prefix tools/mathjax
 
       # Keep these in step with docs.yml's own install line.
       - name: Build with the pinned versions
