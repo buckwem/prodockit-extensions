@@ -48,6 +48,32 @@ want, and the environment variables a CI run needs. It won't overwrite
 files you already have unless you pass `--force`, and `--no-mermaid` /
 `--no-mathjax` skip either half.
 
+Once that's in place, maths is ordinary markdown - write `$...$` for an
+inline formula and `$$...$$` for a display one, and both are rendered
+wherever the page is read. The right-angle case, inline: $c = \sqrt{a^2 +
+b^2}$, and as a display formula:
+
+$$c = \sqrt{a^2 + b^2}$$
+
+Those are live rather than illustrative, and are the only maths in these
+docs. They earn their place: without a real formula somewhere, this
+project's own [rendering checks](devcons/testing.md) cannot tell a working
+MathJax toolchain from a missing one - `assert_no_unrendered_tex` passes
+trivially on a document with no maths to leave unrendered. Read them in the
+PDF and they are static SVG; read them on the website and MathJax typeset
+them in your browser.
+
+Deliberately shown *rendered* rather than as a fenced markdown sample: a
+code block's LaTeX and an unrendered formula are the same characters once
+both are plain text in a PDF, so quoting the source here would fail this
+project's own check - the same trap that made the "contains TeX maths"
+warning fire on
+[prose describing it](https://github.com/buckwem/prodockit-extensions/issues/176).
+`assert_no_unrendered_tex` matches the handful of TeX command sequences
+listed in `prodockit.testing.checks`, so keep literal LaTeX out of any page
+a `-m built` run inspects - naming even one of them in this sentence was
+enough to fail the check.
+
 !!! warning "The failure here is quiet by default"
 
     If a renderer isn't found, the content is left exactly as it is rather
