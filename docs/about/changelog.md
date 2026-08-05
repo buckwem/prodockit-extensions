@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- The "this document contains TeX maths" warning no longer fires on a page
+  that merely *documents* maths handling
+  ([#176](https://github.com/buckwem/prodockit-extensions/issues/176)).
+
+    A page quoting `<div class="arithmatex">` in a code span reaches the
+    rendered HTML as `<code>&lt;div class="arithmatex"&gt;</code>` -
+    Python-Markdown escapes the angle brackets and leaves the attribute
+    text alone. The detector matched the bare `class="..."`, so prose about
+    maths counted as maths, and `prodockit pdf` warned that formulas would
+    ship as raw LaTeX in a document with no formulas in it. This project's
+    own `devcons/limitations.md` did exactly that on every build.
+
+    It now anchors on a real `<div`/`<span` opening tag, the way the
+    Mermaid detector always has - which is why Mermaid never had the
+    problem. A false alarm matters more here than most: the warning exists
+    to make a *silent* degradation visible, and one that cries wolf teaches
+    the reader to ignore the only signal there is.
+
 - Documentation restructured: the six build-and-operate pages are now
   grouped under a **Dev Considerations** section, and `Refs` is renamed
   **Cross-References**
