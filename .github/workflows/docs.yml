@@ -118,7 +118,7 @@ jobs:
       # covers both - no separate [index] extra needed here.
       #
       # zensical is pinned exactly *here* rather than in pyproject.toml,
-      # which deliberately declares only a floor (>=0.0.52): prodockit is a
+      # which deliberately declares only a floor (>=0.0.53): prodockit is a
       # library, so an exact pin in its metadata would propagate to every
       # consumer and conflict with any project needing a different Zensical.
       # This is the build side, where the opposite applies - the site and
@@ -139,7 +139,7 @@ jobs:
       # against the previous version before committing. drift.yml watches
       # for newer releases weekly and opens an issue when one would change
       # the output.
-      - run: pip install -e ".[testing]" "zensical==0.0.52" "weasyprint==69.0"
+      - run: pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0"
       # Two pandoc+WeasyPrint passes, not one: extra.pdf_include_index is on
       # in zensical.toml, and the back-of-book index can only be built once
       # WeasyPrint has laid the document out (see prodockit.pdf.index). The

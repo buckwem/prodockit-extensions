@@ -60,7 +60,7 @@ jobs:
       # Keep these in step with docs.yml's own install line.
       - name: Build with the pinned versions
         run: |
-          pip install -e ".[testing]" "zensical==0.0.52" "weasyprint==69.0"
+          pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0"
           prodockit pdf
           zensical build --clean --strict
           mkdir -p /tmp/pinned

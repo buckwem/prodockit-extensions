@@ -5,14 +5,14 @@ documents nor treats as public. Nothing else in these docs says which, so
 the coupling is invisible until a Zensical release breaks it. This page is
 that list.
 
-!!! info "Last verified against Zensical 0.0.52"
+!!! info "Last verified against Zensical 0.0.53"
     Every call site and data shape below was checked against that version.
     A newer Zensical may have moved any of them - see
     [Regression testing a Zensical upgrade](#coupling-regression-testing).
 
 ## Why this page exists {: #coupling-why }
 
-Zensical 0.0.52's `zensical/__init__.py` exports exactly three names:
+Zensical 0.0.53's `zensical/__init__.py` exports exactly three names:
 
 ```python
 __all__ = ["build", "serve", "version"]
