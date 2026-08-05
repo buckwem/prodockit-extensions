@@ -31,11 +31,12 @@ renders to:
      against real ids - but they are an illustration, not this page's own
      structure. The three classes keep them out of the chapter numbering
      (`unnumbered`), the PDF's Table of Contents (`unlisted`) and the PDF's
-     bookmark outline (`example-heading`, see docs/stylesheets/extra.css);
+     bookmark outline (`unbookmarked` - see
+     prodockit.headings#unlisted-and-unbookmarked-headings-pdf-only);
      `prodockit.refs` itself emits none of them. -->
-<h1 id="intro" class="unnumbered unlisted example-heading">Introduction</h1>
+<h1 id="intro" class="unnumbered unlisted unbookmarked">Introduction</h1>
 <p>See <a class="prodockit-ref" href="#intro">1 Introduction</a> for background.</p>
-<h2 id="background" class="unnumbered unlisted example-heading">Background</h2>
+<h2 id="background" class="unnumbered unlisted unbookmarked">Background</h2>
 
 Because the number is looked up fresh on every conversion, it stays correct
 even if sections are added, removed, or reordered - you never have to

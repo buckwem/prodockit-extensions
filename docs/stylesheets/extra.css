@@ -231,22 +231,6 @@
    plain block flow for print, since WeasyPrint paginates rather than
    scrolls and has no concept of a viewport height to fill. */
 @media print {
-  /* A page that documents heading behaviour has to show real rendered
-     headings to demonstrate it (docs/extensions/refs.md's "renders to:"
-     block is real <h1>/<h2> elements, not a code sample) - but they are
-     illustration, not this document's own structure. Their own
-     `.unnumbered .unlisted` classes keep them out of the chapter numbering
-     and out of the Table of Contents, and this keeps them out of the PDF's
-     bookmark outline as well: WeasyPrint bookmarks every heading from its
-     own UA stylesheet regardless of either class, so without this the
-     example <h1> still opened a phantom chapter in the outline and the
-     page's own real sections nested underneath it. `bookmark-level: none`
-     is the initial value of a paged-media property browsers don't
-     implement, so the live website is unaffected. */
-  .example-heading {
-    bookmark-level: none;
-  }
-
   .cover-hero {
     display: block;
     width: auto;

@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+- A new `unbookmarked` heading class removes a heading from the PDF's
+  bookmark outline - the navigation pane a PDF reader shows down the side -
+  separately from `unlisted`, which only keeps it off the generated Table
+  of Contents *page*
+  ([#173](https://github.com/buckwem/prodockit-extensions/issues/173)).
+
+    The two are built by different tools. Pandoc's own
+    `pandoc.structure.table_of_contents()` builds the contents page and
+    honours `unlisted`; WeasyPrint builds the outline separately, straight
+    from its own UA stylesheet, and nothing about `unlisted` (or any other
+    class prodockit stamps on a heading) ever reached it - `prodockit.pdf.css`
+    set no `bookmark-level` rule at all. An `unlisted` `h1` therefore still
+    became a top-level outline node, and because outline nesting follows
+    heading level, every later, lower-level heading nested underneath it
+    instead of under its real chapter. Silent either way: the build
+    succeeds and exits zero.
+
+    `unlisted` itself is unchanged, and keeps meaning exactly what Pandoc
+    means by it. `unbookmarked` is new and additive - `prodockit.pdf.css`
+    now gives `h1.unbookmarked`-`h6.unbookmarked` `bookmark-level: none`,
+    and nothing prodockit generates itself carries the class, so no
+    existing PDF's outline moves. The back-of-book index's own A/B/C
+    letter headings, the Table of Contents title, and every cover-page
+    heading all carry `unnumbered unlisted` and deliberately stay off
+    `unbookmarked`, since a reader still needs them in the outline to
+    navigate - keying the new rule off `unlisted` itself, instead of adding
+    a separate class, would have removed all three.
+
+    Documented alongside `unnumbered` in
+    [prodockit.headings](../extensions/headings.md#unlisted-and-unbookmarked-headings-pdf-only)
+    and [PDF generation](../pdf.md#table-of-contents-and-bookmark-outline),
+    where the two-tables-of-contents split is now explained as its own
+    surface for the first time. This project's own
+    `docs/extensions/refs.md` (whose illustrative headings needed exactly
+    this, previously worked around with a project-local
+    `.example-heading { bookmark-level: none; }` in
+    `docs/stylesheets/extra.css`) now uses `unbookmarked` directly instead.
+
 - `prodockit pins --set PACKAGE=VERSION` no longer prompts for the packages
   it was not given, and no longer throws away the one it was.
 

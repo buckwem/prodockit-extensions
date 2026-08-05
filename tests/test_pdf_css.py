@@ -260,6 +260,42 @@ def test_autoref_gets_a_page_number_in_the_pdf() -> None:
     assert "target-counter(attr(href url), page)" in rule
 
 
+def test_unbookmarked_headings_are_removed_from_the_pdf_outline() -> None:
+    """WeasyPrint bookmarks every h1-h6 into the PDF's outline regardless of
+    `.unlisted` (that class only keeps a heading off the generated Table of
+    Contents *page* - see prodockit.pdf.lua). `.unbookmarked` is the
+    separate class this stylesheet gives `bookmark-level: none`, so an
+    author can remove a heading from the outline too, without also
+    reusing `.unlisted` and regressing the headings prodockit itself marks
+    `unnumbered unlisted` (index letters, the Table of Contents title,
+    cover-page headings) that must stay in the outline
+    (prodockit-extensions#173)."""
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    selector = (
+        "h1.unbookmarked, h2.unbookmarked, h3.unbookmarked,\n"
+        "h4.unbookmarked, h5.unbookmarked, h6.unbookmarked {"
+    )
+    assert selector in css
+    rule = css.split(selector)[1].split("}")[0]
+    assert "bookmark-level: none;" in rule
+
+
+def test_unlisted_alone_does_not_get_bookmark_level_none() -> None:
+    """A heading marked only `.unlisted` (no `.unbookmarked`) must keep its
+    default bookmark-level - this is exactly what prodockit itself stamps
+    on the back-of-book index's A/B/C letter headings
+    (prodockit.pdf.index), the Table of Contents title
+    (prodockit.pdf.build) and every cover-page heading (prodockit.pdf.html),
+    all of which must stay in the PDF's outline. Keying the bookmark-level
+    rule off `.unlisted` instead of the new `.unbookmarked` class would
+    silently remove all three from the outline."""
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    assert ".unlisted {" not in css
+    assert "h1.unlisted" not in css
+
+
 def test_autoref_page_number_is_scoped_to_in_document_links() -> None:
     """An unresolved \\autoref carries no href at all, and an external link
     resolves to nothing - either would print a stray "on page" with no
