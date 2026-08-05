@@ -36,19 +36,30 @@ window.MathJax = {
   },
 };
 
-// Re-typeset after client-side navigation. `navigation.instant` is enabled
-// (see zensical.toml's theme features), so most page changes swap the DOM
-// without a document load and MathJax's own startup typeset never runs
-// again - formulas on every page after the first would stay as literal
-// `\(...\)` without this. `document$` is the theme's own document
-// observable; the guard keeps this harmless if a future theme drops it.
-if (typeof document$ !== "undefined") {
-  document$.subscribe(function () {
-    if (window.MathJax && window.MathJax.typesetPromise) {
-      window.MathJax.startup.output.clearCache();
-      window.MathJax.typesetClear();
-      window.MathJax.texReset();
-      window.MathJax.typesetPromise();
-    }
-  });
-}
+// No re-typeset hook here, and that is a tested conclusion rather than an
+// omission.
+//
+// `navigation.instant` is enabled (see zensical.toml's theme features), so
+// most page changes swap the DOM without a document load. The usual advice
+// for that combination is a `document$.subscribe(...)` hook calling
+// `MathJax.typesetPromise()`, on the reasoning that MathJax's own startup
+// typeset never runs again. Zensical 0.0.53 does not need it: checked in a
+// browser with the hook removed, navigating away from a page with formulas
+// and back to it by clicking - one hard navigation recorded, both formulas
+// still typeset, no literal `\(...\)` left. The theme re-runs the typeset
+// itself.
+//
+// If maths ever appears as literal `\(...\)` after clicking to a page,
+// while being correct when that page is loaded directly, this is the thing
+// to add back:
+//
+//   if (typeof document$ !== "undefined") {
+//     document$.subscribe(function () {
+//       if (window.MathJax && window.MathJax.typesetPromise) {
+//         window.MathJax.startup.output.clearCache();
+//         window.MathJax.typesetClear();
+//         window.MathJax.texReset();
+//         window.MathJax.typesetPromise();
+//       }
+//     });
+//   }
