@@ -118,6 +118,35 @@ doesn't consume a counter position:
 `Introduction` above is still numbered `1`, as if `Cover Page` weren't
 there at all.
 
+### Unlisted and unbookmarked headings (PDF only) {: #unlisted-and-unbookmarked-headings-pdf-only }
+
+A PDF built by [prodockit.pdf](../pdf.md) has *two* tables of contents, and
+`unnumbered` alone only reaches one of them:
+
+- The generated **Table of Contents page**, built from every heading
+  Pandoc sees. Add \index{headings!`unlisted`} to also keep a heading off
+  this page - it still keeps its `id` and number (if any), the same as
+  `unnumbered` above. Pandoc itself defines this class and honours it via
+  `pandoc.structure.table_of_contents()`; prodockit doesn't add or change
+  its meaning.
+- The **bookmark outline** - the navigation pane a PDF reader shows down
+  the side. This is built separately by WeasyPrint from every `h1`-`h6` in
+  the document, and `unlisted` has no effect on it at all. Add
+  \index{headings!`unbookmarked`} to also remove a heading from the
+  outline.
+
+```md
+# Cover Page {: .unnumbered .unlisted .unbookmarked }
+```
+
+This distinction matters because outline nesting follows heading level:
+an `unlisted` (but not `unbookmarked`) `h1` still becomes a *top-level*
+outline node, and every following heading of lower level nests underneath
+it instead of under its real chapter - not just one stray entry, but a
+misnested chunk of the outline. See
+[Table of contents and bookmark outline](../pdf.md#table-of-contents-and-bookmark-outline)
+for the underlying stylesheet rule and worked example.
+
 ## Reference {: #headings-reference }
 
 ### Continuous numbering across pages (Zensical)

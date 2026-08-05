@@ -358,6 +358,30 @@ h1:not(.unnumbered) { string-set: chapter-title content() !important; }
    "Index" (or whatever `pdf_index_title` says). */
 h1.prodockit-index-title { string-set: chapter-title content() !important; }
 
+/* WeasyPrint bookmarks every h1-h6 into the PDF's outline (the navigation
+   pane a PDF reader shows down the side) straight from its own UA
+   stylesheet - no heading class affects that by default. So `.unlisted`
+   (which keeps a heading off the *generated Table of Contents page*
+   instead - Pandoc's own pandoc.structure.table_of_contents(), honoured by
+   the Lua filter in prodockit.pdf.lua) still leaves it in the outline, and
+   because outline nesting follows heading level, every later, lower-level
+   heading nests underneath it instead of under its real chapter
+   (prodockit-extensions#173).
+
+   `.unlisted` can't simply gain this rule itself: prodockit stamps
+   `unnumbered unlisted` on headings that *should* stay in the outline -
+   the back-of-book index's own A/B/C letter headings
+   (prodockit.pdf.index.render_index_content), the "Table of Contents"
+   title (prodockit.pdf.build.build_pdf) and every cover-page heading
+   (prodockit.pdf.html.fix_up_page_html) - so reusing `.unlisted` here would
+   remove all of them from the outline too. `.unbookmarked` is a second,
+   separate class an author adds themselves (nothing prodockit emits
+   carries it, so no existing PDF's outline moves) for a heading that
+   should also disappear from the outline - e.g. an illustrative heading in
+   documentation (see this project's own docs/extensions/refs.md). */
+h1.unbookmarked, h2.unbookmarked, h3.unbookmarked,
+h4.unbookmarked, h5.unbookmarked, h6.unbookmarked { bookmark-level: none; }
+
 /* ==========================================================================
    CROSS-REFERENCES
    ========================================================================== */
