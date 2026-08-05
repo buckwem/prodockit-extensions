@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- `prodockit pins --set PACKAGE=VERSION` no longer prompts for the packages
+  it was not given, and no longer throws away the one it was.
+
+    `--set` says "here is the version, do not ask" - the help text has
+    always said it implies `--no-input` - but it only pre-answered the
+    package named. Any other package in the managed set still prompted, so
+    `pins --set zensical=0.0.53` in a release script or a drift job stopped
+    at `weasyprint: version to set [69.0]:` and, with no stdin to answer
+    it, aborted. Nothing was written *including the zensical sites it had
+    been told explicitly to set* - the sharper half of the bug, because the
+    run reported an abort rather than a partial write, and the workaround
+    (`--package zensical --set zensical=0.0.53`) reads as though the two
+    options mean different things.
+
+    `--set` and `--latest` now suppress prompting outright. A package with
+    no version given is reported under "Left untouched (no version given)"
+    and its files are not opened. `--no-input`, which the help text named
+    but the command never accepted, is now a real flag for the same
+    behaviour with nothing set.
+
+    An interrupted *interactive* run now keeps what it was already told:
+    answers given before the interrupt are applied, the rest is left alone,
+    and it still exits non-zero and says so. Writing nothing was the wrong
+    reading of a cancelled prompt - the answers above it were not
+    cancelled.
+
 - Zensical pinned to **0.0.53** (from 0.0.52), after a byte-for-byte
   comparison of the site and PDF built under both.
 

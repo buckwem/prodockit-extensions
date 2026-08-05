@@ -78,10 +78,32 @@ pinned - so one answer updates every file correctly.
 | --- | --- |
 | `-r`, `--root` | Project root to scan. Defaults to the current directory. |
 | `-p`, `--package` | Package to manage, repeatable. Defaults to `zensical` and `weasyprint`. |
-| `--set PACKAGE=VERSION` | Set a version without prompting, repeatable. |
-| `--latest` | Take PyPI's newest for every package without prompting. |
+| `--set PACKAGE=VERSION` | Set a version without prompting, repeatable. Implies `--no-input`. |
+| `--latest` | Take PyPI's newest for every package without prompting. Implies `--no-input`. |
+| `--no-input` | Never prompt. Packages given a version are updated; the rest are reported and left untouched. |
 | `--check` | Report and exit non-zero if anything is behind or inconsistent. Writes nothing. |
 | `--offline` | Skip the PyPI lookup and only report what the files declare. |
+
+`--set` is the unattended form, so it suppresses the prompt for **every**
+package, not only the one it names:
+
+```bash
+prodockit pins --set zensical=0.0.53
+```
+
+```text
+  pyproject.toml:34  zensical>=0.0.52 -> zensical>=0.0.53
+  .github/workflows/docs.yml:136  zensical==0.0.52 -> zensical==0.0.53
+
+Left untouched (no version given): weasyprint
+
+Updated 2 declaration(s). Rebuild and diff before committing.
+```
+
+A package it was not given is reported and its files are not opened - name
+it with its own `--set` to move it, or leave it where it is. That is what
+makes the command safe in a script: it can neither hang on a prompt nor
+half-finish because one appeared.
 
 `--check` is the one to put in CI:
 
