@@ -4,10 +4,10 @@
 // Client-side MathJax for the website only. The PDF never runs this:
 // WeasyPrint has no JS engine, so `prodockit pdf` pre-renders the same
 // formulas to static SVG through `tools/mathjax/tex2svg.js` instead (see
-// docs/pdf.md). Both sides deliberately use the same MathJax version -
-// 3.2.2, pinned in zensical.toml against the `mathjax-full` version in
-// tools/mathjax/package-lock.json - so a formula cannot typeset one way
-// on screen and another in print.
+// docs/pdf.md). Both sides deliberately run the same MathJax build - the
+// vendored bundle beside this file is copied verbatim from the very
+// `mathjax-full` install tools/mathjax uses - so a formula cannot typeset
+// one way on screen and another in print.
 //
 // Loaded *before* the MathJax bundle itself (order matters in
 // zensical.toml's `extra_javascript`): MathJax reads `window.MathJax` once,

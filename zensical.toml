@@ -52,15 +52,15 @@ extra_css = ["stylesheets/extra.css"]
 # `pymdownx.arithmatex` below). Order is load-bearing: the config file must
 # come first, because MathJax reads `window.MathJax` once at startup.
 #
-# Pinned to an exact 3.2.2 rather than a floating `mathjax@3`, for both of
-# this project's usual reasons. It matches the `mathjax-full` version in
-# tools/mathjax/package-lock.json, so screen and print typeset identically;
-# and the published site is an artifact, which should change when someone
-# decides it should - the same argument as the `zensical`/`weasyprint` pins
-# in .github/workflows/docs.yml.
+# MathJax is vendored rather than fetched from a CDN, so the site is
+# self-contained: no third-party request on every page view, and it works
+# offline. The copy is taken verbatim from tools/mathjax's own pinned
+# install, so the website and the PDF typeset through byte-identical
+# MathJax - see docs/javascripts/vendor/mathjax/README.md for which bundle
+# and why, and how to replace it.
 extra_javascript = [
   "javascripts/mathjax.js",
-  "https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js",
+  "javascripts/vendor/mathjax/tex-svg-full.js",
 ]
 
 nav = [
