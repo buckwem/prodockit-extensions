@@ -59,6 +59,22 @@ jobs:
       - run: pip install -e ".[dev]" "weasyprint==69.0"
       - run: ruff check .
       - run: mypy src
+      # The same version is declared in pyproject.toml and in every workflow
+      # that builds or tests, and nothing else keeps them in step. Moving one
+      # and forgetting another is easy to do by hand and invisible when it
+      # happens: CI then builds with one version while the declared floor
+      # says another, and the published output stops matching what was
+      # tested.
+      #
+      # `--offline` is load-bearing, not a speed optimisation. Plain
+      # `--check` also fails when a package is *behind PyPI*, which is a
+      # fact about the world rather than about this repository - it would
+      # turn every open pull request red the day upstream ships a release,
+      # with nothing here having changed and nothing the author could do
+      # about it. drift.yml already watches for newer releases weekly and
+      # deliberately reports rather than fails, for exactly that reason. It
+      # also means this job needs no network.
+      - run: prodockit pins --check --offline
       - run: pytest --cov=prodockit
 
   docs:

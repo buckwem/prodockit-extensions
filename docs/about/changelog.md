@@ -67,6 +67,14 @@
     follows. Older releases are not known to break; the floor records what
     this is built and tested against.
 
+    `ci.yml` now runs `prodockit pins --check --offline`, so a commit that
+    moves a version in one file and forgets another fails the build instead
+    of reaching `main`. The `--offline` form is deliberate: plain `--check`
+    also fails when a package is behind PyPI, which would turn every open
+    pull request red the day upstream ships a release, for a reason no
+    contributor could act on. Watching for newer releases stays with the
+    weekly drift job, which reports rather than fails.
+
 - `prodockit pins --set PACKAGE=VERSION` no longer prompts for the packages
   it was not given, and no longer throws away the one it was.
 
