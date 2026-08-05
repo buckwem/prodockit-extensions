@@ -90,6 +90,46 @@ def test_discover_ignores_a_package_whose_name_merely_contains_a_managed_one(
     assert discover(str(tmp_path))["zensical"].sites == []
 
 
+def test_discover_finds_the_transitive_markdown_renderers(tmp_path: Path) -> None:
+    """`markdown` and `pymdown-extensions` are managed by default even
+    though nothing installs them directly - they arrive under Zensical,
+    which declares only floors for them, so pinning Zensical alone leaves
+    the library that renders every page free to move
+    (prodockit-extensions#178).
+
+    `pymdown-extensions` is the first managed name containing a hyphen,
+    which is not incidental: the matcher's own lookbehind excludes a
+    preceding `-` so that `my-zensical-fork` is not mistaken for
+    `zensical`, and a hyphen *inside* a name has to keep working anyway.
+    """
+    _project(
+        tmp_path,
+        {
+            ".github/workflows/docs.yml": (
+                '    - run: pip install "zensical==0.0.53" "Markdown==3.10.3" '
+                '"pymdown-extensions==11.0.1"\n'
+            ),
+        },
+    )
+
+    states = discover(str(tmp_path))
+
+    assert [s.version for s in states["markdown"].sites] == ["3.10.3"]
+    assert [s.version for s in states["pymdown-extensions"].sites] == ["11.0.1"]
+
+
+def test_discover_does_not_mistake_pymdown_extensions_for_markdown(tmp_path: Path) -> None:
+    """Both are managed, and one line can declare either. A `markdown`
+    match must not be found inside `pymdown-extensions`, which would report
+    a phantom site and rewrite the wrong package's version."""
+    _project(tmp_path, {"requirements.txt": "pymdown-extensions==11.0.1\n"})
+
+    states = discover(str(tmp_path))
+
+    assert states["markdown"].sites == []
+    assert [s.version for s in states["pymdown-extensions"].sites] == ["11.0.1"]
+
+
 def test_discover_skips_build_output_and_virtualenvs(tmp_path: Path) -> None:
     """A copy of a workflow inside site/ or .venv/ is a build artifact, not
     a declaration anyone edits."""

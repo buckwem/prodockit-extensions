@@ -57,10 +57,16 @@ jobs:
       - run: npm ci --prefix tools/mermaid
       - run: npm ci --prefix tools/mathjax
 
-      # Keep these in step with docs.yml's own install line.
+      # Keep these in step with docs.yml's own install line - including
+      # Markdown and pymdown-extensions, which are transitive under zensical
+      # and unpinned by it (prodockit-extensions#178). Without them here,
+      # both halves of the comparison below would install whatever pip finds
+      # newest, so a pymdownx release that changed the rendered HTML would
+      # appear in *both* builds and diff to nothing - the one drift this job
+      # exists to catch would be the one it could not see.
       - name: Build with the pinned versions
         run: |
-          pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0"
+          pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
           prodockit pdf
           zensical build --clean --strict
           mkdir -p /tmp/pinned
@@ -69,11 +75,13 @@ jobs:
           {
             echo "pinned_zensical=$(pip show zensical | awk '/^Version:/{print $2}')"
             echo "pinned_weasyprint=$(pip show weasyprint | awk '/^Version:/{print $2}')"
+            echo "pinned_markdown=$(pip show markdown | awk '/^Version:/{print $2}')"
+            echo "pinned_pymdownx=$(pip show pymdown-extensions | awk '/^Version:/{print $2}')"
           } >> "$GITHUB_ENV"
 
       - name: Build with the newest versions
         run: |
-          pip install -qU zensical weasyprint
+          pip install -qU zensical weasyprint Markdown pymdown-extensions
           prodockit pdf
           zensical build --clean --strict
           mkdir -p /tmp/latest
@@ -82,6 +90,8 @@ jobs:
           {
             echo "latest_zensical=$(pip show zensical | awk '/^Version:/{print $2}')"
             echo "latest_weasyprint=$(pip show weasyprint | awk '/^Version:/{print $2}')"
+            echo "latest_markdown=$(pip show markdown | awk '/^Version:/{print $2}')"
+            echo "latest_pymdownx=$(pip show pymdown-extensions | awk '/^Version:/{print $2}')"
           } >> "$GITHUB_ENV"
 
       # Against the *newest* build, so a release that breaks the real
@@ -105,9 +115,11 @@ jobs:
           versions_moved="no"
           [ "$pinned_zensical" != "$latest_zensical" ] && versions_moved="yes"
           [ "$pinned_weasyprint" != "$latest_weasyprint" ] && versions_moved="yes"
+          [ "$pinned_markdown" != "$latest_markdown" ] && versions_moved="yes"
+          [ "$pinned_pymdownx" != "$latest_pymdownx" ] && versions_moved="yes"
 
           if [ "$versions_moved" = "no" ]; then
-            echo "Pins are current: zensical $pinned_zensical, weasyprint $pinned_weasyprint. Nothing to report."
+            echo "Pins are current: zensical $pinned_zensical, weasyprint $pinned_weasyprint, Markdown $pinned_markdown, pymdown-extensions $pinned_pymdownx. Nothing to report."
             exit 0
           fi
 
@@ -123,12 +135,14 @@ jobs:
           # parse. Backticks still need escaping either way: the delimiter
           # is unquoted so that the version variables expand.
           cat > /tmp/drift-issue.md <<EOF
-          A newer \`zensical\` or \`weasyprint\` is available than the docs build pins.
+          A newer build input is available than the docs build pins.
 
           | | Pinned | Newest |
           |---|---|---|
           | \`zensical\` | $pinned_zensical | $latest_zensical |
           | \`weasyprint\` | $pinned_weasyprint | $latest_weasyprint |
+          | \`Markdown\` | $pinned_markdown | $latest_markdown |
+          | \`pymdown-extensions\` | $pinned_pymdownx | $latest_pymdownx |
 
           Built the docs with each, in the same job, and compared byte for byte:
 

@@ -14,7 +14,15 @@ authors = [
 requires-python = ">=3.10"
 keywords = ["markdown", "python-markdown", "zensical", "extension", "pdf", "pandoc"]
 dependencies = [
-  "Markdown>=3.4",
+  # Raised from 3.4 to match the version docs.yml pins, following the same
+  # convention as `zensical` below: the floor names the version this is
+  # developed and built against, and the build pins that same number
+  # exactly. Older releases are not known to break - this is "what it is
+  # tested on", not "what it needs" - but leaving the two numbers apart
+  # makes `prodockit pins --check` report the package as declared
+  # inconsistently on every run, since that tool models one version per
+  # package with the operator varying per site (prodockit-extensions#178).
+  "Markdown>=3.10.3",
   # A floor, not an exact pin: prodockit is a library, and `==` here would
   # propagate to every consumer and hard-conflict with any project needing a
   # different Zensical.
@@ -32,6 +40,16 @@ dependencies = [
   # 7.2.0 -> 7.3.1) on every page. Reproducibility needs a pin on the
   # *build* side - a constraint in docs.yml - not in library metadata.
   "zensical>=0.0.53",
+  # No pymdown-extensions entry here, deliberately. prodockit never imports
+  # it - it only matches the class shapes pymdownx emits, from a stylesheet
+  # and a Lua filter, on documents a project chose to render with it. A
+  # project using none of those extensions should not be made to install it.
+  # The build pins it in docs.yml instead, where reproducibility of this
+  # project's own published output is the concern
+  # (prodockit-extensions#178).
+  #
+  # Markdown itself is declared at the top of this list, and is a direct
+  # import rather than a transitive convenience.
   "beautifulsoup4>=4.12",
   "click>=8.0",
   "pypdf>=4.0",

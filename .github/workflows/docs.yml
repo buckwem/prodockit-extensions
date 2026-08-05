@@ -134,12 +134,34 @@ jobs:
       # here, resolved into the back-of-book index and the Table of
       # Contents. That is a silently wrong document, not a failed build.
       #
-      # Raising either is deliberate work: bump here (and zensical also in
-      # pyproject.toml's floor), rebuild, and diff the built site and PDF
-      # against the previous version before committing. drift.yml watches
-      # for newer releases weekly and opens an issue when one would change
-      # the output.
-      - run: pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0"
+      # Raising any of them is deliberate work: bump here (and zensical and
+      # markdown also in pyproject.toml's floors), rebuild, and diff the
+      # built site and PDF against the previous version before committing.
+      # drift.yml watches for newer releases weekly and opens an issue when
+      # one would change the output.
+      #
+      # Markdown and pymdown-extensions are pinned even though neither is
+      # installed directly here - both arrive under zensical, which declares
+      # only floors for them. Pinning zensical therefore fixes nothing about
+      # the library that actually renders every page: a floor still resolves
+      # to whatever is newest on the day the job runs, so a release of
+      # either could change the rendered HTML on every page and this
+      # workflow would publish it, green, with nothing committed
+      # (prodockit-extensions#178).
+      #
+      # Version numbers are named in prose here without their comparison
+      # operators on purpose: `prodockit pins` finds declarations by
+      # matching `name<op>version` textually, so a specifier written inside
+      # a comment becomes a phantom declaration site it reports, and would
+      # rewrite.
+      #
+      # That is not theoretical for this project in particular.
+      # prodockit.pdf.css and prodockit.pdf.lua both match on the specific
+      # class shapes pymdownx emits - `pymdownx.blocks.tab`'s tabbed sets,
+      # arithmatex's `<div|span class="arithmatex">` - so the renderer is an
+      # input to the PDF's own correctness, not just to the website's
+      # appearance.
+      - run: pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
       # Two pandoc+WeasyPrint passes, not one: extra.pdf_include_index is on
       # in zensical.toml, and the back-of-book index can only be built once
       # WeasyPrint has laid the document out (see prodockit.pdf.index). The
