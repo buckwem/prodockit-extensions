@@ -270,13 +270,30 @@ def init_tools_command(tools_dir: str, mermaid: bool, mathjax: bool, force: bool
     "assignments",
     multiple=True,
     metavar="PACKAGE=VERSION",
-    help="Set a version without prompting, repeatable. Implies --no-input.",
+    help=(
+        "Set a version without prompting, repeatable. Implies --no-input, so "
+        "any package not named is reported and left untouched."
+    ),
 )
 @click.option(
     "--latest",
     "take_latest",
     is_flag=True,
-    help="Take PyPI's newest release for every package without prompting.",
+    help=(
+        "Take PyPI's newest release for every package without prompting. "
+        "Implies --no-input, so a package with no known newest is left "
+        "untouched rather than asked about."
+    ),
+)
+@click.option(
+    "--no-input",
+    "no_input",
+    is_flag=True,
+    help=(
+        "Never prompt. Packages given a version by --set or --latest are "
+        "updated; the rest are reported and left untouched. Implied by both "
+        "of those."
+    ),
 )
 @click.option(
     "--check",
@@ -297,6 +314,7 @@ def pins(
     packages: tuple[str, ...],
     assignments: tuple[str, ...],
     take_latest: bool,
+    no_input: bool,
     check: bool,
     offline: bool,
 ) -> None:
@@ -309,7 +327,8 @@ def pins(
     operator, so a floor stays a floor and an exact pin stays exact.
 
     Run it with no options for an interactive prompt per package: press
-    Enter to take the newest release, or type a version.
+    Enter to take the newest release, or type a version. With `--set`,
+    `--latest` or `--no-input` it never prompts, so it can run unattended.
     """
     from prodockit.pins import (
         DEFAULT_PACKAGES,
@@ -383,21 +402,39 @@ def pins(
         return
 
     # --- decide -----------------------------------------------------------
+    # Naming a version on the command line is a statement that nobody is
+    # here to answer a prompt - a release script, a drift job. Prompting
+    # for the packages it did not name would hang such a run, and with no
+    # stdin to hang on it aborted instead, writing nothing at all: not even
+    # the package it had been told explicitly to set.
+    quiet = no_input or bool(assignments) or take_latest
+    skipped: list[str] = []
+    interrupted = False
     for state in states.values():
         if not state.sites or state.package in chosen:
             continue
-        if take_latest:
-            if state.latest:
-                chosen[state.package] = state.latest
+        if take_latest and state.latest:
+            chosen[state.package] = state.latest
+            continue
+        if quiet:
+            skipped.append(state.package)
             continue
         default = state.latest or state.current
         if default is None:
             continue
-        answer = click.prompt(
-            f"\n{state.package}: version to set",
-            default=default,
-            show_default=True,
-        ).strip()
+        try:
+            answer = click.prompt(
+                f"\n{state.package}: version to set",
+                default=default,
+                show_default=True,
+            ).strip()
+        except click.Abort:
+            # Ctrl-C, or stdin ending. It cancels the packages still to
+            # come, not the answers already given - those were asked for,
+            # and discarding them writes nothing while looking like a run
+            # that simply did not get that far.
+            interrupted = True
+            break
         if answer:
             chosen[state.package] = answer
 
@@ -413,11 +450,29 @@ def pins(
             click.echo(f"Error: {error}", err=True)
             sys.exit(1)
         for site in changed:
+            if not updated:
+                # Separates the rewrites from whatever came last - the
+                # report, or a prompt left mid-line by an interrupt.
+                click.echo("")
             new_spec = f"{site.package}{site.extras}{site.op}{version}"
             click.echo(f"  {site.path}:{site.line}  {site.spec} -> {new_spec}")
             updated += 1
 
+    if skipped:
+        click.echo(f"\nLeft untouched (no version given): {', '.join(skipped)}")
+
     if updated:
         click.echo(f"\nUpdated {updated} declaration(s). Rebuild and diff before committing.")
-    else:
+    elif chosen or not skipped:
+        # Only when something *was* asked for. With nothing set and nothing
+        # prompted for, "every declaration already matches" would claim a
+        # comparison the run never made.
         click.echo("\nNothing to change - every declaration already matches.")
+
+    if interrupted:
+        click.echo(
+            "\nStopped at the prompt - anything answered above was written, "
+            "the rest was left untouched.",
+            err=True,
+        )
+        sys.exit(1)

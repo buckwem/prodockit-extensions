@@ -7,7 +7,9 @@ import os
 from pathlib import Path
 
 import pytest
+from click.testing import CliRunner
 
+from prodockit.cli import main
 from prodockit.pins import (
     PackageState,
     PinError,
@@ -382,3 +384,93 @@ def test_runner_labels_still_carry_no_extras(tmp_path: Path) -> None:
 
     assert site.extras == ""
     assert site.spec == "ubuntu-24.04"
+
+
+def _both_packages(root: Path) -> None:
+    """The ordinary shape: one package declared in package metadata, another
+    pinned for the build, both in the default managed set."""
+    _project(
+        root,
+        {
+            "pyproject.toml": 'dependencies = [\n  "zensical>=0.0.52",\n]\n',
+            "requirements.txt": "weasyprint==69.0\n",
+        },
+    )
+
+
+def test_set_updates_the_named_package_without_prompting_for_the_others(tmp_path: Path) -> None:
+    """`--set` is for unattended use - a drift job, a release script - so
+    naming one package must not leave the command waiting on stdin for the
+    rest of the managed set. With no stdin to answer it, the prompt aborted
+    the whole run and wrote nothing at all, including the package it had
+    been told explicitly to set."""
+    _both_packages(tmp_path)
+
+    result = CliRunner().invoke(
+        main,
+        ["pins", "--root", str(tmp_path), "--offline", "--set", "zensical=0.0.53"],
+        input="",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert '"zensical>=0.0.53"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
+    # Not named, so left exactly as it was rather than prompted for.
+    assert (tmp_path / "requirements.txt").read_text(encoding="utf-8") == "weasyprint==69.0\n"
+
+
+def test_set_reports_the_packages_it_left_untouched(tmp_path: Path) -> None:
+    """Silently ignoring the rest of the managed set would read as "nothing
+    to do there" - say which packages were skipped and why."""
+    _both_packages(tmp_path)
+
+    result = CliRunner().invoke(
+        main,
+        ["pins", "--root", str(tmp_path), "--offline", "--set", "zensical=0.0.53"],
+        input="",
+    )
+
+    assert "Left untouched (no version given): weasyprint" in result.output
+
+
+def test_no_input_alone_writes_nothing_and_still_reports(tmp_path: Path) -> None:
+    """`--no-input` without a version to apply is a report, not a failure."""
+    _both_packages(tmp_path)
+
+    result = CliRunner().invoke(
+        main, ["pins", "--root", str(tmp_path), "--offline", "--no-input"], input=""
+    )
+
+    assert result.exit_code == 0, result.output
+    assert '"zensical>=0.0.52"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
+    assert (tmp_path / "requirements.txt").read_text(encoding="utf-8") == "weasyprint==69.0\n"
+
+
+def test_an_interrupted_prompt_keeps_the_answers_already_given(tmp_path: Path) -> None:
+    """Answering one prompt and then breaking out must not discard that
+    answer. Writing nothing while reporting an abort is the failure that
+    hides work the user explicitly asked for."""
+    _both_packages(tmp_path)
+
+    result = CliRunner().invoke(
+        main,
+        ["pins", "--root", str(tmp_path), "--offline"],
+        input="0.0.53\n",  # answers zensical, then stdin ends at weasyprint
+    )
+
+    assert '"zensical>=0.0.53"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
+    assert (tmp_path / "requirements.txt").read_text(encoding="utf-8") == "weasyprint==69.0\n"
+    # The run *was* cut short, so it should not report success.
+    assert result.exit_code != 0
+
+
+def test_set_still_rejects_a_package_that_is_not_managed(tmp_path: Path) -> None:
+    _both_packages(tmp_path)
+
+    result = CliRunner().invoke(
+        main,
+        ["pins", "--root", str(tmp_path), "--offline", "--set", "pandoc=3.1"],
+        input="",
+    )
+
+    assert result.exit_code == 1
+    assert "not being managed" in result.output
