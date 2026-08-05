@@ -82,8 +82,18 @@ class PdfBuildError(RuntimeError):
 # `arithmatex` class check). Matched with a regex rather than a second
 # BeautifulSoup parse of every page - this only decides whether to print a
 # warning, and each page is already parsed properly moments later.
+#
+# Both anchor on a real opening tag, and that is load-bearing rather than
+# tidiness: a page *documenting* either feature quotes the markup in a code
+# span, where Python-Markdown escapes `<` and `>` but leaves the attribute
+# text alone (`<code>&lt;div class="arithmatex"&gt;</code>`). A pattern
+# matching the bare `class="..."` therefore fires on prose about maths in a
+# document containing none, which is exactly what this project's own
+# `devcons/limitations.md` did to every build here
+# (prodockit-extensions#176). Requiring the `<` the escape consumed is what
+# separates real markup from a description of it.
 _MERMAID_BLOCK_RE = re.compile(r'<pre\b[^>]*\bclass="[^"]*\bmermaid\b', re.IGNORECASE)
-_ARITHMATEX_RE = re.compile(r'\bclass="[^"]*\barithmatex\b', re.IGNORECASE)
+_ARITHMATEX_RE = re.compile(r'<(?:div|span)\b[^>]*\bclass="[^"]*\barithmatex\b', re.IGNORECASE)
 
 
 def _warn_about_unrendered_content(

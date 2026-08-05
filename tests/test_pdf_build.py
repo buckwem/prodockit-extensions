@@ -881,6 +881,83 @@ def test_does_not_warn_when_the_document_uses_neither(
     assert "⚠️" not in capsys.readouterr().out
 
 
+#: A page documenting either renderer, as this project's own
+#: `devcons/limitations.md` does: the markup is quoted in a code span, so
+#: Python-Markdown has escaped `<` and `>` and left the attribute text
+#: alone. Byte-for-byte the shape that reached the built site, not an
+#: invented approximation - the escaped angle brackets are the whole point.
+_DOCUMENTS_THE_RENDERERS_PAGE = Page(
+    docs_rel_path="limitations.md",
+    html=(
+        '<p>Generic-mode math (<code>&lt;div class="arithmatex"&gt;</code>/'
+        '<code>&lt;span class="arithmatex"&gt;</code>) has no native Math AST node.</p>'
+        '<p>Each <code>&lt;pre class="mermaid"&gt;</code> fence is pre-rendered to SVG.</p>'
+    ),
+)
+
+
+def test_does_not_warn_about_prose_quoting_the_renderers_own_markup(
+    tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A page that *documents* Mermaid or maths handling must not be
+    mistaken for one that *uses* it.
+
+    Sharper than the "uses neither" case above, which only mentions the
+    words in prose: here the page quotes the real markup, so the raw HTML
+    genuinely contains `class="arithmatex"` and `class="mermaid"` - just
+    inside a code span, with the `<` escaped to `&lt;`.
+
+    This is a regression test with a real regression behind it (#176).
+    `_ARITHMATEX_RE` matched the bare `class="..."` and so fired on this
+    project's own `devcons/limitations.md`, warning that a document with no
+    formulas in it would ship raw LaTeX. `_MERMAID_BLOCK_RE` was already
+    anchored on `<pre` and never had the problem, which is why only maths
+    is named in that issue - both are asserted here so the two cannot drift
+    apart again.
+    """
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf([_DOCUMENTS_THE_RENDERERS_PAGE], str(tmp_path / "out.pdf"))
+    assert "⚠️" not in capsys.readouterr().out
+
+
+def test_still_warns_when_real_maths_sits_beside_prose_quoting_the_markup(
+    tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The other half of the check above, and the one that makes it worth
+    having: narrowing the pattern must not have disabled the warning.
+
+    A page can legitimately be both - documenting the markup *and* using a
+    formula - and the escaped prose must not mask the real thing. Without
+    this, emptying `_ARITHMATEX_RE` entirely would leave the test above
+    passing.
+    """
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf([_DOCUMENTS_THE_RENDERERS_PAGE, _MATHS_PAGE], str(tmp_path / "out.pdf"))
+    assert "contains TeX maths" in capsys.readouterr().out
+
+
+def test_warns_about_inline_maths_not_only_display_maths(
+    tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`_MATHS_PAGE` above is a `<div>` (display maths). Inline maths is a
+    `<span>`, and the pattern now names both elements explicitly rather
+    than matching any tag, so the span case needs its own assertion -
+    confirmed against real `pymdownx.arithmatex` generic-mode output, which
+    emits exactly these two wrappers and no others.
+    """
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [
+            Page(
+                docs_rel_path="inline.md",
+                html='<p>Where <span class="arithmatex">\\(x^2\\)</span> holds.</p>',
+            )
+        ],
+        str(tmp_path / "out.pdf"),
+    )
+    assert "contains TeX maths" in capsys.readouterr().out
+
+
 def test_warns_about_both_independently(
     tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
 ) -> None:

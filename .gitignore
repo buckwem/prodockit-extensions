@@ -20,3 +20,8 @@ docs/.prodockit-pdf-mermaid/
 # ```mermaid diagrams for the PDF. Installed with
 # `npm ci --prefix tools/mermaid`.
 tools/mermaid/node_modules/
+# MathJax, the same arrangement for TeX maths - `prodockit pdf` pre-renders
+# $...$ / $$...$$ through tools/mathjax/tex2svg.js. Installed with
+# `npm ci --prefix tools/mathjax`. Both manifests and lockfiles are
+# committed; only the installs are ignored.
+tools/mathjax/node_modules/
