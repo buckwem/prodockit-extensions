@@ -214,15 +214,34 @@ def _index_page_index(page_texts: list[str], title: str) -> int:
     Fails rather than skips if it isn't there: this project turns
     `pdf_include_index` on in `zensical.toml`, so a missing index page is
     the regression, not a reason to opt out of the checks below.
+
+    Matched on the page's whole first *line*, and searched from the back.
+    `startswith(title)` was neither, and both halves of that were wrong for
+    the same reason: the index title is an ordinary English word, so any
+    page whose text merely begins with something spelled like it matched
+    first and won. `docs/pdf.md`'s API reference for `IndexEntry` did
+    exactly that once a page break happened to fall in front of it, since
+    `"IndexEntry(...".startswith("Index")` is true. Every page from there
+    to the end was then read as index entries, parsing code samples into
+    terms and page numbers that pointed past the end of the document
+    (prodockit-extensions#186).
+
+    Searching backwards is the safer direction on its own terms:
+    `prodockit.pdf.index` places the generated index last precisely so its
+    own length cannot shift the page numbers it records, so the last match
+    is the right one even if an earlier page ever legitimately opens with
+    the same word.
     """
-    for i, text in enumerate(page_texts):
-        if text.strip().startswith(title):
+    for i in range(len(page_texts) - 1, -1, -1):
+        lines = page_texts[i].strip().splitlines()
+        if lines and lines[0].strip() == title:
             return i
     raise AssertionError(
-        f"No page starts with the index title {title!r} - the back-of-book "
-        "index is missing from the built PDF. Is extra.pdf_include_index "
-        "still set in zensical.toml, and does docs/extensions/index-terms.md "
-        "still mark terms live in its '=== \"Result\"' tabs?"
+        f"No page begins with the index title {title!r} on a line of its own "
+        "- the back-of-book index is missing from the built PDF. Is "
+        "extra.pdf_include_index still set in zensical.toml, and does "
+        "docs/extensions/index-terms.md still mark terms live in its "
+        "'=== \"Result\"' tabs?"
     )
 
 
@@ -337,6 +356,7 @@ def test_every_index_entry_cites_a_page_containing_its_term(prodockit_pdf_page_t
     normalised = [" ".join(text.split()).casefold() for text in prodockit_pdf_page_texts]
 
     wrong = []
+    off_the_end = []
     for term, pages in _parse_index_entries(index_text):
         needle = " ".join(term.split()).casefold()
         for page in pages:
@@ -344,8 +364,24 @@ def test_every_index_entry_cites_a_page_containing_its_term(prodockit_pdf_page_t
             # only its own cited pages are checked - which is all this
             # loop ever sees, a grouping node with no pages of its own
             # rendering with no page list at all.
-            if needle not in normalised[page - 1]:
+            #
+            # Bounds-checked rather than indexed straight into: an entry
+            # citing a page the document does not have used to surface as a
+            # bare IndexError from this line, saying nothing about which
+            # entry or why. That is exactly how #186 presented - the real
+            # fault being that _index_page_index had picked the wrong page,
+            # so ordinary prose was being parsed as entries - and the
+            # traceback pointed here rather than at the cause.
+            if not 1 <= page <= len(normalised):
+                off_the_end.append((term, page))
+            elif needle not in normalised[page - 1]:
                 wrong.append((term, page))
+    assert not off_the_end, (
+        f"Index entries cite a page outside the document (it has "
+        f"{len(normalised)} pages): {off_the_end} - most likely the index "
+        "itself was not located correctly, so ordinary prose is being read "
+        "as index entries"
+    )
     assert not wrong, (
         "Index entries cite a page that doesn't contain the term: "
         f"{wrong} - the marker resolved to the wrong page"
