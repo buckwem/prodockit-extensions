@@ -55,6 +55,35 @@
     to make a *silent* degradation visible, and one that cries wolf teaches
     the reader to ignore the only signal there is.
 
+- The MathJax toolchain `prodockit pdf` uses to pre-render TeX maths is now
+  committed and installed in CI, alongside the Mermaid one
+  ([#175](https://github.com/buckwem/prodockit-extensions/pull/175)).
+
+    `tools/mathjax/` gains `package.json`, `package-lock.json` and
+    `tex2svg.js` exactly as `prodockit init-tools` scaffolds them, with
+    `npm ci --prefix tools/mathjax` added to `docs.yml` and `drift.yml`,
+    both of which installed Mermaid only. Both sibling repos already
+    tracked all three files; this brings extensions in line.
+
+    **This fixed no live defect.** These docs contain no maths, so nothing
+    was being published as raw LaTeX. The warning that prompted the work
+    was the false positive fixed above. What it buys is that the first page
+    to add a formula renders it, rather than shipping the source the way
+    the Mermaid diagram in `extensions/bibliography.md` once did.
+
+    The lockfile is committed deliberately, matching `tools/mermaid` -
+    without it CI resolves whatever MathJax is newest rather than the
+    version the output was checked against, which is the drift
+    `prodockit pins` exists to catch.
+
+    Worth knowing when relying on this: as merged, nothing here is guarded
+    by a test that can fail. `test_no_page_contains_unrendered_tex_source`
+    passes with the toolchain removed again, because with no maths in these
+    docs it can only confirm that nothing unrendered reaches the PDF, not
+    that the renderer is present. Closing that needs
+    `pymdownx.arithmatex` enabled on this project's own docs, so the
+    toolchain is exercised by the build that ships it.
+
 - Documentation restructured: the six build-and-operate pages are now
   grouped under a **Dev Considerations** section, and `Refs` is renamed
   **Cross-References**
