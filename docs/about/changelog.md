@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- Zensical pinned to **0.0.53** (from 0.0.52), after a byte-for-byte
+  comparison of the site and PDF built under both.
+
+    The PDF is **byte-identical** - same 994,803 bytes, same SHA-256, 151
+    pages, 268 outline entries. The site changes 22 HTML files, each by
+    exactly three lines: the `generator` meta tag and two asset-bundle
+    hashes. No rendered page content changes.
+
+    The bundles themselves grew 146 bytes (CSS) and 121 (JS). The whole CSS
+    delta is `.md-search__button` - offsets and `text-align` moved out of
+    the base rule into `[dir=ltr]`/`[dir=rtl]` variants, which is the
+    release's right-to-left search fix. Every class prodockit couples to is
+    unchanged (`md-typeset` 778 occurrences either side, `md-nav` 237,
+    `md-content` 60; glightbox and mermaid hooks identical). Unlike 0.0.52,
+    this release redraws no icon: icons are inlined as SVG into the HTML,
+    and the HTML is identical apart from those three lines.
+
+    Two builds of 0.0.52 were compared first, to establish that a
+    difference means something: they were identical down to the PDF's raw
+    SHA-256, so the build is fully deterministic and nothing above is
+    build noise.
+
+    The release notes list a `pymdownx` bump to 11.0, but that is a
+    **floor raise only** - 0.0.52 declares `pymdown-extensions>=10.21.3`
+    and 0.0.53 declares `>=11.0`, and both already resolve to 11.0.1. It
+    was therefore not a variable in this comparison. See
+    [#178](https://github.com/buckwem/prodockit-extensions/issues/178):
+    the library that actually renders Markdown is not pinned at all.
+
+    Every undocumented Zensical API on the
+    [Zensical coupling](../devcons/zensical-coupling.md) page was
+    re-checked against 0.0.53 and still resolves; `__all__` is still
+    exactly `build`/`serve`/`version`. The page's "last verified against"
+    now reads 0.0.53.
+
 - Documentation restructured: the six build-and-operate pages are now
   grouped under a **Dev Considerations** section, and `Refs` is renamed
   **Cross-References**
