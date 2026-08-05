@@ -161,6 +161,21 @@ numbering = "continuous"
 [project.markdown_extensions."prodockit.bibliography"]
 [project.markdown_extensions."prodockit.tables"]
 [project.markdown_extensions."prodockit.index"]
+# `generic = true` is required, not stylistic: it emits
+# `<div|span class="arithmatex">` wrappers, which is the only form
+# prodockit.pdf can pre-render - its Lua filter matches that class in its
+# own Div()/Span() handlers, because Pandoc's *HTML* reader has no native
+# Math AST node (see docs/devcons/limitations.md). Script mode's
+# `<script type="math/tex">` would reach the PDF untouched.
+#
+# Enabled here so the toolchain this project ships is exercised by the
+# project itself: tools/mathjax could not fire without it - no arithmatex
+# markup means nothing for the Lua filter to act on - and
+# test_no_page_contains_unrendered_tex_source could never fail. Both
+# prodockit-template and prodockit-userguide already enable it; this repo
+# was the only one of the three that did not.
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
 [project.markdown_extensions.pymdownx.emoji]
 emoji_index = "zensical.extensions.emoji.twemoji"
 emoji_generator = "zensical.extensions.emoji.to_svg"
