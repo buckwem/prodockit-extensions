@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- `prodockit pdf` now prints the failing command's own stderr instead of
+  only its exit code
+  ([#188](https://github.com/buckwem/prodockit-extensions/issues/188)).
+
+    `PdfBuildError` and `SourceBundleError` have always captured the stderr
+    of the process that failed - `pandoc`, and through it whichever PDF
+    engine pandoc invoked - and the CLI printed only the exception's
+    message. That message names a command and an exit code, so the single
+    most useful thing prodockit knew about the failure was collected and
+    then thrown away.
+
+    Found the hard way: following the User Guide on a clean macOS machine
+    produced `Error: pandoc exited with status 43` and nothing more. Status
+    43 is pandoc's `PandocPDFError` - the PDF engine failed, not pandoc -
+    and the engine's own message said WeasyPrint could not load
+    `libgobject-2.0-0`, named the libraries it needs and linked its
+    installation instructions. Recovering it needed a throwaway script
+    calling the Python API to reach `PdfBuildError.stderr`. The same build
+    now says so directly.
+
+    Printed whole rather than summarised: warnings come first and the real
+    error last, so a head-truncated excerpt would hide exactly the part
+    worth reading. Nothing is printed when the failure captured no stderr.
+
 - A new `unbookmarked` heading class removes a heading from the PDF's
   bookmark outline - the navigation pane a PDF reader shows down the side -
   separately from `unlisted`, which only keeps it off the generated Table
