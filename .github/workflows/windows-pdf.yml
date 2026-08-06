@@ -1,0 +1,128 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+# Builds a real PDF on Windows, to check that the native stack WeasyPrint
+# binds to is installable there by the steps the documentation gives.
+#
+# WeasyPrint is not a pure-Python package: it dlopens glib, Pango, HarfBuzz
+# and fontconfig at run time, and `pip install weasyprint` installs none of
+# them. Miss them and nothing fails until the PDF build, which stops with
+# `pandoc exited with status 43` - pandoc's own PandocPDFError, meaning the
+# engine it handed off to never started. That reached a reader on a clean
+# macOS machine (prodockit-extensions#188, buckwem/prodockit-userguide#66),
+# and the Windows instructions written alongside the macOS fix have never
+# been run by anyone. This runs them.
+#
+# Deliberately *not* on push or pull_request. It tests whether MSYS2 and
+# its Pango package still install, which is a fact about the world rather
+# than about this repository - the same reasoning drift.yml's own header
+# gives for watching upstream on a schedule. It also takes minutes, and
+# nothing in a typical change can affect the answer.
+#
+# It *does* fail rather than report, unlike drift.yml. A newer release
+# existing is information; the documented install path no longer working is
+# a broken instruction someone is following right now.
+name: Windows PDF build
+
+on:
+  schedule:
+    # Mondays, 07:00 UTC - an hour after drift.yml, so a Monday morning
+    # brings at most one thing to look at rather than two at once.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      # Chocolatey is preinstalled on the runner, so this needs no new
+      # third-party action - this repository otherwise uses only `actions/*`
+      # and `pypa/*`, and a build input that installs itself is worth
+      # keeping to that list.
+      #
+      # The documentation tells a reader to use `winget` for pandoc and the
+      # MSYS2 installer for the rest. That is a real divergence: this job
+      # verifies the *packages* work, not the literal instructions. The GUI
+      # "Edit the system environment variables" step in particular has no
+      # equivalent here and still needs a human on a real Windows 11
+      # machine.
+      - run: choco install pandoc --no-progress -y
+      - run: choco install msys2 --no-progress -y
+
+      # Pango pulls in glib, HarfBuzz and fontconfig, which is why the
+      # documentation names only this one package on macOS and Windows.
+      # Debian is the exception - libharfbuzz-subset0 is a separate package
+      # there. `--noconfirm` because there is no terminal to answer at.
+      #
+      # `-Sy` first because a freshly installed MSYS2 carries whatever
+      # package database shipped in the installer, and pacman refuses a
+      # package it cannot find in a stale one. Not a full `-Syu`: upgrading
+      # the core runtime mid-session makes pacman terminate its own shell,
+      # which reads as an unexplained failure here and is unnecessary when
+      # the install is thrown away at the end of the job.
+      - name: Install Pango through MSYS2
+        run: |
+          C:\tools\msys64\usr\bin\bash.exe -lc "pacman -Sy --noconfirm"
+          C:\tools\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-x86_64-pango"
+
+      # Where WeasyPrint finds libgobject-2.0-0.dll and friends. On a real
+      # machine this is the PATH entry a reader adds by hand, and getting it
+      # wrong is the failure this job is most likely to catch.
+      - name: Put the MSYS2 libraries on PATH
+        run: echo "C:\tools\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      # The same pins docs.yml builds with, so this tests the combination
+      # that actually ships rather than whatever resolves today. `prodockit
+      # pins` manages every one of these declarations together, including
+      # the ones in this file.
+      - run: pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
+
+      # The check the documentation tells a reader to run, and the one that
+      # separates "the libraries are missing" from every other build
+      # failure. Kept as its own step so a red run says which of the two it
+      # was without reading the log.
+      - name: WeasyPrint can load its native libraries
+        run: python -c "import weasyprint; print(weasyprint.__version__)"
+
+      # No Node tooling installed on purpose: Mermaid and TeX pre-rendering
+      # are a separate concern with their own platform story, and adding
+      # them here would double the job to test something this is not about.
+      # The build warns about both and still succeeds, which is the
+      # documented behaviour.
+      #
+      # PYTHONUTF8 is deliberately *not* set either. Windows still defaults
+      # to a locale encoding for text I/O, and a place where prodockit
+      # forgets `encoding="utf-8"` should surface here rather than be
+      # papered over by a variable no reader will have set.
+      - run: prodockit pdf
+
+      - name: The PDF is real
+        shell: pwsh
+        run: |
+          $pdf = "docs/site_documentation.pdf"
+          if (-not (Test-Path $pdf)) { throw "$pdf was not produced" }
+          $size = (Get-Item $pdf).Length
+          # A stub or a truncated write is the failure worth catching here -
+          # a genuine build of these docs runs to well over a megabyte.
+          if ($size -lt 100000) { throw "$pdf is only $size bytes - too small to be a real build" }
+          $head = [System.IO.File]::ReadAllBytes($pdf)[0..3] -join ','
+          if ($head -ne '37,80,68,70') { throw "$pdf does not start with %PDF" }
+          Write-Host "OK - $pdf is $size bytes and starts with %PDF"
+
+      # Kept so a failure can be looked at rather than guessed at, and so a
+      # passing run can be compared against the Linux build by eye when a
+      # rendering difference is suspected.
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-pdf
+          path: docs/site_documentation.pdf
+          if-no-files-found: ignore
