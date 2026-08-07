@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.19.1 (2026-08-07)
 
 - `prodockit pdf` now renders Mermaid diagrams on Windows
   ([#195](https://github.com/buckwem/prodockit-extensions/issues/195)).
