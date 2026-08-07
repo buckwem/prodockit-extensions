@@ -130,6 +130,90 @@ def test_discover_does_not_mistake_pymdown_extensions_for_markdown(tmp_path: Pat
     assert [s.version for s in states["pymdown-extensions"].sites] == ["11.0.1"]
 
 
+def test_discover_ignores_a_specifier_written_in_a_comment(tmp_path: Path) -> None:
+    """A comment explaining a pin is prose, not a declaration.
+
+    The matching is textual, so `zensical>=0.0.52` reads the same whether
+    it is a dependency or a sentence about one. Counting the sentence gave
+    a phantom declaration site, a false "declared inconsistently" from
+    `--check`, and - worst - `--set` rewriting the prose into a statement
+    that was no longer true (prodockit-extensions#184).
+
+    Found while documenting why a transitive package was pinned, where
+    naming the floors it inherits was the natural thing to write.
+    """
+    _project(
+        tmp_path,
+        {
+            ".github/workflows/docs.yml": (
+                "      # zensical declares only a floor, zensical>=0.0.52, so pinning\n"
+                "      # it here is what actually fixes the version:\n"
+                '      - run: pip install "zensical==0.0.53"\n'
+            ),
+        },
+    )
+
+    sites = discover(str(tmp_path))["zensical"].sites
+
+    assert [s.version for s in sites] == ["0.0.53"], (
+        "only the install line is a declaration; the two comment lines are prose"
+    )
+
+
+def test_discover_still_finds_a_declaration_with_a_trailing_comment(tmp_path: Path) -> None:
+    """The counterpart, and what stops the fix being "ignore any line with
+    a #". Only the part *after* the marker is prose; a comment explaining a
+    pin must not hide the pin it explains."""
+    _project(
+        tmp_path,
+        {
+            "requirements.txt": "zensical==0.0.53  # bumped deliberately, see docs.yml\n",
+        },
+    )
+
+    sites = discover(str(tmp_path))["zensical"].sites
+
+    assert [(s.line, s.version) for s in sites] == [(1, "0.0.53")]
+
+
+def test_discover_does_not_treat_a_hash_inside_quotes_as_a_comment(tmp_path: Path) -> None:
+    """Stopping at the first `#` regardless of quoting would silently skip
+    the rest of the line - the same quiet wrongness in a different place."""
+    _project(
+        tmp_path,
+        {
+            "requirements.txt": "# see https://example.com/deps#pinning\nzensical==0.0.53\n",
+            ".gitlab-ci.yml": '  image: "python:3.13"  # not zensical==9.9.9\n',
+        },
+    )
+
+    sites = discover(str(tmp_path))["zensical"].sites
+
+    assert [s.version for s in sites] == ["0.0.53"], (
+        "the URL fragment is inside a comment line and the 9.9.9 is inside one too"
+    )
+
+
+def test_apply_version_leaves_a_trailing_comment_on_the_same_line_alone(tmp_path: Path) -> None:
+    """`subn` rewrites every occurrence it is given. Handed the whole line,
+    a declaration whose own trailing comment quotes the same specifier
+    would have both rewritten, leaving prose asserting a version that is no
+    longer there."""
+    _project(
+        tmp_path,
+        {"requirements.txt": "zensical==0.0.52  # matches the zensical==0.0.52 pin in docs.yml\n"},
+    )
+    state = discover(str(tmp_path))["zensical"]
+
+    apply_version(str(tmp_path), state, "0.0.53")
+    text = (tmp_path / "requirements.txt").read_text(encoding="utf-8")
+
+    assert text.startswith("zensical==0.0.53"), "the declaration should move"
+    assert "# matches the zensical==0.0.52 pin in docs.yml" in text, (
+        "the comment is prose about another file and must not be rewritten"
+    )
+
+
 def test_discover_skips_build_output_and_virtualenvs(tmp_path: Path) -> None:
     """A copy of a workflow inside site/ or .venv/ is a build artifact, not
     a declaration anyone edits."""
@@ -192,9 +276,9 @@ def test_apply_version_rewrites_every_site_and_keeps_each_operator(tmp_path: Pat
 
     assert len(changed) == 3
     assert '"zensical>=0.0.53"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"zensical==0.0.53"' in (
-        tmp_path / ".github" / "workflows" / "docs.yml"
-    ).read_text(encoding="utf-8")
+    assert '"zensical==0.0.53"' in (tmp_path / ".github" / "workflows" / "docs.yml").read_text(
+        encoding="utf-8"
+    )
     # Whitespace around the operator as written is tolerated.
     assert "zensical==0.0.53" in (tmp_path / ".gitlab-ci.yml").read_text(encoding="utf-8")
 
@@ -323,9 +407,9 @@ def test_apply_version_rewrites_a_runner_label_keeping_its_separator(tmp_path: P
     apply_version(str(tmp_path), ubuntu, "26.04")
     apply_version(str(tmp_path), python, "3.14")
 
-    assert "runs-on: ubuntu-26.04" in (
-        tmp_path / ".github" / "workflows" / "ci.yml"
-    ).read_text(encoding="utf-8")
+    assert "runs-on: ubuntu-26.04" in (tmp_path / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
     assert "image: python:3.14" in (tmp_path / ".gitlab-ci.yml").read_text(encoding="utf-8")
 
 
@@ -378,9 +462,9 @@ def test_multiple_extras_round_trip(tmp_path: Path) -> None:
     assert state.sites[0].extras == "[index,testing]"
     apply_version(str(tmp_path), state, "0.17.4")
 
-    assert "prodockit[index,testing]==0.17.4" in (
-        tmp_path / "requirements.txt"
-    ).read_text(encoding="utf-8")
+    assert "prodockit[index,testing]==0.17.4" in (tmp_path / "requirements.txt").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_a_plain_requirement_gains_no_bracket(tmp_path: Path) -> None:
@@ -410,9 +494,9 @@ def test_extras_and_plain_declarations_of_one_package_are_both_found(tmp_path: P
     apply_version(str(tmp_path), state, "0.17.4")
 
     assert "prodockit[index]>=0.17.4" in (tmp_path / "requirements.txt").read_text(encoding="utf-8")
-    assert '"prodockit==0.17.4"' in (
-        tmp_path / ".github" / "workflows" / "docs.yml"
-    ).read_text(encoding="utf-8")
+    assert '"prodockit==0.17.4"' in (tmp_path / ".github" / "workflows" / "docs.yml").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_runner_labels_still_carry_no_extras(tmp_path: Path) -> None:

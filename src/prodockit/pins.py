@@ -105,6 +105,46 @@ _SPEC_RE_TEMPLATE = (
     r"(?P<version>[0-9][\w.*+!-]*)"
 )
 
+def comment_start(text: str) -> int:
+    """Where a `#` comment begins on `text`, or `len(text)` if it has none.
+
+    Every file type scanned here - `pyproject.toml`, `setup.cfg`, GitHub
+    and GitLab workflow YAML, `requirements`/`constraints` files - comments
+    with `#`, so one rule covers all of them.
+
+    This exists because the matching is textual, and a version specifier
+    reads the same whether it is a declaration or prose *about* one. A
+    comment explaining why a package is pinned would otherwise be reported
+    as a declaration site, counted towards the consistency check, and
+    rewritten by `--set` - turning correct prose into a statement that is
+    now false, in a file nobody thought they were changing
+    (prodockit-extensions#184).
+
+    Two things it deliberately does not do:
+
+    - **Nothing before the `#` is discarded.** A trailing comment after a
+      real declaration (``zensical==0.0.53  # pinned deliberately``) must
+      leave the declaration findable, so callers compare match positions
+      against this index rather than dropping the whole line.
+    - **A `#` inside quotes is not a comment.** ``image: "python:3.13#tag"``
+      is contrived here, but treating it as a comment would silently stop
+      scanning mid-line, which is the same class of quiet wrongness this
+      function exists to prevent. Escapes are not tracked - no file type
+      scanned here needs them, and guessing would be worse than the simple
+      rule.
+    """
+    quote = ""
+    for index, char in enumerate(text):
+        if quote:
+            if char == quote:
+                quote = ""
+        elif char in "\"'":
+            quote = char
+        elif char == "#":
+            return index
+    return len(text)
+
+
 #: A GitHub Actions runner label - `runs-on: ubuntu-24.04`. Not a pip
 #: specifier: there is no operator, the version is joined to the name by a
 #: hyphen, and it names an image rather than a package. It is pinned for
@@ -283,8 +323,13 @@ def discover(
             # Unreadable or binary - not a declaration site anyone edits.
             continue
         for number, text in enumerate(lines, start=1):
+            # Anything from here on is prose about a version, not a
+            # declaration of one - see comment_start().
+            code_ends_at = comment_start(text)
             for kind, pattern in patterns:
                 for match in pattern.finditer(text):
+                    if match.start() >= code_ends_at:
+                        continue
                     package = match.group("name").lower()
                     if package not in states:
                         continue
@@ -380,7 +425,18 @@ def apply_version(root: str, state: PackageState, version: str) -> list[PinSite]
                 rf"{re.escape(site.op)}\s*{re.escape(site.version)}(?![\w.])",
                 re.IGNORECASE,
             )
-            replaced, count = spaced.subn(new, lines[index])
+            # Substituted only over the part of the line before any comment,
+            # then rejoined. `subn` replaces every occurrence it is given, so
+            # over the whole line a declaration carrying a trailing comment
+            # that happens to quote the same specifier - `zensical==0.0.52
+            # # matches the pin in docs.yml` - would have both rewritten,
+            # leaving prose asserting something no longer true. Discovery
+            # already ignores comments (see comment_start); this is the same
+            # rule applied on the way back out.
+            code_ends_at = comment_start(lines[index])
+            code, trailing_comment = lines[index][:code_ends_at], lines[index][code_ends_at:]
+            replaced, count = spaced.subn(new, code)
+            replaced += trailing_comment
             if not count:
                 raise PinError(
                     f"{rel_path}:{site.line} no longer contains {old!r} - re-run discovery"

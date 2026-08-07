@@ -149,11 +149,13 @@ jobs:
       # workflow would publish it, green, with nothing committed
       # (prodockit-extensions#178).
       #
-      # Version numbers are named in prose here without their comparison
-      # operators on purpose: `prodockit pins` finds declarations by
-      # matching `name<op>version` textually, so a specifier written inside
-      # a comment becomes a phantom declaration site it reports, and would
-      # rewrite.
+      # The floors zensical declares for them are `markdown>=3.7` and
+      # `pymdown-extensions>=11.0`. Naming them here is safe: `prodockit
+      # pins` skips comments when it scans, so a specifier written in prose
+      # is not mistaken for a declaration and `--set` will not rewrite this
+      # sentence (prodockit-extensions#184). It was not safe before that
+      # fix, which is why this comment previously named the versions
+      # without their operators.
       #
       # That is not theoretical for this project in particular.
       # prodockit.pdf.css and prodockit.pdf.lua both match on the specific

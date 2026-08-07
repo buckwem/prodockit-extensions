@@ -411,6 +411,13 @@ Specific to pinning:
   runner image, so a drift job that installs both builds in one job cannot
   see them change between weeks. Pinning the image is the lever for those -
   see below.
+- **Comments are not scanned.** A version specifier written in prose -
+  explaining why something is pinned, say - is deliberately not treated as
+  a declaration, so it is neither reported nor rewritten by `--set`. Only
+  the part of a line before a `#` is read
+  ([#184](https://github.com/buckwem/prodockit-extensions/issues/184)); a
+  trailing comment after a real declaration still leaves that declaration
+  findable.
 - **`prodockit pins` needs network** for `--latest` and the suggested
   default. Use `--offline` to report what the files declare without asking
   PyPI.

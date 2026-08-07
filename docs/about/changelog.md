@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- `prodockit pins` no longer treats a version specifier written in a
+  comment as a declaration
+  ([#184](https://github.com/buckwem/prodockit-extensions/issues/184)).
+
+    Declarations are matched textually, and `zensical>=0.0.52` reads the
+    same whether it is a dependency or a sentence about one. A comment
+    explaining why a package was pinned therefore became a phantom
+    declaration site: reported in the inventory, counted towards the
+    consistency check, and rewritten by `--set` - turning correct prose
+    into a statement that was no longer true, in a file nobody thought
+    they were changing.
+
+    That mattered more after 0.18.1 made `pins --check --offline` a
+    pull-request gate and widened the managed set to four packages
+    including `markdown`, a word that turns up in comments far more often
+    than `zensical`. One explanatory sentence could redden a build.
+
+    Only the part of a line before a `#` is scanned now, in both
+    directions: discovery ignores comments, and `--set` substitutes only
+    over the code part, so a declaration carrying a trailing comment that
+    quotes the same specifier no longer has both rewritten. A `#` inside
+    quotes is not a comment, and a trailing comment still leaves its own
+    declaration findable - narrowing far enough to break either would have
+    been worse than the bug.
+
 - `prodockit pdf` now prints the failing command's own stderr instead of
   only its exit code
   ([#188](https://github.com/buckwem/prodockit-extensions/issues/188)).
