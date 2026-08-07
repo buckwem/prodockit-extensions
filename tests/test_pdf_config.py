@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from prodockit.pdf import config
 from prodockit.pdf.config import (
     _find_mmdc_bin,
     _find_tex2svg_script,
@@ -64,6 +65,50 @@ def test_find_mmdc_bin_prefers_an_explicit_configured_path_that_exists(tmp_path:
     configured = tmp_path / "my-mmdc"
     configured.write_text("", encoding="utf-8")
     assert _find_mmdc_bin(str(configured)) == str(configured)
+
+
+def _npm_bin_dir_as_windows_writes_it(root: Path) -> Path:
+    """Builds a `node_modules/.bin` the way `npm` does on Windows: the
+    extensionless POSIX shell script that Windows cannot start, alongside
+    the `.cmd` and `.ps1` shims that it can (`.ps1` only via PowerShell)."""
+    bin_dir = root / "tools" / "mermaid" / "node_modules" / ".bin"
+    bin_dir.mkdir(parents=True)
+    for name in ("mmdc", "mmdc.cmd", "mmdc.ps1"):
+        (bin_dir / name).write_text("", encoding="utf-8")
+    return bin_dir
+
+
+def test_find_mmdc_bin_picks_the_runnable_shim_on_windows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The extensionless `mmdc` exists on Windows too, so `os.path.exists`
+    is not enough to tell whether it can be run: handing it to
+    `subprocess.run` fails with `[WinError 193] %1 is not a valid Win32
+    application`, reported per diagram rather than as a setup problem.
+    """
+    bin_dir = _npm_bin_dir_as_windows_writes_it(tmp_path)
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(config, "_WINDOWS", True)
+
+    assert _find_mmdc_bin(None) == str(bin_dir / "mmdc.cmd")
+    # And when a config names the bare script explicitly, which is the
+    # spelling the documentation for every platform uses.
+    assert _find_mmdc_bin(str(bin_dir / "mmdc")) == str(bin_dir / "mmdc.cmd")
+
+
+def test_find_mmdc_bin_keeps_the_extensionless_name_off_windows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The mirror of the test above: `mmdc.cmd` is inert on macOS/Linux, and
+    a `.bin` directory can contain one if the tree was installed on Windows
+    and copied across."""
+    bin_dir = _npm_bin_dir_as_windows_writes_it(tmp_path)
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(config, "_WINDOWS", False)
+
+    assert _find_mmdc_bin(None) == str(bin_dir / "mmdc")
 
 
 def test_find_mmdc_bin_returns_none_when_nothing_is_found(

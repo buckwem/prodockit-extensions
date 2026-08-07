@@ -1,5 +1,35 @@
 # Release Notes
 
+## Unreleased
+
+- `prodockit pdf` now renders Mermaid diagrams on Windows
+  ([#195](https://github.com/buckwem/prodockit-extensions/issues/195)).
+
+    `npm` writes three shims for each tool into `node_modules/.bin` on
+    Windows: an extensionless POSIX shell script, plus `.cmd` and `.ps1`
+    wrappers. Only the wrappers can be started by `CreateProcess`, but the
+    extensionless one is the spelling every platform's documentation uses,
+    and it is the one prodockit looked for.
+
+    `os.path.exists` confirmed it, so detection succeeded and the build
+    proceeded - then every diagram failed at the point of use with
+    `[WinError 193] %1 is not a valid Win32 application`. Existing and
+    runnable are different questions on Windows, and only the first was
+    being asked.
+
+    The result was the failure this project keeps producing: a PDF that
+    built successfully, exited zero, and printed `Wrote
+    docs\site_documentation.pdf`, with each diagram silently left as its
+    own `graph LR` definition text. The per-diagram warning named a Win32
+    error code rather than a missing shim, which points at nothing a reader
+    can act on.
+
+    Every candidate location is now tried with an executable suffix first,
+    so a default path or a `pdf_mmdc_bin` naming the bare `mmdc` resolves
+    to the `mmdc.cmd` beside it. `tex2svg` was never affected - it is
+    invoked as `node tex2svg.js`, so Node is the executable and the script
+    is just an argument.
+
 ## 0.19.0 (2026-08-07)
 
 - `prodockit pins` no longer treats a version specifier written in a
