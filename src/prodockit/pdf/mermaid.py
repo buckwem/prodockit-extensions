@@ -88,6 +88,7 @@ def render_mermaid_diagram(
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:

@@ -218,7 +218,9 @@ def _run_pandoc_citeproc(
     cmd += [f"--bibliography={bib_file}" for bib_file in bib_files]
     if csl_style:
         cmd.append(f"--csl={csl_style}")
-    result = subprocess.run(cmd, input=front_matter + body, capture_output=True, text=True)
+    result = subprocess.run(
+        cmd, input=front_matter + body, capture_output=True, text=True, encoding="utf-8"
+    )
     if result.returncode != 0:
         raise BibliographyError(
             f"pandoc exited with status {result.returncode} formatting a "

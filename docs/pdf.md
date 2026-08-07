@@ -19,6 +19,41 @@ pip install weasyprint
 then follow [Pandoc's own install instructions](https://pandoc.org/installing.html)
 for your platform (e.g. `brew install pandoc` on macOS).
 
+!!! warning "WeasyPrint is not a pure-Python package"
+
+    `pip install weasyprint` installs the Python half. WeasyPrint draws
+    text through \index{Pango} and a few related native libraries -
+    `libgobject-2.0`, `libpango-1.0`, `libpangoft2-1.0`, `libharfbuzz`,
+    `libharfbuzz-subset` and `libfontconfig` - which pip cannot install,
+    because they belong to the operating system.
+
+    | Platform | |
+    |---|---|
+    | macOS | `brew install pango` |
+    | Debian/Ubuntu | `sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0` |
+    | Windows | `pacman -S mingw-w64-x86_64-pango` under [MSYS2](https://www.msys2.org/), with `C:\msys64\mingw64\bin` on `PATH` |
+
+    One package covers it on macOS and Windows because glib, HarfBuzz and
+    fontconfig arrive as dependencies of Pango. On Debian,
+    `libharfbuzz-subset0` is a *separate* package from `libharfbuzz0b` and
+    is the one usually missed.
+
+    Missing them looks like a Pandoc problem rather than an install one:
+
+    ```text
+    Error: pandoc exited with status 43 building 'docs/site_documentation.pdf' (only pass)
+
+    Output from the failing command:
+    ...
+    OSError: cannot load library 'libgobject-2.0-0'
+    ```
+
+    Status 43 is Pandoc's own `PandocPDFError` - Pandoc ran, and the PDF
+    engine it handed off to did not start. The detail beneath the error is
+    WeasyPrint's, and names the library it could not load. `python -c
+    "import weasyprint"` is the quickest way to confirm the stack before
+    building.
+
 [Back-of-book indexes](extensions/index-terms.md#index-terms-requirements)
 additionally need [`pymupdf`](https://pymupdf.readthedocs.io/) - `pip
 install prodockit[index]` (or plain `pip install pymupdf`) - but only if

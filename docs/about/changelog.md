@@ -26,6 +26,28 @@
     error last, so a head-truncated excerpt would hide exactly the part
     worth reading. Nothing is printed when the failure captured no stderr.
 
+- Subprocess output is now decoded as UTF-8 explicitly, instead of with
+  whatever the locale says
+  ([#191](https://github.com/buckwem/prodockit-extensions/issues/191)).
+
+    Seven `subprocess.run(..., text=True)` calls named no encoding, so
+    Python used the locale's. That is UTF-8 on macOS and Linux and `cp1252`
+    on a default Windows install, and every tool prodockit runs - pandoc,
+    git, mermaid-cli - emits UTF-8. One accented author name in a `.bib`
+    file was enough to stop `zensical serve` on Windows.
+
+    The symptom pointed nowhere near the cause. The decode fails on a
+    reader thread inside `subprocess`, so the traceback named `threading`
+    and `cp1252`; `run()` then returned with `stdout=None`, and the next
+    line raised `TypeError: Incoming markup is of an invalid type: None`
+    from BeautifulSoup. What a user saw was a type error about markup.
+
+    Guarded by a test that walks the source for text-mode subprocess calls
+    with no `encoding=`, so a new one cannot reintroduce it. Deliberately a
+    source check rather than a behavioural one: where this suite runs the
+    locale is already UTF-8, so a behavioural test would pass with or
+    without the fix.
+
 - A new `unbookmarked` heading class removes a heading from the PDF's
   bookmark outline - the navigation pane a PDF reader shows down the side -
   separately from `unlisted`, which only keeps it off the generated Table
