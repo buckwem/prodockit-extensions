@@ -5,6 +5,41 @@ Markdown extensions, `prodockit.pdf`, and `prodockit.zensical_macros` -
 and the workaround each one gets, so a project hitting unexpected output
 has somewhere to check *why* before assuming it's a bug.
 
+## Platforms {: #limitations-platforms }
+
+prodockit runs on macOS, Linux and Windows. The coverage behind those
+three is not equal, and it is worth knowing which you are on.
+
+| | Automated tests | Notes |
+|---|---|---|
+| Linux | Every push and pull request, `ubuntu-24.04` | The site and PDF published from this project are built here. |
+| macOS | None | Where it is developed day to day. |
+| Windows | None | Tested by hand, occasionally. |
+
+**Windows has no automated coverage at all**, which is the honest state
+rather than a claim that it works less well. Two things have been found
+there by hand that no test on the other two platforms could have caught,
+both now fixed, and both worth knowing as the *shape* of what tends to go
+wrong:
+
+- **Native libraries are not installed by pip.** WeasyPrint binds to Pango
+  and friends at run time, and on Windows those come from MSYS2 rather
+  than existing already - see [PDF generation's own
+  requirements](../pdf.md#pdf-requirements) for the per-platform commands.
+  Missing them surfaces as `pandoc exited with status 43`, naming neither
+  WeasyPrint nor a library.
+- **Text decoding follows the locale.** Windows defaults to `cp1252`
+  rather than UTF-8, so anything prodockit reads back from `pandoc`, `git`
+  or `mermaid-cli` used to fail on the first non-ASCII byte - an accented
+  author name in a `.bib` file was enough
+  ([#191](https://github.com/buckwem/prodockit-extensions/issues/191)).
+  Every such call now names UTF-8 explicitly, and a test fails the build
+  if a new one does not.
+
+If you use prodockit on Windows and hit something the other platforms do
+not, that is worth reporting rather than working around - it is very
+likely a real gap rather than your setup.
+
 ## Extensions {: #limitations-extensions }
 
 **Cross-page resolution can go stale under `zensical serve`'s live
