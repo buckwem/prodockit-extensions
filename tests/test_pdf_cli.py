@@ -81,6 +81,63 @@ def test_pdf_command_exits_non_zero_and_reports_pandoc_failures(
     assert "Error:" in result.output
 
 
+def test_pdf_command_prints_the_failing_commands_own_stderr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The exception's message names a command and an exit code; the cause
+    is in the stderr it captured.
+
+    Regression test with a real cost behind it (#188): a reader following
+    the User Guide on a clean macOS machine got `pandoc exited with status
+    43` and nothing else, while the stderr prodockit had already collected
+    said WeasyPrint could not load `libgobject-2.0-0` and linked its
+    install instructions. Diagnosing it needed a script calling the Python
+    API directly to reach `PdfBuildError.stderr`.
+
+    The stub below stands in for that: pandoc's own warnings first, the
+    engine's real complaint last - the shape that makes truncating the
+    *head* of this output the wrong thing to do.
+    """
+    _write_project(tmp_path)
+    _install_fake_pandoc(
+        tmp_path,
+        monkeypatch,
+        'echo "[WARNING] Ignoring duplicate attribute role=\\"list\\"." >&2; '
+        "echo \"OSError: cannot load library 'libgobject-2.0-0'\" >&2; "
+        'exit 43',
+    )
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 1
+    assert "status 43" in result.output, "the summary line should still be there"
+    assert "cannot load library 'libgobject-2.0-0'" in result.output, (
+        "the cause must reach the user, not just the exit code"
+    )
+    assert "[WARNING] Ignoring duplicate attribute" in result.output, (
+        "printed whole - a head-truncated excerpt would drop the tail, "
+        "which is where a pandoc failure puts the real error"
+    )
+
+
+def test_pdf_command_says_nothing_extra_when_no_stderr_was_captured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure with nothing on stderr must not gain an empty, unexplained
+    heading - the counterpart to the test above, and what stops the fix
+    from being "always print a header"."""
+    _write_project(tmp_path)
+    _install_fake_pandoc(tmp_path, monkeypatch, "exit 1")
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 1
+    assert "Error:" in result.output
+    assert "Output from the failing command:" not in result.output
+
+
 def test_pdf_command_reports_a_missing_config_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

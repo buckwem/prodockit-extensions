@@ -40,6 +40,38 @@ from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
 
+def _echo_captured_stderr(error: Exception) -> None:
+    """Prints the failing external tool's own stderr, when the exception
+    carried it.
+
+    `PdfBuildError` and `SourceBundleError` both capture the stderr of the
+    process that failed - `pandoc`, and through it whichever PDF engine
+    pandoc invoked - and this used to print only the exception's message.
+    That message names a command and an exit code and nothing else, so the
+    single most useful thing prodockit knows about the failure was
+    collected and then discarded.
+
+    What that cost, concretely: a reader following the User Guide on a
+    clean macOS machine got `pandoc exited with status 43` and no more.
+    Status 43 is pandoc's `PandocPDFError`, meaning the PDF engine failed
+    rather than pandoc itself, and the engine's own message said WeasyPrint
+    could not load `libgobject-2.0-0`, named the four libraries it needs,
+    and linked its installation instructions. All of that was already in
+    hand (prodockit-extensions#188).
+
+    Printed whole rather than summarised. The interesting part of a pandoc
+    failure is usually the *end* - warnings come first and the traceback
+    last - so a head-truncated excerpt would hide exactly the useful part,
+    and there is no other way for a caller to get at it.
+    """
+    stderr = str(getattr(error, "stderr", "") or "").strip()
+    if not stderr:
+        return
+    click.echo("", err=True)
+    click.echo("Output from the failing command:", err=True)
+    click.echo(stderr, err=True)
+
+
 # `message="%(version)s"` prints the bare version, matching what
 # `zensical --version` does - these two are normally installed and
 # reported together, and click's own default ("prodockit, version X.Y.Z")
@@ -81,6 +113,7 @@ def pdf(config_file: str, markdown_file: str | None) -> None:
         output_path = build_pdf_from_zensical_config(config_file, markdown_file=markdown_file)
     except (PdfBuildError, SourceBundleError, ValueError, OSError) as error:
         click.echo(f"Error: {error}", err=True)
+        _echo_captured_stderr(error)
         sys.exit(1)
     click.echo(f"Wrote {output_path}")
 
