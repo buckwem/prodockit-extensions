@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.19.0 (2026-08-07)
 
 - `prodockit pins` no longer treats a version specifier written in a
   comment as a declaration
