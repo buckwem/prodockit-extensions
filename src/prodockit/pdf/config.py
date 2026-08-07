@@ -96,6 +96,31 @@ def _css_escape_content_string(text: str) -> str:
     return escaped_text.replace('"', '\\"')
 
 
+# Windows cannot start the extensionless `mmdc` that `npm` writes into
+# `node_modules/.bin`: that one is a POSIX shell script, and the runnable
+# shims sit beside it as `mmdc.cmd` and `mmdc.ps1`. The bare name is the
+# spelling every platform's documentation uses, and `os.path.exists`
+# confirms it happily - so it resolves, then fails at the point of use with
+# `[WinError 193] %1 is not a valid Win32 application`, which surfaces as a
+# per-diagram render warning rather than anything naming the real cause.
+#
+# A fixed suffix list rather than `PATHEXT`: this is about what
+# `CreateProcess` can start, which does not vary per machine, and a user who
+# has added `.PS1` to their own `PATHEXT` would otherwise steer us onto a
+# shim that is not directly executable either.
+_WINDOWS = os.name == "nt"
+_EXECUTABLE_SUFFIXES = (".cmd", ".exe", ".bat", ".com")
+
+
+def _runnable_spellings(path: str) -> list[str]:
+    """Returns the ways `path` might name something this platform can
+    actually execute, most preferred first. Everywhere but Windows, and for
+    a path that already carries a suffix, that is just `path` itself."""
+    if not _WINDOWS or os.path.splitext(path)[1]:
+        return [path]
+    return [path + suffix for suffix in _EXECUTABLE_SUFFIXES] + [path]
+
+
 def _find_mmdc_bin(configured: str | None) -> str | None:
     """Resolves a usable `mmdc` (mermaid-cli) binary path: an explicit
     `configured` path if given and it exists, else whatever `mmdc` is found
@@ -109,18 +134,25 @@ def _find_mmdc_bin(configured: str | None) -> str | None:
     (the same directory both `configured` and `config_path` are typically
     relative to), but a `-f`/`--config-file` pointing at a project in a
     different directory needs an absolute `pdf_mmdc_bin` instead.
+
+    On Windows every location is tried with an executable suffix first, so
+    a `configured` or default path naming the bare `mmdc` still resolves to
+    the runnable `mmdc.cmd` beside it - see `_runnable_spellings`.
     """
-    if configured and os.path.exists(configured):
-        return configured
+    if configured:
+        for candidate in _runnable_spellings(configured):
+            if os.path.exists(candidate):
+                return candidate
     found = shutil.which("mmdc")
     if found:
         return found
-    for candidate in (
+    for base in (
         os.path.join("tools", "mermaid", "node_modules", ".bin", "mmdc"),
         os.path.join("node_modules", ".bin", "mmdc"),
     ):
-        if os.path.exists(candidate):
-            return os.path.abspath(candidate)
+        for candidate in _runnable_spellings(base):
+            if os.path.exists(candidate):
+                return os.path.abspath(candidate)
     return None
 
 
