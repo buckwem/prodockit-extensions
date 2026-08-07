@@ -498,7 +498,11 @@ def build_pdf(
         def run_pandoc(pass_label: str) -> None:
             try:
                 result = subprocess.run(
-                    cmd, capture_output=True, text=True, timeout=pandoc_timeout
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    timeout=pandoc_timeout,
                 )
             except subprocess.TimeoutExpired as exc:
                 raise PdfBuildError(

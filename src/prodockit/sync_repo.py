@@ -74,6 +74,7 @@ def get_remote_url(remote: str = "origin", *, cwd: str | None = None) -> str:
             ["git", "remote", "get-url", remote],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
             cwd=cwd,
         )
@@ -98,6 +99,7 @@ def detect_default_branch(remote: str = "origin", *, cwd: str | None = None) -> 
             ["git", "symbolic-ref", "--short", f"refs/remotes/{remote}/HEAD"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
             cwd=cwd,
         )

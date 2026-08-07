@@ -116,6 +116,7 @@ def discover_source_files(root: str = ".") -> list[str]:
             cwd=root,
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
     except FileNotFoundError as exc:
         raise SourceBundleError("git is not installed or not on PATH") from exc
@@ -303,7 +304,7 @@ def build_source_bundle(
             f.write("</body></html>")
 
         cmd = ["weasyprint", html_path, resolved_output_path]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
         if result.returncode != 0:
             raise SourceBundleError(
                 f"weasyprint exited with status {result.returncode} "
