@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.20.1 (2026-08-09)
 
 - CI builds with a pinned upstream pandoc instead of the runner image's
   ([#209](https://github.com/buckwem/prodockit-extensions/issues/209)).
