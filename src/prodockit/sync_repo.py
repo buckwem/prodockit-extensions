@@ -32,7 +32,7 @@ from __future__ import annotations
 import re
 import subprocess
 from dataclasses import dataclass, field
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 #: Host substring -> (kind, FontAwesome brand icon, display label).
 HOST_ICON_MAP: list[tuple[str, str, str, str]] = [
@@ -117,7 +117,16 @@ def detect_default_branch(remote: str = "origin", *, cwd: str | None = None) -> 
 
 
 def parse_remote(url: str) -> tuple[str, str, str]:
-    """`(host, owner, repo_name)` from an SSH or HTTPS git remote URL."""
+    """`(host, namespace, repo_name)` from an SSH or HTTPS git remote URL.
+
+    `namespace` is the *whole* owner path, not just its first segment.
+    GitLab nests groups - `cs-dept/year3/report` is a project in the
+    `year3` subgroup of `cs-dept` - and keeping only `cs-dept` produced a
+    `cs-dept/report` that does not exist, which then propagated into
+    `repo_url`, the edit links and the badges alike
+    (prodockit-extensions#201). GitHub has no such nesting, so its
+    namespace is always the single owner segment.
+    """
     ssh_match = re.match(r"^[\w.-]+@(?P<host>[\w.-]+):(?P<path>.+)$", url)
     if ssh_match:
         host = ssh_match.group("host")
@@ -131,7 +140,7 @@ def parse_remote(url: str) -> tuple[str, str, str]:
     parts = [part for part in path.split("/") if part]
     if len(parts) < 2 or not host:
         raise SyncRepoError(f"could not parse owner/repo from remote URL: {url!r}")
-    return host, parts[0], parts[-1]
+    return host, "/".join(parts[:-1]), parts[-1]
 
 
 def icon_for_host(host: str) -> tuple[str, str, str]:
@@ -160,7 +169,7 @@ def _replace_setting(text: str, pattern: str, replacement: str, label: str) -> t
     return new_text, new_text != text
 
 
-def repo_name_matching_existing(text: str, owner: str, repo_name: str) -> str:
+def repo_name_matching_existing(text: str, namespace: str, repo_name: str) -> str:
     """`owner/repo` or bare `repo`, whichever shape the config already uses.
 
     Zensical shows `repo_name` verbatim in the site header, and both forms
@@ -169,10 +178,17 @@ def repo_name_matching_existing(text: str, owner: str, repo_name: str) -> str:
     just the repository name. Rewriting to a fixed shape would silently
     restyle the header of every project that chose the other one, so the
     existing value decides and only the owner/repo *values* are updated.
+
+    This is a label, not a link - the header's target is `repo_url`, which
+    carries the full namespace. So a deeply nested GitLab project shows
+    its immediate parent rather than the entire path: `year3/report`, not
+    `cs-dept/year3/report`, which would crowd the header for no gain. For
+    the single-segment namespace GitHub always has, and GitLab usually
+    has, the two are the same string.
     """
     current = re.search(r'^repo_name = "(.*)"$', text, flags=re.MULTILINE)
     if current and "/" in current.group(1):
-        return f"{owner}/{repo_name}"
+        return f"{namespace.rsplit('/', 1)[-1]}/{repo_name}"
     return repo_name
 
 
@@ -180,7 +196,7 @@ def update_config(
     text: str,
     *,
     repo_url: str,
-    owner: str,
+    namespace: str,
     repo_name: str,
     icon: str,
     edit_uri: str | None,
@@ -194,7 +210,7 @@ def update_config(
     explanation for why each setting is what it is.
     """
     changes: list[str] = []
-    display_name = repo_name_matching_existing(text, owner, repo_name)
+    display_name = repo_name_matching_existing(text, namespace, repo_name)
     for pattern, replacement, label in (
         (r'^repo_url = ".*"$', f'repo_url = "{repo_url}"', "repo_url"),
         (r'^repo_name = ".*"$', f'repo_name = "{display_name}"', "repo_name"),
@@ -230,7 +246,7 @@ def update_config(
 
 
 def badges_for_host(
-    kind: str, host: str, owner: str, repo_name: str, default_branch: str
+    kind: str, host: str, namespace: str, repo_name: str, default_branch: str
 ) -> str | None:
     """The README badge-row markup for a host, or `None` for a host with no
     known badge set (left untouched in that case).
@@ -248,7 +264,7 @@ def badges_for_host(
     emitted only for `gitlab.com`, where shields can actually read them.
     """
     if kind == "github":
-        base = f"https://{host}/{owner}/{repo_name}"
+        base = f"https://{host}/{namespace}/{repo_name}"
         return (
             '<p align="center">\n'
             f'  <a href="{base}/actions"><img\n'
@@ -256,17 +272,17 @@ def badges_for_host(
             '    alt="Build"\n'
             "  /></a>\n"
             f'  <a href="{base}/stargazers"><img\n'
-            f'    src="https://img.shields.io/github/stars/{owner}/{repo_name}?style=flat&logo=github&label=Stars"\n'
+            f'    src="https://img.shields.io/github/stars/{namespace}/{repo_name}?style=flat&logo=github&label=Stars"\n'
             '    alt="GitHub Stars"\n'
             "  /></a>\n"
             f'  <a href="{base}/forks"><img\n'
-            f'    src="https://img.shields.io/github/forks/{owner}/{repo_name}?style=flat&logo=github&label=Forks"\n'
+            f'    src="https://img.shields.io/github/forks/{namespace}/{repo_name}?style=flat&logo=github&label=Forks"\n'
             '    alt="GitHub Forks"\n'
             "  /></a>\n"
             "</p>"
         )
     if kind == "gitlab":
-        base = f"https://{host}/{owner}/{repo_name}"
+        base = f"https://{host}/{namespace}/{repo_name}"
         rows = [
             f'  <a href="{base}/-/pipelines"><img\n'
             f'    src="{base}/badges/{default_branch}/pipeline.svg"\n'
@@ -274,7 +290,9 @@ def badges_for_host(
             "  /></a>\n"
         ]
         if host.lower() == "gitlab.com":
-            encoded = f"{owner}%2F{repo_name}"
+            # shields.io takes the project as one percent-encoded path, so
+            # every separator in a nested namespace needs encoding too.
+            encoded = quote(f"{namespace}/{repo_name}", safe="")
             rows.append(
                 f'  <a href="{base}"><img\n'
                 f'    src="https://img.shields.io/gitlab/stars/{encoded}?style=flat&logo=gitlab&label=Stars"\n'
@@ -338,9 +356,9 @@ def sync_repo_metadata(
     `default_branch` is detected from the remote when not given.
     """
     remote_url = get_remote_url(remote, cwd=cwd)
-    host, owner, repo_name = parse_remote(remote_url)
+    host, namespace, repo_name = parse_remote(remote_url)
     kind, icon, label = icon_for_host(host)
-    repo_url = f"https://{host}/{owner}/{repo_name}"
+    repo_url = f"https://{host}/{namespace}/{repo_name}"
     branch = default_branch or detect_default_branch(remote, cwd=cwd)
 
     result = SyncResult(host=host, label=label, repo_url=repo_url)
@@ -351,7 +369,7 @@ def sync_repo_metadata(
     updated_config, config_changes = update_config(
         original_config,
         repo_url=repo_url,
-        owner=owner,
+        namespace=namespace,
         repo_name=repo_name,
         icon=icon,
         edit_uri=edit_uri_for_host(kind, docs_dir, branch),
@@ -361,7 +379,7 @@ def sync_repo_metadata(
         _write(config_path, updated_config)
 
     if readme_path is not None:
-        badges = badges_for_host(kind, host, owner, repo_name, branch)
+        badges = badges_for_host(kind, host, namespace, repo_name, branch)
         if badges is None:
             result.notes.append(f"no known README badge set for {label}; README left unchanged")
         else:

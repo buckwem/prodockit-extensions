@@ -57,9 +57,14 @@ Body text.
         ("https://github.com/owner/repo.git", ("github.com", "owner", "repo")),
         ("git@github.com:owner/repo.git", ("github.com", "owner", "repo")),
         ("ssh://git@gitlab.com/owner/repo.git", ("gitlab.com", "owner", "repo")),
-        # Self-hosted GitLab with a subgroup - the repo is the last segment,
-        # the owner the first, which is what the badge/edit URLs need.
-        ("https://gitlab.surrey.ac.uk/group/sub/repo", ("gitlab.surrey.ac.uk", "group", "repo")),
+        # Self-hosted GitLab with a subgroup. The namespace is every
+        # segment before the last, not just the first: the URLs are built
+        # from it, and `group/repo` names a project that does not exist
+        # (prodockit-extensions#201). This case previously asserted the
+        # truncated form, with a comment claiming it was what the badge
+        # and edit URLs needed - the opposite of what they need.
+        ("https://gitlab.surrey.ac.uk/group/sub/repo", ("gitlab.surrey.ac.uk", "group/sub", "repo")),
+        ("git@gitlab.surrey.ac.uk:cs-dept/year3/report.git", ("gitlab.surrey.ac.uk", "cs-dept/year3", "report")),
     ],
 )
 def test_parse_remote_handles_ssh_and_https_forms(url: str, expected: tuple[str, str, str]) -> None:
@@ -115,7 +120,7 @@ def test_update_config_rewrites_every_setting() -> None:
     updated, changes = update_config(
         CONFIG,
         repo_url="https://github.com/new/new-repo",
-        owner="new",
+        namespace="new",
         repo_name="new-repo",
         icon="fontawesome/brands/github",
         edit_uri="edit/main/docs/",
@@ -131,7 +136,7 @@ def test_update_config_reports_no_changes_when_already_in_sync() -> None:
     once, _ = update_config(
         CONFIG,
         repo_url="https://github.com/new/new-repo",
-        owner="new",
+        namespace="new",
         repo_name="new-repo",
         icon="fontawesome/brands/github",
         edit_uri="edit/main/docs/",
@@ -139,7 +144,7 @@ def test_update_config_reports_no_changes_when_already_in_sync() -> None:
     twice, changes = update_config(
         once,
         repo_url="https://github.com/new/new-repo",
-        owner="new",
+        namespace="new",
         repo_name="new-repo",
         icon="fontawesome/brands/github",
         edit_uri="edit/main/docs/",
@@ -155,7 +160,7 @@ def test_update_config_preserves_comments_and_unrelated_settings() -> None:
     updated, _ = update_config(
         text,
         repo_url="https://github.com/new/new",
-        owner="new",
+        namespace="new",
         repo_name="new",
         icon="fontawesome/brands/github",
         edit_uri=None,
@@ -169,7 +174,7 @@ def test_update_config_inserts_edit_uri_when_the_config_predates_it() -> None:
     updated, changes = update_config(
         without,
         repo_url="https://github.com/new/new-repo",
-        owner="new",
+        namespace="new",
         repo_name="new-repo",
         icon="fontawesome/brands/github",
         edit_uri="edit/main/docs/",
@@ -186,7 +191,7 @@ def test_update_config_raises_when_a_required_setting_is_missing() -> None:
         update_config(
             "[project]\n",
             repo_url="https://github.com/new/new",
-            owner="new",
+            namespace="new",
             repo_name="new",
             icon="fontawesome/brands/github",
             edit_uri=None,
@@ -245,6 +250,37 @@ def test_self_hosted_gitlab_omits_the_badges_shields_cannot_read() -> None:
     assert badges is not None
     assert "img.shields.io" not in badges
     assert badges.count("<img") == 1
+
+
+def test_badges_carry_the_whole_gitlab_namespace() -> None:
+    """A nested group has to survive into the badge URLs - `cs-dept/report`
+    is a project that does not exist (prodockit-extensions#201)."""
+    badges = badges_for_host("gitlab", "gitlab.surrey.ac.uk", "cs-dept/year3", "report", "main")
+    assert badges is not None
+    assert "https://gitlab.surrey.ac.uk/cs-dept/year3/report/-/pipelines" in badges
+    assert "https://gitlab.surrey.ac.uk/cs-dept/year3/report/badges/main/pipeline.svg" in badges
+
+
+def test_gitlab_com_shields_badges_encode_every_namespace_separator() -> None:
+    """shields.io takes the project as a single percent-encoded path, so a
+    nested namespace needs its inner separators encoded too - a raw slash
+    would be read as the end of the path parameter."""
+    badges = badges_for_host("gitlab", "gitlab.com", "group/sub", "repo", "main")
+    assert badges is not None
+    assert "stars/group%2Fsub%2Frepo" in badges
+    assert "forks/group%2Fsub%2Frepo" in badges
+
+
+def test_repo_name_label_shows_the_immediate_parent_not_the_whole_path() -> None:
+    """`repo_name` is a header label, not a link - its target is `repo_url`,
+    which carries the full namespace. A deeply nested project shows its
+    immediate parent so the header stays readable, and a single-segment
+    namespace is unchanged."""
+    config = 'repo_name = "old/old"\n'
+    assert repo_name_matching_existing(config, "cs-dept/year3", "report") == "year3/report"
+    assert repo_name_matching_existing(config, "buckwem", "repo") == "buckwem/repo"
+    # The bare form stays bare whatever the namespace looks like.
+    assert repo_name_matching_existing('repo_name = "old"\n', "cs-dept/year3", "report") == "report"
 
 
 def test_no_badges_are_invented_for_a_host_without_a_known_set() -> None:
@@ -331,6 +367,26 @@ def test_sync_updates_config_and_readme_from_the_real_remote(git_project, monkey
     assert 'repo = "fontawesome/brands/github"' in config
     assert 'edit_uri = "edit/main/docs/"' in config
     assert "github.com/new/new-repo/actions" in (project / "README.md").read_text(encoding="utf-8")
+
+
+def test_sync_handles_a_gitlab_subgroup_end_to_end(git_project, monkeypatch) -> None:
+    """The whole point of #201: the namespace has to survive into every
+    generated URL, not just into `parse_remote`'s return value. Nested
+    groups are the normal arrangement on university and company GitLab
+    instances."""
+    project = git_project("git@gitlab.surrey.ac.uk:cs-dept/year3/report.git")
+    monkeypatch.chdir(project)
+
+    sync_repo_metadata(default_branch="main")
+
+    config = (project / "zensical.toml").read_text(encoding="utf-8")
+    assert 'repo_url = "https://gitlab.surrey.ac.uk/cs-dept/year3/report"' in config
+    assert 'repo = "fontawesome/brands/gitlab"' in config
+    readme = (project / "README.md").read_text(encoding="utf-8")
+    assert "https://gitlab.surrey.ac.uk/cs-dept/year3/report/badges/main/pipeline.svg" in readme
+    # The truncated project this used to generate must appear nowhere.
+    assert "cs-dept/report" not in config
+    assert "cs-dept/report" not in readme
 
 
 def test_sync_is_idempotent(git_project, monkeypatch) -> None:
