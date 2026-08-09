@@ -19,6 +19,8 @@ from prodockit.sync_repo import (
     icon_for_host,
     parse_remote,
     repo_name_matching_existing,
+    site_url_for,
+    site_url_is_ours_to_replace,
     sync_repo_metadata,
     update_config,
     update_readme,
@@ -114,6 +116,59 @@ def test_edit_uri_is_left_unset_for_a_host_with_no_known_edit_url() -> None:
 
 
 # --- Config rewriting ------------------------------------------------------
+
+
+def test_site_url_derives_a_github_pages_url() -> None:
+    assert site_url_for("github", "Buckwem", "report", None) == "https://buckwem.github.io/report/"
+
+
+def test_site_url_handles_the_owner_named_repository() -> None:
+    """A repository called `<owner>.github.io` is served at the bare origin,
+    not one level down inside itself."""
+    assert (
+        site_url_for("github", "buckwem", "buckwem.github.io", None)
+        == "https://buckwem.github.io/"
+    )
+
+
+def test_site_url_is_not_guessed_for_gitlab() -> None:
+    """Self-hosted Pages lives at an instance setting the remote URL does
+    not reveal, and gitlab.com now issues unique domains - so there is
+    nothing reliable to derive. A confidently wrong canonical URL points
+    search engines at somewhere that does not exist."""
+    assert site_url_for("gitlab", "mb0105", "report", None) is None
+    assert site_url_for("other", "owner", "repo", None) is None
+
+
+def test_pages_base_supplies_what_cannot_be_derived() -> None:
+    base = "https://mb0105.pages.gitlab.surrey.ac.uk"
+    assert (
+        site_url_for("gitlab", "mb0105", "report", base)
+        == "https://mb0105.pages.gitlab.surrey.ac.uk/report/"
+    )
+    # A trailing slash on the configured base must not double up.
+    assert site_url_for("gitlab", "mb0105", "report", base + "/").endswith(".uk/report/")
+
+
+@pytest.mark.parametrize(
+    "current,replaceable",
+    [
+        # Already a Pages URL - set up to follow the repo, so it should
+        # keep following it.
+        ("https://buckwem.github.io/old-name/", True),
+        ("https://group.gitlab.io/project/", True),
+        # A code host is not a site address at all. This is what the
+        # template shipped, so it is the case that matters most.
+        ("https://github.com/buckwem/report/", True),
+        ("https://gitlab.surrey.ac.uk/mb0105/report/", True),
+        # A deliberate custom domain.
+        ("https://docs.example.com/", False),
+        ("https://prodockit.org/", False),
+        ("", False),
+    ],
+)
+def test_which_site_urls_may_be_replaced(current: str, replaceable: bool) -> None:
+    assert site_url_is_ours_to_replace(current) is replaceable
 
 
 def test_update_config_rewrites_every_setting() -> None:
@@ -387,6 +442,71 @@ def test_sync_handles_a_gitlab_subgroup_end_to_end(git_project, monkeypatch) -> 
     # The truncated project this used to generate must appear nowhere.
     assert "cs-dept/report" not in config
     assert "cs-dept/report" not in readme
+
+
+def test_sync_replaces_a_repo_url_used_as_site_url(git_project, monkeypatch) -> None:
+    """The shape the project template shipped for a long time: `site_url`
+    pointing at the repository, which put a GitHub page in every
+    `<link rel="canonical">` and every sitemap entry
+    (prodockit-extensions#200)."""
+    config = CONFIG.replace(
+        'site_name = "Example"',
+        'site_name = "Example"\nsite_url = "https://github.com/old/old-repo/"',
+    )
+    project = git_project("https://github.com/new/new-repo.git", config=config)
+    monkeypatch.chdir(project)
+
+    result = sync_repo_metadata(default_branch="main")
+
+    assert "site_url" in result.changes
+    written = (project / "zensical.toml").read_text(encoding="utf-8")
+    assert 'site_url = "https://new.github.io/new-repo/"' in written
+
+
+def test_sync_leaves_a_custom_domain_alone(git_project, monkeypatch) -> None:
+    """`--check` is a CI gate, so rewriting a deliberate custom domain
+    would not just lose it once - it would report drift on every run
+    afterwards and redden builds for a correct config."""
+    config = CONFIG.replace(
+        'site_name = "Example"',
+        'site_name = "Example"\nsite_url = "https://docs.example.com/"',
+    )
+    project = git_project("https://github.com/new/new-repo.git", config=config)
+    monkeypatch.chdir(project)
+
+    result = sync_repo_metadata(default_branch="main")
+
+    assert "site_url" not in result.changes
+    assert 'site_url = "https://docs.example.com/"' in (
+        project / "zensical.toml"
+    ).read_text(encoding="utf-8")
+    assert any("custom domain" in note for note in result.notes)
+
+
+def test_sync_does_not_invent_a_site_url_that_was_never_there(git_project, monkeypatch) -> None:
+    """`site_url` is optional in Zensical. A project that left it out has
+    no canonical URL by choice, and adding one would change what the site
+    publishes rather than keeping it in step."""
+    project = git_project("https://github.com/new/new-repo.git")  # CONFIG has no site_url
+    monkeypatch.chdir(project)
+
+    sync_repo_metadata(default_branch="main")
+
+    assert "site_url" not in (project / "zensical.toml").read_text(encoding="utf-8")
+
+
+def test_sync_notes_when_it_cannot_derive_a_site_url(git_project, monkeypatch) -> None:
+    config = CONFIG.replace(
+        'site_name = "Example"',
+        'site_name = "Example"\nsite_url = "https://github.com/old/old-repo/"',
+    )
+    project = git_project("git@gitlab.surrey.ac.uk:mb0105/report.git", config=config)
+    monkeypatch.chdir(project)
+
+    result = sync_repo_metadata(default_branch="main")
+
+    assert "site_url" not in result.changes
+    assert any("pages_base" in note for note in result.notes)
 
 
 def test_sync_is_idempotent(git_project, monkeypatch) -> None:
