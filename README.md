@@ -129,10 +129,11 @@ full variable/macro list.
 ## Repository metadata
 
 [`prodockit sync-repo`](https://buckwem.github.io/prodockit-extensions/devcons/repo-metadata/#sync-repo-repository-metadata)
-keeps `repo_url`, `repo_name`, the header brand icon, `edit_uri` and your
-README's badge row matching the git remote your checkout actually uses -
-so forking or mirroring a project between GitHub, GitLab and Bitbucket
-doesn't leave stale links or the wrong icon behind:
+keeps `repo_url`, `repo_name`, the header brand icon, `edit_uri`,
+`site_url` and your README's badge row matching the git remote your
+checkout actually uses - so forking or mirroring a project between GitHub,
+GitLab and Bitbucket doesn't leave stale links, the wrong icon, or a
+canonical URL pointing at the old host behind:
 
 ```bash
 prodockit sync-repo          # update everything from `origin`
