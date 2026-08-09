@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.20.0 (2026-08-09)
 
 - `prodockit sync-repo` now keeps `site_url` in step too
   ([#200](https://github.com/buckwem/prodockit-extensions/issues/200)).

@@ -35,9 +35,10 @@ Zensical doesn't provide out of the box, each usable independently:
   pages, and reference/acronym/glossary spacing that matches
   ``prodockit.pdf``'s own PDF output.
 - ``prodockit.sync_repo`` - keep ``repo_url``/``repo_name``/brand icon/
-  ``edit_uri`` and your README's badge row matching the git remote a
-  checkout actually uses, so forking or mirroring a project between GitHub,
-  GitLab and Bitbucket doesn't leave stale links behind. Run
+  ``edit_uri``/``site_url`` and your README's badge row matching the git
+  remote a checkout actually uses, so forking or mirroring a project
+  between GitHub, GitLab and Bitbucket doesn't leave stale links, a wrong
+  canonical URL, or badges for somebody else's repository behind. Run
   ``prodockit sync-repo`` from your project root.
 - ``prodockit.pins`` - find every place a build-input version is declared
   across a project (``pyproject.toml``, GitHub Actions workflows,
@@ -72,6 +73,6 @@ plain Python API alongside it.
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.19.1"
+__version__ = "0.20.0"
 
 __all__ = ["__version__"]
