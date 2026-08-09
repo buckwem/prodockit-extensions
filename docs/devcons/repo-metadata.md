@@ -8,8 +8,8 @@ repository.
 
 Everything it writes is derived from one thing - `git remote get-url origin`:
 
-- In `zensical.toml`: `repo_url`, `repo_name`, `[project.theme.icon] repo`
-  and `edit_uri`.
+- In `zensical.toml`: `repo_url`, `repo_name`, `[project.theme.icon] repo`,
+  `edit_uri`, and `site_url` where it can be known.
 - In `README.md`: the badge row between the `repo-badges` markers, if you
   have them.
 
@@ -65,6 +65,43 @@ branch and matched by *kind* of host rather than exact hostname - so
 `gitlab.your-institution.ac.uk` is recognised as GitLab and gets a working
 edit link. A host it has no edit-URL convention for is left alone rather
 than guessed at.
+
+### `site_url`, and when it is left alone {: #sync-repo-site-url }
+
+`site_url` is the address your site is *published* at, which is not the
+address of the repository. Zensical puts it in every page's
+`<link rel="canonical">` and in every `sitemap.xml` entry, so a wrong one
+tells search engines the real home of your documentation is somewhere
+else - quietly, since the site builds and looks perfect either way.
+
+Only GitHub Pages is derived, because only its shape is knowable from the
+remote: `https://<owner>.github.io/<repo>/`, or the bare origin when the
+repository is itself named `<owner>.github.io`.
+
+GitLab is not guessed at. A self-hosted instance serves Pages from
+`pages_external_url`, an instance setting the remote URL says nothing
+about, and gitlab.com now gives new projects a unique domain with a random
+suffix rather than the old `<group>.gitlab.io/<project>` path. Set
+`pages_base` and the repository name is appended to it:
+
+```toml
+pages_base = "https://mb0105.pages.gitlab.surrey.ac.uk"
+```
+
+!!! info "What it will not touch"
+    An existing `site_url` is only replaced when it is already a Pages URL
+    - one set up to follow the repository, so it keeps following it - or
+    when it points at a code host, which is never a published site and is
+    what the project template used to ship.
+
+    Any other value is treated as a custom domain and left alone, with a
+    note saying so. That matters because `--check` is wired into CI as a
+    gate: rewriting a deliberate value would not merely lose it once, it
+    would report drift on every run afterwards and redden builds for a
+    config that was right all along.
+
+    A `site_url` that is absent stays absent. It is optional in Zensical,
+    and a project that left it out has no canonical URL by choice.
 
 ### Nested GitLab groups {: #sync-repo-nested-groups }
 

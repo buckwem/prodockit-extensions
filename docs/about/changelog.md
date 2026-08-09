@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- `prodockit sync-repo` now keeps `site_url` in step too
+  ([#200](https://github.com/buckwem/prodockit-extensions/issues/200)).
+
+    `site_url` is the address a site is *published* at, and it was the one
+    host-coupled setting nothing managed. Zensical puts it in every page's
+    `<link rel="canonical">` and every `sitemap.xml` entry, so a wrong one
+    tells search engines the real home of the documentation is somewhere
+    else - while the site builds and looks perfect.
+
+    This was not only a hazard when moving hosts. The project template
+    shipped `site_url` pointing at the *repository*, so a fresh clone
+    published a GitHub page as the canonical URL of every documentation
+    page from its first build.
+
+    Only GitHub Pages is derived, since only its shape follows from the
+    remote. GitLab is not guessed at: a self-hosted instance serves Pages
+    from `pages_external_url`, which the remote reveals nothing about, and
+    gitlab.com now issues unique domains rather than the old
+    `<group>.gitlab.io/<project>` path. A confidently wrong canonical URL
+    is worse than none, so those projects set `pages_base` and the
+    repository name is appended to it.
+
+    An existing value is replaced only when it is already a Pages URL, or
+    points at a code host and so cannot be a site. Anything else is a
+    custom domain and is left alone with a note - `--check` is a CI gate,
+    and rewriting a deliberate value would redden every later build for a
+    correct config. An absent `site_url` is not invented.
+
 - `prodockit sync-repo` keeps the whole GitLab namespace, instead of
   dropping everything between the first group and the project
   ([#201](https://github.com/buckwem/prodockit-extensions/issues/201)).

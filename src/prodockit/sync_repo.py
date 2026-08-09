@@ -152,6 +152,71 @@ def icon_for_host(host: str) -> tuple[str, str, str]:
     return "other", DEFAULT_ICON, host
 
 
+#: Hosts that serve repositories rather than published sites. A `site_url`
+#: pointing at one of these is always wrong - it is what the template used
+#: to ship - so it is safe to replace rather than treat as deliberate.
+_CODE_HOST_NEEDLES = ("github.com", "gitlab", "bitbucket.org")
+
+#: Hostnames that published Pages sites live on. A `site_url` already on one
+#: of these was managed by whoever set it up, so following the remote to a
+#: new one is what they would want.
+_PAGES_HOST_SUFFIXES = (".github.io", ".gitlab.io")
+
+
+def site_url_for(
+    kind: str, namespace: str, repo_name: str, pages_base: str | None
+) -> str | None:
+    """The published site URL for a remote, or `None` when it cannot be
+    known - in which case `site_url` is left alone.
+
+    Only GitHub Pages is derived. Its shape is fixed and public:
+    `https://<owner>.github.io/<repo>/`, or the bare origin when the
+    repository is itself named `<owner>.github.io`. Hostnames are
+    lowercased, which is what GitHub serves regardless of how the owner
+    name is capitalised.
+
+    GitLab is deliberately not guessed at. A self-hosted instance serves
+    Pages from `pages_external_url`, an instance setting nothing in the
+    remote URL reveals, and gitlab.com now gives new projects a unique
+    domain with a random suffix rather than the old
+    `<group>.gitlab.io/<project>` path. A confidently wrong canonical URL
+    is worse than none at all - it tells search engines to index somewhere
+    that does not exist - so those projects set `pages_base` instead, and
+    the repository name is appended to it.
+    """
+    if pages_base:
+        return f"{pages_base.rstrip('/')}/{repo_name}/"
+    if kind == "github":
+        owner = namespace.lower()
+        if repo_name.lower() == f"{owner}.github.io":
+            return f"https://{owner}.github.io/"
+        return f"https://{owner}.github.io/{repo_name}/"
+    return None
+
+
+def site_url_is_ours_to_replace(current: str) -> bool:
+    """Whether an existing `site_url` may be rewritten.
+
+    Two things are replaceable. One already on a Pages hostname was set up
+    to follow the repository, so it should keep following it. One pointing
+    at a *code* host is not a site address at all - the project template
+    shipped `https://github.com/<owner>/<repo>/` as its `site_url` for a
+    long time, which put a repository page in every `<link rel="canonical">`
+    and every `sitemap.xml` entry.
+
+    Anything else is a custom domain, and is left alone. That matters more
+    than it looks: `--check` is wired into CI as a gate, so rewriting a
+    deliberate value would not just lose it once - it would report drift on
+    every run afterwards and redden builds for a correct config.
+    """
+    host = (urlparse(current).hostname or "").lower()
+    if not host:
+        return False
+    if any(host == suffix.lstrip(".") or host.endswith(suffix) for suffix in _PAGES_HOST_SUFFIXES):
+        return True
+    return any(needle in host for needle in _CODE_HOST_NEEDLES)
+
+
 def edit_uri_for_host(kind: str, docs_dir: str, default_branch: str) -> str | None:
     """The `edit_uri` to set for a host kind, or `None` for a host this
     doesn't know how to link into - in which case `edit_uri` is left alone
@@ -200,9 +265,11 @@ def update_config(
     repo_name: str,
     icon: str,
     edit_uri: str | None,
+    site_url: str | None = None,
 ) -> tuple[str, list[str]]:
-    """Rewrites `repo_url`/`repo_name`/`theme.icon.repo`/`edit_uri` in a
-    Zensical config, returning the new text and which settings changed.
+    """Rewrites `repo_url`/`repo_name`/`theme.icon.repo`/`edit_uri`, and
+    `site_url` when one is supplied, in a Zensical config - returning the
+    new text and which settings changed.
 
     Deliberately a line-level regex rewrite rather than a parse-and-dump:
     round-tripping TOML through a writer would reformat the whole file and
@@ -219,6 +286,17 @@ def update_config(
         text, did_change = _replace_setting(text, pattern, replacement, label)
         if did_change:
             changes.append(label)
+
+    # Unlike the settings above, a missing `site_url` is not inserted. It
+    # is optional in Zensical, and a project that has deliberately left it
+    # out has no canonical URL by choice - adding one silently would change
+    # what the site publishes rather than keeping it in step.
+    if site_url is not None and re.search(r'^site_url = ".*"$', text, flags=re.MULTILINE):
+        text, did_change = _replace_setting(
+            text, r'^site_url = ".*"$', f'site_url = "{site_url}"', "site_url"
+        )
+        if did_change:
+            changes.append("site_url")
 
     if edit_uri is not None:
         edit_uri_line = f'edit_uri = "{edit_uri}"'
@@ -336,6 +414,36 @@ def _write(path: str, text: str) -> None:
         raise SyncRepoError(f"could not write {path}: {exc}") from exc
 
 
+def _site_url_to_write(
+    config: str,
+    kind: str,
+    namespace: str,
+    repo_name: str,
+    pages_base: str | None,
+    result: SyncResult,
+) -> str | None:
+    """The `site_url` to write, or `None` to leave the config's alone -
+    recording on `result` why, when the answer is None for a reason worth
+    telling the user about."""
+    current_match = re.search(r'^site_url = "(.*)"$', config, flags=re.MULTILINE)
+    if current_match is None:
+        return None
+    desired = site_url_for(kind, namespace, repo_name, pages_base)
+    if desired is None:
+        result.notes.append(
+            f"cannot derive a published URL for {result.label}; site_url left unchanged "
+            "(set pages_base in your config to have it managed)"
+        )
+        return None
+    current = current_match.group(1)
+    if current != desired and not site_url_is_ours_to_replace(current):
+        result.notes.append(
+            f"site_url is a custom domain ({current}); left unchanged"
+        )
+        return None
+    return desired
+
+
 def sync_repo_metadata(
     config_path: str = "zensical.toml",
     *,
@@ -366,6 +474,11 @@ def sync_repo_metadata(
     original_config = _read(config_path)
     docs_dir_match = re.search(r'^docs_dir\s*=\s*"([^"]*)"', original_config, re.MULTILINE)
     docs_dir = docs_dir_match.group(1) if docs_dir_match else "docs"
+
+    pages_base_match = re.search(r'^pages_base\s*=\s*"([^"]*)"', original_config, re.MULTILINE)
+    pages_base = pages_base_match.group(1) if pages_base_match else None
+    site_url = _site_url_to_write(original_config, kind, namespace, repo_name, pages_base, result)
+
     updated_config, config_changes = update_config(
         original_config,
         repo_url=repo_url,
@@ -373,6 +486,7 @@ def sync_repo_metadata(
         repo_name=repo_name,
         icon=icon,
         edit_uri=edit_uri_for_host(kind, docs_dir, branch),
+        site_url=site_url,
     )
     result.changes.extend(config_changes)
     if config_changes and not check:
