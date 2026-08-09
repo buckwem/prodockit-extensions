@@ -25,6 +25,7 @@ plugin resolves a real config correctly.
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 from typing import Any
 
 import pytest
@@ -191,6 +192,36 @@ def test_no_page_contains_unrendered_mermaid_source(prodockit_pdf_page_texts):
 
 def test_no_page_contains_unrendered_tex_source(prodockit_pdf_page_texts):
     assert_no_unrendered_tex(prodockit_pdf_page_texts)
+
+
+def test_code_blocks_kept_their_preformatted_layout(prodockit_pdf):
+    """A code block that lost its `<pre>` reflows as justified prose, and
+    the giveaway in the finished PDF is a hole between two monospace
+    glyphs that are adjacent in the text flow - justification padding a
+    word gap that a fixed-pitch font should never have
+    (prodockit-extensions#207).
+
+    Guards the built artefact rather than the intermediate HTML: the unit
+    test in test_pdf_html.py fixes the shape handed to Pandoc, but only
+    this notices if some later stage undoes it again.
+    """
+    offenders = []
+    for pno in range(prodockit_pdf.page_count):
+        for block in prodockit_pdf[pno].get_text("rawdict")["blocks"]:
+            for line in block.get("lines", []):
+                chars = [(c, s) for s in line["spans"] for c in s["chars"]]
+                for (c1, s1), (c2, s2) in pairwise(chars):
+                    if "Mono" not in s1["font"] or "Mono" not in s2["font"]:
+                        continue
+                    if s1["size"] != s2["size"]:
+                        continue
+                    gap = c2["bbox"][0] - c1["bbox"][2]
+                    # JetBrains Mono advances 0.6em; half of one is far
+                    # more than kerning noise and far less than a space.
+                    if gap > s1["size"] * 0.6 * 0.5:
+                        text = "".join(c["c"] for c, _ in chars)
+                        offenders.append(f"page {pno + 1}: {gap:.1f}pt after {c1['c']!r} in {text[:60]!r}")
+    assert not offenders, "monospace runs with justification holes:\n" + "\n".join(offenders[:10])
 
 
 def test_the_architecture_diagram_actually_rendered(prodockit_pdf):

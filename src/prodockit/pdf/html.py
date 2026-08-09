@@ -368,6 +368,36 @@ def fix_up_page_html(
                 img = soup.new_tag("img", src=img_src, alt="Mermaid diagram")
                 pre.replace_with(img)
 
+    # Code blocks: reduce each <pre> to a single plain-text <code> child.
+    #
+    # Pandoc's HTML reader only recognises <pre><code> as a code block when
+    # that <code> contains nothing but text. Zensical's highlighter emits
+    # per-token <span>s, `__codelineno` anchors, and a leading empty
+    # <span></span> - any one of which is enough on its own (confirmed
+    # separately for each) to make the reader give up and treat the block
+    # as ordinary inline content instead.
+    #
+    # When that happens the <pre> is *gone* from Pandoc's output, so
+    # `white-space: pre-wrap` has nothing left to apply to: every newline
+    # collapses, the whole block reflows as a paragraph, and each token
+    # becomes its own inline <code> - complete with the inline-code
+    # background, which is what made this look like a spacing bug rather
+    # than a structural one. A three-line shell snippet came out as
+    # justified prose with `".[dev]"` split across two rows
+    # (prodockit-extensions#207).
+    #
+    # The token markup is worth nothing here in any case: the PDF stylesheet
+    # gives it no colours, so flattening loses no rendering that was ever
+    # happening - it only stops the block being destroyed.
+    for pre in soup.find_all("pre"):
+        if "mermaid" in (pre.get("class") or []):
+            continue
+        text = pre.get_text()
+        pre.clear()
+        code = soup.new_tag("code")
+        code.string = text
+        pre.append(code)
+
     # Zensical rewrites every page-relative reference - not just <a href>
     # links to other pages, but an <img src> too - relative to this page's
     # own clean-URL *virtual* directory (see virtual_page_path()), matching
