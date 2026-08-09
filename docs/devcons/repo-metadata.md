@@ -66,6 +66,21 @@ branch and matched by *kind* of host rather than exact hostname - so
 edit link. A host it has no edit-URL convention for is left alone rather
 than guessed at.
 
+### Nested GitLab groups {: #sync-repo-nested-groups }
+
+GitLab nests groups, so a project can live several levels down -
+`cs-dept/year3/report` is the `report` project in the `year3` subgroup of
+`cs-dept`. The whole path is kept, and every generated URL uses it:
+`repo_url`, the edit links, and the badges all address the real project
+rather than a `cs-dept/report` that does not exist.
+
+The one exception is the `repo_name` label described below, which shows
+the immediate parent (`year3/report`). It is a caption, not a link - the
+header's target is `repo_url` - and printing a deep path verbatim would
+crowd the header for no gain.
+
+GitHub has no equivalent nesting, so nothing changes there.
+
 ### `repo_name` keeps the shape you chose {: #sync-repo-repo-name }
 
 Zensical prints `repo_name` verbatim in the site header, and both

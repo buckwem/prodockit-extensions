@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- `prodockit sync-repo` keeps the whole GitLab namespace, instead of
+  dropping everything between the first group and the project
+  ([#201](https://github.com/buckwem/prodockit-extensions/issues/201)).
+
+    GitLab nests groups, and only the first segment was kept, so
+    `cs-dept/year3/report` became `cs-dept/report` - a project that does
+    not exist. That went into `repo_url`, the edit links and the badges
+    alike, so on an instance where the reader is signed in and the links
+    would otherwise work, they led to a 404 instead. Nested groups are the
+    normal arrangement on university and company instances.
+
+    Silent, as ever: `sync-repo` reported success, `--check` reported
+    being in sync, and the site built.
+
+    The full path now drives every URL. `repo_name` is the exception - it
+    is a header caption rather than a link, so it shows the immediate
+    parent (`year3/report`) to keep the header readable, while the header
+    still links to the correct `repo_url`. A single-segment namespace,
+    which is every GitHub project and most GitLab ones, is unchanged.
+
+    An existing test had asserted the truncated form, with a comment
+    saying it was what the badge and edit URLs needed - the opposite of
+    what they need. That is corrected rather than worked around.
+
 - `prodockit sync-repo` now fills an empty `repo-badges` block, and points
   GitLab badges at the instance the remote actually names
   ([#198](https://github.com/buckwem/prodockit-extensions/issues/198)).
