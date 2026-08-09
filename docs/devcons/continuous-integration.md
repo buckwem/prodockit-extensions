@@ -41,6 +41,9 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  PANDOC_VERSION: "3.10.1"
+
 permissions:
   contents: read
   pages: write
@@ -70,8 +73,12 @@ jobs:
         with:
           node-version: "22"
 
-      # Pandoc, WeasyPrint's Pango, and your document fonts.
-      - run: sudo apt-get update && sudo apt-get install -y pandoc fonts-inter fonts-jetbrains-mono
+      # WeasyPrint's Pango and your document fonts. Pandoc comes from an
+      # upstream release rather than the image - see "Pandoc version drift".
+      - run: sudo apt-get update && sudo apt-get install -y curl fonts-inter fonts-jetbrains-mono
+      - run: |
+          curl -fsSL -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
+          sudo apt install -y /tmp/pandoc.deb
 
       # Chrome, for mermaid-cli. Skip this block if you have no diagrams.
       - run: curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg > /dev/null
@@ -149,9 +156,12 @@ pages:
     PUPPETEER_SKIP_DOWNLOAD: "true"
     PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome-stable
     GIT_DEPTH: "0"                 # tags, for {{ release }}
+    PANDOC_VERSION: "3.10.1"       # not the image's - see "Pandoc version drift"
   script:
     - apt-get update
-    - apt-get install -y curl gnupg ca-certificates pandoc libpango-1.0-0 fonts-inter fonts-jetbrains-mono
+    - apt-get install -y curl gnupg ca-certificates libpango-1.0-0 fonts-inter fonts-jetbrains-mono
+    - curl -fsSL -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
+    - apt-get install -y /tmp/pandoc.deb
     - curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
     - apt-get install -y nodejs
     - curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
@@ -275,10 +285,25 @@ successful job published, with no branch-scoped source to disagree with.
 
 ### Pandoc version drift {: #ci-pandoc-version }
 
-Distribution `pandoc` packages lag well behind upstream - far enough that
-some markdown edge cases parse differently than on a contributor's machine.
-If that matters to you, install a pinned `.deb` from Pandoc's own releases
-instead of `apt-get install pandoc`.
+Distribution `pandoc` packages lag well behind upstream. `ubuntu-24.04`
+ships **3.1.3**; a contributor on macOS or Windows has whatever Homebrew or
+winget last gave them. Install a pinned `.deb` from Pandoc's own releases,
+as the recipe above does, rather than `apt-get install pandoc`.
+
+!!! danger "This gap hides bugs rather than causing them"
+    Pandoc 3.1.3 accepted `<pre><code>` containing element markup as a code
+    block. Pandoc 3.10 does not. Zensical's highlighter emits exactly that
+    markup, so on a current pandoc every fenced code block in the PDF lost
+    its `<pre>` and reflowed as justified prose - while CI, on the image's
+    older package, kept publishing perfect output.
+
+    The published PDFs were correct and every local build was broken, for
+    as long as nobody compared them. CI could not have caught it, and would
+    have started producing it unannounced at the next runner-image bump,
+    with no commit to blame.
+
+    Pinning does not prevent that class of change. It makes it arrive as a
+    version bump you can bisect instead of a Tuesday.
 
 ## Checks worth adding {: #ci-checks-worth-adding }
 

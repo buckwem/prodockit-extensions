@@ -31,6 +31,26 @@ permissions:
   contents: read
   issues: write
 
+# The runner image's own `pandoc` package lags well behind upstream -
+# `ubuntu-24.04` currently ships 3.1.3, while a contributor on macOS or
+# Windows has whatever Homebrew or winget last gave them. That gap is not
+# cosmetic: pandoc 3.1.3 accepted `<pre><code>` containing element markup
+# as a code block and 3.10 does not, so every fenced code block in the PDF
+# reflowed as justified prose on a current pandoc while CI kept publishing
+# perfect output (prodockit-extensions#207). CI could not see the bug, and
+# would have started producing it unannounced at the next image bump.
+#
+# Pinning an upstream release keeps CI and local development on one
+# version, and makes a pandoc change an explicit commit rather than a
+# silent inheritance.
+#
+# prodockit-template pins the same way and currently says 3.10; it and
+# prodockit-userguide's .gitlab-ci.yml both need bringing to this number,
+# so the family builds its PDFs with one pandoc rather than three
+# (prodockit-extensions#209).
+env:
+  PANDOC_VERSION: "3.10.1"
+
 jobs:
   drift:
     runs-on: ubuntu-24.04
@@ -50,7 +70,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: sudo apt-get update && sudo apt-get install -y pandoc fonts-inter fonts-jetbrains-mono
+      - run: sudo apt-get update && sudo apt-get install -y curl fonts-inter fonts-jetbrains-mono
+      # Upstream release rather than the image's package - see PANDOC_VERSION.
+      - run: |
+          curl -fsSL -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
+          sudo apt install -y /tmp/pandoc.deb
       - run: curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg > /dev/null
       - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
       - run: sudo apt-get update && sudo apt-get install -y google-chrome-stable
