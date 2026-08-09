@@ -1,5 +1,39 @@
 # Release Notes
 
+## Unreleased
+
+- `prodockit sync-repo` now fills an empty `repo-badges` block, and points
+  GitLab badges at the instance the remote actually names
+  ([#198](https://github.com/buckwem/prodockit-extensions/issues/198)).
+
+    Two faults, which together made the feature look absent rather than
+    broken.
+
+    The block pattern required a newline immediately before the end
+    marker, and the start group had already consumed the only one present
+    when the two markers sit on consecutive lines. That empty pair is
+    precisely how a template ships a badge row for `sync-repo` to fill in -
+    the shape this project's own documentation gives as the example - so
+    the one case that had to work was the one that could not. Worse, the
+    failure to match was then reported as `no repo-badges markers in
+    README.md`, which is what a reader sees when the markers are absent.
+    The markers were there; nothing said so.
+
+    Separately, the badge set is chosen by host *kind*, and `gitlab`
+    matches any instance. The URLs were built with `gitlab.com` hardcoded,
+    so a university or company GitLab got a badge row pointing at a
+    `gitlab.com` project that does not exist - plausible-looking links to
+    nothing, which is worse than the stale GitHub badges they replaced.
+
+    Badge links are now built from the real host. The GitLab build badge
+    is the one the instance serves itself rather than shields.io's, which
+    is also the only version that can work on a private instance: the
+    reader is already authenticated against the host that would refuse an
+    external badge service. Stars and forks have no instance-served
+    equivalent and shields.io reads `gitlab.com` only, so those two are
+    emitted for `gitlab.com` alone rather than as guaranteed broken images
+    everywhere else.
+
 ## 0.19.1 (2026-08-07)
 
 - `prodockit pdf` now renders Mermaid diagrams on Windows

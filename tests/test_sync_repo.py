@@ -212,19 +212,44 @@ def test_repo_name_stays_bare_when_the_config_uses_the_bare_form() -> None:
 
 
 def test_badges_are_generated_for_github_and_gitlab() -> None:
-    github = badges_for_host("github", "owner", "repo", "main")
+    github = badges_for_host("github", "github.com", "owner", "repo", "main")
     assert github is not None
     assert "github.com/owner/repo/actions" in github
     assert "img.shields.io/github/stars/owner/repo" in github
 
-    gitlab = badges_for_host("gitlab", "owner", "repo", "develop")
+    gitlab = badges_for_host("gitlab", "gitlab.com", "owner", "repo", "develop")
     assert gitlab is not None
-    assert "gitlab/pipeline-status/owner%2Frepo?branch=develop" in gitlab
+    assert "https://gitlab.com/owner/repo/badges/develop/pipeline.svg" in gitlab
+    assert "img.shields.io/gitlab/stars/owner%2Frepo" in gitlab
+
+
+def test_gitlab_badges_point_at_a_self_hosted_instance_not_gitlab_com() -> None:
+    """The badge row is chosen by host kind, and "gitlab" matches any
+    instance - so building the URLs from the kind alone sent every link to
+    gitlab.com, naming a repository that does not exist there
+    (prodockit-extensions#198).
+    """
+    badges = badges_for_host("gitlab", "gitlab.surrey.ac.uk", "mb0105", "report", "main")
+    assert badges is not None
+    assert "gitlab.com" not in badges
+    assert "https://gitlab.surrey.ac.uk/mb0105/report/-/pipelines" in badges
+    assert "https://gitlab.surrey.ac.uk/mb0105/report/badges/main/pipeline.svg" in badges
+
+
+def test_self_hosted_gitlab_omits_the_badges_shields_cannot_read() -> None:
+    """Stars and forks have no instance-served equivalent, and shields.io
+    resolves its gitlab endpoints against gitlab.com - so on a self-hosted
+    instance those two badges could only ever render broken. A missing
+    badge beats one that is permanently unavailable."""
+    badges = badges_for_host("gitlab", "gitlab.example.org", "owner", "repo", "main")
+    assert badges is not None
+    assert "img.shields.io" not in badges
+    assert badges.count("<img") == 1
 
 
 def test_no_badges_are_invented_for_a_host_without_a_known_set() -> None:
-    assert badges_for_host("bitbucket", "owner", "repo", "main") is None
-    assert badges_for_host("other", "owner", "repo", "main") is None
+    assert badges_for_host("bitbucket", "bitbucket.org", "owner", "repo", "main") is None
+    assert badges_for_host("other", "git.example.com", "owner", "repo", "main") is None
 
 
 def test_update_readme_replaces_only_the_marked_block() -> None:
@@ -234,6 +259,35 @@ def test_update_readme_replaces_only_the_marked_block() -> None:
     assert "old badges" not in updated
     assert updated.startswith("# Example")
     assert updated.rstrip().endswith("Body text.")
+
+
+def test_update_readme_fills_an_empty_marker_pair() -> None:
+    """A template ships the two markers with nothing between them, for
+    `sync-repo` to fill in on first run. That was the one shape the block
+    pattern could not match, because the start group consumed the only
+    newline present and the end marker was then required to have another
+    one before it - so the badges were never written, and sync-repo
+    reported the markers as missing (prodockit-extensions#198).
+    """
+    text = "# Example\n\n<!-- repo-badges:start -->\n<!-- repo-badges:end -->\n\nBody text.\n"
+    updated, changed = update_readme(text, "NEW BADGES")
+    assert changed
+    assert "NEW BADGES" in updated
+    assert updated == (
+        "# Example\n\n<!-- repo-badges:start -->\nNEW BADGES\n"
+        "<!-- repo-badges:end -->\n\nBody text.\n"
+    )
+
+
+def test_update_readme_is_idempotent_over_its_own_output() -> None:
+    """Guards the newline the substitution now adds before the end marker:
+    reinserting one on every run would grow a blank line each time, and
+    `--check` would report drift forever."""
+    text = "<!-- repo-badges:start -->\n<!-- repo-badges:end -->\n"
+    once, _ = update_readme(text, "BADGES")
+    twice, changed_again = update_readme(once, "BADGES")
+    assert twice == once
+    assert not changed_again
 
 
 def test_update_readme_leaves_a_readme_without_markers_alone() -> None:
