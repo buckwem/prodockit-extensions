@@ -33,6 +33,18 @@
     equivalent and shields.io reads `gitlab.com` only, so those two are
     emitted for `gitlab.com` alone rather than as guaranteed broken images
     everywhere else.
+- The CI recipe in the documentation matches the workflows again
+  ([#202](https://github.com/buckwem/prodockit-extensions/issues/202)).
+
+    The `concurrency` group that serialises Pages deploys had been in
+    `docs.yml` since July and was never copied across, so the recipe
+    handed a reader the race it was written to prevent - on a page whose
+    neighbouring section describes that failure in detail. Also pins the
+    runner to `ubuntu-24.04` rather than `ubuntu-latest` (the page's two
+    other blocks already did), adds the `workflow_dispatch` trigger the
+    real redeploy workflow carries, and recommends `prodockit pins --check
+    --offline` on a gate, since the bare form asks PyPI a question a
+    pull request should not be able to fail on.
 
 ## 0.19.1 (2026-08-07)
 

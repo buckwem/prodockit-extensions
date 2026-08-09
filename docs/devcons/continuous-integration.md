@@ -33,6 +33,14 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+
+# Publishing a release just after merging its version bump starts two
+# deploys at once - one for the push, one for the release - and without
+# this they race. See "Release numbering" below.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 permissions:
   contents: read
   pages: write
@@ -42,7 +50,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Consumed by the verify job below.
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
@@ -222,6 +230,21 @@ Pages, and a quiet one.
     it: every deployment from `main` went live, every one from a tag ref
     did not, across nine deployments with no counterexamples.
 
+!!! warning "And serialise your deploys, or the two runs race"
+    Publishing a release right after merging its version bump starts two
+    deploys at once: one for the push, one for the release. Without the
+    `concurrency` group in the workflow above, they run concurrently and
+    the winner is whichever finishes last, not whichever is newest.
+
+    This project shipped 0.15.1 that way. The push run had checked out
+    `main` before the tag existed, so its build saw the *previous* tag -
+    and its deployment is the one that ended up live, even though the
+    release run started later, finished later, and reported success. The
+    site sat on the old release number until a manual redeploy.
+
+    `cancel-in-progress: false` rather than `true`: a queued deploy should
+    wait and then supersede, not be thrown away.
+
 Trigger the rebuild against your default branch instead. A tiny separate
 workflow, which builds nothing itself:
 
@@ -230,6 +253,7 @@ name: Redeploy docs after a release
 on:
   release:
     types: [published]
+  workflow_dispatch:     # so it can be re-run by hand
 permissions:
   actions: write        # lets GITHUB_TOKEN start another run
 jobs:
@@ -261,9 +285,9 @@ instead of `apt-get install pandoc`.
 Three prodockit features exist specifically to make CI catch these:
 
 ```yaml
-- run: prodockit sync-repo --check   # config drifted from the git remote?
-- run: prodockit pins --check        # build inputs behind PyPI, or pinned inconsistently?
-- run: python -m pytest              # with prodockit[testing]
+- run: prodockit sync-repo --check          # config drifted from the git remote?
+- run: prodockit pins --check --offline     # build inputs pinned inconsistently?
+- run: python -m pytest                     # with prodockit[testing]
 ```
 
 `prodockit sync-repo --check` writes nothing and exits non-zero if your
@@ -271,7 +295,10 @@ repo links, icon or badges no longer match the remote - see
 [Repository metadata](repo-metadata.md#sync-repo-repository-metadata) below.
 `prodockit pins --check` does the same for build inputs pinned across
 several files - see [Version pinning and drift](pinning-drift.md#pinning-version-pinning-and-drift)
-below. [`prodockit.testing`](testing.md) provides fixtures for the built
+below. Use `--offline` on a pull-request gate: without it the check also
+asks PyPI what the newest version is, so an upstream release or a network
+blip can fail a pull request that changed nothing. Comparing the pins
+against each other needs no network, and that is the part worth gating on. [`prodockit.testing`](testing.md) provides fixtures for the built
 PDF and site, plus `assert_no_unrendered_mermaid()` /
 `assert_no_unrendered_tex()` - which turn the quiet-degradation case into
 a failed build rather than a warning nobody read.
