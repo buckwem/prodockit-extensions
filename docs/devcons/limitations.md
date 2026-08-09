@@ -123,6 +123,52 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
     nothing having gone wrong as far as the build is concerned. Since
     0.12.0, `prodockit pdf` prints a warning naming the missing renderer
     and how to install it whenever that combination occurs.
+**Pandoc's HTML reader decides what is still a code block**
+
+- Zensical's highlighter emits per-token `<span>`s, a `__codelineno`
+  anchor per line, and a leading empty `<span></span>` inside
+  `<pre><code>`. Pandoc's HTML reader only treats `<pre><code>` as a code
+  block when that `<code>` holds nothing but text, and each of those
+  constructs defeats it independently → every `<pre>` is reduced to a
+  single plain-text `<code>` child before Pandoc sees it (in
+  [`prodockit.pdf.html`](../pdf.md#prodockitpdfhtml)).
+
+!!! danger "A version of pandoc decided this, and CI could not see it"
+
+    This is the clearest example the project has of an external tool
+    changing under it, so it is worth stating in full.
+
+    Pandoc **3.1.3** accepted that markup as a code block. Pandoc **3.10**
+    does not. Nothing in this repository changed - not Zensical, which
+    emits byte-identical markup from 0.0.50 through 0.0.53, and not
+    prodockit, which had never touched the construct.
+
+    When the reader gives up, the `<pre>` is absent from what Pandoc hands
+    WeasyPrint, so `white-space: pre-wrap` has nothing to apply to. Every
+    newline collapses, the block reflows and justifies like a paragraph,
+    and each token becomes its own inline `<code>` - carrying the
+    inline-code background with it. A six-line install snippet came out as
+    four wrapped rows with `".[dev]"` split across two of them. It was
+    reported as stretched word spacing, which is what it looks like; the
+    spacing was justification padding a gap a fixed-pitch font should
+    never have.
+
+    **CI published perfect PDFs throughout.** The runner image's own
+    `pandoc` package was 3.1.3, so every automated build was correct while
+    every local build on a current pandoc was wrong. The two artefacts
+    disagreed for as long as nobody compared them, and the next runner
+    image bump would have broken the published output with no commit to
+    blame.
+
+    Two things came from that. The build pins an upstream pandoc release
+    rather than taking the image's (see
+    [Pandoc version drift](continuous-integration.md#ci-pandoc-version)),
+    so a pandoc change arrives as a version bump that can be bisected. And
+    the check for it measures the finished PDF - the gap between two
+    monospace characters that are adjacent in the text flow - rather than
+    the HTML handed to Pandoc, because the intermediate shape being right
+    is exactly what was true while the artefact was wrong.
+
 - A live site's own header repo widget (release/version info) fetches it
   client-side via JS; Pandoc/WeasyPrint has no JS engine to do the same →
   a project embedding similar info in a PDF cover page needs to fetch and

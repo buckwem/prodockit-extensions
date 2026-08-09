@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- CI builds with a pinned upstream pandoc instead of the runner image's
+  ([#209](https://github.com/buckwem/prodockit-extensions/issues/209)).
+
+    `ubuntu-24.04` ships pandoc 3.1.3. That is what made the code-block
+    fault below invisible: CI published correct PDFs on the old package
+    while every local build on a current pandoc was wrong, and the next
+    runner-image bump would have broken the published output with no
+    commit to blame.
+
+    `ci.yml`, `docs.yml` and `drift.yml` now install a pinned release from
+    pandoc's own downloads, the way `prodockit-template` already did.
+    `drift.yml` matters as much as the other two: it exists to detect
+    published output drifting, and an unpinned pandoc is a source of drift
+    it could not see.
+
+    The documented CI recipe is updated to match, in both its GitHub and
+    GitLab forms, and the limitations page records the whole episode.
+
 - Fenced code blocks keep their line structure in the PDF
   ([#207](https://github.com/buckwem/prodockit-extensions/issues/207)).
 
