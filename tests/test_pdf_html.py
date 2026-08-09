@@ -558,3 +558,66 @@ def test_an_appendix_page_still_flags_a_heading_that_has_its_own_id() -> None:
     assert "appendix" in heading["class"]
     assert heading["data-appendix-letter"] == "A"
     assert soup.find(id="page-glossary") is not None
+
+
+# ---------------------------------------------------------------------------
+# Code blocks
+# ---------------------------------------------------------------------------
+
+# Exactly what Zensical's highlighter emits: a leading empty <span>, a
+# `__codelineno` anchor per line, and per-token <span>s.
+_HIGHLIGHTED = (
+    '<div class="highlight"><pre><span></span><code>'
+    '<a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>'
+    'git<span class="w"> </span>clone<span class="w"> </span>example\n'
+    '<a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a>'
+    '<span class="nb">cd</span><span class="w"> </span>example\n'
+    "</code></pre></div>"
+)
+
+
+def test_code_blocks_are_flattened_to_plain_text() -> None:
+    """Pandoc's HTML reader only takes `<pre><code>` as a code block when
+    the `<code>` holds nothing but text. Zensical's token spans, line
+    anchors and leading empty span each defeat that on their own, and the
+    `<pre>` is then absent from Pandoc's output entirely - so
+    `white-space: pre-wrap` has nothing to apply to and the block reflows
+    as justified prose (prodockit-extensions#207).
+    """
+    soup = BeautifulSoup(_fix(_HIGHLIGHTED), "html.parser")
+    pre = soup.find("pre")
+    assert pre is not None
+    assert pre.find_all("span") == []
+    assert pre.find_all("a") == []
+    children = list(pre.children)
+    assert len(children) == 1 and children[0].name == "code"
+
+
+def test_flattening_keeps_the_text_and_its_line_breaks() -> None:
+    """The point of the block is its line structure - losing the newlines
+    is what turned a three-line snippet into one wrapped paragraph."""
+    soup = BeautifulSoup(_fix(_HIGHLIGHTED), "html.parser")
+    text = soup.find("pre").get_text()
+    assert text.splitlines()[:2] == ["git clone example", "cd example"]
+    # The spaces live in <span class="w"> tokens; dropping the spans must
+    # not drop the spaces with them.
+    assert "gitclone" not in text
+
+
+def test_flattening_leaves_mermaid_pre_alone() -> None:
+    """`pre.mermaid` carries diagram source that a separate step replaces
+    with a rendered image - flattening it here would be harmless but
+    pointless, and skipping it keeps the two transforms independent."""
+    html = '<pre class="mermaid">graph LR\n  A --> B</pre>'
+    soup = BeautifulSoup(_fix(html), "html.parser")
+    pre = soup.find("pre", class_="mermaid")
+    assert pre is not None
+    assert pre.find("code") is None
+
+
+def test_inline_code_outside_pre_is_untouched() -> None:
+    """Only `<pre>` is rewritten. Inline `<code>` in prose renders fine and
+    must keep any markup it carries."""
+    html = '<p>Run <code>prodockit <em>pdf</em></code> now.</p>'
+    soup = BeautifulSoup(_fix(html), "html.parser")
+    assert soup.find("code").find("em") is not None

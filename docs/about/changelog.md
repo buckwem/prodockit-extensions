@@ -1,5 +1,37 @@
 # Release Notes
 
+## Unreleased
+
+- Fenced code blocks keep their line structure in the PDF
+  ([#207](https://github.com/buckwem/prodockit-extensions/issues/207)).
+
+    Reported as stretched word spacing inside code blocks. The spacing was
+    real, but it was a symptom: the blocks had stopped being code blocks
+    at all.
+
+    Pandoc's HTML reader only accepts `<pre><code>` as a code block when
+    that `<code>` holds nothing but text. Zensical's highlighter emits
+    per-token `<span>`s, a `__codelineno` anchor per line, and a leading
+    empty `<span></span>` - each of which, on its own, makes the reader
+    give up and treat the block as ordinary inline content.
+
+    The `<pre>` was then absent from what Pandoc handed WeasyPrint, so
+    `white-space: pre-wrap` had nothing to apply to. Every newline
+    collapsed, the block reflowed and justified like a paragraph, and each
+    token became its own inline `<code>` - which is where the wide gaps
+    came from, and why they varied from line to line. A six-line install
+    snippet came out as four wrapped rows with `".[dev]"` split across
+    two of them.
+
+    Each `<pre>` is now reduced to a single plain-text `<code>` child
+    before Pandoc sees it. Nothing is lost by dropping the token markup:
+    the PDF stylesheet defines no syntax colours, so it was never
+    rendering anything - it was only destroying the block.
+
+    Both a unit test on the HTML handed to Pandoc and a check on the
+    finished PDF, since the intermediate shape being right does not prove
+    the artefact is.
+
 ## 0.20.0 (2026-08-09)
 
 - `prodockit sync-repo` now keeps `site_url` in step too
