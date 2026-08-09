@@ -11,9 +11,10 @@ Two things are synced, both derived from `git remote get-url origin`:
 - In the Zensical config: `repo_url`, `repo_name`, `[project.theme.icon]
   repo`, and `edit_uri`.
 - In the README: the badge row between `<!-- repo-badges:start -->` and
-  `<!-- repo-badges:end -->` markers, if those markers are present.
-  GitHub and GitLab each get badges pointing at their own APIs; any other
-  host is left alone rather than guessed at.
+  `<!-- repo-badges:end -->` markers, if those markers are present -
+  including an empty pair, which is how a template ships a row for this to
+  fill in. GitHub and GitLab each get badges pointing at their own host;
+  any other host is left alone rather than guessed at.
 
 Run it via `prodockit sync-repo` after changing a remote, or as a build
 step before `zensical build`.
@@ -41,8 +42,14 @@ HOST_ICON_MAP: list[tuple[str, str, str, str]] = [
 ]
 DEFAULT_ICON = "fontawesome/brands/git-alt"
 
+# The body between the markers is optional. An empty pair - the two
+# markers on consecutive lines, which is how a template ships a badge row
+# it expects `sync-repo` to fill in - is the one shape that has to work,
+# and requiring a newline *before* the end marker meant it was the one
+# shape that could not match: the start group had already consumed the
+# only newline there was.
 README_BADGE_BLOCK_RE = re.compile(
-    r"(<!-- repo-badges:start.*?-->\n).*?(\n<!-- repo-badges:end -->)",
+    r"(<!-- repo-badges:start.*?-->\n)(?:.*?\n)?(<!-- repo-badges:end -->)",
     re.DOTALL,
 )
 
@@ -222,11 +229,26 @@ def update_config(
     return text, changes
 
 
-def badges_for_host(kind: str, owner: str, repo_name: str, default_branch: str) -> str | None:
-    """The README badge-row markup for a host kind, or `None` for a host
-    with no known badge set (left untouched in that case)."""
+def badges_for_host(
+    kind: str, host: str, owner: str, repo_name: str, default_branch: str
+) -> str | None:
+    """The README badge-row markup for a host, or `None` for a host with no
+    known badge set (left untouched in that case).
+
+    The `host` matters as much as the `kind`. GitLab is routinely
+    self-hosted, and a badge row built from the kind alone sent every link
+    to `gitlab.com` - for a university or company instance, a repository
+    that does not exist. The badges looked plausible and pointed at nothing.
+
+    So the pipeline badge is the one GitLab serves from the instance itself
+    rather than shields.io's. It is correct on any install, and on a
+    private one it is the only version that can work at all: the reader is
+    already authenticated against the very instance that would refuse
+    shields.io. The star and fork badges have no such native form, and are
+    emitted only for `gitlab.com`, where shields can actually read them.
+    """
     if kind == "github":
-        base = f"https://github.com/{owner}/{repo_name}"
+        base = f"https://{host}/{owner}/{repo_name}"
         return (
             '<p align="center">\n'
             f'  <a href="{base}/actions"><img\n'
@@ -244,24 +266,28 @@ def badges_for_host(kind: str, owner: str, repo_name: str, default_branch: str) 
             "</p>"
         )
     if kind == "gitlab":
-        path = f"{owner}/{repo_name}"
-        encoded = f"{owner}%2F{repo_name}"
-        return (
-            '<p align="center">\n'
-            f'  <a href="https://gitlab.com/{path}/-/pipelines"><img\n'
-            f'    src="https://img.shields.io/gitlab/pipeline-status/{encoded}?branch={default_branch}&label=Build"\n'
+        base = f"https://{host}/{owner}/{repo_name}"
+        rows = [
+            f'  <a href="{base}/-/pipelines"><img\n'
+            f'    src="{base}/badges/{default_branch}/pipeline.svg"\n'
             '    alt="Build"\n'
             "  /></a>\n"
-            f'  <a href="https://gitlab.com/{path}"><img\n'
-            f'    src="https://img.shields.io/gitlab/stars/{encoded}?style=flat&logo=gitlab&label=Stars"\n'
-            '    alt="GitLab Stars"\n'
-            "  /></a>\n"
-            f'  <a href="https://gitlab.com/{path}/-/forks"><img\n'
-            f'    src="https://img.shields.io/gitlab/forks/{encoded}?style=flat&logo=gitlab&label=Forks"\n'
-            '    alt="GitLab Forks"\n'
-            "  /></a>\n"
-            "</p>"
-        )
+        ]
+        if host.lower() == "gitlab.com":
+            encoded = f"{owner}%2F{repo_name}"
+            rows.append(
+                f'  <a href="{base}"><img\n'
+                f'    src="https://img.shields.io/gitlab/stars/{encoded}?style=flat&logo=gitlab&label=Stars"\n'
+                '    alt="GitLab Stars"\n'
+                "  /></a>\n"
+            )
+            rows.append(
+                f'  <a href="{base}/-/forks"><img\n'
+                f'    src="https://img.shields.io/gitlab/forks/{encoded}?style=flat&logo=gitlab&label=Forks"\n'
+                '    alt="GitLab Forks"\n'
+                "  /></a>\n"
+            )
+        return '<p align="center">\n' + "".join(rows) + "</p>"
     return None
 
 
@@ -272,7 +298,7 @@ def update_readme(text: str, badges: str) -> tuple[str, bool]:
     them, so their absence is a valid state rather than an error."""
     if not README_BADGE_BLOCK_RE.search(text):
         return text, False
-    new_text = README_BADGE_BLOCK_RE.sub(lambda m: m.group(1) + badges + m.group(2), text)
+    new_text = README_BADGE_BLOCK_RE.sub(lambda m: m.group(1) + badges + "\n" + m.group(2), text)
     return new_text, new_text != text
 
 
@@ -335,7 +361,7 @@ def sync_repo_metadata(
         _write(config_path, updated_config)
 
     if readme_path is not None:
-        badges = badges_for_host(kind, owner, repo_name, branch)
+        badges = badges_for_host(kind, host, owner, repo_name, branch)
         if badges is None:
             result.notes.append(f"no known README badge set for {label}; README left unchanged")
         else:

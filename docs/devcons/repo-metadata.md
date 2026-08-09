@@ -84,10 +84,29 @@ your remote is on:
 <!-- repo-badges:end -->
 ```
 
+An empty pair, exactly as above, is the normal starting state: a template
+ships the markers and the first `sync-repo` fills them in.
+
 GitHub and GitLab have known badge sets. Any other host is reported and
 left untouched rather than given invented URLs. If you don't want managed
 badges, leave the markers out - their absence is a normal state, not an
 error, and `sync-repo` just says so and moves on.
+
+!!! note "Self-hosted GitLab gets a build badge only"
+    The badge set is chosen by host *kind*, and `gitlab` matches any
+    instance - a university or company GitLab as readily as `gitlab.com`.
+    The links are built from your actual host, so they point at your own
+    instance rather than at a `gitlab.com` project that does not exist.
+
+    The build badge is the one GitLab serves itself, at
+    `<your-instance>/<owner>/<repo>/badges/<branch>/pipeline.svg`. That
+    works on a private instance, where the reader is already authenticated
+    against it - which an external badge service can never be.
+
+    Stars and forks have no instance-served equivalent, and shields.io
+    resolves its GitLab endpoints against `gitlab.com` only, so those two
+    are emitted for `gitlab.com` alone. On a self-hosted instance they
+    could render nothing but a broken image.
 
 ## Using it from Python {: #sync-repo-from-python }
 
