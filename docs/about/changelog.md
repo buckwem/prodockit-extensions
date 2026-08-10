@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Bootstrap on Ubuntu now downloads the pinned pandoc release from
+  GitHub instead of `apt install pandoc`, which installs a version
+  several major versions behind — far enough to render code blocks as
+  justified prose (#207). The download uses `dpkg --print-architecture`
+  so the same command works on amd64, arm64 and under Rosetta.
+
+- The pandoc check now reports `WRONG` when the installed version is too
+  old (< 3.x), rather than `ok`. Ubuntu's apt package is 2.x on some
+  LTS releases, and a check that merely asks "is pandoc installed?"
+  would pass on those and leave the reader to discover the problem at
+  their first `prodockit pdf`.
+
+- Ubuntu's git plan now runs `sudo apt update` before the first
+  `apt install`, so a clean machine with an empty package index does not
+  fail to find the package.
+
 - `prodockit bootstrap --help` said "ten stages" a release after there
   were eleven. The count is now asserted against the stage list, so prose
   cannot drift from the thing it describes.

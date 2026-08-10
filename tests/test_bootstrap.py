@@ -1026,3 +1026,91 @@ def test_the_help_text_does_not_claim_a_stale_stage_count(cli_bootstrap) -> None
     against the list."""
     result = cli_bootstrap("--help")
     assert f"all {len(STAGES)} stages" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Ubuntu automation (prodockit-extensions#229)
+# ---------------------------------------------------------------------------
+
+
+def test_ubuntu_pandoc_is_downloaded_not_apt_installed(tmp_path: Path) -> None:
+    """Ubuntu's own pandoc package is several major versions behind -
+    far enough to change how the PDF renders (#207). The CI workflows
+    and the User Guide both download the pinned release from GitHub
+    releases, and bootstrap must do the same.
+
+    `apt install pandoc` would give you 2.x on some LTS releases, which
+    renders code blocks as justified prose."""
+    context = _context(tmp_path, platform=UBUNTU)
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(context)
+    joined = " ".join(" ".join(cmd) for cmd in plan.commands)
+    assert "github.com/jgm/pandoc/releases" in joined
+    # The architecture-detection command, so arm64 and amd64 both work.
+    assert "dpkg --print-architecture" in joined
+    # Should NOT install pandoc from apt.
+    assert "apt install" not in joined or "pandoc.deb" in joined
+
+
+def test_ubuntu_pandoc_version_is_pinned(tmp_path: Path) -> None:
+    """The version in the download URL must match the constant, which
+    tracks the CI pin."""
+    from prodockit.bootstrap.stages import PANDOC_VERSION
+
+    context = _context(tmp_path, platform=UBUNTU)
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(context)
+    joined = " ".join(" ".join(cmd) for cmd in plan.commands)
+    assert PANDOC_VERSION in joined
+
+
+def test_pandoc_too_old_is_wrong_not_ok(tmp_path: Path) -> None:
+    """Ubuntu's apt pandoc is often 2.x. A check that only asks "is
+    pandoc installed?" passes on those, and the first `prodockit pdf`
+    fails with justified prose where code blocks should be (#207)."""
+    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 2.17.1.1\n")})
+    result = next(s for s in STAGES if s.id == "pandoc").check(
+        _context(tmp_path, runner=runner)
+    )
+    assert result.status is Status.WRONG
+    assert "too old" in result.detail
+
+
+def test_pandoc_current_version_is_ok(tmp_path: Path) -> None:
+    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})
+    result = next(s for s in STAGES if s.id == "pandoc").check(
+        _context(tmp_path, runner=runner)
+    )
+    assert result.status is Status.OK
+    assert "3.10.1" in result.detail
+
+
+def test_ubuntu_pango_libraries_are_still_installed(tmp_path: Path) -> None:
+    """WeasyPrint needs Pango et al. These are separate from pandoc -
+    pandoc doesn't depend on them, and neither does the .deb from GitHub
+    releases. They must still be installed."""
+    context = _context(tmp_path, platform=UBUNTU)
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(context)
+    joined = " ".join(" ".join(cmd) for cmd in plan.commands)
+    assert "libpango-1.0-0" in joined
+    assert "libpangoft2-1.0-0" in joined
+    assert "libharfbuzz-subset0" in joined
+
+
+def test_ubuntu_git_plan_runs_apt_update_first(tmp_path: Path) -> None:
+    """A clean Ubuntu install's package index may be empty. `apt install`
+    without a prior `apt update` can fail to find the package."""
+    context = _context(tmp_path, platform=UBUNTU)
+    plan = next(s for s in STAGES if s.id == "git").plan(context)
+    # First command must be the update.
+    assert plan.commands[0] == ["sudo", "apt", "update"]
+
+
+def test_ubuntu_node_installs_curl_first(tmp_path: Path) -> None:
+    """A clean Ubuntu install does not necessarily have `curl`. Without
+    it the NodeSource setup command fails, and the `apt install nodejs`
+    on the next line still succeeds - quietly fitting Ubuntu's own older
+    Node.js instead of NodeSource's. You then have node without npm and
+    the toolchains fail for an apparently unrelated reason."""
+    context = _context(tmp_path, platform=UBUNTU)
+    plan = next(s for s in STAGES if s.id == "node").plan(context)
+    first_install = plan.commands[0]
+    assert "curl" in first_install
