@@ -23,6 +23,7 @@ would use. Nothing here installs anything yet.
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -116,6 +117,7 @@ def build_context(
     runner: Runner | None = None,
     platform: str | None = None,
     home: Path | None = None,
+    exists: Callable[[Path], bool] | None = None,
 ) -> Context:
     """Assembles what the stages need, resolving the configured host.
 
@@ -137,6 +139,7 @@ def build_context(
         platform=platform or current_platform(),
         runner=runner or SubprocessRunner(),
         home=home or Path.home(),
+        exists=exists or Path.exists,
     )
 
 
@@ -176,7 +179,7 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
     plan = stage.plan(context)
     result = ApplyResult(stage=stage)
     for command in plan.commands:
-        outcome = context.runner.run(command)
+        outcome = context.runner.run(command, cwd=plan.cwd)
         result.ran.append(list(command))
         if not outcome.ok:
             return ApplyResult(stage=stage, ran=result.ran, failed=outcome)

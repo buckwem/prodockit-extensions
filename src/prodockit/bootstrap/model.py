@@ -149,7 +149,7 @@ class Runner(Protocol):
     the test suite happens to be running on.
     """
 
-    def run(self, command: Sequence[str]) -> CommandResult: ...
+    def run(self, command: Sequence[str], cwd: str | None = None) -> CommandResult: ...
 
 
 class SubprocessRunner:
@@ -177,10 +177,11 @@ class SubprocessRunner:
     problem, but the default has to be the safe one.
     """
 
-    def run(self, command: Sequence[str]) -> CommandResult:
+    def run(self, command: Sequence[str], cwd: str | None = None) -> CommandResult:
         try:
             completed = subprocess.run(
                 list(command),
+                cwd=cwd,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -238,6 +239,13 @@ class Plan:
 
     commands: list[list[str]] = field(default_factory=list)
     instructions: list[str] = field(default_factory=list)
+    #: Where the commands run. Needed because not every tool takes a
+    #: path: `git` has `-C` and `npm` has `--prefix`, but `prodockit
+    #: sync-repo` reads its config from the working directory, so running
+    #: it from wherever bootstrap happened to be started found no `origin`
+    #: remote and failed with a message about a repository it was never
+    #: looking at.
+    cwd: str | None = None
 
     @property
     def is_manual(self) -> bool:
@@ -258,6 +266,16 @@ class Context:
     platform: str
     runner: Runner
     home: Path
+    #: How a stage asks whether a path exists.
+    #:
+    #: Every other question a stage asks goes through `runner`, and every
+    #: other path it looks at hangs off `home`, so a test can describe a
+    #: machine it is not running on. Absolute system paths - `/Applications`,
+    #: `C:\Program Files` - had neither, and read the real filesystem
+    #: instead: two tests silently started depending on whether the machine
+    #: running them happened to have VS Code installed. This closes that,
+    #: so "tests describe a machine, never read one" is true of all of it.
+    exists: Callable[[Path], bool] = Path.exists
 
 
 @dataclass(frozen=True)

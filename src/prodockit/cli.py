@@ -32,6 +32,7 @@ from prodockit.bootstrap import (
     BootstrapConfig,
     BootstrapConfigError,
     Context,
+    Stage,
     StageReport,
     Status,
     UnsupportedHostError,
@@ -181,14 +182,28 @@ def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> BootstrapConfig:
     return config
 
 
+def _first_meaningful_line(text: str) -> str:
+    """The most useful single line of a tool's error output.
+
+    Git prefixes its remote errors with banner lines of `=====` and blank
+    `remote:` markers, so printing the lot buries the one sentence that
+    matters in eight lines of decoration.
+    """
+    for line in text.splitlines():
+        cleaned = line.replace("remote:", "").strip().strip("=").strip()
+        if cleaned and not set(cleaned) <= {"=", "-"}:
+            return cleaned
+    return text.strip().splitlines()[0] if text.strip() else "no output"
+
+
 def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
     """Applies the stages that need it, asking before each.
 
-    Defaults follow the issue: a stage that is simply absent defaults to
-    yes, and one that exists but is wrong defaults to **no** - reapplying
-    over something already there is the case that can destroy work, so it
-    is the case that has to be asked for rather than accepted by
-    pressing Enter.
+    A stage whose work is *yours* - the two browser steps - is retried
+    rather than failed. Checking too early is the normal case, not an
+    error: you cannot create a project on a website and have it exist
+    before you have done it. Exiting at that point threw away every stage
+    already completed and made the reader start again.
     """
     outstanding = [r for r in reports if r.needs_work and r.plan is not None]
     if not outstanding:
@@ -196,56 +211,71 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
                    "configuration.")
         return
 
-    for report in outstanding:
+    total = len(outstanding)
+    for number, report in enumerate(outstanding, start=1):
         plan = report.plan
         if plan is None:  # pragma: no cover - filtered above, narrows for mypy
             continue
-        click.echo(f"\n{report.stage.summary} - {report.result.detail}")
-        for instruction in plan.instructions:
-            click.echo(f"  you: {instruction}")
-        for command in plan.commands:
-            click.echo(f"  run: {' '.join(command)}")
 
-        # Who does the work decides which question to ask. A plan with
-        # instructions is one where *you* do it and the commands only
-        # confirm it worked - asking "Apply?" afterwards is meaningless,
-        # since there is nothing left to apply, and on a WRONG stage it
-        # defaulted to no, so pressing Enter skipped the verification.
+        click.echo("")
+        click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))
+        if report.result.detail:
+            click.echo(f"        {report.result.detail}")
+        click.echo("")
+
         if plan.instructions:
-            if not click.confirm("  Done that? I will check", default=True):
+            click.echo("  What you need to do:")
+            for step, instruction in enumerate(plan.instructions, start=1):
+                click.echo(f"    {step}. {instruction}")
+            click.echo("")
+            if not _verify_until_done(context, report.stage):
                 click.echo("  skipped")
-                continue
-        else:
-            # Absent: assume yes. Present but wrong: reapplying could
-            # overwrite real work, so make it deliberate.
-            default_yes = report.result.status is Status.MISSING
-            count = len(plan.commands)
-            question = f"  Run {count} command{'s' if count != 1 else ''}?"
-            if not click.confirm(question, default=default_yes):
-                click.echo("  skipped")
-                continue
+            continue
+
+        click.echo("  Will run:")
+        for command in plan.commands:
+            click.echo(f"    {' '.join(command)}")
+        click.echo("")
+        # Absent: assume yes. Present but wrong: reapplying could overwrite
+        # real work, so make it deliberate.
+        default_yes = report.result.status is Status.MISSING
+        count = len(plan.commands)
+        if not click.confirm(f"  Run {count} command{'s' if count != 1 else ''}?",
+                             default=default_yes):
+            click.echo("  skipped")
+            continue
 
         outcome = apply_stage(context, report.stage)
         if outcome.failed is not None:
-            click.echo(f"  FAILED: {outcome.failed.stderr.strip() or 'command failed'}", err=True)
-            click.echo("  Stopping here - later stages depend on this one.", err=True)
+            click.echo(f"  failed: {_first_meaningful_line(outcome.failed.stderr)}", err=True)
+            click.echo("  Stopping - later stages depend on this one.", err=True)
             sys.exit(1)
-        # The check is re-run after applying, because a command exiting
-        # zero says the installer ran, not that the thing works.
         if outcome.ok:
             click.echo("  done")
         else:
             detail = outcome.verified.detail if outcome.verified else "unknown"
-            # Worth distinguishing: a manual stage that still fails means
-            # the instruction did not take, not that a command failed.
-            if plan.instructions:
-                click.echo(f"  still not right: {detail}", err=True)
-                click.echo("  Check the step above and run bootstrap again.", err=True)
-            else:
-                click.echo(f"  ran, but still not right: {detail}", err=True)
+            click.echo(f"  ran, but still not right: {detail}", err=True)
             sys.exit(1)
 
-    click.echo("\nDone. Re-run `prodockit bootstrap` to confirm.")
+    click.echo("")
+    click.echo("Finished. Run `prodockit bootstrap` to confirm.")
+
+
+def _verify_until_done(context: Context, stage: Stage) -> bool:
+    """Waits for a manual step, re-checking until it takes or you stop.
+
+    Returns whether it ended up satisfied. A failed check here means "not
+    yet", not "broken" - so it says so, and asks again.
+    """
+    while True:
+        click.confirm("  Tell me when that is done", default=True)
+        result = stage.check(context)
+        if not result.needs_work:
+            click.echo("  confirmed")
+            return True
+        click.echo(f"  not there yet - {result.detail}")
+        if not click.confirm("  Try again?", default=True):
+            return False
 
 
 @main.command()

@@ -122,7 +122,7 @@ _VSCODE_SHELL_COMMAND_HELP = (
 def _vscode_app_installed(context: Context) -> bool:
     for raw in _VSCODE_APP_PATHS.get(context.platform, ()):
         path = Path(raw.replace("~", str(context.home), 1)) if raw.startswith("~") else Path(raw)
-        if path.exists():
+        if context.exists(path):
             return True
     return False
 
@@ -380,20 +380,37 @@ def _check_remote(context: Context) -> CheckResult:
     actual = result.stdout.strip()
     if actual != wanted:
         return _wrong(f"origin is {actual}, expected {wanted}")
+
+    # The remote being right is only half of it. `prodockit sync-repo`
+    # also rewrites repo_url/repo_name/edit_uri/site_url and the README
+    # badges, and a stage that checked only the remote reported itself
+    # done after `git remote set-url` had succeeded and sync-repo had
+    # not - leaving a clone that pushed to the right place while still
+    # advertising the template's repository on every page. Asking
+    # sync-repo itself is the honest test, and the one that stays correct
+    # as sync-repo grows.
+    synced = context.runner.run(["prodockit", "sync-repo", "--check"], cwd=str(project))
+    if not synced.ok:
+        return _wrong("origin is right, but the project config still needs syncing")
     return _ok(wanted)
 
 
 def _plan_remote(context: Context) -> Plan:
     project = context.config.resolved_project_dir(context.home)
     wanted = context.host.remote_url(context.config.namespace, context.config.project_name)
+    # Both run *in* the project. `git -C` could carry the path itself, but
+    # `prodockit sync-repo` reads zensical.toml from the working directory
+    # and has no equivalent flag, so the plan sets one for both rather
+    # than half the commands knowing where they are.
     return Plan(
+        cwd=str(project),
         commands=[
-            ["git", "-C", str(project), "remote", "set-url", "origin", wanted],
+            ["git", "remote", "set-url", "origin", wanted],
             # sync-repo rewrites repo_url/repo_name/edit_uri/site_url and the
             # README badges to match the new remote. Without it the clone
             # keeps advertising the template's own repository.
             ["prodockit", "sync-repo"],
-        ]
+        ],
     )
 
 
