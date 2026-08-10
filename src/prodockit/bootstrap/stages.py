@@ -100,15 +100,65 @@ def _key_path(context: Context) -> Path:
 # ---------------------------------------------------------------------------
 
 
+#: Where each platform's installer puts the application itself. The
+#: application and the `code` shell command are separate things, and on
+#: macOS installing the first does not give you the second.
+_VSCODE_APP_PATHS = {
+    MACOS: ("/Applications/Visual Studio Code.app",),
+    UBUNTU: ("/usr/share/code", "/snap/code"),
+    WINDOWS: (
+        r"C:\Program Files\Microsoft VS Code",
+        r"~\AppData\Local\Programs\Microsoft VS Code",
+    ),
+}
+
+#: How to add the `code` command once the application is installed.
+_VSCODE_SHELL_COMMAND_HELP = (
+    "In VS Code, open the Command Palette (Cmd+Shift+P / Ctrl+Shift+P) and run "
+    "'Shell Command: Install \'code\' command in PATH'."
+)
+
+
+def _vscode_app_installed(context: Context) -> bool:
+    for raw in _VSCODE_APP_PATHS.get(context.platform, ()):
+        path = Path(raw.replace("~", str(context.home), 1)) if raw.startswith("~") else Path(raw)
+        if path.exists():
+            return True
+    return False
+
+
 def _check_vscode(context: Context) -> CheckResult:
+    """Distinguishes the application from the `code` shell command.
+
+    They are separate installs, and on macOS the cask gives you only the
+    first - the second comes from a Command Palette action. Treating a
+    missing `code` as a missing VS Code reported "not installed" on a
+    machine with it plainly installed, and then tried to reinstall the
+    app, which fails outright:
+
+        Error: It seems there is already an App at
+        '/Applications/Visual Studio Code.app'.
+
+    That is precisely what `WRONG` is for - present, but not usable for
+    what the later stages need it for.
+    """
     if _installed(context, "code"):
         return _ok()
-    return _missing("the `code` command is not on PATH")
+    if _vscode_app_installed(context):
+        return _wrong("VS Code is installed, but the `code` command is not on PATH")
+    return _missing("VS Code is not installed")
 
 
 def _plan_vscode(context: Context) -> Plan:
+    # Installed already: the only thing missing is the shell command, and
+    # reinstalling the application would fail rather than supply it.
+    if _vscode_app_installed(context):
+        return Plan(instructions=[_VSCODE_SHELL_COMMAND_HELP])
     if context.platform == MACOS:
-        return Plan(commands=[["brew", "install", "--cask", "visual-studio-code"]])
+        return Plan(
+            commands=[["brew", "install", "--cask", "visual-studio-code"]],
+            instructions=[_VSCODE_SHELL_COMMAND_HELP],
+        )
     if context.platform == UBUNTU:
         return Plan(
             instructions=[

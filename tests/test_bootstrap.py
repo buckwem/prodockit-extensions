@@ -288,11 +288,21 @@ def test_extensions_reports_which_are_missing(tmp_path: Path) -> None:
     ],
 )
 def test_every_platforms_install_plan_is_generated_from_any_platform(
-    tmp_path: Path, platform: str, expected: str
+    tmp_path: Path, platform: str, expected: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The reason the runner is injected: this asserts on Ubuntu's and
     Windows' commands while running on whatever the suite runs on, with
-    nothing installed and no network."""
+    nothing installed and no network.
+
+    `_vscode_app_installed` is pinned false because it reads the real
+    filesystem rather than going through the runner - so without this the
+    result depends on whether the machine running the tests happens to
+    have VS Code, which is precisely the coupling the injected runner
+    exists to remove. It caught this test out once already.
+    """
+    import prodockit.bootstrap.stages as stages_module
+
+    monkeypatch.setattr(stages_module, "_vscode_app_installed", lambda context: False)
     context = _context(tmp_path, platform=platform)
     plan = next(s for s in STAGES if s.id == "vscode").plan(context)
     flat = " ".join(" ".join(command) for command in plan.commands)
@@ -444,7 +454,12 @@ def test_bare_bootstrap_prints_no_commands(cli_bootstrap) -> None:
     assert "--dry-run" in result.output
 
 
-def test_dry_run_prints_the_commands(cli_bootstrap) -> None:
+def test_dry_run_prints_the_commands(cli_bootstrap, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Same host-state coupling as above: pinned to "no VS Code installed"
+    # so the assertion describes a machine rather than this one.
+    import prodockit.bootstrap.stages as stages_module
+
+    monkeypatch.setattr(stages_module, "_vscode_app_installed", lambda context: False)
     result = cli_bootstrap("--dry-run")
     assert "run: brew install --cask visual-studio-code" in result.output
 
@@ -606,3 +621,43 @@ def test_a_piped_run_reports_instead_of_prompting(
     result = cli_bootstrap()
     assert "Answer them now?" not in result.output
     assert "--configure" in result.output
+
+
+def test_vscode_installed_without_the_shell_command_is_wrong(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression, reported from real use: the app and the `code` command
+    are separate installs, and on macOS the cask gives you only the first.
+    Treating a missing `code` as a missing VS Code reported "not
+    installed" on a machine that plainly had it, then tried to reinstall,
+    which fails outright:
+
+        Error: It seems there is already an App at
+        '/Applications/Visual Studio Code.app'.
+    """
+    import prodockit.bootstrap.stages as stages_module
+
+    monkeypatch.setattr(stages_module, "_vscode_app_installed", lambda context: True)
+    context = _context(tmp_path)  # FakeRunner: `code` is not on PATH
+    stage = next(s for s in STAGES if s.id == "vscode")
+
+    result = stage.check(context)
+    assert result.status is Status.WRONG
+    assert "not on PATH" in result.detail
+
+    plan = stage.plan(context)
+    # The fix is the Command Palette action, not an install that would fail.
+    assert plan.commands == []
+    assert any("Shell Command" in i for i in plan.instructions)
+
+
+def test_vscode_genuinely_absent_still_installs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import prodockit.bootstrap.stages as stages_module
+
+    monkeypatch.setattr(stages_module, "_vscode_app_installed", lambda context: False)
+    context = _context(tmp_path)
+    stage = next(s for s in STAGES if s.id == "vscode")
+    assert stage.check(context).status is Status.MISSING
+    assert stage.plan(context).commands[0][0] == "brew"
