@@ -1016,3 +1016,13 @@ def test_the_identity_stage_waits_for_a_clone(tmp_path: Path) -> None:
     result = _identity_check(tmp_path, FakeRunner())
     assert result.status is Status.MISSING
     assert "no clone" in result.detail
+
+
+def test_the_help_text_does_not_claim_a_stale_stage_count(cli_bootstrap) -> None:
+    """0.23.0 shipped with `--help` still saying "ten stages" a release
+    after there were eleven, found by reading the help of a real install
+    rather than by anything in this suite. A number written in prose
+    drifts the moment the list behind it changes, so it is asserted
+    against the list."""
+    result = cli_bootstrap("--help")
+    assert f"all {len(STAGES)} stages" in result.output
