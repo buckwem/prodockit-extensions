@@ -1,5 +1,62 @@
 # Release Notes
 
+## Unreleased
+
+- **Fixed:** bootstrap asked for an email and then never applied it
+  ([#222](https://github.com/buckwem/prodockit-extensions/issues/222)).
+
+    A new stage 8 sets `user.name` and `user.email` on the clone, and
+    checks them with `git config --local`. The old check read them
+    without `--local`, which falls back to the global value - so it
+    passed on any machine with any identity at all, the plan never ran,
+    and commits went out under whatever address git already had.
+
+    On Surrey's GitLab a commit whose author address matches no known
+    account is not linked to one, so coursework can appear to be authored
+    by an unrecognised user - with nothing to suggest why, since every
+    stage reported `ok`.
+
+    Per-repository rather than global: a global `user.email` is a
+    legitimate personal preference, and a tool that sets up one
+    university project should not rewrite the identity used for
+    everything else. Eleven stages now, not ten.
+
+- The bootstrap page now explains how to meet its own prerequisite
+  ([#223](https://github.com/buckwem/prodockit-extensions/issues/223)).
+
+    It named Python as the one thing bootstrap cannot install and then
+    left the reader there - the worst place for a gap, since it is the
+    first thing they hit and the point at which they have no working
+    tooling to fall back on.
+
+    Per-platform instructions for Python and a virtual environment, the
+    `externally-managed-environment` refusal and why a venv is the answer
+    to it, the three things Windows' installer gets wrong (PATH, path
+    length limit, the Microsoft Store placeholder), `python3-venv` being
+    a separate package on Debian, reactivating in a new terminal, and
+    checking `prodockit --version` afterwards - an older install on
+    `PATH` shadows a newer one silently.
+
+- **Fixed:** `prodockit bootstrap` could stop dead at a password prompt
+  ([#225](https://github.com/buckwem/prodockit-extensions/issues/225)).
+
+    On a machine whose SSH key was not yet uploaded, the stage 4 check
+    fell back to password authentication and simply waited - a check that
+    can block is a broken check, and it stopped a test run outright.
+
+    The cause was subtler than it looked: `ssh` reads passwords and
+    passphrases from `/dev/tty` directly, deliberately bypassing stdin,
+    so the existing `stdin=DEVNULL` never could have prevented it. Every
+    command bootstrap runs now also gets an environment that cannot ask -
+    `BatchMode=yes` for ssh, `GIT_TERMINAL_PROMPT=0` for git, both
+    reaching `git clone` and `git ls-remote` through `GIT_SSH_COMMAND`,
+    which had the same hang waiting in stages 5 and 6. A
+    `GIT_SSH_COMMAND` you have set yourself is left alone.
+
+    An unknown host key is now reported, with the one command that fixes
+    it, rather than auto-accepted: trusting a host is a decision that
+    belongs to you, not to an installer.
+
 ## 0.22.0 (2026-08-10)
 
 - `prodockit bootstrap` - phase 2: configuration and installing the

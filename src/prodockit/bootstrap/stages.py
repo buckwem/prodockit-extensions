@@ -1,17 +1,18 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""The ten stages of a full install, as check/plan pairs.
+"""The eleven stages of a full install, as check/plan pairs.
 
 Every stage answers two questions and performs neither: `check` decides
 whether it is already done, `plan` says what would make it done. Nothing
 here runs an installer - see `prodockit.bootstrap.model` for why that
 split is the whole testing strategy.
 
-Four of the ten are platform-independent (SSH keys, cloning, repointing
-the remote, VS Code extensions), which is over half the work written
-once. That is the argument for a stage abstraction over three separate
-per-platform scripts.
+Five of the eleven are platform-independent (SSH keys, cloning,
+repointing the remote, the project's commit identity, VS Code
+extensions), which is nearly half the work written once. That is the
+argument for a stage abstraction over three separate per-platform
+scripts.
 
 Two are deliberately **not automatable at all**: uploading an SSH public
 key, and creating the project on the host. Both need an authenticated
@@ -29,6 +30,7 @@ from pathlib import Path
 
 from prodockit.bootstrap.model import (
     MACOS,
+    SSH_NO_PROMPT_OPTIONS,
     UBUNTU,
     WINDOWS,
     CheckResult,
@@ -251,6 +253,34 @@ def _plan_ssh_key(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
+def _ssh_probe(context: Context) -> list[str]:
+    """`ssh -T`, wired so it can never wait for a human.
+
+    `BatchMode=yes` is the load-bearing option. ssh reads passphrases and
+    passwords from `/dev/tty` directly, *not* from stdin, so redirecting
+    stdin does not stop it prompting - a check ran on a machine whose key
+    was not yet uploaded fell back to password authentication and simply
+    sat there:
+
+        git@gitlab.surrey.ac.uk's password:
+
+    A check that can block is a broken check, whatever it reports
+    (prodockit-extensions#225). BatchMode makes ssh fail instead of ask.
+
+    The options come from `SSH_NO_PROMPT_OPTIONS`, the same ones every
+    git command gets through `GIT_SSH_COMMAND`, so a probe that says
+    "authenticated" and a `git clone` that hangs cannot disagree.
+
+    Host-key acceptance is deliberately *not* automated here. Accepting an
+    unknown host key is a trust decision, and a tool that makes it
+    silently on a reader's behalf has taken something from them they did
+    not know they had. Unknown-host is reported instead, with the command
+    to run.
+    """
+    ssh, *options = SSH_NO_PROMPT_OPTIONS
+    return [ssh, "-T", *options, context.host.ssh_target]
+
+
 def _check_ssh_authenticates(context: Context) -> CheckResult:
     """Whether the key actually authenticates.
 
@@ -259,10 +289,15 @@ def _check_ssh_authenticates(context: Context) -> CheckResult:
     string is the only reliable signal, which is why every `Host` carries
     its own.
     """
-    result = context.runner.run(["ssh", "-T", context.host.ssh_target])
+    result = context.runner.run(_ssh_probe(context))
     combined = f"{result.stdout}\n{result.stderr}"
     if context.host.ssh_success in combined:
         return _ok(f"authenticated to {context.host.hostname}")
+    if "Host key verification failed" in combined or "authenticity of host" in combined:
+        return _wrong(
+            f"{context.host.hostname} is not a known host yet - run "
+            f"`ssh -T {context.host.ssh_target}` once and accept the fingerprint"
+        )
     if "Permission denied" in combined:
         return _missing(f"{context.host.hostname} rejected the key")
     return _wrong(f"could not confirm authentication to {context.host.hostname}")
@@ -278,13 +313,17 @@ def _plan_ssh_upload(context: Context) -> Plan:
     instructions += [
         f"Paste the contents of {public} - the .pub file, never the one without it.",
         "Give it any title you like, then save.",
+        f"If this machine has never connected to {context.host.hostname} before, "
+        f"run `ssh -T {context.host.ssh_target}` in a terminal once and answer "
+        "`yes` to the fingerprint question. Trusting a host key is a decision "
+        "bootstrap leaves to you rather than making silently on your behalf.",
     ]
     return Plan(
         instructions=instructions,
         # Not an install: this re-runs the check, so the reader is told
         # whether it worked rather than being left to find out at the
         # first push.
-        commands=[["ssh", "-T", context.host.ssh_target]],
+        commands=[_ssh_probe(context)],
     )
 
 
@@ -415,7 +454,83 @@ def _plan_remote(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 8. Pandoc and WeasyPrint's native stack
+# 8. Commit identity, in the project (platform-independent)
+# ---------------------------------------------------------------------------
+
+
+def _identity_wanted(context: Context) -> dict[str, str]:
+    return {
+        "user.name": context.config.full_name,
+        "user.email": context.config.email,
+    }
+
+
+def _check_project_identity(context: Context) -> CheckResult:
+    """Whether *this repository* commits under the configured identity.
+
+    `--local` is the whole point. `git config user.email` inside a
+    repository falls back to the global value, so a check written that
+    way passes on any machine with any identity at all - which is exactly
+    how bootstrap came to ask for an email, store it, and then never
+    apply it. Every stage reported `ok` while commits went out under a
+    GitHub noreply address the reader had not chosen for this work
+    (prodockit-extensions#222).
+
+    That is not cosmetic. A commit whose author address does not match a
+    known account on the host is not linked to that account, so
+    coursework can show as authored by an unrecognised user - and the
+    reader has no reason to suspect it, because they were told the stage
+    was fine.
+    """
+    if (unknown := _needs_config(context, "full_name", "email")) is not None:
+        return unknown
+    project = context.config.resolved_project_dir(context.home)
+    if not context.exists(project / ".git"):
+        return _missing("no clone to set an identity in yet")
+
+    unset: list[str] = []
+    mismatched: list[str] = []
+    for key, wanted in _identity_wanted(context).items():
+        result = context.runner.run(["git", "-C", str(project), "config", "--local", key])
+        actual = result.stdout.strip() if result.ok else ""
+        if not actual:
+            unset.append(key)
+        elif actual != wanted:
+            mismatched.append(f"{key} is {actual}, expected {wanted}")
+    if mismatched:
+        # Both values named, because "wrong" without saying what it is
+        # leaves the reader to go and find out with a command they would
+        # have to know already.
+        return _wrong("; ".join(mismatched))
+    if unset:
+        return _missing(
+            f"this repository has no {' or '.join(unset)} of its own - "
+            "commits would use your global identity"
+        )
+    identity = _identity_wanted(context)
+    return _ok(f"{identity['user.name']} <{identity['user.email']}> in this repository")
+
+
+def _plan_project_identity(context: Context) -> Plan:
+    """Sets the identity on the clone, never globally.
+
+    A global `user.email` is a legitimate personal preference, and a tool
+    that sets up one university project has no business rewriting the
+    identity someone uses for everything else. Per-repository fixes
+    attribution exactly where it matters and leaves the rest of their
+    work alone.
+    """
+    return Plan(
+        cwd=str(context.config.resolved_project_dir(context.home)),
+        commands=[
+            ["git", "config", "--local", key, value]
+            for key, value in _identity_wanted(context).items()
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# 9. Pandoc and WeasyPrint's native stack
 # ---------------------------------------------------------------------------
 
 
@@ -456,7 +571,7 @@ def _plan_pandoc(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 9. Node and the two toolchains
+# 10. Node and the two toolchains
 # ---------------------------------------------------------------------------
 
 
@@ -498,7 +613,7 @@ def _plan_node(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 10. VS Code extensions (platform-independent)
+# 11. VS Code extensions (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -550,6 +665,12 @@ STAGES: tuple[Stage, ...] = (
     Stage("clone", "Template cloned", _check_clone, _plan_clone),
     Stage("own-project", "Your own project on the host", _check_own_project, _plan_own_project),
     Stage("remote", "Clone pointed at your project", _check_remote, _plan_remote),
+    Stage(
+        "identity",
+        "Commit identity in the project",
+        _check_project_identity,
+        _plan_project_identity,
+    ),
     Stage("pandoc", "Pandoc and WeasyPrint's libraries", _check_pandoc, _plan_pandoc),
     Stage("node", "Node.js and the render toolchains", _check_node, _plan_node),
     Stage("extensions", "VS Code extensions", _check_extensions, _plan_extensions),
