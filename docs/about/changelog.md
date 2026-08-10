@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Fixed:** `--apply` could not install VS Code on Ubuntu
+  ([#233](https://github.com/buckwem/prodockit-extensions/issues/233)).
+
+    The plan asked the reader to download a `.deb` from the website and
+    then ran `sudo apt install -y ./code.deb` - a file that exists under
+    that name nowhere. The download is called
+    `code_1.132.0-…_arm64.deb` and it arrives in `~/Downloads`, so the
+    command failed whether or not the reader had done their half.
+
+    VS Code is now downloaded like pandoc already is, from Microsoft's
+    own `linux-deb-$arch/stable` redirect - permanent, so there is no
+    version to pin and let go stale - with `dpkg --print-architecture`
+    choosing between them. The stage is fully automated on Ubuntu now,
+    and nothing is asked of the reader.
+
+- **Fixed:** a failing command could be reported by its *warning* rather
+  than its error (#233). apt prints `WARNING: apt does not have a stable
+  CLI interface` every time it runs from a script, and that was the line
+  shown as the reason the stage failed - describing nothing that went
+  wrong, and pointing at the reader's scripting rather than at the
+  missing file two lines below it. Warnings are now skipped while any
+  other line remains.
+
 - **Fixed:** `--apply` stopped the whole run at the SSH key stage on any
   machine whose key was not yet on the host - the one state that stage
   exists to fix
