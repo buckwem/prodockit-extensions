@@ -18,8 +18,11 @@ Markdown and Pandoc/WeasyPrint PDF pipeline.
 
 > **Status:** early, but functional - `prodockit.headings`, `prodockit.refs`,
 > `prodockit.citations`, `prodockit.glossary`, `prodockit.tables`,
-> `prodockit.bibliography`, `prodockit.index`, `prodockit.pdf`, and
-> `prodockit.zensical_macros` are implemented and tested.
+> `prodockit.bibliography`, `prodockit.index`, `prodockit.pdf`,
+> `prodockit.sync_repo`, `prodockit.pins` and `prodockit.zensical_macros`
+> are implemented and tested. `prodockit.bootstrap` is newer: exercised
+> end to end on macOS against the University of Surrey's GitLab, with
+> Ubuntu and Windows written but not yet run on a real machine.
 
 **[Full documentation](https://buckwem.github.io/prodockit-extensions/)**
 
@@ -120,6 +123,26 @@ prodockit source-bundle
 
 A separate command from `prodockit pdf`, so a project that wants only one
 of the two PDFs doesn't build the other on every run.
+
+## Machine setup
+
+[`prodockit bootstrap`](https://buckwem.github.io/prodockit-extensions/devcons/bootstrap/)
+turns the User Guide's install sequence into ten stages that can each be
+checked and repaired individually - editor, git, SSH, clone, remote,
+pandoc, Node - rather than a long list followed top to bottom and hoped
+over:
+
+```bash
+prodockit bootstrap            # report what is set up; changes nothing
+prodockit bootstrap --dry-run  # print the exact commands it would run
+prodockit bootstrap --apply    # set up what needs it, asking first
+```
+
+It cannot be the first thing you run - it is a prodockit command, so
+Python and `pip install prodockit` come first. Two steps need a human at
+a browser (uploading an SSH key, creating your own project); those are
+guided and then *verified*, rather than automated with a token. Currently
+implements the University of Surrey's GitLab only.
 
 ## Website macros
 

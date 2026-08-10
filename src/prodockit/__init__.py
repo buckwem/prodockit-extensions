@@ -33,6 +33,11 @@ Zensical doesn't provide out of the box, each usable independently:
   content and config, one file per page, into ``docs_dir`` - for a
   submission needing the underlying source alongside the rendered
   document, without paying for both PDFs on every build.
+- ``prodockit.bootstrap`` - set a new machine up from scratch, as ten
+  stages that can each be checked and repaired individually rather than a
+  long sequence of instructions followed once and hoped over. Run
+  ``prodockit bootstrap`` to report what is set up, ``--dry-run`` to see
+  the exact commands, ``--apply`` to do it. Surrey's GitLab only for now.
 - ``prodockit.zensical_macros`` - Jinja variables/macros for Zensical's own
   macros plugin: a site-wide word count, the git-detected repository URL,
   the latest release tag, chapter/appendix numbering that continues across
@@ -79,6 +84,6 @@ plain Python API alongside it.
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.21.0"
+__version__ = "0.22.0"
 
 __all__ = ["__version__"]
