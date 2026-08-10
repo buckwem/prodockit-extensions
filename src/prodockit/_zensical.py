@@ -35,6 +35,25 @@ T = TypeVar("T")
 _warned_apis: set[str] = set()
 
 
+def _installed_zensical_version() -> str:
+    """The installed Zensical's own version string, or `"unknown"` if it
+    can't be determined - best-effort, since this exists only to name a
+    version in a diagnostic message, and a failure here must never be the
+    reason that message doesn't get shown.
+
+    Shared by every "an undocumented Zensical API moved" message this
+    module and `prodockit.pdf.config` produce, so they stay consistent
+    with each other rather than each carrying its own copy that can drift
+    (prodockit-extensions#171).
+    """
+    try:
+        import zensical
+
+        return str(zensical.version())
+    except Exception:  # pragma: no cover - version lookup is itself best-effort
+        return "unknown"
+
+
 def _warn_api_moved(api: str, error: Exception) -> None:
     """Reports that an undocumented Zensical API prodockit depends on no
     longer works as expected.
@@ -56,12 +75,7 @@ def _warn_api_moved(api: str, error: Exception) -> None:
     if api in _warned_apis:
         return
     _warned_apis.add(api)
-    try:
-        import zensical
-
-        installed = zensical.version()
-    except Exception:  # pragma: no cover - version lookup is itself best-effort
-        installed = "unknown"
+    installed = _installed_zensical_version()
     warnings.warn(
         f"prodockit expected Zensical's {api}, which raised "
         f"{type(error).__name__}: {error}. Zensical {installed} appears to have "

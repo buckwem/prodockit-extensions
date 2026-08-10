@@ -21,6 +21,7 @@ import os
 import re
 import shutil
 
+from prodockit._zensical import _installed_zensical_version
 from prodockit.pdf.build import Page, build_pdf
 from prodockit.pdf.icons import build_icon_registry, discover_icon_dirs
 from prodockit.pdf.mermaid import render_mermaid_diagram
@@ -377,13 +378,41 @@ def build_pdf_from_zensical_config(
         with open(full_path, encoding="utf-8") as f:
             raw_content = f.read()
         result = zensical_render(raw_content, docs_rel_path, docs_rel_path)
+        # `zensical.markdown.render.render` is undocumented -
+        # `zensical/__init__.py` exports only build/serve/version - so
+        # both it and the shape of what it returns can change in a patch
+        # release without registering upstream as a breaking change. A
+        # bare `result["content"]` surfaced a rename as `KeyError:
+        # 'content'` raised mid-loop, with nothing naming Zensical, the
+        # installed version, or the upgrade that caused it - the reader
+        # sees prodockit's own traceback and reasonably concludes
+        # prodockit is broken. `TypeError` alongside `KeyError`: if
+        # `render()` starts returning an object rather than a dict, that
+        # is what a subscript raises instead, and the diagnosis is
+        # identical (prodockit-extensions#171).
+        #
+        # Deliberately not the #167 warn-and-degrade shape: there is no
+        # sensible degraded PDF to produce, and a page silently rendered
+        # with empty HTML would be exactly the kind of build-succeeds-
+        # output-broken failure this project keeps landing on. The build
+        # should still stop - it should just say why.
+        try:
+            html = result["content"]
+            meta = result["meta"]
+        except (KeyError, TypeError) as error:
+            installed = _installed_zensical_version()
+            raise RuntimeError(
+                f"prodockit expected Zensical's render() result to carry {error}, "
+                f"rendering {docs_rel_path!r}. Zensical {installed} appears to have "
+                "changed the result shape. prodockit cannot build the PDF without it."
+            ) from error
         page_objects.append(
             Page(
                 docs_rel_path=docs_rel_path,
-                html=result["content"],
+                html=html,
                 is_index=bool(nav_page.get("is_index")),
-                is_appendix=bool(result["meta"].get(APPENDIX_FRONT_MATTER_KEY, False)),
-                recto_title=result["meta"].get(RECTO_TITLE_FRONT_MATTER_KEY) or None,
+                is_appendix=bool(meta.get(APPENDIX_FRONT_MATTER_KEY, False)),
+                recto_title=meta.get(RECTO_TITLE_FRONT_MATTER_KEY) or None,
             )
         )
 
