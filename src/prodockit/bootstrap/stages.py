@@ -51,6 +51,17 @@ VSCODE_EXTENSIONS = (
 #: Minimum Node major version - what the automated builds use.
 NODE_MAJOR = 22
 
+#: The pandoc version this family of repos pins. Set in one place so a
+#: bump does not leave bootstrap behind - the CI workflows pin the same
+#: version independently, and `prodockit pins` checks the two agree.
+PANDOC_VERSION = "3.10.1"
+
+#: The minimum pandoc major version that renders code blocks correctly.
+#: Ubuntu's own package lags well behind upstream - 2.x on some LTS
+#: releases - and a pandoc old enough to be a different major version
+#: renders code blocks as justified prose (#207).
+PANDOC_MIN_MAJOR = 3
+
 
 def _ok(detail: str = "") -> CheckResult:
     return CheckResult(Status.OK, detail)
@@ -198,7 +209,7 @@ def _check_git(context: Context) -> CheckResult:
 def _plan_git(context: Context) -> Plan:
     install = {
         MACOS: [["brew", "install", "git"]],
-        UBUNTU: [["sudo", "apt", "install", "-y", "git"]],
+        UBUNTU: [["sudo", "apt", "update"], ["sudo", "apt", "install", "-y", "git"]],
         WINDOWS: [["winget", "install", "Git.Git"]],
     }[context.platform]
     configure = [
@@ -534,30 +545,71 @@ def _plan_project_identity(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
+def _pandoc_version(stdout: str) -> str | None:
+    """Extract the version number from `pandoc --version` output.
+
+    The first non-blank line is normally `pandoc 3.10.1` or similar.
+    """
+    for line in stdout.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("pandoc"):
+            parts = stripped.split()
+            if len(parts) >= 2:
+                return parts[1]
+    return None
+
+
 def _check_pandoc(context: Context) -> CheckResult:
     result = context.runner.run(["pandoc", "--version"])
     if not result.ok:
         return _missing("pandoc is not installed")
-    first_line = next((line for line in result.stdout.splitlines() if line.strip()), "")
-    return _ok(first_line.strip())
+    version = _pandoc_version(result.stdout)
+    if version is None:
+        return _wrong("pandoc is installed but its version could not be read")
+    major = version.split(".")[0]
+    if major.isdigit() and int(major) < PANDOC_MIN_MAJOR:
+        # Ubuntu's own package lags well behind upstream - far enough to
+        # change how the PDF renders. Code blocks come out as justified
+        # prose on pandoc 2.x (#207).
+        return _wrong(
+            f"pandoc {version} is too old - {PANDOC_MIN_MAJOR}.x or later is "
+            f"needed (the builds pin {PANDOC_VERSION})"
+        )
+    return _ok(f"pandoc {version}")
 
 
 def _plan_pandoc(context: Context) -> Plan:
     if context.platform == MACOS:
         return Plan(commands=[["brew", "install", "pandoc", "pango"]])
     if context.platform == UBUNTU:
+        # Ubuntu's own pandoc package is several major versions behind -
+        # far enough to change how the PDF renders (#207, #209). The CI
+        # workflows and the User Guide both download the pinned release
+        # directly, using dpkg to pick the right architecture so the same
+        # command works on amd64, arm64 and under Rosetta.
+        v = PANDOC_VERSION
+        deb_url = (
+            f"https://github.com/jgm/pandoc/releases/download/{v}/"
+            f'pandoc-{v}-1-$(dpkg --print-architecture).deb'
+        )
         return Plan(
             commands=[
+                ["sudo", "apt", "install", "-y", "curl"],
+                [
+                    "bash",
+                    "-c",
+                    f'curl -fsSL -o /tmp/pandoc.deb "{deb_url}" '
+                    "&& sudo apt install -y /tmp/pandoc.deb",
+                ],
                 [
                     "sudo",
                     "apt",
                     "install",
                     "-y",
-                    "pandoc",
                     "libpango-1.0-0",
                     "libpangoft2-1.0-0",
                     "libharfbuzz-subset0",
-                ]
+                ],
             ]
         )
     return Plan(
