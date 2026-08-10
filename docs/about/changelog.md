@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.22.0 (2026-08-10)
 
 - `prodockit bootstrap` - phase 2: configuration and installing the
   template ([#217](https://github.com/buckwem/prodockit-extensions/issues/217)).
