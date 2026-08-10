@@ -350,16 +350,27 @@ def test_git_plan_skips_reinstalling_an_already_installed_git(tmp_path: Path) ->
     assert "user.email" in flat
 
 
-def test_the_two_browser_stages_carry_instructions_and_a_verification(
+def test_the_two_browser_stages_guide_and_leave_verifying_to_the_check(
     tmp_path: Path,
 ) -> None:
-    """Guide-and-verify: the instruction is what a human does, the command
-    is how bootstrap confirms it actually worked."""
+    """Guide-and-verify: the instructions are what a human does, and the
+    stage's own *check* is how bootstrap confirms it worked.
+
+    The verification must not also be a plan command. Applying a stage
+    re-runs its check anyway, so a probe in `commands` buys nothing - and
+    it costs the run, because a command is judged by its exit code. `ssh
+    -T` against a git host exits non-zero even on success, so the probe
+    read as a failed command and stopped the run on a machine whose key
+    had simply not been uploaded yet (#234)."""
     context = _context(tmp_path)
     for stage_id in ("ssh-upload", "own-project"):
         plan = next(s for s in STAGES if s.id == stage_id).plan(context)
         assert plan.instructions, stage_id
-        assert plan.commands, stage_id
+        assert not plan.commands, (
+            f"{stage_id} must not run its own verification as a command - "
+            f"applying re-checks the stage, and a non-zero probe ends the run"
+        )
+        assert plan.is_manual, stage_id
 
 
 def test_browser_instructions_use_the_hosts_own_vocabulary(tmp_path: Path) -> None:
@@ -788,6 +799,74 @@ def test_a_manual_step_is_retried_not_failed(
     assert "Stopping - later stages depend on this one." not in result.output
 
 
+def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
+    """Every stage satisfied but the SSH key, which the host rejects."""
+    (tmp_path / ".ssh").mkdir(exist_ok=True)
+    for suffix in ("", ".pub"):
+        (tmp_path / ".ssh" / f"id_ed25519_gitlab{suffix}").write_text("k", encoding="utf-8")
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True, exist_ok=True)
+    (project / "tools").mkdir(exist_ok=True)
+    save(tmp_path / "b.toml", _config())
+    return {
+        "code": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
+        "git --version": CommandResult(0, "git version 2.43.0"),
+        "git config --global user.name": CommandResult(0, "Ada\n"),
+        "git config --global user.email": CommandResult(0, "a@b.c\n"),
+        # The reported machine: the key exists locally, the host has
+        # never seen it.
+        "BatchMode": CommandResult(
+            255,
+            stderr=(
+                "git@gitlab.surrey.ac.uk: Permission denied "
+                "(publickey,gssapi-keyex,gssapi-with-mic,password)."
+            ),
+        ),
+        "git": CommandResult(0, "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git\n"),
+        "prodockit sync-repo --check": CommandResult(0),
+        "config --local user.name": CommandResult(0, "Ada Lovelace\n"),
+        "config --local user.email": CommandResult(0, "al01234@surrey.ac.uk\n"),
+        "pandoc": CommandResult(0, "pandoc 3.10.1"),
+        "node": CommandResult(0, "v22.14.0\n"),
+        "npm": CommandResult(0, "10.9.2\n"),
+    }
+
+
+def test_a_key_not_yet_uploaded_is_guided_not_treated_as_a_failed_command(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#234, reported against 0.24.0.
+
+    Stage 4 carried `ssh -T` as a plan *command*. On a machine whose key
+    was not yet on the host - the one state the stage exists to fix -
+    `--apply` ran the probe before saying a word about uploading
+    anything, read its non-zero exit as a failed command, and ended the
+    run:
+
+        failed: git@gitlab.surrey.ac.uk: Permission denied (publickey...).
+        Stopping - later stages depend on this one.
+
+    The probe could never have passed: `ssh -T` against a git host exits
+    non-zero even on success. The greeting is the signal, and reading it
+    is the *check's* job - which is why the plan is now instructions
+    only, and the re-check after applying does the verifying.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    responses = _machine_ready_except_ssh(tmp_path)
+
+    # "yes, I have done it" - then decline the retry, so the loop ends.
+    result = cli_bootstrap("--apply", responses=responses, input="y\nn\n")
+
+    assert "Stopping - later stages depend on this one." not in result.output
+    assert "failed:" not in result.output
+    # Guided first: the upload is a browser step, so the reader is told
+    # where to go before anything is run on their behalf.
+    assert "Open https://gitlab.surrey.ac.uk" in result.output
+    assert "Run 1 command?" not in result.output
+    # And "not yet" is answered by asking again, not by exiting.
+    assert "not there yet" in result.output
+
+
 def test_a_git_banner_is_reduced_to_its_one_useful_line() -> None:
     """Git wraps remote errors in `=====` banners and empty `remote:`
     markers, so printing the lot buries the sentence that matters."""
@@ -1149,8 +1228,53 @@ def test_vscode_plan_runs_brew_before_showing_shell_command_instruction(
         input="y\n" * 3 + "n\n" * 20,
     )
     assert "Will run:" in result.output
-    assert "brew install --cask visual-studio-code" in result.output
-    assert "commands ran" in result.output
     # The old bug: only the instruction appeared, no commands at all.
-    assert "What you need to do:" in result.output
+    assert "brew install --cask visual-studio-code" in result.output
     assert "Shell Command" in result.output
+    # Asserted as an *order*, not as two separate appearances: the point
+    # of a follow-up is that it comes after the install it depends on,
+    # and "both strings are present somewhere" would hold either way.
+    assert result.output.index("brew install --cask") < result.output.index("Shell Command"), (
+        "the Command Palette step must come after the install that provides it"
+    )
+    assert "commands ran" in result.output
+
+
+def test_a_preparing_instruction_is_shown_before_the_command_that_needs_it(
+    tmp_path: Path,
+) -> None:
+    """The mirror image of the VS Code case above, and the half that #234
+    broke: some manual steps *precede* their commands.
+
+    Ubuntu's VS Code plan is the clearest - `apt install ./code.deb`
+    cannot find a file the reader has not downloaded yet - and the
+    keypair stage is the same shape, warning about the passphrase prompt
+    before running the `ssh-keygen` that raises it. Running commands
+    first is not untidy there, it is a command that cannot succeed.
+    """
+    plan = next(s for s in STAGES if s.id == "vscode").plan(_context(tmp_path, platform=UBUNTU))
+    assert plan.instructions and plan.commands, "this is the both-halves case"
+    assert not plan.follow_up, "the download precedes the install, so it is not a follow-up"
+    assert "Download the .deb" in " ".join(plan.instructions)
+
+    keypair = next(s for s in STAGES if s.id == "ssh-key").plan(_context(tmp_path))
+    assert "passphrase" in " ".join(keypair.instructions)
+    assert not keypair.follow_up
+    assert any("ssh-keygen" in " ".join(command) for command in keypair.commands)
+
+
+def test_dry_run_lists_manual_steps_in_the_order_they_happen(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--dry-run` is how a plan is reviewed before it is trusted, so it
+    has to show a follow-up *after* the commands rather than lumping
+    every manual step at the top regardless of when it happens."""
+    monkeypatch.setattr("prodockit.bootstrap.stages._vscode_app_installed", lambda ctx: False)
+    save(tmp_path / "b.toml", _config())
+
+    result = cli_bootstrap("--dry-run", responses={"code --version": CommandResult(127)})
+
+    assert "run: brew install --cask visual-studio-code" in result.output
+    assert result.output.index("run: brew install --cask") < result.output.index(
+        "you: In VS Code, open the Command Palette"
+    ), "a follow-up must be listed after the command it follows"
