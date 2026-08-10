@@ -4,6 +4,7 @@
 import os
 import re
 import stat
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -148,16 +149,17 @@ def test_pdf_command_reports_a_missing_config_file(
     assert result.exit_code != 0
 
 
-def test_pdf_command_reports_a_source_bundle_error_instead_of_crashing(
+def test_pdf_command_no_longer_builds_a_source_bundle(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Regression test: `pdf_source_bundle = true` makes
-    build_pdf_from_zensical_config() also call build_source_bundle(),
-    which raises SourceBundleError (not PdfBuildError/ValueError/OSError)
-    when the project root isn't a git working tree - as tmp_path here
-    isn't. The CLI's except clause used to omit SourceBundleError,
-    letting the exception escape uncaught instead of exiting cleanly with
-    an `Error: ...` message like every other build failure."""
+    """`pdf_source_bundle` used to make `prodockit pdf` also call
+    `build_source_bundle()` as a side effect - split into its own
+    `source-bundle` command (prodockit-extensions#212), so a project that
+    wants only the document no longer pays for a source-bundle pass (a
+    `git ls-files` scan and a second `weasyprint` invocation) it never
+    asked for. `tmp_path` here is deliberately not a git working tree -
+    if `pdf` still triggered a source bundle, that alone would raise
+    `SourceBundleError` and fail this test."""
     _write_project(tmp_path)
     zensical_toml = tmp_path / "zensical.toml"
     zensical_toml.write_text(
@@ -168,6 +170,54 @@ def test_pdf_command_reports_a_source_bundle_error_instead_of_crashing(
     monkeypatch.chdir(tmp_path)
 
     result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 0, result.output
+    assert not (tmp_path / "source_bundle.pdf").exists()
+    assert not (tmp_path / "docs" / "source_bundle.pdf").exists()
+
+
+def _install_fake_weasyprint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: str) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    weasyprint_path = bin_dir / "weasyprint"
+    weasyprint_path.write_text(f"#!/bin/sh\n{script}\n", encoding="utf-8")
+    weasyprint_path.chmod(weasyprint_path.stat().st_mode | stat.S_IEXEC)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+
+
+def test_source_bundle_command_builds_into_docs_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The output lives inside `docs_dir` by default (prodockit-extensions#212)
+    - unlike the pre-#212 default of the project's top-level directory -
+    so Zensical serves it with no separate copy step."""
+    _write_project(tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    _install_fake_weasyprint(tmp_path, monkeypatch, 'echo "%PDF-1.4 stub" > "$2"')
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, ["source-bundle"])
+
+    assert result.exit_code == 0, result.output
+    assert "Wrote docs/source_bundle.pdf" in result.output
+    assert (tmp_path / "docs" / "source_bundle.pdf").exists()
+    assert not (tmp_path / "source_bundle.pdf").exists()
+
+
+def test_source_bundle_command_reports_a_source_bundle_error_instead_of_crashing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`tmp_path` here is deliberately not a git working tree, so
+    `discover_markdown_and_config_files()` raises `SourceBundleError`
+    before `weasyprint` is ever invoked. Guards the same class of bug the
+    `pdf` command already learned from once (prodockit-extensions#188):
+    an except clause that omits `SourceBundleError` lets it escape
+    uncaught instead of exiting cleanly with an `Error: ...` message."""
+    _write_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, ["source-bundle"])
 
     assert isinstance(result.exception, SystemExit)
     assert result.exit_code == 1

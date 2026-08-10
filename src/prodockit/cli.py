@@ -35,7 +35,10 @@ from prodockit.init_tools import (
     install_commands,
 )
 from prodockit.pdf.build import PdfBuildError
-from prodockit.pdf.config import build_pdf_from_zensical_config
+from prodockit.pdf.config import (
+    build_pdf_from_zensical_config,
+    build_source_bundle_from_zensical_config,
+)
 from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
@@ -112,6 +115,33 @@ def pdf(config_file: str, markdown_file: str | None) -> None:
     try:
         output_path = build_pdf_from_zensical_config(config_file, markdown_file=markdown_file)
     except (PdfBuildError, SourceBundleError, ValueError, OSError) as error:
+        click.echo(f"Error: {error}", err=True)
+        _echo_captured_stderr(error)
+        sys.exit(1)
+    click.echo(f"Wrote {output_path}")
+
+
+@main.command("source-bundle")
+@click.option(
+    "-f",
+    "--config-file",
+    default="zensical.toml",
+    show_default=True,
+    help="Path to your project's Zensical config file.",
+)
+def source_bundle(config_file: str) -> None:
+    """Bundle your project's Markdown content and CONFIG_FILE into a
+    separate PDF - one file per page - for a submission that needs the
+    underlying source alongside the rendered document.
+
+    A separate command from `prodockit pdf`, so a project that wants only
+    one of the two PDFs doesn't pay for the other. See the PDF generation
+    docs for what gets included and how to change it.
+    """
+    click.echo(f"Building source bundle from {config_file}...")
+    try:
+        output_path = build_source_bundle_from_zensical_config(config_file)
+    except (SourceBundleError, ValueError, OSError) as error:
         click.echo(f"Error: {error}", err=True)
         _echo_captured_stderr(error)
         sys.exit(1)

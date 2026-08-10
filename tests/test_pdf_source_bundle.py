@@ -12,6 +12,7 @@ import pytest
 from prodockit.pdf.source_bundle import (
     SourceBundleError,
     build_source_bundle,
+    discover_markdown_and_config_files,
     discover_source_files,
     is_probably_text,
 )
@@ -220,6 +221,84 @@ def test_discover_source_files_excludes_common_lockfiles(tmp_path: Path) -> None
 
 
 # ---------------------------------------------------------------------------
+# discover_markdown_and_config_files
+# ---------------------------------------------------------------------------
+
+
+def test_discover_markdown_and_config_files_keeps_only_md_and_config(tmp_path: Path) -> None:
+    """`prodockit source-bundle`'s default scope: a project's documentation
+    content and its site configuration, not its own tooling
+    (prodockit-extensions#212)."""
+    _init_git_repo(tmp_path)
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "index.md").write_text("# Home\n", encoding="utf-8")
+    (tmp_path / "macros.py").write_text("def word_count(): ...\n", encoding="utf-8")
+    (tmp_path / "zensical.toml").write_text('site_name = "T"\n', encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "docs/index.md", "macros.py", "zensical.toml"], cwd=tmp_path, check=True
+    )
+
+    files = discover_markdown_and_config_files(str(tmp_path))
+
+    assert files == ["docs/index.md", "zensical.toml"]
+
+
+def test_discover_markdown_and_config_files_finds_md_in_any_subdirectory(tmp_path: Path) -> None:
+    _init_git_repo(tmp_path)
+    (tmp_path / "docs" / "guides").mkdir(parents=True)
+    (tmp_path / "docs" / "index.md").write_text("# Home\n", encoding="utf-8")
+    (tmp_path / "docs" / "guides" / "setup.md").write_text("# Setup\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "docs/index.md", "docs/guides/setup.md"], cwd=tmp_path, check=True
+    )
+
+    files = discover_markdown_and_config_files(str(tmp_path))
+
+    assert files == ["docs/guides/setup.md", "docs/index.md"]
+
+
+def test_discover_markdown_and_config_files_matches_config_by_basename(tmp_path: Path) -> None:
+    """`mkdocs.yml` is not a file a Zensical project ever has - listed
+    anyway, matched by basename like `zensical.toml`, since a project's
+    own config could in principle live nested rather than at the root."""
+    _init_git_repo(tmp_path)
+    (tmp_path / "project").mkdir()
+    (tmp_path / "project" / "zensical.toml").write_text("", encoding="utf-8")
+    (tmp_path / "mkdocs.yml").write_text("", encoding="utf-8")
+    (tmp_path / "requirements.txt").write_text("", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "project/zensical.toml", "mkdocs.yml", "requirements.txt"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    files = discover_markdown_and_config_files(str(tmp_path))
+
+    assert files == ["mkdocs.yml", "project/zensical.toml"]
+    assert "requirements.txt" not in files
+
+
+def test_discover_markdown_and_config_files_still_honours_always_excluded_paths(
+    tmp_path: Path,
+) -> None:
+    """Built on `discover_source_files()`, so a vendored `.icons` markdown
+    file (unlikely, but the exclusion is by directory name, not
+    extension) is filtered out before the narrower check ever runs."""
+    _init_git_repo(tmp_path)
+    (tmp_path / ".icons" / "custom").mkdir(parents=True)
+    (tmp_path / ".icons" / "custom" / "README.md").write_text("vendored\n", encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "index.md").write_text("# Home\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", ".icons/custom/README.md", "docs/index.md"], cwd=tmp_path, check=True
+    )
+
+    files = discover_markdown_and_config_files(str(tmp_path))
+
+    assert files == ["docs/index.md"]
+
+
+# ---------------------------------------------------------------------------
 # build_source_bundle
 # ---------------------------------------------------------------------------
 
@@ -237,6 +316,37 @@ def _make_sample_repo(root: Path) -> None:
         cwd=root,
         check=True,
     )
+
+
+def test_explicit_files_list_overrides_default_discovery(
+    tmp_path: Path, fake_weasyprint_on_path
+) -> None:
+    """`files` lets a caller (e.g. `prodockit source-bundle`, via
+    `discover_markdown_and_config_files()`) choose exactly which files
+    are bundled, without `build_source_bundle()` re-discovering its own
+    list - the low-level primitive stays agnostic to *why* a particular
+    set of files was chosen (prodockit-extensions#212)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _make_sample_repo(repo)
+    fake_weasyprint_on_path('echo "%PDF-1.4 stub" > "$2"')
+    work_dir = tmp_path / "work"
+
+    count = build_source_bundle(
+        str(tmp_path / "out.pdf"),
+        root=str(repo),
+        files=["src/a.py"],
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    assert count == 1
+    html = (work_dir / "_prodockit_source_bundle.html").read_text(encoding="utf-8")
+    assert 'class="file-marker">src/a.py<' in html
+    # Present in the sample repo (see _make_sample_repo below) but not
+    # named in `files` - must not appear just because discover_source_files()
+    # would otherwise have found it.
+    assert "src/b.py" not in html
 
 
 def test_builds_the_pdf_to_the_given_output_path(tmp_path: Path, fake_weasyprint_on_path) -> None:

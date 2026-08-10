@@ -1,17 +1,27 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Bundles a git repository's own tracked (and untracked-but-not-ignored)
-text/source files into a single PDF - one file per page, 8pt Courier,
-wrapped lines, a running header (the report's own name on the left, that
-page's own file path on the right), and a "Page N of M" footer.
+"""Bundles a list of text files into a single PDF - one file per page,
+8pt Courier, wrapped lines, a running header (the report's own name on
+the left, that page's own file path on the right), and a "Page N of M"
+footer.
+
+Two file lists are on offer, matching two different reasons to want a
+bundle. `discover_source_files()` finds everything under a repository
+`.gitignore` doesn't exclude - a project's own tooling alongside its
+content, for a full record of what was authored.
+`discover_markdown_and_config_files()` narrows that to a project's
+Markdown content and its site configuration only - what
+`prodockit source-bundle` builds by default (prodockit-extensions#212).
+`build_source_bundle()` takes either as its `files` argument, or neither,
+in which case it discovers the full list itself.
 
 This is deliberately independent of the rest of `prodockit.pdf`
-(`build.py`/`html.py`/`css.py`/`lua.py`): there's no Markdown here, just
-raw source text, so there's nothing for Pandoc's own HTML/Markdown
-round-trip handling to do - this module builds one small, self-contained
-HTML document directly and hands it straight to `weasyprint`, skipping
-Pandoc entirely.
+(`build.py`/`html.py`/`css.py`/`lua.py`): there's no Markdown rendering
+here, just raw source text, so there's nothing for Pandoc's own
+HTML/Markdown round-trip handling to do - this module builds one small,
+self-contained HTML document directly and hands it straight to
+`weasyprint`, skipping Pandoc entirely.
 """
 
 from __future__ import annotations
@@ -130,6 +140,42 @@ def discover_source_files(root: str = ".") -> list[str]:
     return [f for f in all_files if not _is_excluded(f)]
 
 
+#: Config-file basenames `discover_markdown_and_config_files()` keeps,
+#: matched by basename rather than a fixed path so a config file nested
+#: in a subdirectory still counts. `mkdocs.yml` is not a file this
+#: project's own Zensical-based tooling ever writes or reads - listed
+#: because a project's documentation source is still its documentation
+#: source regardless of which static-site generator wrote the config, and
+#: this costs nothing to check for; it will simply never match on a
+#: Zensical project.
+_CONFIG_FILE_BASENAMES = frozenset({"zensical.toml", "mkdocs.yml"})
+
+
+def discover_markdown_and_config_files(root: str = ".") -> list[str]:
+    """The narrower file list `prodockit source-bundle` bundles by
+    default: every Markdown file `discover_source_files()` would find,
+    plus this project's own site-configuration file - the documentation's
+    own source, rather than every tracked file in the repository.
+
+    This is deliberately narrower than `discover_source_files()`'s own
+    "everything but vendored noise" - a project's custom Python
+    extensions, Lua filters, CSS, and test suite are source code, not
+    documentation, and a report built from `prodockit-template` has no
+    reason to bundle its own tooling alongside the document it produced
+    (prodockit-extensions#212).
+
+    Still built on `discover_source_files()`, so a `.gitignore`d or
+    always-excluded file (see `_EXCLUDED_DIR_NAMES`/`_EXCLUDED_FILE_NAMES`)
+    is filtered out here too, before the narrower `.md`/config check ever
+    runs.
+    """
+    return [
+        f
+        for f in discover_source_files(root)
+        if f.endswith(".md") or os.path.basename(f) in _CONFIG_FILE_BASENAMES
+    ]
+
+
 def is_probably_text(path: str) -> bool:
     """Returns whether `path` looks like a text file worth bundling, by
     content rather than file extension - reads (at most) the first 8 KiB
@@ -234,14 +280,23 @@ def build_source_bundle(
     page_size: str = "A4",
     work_dir: str | None = None,
     keep_work_dir: bool = False,
+    files: list[str] | None = None,
 ) -> int:
-    """Builds a single PDF bundling every text file `.gitignore` doesn't
-    exclude under `root` (see `discover_source_files`) and writes it to
+    """Builds a single PDF bundling text files under `root` and writes it to
     `output_path` (relative paths resolve against `root`, matching "the
     top-level directory" a project's own `root` already is). Returns how
     many files were actually included (binary files - see
     `is_probably_text` - and a file that turns out not to be valid UTF-8
     once fully read are both silently skipped, not counted as a failure).
+
+    `files` is the `root`-relative path list to bundle, in the order
+    given. Left unset, every text file `.gitignore` doesn't exclude is
+    used (see `discover_source_files`) - the historical default, and
+    still what a caller wants for a full-repository bundle. `prodockit
+    source-bundle` passes `discover_markdown_and_config_files()`'s
+    narrower list instead, so this function itself stays a general
+    "bundle these files" primitive rather than baking in one policy for
+    which files that means.
 
     Each file starts on its own page, in 8pt Courier with wrapped lines
     (a `white-space: pre-wrap` for genuinely long lines, not `pre`'s own
@@ -264,8 +319,8 @@ def build_source_bundle(
         output_path if os.path.isabs(output_path) else os.path.join(root, output_path)
     )
 
-    files = discover_source_files(root)
-    text_files = [f for f in files if is_probably_text(os.path.join(root, f))]
+    candidate_files = files if files is not None else discover_source_files(root)
+    text_files = [f for f in candidate_files if is_probably_text(os.path.join(root, f))]
 
     use_temp_dir = work_dir is None
     resolved_work_dir: str = (

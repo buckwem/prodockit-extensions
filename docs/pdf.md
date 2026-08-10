@@ -196,7 +196,6 @@ lives under `[project.extra]`, all optional:
 | \index{PDF settings!`pdf_index_title`} | `"Index"` | That page's own heading text. |
 | \index{PDF settings!`pdf_mmdc_bin`} | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
 | \index{PDF settings!`pdf_tex2svg_script`} / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
-| \index{PDF settings!`pdf_source_bundle`} | `false` | Bundle this repository's own source code into a separate `source_bundle.pdf` - see [Bundling source code into a PDF](#bundling-source-code-into-a-pdf). Only runs for a full, nav-driven build - never for a `--markdown-file`-scoped one. |
 | \index{PDF settings!`pdf_extra_css`} | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF - e.g. a rule that would look wrong on the live website, or one overriding something `extra_css` itself sets (concatenated after it, so it wins the cascade). |
 
 A page's own front matter `is_appendix: true` gives it letter-based
@@ -421,56 +420,63 @@ This setting is meaningful whether or not `pdf_double_sided` is on - the
 running chapter title appears in the header either way, just in a
 different corner.
 
-### Bundling source code into a PDF
+### Bundling source into a PDF
 
-Set `pdf_source_bundle = true` under `[project.extra]` to also produce
-`source_bundle.pdf` - a separate PDF, in the top-level project directory
-(not `docs_dir`), containing every text/source file `.gitignore` doesn't
-exclude, one file per page:
+`prodockit source-bundle` builds a second PDF - your Markdown content and
+`zensical.toml`, one file per page - for a submission that needs the
+underlying source alongside the rendered document:
+
+```bash
+prodockit source-bundle
+```
+
+A separate command from `prodockit pdf` (prodockit-extensions#212), not a
+setting that runs automatically as part of it: the two PDFs serve
+different purposes (a rendered document vs. a record of what was
+written), so a project that only needs one no longer pays to build the
+other on every run - source bundling shells out to `git ls-files` and a
+second `weasyprint` invocation, unrelated in cost and content to the
+Pandoc/WeasyPrint document pipeline.
+
+Writes `docs_dir/source_bundle.pdf` by default, so Zensical serves it
+with no separate copy step. Override with `pdf_source_bundle_output`
+under `[project.extra]`:
 
 ```toml
 [project.extra]
-pdf_source_bundle = true
+pdf_source_bundle_output = "dist/source.pdf"
 ```
 
-This is unrelated to the rest of `prodockit.pdf` - there's no Markdown
-involved at all, just this repository's own raw source files, so it
-skips Pandoc entirely and hands a small, self-contained HTML document
-straight to WeasyPrint. Only runs for a full, nav-driven build (`prodockit
-pdf` with no `--markdown-file`) - a single-page build has no reason to
-also rebuild a whole-repository artifact every time.
+The running header's report name is your `site_name`; the page size is
+`pdf_page_size` - the same setting `prodockit pdf` reads, so both PDFs a
+project publishes share one physical page size rather than needing it
+set twice.
 
+This is unrelated to the rest of `prodockit.pdf` - there's no Markdown
+*rendering* involved, just raw source text, so it skips Pandoc entirely
+and hands a small, self-contained HTML document straight to WeasyPrint.
 Every file is rendered in 8pt Courier with wrapped lines (a genuinely
 long line wraps rather than running off the page or getting cut off),
-starting on its own page, with a running header (the project's own
-`site_name` on the left, that page's own file path on the right) and a
-"Page N of M" footer. Which files are included is decided by
-`.gitignore` - both already-tracked files and untracked-but-not-yet-added
-ones count, as long as `.gitignore` doesn't exclude them - and by content
-(anything that isn't valid UTF-8 text, e.g. an image or compiled binary,
-is silently skipped, not by file extension).
+starting on its own page, with a running header (that page's own file
+path on the right) and a "Page N of M" footer.
 
-A few classes of vendored, never-author-written content are always
-excluded too, regardless of `.gitignore` - none of this is a
-project-level setting, so there's no `zensical.toml` knob to opt any of
-it back in:
+Which files are included: every `.md` file under `docs_dir` (recursively)
+plus `zensical.toml` itself - your documentation's own source, not the
+project's tooling around it. A file that isn't valid UTF-8 text is
+silently skipped rather than failing the build, though in practice that
+never applies here (Markdown and TOML are always text).
 
-- Any directory literally named `.icons` (e.g. a `custom_icons`
-  directory, per [pymdownx.emoji](https://facelessuser.github.io/pymdown-extensions/extensions/emoji/#custom-icons)'s
-  own convention).
-- Any directory literally named `styles` (e.g. a Vale `StylesPath`,
-  holding downloaded rule packs).
-- Common dependency lockfiles by exact file name - `package-lock.json`,
-  `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, `Pipfile.lock`,
-  `poetry.lock`, `Cargo.lock`.
-
-These are typically *tracked* (needed for the site/PDF to build at all),
-so `.gitignore` alone can't keep a vendored icon pack's hundreds of SVGs,
-a Vale style pack, or a multi-thousand-line lockfile out of the bundle.
-
-Scripting this outside `prodockit pdf` (e.g. from a different build
-tool)? See [`prodockit.pdf.source_bundle`](#prodockitpdfsource_bundle)
-below.
+!!! info "Bundling everything, not just Markdown and config?"
+    Call `prodockit.pdf.source_bundle.build_source_bundle()` directly with
+    no `files` argument (or pass it
+    `prodockit.pdf.source_bundle.discover_source_files()`'s own result) -
+    see [`prodockit.pdf.source_bundle`](#prodockitpdfsource_bundle) below.
+    That is every text file `.gitignore` doesn't exclude, the whole
+    repository rather than just its documentation, which a project doing
+    its own academic-integrity verification (checking a submission's
+    custom code, not only its prose) may still want. `prodockit
+    source-bundle` itself has no flag for this - narrowing the CLI's own
+    default was the point of prodockit-extensions#212.
 
 ### Table of contents and bookmark outline
 
@@ -876,15 +882,53 @@ build_source_bundle(
     page_size: str = "A4",
     work_dir: str | None = None,
     keep_work_dir: bool = False,
+    files: list[str] | None = None,
 ) -> int
 ```
 
 Unrelated to the rest of `prodockit.pdf` - see
-[Bundling source code into a PDF](#bundling-source-code-into-a-pdf) above
-for what this builds; `pdf_source_bundle` is the same function called for
-you. Returns how many files ended up in the bundle. `root` is both where
-`git ls-files --cached --others --exclude-standard` looks for files to
-include and where a relative `output_path` is written to.
+[Bundling source into a PDF](#bundling-source-into-a-pdf) above for what
+`prodockit source-bundle` builds with this; `build_source_bundle_from_zensical_config()`
+is the same function called for you, from `zensical.toml`. Returns how
+many files ended up in the bundle. `root` is where a relative
+`output_path` is written to.
+
+`files` is the `root`-relative path list to bundle - `prodockit
+source-bundle` passes `discover_markdown_and_config_files()`'s narrower
+list; left unset, `discover_source_files()` is called for the historical
+default of every text file `.gitignore` doesn't exclude:
+
+```python
+discover_source_files(root: str = ".") -> list[str]
+discover_markdown_and_config_files(root: str = ".") -> list[str]
+```
+
+Both are built on `git ls-files --cached --others --exclude-standard`,
+so both count already-tracked files and untracked-but-not-yet-added ones
+alike, and by content rather than extension for what's actually bundled
+- anything that isn't valid UTF-8 text (an image, a compiled binary) is
+silently skipped rather than failing the build.
+`discover_markdown_and_config_files()` further narrows to `.md` files
+plus a config file basename (`zensical.toml`, `mkdocs.yml`).
+
+A few classes of vendored, never-author-written content are always
+excluded from both, regardless of `.gitignore` - none of this is a
+project-level setting, so there's no `zensical.toml` knob to opt any of
+it back in:
+
+- Any directory literally named `.icons` (e.g. a `custom_icons`
+  directory, per [pymdownx.emoji](https://facelessuser.github.io/pymdown-extensions/extensions/emoji/#custom-icons)'s
+  own convention).
+- Any directory literally named `styles` (e.g. a Vale `StylesPath`,
+  holding downloaded rule packs).
+- Common dependency lockfiles by exact file name - `package-lock.json`,
+  `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, `Pipfile.lock`,
+  `poetry.lock`, `Cargo.lock`.
+
+These are typically *tracked* (needed for the site/PDF to build at all),
+so `.gitignore` alone can't keep a vendored icon pack's hundreds of SVGs,
+a Vale style pack, or a multi-thousand-line lockfile out.
+
 `work_dir`/`keep_work_dir` mirror `build_pdf()`'s own pair - a place to
 put (and optionally keep) the intermediate HTML `weasyprint` actually
 renders, handy when the output looks wrong. Raises

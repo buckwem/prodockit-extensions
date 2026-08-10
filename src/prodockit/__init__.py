@@ -29,6 +29,10 @@ Zensical doesn't provide out of the box, each usable independently:
   professional/academic reports typically need alongside the website
   itself. Run ``prodockit pdf`` from your project root - no Python required,
   it reads the same ``zensical.toml`` your site already has.
+  ``prodockit source-bundle`` builds a separate PDF of your Markdown
+  content and config, one file per page, into ``docs_dir`` - for a
+  submission needing the underlying source alongside the rendered
+  document, without paying for both PDFs on every build.
 - ``prodockit.zensical_macros`` - Jinja variables/macros for Zensical's own
   macros plugin: a site-wide word count, the git-detected repository URL,
   the latest release tag, chapter/appendix numbering that continues across

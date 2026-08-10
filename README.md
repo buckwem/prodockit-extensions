@@ -109,6 +109,18 @@ index (`pdf_include_index`) generated from `prodockit.index`'s own
 (`build_pdf()`, `prodockit.pdf.html`/`.lua`/`.css`/`.icons`/`.mermaid`/`.rotate`)
 if you're scripting your own build pipeline instead.
 
+`prodockit source-bundle` builds a second, separate PDF - your Markdown
+content and `zensical.toml`, one file per page, into `docs_dir` - for a
+submission that needs the underlying source alongside the document
+itself:
+
+```bash
+prodockit source-bundle
+```
+
+A separate command from `prodockit pdf`, so a project that wants only one
+of the two PDFs doesn't build the other on every run.
+
 ## Website macros
 
 [`prodockit.zensical_macros`](https://buckwem.github.io/prodockit-extensions/macros/)
