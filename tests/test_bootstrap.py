@@ -47,9 +47,11 @@ class FakeRunner:
     def __init__(self, responses: dict[str, CommandResult] | None = None) -> None:
         self.responses = responses or {}
         self.calls: list[list[str]] = []
+        self.cwds: list[str | None] = []
 
-    def run(self, command: Sequence[str]) -> CommandResult:
+    def run(self, command: Sequence[str], cwd: str | None = None) -> CommandResult:
         self.calls.append(list(command))
+        self.cwds.append(cwd)
         joined = " ".join(command)
         for key in (joined, command[0]):
             if key in self.responses:
@@ -71,12 +73,35 @@ def _config(**overrides: str) -> BootstrapConfig:
     return BootstrapConfig(**base)  # type: ignore[arg-type]
 
 
-def _context(tmp_path: Path, *, platform: str = MACOS, runner: FakeRunner | None = None, **cfg):
+def _looks_like_vscode_app(path: Path) -> bool:
+    text = str(path)
+    return "Visual Studio Code" in text or text.endswith(("/usr/share/code", "/snap/code"))
+
+
+def _context(
+    tmp_path: Path,
+    *,
+    platform: str = MACOS,
+    runner: FakeRunner | None = None,
+    vscode_app: bool = False,
+    **cfg,
+):
+    """A context describing a machine, never reading this one.
+
+    `vscode_app` says whether the VS Code *application* is installed -
+    separate from whether the `code` command is on PATH, which the runner
+    answers. Defaults to absent so a test states it when it matters.
+    """
     return build_context(
         _config(**cfg),
         runner=runner or FakeRunner(),
         platform=platform,
         home=tmp_path,
+        # Only the VS Code application paths are described; everything
+        # else is a real path under tmp_path and answers for itself.
+        exists=lambda path: (
+            vscode_app if _looks_like_vscode_app(path) else path.exists()
+        ),
     )
 
 
@@ -300,10 +325,7 @@ def test_every_platforms_install_plan_is_generated_from_any_platform(
     have VS Code, which is precisely the coupling the injected runner
     exists to remove. It caught this test out once already.
     """
-    import prodockit.bootstrap.stages as stages_module
-
-    monkeypatch.setattr(stages_module, "_vscode_app_installed", lambda context: False)
-    context = _context(tmp_path, platform=platform)
+    context = _context(tmp_path, platform=platform, vscode_app=False)
     plan = next(s for s in STAGES if s.id == "vscode").plan(context)
     flat = " ".join(" ".join(command) for command in plan.commands)
     assert expected in flat
@@ -348,6 +370,9 @@ def test_remote_plan_repoints_and_then_syncs(tmp_path: Path) -> None:
     plan = next(s for s in STAGES if s.id == "remote").plan(context)
     flat = [" ".join(command) for command in plan.commands]
     assert any("remote set-url" in c for c in flat)
+    # Both commands run in the project: sync-repo reads its config from the
+    # working directory and has no path flag.
+    assert plan.cwd is not None and plan.cwd.endswith("report-al01234")
     assert any("sync-repo" in c for c in flat)
 
 
@@ -635,10 +660,7 @@ def test_vscode_installed_without_the_shell_command_is_wrong(
         Error: It seems there is already an App at
         '/Applications/Visual Studio Code.app'.
     """
-    import prodockit.bootstrap.stages as stages_module
-
-    monkeypatch.setattr(stages_module, "_vscode_app_installed", lambda context: True)
-    context = _context(tmp_path)  # FakeRunner: `code` is not on PATH
+    context = _context(tmp_path, vscode_app=True)  # FakeRunner: `code` not on PATH
     stage = next(s for s in STAGES if s.id == "vscode")
 
     result = stage.check(context)
@@ -654,10 +676,7 @@ def test_vscode_installed_without_the_shell_command_is_wrong(
 def test_vscode_genuinely_absent_still_installs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import prodockit.bootstrap.stages as stages_module
-
-    monkeypatch.setattr(stages_module, "_vscode_app_installed", lambda context: False)
-    context = _context(tmp_path)
+    context = _context(tmp_path, vscode_app=False)
     stage = next(s for s in STAGES if s.id == "vscode")
     assert stage.check(context).status is Status.MISSING
     assert stage.plan(context).commands[0][0] == "brew"
@@ -727,3 +746,45 @@ def test_extensions_plan_installs_only_what_is_missing(tmp_path: Path) -> None:
     detail = stage.check(context).detail
     assert "2 of 3 installed" in detail
     assert VSCODE_EXTENSIONS[-1] in detail
+
+
+def test_a_manual_step_is_retried_not_failed(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reported from real use: pressing Enter before creating the project
+    on the website failed the run and exited, throwing away every stage
+    already completed.
+
+    Checking too early is the normal case, not an error - you cannot
+    create a project on a website and have it exist before you have done
+    it. So it says "not there yet" and asks again.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    save(tmp_path / "b.toml", _config())
+    # `git ls-remote` always fails: the project is never created, so the
+    # only way out is declining the retry.
+    result = cli_bootstrap(
+        "--apply",
+        responses={"code": CommandResult(0, "\n".join(VSCODE_EXTENSIONS))},
+        input="n\n" * 20,
+    )
+    assert "not there yet" in result.output or "skipped" in result.output
+    # The old behaviour: a hard exit on the first failed verification.
+    assert "Stopping - later stages depend on this one." not in result.output
+
+
+def test_a_git_banner_is_reduced_to_its_one_useful_line() -> None:
+    """Git wraps remote errors in `=====` banners and empty `remote:`
+    markers, so printing the lot buries the sentence that matters."""
+    from prodockit.cli import _first_meaningful_line
+
+    stderr = (
+        "remote: \n"
+        "remote: ========================================================\n"
+        "remote: \n"
+        "remote: The project you were looking for could not be found.\n"
+        "remote: ========================================================\n"
+    )
+    assert _first_meaningful_line(stderr) == (
+        "The project you were looking for could not be found."
+    )
