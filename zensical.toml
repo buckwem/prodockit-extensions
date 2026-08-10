@@ -80,6 +80,7 @@ nav = [
   {"Website macros" = "macros.md"},
   {"Dev Considerations" = [
     {"Introduction" = "devcons/devcons.md"},
+    {"Machine bootstrap" = "devcons/bootstrap.md"},
     {"Continuous integration" = "devcons/continuous-integration.md"},
     {"Repository metadata" = "devcons/repo-metadata.md"},
     {"Version pinning and drift" = "devcons/pinning-drift.md"},

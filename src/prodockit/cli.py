@@ -22,10 +22,21 @@ This module is the CLI for the whole package, not just the PDF build -
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import click
 
 from prodockit import __version__
+from prodockit.bootstrap import (
+    BootstrapConfigError,
+    Status,
+    UnsupportedHostError,
+    check_all,
+    plan_all,
+)
+from prodockit.bootstrap import build_context as build_bootstrap_context
+from prodockit.bootstrap import config_path as bootstrap_config_path
+from prodockit.bootstrap import load as load_bootstrap_config
 from prodockit.init_tools import (
     COMPONENT_PURPOSE,
     InitToolsError,
@@ -84,6 +95,93 @@ def _echo_captured_stderr(error: Exception) -> None:
 def main() -> None:
     """prodockit - extensions for Zensical needed for professional and
     academic documentation."""
+
+
+@main.command()
+@click.option(
+    "--check",
+    "check_only",
+    is_flag=True,
+    help="Report each stage's state and change nothing.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Print the exact commands a real run would use, without running them.",
+)
+@click.option(
+    "--config",
+    "config_file",
+    default=None,
+    help="Path to bootstrap's own config file. Defaults to your user config directory.",
+)
+def bootstrap(check_only: bool, dry_run: bool, config_file: str | None) -> None:
+    """Set up this machine and your project from scratch.
+
+    Checks ten stages - editor, git, SSH, clone, remote, pandoc, Node and
+    the rest - and reports which are already done. Rerunnable: a stage
+    that is set up correctly is left alone.
+
+    This cannot be the first thing you run: it is a prodockit command, so
+    Python and `pip install prodockit` necessarily come first.
+
+    Phase 1 supports `--check` and `--dry-run` only; neither installs
+    anything.
+    """
+    if not check_only and not dry_run:
+        click.echo(
+            "prodockit bootstrap currently supports --check and --dry-run only.\n"
+            "Applying stages automatically is not implemented yet - run with "
+            "--dry-run to see exactly what it would do.",
+            err=True,
+        )
+        sys.exit(2)
+
+    path = Path(config_file) if config_file else bootstrap_config_path()
+    try:
+        config = load_bootstrap_config(path)
+        context = build_bootstrap_context(config)
+    except (BootstrapConfigError, UnsupportedHostError) as error:
+        click.echo(f"Error: {error}", err=True)
+        sys.exit(1)
+
+    if not config.is_complete:
+        click.echo(
+            f"No configuration yet at {path} - reporting what can be checked "
+            "without it. Stages needing your project details will show as "
+            "unknown.\n",
+            err=True,
+        )
+
+    reports = check_all(context) if check_only else plan_all(context)
+
+    symbols = {
+        Status.OK: "ok  ",
+        Status.MISSING: "MISS",
+        Status.WRONG: "WRONG",
+        Status.UNKNOWN: "?   ",
+    }
+    for number, report in enumerate(reports, start=1):
+        symbol = symbols[report.result.status]
+        detail = f" - {report.result.detail}" if report.result.detail else ""
+        click.echo(f"{number:2}  {symbol}  {report.stage.summary}{detail}")
+        if dry_run and report.plan is not None:
+            for instruction in report.plan.instructions:
+                click.echo(f"        you: {instruction}")
+            for command in report.plan.commands:
+                click.echo(f"        run: {' '.join(command)}")
+
+    outstanding = [r for r in reports if r.needs_work]
+    click.echo()
+    if not outstanding:
+        click.echo(f"All {len(reports)} stages are set up.")
+        return
+    click.echo(f"{len(outstanding)} of {len(reports)} stages need work.")
+    if check_only:
+        click.echo("Run with --dry-run to see what would fix them.")
+    # Non-zero so this is usable as a check in a script, matching
+    # `sync-repo --check` and `pins --check`.
+    sys.exit(1)
 
 
 @main.command()
