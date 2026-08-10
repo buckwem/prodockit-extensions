@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- `prodockit bootstrap` - phase 2: configuration and installing the
+  template ([#217](https://github.com/buckwem/prodockit-extensions/issues/217)).
+
+    `--configure` asks each question with the stored answer as its
+    default; `--apply` sets up the stages that need it, asking before
+    each. A stage that is simply absent defaults to yes, one that exists
+    but is wrong defaults to **no** - reapplying over something already
+    there is the case that can destroy work.
+
+    Every stage is re-checked after being applied. A command exiting zero
+    says the installer ran, not that the thing works.
+
+    The template is cloned from the configured host's own copy - Surrey
+    mirrors it onto its own GitLab, so a student there never needs a
+    GitHub account. `source_url` overrides it with an existing repository
+    for a reader who has been given one.
+
 - `prodockit bootstrap` - phase 1: check and plan a full machine install
   ([#217](https://github.com/buckwem/prodockit-extensions/issues/217)).
 

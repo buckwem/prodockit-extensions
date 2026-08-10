@@ -471,3 +471,80 @@ def test_bootstrap_exits_zero_when_everything_is_set_up(
     )
     assert "All 10 stages are set up." in result.output
     assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: template source, and applying
+# ---------------------------------------------------------------------------
+
+
+def test_surrey_clones_the_template_from_surrey_not_github(tmp_path: Path) -> None:
+    """Regression: phase 1 hardcoded the GitHub URL. Surrey mirrors the
+    template onto its own GitLab, and a student there has no GitHub
+    account - cloning the original would ask them for credentials they
+    have not got.
+    """
+    context = _context(tmp_path, source_url="")
+    plan = next(s for s in STAGES if s.id == "clone").plan(context)
+    assert plan.commands[0][2] == "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
+
+
+def test_source_url_overrides_the_template(tmp_path: Path) -> None:
+    """A reader given their own repository clones that instead - the
+    template would be a detour through work the host already did."""
+    own = "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git"
+    context = _context(tmp_path, source_url=own)
+    plan = next(s for s in STAGES if s.id == "clone").plan(context)
+    assert plan.commands[0][2] == own
+
+
+def test_building_a_plan_makes_no_network_call(tmp_path: Path) -> None:
+    """`--dry-run` builds every plan, so plan-building has to stay cheap
+    and side-effect-free. An earlier version probed the host to decide
+    which repository to clone, which put a network call inside it."""
+    runner = FakeRunner()
+    context = _context(tmp_path, runner=runner)
+    next(s for s in STAGES if s.id == "clone").plan(context)
+    assert runner.calls == []
+
+
+def test_apply_reruns_the_check_afterwards(tmp_path: Path) -> None:
+    """A command exiting zero says the installer ran, not that the thing
+    works - every failure this project has had exited zero while producing
+    something broken."""
+    from prodockit.bootstrap import apply_stage
+
+    runner = FakeRunner({"brew": CommandResult(0), "code": CommandResult(127)})
+    context = _context(tmp_path, runner=runner)
+    outcome = apply_stage(context, next(s for s in STAGES if s.id == "vscode"))
+    assert outcome.failed is None          # the install command "succeeded"
+    assert not outcome.ok                  # but the check still fails
+    assert outcome.verified is not None
+
+
+def test_apply_stops_at_the_first_failing_command(tmp_path: Path) -> None:
+    """Later commands in a plan depend on earlier ones, so pressing on
+    turns one clear failure into several confusing ones."""
+    from prodockit.bootstrap import apply_stage
+
+    runner = FakeRunner({"git": CommandResult(1, stderr="boom")})
+    context = _context(tmp_path, runner=runner)
+    outcome = apply_stage(context, next(s for s in STAGES if s.id == "remote"))
+    assert outcome.failed is not None
+    assert len(outcome.ran) == 1           # set-url failed; sync-repo never ran
+
+
+def test_the_runner_never_inherits_stdin() -> None:
+    """Regression: `subprocess` inherits stdin by default, so `ssh -T`
+    during a check consumed the answers typed for bootstrap's own prompts
+    and every later prompt aborted on end-of-input. Found by running
+    `--apply` with piped answers.
+    """
+    import inspect
+    import subprocess as sp
+
+    from prodockit.bootstrap.model import SubprocessRunner
+
+    source = inspect.getsource(SubprocessRunner.run)
+    assert "stdin=subprocess.DEVNULL" in source
+    assert sp.DEVNULL is not None

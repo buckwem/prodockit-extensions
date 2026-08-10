@@ -242,9 +242,6 @@ def _plan_ssh_upload(context: Context) -> Plan:
 # 5. Template cloned (platform-independent)
 # ---------------------------------------------------------------------------
 
-TEMPLATE_REMOTE = "https://github.com/buckwem/prodockit-template.git"
-
-
 def _check_clone(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "project_name")) is not None:
         return unknown
@@ -257,8 +254,26 @@ def _check_clone(context: Context) -> CheckResult:
 
 
 def _plan_clone(context: Context) -> Plan:
+    """Clone the template, or `source_url` when one is configured.
+
+    The template is the default because it is what most readers need.
+    Both paths are real in the User Guide though: a student on a taught
+    module is often *given* a repository instead, and cloning the template
+    over the top of that would be a detour through work the host already
+    did.
+
+    An explicit setting rather than probing the host for an existing
+    repository: the reader knows which case they are in, and asking the
+    host would put a network call inside plan-building - which has to stay
+    cheap and side-effect-free, since `--dry-run` calls it.
+
+    The later stages fall out correctly either way. A clone made from
+    `source_url` already has the right `origin`, so the repoint stage
+    reports `ok` and does nothing.
+    """
     project = context.config.resolved_project_dir(context.home)
-    return Plan(commands=[["git", "clone", TEMPLATE_REMOTE, str(project)]])
+    source = context.config.source_url or context.host.template_remote
+    return Plan(commands=[["git", "clone", source, str(project)]])
 
 
 # ---------------------------------------------------------------------------

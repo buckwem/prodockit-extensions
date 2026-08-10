@@ -23,13 +23,15 @@ would use. Nothing here installs anything yet.
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from prodockit.bootstrap.config import (
+    PROMPTS,
     BootstrapConfig,
     BootstrapConfigError,
     config_path,
+    default_for,
     load,
     save,
 )
@@ -53,8 +55,10 @@ from prodockit.bootstrap.stages import STAGES
 
 __all__ = [
     "HOSTS",
+    "PROMPTS",
     "STAGES",
     "SURREY_GITLAB",
+    "ApplyResult",
     "BootstrapConfig",
     "BootstrapConfigError",
     "CheckResult",
@@ -68,10 +72,12 @@ __all__ = [
     "Status",
     "SubprocessRunner",
     "UnsupportedHostError",
+    "apply_stage",
     "build_context",
     "check_all",
     "config_path",
     "current_platform",
+    "default_for",
     "load",
     "plan_all",
     "save",
@@ -130,6 +136,49 @@ def build_context(
         runner=runner or SubprocessRunner(),
         home=home or Path.home(),
     )
+
+
+@dataclass(frozen=True)
+class ApplyResult:
+    """What applying one stage did, and whether it worked.
+
+    `verified` is the check re-run *afterwards*, and is the only claim
+    worth making: a command exiting zero says the installer ran, not that
+    the thing it installed now works. Every stage this project has got
+    wrong in the past exited zero while producing something broken.
+    """
+
+    stage: Stage
+    ran: list[list[str]] = field(default_factory=list)
+    failed: CommandResult | None = None
+    verified: CheckResult | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.failed is None and self.verified is not None and not self.verified.needs_work
+
+
+def apply_stage(context: Context, stage: Stage) -> ApplyResult:
+    """Runs a stage's plan, then re-checks it.
+
+    Stops at the first command that fails rather than pressing on: the
+    later commands in a plan generally depend on the earlier ones (a
+    `npm ci` into a directory the clone was supposed to create), and
+    running them anyway turns one clear failure into several confusing
+    ones.
+
+    A stage whose plan is purely instructions - the two browser steps -
+    runs its verification command only, which is exactly the point: the
+    human does the work, bootstrap decides whether it took.
+    """
+    plan = stage.plan(context)
+    result = ApplyResult(stage=stage)
+    for command in plan.commands:
+        outcome = context.runner.run(command)
+        result.ran.append(list(command))
+        if not outcome.ok:
+            return ApplyResult(stage=stage, ran=result.ran, failed=outcome)
+    return ApplyResult(stage=stage, ran=result.ran, verified=stage.check(context))
 
 
 @dataclass(frozen=True)

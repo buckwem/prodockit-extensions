@@ -28,15 +28,22 @@ import click
 
 from prodockit import __version__
 from prodockit.bootstrap import (
+    PROMPTS,
+    BootstrapConfig,
     BootstrapConfigError,
+    Context,
+    StageReport,
     Status,
     UnsupportedHostError,
+    apply_stage,
     check_all,
+    default_for,
     plan_all,
 )
 from prodockit.bootstrap import build_context as build_bootstrap_context
 from prodockit.bootstrap import config_path as bootstrap_config_path
 from prodockit.bootstrap import load as load_bootstrap_config
+from prodockit.bootstrap import save as save_bootstrap_config
 from prodockit.init_tools import (
     COMPONENT_PURPOSE,
     InitToolsError,
@@ -97,6 +104,78 @@ def main() -> None:
     academic documentation."""
 
 
+def _ask_for_configuration(config: BootstrapConfig) -> BootstrapConfig:
+    """Asks each question with the stored answer as the default.
+
+    Every field is re-asked on a rerun, as the issue asks - pressing
+    Enter through keeps what is already there, so confirming an unchanged
+    setup costs six keystrokes rather than an edit.
+    """
+    click.echo("Configuration - press Enter to keep the value in brackets.\n")
+    answers = {}
+    for key, question in PROMPTS:
+        # `default_for` fills a blank answer from one already given, so a
+        # first run still has something sensible to press Enter on.
+        answers[key] = click.prompt(
+            question, default=default_for(config, key), show_default=True
+        ).strip()
+        # Later questions can default off earlier answers, so feed each one
+        # back in as it is given.
+        setattr(config, key, answers[key])
+    return config
+
+
+def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
+    """Applies the stages that need it, asking before each.
+
+    Defaults follow the issue: a stage that is simply absent defaults to
+    yes, and one that exists but is wrong defaults to **no** - reapplying
+    over something already there is the case that can destroy work, so it
+    is the case that has to be asked for rather than accepted by
+    pressing Enter.
+    """
+    outstanding = [r for r in reports if r.needs_work and r.plan is not None]
+    if not outstanding:
+        click.echo("Nothing to do - every stage is either set up or waiting on "
+                   "configuration.")
+        return
+
+    for report in outstanding:
+        plan = report.plan
+        if plan is None:  # pragma: no cover - filtered above, narrows for mypy
+            continue
+        click.echo(f"\n{report.stage.summary} - {report.result.detail}")
+        for instruction in plan.instructions:
+            click.echo(f"  you: {instruction}")
+        for command in plan.commands:
+            click.echo(f"  run: {' '.join(command)}")
+
+        if plan.is_manual or plan.instructions:
+            click.confirm("  Done that?", default=True)
+        # Absent: assume yes. Present but wrong: reapplying could overwrite
+        # real work, so make it deliberate.
+        default_yes = report.result.status is Status.MISSING
+        if not click.confirm("  Apply?", default=default_yes):
+            click.echo("  skipped")
+            continue
+
+        outcome = apply_stage(context, report.stage)
+        if outcome.failed is not None:
+            click.echo(f"  FAILED: {outcome.failed.stderr.strip() or 'command failed'}", err=True)
+            click.echo("  Stopping here - later stages depend on this one.", err=True)
+            sys.exit(1)
+        # The check is re-run after applying, because a command exiting
+        # zero says the installer ran, not that the thing works.
+        if outcome.ok:
+            click.echo("  done")
+        else:
+            detail = outcome.verified.detail if outcome.verified else "unknown"
+            click.echo(f"  ran, but still not right: {detail}", err=True)
+            sys.exit(1)
+
+    click.echo("\nDone. Re-run `prodockit bootstrap` to confirm.")
+
+
 @main.command()
 @click.option(
     "--check",
@@ -110,12 +189,29 @@ def main() -> None:
     help="Print the exact commands a real run would use, without running them.",
 )
 @click.option(
+    "--apply",
+    "apply_stages",
+    is_flag=True,
+    help="Actually set up the stages that need it, asking before each one.",
+)
+@click.option(
+    "--configure",
+    is_flag=True,
+    help="Answer the configuration questions again, then stop.",
+)
+@click.option(
     "--config",
     "config_file",
     default=None,
     help="Path to bootstrap's own config file. Defaults to your user config directory.",
 )
-def bootstrap(check_only: bool, dry_run: bool, config_file: str | None) -> None:
+def bootstrap(
+    check_only: bool,
+    dry_run: bool,
+    apply_stages: bool,
+    configure: bool,
+    config_file: str | None,
+) -> None:
     """Set up this machine and your project from scratch.
 
     Checks ten stages - editor, git, SSH, clone, remote, pandoc, Node and
@@ -131,16 +227,30 @@ def bootstrap(check_only: bool, dry_run: bool, config_file: str | None) -> None:
     """
     # Bare `prodockit bootstrap` is a checking run. Defaulting to the
     # read-only behaviour matters more than usual here: the alternative
-    # default, once applying is implemented, is a command that starts
-    # installing software because someone typed it to see what it did.
-    if not dry_run:
+    # default is a command that starts installing software because someone
+    # typed it to see what it did.
+    if not dry_run and not apply_stages and not configure:
         check_only = True
 
     path = Path(config_file) if config_file else bootstrap_config_path()
     try:
         config = load_bootstrap_config(path)
+    except BootstrapConfigError as error:
+        click.echo(f"Error: {error}", err=True)
+        sys.exit(1)
+
+    # Asked for explicitly, or because applying without the answers would
+    # clone into a directory named after nothing.
+    if configure or (apply_stages and not config.is_complete):
+        config = _ask_for_configuration(config)
+        save_bootstrap_config(path, config)
+        click.echo(f"\nSaved to {path}")
+        if configure:
+            return
+
+    try:
         context = build_bootstrap_context(config)
-    except (BootstrapConfigError, UnsupportedHostError) as error:
+    except UnsupportedHostError as error:
         click.echo(f"Error: {error}", err=True)
         sys.exit(1)
 
@@ -148,11 +258,15 @@ def bootstrap(check_only: bool, dry_run: bool, config_file: str | None) -> None:
         click.echo(
             f"No configuration yet at {path} - reporting what can be checked "
             "without it. Stages needing your project details will show as "
-            "unknown.\n",
+            "unknown. Run --configure to answer them.\n",
             err=True,
         )
 
     reports = check_all(context) if check_only else plan_all(context)
+
+    if apply_stages:
+        _apply_outstanding(context, reports)
+        return
 
     symbols = {
         Status.OK: "ok  ",

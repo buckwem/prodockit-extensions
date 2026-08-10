@@ -57,6 +57,13 @@ class BootstrapConfig:
     namespace: str = ""
     project_name: str = ""
     project_dir: str = ""
+    #: A repository to clone *instead of* the template - for a reader who
+    #: has already been given one (a taught module usually issues one per
+    #: student). Blank means "use the template", which is the common case
+    #: and the default. An explicit URL rather than a detected one: the
+    #: reader knows whether they were given a repository, and asking the
+    #: host would put a network call inside plan-building.
+    source_url: str = ""
 
     @property
     def is_complete(self) -> bool:
@@ -157,6 +164,11 @@ PROMPTS: tuple[tuple[str, str], ...] = (
     ("namespace", "The group or namespace your project lives in (e.g. comm058-2026)"),
     ("project_name", "Your project name (e.g. report-az1234)"),
     ("project_dir", "Where to put the project on this machine"),
+    (
+        "source_url",
+        "Existing repository to clone instead of the template "
+        "(leave blank to use the template)",
+    ),
 )
 
 
