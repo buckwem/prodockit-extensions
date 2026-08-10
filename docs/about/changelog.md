@@ -1,5 +1,30 @@
 # Release Notes
 
+## Unreleased
+
+- `prodockit bootstrap` - phase 1: check and plan a full machine install
+  ([#217](https://github.com/buckwem/prodockit-extensions/issues/217)).
+
+    The User Guide's install sequence is long and easy to get half-right
+    in ways that surface much later. This turns it into ten stages that
+    can each be checked and repaired individually.
+
+    **Nothing installs anything yet.** Phase 1 ships `--check` (report
+    every stage, change nothing) and `--dry-run` (print the exact
+    commands a real run would use), so it is safe to run anywhere and
+    reviewable before it is trusted with a machine.
+
+    Two stages are deliberately never automated: uploading an SSH key and
+    creating your own project both need an authenticated human in a
+    browser, and the alternative is a Personal Access Token typed into a
+    tool aimed at first-time students. They guide and then *verify* -
+    `ssh -T` and `git ls-remote` - which is the half a written
+    instruction cannot do.
+
+    Surrey's GitLab is the only supported host; `gitlab.com` and
+    `github.com` are declared but refused, so adding them later is
+    filling in a record rather than rewriting the stages.
+
 ## 0.21.0 (2026-08-10)
 
 - A Zensical rename of `render()`'s result keys now stops the PDF build
