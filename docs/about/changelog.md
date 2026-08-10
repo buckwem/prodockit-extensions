@@ -1,5 +1,37 @@
 # Release Notes
 
+## Unreleased
+
+- `prodockit pins` now manages pandoc too, matched as a
+  `PANDOC_VERSION` CI variable
+  ([#209](https://github.com/buckwem/prodockit-extensions/issues/209)).
+
+    Pandoc never appears as a pip specifier - it is a build-provided
+    binary, not a Python dependency - so it needed a fourth declaration
+    shape alongside the pip specifier, GitHub runner label and container
+    image tag `pins` already understood: `PANDOC_VERSION: "3.10.1"`, the
+    same in a GitHub `env:` block or a GitLab `variables:` block.
+
+    It joins the default managed set, alongside Zensical and WeasyPrint,
+    for the reason #209 raised directly: three sibling projects were
+    keeping the same `PANDOC_VERSION` in step by hand, across workflow
+    files, with a comment saying "keep in sync" - which is exactly the
+    kind of drift this module exists to catch instead. `prodockit pins
+    --check` in this project's own CI now verifies its three copies agree
+    with no workflow change required.
+
+    A CI variable's name keeps whatever case it was declared in on
+    rewrite - `PANDOC_VERSION`, never `pandoc_VERSION`. Every other
+    managed shape can safely reuse its lower-cased lookup key as the
+    replacement text, because a runner label or image tag is
+    conventionally lower-case already; an environment variable is
+    conventionally not, and using the lookup key there would silently
+    break the workflow step that reads it back. Found and fixed twice
+    over: once in the rewrite itself, and again in the CLI's own
+    progress-line display, which had the same bug independently - caught
+    only by running `--set` against copies of this project's real
+    workflow files rather than trusting the unit tests alone.
+
 ## 0.20.1 (2026-08-09)
 
 - CI builds with a pinned upstream pandoc instead of the runner image's
