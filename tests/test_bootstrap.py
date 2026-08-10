@@ -708,3 +708,22 @@ def test_every_other_field_still_keeps_its_stored_answer() -> None:
     config = _config(full_name="Ada Lovelace", namespace="comm058-2026")
     assert default_for(config, "full_name") == "Ada Lovelace"
     assert default_for(config, "namespace") == "comm058-2026"
+
+
+def test_extensions_plan_installs_only_what_is_missing(tmp_path: Path) -> None:
+    """Reported from real use: with one extension absent the plan listed
+    an install for all three, which reads as though the check had not
+    been consulted at all."""
+    present = "\n".join(VSCODE_EXTENSIONS[:-1])
+    runner = FakeRunner({"code --list-extensions": CommandResult(0, present)})
+    context = _context(tmp_path, runner=runner)
+    stage = next(s for s in STAGES if s.id == "extensions")
+
+    plan = stage.plan(context)
+    assert len(plan.commands) == 1
+    assert plan.commands[0][-1] == VSCODE_EXTENSIONS[-1]
+
+    # And the check names what is already there, not only what is not.
+    detail = stage.check(context).detail
+    assert "2 of 3 installed" in detail
+    assert VSCODE_EXTENSIONS[-1] in detail

@@ -485,21 +485,41 @@ def _plan_node(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
-def _check_extensions(context: Context) -> CheckResult:
+def _absent_extensions(context: Context) -> list[str] | None:
+    """Which wanted extensions are not installed, or None if unaskable."""
     result = context.runner.run(["code", "--list-extensions"])
     if not result.ok:
-        return _missing("could not list extensions - is VS Code installed?")
+        return None
     installed = {line.strip().lower() for line in result.stdout.splitlines() if line.strip()}
-    absent = [e for e in VSCODE_EXTENSIONS if e.lower() not in installed]
+    return [name for name in VSCODE_EXTENSIONS if name.lower() not in installed]
+
+
+def _check_extensions(context: Context) -> CheckResult:
+    absent = _absent_extensions(context)
+    if absent is None:
+        return _missing("could not list extensions - is VS Code installed?")
     if absent:
-        return _wrong(f"missing: {', '.join(absent)}")
-    return _ok(f"{len(VSCODE_EXTENSIONS)} extensions present")
+        # Name what is already there as well as what is not. "missing: x"
+        # alone, next to a plan that reinstalled all three, read as though
+        # nothing was installed.
+        present = len(VSCODE_EXTENSIONS) - len(absent)
+        return _wrong(
+            f"{present} of {len(VSCODE_EXTENSIONS)} installed; missing: {', '.join(absent)}"
+        )
+    return _ok(f"all {len(VSCODE_EXTENSIONS)} installed")
 
 
 def _plan_extensions(context: Context) -> Plan:
-    return Plan(
-        commands=[["code", "--install-extension", name] for name in VSCODE_EXTENSIONS]
-    )
+    """Installs only what is absent.
+
+    Reinstalling extensions that are already present is slow, noisy, and
+    misleading to read in `--dry-run`: three `code --install-extension`
+    lines under "missing: one-extension" says the tool has not understood
+    its own check.
+    """
+    absent = _absent_extensions(context)
+    wanted = VSCODE_EXTENSIONS if absent is None else absent
+    return Plan(commands=[["code", "--install-extension", name] for name in wanted])
 
 
 #: Every stage, in the order they have to happen. Ordering is a real
