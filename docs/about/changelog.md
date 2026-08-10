@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.21.0 (2026-08-10)
 
 - A Zensical rename of `render()`'s result keys now stops the PDF build
   with a message naming Zensical, the installed version, and the page
