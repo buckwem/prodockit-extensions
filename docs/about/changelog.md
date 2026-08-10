@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- The bootstrap page now explains how to meet its own prerequisite
+  ([#223](https://github.com/buckwem/prodockit-extensions/issues/223)).
+
+    It named Python as the one thing bootstrap cannot install and then
+    left the reader there - the worst place for a gap, since it is the
+    first thing they hit and the point at which they have no working
+    tooling to fall back on.
+
+    Per-platform instructions for Python and a virtual environment, the
+    `externally-managed-environment` refusal and why a venv is the answer
+    to it, the three things Windows' installer gets wrong (PATH, path
+    length limit, the Microsoft Store placeholder), `python3-venv` being
+    a separate package on Debian, reactivating in a new terminal, and
+    checking `prodockit --version` afterwards - an older install on
+    `PATH` shadows a newer one silently.
+
 - **Fixed:** `prodockit bootstrap` could stop dead at a password prompt
   ([#225](https://github.com/buckwem/prodockit-extensions/issues/225)).
 

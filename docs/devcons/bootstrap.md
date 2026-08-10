@@ -11,16 +11,152 @@ unrelated step two sections on. Every stage here answers "is this
 actually set up?", which is the question a written instruction cannot
 answer for its reader.
 
+## Before you start {: #bootstrap-prerequisites }
+
 !!! warning "This cannot be the first thing you run"
     `prodockit bootstrap` is a prodockit subcommand, so Python and
     `pip install prodockit` necessarily come first - it cannot install the
     interpreter it is running on. That is the boundary: **you** install
     Python, **bootstrap** does the rest.
 
+Which is three steps, on any platform: install Python, make a virtual
+environment, install prodockit into it.
+
+The virtual environment is not optional on macOS and increasingly not on
+Linux either. A Python installed by a package manager is marked
+\index{PEP 668} *externally managed*, and `pip install` outside a virtual
+environment is refused outright:
+
+```text
+error: externally-managed-environment
+× This environment is externally managed
+```
+
+That message is correct and unhelpful in equal measure - it explains what
+it will not do without saying what to do instead. A virtual environment
+is what to do instead.
+
+=== "macOS"
+
+    Install [Homebrew](https://brew.sh) if you do not have it, then:
+
     ```bash
-    pip install prodockit
-    prodockit bootstrap
+    brew install python
     ```
+
+    Change to the directory you want to keep your projects in - the one
+    you will later point bootstrap's `project_dir` at - and create the
+    environment there:
+
+    ```bash
+    cd ~/GitLab
+    /opt/homebrew/bin/python3 -m venv .venv
+    source .venv/bin/activate
+    pip3 install prodockit
+    ```
+
+    Homebrew's `python3` is named by its full path deliberately. macOS
+    ships a `python3` of its own, and which one a bare `python3` finds
+    depends on `PATH` ordering you did not choose - naming it explicitly
+    makes the environment reproducible rather than dependent on how the
+    shell happened to be configured. On an Intel Mac the prefix is
+    `/usr/local` rather than `/opt/homebrew`; `brew --prefix` prints
+    yours.
+
+=== "Windows"
+
+    Install Python from
+    [python.org/downloads](https://www.python.org/downloads/), and on the
+    installer's screens:
+
+    - Tick **Add python.exe to PATH** on the first screen. Without it,
+      `python` is not a command and nothing below works.
+    - Click **Disable path length limit** on the final screen. Node's
+      render toolchains in stage 9 nest deeply enough to hit the 260
+      character limit.
+
+    Then, in PowerShell, in the directory you want to keep your projects
+    in:
+
+    ```powershell
+    cd ~\GitLab
+    python -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    pip install prodockit
+    ```
+
+    !!! warning "Windows ships a `python` that is not Python"
+        Typing `python` on a machine without it installed opens the
+        Microsoft Store rather than reporting that nothing is there.
+        That placeholder is still ahead of a real Python on `PATH` in
+        some installs, so if `python --version` opens a shop window, the
+        install did not take - repeat it with **Add python.exe to PATH**
+        ticked.
+
+=== "Ubuntu"
+
+    ```bash
+    sudo apt install python3 python3-venv python3-pip
+    ```
+
+    `python3-venv` is a separate package on Debian and Ubuntu, and its
+    absence does not show up until `python3 -m venv` fails - by which
+    point the error looks like a broken Python rather than a missing
+    package.
+
+    Then, in the directory you want to keep your projects in:
+
+    ```bash
+    cd ~/GitLab
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install prodockit
+    ```
+
+### Every new terminal needs the environment activated again {: #bootstrap-reactivate }
+
+A virtual environment lasts as long as the shell it was activated in.
+Open a new terminal window - or come back tomorrow - and `prodockit` is
+an unknown command again until you activate it:
+
+=== "macOS / Ubuntu"
+
+    ```bash
+    source .venv/bin/activate
+    ```
+
+=== "Windows"
+
+    ```powershell
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+You can tell it worked because the prompt gains a `(.venv)` prefix. If it
+is not there, nothing you install or run is going where you think it is.
+
+### Check what you actually got {: #bootstrap-verify-install }
+
+```bash
+prodockit --version
+which prodockit          # `where prodockit` on Windows
+```
+
+Worth the two seconds, because the failure this catches is silent. An
+older `prodockit` already on `PATH` from a different Python shadows a
+newer one completely: `pip install` reports success, `prodockit
+--version` reports a version from two releases ago, and `prodockit
+bootstrap` fails as an unknown command with nothing to suggest why. If
+the version is not the one you just installed, `which` will show you
+which Python is winning.
+
+!!! tip "`pipx` is the other reasonable answer"
+    For a command-line tool used across several projects rather than a
+    library imported by one, [`pipx`](https://pipx.pypa.io/) is arguably
+    the better fit - it gives each tool its own environment and puts the
+    command on `PATH` without an activation step, so there is no
+    `(.venv)` to forget. It is one more thing to install, which is why it
+    is not the route above, but if you already have it,
+    `pipx install prodockit` works and skips this whole section.
 
 ## What it covers {: #bootstrap-stages }
 
