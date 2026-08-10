@@ -1,5 +1,11 @@
 # Release Notes
 
+## Unreleased
+
+- `prodockit bootstrap --help` said "ten stages" a release after there
+  were eleven. The count is now asserted against the stage list, so prose
+  cannot drift from the thing it describes.
+
 ## 0.23.0 (2026-08-10)
 
 - **Fixed:** bootstrap asked for an email and then never applied it
