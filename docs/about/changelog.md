@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- **Fixed:** bootstrap never wrote `~/.ssh/config`, so ssh had no way to
+  know which key belonged to the host and asked for a password instead
+  ([#239](https://github.com/buckwem/prodockit-extensions/issues/239)).
+
+    Without a `Host` stanza, ssh offers its own defaults - `id_rsa`,
+    `id_ed25519` - never tries `id_ed25519_gitlab`, and falls back to
+    `git@gitlab.surrey.ac.uk's password:`. That is indistinguishable
+    from a key the host has rejected, so the reader goes back and
+    re-pastes a key that was never the problem, because it was never
+    offered.
+
+    A new **stage 4** writes the stanza in the User Guide's own shape,
+    before the upload stage that depends on it. It is appended, never
+    written over - an ssh config is the reader's own file - and a stanza
+    that already exists pointing elsewhere is explained rather than
+    edited, since ssh takes the first match and rewriting somebody's ssh
+    config underneath them is not an installer's business.
+
+    The same stage sets `chmod 600` on the key and the config. ssh
+    ignores a private key others can read (`Permissions 0644 ... are too
+    open. This private key will be ignored`) and then falls back to a
+    password - the same symptom from a different cause. Windows has no
+    `chmod`, and restricts a profile file to its owner already.
+
+- Bootstrap now reports **twelve** stages rather than eleven, and the
+  later stage numbers shift by one.
+
 - The SSH upload stage now **prints the public key** between
   `======= PUBLIC KEY =======` markers, rather than naming the file it
   lives in

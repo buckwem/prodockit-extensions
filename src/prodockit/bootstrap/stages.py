@@ -1,16 +1,16 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""The eleven stages of a full install, as check/plan pairs.
+"""The twelve stages of a full install, as check/plan pairs.
 
 Every stage answers two questions and performs neither: `check` decides
 whether it is already done, `plan` says what would make it done. Nothing
 here runs an installer - see `prodockit.bootstrap.model` for why that
 split is the whole testing strategy.
 
-Five of the eleven are platform-independent (SSH keys, cloning,
-repointing the remote, the project's commit identity, VS Code
-extensions), which is nearly half the work written once. That is the
+Six of the twelve are platform-independent (SSH keys, the ssh config
+stanza, cloning, repointing the remote, the project's commit identity,
+VS Code extensions), which is half the work written once. That is the
 argument for a stage abstraction over three separate per-platform
 scripts.
 
@@ -281,7 +281,138 @@ def _plan_ssh_key(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 4. Public key on the host - guide and verify
+# 4. ~/.ssh/config points this host at the right key
+# ---------------------------------------------------------------------------
+
+
+def _ssh_config_path(context: Context) -> Path:
+    return context.home / ".ssh" / "config"
+
+
+def _ssh_config_block(context: Context) -> str:
+    """The `Host` stanza this host needs, in the User Guide's own shape.
+
+    `~` rather than an absolute path, as the guide writes it: the file is
+    read by ssh, which expands it, and a config copied between machines
+    with different usernames then still works.
+    """
+    host = context.host
+    key = f"~/.ssh/{_key_path(context).name}"
+    return (
+        f"# {host.hostname} - added by prodockit bootstrap\n"
+        f"Host {host.hostname}\n"
+        f"    HostName {host.hostname}\n"
+        f"    User git\n"
+        f"    IdentityFile {key}\n"
+    )
+
+
+def _ssh_config_host_body(context: Context) -> str | None:
+    """The lines of the `Host <hostname>` stanza already in the config.
+
+    `None` when there is no config file or no stanza for this host.
+    Parsed rather than string-matched because `Host` blocks run until the
+    next `Host`/`Match` line, and "is the hostname mentioned anywhere in
+    the file?" would be satisfied by a comment.
+    """
+    try:
+        text = _ssh_config_path(context).read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    wanted = context.host.hostname
+    collecting = False
+    body: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        keyword = stripped.split()[0].lower() if stripped else ""
+        if keyword in ("host", "match"):
+            if collecting:
+                break
+            # `Host a b c` may list several patterns; an exact name is
+            # what this stage writes and what it looks for.
+            collecting = keyword == "host" and wanted in stripped.split()[1:]
+            continue
+        if collecting:
+            body.append(stripped)
+    return "\n".join(body) if collecting or body else None
+
+
+def _check_ssh_config(context: Context) -> CheckResult:
+    """Whether ssh knows which key belongs to this host.
+
+    Without a stanza, ssh offers its own defaults (`id_rsa`,
+    `id_ed25519`), never tries `id_ed25519_gitlab`, and falls back to
+    asking for a password - which looks exactly like a key the host has
+    rejected (prodockit-extensions#239).
+    """
+    path = _ssh_config_path(context)
+    body = _ssh_config_host_body(context)
+    if body is None:
+        if not path.exists():
+            return _missing(f"{path} does not exist")
+        return _missing(f"{path} has no Host entry for {context.host.hostname}")
+    key_name = _key_path(context).name
+    if key_name not in body:
+        return _wrong(
+            f"{path} has a Host entry for {context.host.hostname} but it does "
+            f"not point at {key_name}"
+        )
+    return _ok(f"{context.host.hostname} uses {key_name}")
+
+
+def _plan_ssh_config(context: Context) -> Plan:
+    """Appends the stanza, or explains the edit when one already exists.
+
+    Only ever *appends*. An existing stanza that points somewhere else is
+    left for a human: ssh takes the first match, so a second one would be
+    ignored anyway, and rewriting somebody's ssh config underneath them
+    is not a thing an installer should do unasked.
+    """
+    path = _ssh_config_path(context)
+    block = _ssh_config_block(context)
+    private = _key_path(context)
+
+    if _ssh_config_host_body(context) is not None:
+        return Plan(
+            instructions=[
+                f"Your {path} already has a Host entry for "
+                f"{context.host.hostname} pointing at a different key.\n"
+                "ssh uses the first match, so adding a second would change "
+                "nothing. Edit the existing one to read:\n"
+                f"{block.rstrip()}"
+            ]
+        )
+
+    if context.platform == WINDOWS:
+        # No chmod, and PowerShell rather than a shell heredoc. Windows
+        # restricts a user profile file to that user already, which is
+        # what the guide says too.
+        powershell = (
+            f"New-Item -ItemType Directory -Force -Path '{path.parent}' | Out-Null; "
+            f"Add-Content -Path '{path}' -Value @'\n{block}'@"
+        )
+        return Plan(commands=[["powershell", "-NoProfile", "-Command", powershell]])
+
+    # `>>` so an existing config is added to rather than replaced, and a
+    # leading newline so the stanza cannot land on the end of somebody
+    # else's last line.
+    append = f"mkdir -p {path.parent} && printf '\\n%s' '{block}' >> {path}"
+    return Plan(
+        commands=[
+            ["bash", "-c", append],
+            # ssh ignores a private key others can read - "Permissions
+            # 0644 ... are too open. This private key will be ignored" -
+            # and then falls back to a password, which is the same
+            # symptom as having no config at all.
+            ["chmod", "600", str(path)],
+            ["chmod", "600", str(private)],
+        ]
+    )
+
+
+# ---------------------------------------------------------------------------
+# 5. Public key on the host - guide and verify
 # ---------------------------------------------------------------------------
 
 
@@ -441,7 +572,7 @@ def _plan_ssh_upload(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 5. Template cloned (platform-independent)
+# 6. Template cloned (platform-independent)
 # ---------------------------------------------------------------------------
 
 def _check_clone(context: Context) -> CheckResult:
@@ -479,7 +610,7 @@ def _plan_clone(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 6. The reader's own project exists on the host - guide and verify
+# 7. The reader's own project exists on the host - guide and verify
 # ---------------------------------------------------------------------------
 
 
@@ -513,7 +644,7 @@ def _plan_own_project(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 7. Remote repointed at it (platform-independent)
+# 8. Remote repointed at it (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -565,7 +696,7 @@ def _plan_remote(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 8. Commit identity, in the project (platform-independent)
+# 9. Commit identity, in the project (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -641,7 +772,7 @@ def _plan_project_identity(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 9. Pandoc and WeasyPrint's native stack
+# 10. Pandoc and WeasyPrint's native stack
 # ---------------------------------------------------------------------------
 
 
@@ -725,7 +856,7 @@ def _plan_pandoc(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 10. Node and the two toolchains
+# 11. Node and the two toolchains
 # ---------------------------------------------------------------------------
 
 
@@ -767,7 +898,7 @@ def _plan_node(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 11. VS Code extensions (platform-independent)
+# 12. VS Code extensions (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -815,6 +946,10 @@ STAGES: tuple[Stage, ...] = (
     Stage("vscode", "Visual Studio Code", _check_vscode, _plan_vscode),
     Stage("git", "Git, installed and configured", _check_git, _plan_git),
     Stage("ssh-key", "SSH keypair", _check_ssh_key, _plan_ssh_key),
+    # Before the upload, not after: `ssh -T` is how the upload stage
+    # checks itself, and without this stanza ssh never offers the key at
+    # all (prodockit-extensions#239).
+    Stage("ssh-config", "SSH config points at the key", _check_ssh_config, _plan_ssh_config),
     Stage("ssh-upload", "SSH key on the host", _check_ssh_authenticates, _plan_ssh_upload),
     Stage("clone", "Template cloned", _check_clone, _plan_clone),
     Stage("own-project", "Your own project on the host", _check_own_project, _plan_own_project),
