@@ -81,7 +81,7 @@ def _needs_config(context: Context, *required: str) -> CheckResult | None:
     """
     blank = [name for name in required if not getattr(context.config, name, "")]
     if blank:
-        return _unknown(f"needs {' and '.join(blank)} - run without --check to set them")
+        return _unknown(f"needs {' and '.join(blank)} - not set in your bootstrap config")
     return None
 
 

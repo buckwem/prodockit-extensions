@@ -383,3 +383,91 @@ def test_unknown_stages_get_no_plan(tmp_path: Path) -> None:
         assert reports[stage_id].plan is None, stage_id
     # Stages that need no configuration still plan normally.
     assert reports["vscode"].plan is not None
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Invokes the real command against a fake machine.
+
+    `build_context` is replaced rather than the checks themselves, so the
+    genuine stage code runs - just against a runner that answers from a
+    table instead of the network. A real check would `ssh -T` Surrey's
+    GitLab, which a test suite has no business doing.
+    """
+    from click.testing import CliRunner
+
+    from prodockit.cli import main
+
+    def _invoke(*args: str, responses: dict[str, CommandResult] | None = None):
+        monkeypatch.setattr(
+            "prodockit.cli.build_bootstrap_context",
+            lambda config: build_context(
+                config,
+                runner=FakeRunner(responses or {}),
+                platform=MACOS,
+                home=tmp_path,
+            ),
+        )
+        return CliRunner().invoke(main, ["bootstrap", "--config", str(tmp_path / "b.toml"), *args])
+
+    return _invoke
+
+
+def test_bare_bootstrap_defaults_to_checking(cli_bootstrap) -> None:
+    """Running it with no options must report rather than refuse - and,
+    once applying exists, must not start installing software because
+    somebody typed the command to see what it did."""
+    result = cli_bootstrap()
+    assert "Visual Studio Code" in result.output
+    assert "stages need work" in result.output
+    # The old behaviour: a usage error telling you to pass a flag.
+    assert result.exit_code == 1
+    assert "supports --check and --dry-run only" not in result.output
+
+
+def test_bare_bootstrap_prints_no_commands(cli_bootstrap) -> None:
+    """Checking is read-only, so it must not print a plan - that is what
+    --dry-run is for, and showing commands implies something ran them."""
+    result = cli_bootstrap()
+    assert "run:" not in result.output
+    assert "--dry-run" in result.output
+
+
+def test_dry_run_prints_the_commands(cli_bootstrap) -> None:
+    result = cli_bootstrap("--dry-run")
+    assert "run: brew install --cask visual-studio-code" in result.output
+
+
+def test_bootstrap_exits_zero_when_everything_is_set_up(
+    cli_bootstrap, tmp_path: Path
+) -> None:
+    """Usable as a script check, matching `sync-repo --check`."""
+    (tmp_path / ".ssh").mkdir()
+    for suffix in ("", ".pub"):
+        (tmp_path / ".ssh" / f"id_ed25519_gitlab{suffix}").write_text("k", encoding="utf-8")
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "tools").mkdir()
+    save(tmp_path / "b.toml", _config())
+    result = cli_bootstrap(
+        responses={
+            "code": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
+            "git --version": CommandResult(0, "git version 2.43.0"),
+            "git config --global user.name": CommandResult(0, "Ada\n"),
+            "git config --global user.email": CommandResult(0, "a@b.c\n"),
+            "ssh": CommandResult(1, stderr="Welcome to GitLab, @al01234!"),
+            "git": CommandResult(
+                0, "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git\n"
+            ),
+            "pandoc": CommandResult(0, "pandoc 3.10.1"),
+            "node": CommandResult(0, "v22.14.0\n"),
+            "npm": CommandResult(0, "10.9.2\n"),
+        }
+    )
+    assert "All 10 stages are set up." in result.output
+    assert result.exit_code == 0

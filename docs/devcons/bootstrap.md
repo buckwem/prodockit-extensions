@@ -19,7 +19,7 @@ answer for its reader.
 
     ```bash
     pip install prodockit
-    prodockit bootstrap --check
+    prodockit bootstrap
     ```
 
 ## What it covers {: #bootstrap-stages }
@@ -60,9 +60,16 @@ you push.
 
 ## Checking without changing anything {: #bootstrap-check }
 
+Checking is what you get by default - run it with no options at all:
+
 ```bash
-prodockit bootstrap --check
+prodockit bootstrap
 ```
+
+`--check` is accepted too, and does the same thing. The read-only
+behaviour is the default deliberately: the alternative, once applying is
+implemented, is a command that starts installing software because
+somebody typed it to see what it did.
 
 ```text
  1  MISS  Visual Studio Code - the `code` command is not on PATH
@@ -148,7 +155,7 @@ URLs, and the vocabulary (GitLab's *project* in a *group*, GitHub's
 
 ## Status {: #bootstrap-status }
 
-Phase 1 implements `--check` and `--dry-run` only. **Nothing installs
+Phase 1 implements checking and `--dry-run` only. **Nothing installs
 anything yet** - running either against a real machine is safe, which is
 the point of shipping this half first.
 

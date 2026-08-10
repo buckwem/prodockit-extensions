@@ -9,10 +9,12 @@
     in ways that surface much later. This turns it into ten stages that
     can each be checked and repaired individually.
 
-    **Nothing installs anything yet.** Phase 1 ships `--check` (report
-    every stage, change nothing) and `--dry-run` (print the exact
-    commands a real run would use), so it is safe to run anywhere and
-    reviewable before it is trusted with a machine.
+    **Nothing installs anything yet.** Phase 1 reports by default -
+    `prodockit bootstrap` with no options checks every stage and changes
+    nothing - with `--dry-run` to print the exact commands a real run
+    would use. Read-only is the default deliberately: the alternative,
+    once applying exists, is a command that starts installing software
+    because somebody typed it to see what it did.
 
     Two stages are deliberately never automated: uploading an SSH key and
     creating your own project both need an authenticated human in a

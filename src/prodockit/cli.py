@@ -125,17 +125,16 @@ def bootstrap(check_only: bool, dry_run: bool, config_file: str | None) -> None:
     This cannot be the first thing you run: it is a prodockit command, so
     Python and `pip install prodockit` necessarily come first.
 
-    Phase 1 supports `--check` and `--dry-run` only; neither installs
-    anything.
+    With no options this reports what it finds and changes nothing - the
+    safe default, and the question most people are actually asking. Phase
+    1 installs nothing either way.
     """
-    if not check_only and not dry_run:
-        click.echo(
-            "prodockit bootstrap currently supports --check and --dry-run only.\n"
-            "Applying stages automatically is not implemented yet - run with "
-            "--dry-run to see exactly what it would do.",
-            err=True,
-        )
-        sys.exit(2)
+    # Bare `prodockit bootstrap` is a checking run. Defaulting to the
+    # read-only behaviour matters more than usual here: the alternative
+    # default, once applying is implemented, is a command that starts
+    # installing software because someone typed it to see what it did.
+    if not dry_run:
+        check_only = True
 
     path = Path(config_file) if config_file else bootstrap_config_path()
     try:
@@ -178,7 +177,7 @@ def bootstrap(check_only: bool, dry_run: bool, config_file: str | None) -> None:
         return
     click.echo(f"{len(outstanding)} of {len(reports)} stages need work.")
     if check_only:
-        click.echo("Run with --dry-run to see what would fix them.")
+        click.echo("Run with --dry-run to see the exact commands that would fix them.")
     # Non-zero so this is usable as a check in a script, matching
     # `sync-repo --check` and `pins --check`.
     sys.exit(1)
