@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.24.0 (2026-08-10)
+
 - **Fixed:** `--apply` skipped the install commands when a stage had
   both commands and instructions — VS Code on a fresh macOS got only the
   "open the Command Palette" instruction without the `brew install` that
