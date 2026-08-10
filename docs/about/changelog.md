@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.24.1 (2026-08-10)
+
 - **Fixed:** `--apply` could not install VS Code on Ubuntu
   ([#233](https://github.com/buckwem/prodockit-extensions/issues/233)).
 
