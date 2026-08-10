@@ -177,6 +177,84 @@ def test_find_tex2svg_script_relative_configured_path_resolves_against_cwd_not_t
     assert _find_tex2svg_script(relative_configured) is None
 
 
+def test_a_renamed_render_result_key_raises_a_named_error_not_a_bare_keyerror(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`zensical.markdown.render.render` is undocumented, so a patch
+    release can rename `content`/`meta` without registering upstream as a
+    breaking change. A bare `result["content"]` surfaced that as
+    `KeyError: 'content'` raised mid-loop over nav pages, with nothing
+    naming Zensical, the installed version, or the page that broke - the
+    reader sees prodockit's own traceback and reasonably concludes
+    prodockit is broken (prodockit-extensions#171).
+
+    A plausible rename, not a stripped dict: `content` becomes `html`,
+    `meta` is untouched - the shape a real Zensical release might
+    actually ship, not an adversarial worst case.
+    """
+    root = project()
+
+    import zensical.markdown.render as render_module
+
+    def _renamed(*args, **kwargs):
+        return {"html": "<p>renamed</p>", "meta": {}}
+
+    monkeypatch.setattr(render_module, "render", _renamed)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    message = str(exc_info.value)
+    assert "content" in message
+    assert "Zensical" in message
+    assert "index.md" in message
+
+
+def test_a_non_dict_render_result_raises_the_same_named_error(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If `render()` starts returning an object rather than a dict,
+    `result["content"]` raises `TypeError` rather than `KeyError` - the
+    diagnosis is identical, so this must be caught and named the same
+    way."""
+    root = project()
+
+    class _RenamedResultType:
+        pass
+
+    import zensical.markdown.render as render_module
+
+    monkeypatch.setattr(render_module, "render", lambda *a, **kw: _RenamedResultType())
+
+    with pytest.raises(RuntimeError) as exc_info:
+        build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    message = str(exc_info.value)
+    assert "Zensical" in message
+    assert "index.md" in message
+
+
+def test_a_renamed_render_result_key_stops_the_build_no_pdf_written(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The half that matters, and the half `pytest.raises` alone does not
+    cover: this is deliberately not the #167 warn-and-degrade shape.
+    There is no sensible degraded PDF to produce, so the build must stop
+    - not write a PDF with the first page silently missing or broken."""
+    root = project()
+    output_path = root / "docs" / "site_documentation.pdf"
+    assert not output_path.exists()
+
+    import zensical.markdown.render as render_module
+
+    monkeypatch.setattr(render_module, "render", lambda *a, **kw: {"html": "", "meta": {}})
+
+    with pytest.raises(RuntimeError):
+        build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert not output_path.exists()
+
+
 def test_builds_a_pdf_from_a_zensical_toml_project(project) -> None:
     root = project()
     output_path = build_pdf_from_zensical_config(str(root / "zensical.toml"))

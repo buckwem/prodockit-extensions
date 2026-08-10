@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- A Zensical rename of `render()`'s result keys now stops the PDF build
+  with a message naming Zensical, the installed version, and the page
+  being rendered - not a bare `KeyError`
+  ([#171](https://github.com/buckwem/prodockit-extensions/issues/171)).
+
+    `zensical.markdown.render.render` is undocumented -
+    `zensical/__init__.py` exports only `build`/`serve`/`version` - so
+    both the function and the shape of what it returns can change in a
+    **patch** release without registering upstream as a breaking change.
+    `result["content"]` read unguarded meant a rename surfaced as
+    `KeyError: 'content'`, raised from inside a loop over nav pages, with
+    nothing naming Zensical, the installed version, or the upgrade that
+    caused it. The reader sees prodockit's own traceback and reasonably
+    concludes prodockit is broken.
+
+    Deliberately not [#167](https://github.com/buckwem/prodockit-extensions/issues/167)'s
+    warn-and-degrade shape: there is no sensible degraded PDF to produce,
+    and a page silently rendered with empty HTML would be exactly the
+    kind of build-succeeds-output-broken failure this project keeps
+    landing on. The build still stops - it now just says why. `TypeError`
+    is caught alongside `KeyError`: if `render()` starts returning an
+    object rather than a dict, that is what a subscript raises instead,
+    and the diagnosis is identical.
+
 - `prodockit source-bundle` is a new command, split out of `prodockit
   pdf` ([#212](https://github.com/buckwem/prodockit-extensions/issues/212)).
 

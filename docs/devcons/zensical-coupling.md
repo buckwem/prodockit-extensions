@@ -134,9 +134,14 @@ build into a Zensical plugin.
 
 `pdf/config.py` and `testing/plugin.py` import Zensical without a guard.
 That is deliberate - Zensical is a hard requirement for both, and failing
-loudly is right. The same rename risk applies to `render()`'s
-`result["content"]`/`["meta"]` keys, which would raise `KeyError` mid-build;
-that has no friendlier message yet.
+loudly is right. `render()`'s `result["content"]`/`["meta"]` keys carried
+that same rename risk unguarded until prodockit-extensions#171: a
+`KeyError`/`TypeError` there is now caught and re-raised as a `RuntimeError`
+naming Zensical, the installed version, and the page being rendered - the
+build still stops (there is no sensible degraded PDF to fall back to,
+unlike the warn-and-degrade shape above), it just says why.
+`testing/plugin.py`'s own `parse_config()` call reads no result keys, so
+it has no equivalent exposure.
 
 ## Regression testing a Zensical upgrade {: #coupling-regression-testing }
 
