@@ -285,14 +285,25 @@ class CheckResult:
 class Plan:
     """How a stage would be applied.
 
-    `commands` is what would be run; `instructions` is what a human has to
-    do themselves. A stage can carry both - uploading an SSH key is a
-    browser step (instruction) whose success is then confirmed by
-    `ssh -T` (command).
+    `commands` is what would be run; the other two are what a human has to
+    do themselves, and *when* they do it relative to the commands:
+
+    - `instructions` come **before** the commands, because the commands
+      depend on them. "Download the .deb" has to happen before
+      `apt install ./code.deb` can find it.
+    - `follow_up` comes **after**, because it only makes sense once the
+      commands have run. VS Code's "open the Command Palette" step needs
+      the application that `brew install --cask` puts there.
+
+    Getting this backwards is not cosmetic - it is a run that cannot
+    succeed. Both orderings have shipped broken (#234, #230),
+    which is why they are now two fields
+    rather than one field and a convention.
     """
 
     commands: list[list[str]] = field(default_factory=list)
     instructions: list[str] = field(default_factory=list)
+    follow_up: list[str] = field(default_factory=list)
     #: Where the commands run. Needed because not every tool takes a
     #: path: `git` has `-C` and `npm` has `--prefix`, but `prodockit
     #: sync-repo` reads its config from the working directory, so running
@@ -303,7 +314,7 @@ class Plan:
 
     @property
     def is_manual(self) -> bool:
-        return bool(self.instructions) and not self.commands
+        return bool(self.instructions or self.follow_up) and not self.commands
 
 
 @dataclass(frozen=True)

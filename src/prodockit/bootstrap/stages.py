@@ -170,7 +170,9 @@ def _plan_vscode(context: Context) -> Plan:
     if context.platform == MACOS:
         return Plan(
             commands=[["brew", "install", "--cask", "visual-studio-code"]],
-            instructions=[_VSCODE_SHELL_COMMAND_HELP],
+            # After the install: the Command Palette being asked for is
+            # the one in the application brew has just put there (#230).
+            follow_up=[_VSCODE_SHELL_COMMAND_HELP],
         )
     if context.platform == UBUNTU:
         return Plan(
@@ -329,13 +331,16 @@ def _plan_ssh_upload(context: Context) -> Plan:
         "`yes` to the fingerprint question. Trusting a host key is a decision "
         "bootstrap leaves to you rather than making silently on your behalf.",
     ]
-    return Plan(
-        instructions=instructions,
-        # Not an install: this re-runs the check, so the reader is told
-        # whether it worked rather than being left to find out at the
-        # first push.
-        commands=[_ssh_probe(context)],
-    )
+    # Instructions only, deliberately. `ssh -T` is the *check*, and it
+    # cannot also be a plan command: against a git host it exits non-zero
+    # even on success (there is no shell to give you), so a runner that
+    # judges commands by their exit code sees every probe as a failure and
+    # stops the run - which is what it did, on a machine whose key simply
+    # had not been uploaded yet (#234).
+    #
+    # Nothing is lost by dropping it: applying a stage always re-runs its
+    # check, and that check reads the greeting rather than the exit code.
+    return Plan(instructions=instructions)
 
 
 # ---------------------------------------------------------------------------
@@ -402,13 +407,11 @@ def _plan_own_project(context: Context) -> Plan:
             "Untick every 'initialize with' option - the clone you already have "
             "provides the contents, and an initialised remote would conflict with it.",
         ],
-        commands=[
-            [
-                "git",
-                "ls-remote",
-                host.remote_url(context.config.namespace, context.config.project_name),
-            ]
-        ],
+        # Instructions only, for the same reason as the SSH upload above:
+        # `git ls-remote` is this stage's check, and a check run as a plan
+        # command turns "you have not finished in the browser yet" - the
+        # normal case - into a failed command that ends the run. Re-checking
+        # after apply asks the same question, and asks it again.
     )
 
 
@@ -614,7 +617,9 @@ def _plan_pandoc(context: Context) -> Plan:
         )
     return Plan(
         commands=[["winget", "install", "--id", "JohnMacFarlane.Pandoc"]],
-        instructions=[
+        # Independent of the winget install, so either order works - after
+        # it, so the automated half is not held up behind a manual one.
+        follow_up=[
             "WeasyPrint's graphics libraries come from MSYS2 on Windows: install "
             "MSYS2, run `pacman -S mingw-w64-x86_64-pango` in the MINGW64 shell, "
             "then add C:\\msys64\\mingw64\\bin to your user PATH.",

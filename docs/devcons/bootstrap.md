@@ -331,6 +331,28 @@ A failing command stops the run too. Later commands in a plan generally
 depend on earlier ones, so pressing on turns one clear failure into
 several confusing ones.
 
+### Where your part comes in the order {: #bootstrap-manual-order }
+
+Some stages are part automated and part yours, and *when* your part
+happens is not cosmetic - it is whether the stage can work at all:
+
+| | Example |
+| --- | --- |
+| **Before** the commands, because they depend on you | Ubuntu's VS Code: `apt install ./code.deb` cannot install a file you have not downloaded. |
+| **After** them, because it depends on the commands | macOS's VS Code: the Command Palette you are asked to open belongs to the application `brew install` has just put there. |
+
+Both orderings have been wrong in a shipped release - the install
+skipped entirely in one direction (#230), and the run stopped dead at the
+SSH key stage in the other (#234) - so each stage now states which it
+needs rather than leaving it to be inferred.
+
+The two guide-and-verify stages are wholly yours, and their verification
+is the stage's own check rather than a command in the plan. That
+distinction is what stopped the run in #234: a check is allowed to say
+"not yet" and be asked again, whereas a command that exits non-zero is a
+failure and ends the run - and `ssh -T` exits non-zero even when it
+succeeds.
+
 ## Which repository gets cloned {: #bootstrap-source }
 
 By default, this host's copy of the template - for Surrey that is

@@ -223,12 +223,27 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
             click.echo(f"        {report.result.detail}")
         click.echo("")
 
-        # A plan can have commands, instructions, or both. VS Code on
-        # macOS is the canonical "both": `brew install` is automated, but
-        # the shell-command install that follows it needs a human in the
-        # application. Showing only the instructions and skipping the
-        # commands — which is what the `continue` on the old code path
-        # did — left VS Code not installed at all (#230).
+        # A plan's manual steps are ordered against its commands rather
+        # than merely coexisting with them: `instructions` prepare for the
+        # commands, `follow_up` finishes what they started. Both orderings
+        # have shipped broken - instructions-only skipped `brew install`
+        # entirely (#230), and commands-first ran the SSH probe before the
+        # reader had been told to upload the key, which fails by
+        # definition and ended the run (#234).
+        if plan.instructions:
+            _show_steps("  What you need to do:", plan.instructions)
+            if not plan.commands:
+                # Guide and verify. The stage's own check is the
+                # verification, and "not finished yet" is the normal
+                # answer to it, not a failure - so it asks again.
+                if not _verify_until_done(context, report.stage):
+                    click.echo("  skipped")
+                continue
+            # There are commands, and they need the step above done
+            # first. One acknowledgement, then run them.
+            click.confirm("  Tell me when that is done", default=True)
+            click.echo("")
+
         if plan.commands:
             click.echo("  Will run:")
             for command in plan.commands:
@@ -252,31 +267,33 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
             if outcome.ok:
                 click.echo("  done")
                 continue
-            if not plan.instructions:
+            if plan.follow_up:
+                # The commands did their half; this is the half only a
+                # human can do - the VS Code shell command after
+                # `brew install` put the application there (#230).
+                _show_steps("  commands ran — one more step:", plan.follow_up)
+            elif not plan.instructions:
                 detail = outcome.verified.detail if outcome.verified else "unknown"
                 click.echo(f"  ran, but still not right: {detail}", err=True)
                 sys.exit(1)
-            # Commands ran but the check still fails — the instructions
-            # are the remaining manual step (e.g. the VS Code shell
-            # command after `brew install`). Fall through to show them.
-            click.echo("  commands ran — one more step:")
-            click.echo("")
-
-        if plan.instructions:
-            click.echo("  What you need to do:")
-            for step, instruction in enumerate(plan.instructions, start=1):
-                click.echo(f"    {step}. {instruction}")
-            click.echo("")
             if not _verify_until_done(context, report.stage):
                 click.echo("  skipped")
             continue
 
-        # No commands, no instructions — nothing to do for this stage.
+        # No commands and no manual steps — nothing to do for this stage.
         # Should not happen, but not worth crashing over.
         click.echo("  nothing to do")  # pragma: no cover
 
     click.echo("")
     click.echo("Finished. Run `prodockit bootstrap` to confirm.")
+
+
+def _show_steps(title: str, steps: list[str]) -> None:
+    """Prints a numbered list of things a human has to do."""
+    click.echo(title)
+    for number, step in enumerate(steps, start=1):
+        click.echo(f"    {number}. {step}")
+    click.echo("")
 
 
 def _verify_until_done(context: Context, stage: Stage) -> bool:
@@ -397,10 +414,13 @@ def bootstrap(
         detail = f" - {report.result.detail}" if report.result.detail else ""
         click.echo(f"{number:2}  {symbol}  {report.stage.summary}{detail}")
         if dry_run and report.plan is not None:
+            # In the order they actually happen: prepare, run, finish.
             for instruction in report.plan.instructions:
                 click.echo(f"        you: {instruction}")
             for command in report.plan.commands:
                 click.echo(f"        run: {' '.join(command)}")
+            for instruction in report.plan.follow_up:
+                click.echo(f"        you: {instruction}")
 
     outstanding = [r for r in reports if r.needs_work]
     click.echo()

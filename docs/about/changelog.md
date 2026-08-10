@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- **Fixed:** `--apply` stopped the whole run at the SSH key stage on any
+  machine whose key was not yet on the host - the one state that stage
+  exists to fix
+  ([#234](https://github.com/buckwem/prodockit-extensions/issues/234)).
+
+    Stage 4 carried `ssh -T` as a plan *command*, so 0.24.0's
+    commands-before-instructions ordering ran the probe before saying a
+    word about uploading anything, read its exit code as a failure, and
+    ended the run with `Stopping - later stages depend on this one.`
+
+    The probe could never have passed: `ssh -T` against a git host exits
+    non-zero even on success, which is why the greeting - not the exit
+    code - is what the check reads. Both browser stages are now
+    instructions only, and the re-check that already follows every apply
+    does the verifying.
+
+- A plan's manual steps are now ordered against its commands rather than
+  merely coexisting with them. `instructions` come *before* the commands
+  because the commands depend on them ("Download the .deb", then
+  `apt install ./code.deb`); the new `follow_up` comes *after*, for the
+  step that only makes sense once they have run (VS Code's Command
+  Palette, after the `brew install` that provides it).
+
+    Both orderings had shipped broken - instructions-only skipped the
+    install entirely (#230), and commands-first broke the guide-and-verify
+    stages (#234) - so the order is now stated by each plan instead of
+    being a convention the caller has to guess.
+
 ## 0.24.0 (2026-08-10)
 
 - **Fixed:** `--apply` skipped the install commands when a stage had
