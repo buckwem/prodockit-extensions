@@ -33,7 +33,7 @@ from prodockit.bootstrap import (
     save,
 )
 from prodockit.bootstrap.model import GITHUB_COM, MACOS, SURREY_GITLAB, UBUNTU, WINDOWS
-from prodockit.bootstrap.stages import VSCODE_EXTENSIONS
+from prodockit.bootstrap.stages import PUBLIC_KEY_MARKER, VSCODE_EXTENSIONS
 
 
 class FakeRunner:
@@ -371,6 +371,147 @@ def test_the_two_browser_stages_guide_and_leave_verifying_to_the_check(
             f"applying re-checks the stage, and a non-zero probe ends the run"
         )
         assert plan.is_manual, stage_id
+
+
+def _write_keypair(tmp_path: Path, public: str = "ssh-ed25519 AAAAC3Nz-PUBLIC al@surrey.ac.uk") -> None:
+    """A keypair on disk, with halves that cannot be mistaken for each other."""
+    (tmp_path / ".ssh").mkdir(exist_ok=True)
+    (tmp_path / ".ssh" / "id_ed25519_gitlab.pub").write_text(public + "\n", encoding="utf-8")
+    (tmp_path / ".ssh" / "id_ed25519_gitlab").write_text(
+        "-----BEGIN OPENSSH PRIVATE KEY-----\nSECRET-DO-NOT-PRINT\n", encoding="utf-8"
+    )
+
+
+def test_the_public_key_is_printed_between_markers(tmp_path: Path) -> None:
+    """#238: the instruction named a path and left the reader to find a
+    dotfile, open it in something, and copy the right one of two files
+    whose names differ by four characters.
+
+    The markers matter as much as the key: it is one long line that wraps
+    in a terminal, and a key pasted with a character missing is rejected
+    exactly like one never uploaded at all."""
+    _write_keypair(tmp_path)
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path))
+    joined = "\n".join(plan.instructions)
+
+    assert "ssh-ed25519 AAAAC3Nz-PUBLIC al@surrey.ac.uk" in joined
+    assert joined.count(PUBLIC_KEY_MARKER) == 2, "the key needs a start and an end"
+    between = joined.split(PUBLIC_KEY_MARKER)[1]
+    assert between.strip() == "ssh-ed25519 AAAAC3Nz-PUBLIC al@surrey.ac.uk", (
+        "only the key belongs between the markers"
+    )
+
+
+def test_the_private_key_is_never_read_or_printed(tmp_path: Path) -> None:
+    """The two files differ by the four characters `.pub`, and uploading
+    the wrong one hands over the secret half. Printing the public key is
+    what removes that hazard - so it must not reintroduce it."""
+    _write_keypair(tmp_path)
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path))
+    joined = "\n".join(plan.instructions)
+
+    assert "SECRET-DO-NOT-PRINT" not in joined
+    assert "PRIVATE KEY" not in joined
+
+
+def test_no_key_yet_falls_back_to_naming_the_file(tmp_path: Path) -> None:
+    """`--dry-run` builds every plan, including this one on a machine
+    where the keypair stage has not run - so reading the key has to be
+    allowed to fail without taking the plan down with it."""
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path))
+    joined = "\n".join(plan.instructions)
+
+    assert PUBLIC_KEY_MARKER not in joined
+    assert "id_ed25519_gitlab.pub" in joined
+    assert "never the one without it" in joined, "the warning matters most when guessing"
+
+
+def test_an_empty_key_file_is_treated_as_no_key(tmp_path: Path) -> None:
+    """An interrupted `ssh-keygen` leaves a file behind. Printing nothing
+    between two markers would read as "there is your key"."""
+    (tmp_path / ".ssh").mkdir()
+    (tmp_path / ".ssh" / "id_ed25519_gitlab.pub").write_text("\n", encoding="utf-8")
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path))
+
+    assert PUBLIC_KEY_MARKER not in "\n".join(plan.instructions)
+
+
+def test_a_multi_line_step_hangs_under_its_own_text(tmp_path: Path) -> None:
+    """The key block is part of step 3, not steps 4, 5 and 6 - so its
+    continuation lines align under the step's text rather than under the
+    numbers, which would renumber the list by eye."""
+    from click.testing import CliRunner
+
+    from prodockit.cli import _show_steps
+
+    runner = CliRunner()
+    with runner.isolation() as (out, _err, _):
+        _show_steps("  What you need to do:", ["first", "second\nCONTINUED\nAGAIN"])
+    rendered = out.getvalue().decode()
+
+    assert "    1. first" in rendered
+    assert "    2. second" in rendered
+    assert "       CONTINUED" in rendered, "aligned under the text, not the number"
+    assert "    3. CONTINUED" not in rendered, "a continuation is not a new step"
+
+
+def test_the_key_page_is_reached_by_menu_not_only_by_url(tmp_path: Path) -> None:
+    """#238: the only route given was a pasted URL. That is the faster
+    route for somebody who knows where they are going and the worse one
+    for somebody who does not - it offers no way to tell you have landed
+    in the right place, and no way back if you have not.
+
+    The menu path is the User Guide's own wording, and the URL survives
+    as a shortcut rather than as the only way in."""
+    _write_keypair(tmp_path)
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path))
+    joined = "\n".join(plan.instructions)
+
+    assert "Edit profile" in joined
+    assert "Access > SSH Keys" in joined
+    assert SURREY_GITLAB.ssh_keys_url in joined, "the shortcut is kept, not replaced"
+    assert joined.index("Edit profile") < joined.index(SURREY_GITLAB.ssh_keys_url)
+
+
+def test_the_gitlab_expiry_trap_is_spelled_out(tmp_path: Path) -> None:
+    """GitLab requires an expiry date and fills it in a year ahead, so a
+    reader who accepts the default is locked out mid-course - and the
+    failure arrives months later as a permission error indistinguishable
+    from a misconfigured key. The User Guide warns about this; bootstrap
+    did not mention the field at all."""
+    _write_keypair(tmp_path)
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path))
+    joined = "\n".join(plan.instructions)
+
+    assert "Expiration date" in joined
+    assert "year ahead" in joined
+
+
+def test_the_form_is_one_step_with_its_fields_beneath(tmp_path: Path) -> None:
+    """Title, Key and Expiration date are three boxes on one screen, not
+    three things to go and do - numbering them separately would say the
+    latter."""
+    _write_keypair(tmp_path)
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path))
+    form = next(step for step in plan.instructions if "Title:" in step)
+
+    assert "Key:" in form, "the key belongs to the same step as the title"
+    assert "Expiration date" in form
+    assert form.startswith("Click 'Add new key'")
+
+
+def test_each_host_names_its_own_buttons_and_menus() -> None:
+    """Host differences stay values rather than branches in the stage, so
+    GitHub - which calls the buttons something else and has no expiry
+    field at all - is a filled-in record rather than a rewrite."""
+    assert GITHUB_COM.ssh_key_new_label == "New SSH key"
+    assert GITHUB_COM.ssh_key_save_label == "Add SSH key"
+    assert "SSH and GPG keys" in " ".join(GITHUB_COM.ssh_keys_steps)
+    assert GITHUB_COM.ssh_key_form_extra == (), "a GitHub key has no expiry to set"
+
+    assert SURREY_GITLAB.ssh_key_new_label == "Add new key"
+    assert SURREY_GITLAB.ssh_key_save_label == "Add key"
+    assert SURREY_GITLAB.ssh_key_form_extra, "GitLab's expiry field needs saying"
 
 
 def test_browser_instructions_use_the_hosts_own_vocabulary(tmp_path: Path) -> None:
@@ -861,7 +1002,8 @@ def test_a_key_not_yet_uploaded_is_guided_not_treated_as_a_failed_command(
     assert "failed:" not in result.output
     # Guided first: the upload is a browser step, so the reader is told
     # where to go before anything is run on their behalf.
-    assert "Open https://gitlab.surrey.ac.uk" in result.output
+    assert "What you need to do:" in result.output
+    assert SURREY_GITLAB.ssh_keys_url in result.output
     assert "Run 1 command?" not in result.output
     # And "not yet" is answered by asking again, not by exiting.
     assert "not there yet" in result.output

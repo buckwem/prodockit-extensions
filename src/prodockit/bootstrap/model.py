@@ -77,6 +77,24 @@ class Host:
     project_word: str = "project"
     group_word: str = "group"
     login_note: str = ""
+    #: How to reach the SSH keys page through this host's own menus,
+    #: taken from the User Guide's wording. A pasted URL is the faster
+    #: route for someone who already knows where they are going, and the
+    #: worse one for someone who does not: it gives no way to check you
+    #: have landed in the right place, and no way back if you have not.
+    #: Both are offered, menus first (prodockit-extensions#238).
+    ssh_keys_steps: tuple[str, ...] = ()
+    #: What this host's key form asks for beyond a title and the key
+    #: itself. GitLab requires an expiry date and fills it in a year
+    #: ahead; GitHub has no such field, so the difference is a value
+    #: rather than a branch in the stage.
+    ssh_key_form_extra: tuple[str, ...] = ()
+    #: The button that opens the key form - "Add new key" on GitLab,
+    #: "New SSH key" on GitHub.
+    ssh_key_new_label: str = "Add new key"
+    #: The button that saves the key - "Add key" on GitLab, "Add SSH key"
+    #: on GitHub.
+    ssh_key_save_label: str = "Add key"
     supported: bool = True
 
     @property
@@ -96,6 +114,16 @@ SURREY_GITLAB = Host(
     ssh_keys_url="https://gitlab.surrey.ac.uk/-/user_settings/ssh_keys",
     new_project_url="https://gitlab.surrey.ac.uk/projects/new",
     login_note="Choose the Surrey Login button and use your university credentials.",
+    ssh_keys_steps=(
+        "In the top-right corner, click your profile avatar and select 'Edit profile'.",
+        "On the left-hand sidebar, select 'Access > SSH Keys'.",
+    ),
+    ssh_key_form_extra=(
+        "Expiration date: GitLab fills this in a year ahead and will not let you "
+        "clear it. Set it well past the end of your course or project - an expired "
+        "key stops `git push` with a permission error that reads like a "
+        "misconfigured key rather than an expired one, months after you set it up.",
+    ),
 )
 
 #: Deliberately declared but unsupported. The shape is proven by having
@@ -110,6 +138,16 @@ GITLAB_COM = Host(
     ssh_success="Welcome to GitLab",
     ssh_keys_url="https://gitlab.com/-/user_settings/ssh_keys",
     new_project_url="https://gitlab.com/projects/new",
+    ssh_keys_steps=(
+        "In the top-right corner, click your profile avatar and select 'Edit profile'.",
+        "On the left-hand sidebar, select 'Access > SSH Keys'.",
+    ),
+    ssh_key_form_extra=(
+        "Expiration date: GitLab fills this in a year ahead and will not let you "
+        "clear it. Set it well past the end of your course or project - an expired "
+        "key stops `git push` with a permission error that reads like a "
+        "misconfigured key rather than an expired one, months after you set it up.",
+    ),
     supported=False,
 )
 
@@ -121,6 +159,14 @@ GITHUB_COM = Host(
     ssh_success="successfully authenticated",
     ssh_keys_url="https://github.com/settings/keys",
     new_project_url="https://github.com/new",
+    ssh_keys_steps=(
+        "In the top-right corner, click your profile avatar and select 'Settings'.",
+        "On the left-hand sidebar, select 'SSH and GPG keys'.",
+    ),
+    # No expiry field at all here - a GitHub key stays valid until it is
+    # deleted, so there is nothing to warn about.
+    ssh_key_new_label="New SSH key",
+    ssh_key_save_label="Add SSH key",
     project_word="repository",
     group_word="organisation",
     supported=False,

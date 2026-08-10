@@ -306,11 +306,30 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
     click.echo("Finished. Run `prodockit bootstrap` to confirm.")
 
 
+def _echo_wrapped_instruction(instruction: str) -> None:
+    """One `--dry-run` instruction line, keeping a multi-line step aligned."""
+    first, *rest = instruction.splitlines() or [""]
+    click.echo(f"        you: {first}")
+    for line in rest:
+        click.echo(f"             {line}")
+
+
 def _show_steps(title: str, steps: list[str]) -> None:
-    """Prints a numbered list of things a human has to do."""
+    """Prints a numbered list of things a human has to do.
+
+    A step may span several lines - the SSH upload prints the public key
+    itself between marker lines (#238) - and continuation lines are
+    indented to hang under the step's text rather than under its number,
+    so the block reads as one step rather than as several unnumbered
+    ones.
+    """
     click.echo(title)
     for number, step in enumerate(steps, start=1):
-        click.echo(f"    {number}. {step}")
+        label = f"{number}. "
+        first, *rest = step.splitlines() or [""]
+        click.echo(f"    {label}{first}")
+        for line in rest:
+            click.echo(f"    {' ' * len(label)}{line}")
     click.echo("")
 
 
@@ -434,11 +453,11 @@ def bootstrap(
         if dry_run and report.plan is not None:
             # In the order they actually happen: prepare, run, finish.
             for instruction in report.plan.instructions:
-                click.echo(f"        you: {instruction}")
+                _echo_wrapped_instruction(instruction)
             for command in report.plan.commands:
                 click.echo(f"        run: {' '.join(command)}")
             for instruction in report.plan.follow_up:
-                click.echo(f"        you: {instruction}")
+                _echo_wrapped_instruction(instruction)
 
     outstanding = [r for r in reports if r.needs_work]
     click.echo()
