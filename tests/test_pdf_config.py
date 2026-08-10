@@ -3,6 +3,7 @@
 
 import os
 import stat
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from prodockit.pdf.config import (
     _find_tex2svg_script,
     _warn_if_release_sources_disagree,
     build_pdf_from_zensical_config,
+    build_source_bundle_from_zensical_config,
 )
 
 _ZENSICAL_TOML = """
@@ -441,42 +443,130 @@ def test_pdf_extra_css_defaults_to_empty_when_unset(
     assert captured["extra_css"] == ""
 
 
-def test_source_bundle_is_not_built_by_default(project, monkeypatch: pytest.MonkeyPatch) -> None:
-    root = project()
-
-    captured = {"called": False}
-    import prodockit.pdf.config as config_module
-
-    def _spy(*args, **kwargs):
-        captured["called"] = True
-
-    monkeypatch.setattr(config_module, "build_source_bundle", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
-
-    assert captured["called"] is False
+def _write_git_project(tmp_path: Path, *, extra: str = "") -> Path:
+    """Like `_write_project()`, plus an actual git repo -
+    `build_source_bundle_from_zensical_config()` needs one, since file
+    selection goes through `git ls-files`."""
+    root = _write_project(tmp_path, extra=extra)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    return root
 
 
-def test_source_bundle_is_built_when_enabled(project, monkeypatch: pytest.MonkeyPatch) -> None:
-    root = project(extra="\n[project.extra]\npdf_source_bundle = true\n")
+def _fake_weasyprint(bin_dir: Path, script: str) -> None:
+    weasyprint_path = bin_dir / "weasyprint"
+    weasyprint_path.write_text(f"#!/bin/sh\n{script}\n", encoding="utf-8")
+    weasyprint_path.chmod(weasyprint_path.stat().st_mode | stat.S_IEXEC)
+
+
+@pytest.fixture()
+def source_bundle_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def _make(*, extra: str = "") -> Path:
+        root = _write_git_project(tmp_path, extra=extra)
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        _fake_weasyprint(bin_dir, 'echo "%PDF-1.4 stub" > "$2"')
+        monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+        monkeypatch.chdir(root)
+        return root
+
+    return _make
+
+
+def test_source_bundle_defaults_into_docs_dir(source_bundle_project) -> None:
+    """Not the project's top-level directory - the pre-#212 default - so
+    Zensical serves it with no separate copy step
+    (prodockit-extensions#212)."""
+    root = source_bundle_project()
+
+    output_path = build_source_bundle_from_zensical_config(str(root / "zensical.toml"))
+
+    assert output_path == "docs/source_bundle.pdf"
+    assert (root / "docs" / "source_bundle.pdf").exists()
+    assert not (root / "source_bundle.pdf").exists()
+
+
+def test_source_bundle_output_path_is_configurable(source_bundle_project) -> None:
+    root = source_bundle_project(
+        extra='\n[project.extra]\npdf_source_bundle_output = "dist/src.pdf"\n'
+    )
+    (root / "dist").mkdir()
+
+    output_path = build_source_bundle_from_zensical_config(str(root / "zensical.toml"))
+
+    assert output_path == "dist/src.pdf"
+    assert (root / "dist" / "src.pdf").exists()
+
+
+def test_source_bundle_report_name_is_the_site_name(
+    source_bundle_project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = source_bundle_project()
 
     captured = {}
-    import prodockit.pdf.config as config_module
 
     def _spy(output_path, **kwargs):
-        captured["output_path"] = output_path
         captured.update(kwargs)
 
-    monkeypatch.setattr(config_module, "build_source_bundle", _spy)
-    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+    monkeypatch.setattr(config, "build_source_bundle", _spy)
+    build_source_bundle_from_zensical_config(str(root / "zensical.toml"))
 
-    assert captured["output_path"] == "source_bundle.pdf"
-    assert captured["root"] == str(root)
     assert captured["report_name"] == "Test project"
 
 
-def test_source_bundle_is_not_built_for_a_markdown_file_scoped_build(
+def test_source_bundle_page_size_is_shared_with_the_pdf_setting(
+    source_bundle_project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One physical page size for both PDFs a project publishes, from the
+    same `pdf_page_size` setting the main document build already reads -
+    not a second, source-bundle-specific setting to keep in step."""
+    root = source_bundle_project(extra='\n[project.extra]\npdf_page_size = "Letter"\n')
+
+    captured = {}
+
+    def _spy(output_path, **kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(config, "build_source_bundle", _spy)
+    build_source_bundle_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured["page_size"] == "Letter"
+
+
+def test_source_bundle_uses_the_narrow_discovery_not_every_source_file(
+    source_bundle_project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Confirms the wiring, not just the discovery function in isolation:
+    a project's own Python source must not reach the bundle just because
+    it happens to be tracked in git."""
+    root = source_bundle_project()
+    (root / "macros.py").write_text("def word_count(): ...\n", encoding="utf-8")
+    subprocess.run(["git", "add", "macros.py"], cwd=root, check=True)
+    work_dir = root / "work"
+    real_build_source_bundle = config.build_source_bundle
+
+    def _spy(output_path, **kwargs):
+        return real_build_source_bundle(
+            output_path, **{**kwargs, "work_dir": str(work_dir), "keep_work_dir": True}
+        )
+
+    monkeypatch.setattr(config, "build_source_bundle", _spy)
+    build_source_bundle_from_zensical_config(str(root / "zensical.toml"))
+
+    html = (work_dir / "_prodockit_source_bundle.html").read_text(encoding="utf-8")
+    assert 'class="file-marker">docs/index.md<' in html
+    assert "macros.py" not in html
+
+
+def test_pdf_never_builds_a_source_bundle_as_a_side_effect(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """`pdf_source_bundle` used to gate an automatic `build_source_bundle()`
+    call here - split into its own `build_source_bundle_from_zensical_config()`
+    and `prodockit source-bundle` command (prodockit-extensions#212), so a
+    document-only build no longer pays for a source-bundle pass it never
+    asked for. The old setting is now inert rather than read at all, with
+    or without `markdown_file`."""
     root = project(extra="\n[project.extra]\npdf_source_bundle = true\n")
 
     captured = {"called": False}
@@ -486,6 +576,7 @@ def test_source_bundle_is_not_built_for_a_markdown_file_scoped_build(
         captured["called"] = True
 
     monkeypatch.setattr(config_module, "build_source_bundle", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
     build_pdf_from_zensical_config(str(root / "zensical.toml"), markdown_file="chapter1.md")
 
     assert captured["called"] is False

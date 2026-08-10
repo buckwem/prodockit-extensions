@@ -25,7 +25,7 @@ from prodockit.pdf.build import Page, build_pdf
 from prodockit.pdf.icons import build_icon_registry, discover_icon_dirs
 from prodockit.pdf.mermaid import render_mermaid_diagram
 from prodockit.pdf.release import get_latest_release_tag
-from prodockit.pdf.source_bundle import build_source_bundle
+from prodockit.pdf.source_bundle import build_source_bundle, discover_markdown_and_config_files
 from prodockit.settings import flatten_nav, heading_numbering_enabled, reference_style_values
 from prodockit.zensical_macros import (
     _compute_site_word_count,
@@ -271,14 +271,17 @@ def build_pdf_from_zensical_config(
       marker (see `prodockit.index`) anywhere in your content; see `build_pdf()`'s own
       `include_index` docs for why this needs a real two-pass build, and
       `prodockit.pdf.index` for the module behind it), `pdf_index_title`,
-      `pdf_source_bundle` (default `false` - see `prodockit.pdf.source_bundle`
-      for what this builds and why it's a separate PDF rather than part of
-      the one above; only runs for a full, nav-driven build, never for a
-      `markdown_file`-scoped one), `pdf_extra_css` (a list of `docs_dir`-
-      relative stylesheet paths, same shape as `project.extra_css` below,
-      but meant *only* for the PDF - e.g. a rule that would look wrong on
-      the live website, or one overriding something `project.extra_css`
-      itself sets - concatenated after it, so it wins the cascade).
+      `pdf_extra_css` (a list of `docs_dir`-relative stylesheet paths, same
+      shape as `project.extra_css` below, but meant *only* for the PDF -
+      e.g. a rule that would look wrong on the live website, or one
+      overriding something `project.extra_css` itself sets - concatenated
+      after it, so it wins the cascade).
+
+      Bundling this project's own Markdown source into a separate PDF is
+      `prodockit source-bundle`, a different command - see
+      `build_source_bundle_from_zensical_config()` below
+      (prodockit-extensions#212). It reads `pdf_source_bundle_output` and
+      `pdf_page_size` under `project.extra`, not this function.
     - `project.extra_css` - your site's own stylesheet(s) (the same setting
       Zensical itself reads to style the live website), passed through as
       `build_pdf()`'s own `extra_css` - so a project-specific `@media print`
@@ -478,12 +481,62 @@ def build_pdf_from_zensical_config(
         index_title=extra.get("pdf_index_title") or "Index",
     )
 
-    if not markdown_file and bool(extra.get("pdf_source_bundle", False)):
-        build_source_bundle(
-            "source_bundle.pdf",
-            root=os.path.dirname(os.path.abspath(config_path)),
-            report_name=config.get("site_name") or "",
-            page_size=extra.get("pdf_page_size") or "A4",
-        )
+    return output_path
 
+
+def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml") -> str:
+    """Builds this project's source bundle - its Markdown content and its
+    own Zensical config, one file per page - entirely from `config_path`,
+    and returns the path it was written to.
+
+    A separate command from `prodockit pdf` (prodockit-extensions#212):
+    the two PDFs serve different purposes (a rendered document vs. a
+    record of what was written) and previously could not be built
+    independently of one another - a project that wanted only the
+    document paid for the source bundle's own `git ls-files` and
+    WeasyPrint pass regardless, and a project that wanted only an updated
+    source bundle paid for the far more expensive Pandoc/WeasyPrint
+    document pipeline (Mermaid/TeX pre-rendering included) to get it.
+
+    Reads, all optional except `site_name` for a report with no running
+    header:
+
+    - `project.docs_dir` (default `"docs"`).
+    - `project.site_name` - the running header's report name.
+    - Under `project.extra`: `pdf_source_bundle_output` (default
+      `"<docs_dir>/source_bundle.pdf"` - inside `docs_dir`, unlike the
+      pre-#212 default of the project's top-level directory, so Zensical
+      serves it without a separate copy step) and `pdf_page_size`
+      (default `"A4", shared with `build_pdf_from_zensical_config()`'s
+      own setting of the same name - one physical page size for both
+      PDFs a project publishes).
+
+    Which files are included is decided by
+    `discover_markdown_and_config_files()` - every `.md` file, plus this
+    project's own `zensical.toml` (`root`-relative to `config_path`'s own
+    directory, matching how `git ls-files` reports paths regardless of
+    where the command itself was run from).
+
+    Raises `SourceBundleError` if the underlying `git`/`weasyprint`
+    invocation fails.
+    """
+    import zensical.config as zensical_config
+
+    config = zensical_config.parse_config(config_path)
+    extra = config.get("extra") or {}
+    docs_dir = config.get("docs_dir") or "docs"
+    root = os.path.dirname(os.path.abspath(config_path))
+
+    if extra.get("pdf_source_bundle_output"):
+        output_path = str(extra["pdf_source_bundle_output"])
+    else:
+        output_path = os.path.join(docs_dir, "source_bundle.pdf")
+
+    build_source_bundle(
+        output_path,
+        root=root,
+        report_name=config.get("site_name") or "",
+        page_size=extra.get("pdf_page_size") or "A4",
+        files=discover_markdown_and_config_files(root),
+    )
     return output_path

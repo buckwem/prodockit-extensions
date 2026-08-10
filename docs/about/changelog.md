@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- `prodockit source-bundle` is a new command, split out of `prodockit
+  pdf` ([#212](https://github.com/buckwem/prodockit-extensions/issues/212)).
+
+    The two PDFs a project can produce serve different purposes - a
+    rendered document, and a record of what was written - and previously
+    could not be built independently. `pdf_source_bundle = true` made
+    every `prodockit pdf` run also pay for a `git ls-files` scan and a
+    second `weasyprint` invocation regardless of whether anyone wanted the
+    result, and a project that wanted only an updated source bundle still
+    paid for the far more expensive Pandoc/WeasyPrint document pipeline -
+    Mermaid/TeX pre-rendering included - to get it. `pdf_source_bundle` is
+    gone; `prodockit pdf` never builds a source bundle as a side effect
+    now, under any config.
+
+    The default set of files bundled is also narrower: every `.md` file
+    under `docs_dir` plus `zensical.toml`, rather than every text file
+    `.gitignore` doesn't exclude. A project's custom Python extensions,
+    Lua filters, CSS and tests are source code, not documentation, and a
+    report built from a template has no reason to bundle its own tooling
+    alongside the document it produced. The wider, whole-repository
+    bundle - useful for a project doing its own academic-integrity
+    verification of custom code, not just prose - is still available from
+    Python directly (`build_source_bundle()` with no `files` argument, or
+    `discover_source_files()`'s own result passed explicitly); the CLI
+    command itself has no flag for it, by design.
+
+    Output moves from the project's top-level directory into `docs_dir`
+    by default, so Zensical serves it with no separate copy step -
+    `prodockit-template` and `prodockit-userguide` both carried one before
+    this.
+
 - `prodockit pins` now manages pandoc too, matched as a
   `PANDOC_VERSION` CI variable
   ([#209](https://github.com/buckwem/prodockit-extensions/issues/209)).
