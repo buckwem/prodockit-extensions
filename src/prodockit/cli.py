@@ -188,11 +188,29 @@ def _first_meaningful_line(text: str) -> str:
     Git prefixes its remote errors with banner lines of `=====` and blank
     `remote:` markers, so printing the lot buries the one sentence that
     matters in eight lines of decoration.
+
+    Warnings are skipped while any other line remains, because a warning
+    is by definition not the thing that failed. apt opens with one every
+    time it is run from a script:
+
+        WARNING: apt does not have a stable CLI interface. Use with
+        caution in scripts.
+
+        E: Unsupported file ./code.deb given on commandline
+
+    Reporting the first of those as the failure said nothing about what
+    went wrong and sent the reader looking at their scripting (#233).
     """
+    meaningful = []
     for line in text.splitlines():
         cleaned = line.replace("remote:", "").strip().strip("=").strip()
         if cleaned and not set(cleaned) <= {"=", "-"}:
-            return cleaned
+            meaningful.append(cleaned)
+    for line in meaningful:
+        if not line.upper().startswith("WARNING"):
+            return line
+    if meaningful:  # nothing but warnings - then a warning is the best there is
+        return meaningful[0]
     return text.strip().splitlines()[0] if text.strip() else "no output"
 
 

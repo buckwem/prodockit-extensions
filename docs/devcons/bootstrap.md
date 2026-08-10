@@ -338,7 +338,7 @@ happens is not cosmetic - it is whether the stage can work at all:
 
 | | Example |
 | --- | --- |
-| **Before** the commands, because they depend on you | Ubuntu's VS Code: `apt install ./code.deb` cannot install a file you have not downloaded. |
+| **Before** the commands, because they depend on you | The keypair stage: the advice on choosing a passphrase is no use once `ssh-keygen` has already asked for one. |
 | **After** them, because it depends on the commands | macOS's VS Code: the Command Palette you are asked to open belongs to the application `brew install` has just put there. |
 
 Both orderings have been wrong in a shipped release - the install
@@ -439,7 +439,13 @@ Checking, `--dry-run`, `--configure` and `--apply` all work. macOS is
 the platform this has been exercised on end to end - a real clone of the
 Surrey template, applied and verified.
 
-Ubuntu and Windows have their commands written and unit-tested, but
-neither has been run on a real machine yet. Windows is deliberately last: it is the hardest (MSYS2, `PATH`
-edits, the Administrator split for `ssh-agent`) and it is the one platform
-this project has [no automated coverage for at all](limitations.md#limitations-platforms).
+Ubuntu is being exercised now, on an ARM virtual machine, and the first
+run found two things no unit test could have: a `.deb` installed from a
+filename that never existed (#233), and the SSH stage ending the run on
+the very state it exists to repair (#234). Both are fixed; the platform
+should be treated as newly-trodden rather than proven.
+
+Windows has its commands written and unit-tested but has not been run at
+all. It is deliberately last: it is the hardest (MSYS2, `PATH` edits, the
+Administrator split for `ssh-agent`) and it is the one platform this
+project has [no automated coverage for at all](limitations.md#limitations-platforms).

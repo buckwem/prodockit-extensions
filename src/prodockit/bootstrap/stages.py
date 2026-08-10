@@ -175,11 +175,30 @@ def _plan_vscode(context: Context) -> Plan:
             follow_up=[_VSCODE_SHELL_COMMAND_HELP],
         )
     if context.platform == UBUNTU:
+        # Downloaded rather than asked for (#233). The old plan told the
+        # reader to fetch a .deb from the website and then ran
+        # `apt install ./code.deb` - a file that never exists under that
+        # name anywhere: the download is `code_1.132.0-…_arm64.deb`, and
+        # it lands in ~/Downloads rather than the working directory.
+        #
+        # `linux-deb-$arch/stable` is Microsoft's own permanent redirect
+        # to the current release, so there is no version to pin and go
+        # stale. dpkg names the architecture as `amd64`, where VS Code's
+        # URL calls the same thing `x64`; arm64 agrees with itself, which
+        # is what a Parallels VM on an Apple-silicon Mac reports.
         return Plan(
-            instructions=[
-                "Download the .deb from https://code.visualstudio.com/download",
-            ],
-            commands=[["sudo", "apt", "install", "-y", "./code.deb"]],
+            commands=[
+                ["sudo", "apt", "install", "-y", "curl"],
+                [
+                    "bash",
+                    "-c",
+                    'arch="$(dpkg --print-architecture)"; '
+                    'case "$arch" in amd64) arch=x64 ;; esac; '
+                    "curl -fsSL -o /tmp/code.deb "
+                    '"https://update.code.visualstudio.com/latest/linux-deb-$arch/stable" '
+                    "&& sudo apt install -y /tmp/code.deb",
+                ],
+            ]
         )
     return Plan(commands=[["winget", "install", "--id", "Microsoft.VisualStudioCode"]])
 

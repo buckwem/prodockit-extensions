@@ -1246,21 +1246,15 @@ def test_a_preparing_instruction_is_shown_before_the_command_that_needs_it(
     """The mirror image of the VS Code case above, and the half that #234
     broke: some manual steps *precede* their commands.
 
-    Ubuntu's VS Code plan is the clearest - `apt install ./code.deb`
-    cannot find a file the reader has not downloaded yet - and the
-    keypair stage is the same shape, warning about the passphrase prompt
-    before running the `ssh-keygen` that raises it. Running commands
-    first is not untidy there, it is a command that cannot succeed.
+    The keypair stage is the remaining example - it warns about the
+    passphrase prompt before running the `ssh-keygen` that raises it, so
+    a reader who has already been asked for a passphrase has missed the
+    only advice about choosing one.
     """
-    plan = next(s for s in STAGES if s.id == "vscode").plan(_context(tmp_path, platform=UBUNTU))
-    assert plan.instructions and plan.commands, "this is the both-halves case"
-    assert not plan.follow_up, "the download precedes the install, so it is not a follow-up"
-    assert "Download the .deb" in " ".join(plan.instructions)
-
     keypair = next(s for s in STAGES if s.id == "ssh-key").plan(_context(tmp_path))
     assert "passphrase" in " ".join(keypair.instructions)
-    assert not keypair.follow_up
     assert any("ssh-keygen" in " ".join(command) for command in keypair.commands)
+    assert not keypair.follow_up, "the warning precedes the prompt, so it is not a follow-up"
 
 
 def test_dry_run_lists_manual_steps_in_the_order_they_happen(
@@ -1278,3 +1272,64 @@ def test_dry_run_lists_manual_steps_in_the_order_they_happen(
     assert result.output.index("run: brew install --cask") < result.output.index(
         "you: In VS Code, open the Command Palette"
     ), "a follow-up must be listed after the command it follows"
+
+
+def test_ubuntu_vscode_is_downloaded_rather_than_asked_for(tmp_path: Path) -> None:
+    """#233: the Ubuntu plan told the reader to fetch a .deb from the
+    website and then ran `sudo apt install -y ./code.deb`.
+
+    No such file exists under that name. The download is called
+    `code_1.132.0-…_arm64.deb` and it lands in ~/Downloads, not the
+    working directory - so the command failed on every machine, whether
+    or not the reader had done their half.
+    """
+    plan = next(s for s in STAGES if s.id == "vscode").plan(_context(tmp_path, platform=UBUNTU))
+    flat = " ".join(" ".join(command) for command in plan.commands)
+
+    assert "./code.deb" not in flat, "the file was never there to install"
+    assert not plan.instructions and not plan.follow_up, "nothing here needs a human now"
+    assert "update.code.visualstudio.com" in flat
+    # curl is not on a minimal Ubuntu, and the download is the whole step.
+    assert flat.index("install -y curl") < flat.index("curl -fsSL")
+    # dpkg says amd64 where VS Code's URL says x64; arm64 agrees with
+    # itself, which is what an Apple-silicon VM reports.
+    assert "dpkg --print-architecture" in flat
+    assert "amd64) arch=x64" in flat
+
+
+def test_ubuntu_vscode_installs_the_file_it_just_downloaded(tmp_path: Path) -> None:
+    """The download path and the install path have to be the same one -
+    the previous plan's did not, which is the whole of #233."""
+    plan = next(s for s in STAGES if s.id == "vscode").plan(_context(tmp_path, platform=UBUNTU))
+    download = next(c for c in plan.commands if "curl -fsSL" in " ".join(c))
+    script = " ".join(download)
+
+    assert "-o /tmp/code.deb" in script
+    assert "apt install -y /tmp/code.deb" in script
+
+
+def test_a_warning_is_not_reported_as_the_reason_a_command_failed() -> None:
+    """#233: apt opens with a warning every time it is run from a script,
+    so the failure was reported as
+
+        failed: WARNING: apt does not have a stable CLI interface.
+
+    which describes nothing that went wrong and points the reader at
+    their own scripting rather than at the missing file."""
+    from prodockit.cli import _first_meaningful_line
+
+    stderr = (
+        "WARNING: apt does not have a stable CLI interface. "
+        "Use with caution in scripts.\n"
+        "\n"
+        "E: Unsupported file ./code.deb given on commandline\n"
+    )
+    assert _first_meaningful_line(stderr) == "E: Unsupported file ./code.deb given on commandline"
+
+
+def test_a_warning_is_still_reported_when_it_is_all_there_is() -> None:
+    """Skipping warnings must not turn a warning-only failure into
+    silence - "no output" would be worse than the warning."""
+    from prodockit.cli import _first_meaningful_line
+
+    assert _first_meaningful_line("WARNING: something odd\n") == "WARNING: something odd"
