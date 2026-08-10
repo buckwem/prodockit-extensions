@@ -158,8 +158,24 @@ does nothing.
 
 ## Configuration {: #bootstrap-configuration }
 
-Stored per **user**, not per project - it is needed before a project
-exists:
+You should not need to open this file. When a run finds an answer
+missing it offers to ask for it, and only for the ones actually blank:
+
+```text
+Some details are not set yet: project_name, project_dir.
+Answer them now? [Y/n]:
+```
+
+`prodockit bootstrap --configure` re-asks everything, with each current
+value as the default, so pressing Enter through confirms an unchanged
+setup.
+
+A piped or scripted run never prompts - it reports what is missing and
+carries on, rather than blocking on a question nobody is there to
+answer.
+
+The file itself is stored per **user**, not per project - it is needed
+before a project exists:
 
 | Platform | Path |
 | --- | --- |

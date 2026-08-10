@@ -33,6 +33,7 @@ from prodockit.bootstrap.config import (
     config_path,
     default_for,
     load,
+    missing_keys,
     save,
 )
 from prodockit.bootstrap.model import (
@@ -79,6 +80,7 @@ __all__ = [
     "current_platform",
     "default_for",
     "load",
+    "missing_keys",
     "plan_all",
     "save",
 ]

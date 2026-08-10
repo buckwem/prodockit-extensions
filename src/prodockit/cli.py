@@ -38,6 +38,7 @@ from prodockit.bootstrap import (
     apply_stage,
     check_all,
     default_for,
+    missing_keys,
     plan_all,
 )
 from prodockit.bootstrap import build_context as build_bootstrap_context
@@ -104,24 +105,74 @@ def main() -> None:
     academic documentation."""
 
 
-def _ask_for_configuration(config: BootstrapConfig) -> BootstrapConfig:
-    """Asks each question with the stored answer as the default.
+def _ask_for_configuration(
+    config: BootstrapConfig, *, only: list[str] | None = None
+) -> BootstrapConfig:
+    """Asks the configuration questions, storing each answer as it comes.
 
-    Every field is re-asked on a rerun, as the issue asks - pressing
+    `only` narrows it to particular fields - used when a run finds a
+    couple of answers missing and asks just for those, rather than making
+    someone walk the whole list again to fill one gap.
+
+    With `only` unset every field is re-asked, as #217 requires: pressing
     Enter through keeps what is already there, so confirming an unchanged
-    setup costs six keystrokes rather than an edit.
+    setup costs a few keystrokes rather than an edit.
     """
-    click.echo("Configuration - press Enter to keep the value in brackets.\n")
-    answers = {}
-    for key, question in PROMPTS:
+    wanted = [(k, q) for k, q in PROMPTS if only is None or k in only]
+    click.echo("\nPress Enter to keep the value in brackets.\n")
+    for key, question in wanted:
         # `default_for` fills a blank answer from one already given, so a
         # first run still has something sensible to press Enter on.
-        answers[key] = click.prompt(
-            question, default=default_for(config, key), show_default=True
-        ).strip()
-        # Later questions can default off earlier answers, so feed each one
-        # back in as it is given.
-        setattr(config, key, answers[key])
+        answer = click.prompt(question, default=default_for(config, key), show_default=True)
+        # Fed back in as it is given, so a later question can default off
+        # an earlier answer.
+        setattr(config, key, answer.strip())
+    return config
+
+
+def _is_interactive() -> bool:
+    """Whether there is a human to answer a prompt.
+
+    A named function rather than an inline `sys.stdin.isatty()` so it is
+    one thing to reason about - and one thing to override in a test,
+    where the runner substitutes its own stdin and an inline check would
+    read whatever that happened to be.
+    """
+    try:
+        return sys.stdin.isatty()
+    except (AttributeError, ValueError):  # pragma: no cover - closed stream
+        return False
+
+
+def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> BootstrapConfig:
+    """Offers to ask for whatever is missing, rather than naming a file.
+
+    Telling a first-time reader a value is "not set in your bootstrap
+    config" points them at a file they may have no idea how to edit -
+    and editing TOML by hand is exactly the kind of step this command
+    exists to remove. So it asks.
+
+    Skipped when stdin is not a terminal: a scripted or piped run must
+    report and exit rather than block on a prompt nobody can answer.
+    """
+    blank = missing_keys(config)
+    if not blank:
+        return config
+    if not _is_interactive():
+        click.echo(
+            f"Not configured yet ({', '.join(blank)}). Run `prodockit bootstrap "
+            "--configure` to answer the questions.\n",
+            err=True,
+        )
+        return config
+
+    click.echo(f"Some details are not set yet: {', '.join(blank)}.")
+    if not click.confirm("Answer them now?", default=True):
+        click.echo("Carrying on - stages needing them will show as unknown.\n")
+        return config
+    config = _ask_for_configuration(config, only=blank)
+    save_bootstrap_config(path, config)
+    click.echo(f"\nSaved to {path}\n")
     return config
 
 
@@ -248,19 +299,17 @@ def bootstrap(
         if configure:
             return
 
+    # Offer to fill anything still blank before checking, so the run that
+    # follows can actually judge the project stages rather than reporting
+    # three unknowns and leaving the reader to work out what to do.
+    config = _offer_to_fill_gaps(config, path)
+
     try:
         context = build_bootstrap_context(config)
     except UnsupportedHostError as error:
         click.echo(f"Error: {error}", err=True)
         sys.exit(1)
 
-    if not config.is_complete:
-        click.echo(
-            f"No configuration yet at {path} - reporting what can be checked "
-            "without it. Stages needing your project details will show as "
-            "unknown. Run --configure to answer them.\n",
-            err=True,
-        )
 
     reports = check_all(context) if check_only else plan_all(context)
 

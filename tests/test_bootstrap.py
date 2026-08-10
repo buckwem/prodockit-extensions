@@ -403,7 +403,11 @@ def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     from prodockit.cli import main
 
-    def _invoke(*args: str, responses: dict[str, CommandResult] | None = None):
+    def _invoke(
+        *args: str,
+        responses: dict[str, CommandResult] | None = None,
+        input: str | None = None,
+    ):
         monkeypatch.setattr(
             "prodockit.cli.build_bootstrap_context",
             lambda config: build_context(
@@ -413,7 +417,9 @@ def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                 home=tmp_path,
             ),
         )
-        return CliRunner().invoke(main, ["bootstrap", "--config", str(tmp_path / "b.toml"), *args])
+        return CliRunner().invoke(
+            main, ["bootstrap", "--config", str(tmp_path / "b.toml"), *args], input=input
+        )
 
     return _invoke
 
@@ -548,3 +554,55 @@ def test_the_runner_never_inherits_stdin() -> None:
     source = inspect.getsource(SubprocessRunner.run)
     assert "stdin=subprocess.DEVNULL" in source
     assert sp.DEVNULL is not None
+
+
+def test_missing_keys_ignores_the_optional_override() -> None:
+    """A blank `source_url` means "use the template" - the common answer,
+    so treating it as missing would ask everyone a question most people
+    should skip."""
+    from prodockit.bootstrap import missing_keys
+
+    assert missing_keys(_config(source_url="")) == []
+    assert "project_name" in missing_keys(_config(project_name=""))
+
+
+def test_gaps_are_offered_as_prompts_not_a_file_to_edit(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Telling a first-time reader a value is "not set in your bootstrap
+    config" points them at a file they may not know how to edit - which is
+    the kind of step this command exists to remove.
+
+    Only the blank fields are asked for: filling one gap must not mean
+    walking the whole list again.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    save(tmp_path / "b.toml", _config(project_name="", project_dir=""))
+    result = cli_bootstrap(input="y\nreport-al01234\n~/GitLab/report-al01234\n")
+    assert "Answer them now?" in result.output
+    # Asked for the two blanks, not for the five already answered.
+    assert "Your full name" not in result.output
+    assert "Your project name" in result.output
+    assert load(tmp_path / "b.toml").project_name == "report-al01234"
+
+
+def test_declining_the_offer_carries_on(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    save(tmp_path / "b.toml", _config(project_name=""))
+    result = cli_bootstrap(input="n\n")
+    assert "Carrying on" in result.output
+    assert load(tmp_path / "b.toml").project_name == ""
+
+
+def test_a_piped_run_reports_instead_of_prompting(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A scripted or piped run must report and exit rather than block on a
+    prompt nobody is there to answer."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: False)
+    save(tmp_path / "b.toml", _config(project_name=""))
+    result = cli_bootstrap()
+    assert "Answer them now?" not in result.output
+    assert "--configure" in result.output

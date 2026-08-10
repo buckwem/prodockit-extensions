@@ -172,6 +172,19 @@ PROMPTS: tuple[tuple[str, str], ...] = (
 )
 
 
+def missing_keys(config: BootstrapConfig) -> list[str]:
+    """Which prompted fields have no answer yet, in prompt order.
+
+    `source_url` is deliberately absent: blank is a valid, common answer
+    meaning "use the template", so treating it as missing would ask
+    everyone a question most people should skip.
+    """
+    optional = {"source_url"}
+    return [
+        key for key, _ in PROMPTS if key not in optional and not getattr(config, key, "")
+    ]
+
+
 def default_for(config: BootstrapConfig, key: str) -> str:
     """The value to offer as a prompt's default.
 
