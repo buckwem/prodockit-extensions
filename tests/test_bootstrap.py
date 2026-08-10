@@ -816,3 +816,95 @@ def test_repoint_is_not_done_until_the_config_is_synced_too(tmp_path: Path) -> N
     # And once sync-repo is happy, so is the stage.
     runner.responses["prodockit sync-repo --check"] = CommandResult(0)
     assert next(s for s in STAGES if s.id == "remote").check(context).status is Status.OK
+
+
+# ---------------------------------------------------------------------------
+# A command that can stop for a human is a broken check
+# (prodockit-extensions#225)
+# ---------------------------------------------------------------------------
+
+
+def test_the_ssh_probe_cannot_stop_for_a_human(tmp_path: Path) -> None:
+    """Regression: `stdin=DEVNULL` is necessary but not sufficient.
+
+    ssh reads passwords from `/dev/tty` directly, bypassing stdin
+    entirely, so a check on a machine whose key was not yet uploaded fell
+    back to password authentication and sat there:
+
+        git@gitlab.surrey.ac.uk's password:
+
+    Testing stopped. `BatchMode=yes` is what makes ssh fail instead of
+    ask; nothing else in the invocation does.
+    """
+    runner = FakeRunner()
+    context = _context(tmp_path, runner=runner)
+    next(s for s in STAGES if s.id == "ssh-upload").check(context)
+
+    probe = next(call for call in runner.calls if call[0] == "ssh")
+    assert "BatchMode=yes" in probe
+    assert "ConnectTimeout=10" in probe
+
+
+def test_an_unknown_host_is_reported_not_silently_trusted(tmp_path: Path) -> None:
+    """Accepting a host key is a trust decision, and a tool that makes it
+    silently on a reader's behalf has taken something from them they did
+    not know they had. With `BatchMode` the probe fails instead - so the
+    failure has to carry the way out, or it is just a dead end.
+    """
+    runner = FakeRunner(
+        {"ssh": CommandResult(255, stderr="Host key verification failed.")}
+    )
+    result = next(s for s in STAGES if s.id == "ssh-upload").check(
+        _context(tmp_path, runner=runner)
+    )
+    assert result.status is Status.WRONG
+    assert "not a known host" in result.detail
+    assert "ssh -T git@gitlab.surrey.ac.uk" in result.detail
+
+
+def test_every_ssh_command_any_stage_runs_is_non_interactive(tmp_path: Path) -> None:
+    """The invariant, rather than the two instances of it.
+
+    `ssh -T` was fixed once already and `git ls-remote` - which runs ssh
+    underneath - had exactly the same hang waiting in stage 6. Asserting
+    per-command would have caught the first and missed the second.
+    """
+    context = _context(tmp_path, runner=FakeRunner())
+    for stage in STAGES:
+        for command in stage.plan(context).commands:
+            if command[0] == "ssh":
+                assert "BatchMode=yes" in command, f"{stage.id}: {command}"
+
+
+def test_the_real_runner_tells_git_not_to_ask_either(tmp_path: Path) -> None:
+    """git prompts for HTTPS credentials on its own and runs ssh for
+    everything else, so `git ls-remote` and `git clone` inherit the same
+    hang. Checked against the real runner and a real child process: the
+    environment is the only thing carrying this, and a fake runner would
+    never notice it had been dropped.
+    """
+    import sys
+
+    from prodockit.bootstrap.model import SubprocessRunner
+
+    script = "import os; print(os.environ.get('GIT_TERMINAL_PROMPT'), os.environ.get('GIT_SSH_COMMAND'))"
+    result = SubprocessRunner().run([sys.executable, "-c", script])
+    assert result.ok
+    assert result.stdout.startswith("0 ssh ")
+    assert "BatchMode=yes" in result.stdout
+
+
+def test_a_readers_own_ssh_wrapper_is_left_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Someone who has configured `GIT_SSH_COMMAND` has a reason. Silently
+    replacing it would break a working setup to fix a hypothetical one."""
+    import sys
+
+    from prodockit.bootstrap.model import SubprocessRunner
+
+    monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -i /keys/mine")
+    result = SubprocessRunner().run(
+        [sys.executable, "-c", "import os; print(os.environ['GIT_SSH_COMMAND'])"]
+    )
+    assert result.stdout.strip() == "ssh -i /keys/mine"

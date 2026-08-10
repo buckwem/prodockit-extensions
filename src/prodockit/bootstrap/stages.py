@@ -29,6 +29,7 @@ from pathlib import Path
 
 from prodockit.bootstrap.model import (
     MACOS,
+    SSH_NO_PROMPT_OPTIONS,
     UBUNTU,
     WINDOWS,
     CheckResult,
@@ -251,6 +252,34 @@ def _plan_ssh_key(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
+def _ssh_probe(context: Context) -> list[str]:
+    """`ssh -T`, wired so it can never wait for a human.
+
+    `BatchMode=yes` is the load-bearing option. ssh reads passphrases and
+    passwords from `/dev/tty` directly, *not* from stdin, so redirecting
+    stdin does not stop it prompting - a check ran on a machine whose key
+    was not yet uploaded fell back to password authentication and simply
+    sat there:
+
+        git@gitlab.surrey.ac.uk's password:
+
+    A check that can block is a broken check, whatever it reports
+    (prodockit-extensions#225). BatchMode makes ssh fail instead of ask.
+
+    The options come from `SSH_NO_PROMPT_OPTIONS`, the same ones every
+    git command gets through `GIT_SSH_COMMAND`, so a probe that says
+    "authenticated" and a `git clone` that hangs cannot disagree.
+
+    Host-key acceptance is deliberately *not* automated here. Accepting an
+    unknown host key is a trust decision, and a tool that makes it
+    silently on a reader's behalf has taken something from them they did
+    not know they had. Unknown-host is reported instead, with the command
+    to run.
+    """
+    ssh, *options = SSH_NO_PROMPT_OPTIONS
+    return [ssh, "-T", *options, context.host.ssh_target]
+
+
 def _check_ssh_authenticates(context: Context) -> CheckResult:
     """Whether the key actually authenticates.
 
@@ -259,10 +288,15 @@ def _check_ssh_authenticates(context: Context) -> CheckResult:
     string is the only reliable signal, which is why every `Host` carries
     its own.
     """
-    result = context.runner.run(["ssh", "-T", context.host.ssh_target])
+    result = context.runner.run(_ssh_probe(context))
     combined = f"{result.stdout}\n{result.stderr}"
     if context.host.ssh_success in combined:
         return _ok(f"authenticated to {context.host.hostname}")
+    if "Host key verification failed" in combined or "authenticity of host" in combined:
+        return _wrong(
+            f"{context.host.hostname} is not a known host yet - run "
+            f"`ssh -T {context.host.ssh_target}` once and accept the fingerprint"
+        )
     if "Permission denied" in combined:
         return _missing(f"{context.host.hostname} rejected the key")
     return _wrong(f"could not confirm authentication to {context.host.hostname}")
@@ -278,13 +312,17 @@ def _plan_ssh_upload(context: Context) -> Plan:
     instructions += [
         f"Paste the contents of {public} - the .pub file, never the one without it.",
         "Give it any title you like, then save.",
+        f"If this machine has never connected to {context.host.hostname} before, "
+        f"run `ssh -T {context.host.ssh_target}` in a terminal once and answer "
+        "`yes` to the fingerprint question. Trusting a host key is a decision "
+        "bootstrap leaves to you rather than making silently on your behalf.",
     ]
     return Plan(
         instructions=instructions,
         # Not an install: this re-runs the check, so the reader is told
         # whether it worked rather than being left to find out at the
         # first push.
-        commands=[["ssh", "-T", context.host.ssh_target]],
+        commands=[_ssh_probe(context)],
     )
 
 

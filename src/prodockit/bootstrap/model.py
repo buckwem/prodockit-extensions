@@ -16,6 +16,7 @@ one differ only in which runner receives it.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -152,6 +153,49 @@ class Runner(Protocol):
     def run(self, command: Sequence[str], cwd: str | None = None) -> CommandResult: ...
 
 
+#: The ssh invocation prefix that cannot stop for a human, shared by
+#: `_no_prompt_env` and by the `ssh -T` probe in `stages.py` so the two
+#: cannot drift apart.
+SSH_NO_PROMPT_OPTIONS: tuple[str, ...] = (
+    "ssh",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ConnectTimeout=10",
+)
+
+
+def _no_prompt_env() -> dict[str, str]:
+    """The environment every bootstrap command runs in: one that cannot ask.
+
+    Bootstrap runs commands both to *check* and to *apply*, and neither
+    can afford a child process that stops for input. A check must be
+    read-only and fast; an apply reports its own progress and would be
+    talked over. But the two tools bootstrap leans on hardest each have
+    their own way of asking anyway:
+
+    - **ssh** reads passwords and passphrases straight from `/dev/tty`,
+      not stdin, so `stdin=DEVNULL` does nothing to stop it.
+      `BatchMode=yes` makes it fail instead of ask. `ConnectTimeout`
+      bounds the other kind of hang - an unreachable host, which for a
+      university VPN is an ordinary Tuesday.
+    - **git** prompts for credentials over HTTPS, and runs ssh for
+      everything else - so `git ls-remote` and `git clone` inherit
+      exactly the same problem the `ssh -T` check had.
+
+    `GIT_SSH_COMMAND` is left alone if it is already set: someone who has
+    configured their own ssh wrapper has a reason, and silently replacing
+    it would break a working setup to fix a hypothetical one.
+
+    Failing fast is the point. "Could not authenticate" is a finding
+    bootstrap can report and act on; a blinking cursor is not.
+    """
+    env = dict(os.environ)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env.setdefault("GIT_SSH_COMMAND", " ".join(SSH_NO_PROMPT_OPTIONS))
+    return env
+
+
 class SubprocessRunner:
     """The real runner.
 
@@ -171,6 +215,15 @@ class SubprocessRunner:
     asking for credentials) would do the same, and would hang instead if
     nothing was waiting on stdin.
 
+    `stdin=DEVNULL` is necessary but *not sufficient*, which cost a
+    testing session to learn. ssh reads passwords and passphrases from
+    `/dev/tty` directly, deliberately bypassing whatever stdin happens to
+    be, so a check on a machine whose key was not yet uploaded fell back
+    to password authentication and sat at a prompt forever
+    (prodockit-extensions#225). Redirecting stdin cannot prevent that;
+    only telling the tools not to ask can, which is what `_no_prompt_env`
+    does.
+
     A stage whose command genuinely needs a terminal - `ssh-keygen`
     asking for a passphrase - cannot use this runner and will need one
     that hands over the terminal deliberately. That is a later phase's
@@ -186,6 +239,7 @@ class SubprocessRunner:
                 text=True,
                 encoding="utf-8",
                 stdin=subprocess.DEVNULL,
+                env=_no_prompt_env(),
                 timeout=300,
             )
         except FileNotFoundError:

@@ -58,6 +58,36 @@ The verification is the valuable half. "I clicked something" and
 "authentication works" are different states, and only one of them lets
 you push.
 
+### Nothing bootstrap runs can ask you a question {: #bootstrap-no-prompts }
+
+Every command bootstrap runs - checking or applying - runs in an
+environment that cannot prompt: `BatchMode=yes` for `ssh`,
+`GIT_TERMINAL_PROMPT=0` for git, and both reaching `git clone` and
+`git ls-remote` through `GIT_SSH_COMMAND`.
+
+This is not tidiness. Before a key is uploaded, `ssh` falls back to
+password authentication - and it reads that password from `/dev/tty`
+directly, bypassing whatever the calling program did with stdin. A
+read-only check sat at a `git@gitlab.surrey.ac.uk's password:` prompt
+with no way out. Failing fast is the point: "could not authenticate" is
+a finding bootstrap can report and act on, and a blinking cursor is not.
+
+If you have set `GIT_SSH_COMMAND` yourself, it is left alone.
+
+One consequence is deliberate. The first time a machine connects to a
+host, ssh asks whether to trust its fingerprint - and bootstrap will not
+answer that for you:
+
+```text
+ 4  WRONG  SSH key on the host - gitlab.surrey.ac.uk is not a known host
+           yet - run `ssh -T git@gitlab.surrey.ac.uk` once and accept the
+           fingerprint
+```
+
+Trusting a host key is a security decision. A tool that makes it
+silently on your behalf has taken something from you that you did not
+know you had, so this one hands it back with the exact command.
+
 ## Checking without changing anything {: #bootstrap-check }
 
 Checking is what you get by default - run it with no options at all:
