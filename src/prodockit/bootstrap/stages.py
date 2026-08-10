@@ -335,18 +335,96 @@ def _check_ssh_authenticates(context: Context) -> CheckResult:
     return _wrong(f"could not confirm authentication to {context.host.hostname}")
 
 
-def _plan_ssh_upload(context: Context) -> Plan:
+#: Delimiters around the printed public key. The key is one long line
+#: that wraps in a terminal, so without them it is not obvious where it
+#: starts and stops - and a key pasted with a missing character fails in
+#: exactly the same way as one never uploaded.
+PUBLIC_KEY_MARKER = "======= PUBLIC KEY ======="
+
+
+def _public_key_text(context: Context) -> str | None:
+    """The public half of the keypair, if it can be read.
+
+    Only ever `.pub`. A public key is public by definition - that is what
+    it is for - whereas the file beside it must never be printed, so this
+    reads the one path and never derives another from it.
+
+    `None` when the key is not there yet (stage 3 has not run, and
+    `--dry-run` builds every plan regardless) or cannot be read.
+    """
     public = _key_path(context).with_suffix(".pub")
-    instructions = [
-        f"Open {context.host.ssh_keys_url}",
-    ]
-    if context.host.login_note:
-        instructions.append(context.host.login_note)
+    try:
+        text = public.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return text or None
+
+
+def _plan_ssh_upload(context: Context) -> Plan:
+    """The upload steps, in the User Guide's own words (#238).
+
+    Navigated by menu rather than by pasted URL. The URL is the faster
+    route for somebody who already knows where they are going, and the
+    worse one for somebody who does not - it offers no way to tell you
+    have arrived in the right place, and no way back if you have not. It
+    is still given, as a shortcut, after the route that can be followed.
+    """
+    host = context.host
+    public = _key_path(context).with_suffix(".pub")
+
+    # Each entry is one numbered step; newlines within an entry hang under
+    # it. The form is one step with its fields beneath, not four steps -
+    # numbering "Title", "Key" and "Expiration date" separately reads as
+    # three things to go and do rather than three boxes on one screen.
+    login = f"Log in to {host.hostname} in a web browser."
+    if host.login_note:
+        login += f"\n{host.login_note}"
+    instructions = [login]
+
+    navigation = list(host.ssh_keys_steps)
+    if navigation:
+        navigation[-1] += f"\nOr go straight there: {host.ssh_keys_url}"
+    else:  # pragma: no cover - every populated host describes its menus
+        navigation = [f"Open {host.ssh_keys_url}"]
+    instructions += navigation
+
+    # The key is printed rather than pointed at. "Paste the contents of
+    # ~/.ssh/id_ed25519_gitlab.pub" asks a first-time reader to find a
+    # dotfile, open it in something, and copy the right one of two files
+    # whose names differ by four characters - and picking the wrong one
+    # uploads the *private* key. Showing the public half removes the
+    # step and the hazard together.
+    key_text = _public_key_text(context)
+    if key_text is not None:
+        key_field = (
+            "Key: copy everything between the lines below - all of it, and "
+            "nothing else - and paste it in:\n"
+            f"{PUBLIC_KEY_MARKER}\n{key_text}\n{PUBLIC_KEY_MARKER}"
+        )
+    else:
+        # Nothing to show: stage 3 has not run, or the file cannot be
+        # read. Naming the path is the best available, and the warning
+        # against its neighbour matters more here than anywhere.
+        key_field = (
+            f"Key: paste the contents of {public} - the .pub file, never the "
+            "one without it."
+        )
+
+    form = "\n".join(
+        [
+            f"Click '{host.ssh_key_new_label}', then fill in:",
+            "Title: any clear name, so you can tell this machine's key from "
+            "another's later.",
+            key_field,
+            *host.ssh_key_form_extra,
+        ]
+    )
+
     instructions += [
-        f"Paste the contents of {public} - the .pub file, never the one without it.",
-        "Give it any title you like, then save.",
-        f"If this machine has never connected to {context.host.hostname} before, "
-        f"run `ssh -T {context.host.ssh_target}` in a terminal once and answer "
+        form,
+        f"Click '{host.ssh_key_save_label}' to save it.",
+        f"If this machine has never connected to {host.hostname} before, "
+        f"run `ssh -T {host.ssh_target}` in a terminal once and answer "
         "`yes` to the fingerprint question. Trusting a host key is a decision "
         "bootstrap leaves to you rather than making silently on your behalf.",
     ]

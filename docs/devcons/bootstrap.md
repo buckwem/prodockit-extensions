@@ -221,6 +221,40 @@ The verification is the valuable half. "I clicked something" and
 "authentication works" are different states, and only one of them lets
 you push.
 
+Guiding well is the other half, and it is the part written instructions
+usually get wrong. Three things the upload stage does deliberately:
+
+**It prints the key, rather than naming the file it lives in.**
+
+```text
+    4. Click 'Add new key', then fill in:
+       Title: any clear name, so you can tell this machine's key from another's later.
+       Key: copy everything between the lines below - all of it, and nothing else - and paste it in:
+       ======= PUBLIC KEY =======
+       ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... al01234@surrey.ac.uk
+       ======= PUBLIC KEY =======
+```
+
+"Paste the contents of `~/.ssh/id_ed25519_gitlab.pub`" asks you to find a
+dotfile, open it in something, and copy the right one of two files whose
+names differ by four characters - and the wrong one is your *private*
+key. Only `.pub` is ever read. The markers earn their place too: the key
+is one long line that wraps in a terminal, and a key pasted a character
+short is rejected exactly like one never uploaded at all.
+
+**It navigates by menu, not only by URL.** A pasted link is the quicker
+route if you already know where you are going, and the worse one if you
+do not - it gives you no way to tell whether you have arrived somewhere
+sensible. The menu path comes first and the URL follows as a shortcut.
+
+**It names the traps the host sets.** GitLab requires an expiry date,
+fills it in a year ahead, and will not let you clear it - so accepting
+the default locks you out mid-course, and the failure surfaces months
+later as a permission error that reads exactly like a misconfigured key.
+GitHub has no such field. That difference is a value on the host record
+rather than a branch in the stage, which is what keeps adding a host to
+filling in a record.
+
 ### Nothing bootstrap runs can ask you a question {: #bootstrap-no-prompts }
 
 Every command bootstrap runs - checking or applying - runs in an

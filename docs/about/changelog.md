@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- The SSH upload stage now **prints the public key** between
+  `======= PUBLIC KEY =======` markers, rather than naming the file it
+  lives in
+  ([#238](https://github.com/buckwem/prodockit-extensions/issues/238)).
+
+    "Paste the contents of `~/.ssh/id_ed25519_gitlab.pub`" asked a
+    first-time reader to find a dotfile, open it in something, and copy
+    the right one of two files whose names differ by four characters -
+    where picking the wrong one uploads the *private* key. Only `.pub` is
+    ever read, and the markers matter as much as the key: it is one long
+    line that wraps in a terminal, and a key pasted a character short is
+    rejected exactly like one never uploaded.
+
+- The same stage now follows the **User Guide's own wording**: the keys
+  page is reached through the host's menus (profile avatar → *Edit
+  profile* → *Access > SSH Keys*) with the URL kept as a shortcut rather
+  than as the only way in, and the form's fields are listed under one
+  step instead of numbered as separate errands.
+
+- **GitLab's expiry date is now spelled out** (#238). GitLab requires
+  one, fills it in a year ahead, and will not let you clear it - so a
+  reader who accepts the default is locked out mid-course, and the
+  failure arrives months later as a permission error indistinguishable
+  from a misconfigured key. Bootstrap did not mention the field at all.
+  GitHub has no such field, and says so.
+
 ## 0.24.1 (2026-08-10)
 
 - **Fixed:** `--apply` could not install VS Code on Ubuntu
