@@ -199,13 +199,17 @@ def default_for(config: BootstrapConfig, key: str) -> str:
     guessed from ones already answered, so a first run still has
     something sensible to press Enter on.
     """
+    if key == "project_dir":
+        # Always offered as `./<name>`, even when a value is stored -
+        # unlike every other field, where the stored answer wins.
+        #
+        # Two reasons. The User Guide's flow is "navigate to your GitLab
+        # folder, then clone", so here is nearly always the right answer;
+        # and a stored value that was wrong is the one thing a reader
+        # cannot correct by pressing Enter, which is how the same clone
+        # landed in a home directory twice. Showing `./` makes where it
+        # will go legible at a glance, in a way an absolute path buried
+        # in brackets is not.
+        return f"./{config.project_name}" if config.project_name else "."
     current = getattr(config, key, "")
-    if current:
-        return str(current)
-    if key == "project_dir" and config.project_name:
-        # The directory you are standing in, not your home directory. The
-        # User Guide's own flow is "navigate to your GitLab folder, then
-        # clone", so a default of `~/<project>` put the clone somewhere
-        # the reader was not, and had not asked for.
-        return str(Path.cwd() / config.project_name)
-    return ""
+    return str(current) if current else ""

@@ -127,6 +127,11 @@ def _ask_for_configuration(
         # Fed back in as it is given, so a later question can default off
         # an earlier answer.
         setattr(config, key, answer.strip())
+    # Stored absolute, though offered relative: `./report` is the clearest
+    # thing to *read* at the prompt, and the worst thing to *keep* - it
+    # would mean something different the next time bootstrap ran from
+    # somewhere else.
+    config.project_dir = str(config.resolved_project_dir(Path.home()))
     return config
 
 

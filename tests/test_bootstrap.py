@@ -681,12 +681,30 @@ def test_an_absolute_project_dir_is_left_alone(tmp_path: Path) -> None:
     )
 
 
-def test_the_project_dir_default_offered_is_the_current_directory(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_the_project_dir_default_is_offered_as_here(tmp_path: Path) -> None:
+    """Offered as `./<name>` even when a value is stored - the one field
+    where the stored answer does not win.
+
+    A stored path that was wrong is otherwise the one thing a reader
+    cannot correct by pressing Enter, which is how the same clone landed
+    in a home directory twice. It also means a project that has been
+    *moved* self-heals: re-running --configure from its new location
+    offers here, rather than the path it used to be at.
+    """
     from prodockit.bootstrap import default_for
 
-    monkeypatch.chdir(tmp_path)
-    offered = default_for(_config(project_dir=""), "project_dir")
-    assert offered == str(tmp_path / "report-al01234")
-    assert not offered.startswith("~")
+    assert default_for(_config(project_dir=""), "project_dir") == "./report-al01234"
+    # Even with a stale absolute value stored.
+    stale = _config(project_dir=str(tmp_path / "somewhere" / "else"))
+    assert default_for(stale, "project_dir") == "./report-al01234"
+
+
+def test_every_other_field_still_keeps_its_stored_answer() -> None:
+    """The project_dir exception has to stay an exception - a rerun that
+    silently discarded your name and email would be worse than the
+    problem it solves."""
+    from prodockit.bootstrap import default_for
+
+    config = _config(full_name="Ada Lovelace", namespace="comm058-2026")
+    assert default_for(config, "full_name") == "Ada Lovelace"
+    assert default_for(config, "namespace") == "comm058-2026"
