@@ -661,3 +661,32 @@ def test_vscode_genuinely_absent_still_installs(
     stage = next(s for s in STAGES if s.id == "vscode")
     assert stage.check(context).status is Status.MISSING
     assert stage.plan(context).commands[0][0] == "brew"
+
+
+def test_a_relative_project_dir_resolves_against_the_current_directory(
+    tmp_path: Path,
+) -> None:
+    """Reported from real use: a bare name landed in the home directory.
+    The User Guide's flow is "navigate to your GitLab folder, then clone",
+    so it belongs where the command was run from."""
+    config = _config(project_dir="report-al01234")
+    here = tmp_path / "GitLab"
+    assert config.resolved_project_dir(tmp_path, cwd=here) == here / "report-al01234"
+
+
+def test_an_absolute_project_dir_is_left_alone(tmp_path: Path) -> None:
+    config = _config(project_dir=str(tmp_path / "elsewhere"))
+    assert config.resolved_project_dir(tmp_path, cwd=tmp_path / "GitLab") == (
+        tmp_path / "elsewhere"
+    )
+
+
+def test_the_project_dir_default_offered_is_the_current_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.bootstrap import default_for
+
+    monkeypatch.chdir(tmp_path)
+    offered = default_for(_config(project_dir=""), "project_dir")
+    assert offered == str(tmp_path / "report-al01234")
+    assert not offered.startswith("~")

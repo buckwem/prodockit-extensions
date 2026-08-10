@@ -201,14 +201,24 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
         for command in plan.commands:
             click.echo(f"  run: {' '.join(command)}")
 
-        if plan.is_manual or plan.instructions:
-            click.confirm("  Done that?", default=True)
-        # Absent: assume yes. Present but wrong: reapplying could overwrite
-        # real work, so make it deliberate.
-        default_yes = report.result.status is Status.MISSING
-        if not click.confirm("  Apply?", default=default_yes):
-            click.echo("  skipped")
-            continue
+        # Who does the work decides which question to ask. A plan with
+        # instructions is one where *you* do it and the commands only
+        # confirm it worked - asking "Apply?" afterwards is meaningless,
+        # since there is nothing left to apply, and on a WRONG stage it
+        # defaulted to no, so pressing Enter skipped the verification.
+        if plan.instructions:
+            if not click.confirm("  Done that? I will check", default=True):
+                click.echo("  skipped")
+                continue
+        else:
+            # Absent: assume yes. Present but wrong: reapplying could
+            # overwrite real work, so make it deliberate.
+            default_yes = report.result.status is Status.MISSING
+            count = len(plan.commands)
+            question = f"  Run {count} command{'s' if count != 1 else ''}?"
+            if not click.confirm(question, default=default_yes):
+                click.echo("  skipped")
+                continue
 
         outcome = apply_stage(context, report.stage)
         if outcome.failed is not None:
@@ -221,7 +231,13 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
             click.echo("  done")
         else:
             detail = outcome.verified.detail if outcome.verified else "unknown"
-            click.echo(f"  ran, but still not right: {detail}", err=True)
+            # Worth distinguishing: a manual stage that still fails means
+            # the instruction did not take, not that a command failed.
+            if plan.instructions:
+                click.echo(f"  still not right: {detail}", err=True)
+                click.echo("  Check the step above and run bootstrap again.", err=True)
+            else:
+                click.echo(f"  ran, but still not right: {detail}", err=True)
             sys.exit(1)
 
     click.echo("\nDone. Re-run `prodockit bootstrap` to confirm.")

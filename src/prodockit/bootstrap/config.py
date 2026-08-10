@@ -77,12 +77,19 @@ class BootstrapConfig:
             for name in ("full_name", "email", "username", "namespace", "project_name")
         )
 
-    def resolved_project_dir(self, home: Path) -> Path:
-        """`project_dir` as an absolute path, expanding a leading `~`."""
-        raw = self.project_dir or f"~/{self.project_name or 'project'}"
+    def resolved_project_dir(self, home: Path, cwd: Path | None = None) -> Path:
+        """`project_dir` as an absolute path.
+
+        A leading `~` expands to `home`. A relative path resolves against
+        `cwd` - the directory the command was run from - rather than being
+        left relative and landing wherever the process happened to start.
+        """
+        base = cwd if cwd is not None else Path.cwd()
+        raw = self.project_dir or self.project_name or "project"
         if raw.startswith("~"):
             return home / raw[1:].lstrip("/\\")
-        return Path(raw)
+        path = Path(raw)
+        return path if path.is_absolute() else base / path
 
 
 def config_path(home: Path | None = None) -> Path:
@@ -196,5 +203,9 @@ def default_for(config: BootstrapConfig, key: str) -> str:
     if current:
         return str(current)
     if key == "project_dir" and config.project_name:
-        return f"~/{config.project_name}"
+        # The directory you are standing in, not your home directory. The
+        # User Guide's own flow is "navigate to your GitLab folder, then
+        # clone", so a default of `~/<project>` put the clone somewhere
+        # the reader was not, and had not asked for.
+        return str(Path.cwd() / config.project_name)
     return ""
