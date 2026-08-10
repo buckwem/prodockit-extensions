@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Fixed:** `--apply` skipped the install commands when a stage had
+  both commands and instructions — VS Code on a fresh macOS got only the
+  "open the Command Palette" instruction without the `brew install` that
+  puts the application there in the first place
+  ([#230](https://github.com/buckwem/prodockit-extensions/issues/230)).
+
 - Bootstrap on Ubuntu now downloads the pinned pandoc release from
   GitHub instead of `apt install pandoc`, which installs a version
   several major versions behind — far enough to render code blocks as

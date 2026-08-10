@@ -223,6 +223,45 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
             click.echo(f"        {report.result.detail}")
         click.echo("")
 
+        # A plan can have commands, instructions, or both. VS Code on
+        # macOS is the canonical "both": `brew install` is automated, but
+        # the shell-command install that follows it needs a human in the
+        # application. Showing only the instructions and skipping the
+        # commands — which is what the `continue` on the old code path
+        # did — left VS Code not installed at all (#230).
+        if plan.commands:
+            click.echo("  Will run:")
+            for command in plan.commands:
+                click.echo(f"    {' '.join(command)}")
+            click.echo("")
+            default_yes = report.result.status is Status.MISSING
+            count = len(plan.commands)
+            if not click.confirm(f"  Run {count} command{'s' if count != 1 else ''}?",
+                                 default=default_yes):
+                click.echo("  skipped")
+                continue
+
+            outcome = apply_stage(context, report.stage)
+            if outcome.failed is not None:
+                click.echo(
+                    f"  failed: {_first_meaningful_line(outcome.failed.stderr)}",
+                    err=True,
+                )
+                click.echo("  Stopping - later stages depend on this one.", err=True)
+                sys.exit(1)
+            if outcome.ok:
+                click.echo("  done")
+                continue
+            if not plan.instructions:
+                detail = outcome.verified.detail if outcome.verified else "unknown"
+                click.echo(f"  ran, but still not right: {detail}", err=True)
+                sys.exit(1)
+            # Commands ran but the check still fails — the instructions
+            # are the remaining manual step (e.g. the VS Code shell
+            # command after `brew install`). Fall through to show them.
+            click.echo("  commands ran — one more step:")
+            click.echo("")
+
         if plan.instructions:
             click.echo("  What you need to do:")
             for step, instruction in enumerate(plan.instructions, start=1):
@@ -232,30 +271,9 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
                 click.echo("  skipped")
             continue
 
-        click.echo("  Will run:")
-        for command in plan.commands:
-            click.echo(f"    {' '.join(command)}")
-        click.echo("")
-        # Absent: assume yes. Present but wrong: reapplying could overwrite
-        # real work, so make it deliberate.
-        default_yes = report.result.status is Status.MISSING
-        count = len(plan.commands)
-        if not click.confirm(f"  Run {count} command{'s' if count != 1 else ''}?",
-                             default=default_yes):
-            click.echo("  skipped")
-            continue
-
-        outcome = apply_stage(context, report.stage)
-        if outcome.failed is not None:
-            click.echo(f"  failed: {_first_meaningful_line(outcome.failed.stderr)}", err=True)
-            click.echo("  Stopping - later stages depend on this one.", err=True)
-            sys.exit(1)
-        if outcome.ok:
-            click.echo("  done")
-        else:
-            detail = outcome.verified.detail if outcome.verified else "unknown"
-            click.echo(f"  ran, but still not right: {detail}", err=True)
-            sys.exit(1)
+        # No commands, no instructions — nothing to do for this stage.
+        # Should not happen, but not worth crashing over.
+        click.echo("  nothing to do")  # pragma: no cover
 
     click.echo("")
     click.echo("Finished. Run `prodockit bootstrap` to confirm.")

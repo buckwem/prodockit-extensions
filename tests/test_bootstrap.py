@@ -1114,3 +1114,43 @@ def test_ubuntu_node_installs_curl_first(tmp_path: Path) -> None:
     plan = next(s for s in STAGES if s.id == "node").plan(context)
     first_install = plan.commands[0]
     assert "curl" in first_install
+
+
+# ---------------------------------------------------------------------------
+# A plan with both commands and instructions must run the commands
+# (prodockit-extensions#230)
+# ---------------------------------------------------------------------------
+
+
+def test_vscode_plan_runs_brew_before_showing_shell_command_instruction(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: when a plan had both commands and instructions, only
+    the instructions were shown and the commands were skipped entirely.
+    The VS Code stage on macOS is the canonical case: `brew install` is
+    automated, but the shell-command install that follows needs a human
+    in the application. Showing only the instruction left VS Code not
+    installed at all (#230).
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.bootstrap.stages._vscode_app_installed", lambda ctx: False)
+    save(tmp_path / "b.toml", _config())
+    # `brew install` succeeds but `code` is still not on PATH — the
+    # shell-command step is the remaining manual part. The key is
+    # `code --version` not bare `code`, because "code" is a substring
+    # of "visual-studio-code" and the fragment matcher would pick it
+    # as a match for the brew command.
+    result = cli_bootstrap(
+        "--apply",
+        responses={
+            "code --version": CommandResult(127, stderr="not found"),
+            "brew": CommandResult(0),
+        },
+        input="y\n" * 3 + "n\n" * 20,
+    )
+    assert "Will run:" in result.output
+    assert "brew install --cask visual-studio-code" in result.output
+    assert "commands ran" in result.output
+    # The old bug: only the instruction appeared, no commands at all.
+    assert "What you need to do:" in result.output
+    assert "Shell Command" in result.output
