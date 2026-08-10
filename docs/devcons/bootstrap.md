@@ -1,7 +1,7 @@
 # Machine bootstrap {: #bootstrap-machine-bootstrap }
 
 \index{`prodockit bootstrap`} turns the User Guide's install sequence into
-eleven stages that can be checked individually and repaired one at a time,
+twelve stages that can be checked individually and repaired one at a time,
 rather than followed top to bottom and hoped over.
 
 The install is long, sequential, and easy to get half-right in ways that
@@ -72,7 +72,7 @@ is what to do instead.
     - Tick **Add python.exe to PATH** on the first screen. Without it,
       `python` is not a command and nothing below works.
     - Click **Disable path length limit** on the final screen. Node's
-      render toolchains in stage 10 nest deeply enough to hit the 260
+      render toolchains in stage 11 nest deeply enough to hit the 260
       character limit.
 
     Then, in PowerShell, in the directory you want to keep your projects
@@ -165,21 +165,67 @@ which Python is winning.
 | 1 | Visual Studio Code | yes |
 | 2 | Git, installed **and** configured | yes |
 | 3 | SSH keypair | yes |
-| 4 | Public key on the host | **guide and verify** |
-| 5 | Template cloned | yes |
-| 6 | Your own project on the host | **guide and verify** |
-| 7 | Clone pointed at your project | yes |
-| 8 | Commit identity in the project | yes |
-| 9 | Pandoc and WeasyPrint's libraries | yes |
-| 10 | Node.js and the render toolchains | yes |
-| 11 | VS Code extensions | yes |
+| 4 | `~/.ssh/config` points this host at that key | yes |
+| 5 | Public key on the host | **guide and verify** |
+| 6 | Template cloned | yes |
+| 7 | Your own project on the host | **guide and verify** |
+| 8 | Clone pointed at your project | yes |
+| 9 | Commit identity in the project | yes |
+| 10 | Pandoc and WeasyPrint's libraries | yes |
+| 11 | Node.js and the render toolchains | yes |
+| 12 | VS Code extensions | yes |
 
-Stages 3, 5, 7, 8 and 11 are platform-independent - nearly half the work
-is the same on every operating system.
+Stages 3, 4, 6, 8, 9 and 12 are platform-independent - half the work is
+the same on every operating system.
+
+### The key ssh never offers {: #bootstrap-ssh-config }
+
+Stage 4 exists because of a failure that lies about its own cause. With
+no `Host` stanza, ssh does not know that `id_ed25519_gitlab` has
+anything to do with `gitlab.surrey.ac.uk`. It offers its own defaults -
+`id_rsa`, `id_ed25519` - and when none of them is accepted, falls back
+to asking for a password:
+
+```text
+git@gitlab.surrey.ac.uk's password:
+```
+
+Which is indistinguishable from a key the host has rejected. The reader
+goes back to the upload step and re-pastes a key that was never the
+problem, because the key was never offered.
+
+So the stanza is written first, in the User Guide's own shape:
+
+```text
+Host gitlab.surrey.ac.uk
+    HostName gitlab.surrey.ac.uk
+    User git
+    IdentityFile ~/.ssh/id_ed25519_gitlab
+```
+
+It is **appended**, never written over: an ssh config is your file and
+may hold entries for hosts this knows nothing about. And if a stanza for
+this host already exists pointing somewhere else, bootstrap explains the
+edit rather than making it - ssh takes the first match, so a second entry
+would be ignored anyway, and rewriting your ssh config underneath you is
+not something an installer should do unasked.
+
+Permissions come with it, for the same reason. ssh refuses a private key
+that others can read:
+
+```text
+Permissions 0644 for '/Users/al01234/.ssh/id_ed25519_gitlab' are too open.
+This private key will be ignored.
+```
+
+and then falls back to a password - the same symptom, from a different
+cause. `chmod 600` on both the key and the config closes it. Windows has
+no `chmod` and restricts a profile file to its owner already, so it gets
+the stanza without the permission step.
 
 ### Your commits, under your own name {: #bootstrap-identity }
 
-Stage 8 sets `user.name` and `user.email` **on the clone**, not globally:
+Stage 9 sets `user.name` and `user.email` **on the clone**, not globally:
 
 ```bash
 git config --local user.name  "Ada Lovelace"
@@ -302,10 +348,11 @@ somebody typed it to see what it did.
  1  MISS  Visual Studio Code - the `code` command is not on PATH
  2  ok    Git, installed and configured - Ada Lovelace <al01234@surrey.ac.uk>
  3  ok    SSH keypair - /Users/al01234/.ssh/id_ed25519_gitlab
- 4  ok    SSH key on the host - authenticated to gitlab.surrey.ac.uk
- 5  ?     Template cloned - needs project_name
+ 4  ok    SSH config points at the key - gitlab.surrey.ac.uk uses id_ed25519_gitlab
+ 5  ok    SSH key on the host - authenticated to gitlab.surrey.ac.uk
+ 6  ?     Template cloned - needs project_name
  ...
-5 of 10 stages need work.
+5 of 12 stages need work.
 ```
 
 Four states, and the difference between them matters:

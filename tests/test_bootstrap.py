@@ -67,6 +67,21 @@ class FakeRunner:
         return CommandResult(returncode=127, stderr="not found")
 
 
+def _write_ssh_config(tmp_path: Path, key: str = "~/.ssh/id_ed25519_gitlab") -> None:
+    """A ~/.ssh/config that points Surrey's GitLab at the key.
+
+    Needed by any test that expects the SSH stages to be satisfied:
+    without the stanza ssh never offers the key, which is the whole of
+    prodockit-extensions#239.
+    """
+    (tmp_path / ".ssh").mkdir(exist_ok=True)
+    (tmp_path / ".ssh" / "config").write_text(
+        f"Host gitlab.surrey.ac.uk\n    HostName gitlab.surrey.ac.uk\n"
+        f"    User git\n    IdentityFile {key}\n",
+        encoding="utf-8",
+    )
+
+
 def _config(**overrides: str) -> BootstrapConfig:
     base = {
         "full_name": "Ada Lovelace",
@@ -373,6 +388,143 @@ def test_the_two_browser_stages_guide_and_leave_verifying_to_the_check(
         assert plan.is_manual, stage_id
 
 
+def test_no_ssh_config_at_all_is_missing(tmp_path: Path) -> None:
+    """prodockit-extensions#239: with no stanza, ssh offers its own
+    defaults (`id_rsa`, `id_ed25519`), never tries `id_ed25519_gitlab`,
+    and falls back to asking for a password - which reads exactly like a
+    key the host has rejected, sending the reader to re-upload a key
+    that was never the problem."""
+    stage = next(s for s in STAGES if s.id == "ssh-config")
+    result = stage.check(_context(tmp_path))
+
+    assert result.status is Status.MISSING
+    assert "does not exist" in result.detail
+
+
+def test_a_config_without_this_host_is_missing(tmp_path: Path) -> None:
+    """Somebody else's GitHub stanza does not help Surrey's GitLab."""
+    (tmp_path / ".ssh").mkdir()
+    (tmp_path / ".ssh" / "config").write_text(
+        "Host github.com\n    IdentityFile ~/.ssh/id_ed25519_github\n", encoding="utf-8"
+    )
+    result = next(s for s in STAGES if s.id == "ssh-config").check(_context(tmp_path))
+
+    assert result.status is Status.MISSING
+    assert "no Host entry" in result.detail
+
+
+def test_a_host_entry_pointing_at_the_wrong_key_is_wrong_not_missing(tmp_path: Path) -> None:
+    """Present but unusable is exactly what WRONG is for - and telling
+    somebody to add an entry they already have would send them to write
+    a second one that ssh, which takes the first match, would ignore."""
+    _write_ssh_config(tmp_path, key="~/.ssh/id_rsa")
+    result = next(s for s in STAGES if s.id == "ssh-config").check(_context(tmp_path))
+
+    assert result.status is Status.WRONG
+    assert "does not point at" in result.detail
+
+
+def test_a_hostname_in_a_comment_does_not_count(tmp_path: Path) -> None:
+    """The stanza is parsed, not string-matched. "Is the hostname
+    anywhere in the file?" is satisfied by the comment above somebody
+    else's entry, and would report a config that does nothing as done."""
+    (tmp_path / ".ssh").mkdir()
+    (tmp_path / ".ssh" / "config").write_text(
+        "# gitlab.surrey.ac.uk id_ed25519_gitlab - notes to self\n"
+        "Host github.com\n    IdentityFile ~/.ssh/id_ed25519_github\n",
+        encoding="utf-8",
+    )
+    result = next(s for s in STAGES if s.id == "ssh-config").check(_context(tmp_path))
+
+    assert result.status is Status.MISSING
+
+
+def test_a_stanza_ends_at_the_next_host_line(tmp_path: Path) -> None:
+    """`Host` blocks run until the next `Host`/`Match`, so a key named
+    under a *later* entry must not satisfy this one."""
+    (tmp_path / ".ssh").mkdir()
+    (tmp_path / ".ssh" / "config").write_text(
+        "Host gitlab.surrey.ac.uk\n    User git\n"
+        "Host other.example\n    IdentityFile ~/.ssh/id_ed25519_gitlab\n",
+        encoding="utf-8",
+    )
+    result = next(s for s in STAGES if s.id == "ssh-config").check(_context(tmp_path))
+
+    assert result.status is Status.WRONG, "the key belongs to the next host, not this one"
+
+
+def test_a_matching_stanza_is_ok(tmp_path: Path) -> None:
+    _write_ssh_config(tmp_path)
+    result = next(s for s in STAGES if s.id == "ssh-config").check(_context(tmp_path))
+
+    assert result.status is Status.OK
+    assert "id_ed25519_gitlab" in result.detail
+
+
+def test_the_config_stage_comes_before_the_upload(tmp_path: Path) -> None:
+    """Ordering is the whole point. The upload stage checks itself with
+    `ssh -T`, which cannot work until ssh knows which key to offer - so
+    running the config stage afterwards would leave the reader staring at
+    a rejected key with the fix two stages further down the list."""
+    ids = [s.id for s in STAGES]
+
+    assert ids.index("ssh-config") > ids.index("ssh-key"), "there must be a key to point at"
+    assert ids.index("ssh-config") < ids.index("ssh-upload")
+
+
+def test_the_plan_appends_and_never_rewrites(tmp_path: Path) -> None:
+    """An ssh config is the reader's own file and may hold entries for
+    hosts bootstrap knows nothing about, so the stanza is added to the
+    end rather than the file being written."""
+    plan = next(s for s in STAGES if s.id == "ssh-config").plan(_context(tmp_path))
+    script = " ".join(" ".join(command) for command in plan.commands)
+
+    assert ">>" in script, "appended"
+    assert " > " not in script, "never truncated"
+    assert "Host gitlab.surrey.ac.uk" in script
+    assert "IdentityFile ~/.ssh/id_ed25519_gitlab" in script
+
+
+def test_the_plan_tightens_permissions_on_the_key_and_config(tmp_path: Path) -> None:
+    """ssh ignores a private key others can read - "Permissions 0644 are
+    too open ... this private key will be ignored" - and then falls back
+    to a password, which is the same symptom as having no config at
+    all."""
+    plan = next(s for s in STAGES if s.id == "ssh-config").plan(_context(tmp_path))
+    chmods = [c for c in plan.commands if c[0] == "chmod"]
+
+    assert len(chmods) == 2
+    assert all(c[1] == "600" for c in chmods)
+    assert any(c[2].endswith("config") for c in chmods)
+    assert any(c[2].endswith("id_ed25519_gitlab") for c in chmods)
+
+
+def test_an_existing_wrong_entry_is_explained_rather_than_edited(tmp_path: Path) -> None:
+    """Rewriting somebody's ssh config underneath them is not something
+    an installer should do unasked - and appending would be pointless
+    anyway, since ssh takes the first match."""
+    _write_ssh_config(tmp_path, key="~/.ssh/id_rsa")
+    plan = next(s for s in STAGES if s.id == "ssh-config").plan(_context(tmp_path))
+
+    assert not plan.commands, "an existing entry is for a human to edit"
+    joined = "\n".join(plan.instructions)
+    assert "already has a Host entry" in joined
+    assert "IdentityFile ~/.ssh/id_ed25519_gitlab" in joined, "show what it should say"
+
+
+def test_windows_writes_the_config_without_chmod(tmp_path: Path) -> None:
+    """Windows has no chmod, and restricts a profile file to its owner
+    already - which is what the User Guide says too."""
+    plan = next(s for s in STAGES if s.id == "ssh-config").plan(
+        _context(tmp_path, platform=WINDOWS)
+    )
+    script = " ".join(" ".join(command) for command in plan.commands)
+
+    assert "chmod" not in script
+    assert "powershell" in script
+    assert "Add-Content" in script, "appended, not overwritten"
+
+
 def _write_keypair(tmp_path: Path, public: str = "ssh-ed25519 AAAAC3Nz-PUBLIC al@surrey.ac.uk") -> None:
     """A keypair on disk, with halves that cannot be mistaken for each other."""
     (tmp_path / ".ssh").mkdir(exist_ok=True)
@@ -656,6 +808,7 @@ def test_bootstrap_exits_zero_when_everything_is_set_up(
     (tmp_path / ".ssh").mkdir()
     for suffix in ("", ".pub"):
         (tmp_path / ".ssh" / f"id_ed25519_gitlab{suffix}").write_text("k", encoding="utf-8")
+    _write_ssh_config(tmp_path)
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True)
     (project / "tools").mkdir()
@@ -682,7 +835,9 @@ def test_bootstrap_exits_zero_when_everything_is_set_up(
             "npm": CommandResult(0, "10.9.2\n"),
         }
     )
-    assert "All 11 stages are set up." in result.output
+    # Against the list, not a number typed in: a count in prose drifts
+    # the moment a stage is added, which is how "ten stages" shipped.
+    assert f"All {len(STAGES)} stages are set up." in result.output
     assert result.exit_code == 0
 
 
@@ -945,6 +1100,7 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
     (tmp_path / ".ssh").mkdir(exist_ok=True)
     for suffix in ("", ".pub"):
         (tmp_path / ".ssh" / f"id_ed25519_gitlab{suffix}").write_text("k", encoding="utf-8")
+    _write_ssh_config(tmp_path)
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True, exist_ok=True)
     (project / "tools").mkdir(exist_ok=True)
