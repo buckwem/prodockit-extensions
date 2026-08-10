@@ -127,10 +127,10 @@ of the two PDFs doesn't build the other on every run.
 ## Machine setup
 
 [`prodockit bootstrap`](https://buckwem.github.io/prodockit-extensions/devcons/bootstrap/)
-turns the User Guide's install sequence into ten stages that can each be
-checked and repaired individually - editor, git, SSH, clone, remote,
-pandoc, Node - rather than a long list followed top to bottom and hoped
-over:
+turns the User Guide's install sequence into eleven stages that can each
+be checked and repaired individually - editor, git, SSH, clone, remote,
+commit identity, pandoc, Node - rather than a long list followed top to
+bottom and hoped over:
 
 ```bash
 prodockit bootstrap            # report what is set up; changes nothing

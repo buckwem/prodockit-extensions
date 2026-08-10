@@ -1,17 +1,18 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""The ten stages of a full install, as check/plan pairs.
+"""The eleven stages of a full install, as check/plan pairs.
 
 Every stage answers two questions and performs neither: `check` decides
 whether it is already done, `plan` says what would make it done. Nothing
 here runs an installer - see `prodockit.bootstrap.model` for why that
 split is the whole testing strategy.
 
-Four of the ten are platform-independent (SSH keys, cloning, repointing
-the remote, VS Code extensions), which is over half the work written
-once. That is the argument for a stage abstraction over three separate
-per-platform scripts.
+Five of the eleven are platform-independent (SSH keys, cloning,
+repointing the remote, the project's commit identity, VS Code
+extensions), which is nearly half the work written once. That is the
+argument for a stage abstraction over three separate per-platform
+scripts.
 
 Two are deliberately **not automatable at all**: uploading an SSH public
 key, and creating the project on the host. Both need an authenticated
@@ -453,7 +454,83 @@ def _plan_remote(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 8. Pandoc and WeasyPrint's native stack
+# 8. Commit identity, in the project (platform-independent)
+# ---------------------------------------------------------------------------
+
+
+def _identity_wanted(context: Context) -> dict[str, str]:
+    return {
+        "user.name": context.config.full_name,
+        "user.email": context.config.email,
+    }
+
+
+def _check_project_identity(context: Context) -> CheckResult:
+    """Whether *this repository* commits under the configured identity.
+
+    `--local` is the whole point. `git config user.email` inside a
+    repository falls back to the global value, so a check written that
+    way passes on any machine with any identity at all - which is exactly
+    how bootstrap came to ask for an email, store it, and then never
+    apply it. Every stage reported `ok` while commits went out under a
+    GitHub noreply address the reader had not chosen for this work
+    (prodockit-extensions#222).
+
+    That is not cosmetic. A commit whose author address does not match a
+    known account on the host is not linked to that account, so
+    coursework can show as authored by an unrecognised user - and the
+    reader has no reason to suspect it, because they were told the stage
+    was fine.
+    """
+    if (unknown := _needs_config(context, "full_name", "email")) is not None:
+        return unknown
+    project = context.config.resolved_project_dir(context.home)
+    if not context.exists(project / ".git"):
+        return _missing("no clone to set an identity in yet")
+
+    unset: list[str] = []
+    mismatched: list[str] = []
+    for key, wanted in _identity_wanted(context).items():
+        result = context.runner.run(["git", "-C", str(project), "config", "--local", key])
+        actual = result.stdout.strip() if result.ok else ""
+        if not actual:
+            unset.append(key)
+        elif actual != wanted:
+            mismatched.append(f"{key} is {actual}, expected {wanted}")
+    if mismatched:
+        # Both values named, because "wrong" without saying what it is
+        # leaves the reader to go and find out with a command they would
+        # have to know already.
+        return _wrong("; ".join(mismatched))
+    if unset:
+        return _missing(
+            f"this repository has no {' or '.join(unset)} of its own - "
+            "commits would use your global identity"
+        )
+    identity = _identity_wanted(context)
+    return _ok(f"{identity['user.name']} <{identity['user.email']}> in this repository")
+
+
+def _plan_project_identity(context: Context) -> Plan:
+    """Sets the identity on the clone, never globally.
+
+    A global `user.email` is a legitimate personal preference, and a tool
+    that sets up one university project has no business rewriting the
+    identity someone uses for everything else. Per-repository fixes
+    attribution exactly where it matters and leaves the rest of their
+    work alone.
+    """
+    return Plan(
+        cwd=str(context.config.resolved_project_dir(context.home)),
+        commands=[
+            ["git", "config", "--local", key, value]
+            for key, value in _identity_wanted(context).items()
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# 9. Pandoc and WeasyPrint's native stack
 # ---------------------------------------------------------------------------
 
 
@@ -494,7 +571,7 @@ def _plan_pandoc(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 9. Node and the two toolchains
+# 10. Node and the two toolchains
 # ---------------------------------------------------------------------------
 
 
@@ -536,7 +613,7 @@ def _plan_node(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 10. VS Code extensions (platform-independent)
+# 11. VS Code extensions (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -588,6 +665,12 @@ STAGES: tuple[Stage, ...] = (
     Stage("clone", "Template cloned", _check_clone, _plan_clone),
     Stage("own-project", "Your own project on the host", _check_own_project, _plan_own_project),
     Stage("remote", "Clone pointed at your project", _check_remote, _plan_remote),
+    Stage(
+        "identity",
+        "Commit identity in the project",
+        _check_project_identity,
+        _plan_project_identity,
+    ),
     Stage("pandoc", "Pandoc and WeasyPrint's libraries", _check_pandoc, _plan_pandoc),
     Stage("node", "Node.js and the render toolchains", _check_node, _plan_node),
     Stage("extensions", "VS Code extensions", _check_extensions, _plan_extensions),

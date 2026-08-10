@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **Fixed:** bootstrap asked for an email and then never applied it
+  ([#222](https://github.com/buckwem/prodockit-extensions/issues/222)).
+
+    A new stage 8 sets `user.name` and `user.email` on the clone, and
+    checks them with `git config --local`. The old check read them
+    without `--local`, which falls back to the global value - so it
+    passed on any machine with any identity at all, the plan never ran,
+    and commits went out under whatever address git already had.
+
+    On Surrey's GitLab a commit whose author address matches no known
+    account is not linked to one, so coursework can appear to be authored
+    by an unrecognised user - with nothing to suggest why, since every
+    stage reported `ok`.
+
+    Per-repository rather than global: a global `user.email` is a
+    legitimate personal preference, and a tool that sets up one
+    university project should not rewrite the identity used for
+    everything else. Eleven stages now, not ten.
+
 - The bootstrap page now explains how to meet its own prerequisite
   ([#223](https://github.com/buckwem/prodockit-extensions/issues/223)).
 

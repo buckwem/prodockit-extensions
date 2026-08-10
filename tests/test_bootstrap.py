@@ -39,9 +39,13 @@ from prodockit.bootstrap.stages import VSCODE_EXTENSIONS
 class FakeRunner:
     """A runner that answers from a table instead of running anything.
 
-    Keyed on the first word of the command, or the whole command joined,
-    so a test can be as specific as it needs. Records every command it was
-    asked to run, which is what the plan assertions check.
+    Keyed on the whole command joined, any distinctive fragment of it, or
+    the first word - so a test can be as specific as it needs. The
+    fragment case exists because some commands carry a `tmp_path` no test
+    can spell out in advance (`git -C /tmp/.../project config --local
+    user.email`); the longest matching key wins, so a specific fragment
+    always beats a general one. Records every command it was asked to
+    run, which is what the plan assertions check.
     """
 
     def __init__(self, responses: dict[str, CommandResult] | None = None) -> None:
@@ -53,9 +57,13 @@ class FakeRunner:
         self.calls.append(list(command))
         self.cwds.append(cwd)
         joined = " ".join(command)
-        for key in (joined, command[0]):
-            if key in self.responses:
-                return self.responses[key]
+        if joined in self.responses:
+            return self.responses[joined]
+        fragments = [key for key in self.responses if key in joined]
+        if fragments:
+            return self.responses[max(fragments, key=len)]
+        if command[0] in self.responses:
+            return self.responses[command[0]]
         return CommandResult(returncode=127, stderr="not found")
 
 
@@ -513,12 +521,16 @@ def test_bootstrap_exits_zero_when_everything_is_set_up(
             # The repoint stage checks the config is synced too, not just
             # the remote - see test_repoint_is_not_done_until_the_config_is_synced_too.
             "prodockit sync-repo --check": CommandResult(0),
+            # The clone commits under the configured identity, not
+            # whatever the machine's global git config happens to say.
+            "config --local user.name": CommandResult(0, "Ada Lovelace\n"),
+            "config --local user.email": CommandResult(0, "al01234@surrey.ac.uk\n"),
             "pandoc": CommandResult(0, "pandoc 3.10.1"),
             "node": CommandResult(0, "v22.14.0\n"),
             "npm": CommandResult(0, "10.9.2\n"),
         }
     )
-    assert "All 10 stages are set up." in result.output
+    assert "All 11 stages are set up." in result.output
     assert result.exit_code == 0
 
 
@@ -908,3 +920,99 @@ def test_a_readers_own_ssh_wrapper_is_left_alone(
         [sys.executable, "-c", "import os; print(os.environ['GIT_SSH_COMMAND'])"]
     )
     assert result.stdout.strip() == "ssh -i /keys/mine"
+
+
+# ---------------------------------------------------------------------------
+# The clone commits under the identity the reader gave
+# (prodockit-extensions#222)
+# ---------------------------------------------------------------------------
+
+
+def _clone(tmp_path: Path) -> Path:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    return project
+
+
+def _identity_check(tmp_path: Path, runner: FakeRunner) -> object:
+    return next(s for s in STAGES if s.id == "identity").check(
+        _context(tmp_path, runner=runner)
+    )
+
+
+def test_a_global_identity_does_not_satisfy_the_project_identity(tmp_path: Path) -> None:
+    """Regression: bootstrap asked for an email, stored it, and never
+    applied it.
+
+    `git config user.email` inside a repository falls back to the global
+    value, so a check written that way passes on any machine with any
+    identity at all. Every stage reported `ok` while commits went out
+    under a GitHub noreply address - and on Surrey's GitLab an author
+    address that matches no account is not linked to one, so coursework
+    can show as authored by an unrecognised user.
+
+    `--local` is what makes the question the right question.
+    """
+    _clone(tmp_path)
+    runner = FakeRunner({"config --local": CommandResult(0, "\n")})
+    result = _identity_check(tmp_path, runner)
+    assert result.status is Status.MISSING
+
+    asked = [call for call in runner.calls if "config" in call]
+    assert asked, "the stage never asked git anything"
+    for call in asked:
+        assert "--local" in call, f"a global lookup cannot answer this: {call}"
+
+
+def test_a_different_identity_names_both_values(tmp_path: Path) -> None:
+    """"Wrong" without saying what it is leaves the reader to go and find
+    out with a command they would have to know already."""
+    _clone(tmp_path)
+    runner = FakeRunner(
+        {
+            "config --local user.name": CommandResult(0, "Ada Lovelace\n"),
+            "config --local user.email": CommandResult(
+                0, "53193258+someone@users.noreply.github.com\n"
+            ),
+        }
+    )
+    result = _identity_check(tmp_path, runner)
+    assert result.status is Status.WRONG
+    assert "53193258+someone@users.noreply.github.com" in result.detail
+    assert "al01234@surrey.ac.uk" in result.detail
+
+
+def test_the_matching_identity_is_ok(tmp_path: Path) -> None:
+    _clone(tmp_path)
+    runner = FakeRunner(
+        {
+            "config --local user.name": CommandResult(0, "Ada Lovelace\n"),
+            "config --local user.email": CommandResult(0, "al01234@surrey.ac.uk\n"),
+        }
+    )
+    assert _identity_check(tmp_path, runner).status is Status.OK
+
+
+def test_the_identity_is_set_on_the_clone_never_globally(tmp_path: Path) -> None:
+    """A global `user.email` is a legitimate personal preference, and a
+    tool that sets up one university project has no business rewriting
+    the identity someone uses for everything else."""
+    project = _clone(tmp_path)
+    plan = next(s for s in STAGES if s.id == "identity").plan(
+        _context(tmp_path, runner=FakeRunner())
+    )
+    assert plan.cwd == str(project)
+    assert plan.commands == [
+        ["git", "config", "--local", "user.name", "Ada Lovelace"],
+        ["git", "config", "--local", "user.email", "al01234@surrey.ac.uk"],
+    ]
+    for command in plan.commands:
+        assert "--global" not in command
+
+
+def test_the_identity_stage_waits_for_a_clone(tmp_path: Path) -> None:
+    """It runs *in* the project, so before one exists there is nothing to
+    report but its absence - not a failure."""
+    result = _identity_check(tmp_path, FakeRunner())
+    assert result.status is Status.MISSING
+    assert "no clone" in result.detail

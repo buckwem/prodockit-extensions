@@ -1,7 +1,7 @@
 # Machine bootstrap {: #bootstrap-machine-bootstrap }
 
 \index{`prodockit bootstrap`} turns the User Guide's install sequence into
-ten stages that can be checked individually and repaired one at a time,
+eleven stages that can be checked individually and repaired one at a time,
 rather than followed top to bottom and hoped over.
 
 The install is long, sequential, and easy to get half-right in ways that
@@ -72,7 +72,7 @@ is what to do instead.
     - Tick **Add python.exe to PATH** on the first screen. Without it,
       `python` is not a command and nothing below works.
     - Click **Disable path length limit** on the final screen. Node's
-      render toolchains in stage 9 nest deeply enough to hit the 260
+      render toolchains in stage 10 nest deeply enough to hit the 260
       character limit.
 
     Then, in PowerShell, in the directory you want to keep your projects
@@ -169,12 +169,39 @@ which Python is winning.
 | 5 | Template cloned | yes |
 | 6 | Your own project on the host | **guide and verify** |
 | 7 | Clone pointed at your project | yes |
-| 8 | Pandoc and WeasyPrint's libraries | yes |
-| 9 | Node.js and the render toolchains | yes |
-| 10 | VS Code extensions | yes |
+| 8 | Commit identity in the project | yes |
+| 9 | Pandoc and WeasyPrint's libraries | yes |
+| 10 | Node.js and the render toolchains | yes |
+| 11 | VS Code extensions | yes |
 
-Stages 3, 5, 7 and 10 are platform-independent - over half the work is
-the same on every operating system.
+Stages 3, 5, 7, 8 and 11 are platform-independent - nearly half the work
+is the same on every operating system.
+
+### Your commits, under your own name {: #bootstrap-identity }
+
+Stage 8 sets `user.name` and `user.email` **on the clone**, not globally:
+
+```bash
+git config --local user.name  "Ada Lovelace"
+git config --local user.email "al01234@surrey.ac.uk"
+```
+
+Per-repository is the right scope, and deliberately so. A global
+`user.email` is a legitimate personal preference, and a tool that sets up
+one university project has no business rewriting the identity you use for
+everything else.
+
+It also has to be *checked* per-repository, which is subtler than it
+sounds. `git config user.email` inside a repository falls back to the
+global value, so a check written that way passes on any machine with any
+identity at all - which is how bootstrap once asked for an email, stored
+it, reported every stage `ok`, and never applied it. Commits went out
+under a GitHub noreply address instead.
+
+That is worth more than tidiness here: on Surrey's GitLab, a commit whose
+author address matches no known account is not linked to one, so
+coursework can appear to be authored by an unrecognised user - and you
+would have no reason to suspect it.
 
 ### The two stages that cannot be automated {: #bootstrap-guide-and-verify }
 
