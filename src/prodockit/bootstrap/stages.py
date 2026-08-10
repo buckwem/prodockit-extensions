@@ -380,6 +380,18 @@ def _check_remote(context: Context) -> CheckResult:
     actual = result.stdout.strip()
     if actual != wanted:
         return _wrong(f"origin is {actual}, expected {wanted}")
+
+    # The remote being right is only half of it. `prodockit sync-repo`
+    # also rewrites repo_url/repo_name/edit_uri/site_url and the README
+    # badges, and a stage that checked only the remote reported itself
+    # done after `git remote set-url` had succeeded and sync-repo had
+    # not - leaving a clone that pushed to the right place while still
+    # advertising the template's repository on every page. Asking
+    # sync-repo itself is the honest test, and the one that stays correct
+    # as sync-repo grows.
+    synced = context.runner.run(["prodockit", "sync-repo", "--check"], cwd=str(project))
+    if not synced.ok:
+        return _wrong("origin is right, but the project config still needs syncing")
     return _ok(wanted)
 
 

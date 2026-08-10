@@ -510,6 +510,9 @@ def test_bootstrap_exits_zero_when_everything_is_set_up(
             "git": CommandResult(
                 0, "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git\n"
             ),
+            # The repoint stage checks the config is synced too, not just
+            # the remote - see test_repoint_is_not_done_until_the_config_is_synced_too.
+            "prodockit sync-repo --check": CommandResult(0),
             "pandoc": CommandResult(0, "pandoc 3.10.1"),
             "node": CommandResult(0, "v22.14.0\n"),
             "npm": CommandResult(0, "10.9.2\n"),
@@ -788,3 +791,28 @@ def test_a_git_banner_is_reduced_to_its_one_useful_line() -> None:
     assert _first_meaningful_line(stderr) == (
         "The project you were looking for could not be found."
     )
+
+
+def test_repoint_is_not_done_until_the_config_is_synced_too(tmp_path: Path) -> None:
+    """Reported from real use: `git remote set-url` succeeded, sync-repo
+    did not run, and the stage then reported itself done - leaving a clone
+    that pushed to the right place while every page still advertised the
+    template's repository.
+    """
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    wanted = "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git"
+    runner = FakeRunner(
+        {
+            "git": CommandResult(0, wanted + "\n"),
+            "prodockit sync-repo --check": CommandResult(1, stderr="would update: repo_url"),
+        }
+    )
+    context = _context(tmp_path, runner=runner, project_dir=str(project))
+    result = next(s for s in STAGES if s.id == "remote").check(context)
+    assert result.status is Status.WRONG
+    assert "needs syncing" in result.detail
+
+    # And once sync-repo is happy, so is the stage.
+    runner.responses["prodockit sync-repo --check"] = CommandResult(0)
+    assert next(s for s in STAGES if s.id == "remote").check(context).status is Status.OK
