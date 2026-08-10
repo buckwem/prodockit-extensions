@@ -47,6 +47,18 @@ from dataclasses import dataclass, field
 #: back-of-book index and the Table of Contents. Override with
 #: `packages=` for a project that pins something else too.
 #:
+#: Pandoc is here despite never appearing as a pip specifier - it is a
+#: `PANDOC_VERSION` CI variable, matched by the "env" kind below. It earns
+#: its place all the same: pandoc is not always compatible with itself
+#: across releases, and 3.10 stopped accepting a syntax-highlighted
+#: `<pre><code>` as a code block, so every fenced code block in the PDF
+#: reflowed as justified prose on it while an older pinned pandoc kept
+#: publishing correctly (prodockit-extensions#207). An unpinned pandoc is
+#: exactly the kind of drift this module exists to catch, and was the one
+#: build input three sibling projects were keeping in step by hand, across
+#: workflow files, with a comment saying "keep in sync"
+#: (prodockit-extensions#209).
+#:
 #: Markdown and pymdown-extensions are here despite being *transitive* -
 #: they arrive under Zensical, not as anything a project installs directly.
 #: That is exactly why they need watching: Zensical declares only floors
@@ -60,7 +72,7 @@ from dataclasses import dataclass, field
 #: :mod:`prodockit.pdf.css` and :mod:`prodockit.pdf.lua` both match on the
 #: specific class shapes pymdownx emits, so the renderer is an input to the
 #: PDF's own correctness rather than only to the website's appearance.
-DEFAULT_PACKAGES = ("zensical", "weasyprint", "markdown", "pymdown-extensions")
+DEFAULT_PACKAGES = ("zensical", "weasyprint", "markdown", "pymdown-extensions", "pandoc")
 
 #: Directories never worth scanning - build output, virtualenvs, caches.
 #: A stale copy of a workflow inside one of these would otherwise be
@@ -161,6 +173,29 @@ _IMAGE_RE_TEMPLATE = (
     r"image:\s*[\"']?(?:[\w.-]+(?:/[\w.-]+)*/)?(?P<name>{names})(?P<extras>)(?P<op>:)(?P<version>[\w.-]+)"
 )
 
+#: A `<PACKAGE>_VERSION` CI variable - `PANDOC_VERSION: "3.10.1"` in a
+#: GitHub Actions `env:` block or a GitLab `variables:` block; the shape is
+#: the same in both, so one pattern covers it without caring which host a
+#: file belongs to. Not a pip specifier: nothing installs this from a
+#: package index, and unlike `runs-on:`/`image:` there is no separate
+#: prefix keyword to require - `PANDOC_VERSION` is itself the whole
+#: declaration, so the package name must be immediately followed by
+#: `_VERSION`.
+#:
+#: `op` captures the literal text between the name and the version -
+#: `_VERSION: "` as written, quote style and all - rather than a fixed
+#: template. A CI variable name is conventionally upper-case
+#: (`PANDOC_VERSION`, not `pandoc_version`), and unlike a runner label or
+#: image tag that convention has to be preserved on rewrite or the
+#: workflow stops finding its own variable. Capturing the true text once
+#: and reusing it verbatim (see `apply_version`) is simpler than
+#: reconstructing it and getting the case right twice.
+#:
+#: A closing quote, if there is one, is deliberately left uncaptured and
+#: so untouched by any rewrite - only the version between the quotes ever
+#: changes.
+_ENV_RE_TEMPLATE = r"(?P<name>{names})(?P<op>_VERSION:\s*[\"']?)(?P<extras>)(?P<version>[\w.]+)"
+
 #: PyPI's own JSON metadata endpoint - no dependency needed to read it.
 PYPI_URL = "https://pypi.org/pypi/{package}/json"
 
@@ -188,14 +223,24 @@ class PinSite:
     #: reconstruction of it.
     extras: str = ""
     #: How this declaration is written: a pip specifier (`zensical==0.0.52`),
-    #: a GitHub runner label (`runs-on: ubuntu-24.04`), or a container image
-    #: tag (`image: python:3.13`). Decides whether PyPI can say what the
-    #: newest release is - for the last two, nothing can.
+    #: a GitHub runner label (`runs-on: ubuntu-24.04`), a container image
+    #: tag (`image: python:3.13`), or a `<PACKAGE>_VERSION` CI variable
+    #: (`PANDOC_VERSION: "3.10.1"`). Decides whether PyPI can say what the
+    #: newest release is - for everything but a pip specifier, nothing can.
     kind: str = "pip"
+    #: The declaration's own name, exactly as written - `"PANDOC"` for
+    #: `PANDOC_VERSION: "3.10.1"`. Only set for `kind == "env"`, where a
+    #: rewrite has to reproduce the original case (`package` below is
+    #: always lower-cased, for lookup against the packages a caller asked
+    #: to manage) or it silently breaks whatever workflow step reads that
+    #: variable back. Empty for every other kind, where the declared name
+    #: is already the same string as `package`.
+    name_as_written: str = ""
 
     @property
     def spec(self) -> str:
-        return f"{self.package}{self.extras}{self.op}{self.version}"
+        name = self.name_as_written or self.package
+        return f"{name}{self.extras}{self.op}{self.version}"
 
 
 @dataclass
@@ -307,12 +352,13 @@ def discover(
     """
     states = {package: PackageState(package=package) for package in packages}
     names = "|".join(re.escape(p) for p in packages)
-    # Three shapes, because a build input is not always a pip specifier -
+    # Four shapes, because a build input is not always a pip specifier -
     # see each template for what it matches and why it counts.
     patterns = [
         ("pip", re.compile(_SPEC_RE_TEMPLATE.format(names=names), re.IGNORECASE)),
         ("runner", re.compile(_RUNNER_RE_TEMPLATE.format(names=names), re.IGNORECASE)),
         ("image", re.compile(_IMAGE_RE_TEMPLATE.format(names=names), re.IGNORECASE)),
+        ("env", re.compile(_ENV_RE_TEMPLATE.format(names=names), re.IGNORECASE)),
     ]
 
     for rel_path in _candidate_files(root):
@@ -342,6 +388,7 @@ def discover(
                             version=match.group("version"),
                             extras=match.group("extras") or "",
                             kind=kind,
+                            name_as_written=match.group("name") if kind == "env" else "",
                         )
                     )
     return states
@@ -417,11 +464,19 @@ def apply_version(root: str, state: PackageState, version: str) -> list[PinSite]
             if index >= len(lines):
                 raise PinError(f"{rel_path}:{site.line} no longer exists - re-run discovery")
             old = site.spec
-            new = f"{site.package}{site.extras}{site.op}{version}"
+            # A CI variable name (`PANDOC_VERSION`) keeps the case it was
+            # declared in - `site.package` is always lower-cased, for
+            # lookup against the packages a caller asked to manage, so
+            # using it here would rewrite `PANDOC_VERSION` to
+            # `pandoc_VERSION` and the workflow would stop finding its own
+            # variable. `name_as_written` is empty for every other kind,
+            # where the declared name already matches `site.package`.
+            name = site.name_as_written or site.package
+            new = f"{name}{site.extras}{site.op}{version}"
             # Tolerate whitespace around the operator as written, and carry
             # any extras through untouched.
             spaced = re.compile(
-                rf"(?<![\w.-]){re.escape(site.package)}{re.escape(site.extras)}\s*"
+                rf"(?<![\w.-]){re.escape(name)}{re.escape(site.extras)}\s*"
                 rf"{re.escape(site.op)}\s*{re.escape(site.version)}(?![\w.])",
                 re.IGNORECASE,
             )

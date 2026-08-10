@@ -163,6 +163,9 @@ prodockit pins --check       # behind PyPI, or files disagreeing? exit non-zero
 prodockit pins -p ubuntu     # runner images and container tags too
 ```
 
+Pandoc is managed by default too - not a pip package, so it's matched as a
+`PANDOC_VERSION` CI variable rather than a specifier.
+
 It reads `pyproject.toml`, GitHub Actions workflows, `.gitlab-ci.yml` and
 `requirements`/`constraints` files, so the same command works on either
 host. The docs also carry a weekly drift job for GitHub Actions and

@@ -293,9 +293,9 @@ def init_tools_command(tools_dir: str, mermaid: bool, mathjax: bool, force: bool
     "packages",
     multiple=True,
     help=(
-        "Package to manage, repeatable. Defaults to zensical and "
-        "weasyprint - the two whose version changes this project's own "
-        "published output."
+        "Package to manage, repeatable. Defaults to zensical, weasyprint, "
+        "markdown, pymdown-extensions and pandoc - the build inputs whose "
+        "version changes this project's own published output."
     ),
 )
 @click.option(
@@ -487,7 +487,12 @@ def pins(
                 # Separates the rewrites from whatever came last - the
                 # report, or a prompt left mid-line by an interrupt.
                 click.echo("")
-            new_spec = f"{site.package}{site.extras}{site.op}{version}"
+            # site.package is always lower-cased, for lookup against the
+            # managed set - name_as_written carries a CI variable's real
+            # case (PANDOC_VERSION, not pandoc_VERSION) and must be used
+            # here too, or this progress line shows a rewrite that isn't
+            # the one apply_version() actually performed.
+            new_spec = f"{site.name_as_written or site.package}{site.extras}{site.op}{version}"
             click.echo(f"  {site.path}:{site.line}  {site.spec} -> {new_spec}")
             updated += 1
 

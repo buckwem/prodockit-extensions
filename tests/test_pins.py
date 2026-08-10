@@ -360,6 +360,40 @@ def test_discover_finds_github_runner_labels(tmp_path: Path) -> None:
     assert state.sites[0].spec == "ubuntu-24.04"
 
 
+def test_discover_finds_pandoc_version_ci_variables(tmp_path: Path) -> None:
+    """`PANDOC_VERSION: "3.10.1"` in a GitHub Actions `env:` block or a
+    GitLab `variables:` block - the shape is identical in both, so one
+    pattern covers it without caring which host a file belongs to
+    (prodockit-extensions#209)."""
+    _project(
+        tmp_path,
+        {
+            ".github/workflows/docs.yml": 'env:\n  PANDOC_VERSION: "3.10.1"\n',
+            ".gitlab-ci.yml": "variables:\n  PANDOC_VERSION: \"3.10.1\"\n",
+        },
+    )
+
+    state = discover(str(tmp_path), ["pandoc"])["pandoc"]
+
+    assert [s.version for s in state.sites] == ["3.10.1", "3.10.1"]
+    assert {s.kind for s in state.sites} == {"env"}
+    # The closing quote is deliberately not part of spec/op - see
+    # _ENV_RE_TEMPLATE - so it is absent here too, not a typo.
+    assert state.sites[0].spec == 'PANDOC_VERSION: "3.10.1'
+
+
+def test_pandoc_version_is_matched_without_quotes_too(tmp_path: Path) -> None:
+    """YAML does not require quoting a value like `3.10.1` - it is not a
+    valid number, so it is already a string either way."""
+    _project(tmp_path, {".github/workflows/ci.yml": "env:\n  PANDOC_VERSION: 3.10.1\n"})
+
+    sites = discover(str(tmp_path), ["pandoc"])["pandoc"].sites
+
+    assert len(sites) == 1
+    assert sites[0].version == "3.10.1"
+    assert sites[0].kind == "env"
+
+
 def test_discover_finds_container_image_tags(tmp_path: Path) -> None:
     """GitLab CI pins its job image the same way most projects pin any
     container - `image: python:3.13`."""
@@ -391,6 +425,42 @@ def test_runner_and_image_states_are_not_looked_up_on_pypi(tmp_path: Path) -> No
     assert states["ubuntu"].latest is None
     assert "not a PyPI package" in (states["ubuntu"].latest_error or "")
     assert states["ubuntu"].is_behind is False
+
+
+def test_apply_version_rewrites_pandoc_version_keeping_the_quote_style(tmp_path: Path) -> None:
+    _project(
+        tmp_path,
+        {
+            ".github/workflows/docs.yml": 'env:\n  PANDOC_VERSION: "3.10.1"\n',
+            ".gitlab-ci.yml": "variables:\n  PANDOC_VERSION: '3.10.1'\n",
+        },
+    )
+    pandoc = discover(str(tmp_path), ["pandoc"])["pandoc"]
+
+    apply_version(str(tmp_path), pandoc, "3.11.0")
+
+    gh = (tmp_path / ".github" / "workflows" / "docs.yml").read_text(encoding="utf-8")
+    gl = (tmp_path / ".gitlab-ci.yml").read_text(encoding="utf-8")
+    assert 'PANDOC_VERSION: "3.11.0"' in gh
+    assert "PANDOC_VERSION: '3.11.0'" in gl, "the single-quote style must survive, unlike the version inside it"
+
+
+def test_apply_version_preserves_the_upper_case_variable_name(tmp_path: Path) -> None:
+    """`site.package` is always lower-cased, for lookup against the
+    packages a caller asked to manage - using it to rewrite the file would
+    turn `PANDOC_VERSION` into `pandoc_VERSION`, and the workflow step that
+    reads `${{ env.PANDOC_VERSION }}` would stop finding it. The file has
+    to end up with the name exactly as it was declared, not as prodockit's
+    internal lookup key happens to be spelled."""
+    _project(tmp_path, {".github/workflows/ci.yml": 'env:\n  PANDOC_VERSION: "3.10.1"\n'})
+    pandoc = discover(str(tmp_path), ["pandoc"])["pandoc"]
+
+    apply_version(str(tmp_path), pandoc, "3.11.0")
+
+    text = (tmp_path / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "PANDOC_VERSION" in text, "the declared name must not be lower-cased on rewrite"
+    assert "pandoc_VERSION" not in text
+    assert 'PANDOC_VERSION: "3.11.0"' in text
 
 
 def test_apply_version_rewrites_a_runner_label_keeping_its_separator(tmp_path: Path) -> None:
@@ -522,6 +592,28 @@ def _both_packages(root: Path) -> None:
     )
 
 
+def test_set_progress_line_shows_the_real_variable_name_not_the_lower_cased_key(
+    tmp_path: Path,
+) -> None:
+    """Caught by running --set against real files rather than only unit
+    testing apply_version(): the file itself was rewritten correctly, but
+    this progress line was built separately and used `site.package`
+    (lower-cased, for lookup) instead of `name_as_written` - so a run
+    reported rewriting `PANDOC_VERSION` to `pandoc_VERSION`, a change that
+    never actually happened."""
+    _project(tmp_path, {".github/workflows/ci.yml": 'env:\n  PANDOC_VERSION: "3.10.1"\n'})
+
+    result = CliRunner().invoke(
+        main,
+        ["pins", "--root", str(tmp_path), "--offline", "--set", "pandoc=3.11.0"],
+        input="",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "pandoc_VERSION" not in result.output
+    assert 'PANDOC_VERSION: "3.10.1 -> PANDOC_VERSION: "3.11.0' in result.output
+
+
 def test_set_updates_the_named_package_without_prompting_for_the_others(tmp_path: Path) -> None:
     """`--set` is for unattended use - a drift job, a release script - so
     naming one package must not leave the command waiting on stdin for the
@@ -590,9 +682,12 @@ def test_an_interrupted_prompt_keeps_the_answers_already_given(tmp_path: Path) -
 def test_set_still_rejects_a_package_that_is_not_managed(tmp_path: Path) -> None:
     _both_packages(tmp_path)
 
+    # Not "pandoc" - it joined the default managed set once it could be
+    # matched as a `PANDOC_VERSION` CI variable (prodockit-extensions#209),
+    # which would make this test pass for the wrong reason.
     result = CliRunner().invoke(
         main,
-        ["pins", "--root", str(tmp_path), "--offline", "--set", "pandoc=3.1"],
+        ["pins", "--root", str(tmp_path), "--offline", "--set", "not-a-real-package=3.1"],
         input="",
     )
 

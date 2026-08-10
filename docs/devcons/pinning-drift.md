@@ -93,7 +93,7 @@ pinned - so one answer updates every file correctly.
 | Option | What it does |
 | --- | --- |
 | `-r`, `--root` | Project root to scan. Defaults to the current directory. |
-| `-p`, `--package` | Package to manage, repeatable. Defaults to `zensical`, `weasyprint`, `Markdown` and `pymdown-extensions`. |
+| `-p`, `--package` | Package to manage, repeatable. Defaults to `zensical`, `weasyprint`, `Markdown`, `pymdown-extensions` and `pandoc`. |
 | `--set PACKAGE=VERSION` | Set a version without prompting, repeatable. Implies `--no-input`. |
 | `--latest` | Take PyPI's newest for every package without prompting. Implies `--no-input`. |
 | `--no-input` | Never prompt. Packages given a version are updated; the rest are reported and left untouched. |
@@ -160,7 +160,7 @@ Build output and virtualenvs (`site/`, `public/`, `.venv/`,
 `node_modules/`, …) are skipped, so a stale copy of a workflow inside one
 is not mistaken for a declaration.
 
-Three shapes of declaration are recognised, because a build input is not
+Four shapes of declaration are recognised, because a build input is not
 always a pip package:
 
 | Shape | Example | Where |
@@ -168,6 +168,22 @@ always a pip package:
 | pip specifier | `zensical==0.0.52`, `zensical>=0.0.52` | anywhere |
 | runner label | `runs-on: ubuntu-24.04` | GitHub Actions |
 | image tag | `image: python:3.13` | GitLab CI, or any container |
+| CI variable | `PANDOC_VERSION: "3.10.1"` | a GitHub `env:` block, a GitLab `variables:` block |
+
+!!! info "Why pandoc is managed by default"
+    Pandoc is not a Python package, so it never appears as a pip specifier
+    - it is a build-provided binary, pinned as a `<PACKAGE>_VERSION`
+    variable the way `prodockit pdf`'s own recipe in
+    [Continuous integration](continuous-integration.md#ci-github-actions)
+    does. It earns a place in the default set for the same reason Zensical
+    and WeasyPrint do: pandoc is not always compatible with itself across
+    releases, and one of its changes broke every fenced code block in this
+    project's own PDF while the build kept reporting success - see
+    [Pandoc version drift](continuous-integration.md#ci-pandoc-version).
+
+    The CI variable's name keeps its case on rewrite - `PANDOC_VERSION`,
+    not `pandoc_VERSION` - since a workflow step reading `${{
+    env.PANDOC_VERSION }}` needs the name unchanged, only the value.
 
 !!! note "Only versioned declarations are found"
     A dependency installed with no version at all is not a declaration
