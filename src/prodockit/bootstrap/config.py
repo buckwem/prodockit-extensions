@@ -57,6 +57,13 @@ class BootstrapConfig:
     namespace: str = ""
     project_name: str = ""
     project_dir: str = ""
+    #: A repository to clone *instead of* the template - for a reader who
+    #: has already been given one (a taught module usually issues one per
+    #: student). Blank means "use the template", which is the common case
+    #: and the default. An explicit URL rather than a detected one: the
+    #: reader knows whether they were given a repository, and asking the
+    #: host would put a network call inside plan-building.
+    source_url: str = ""
 
     @property
     def is_complete(self) -> bool:
@@ -70,12 +77,19 @@ class BootstrapConfig:
             for name in ("full_name", "email", "username", "namespace", "project_name")
         )
 
-    def resolved_project_dir(self, home: Path) -> Path:
-        """`project_dir` as an absolute path, expanding a leading `~`."""
-        raw = self.project_dir or f"~/{self.project_name or 'project'}"
+    def resolved_project_dir(self, home: Path, cwd: Path | None = None) -> Path:
+        """`project_dir` as an absolute path.
+
+        A leading `~` expands to `home`. A relative path resolves against
+        `cwd` - the directory the command was run from - rather than being
+        left relative and landing wherever the process happened to start.
+        """
+        base = cwd if cwd is not None else Path.cwd()
+        raw = self.project_dir or self.project_name or "project"
         if raw.startswith("~"):
             return home / raw[1:].lstrip("/\\")
-        return Path(raw)
+        path = Path(raw)
+        return path if path.is_absolute() else base / path
 
 
 def config_path(home: Path | None = None) -> Path:
@@ -157,7 +171,25 @@ PROMPTS: tuple[tuple[str, str], ...] = (
     ("namespace", "The group or namespace your project lives in (e.g. comm058-2026)"),
     ("project_name", "Your project name (e.g. report-az1234)"),
     ("project_dir", "Where to put the project on this machine"),
+    (
+        "source_url",
+        "Existing repository to clone instead of the template "
+        "(leave blank to use the template)",
+    ),
 )
+
+
+def missing_keys(config: BootstrapConfig) -> list[str]:
+    """Which prompted fields have no answer yet, in prompt order.
+
+    `source_url` is deliberately absent: blank is a valid, common answer
+    meaning "use the template", so treating it as missing would ask
+    everyone a question most people should skip.
+    """
+    optional = {"source_url"}
+    return [
+        key for key, _ in PROMPTS if key not in optional and not getattr(config, key, "")
+    ]
 
 
 def default_for(config: BootstrapConfig, key: str) -> str:
@@ -167,9 +199,17 @@ def default_for(config: BootstrapConfig, key: str) -> str:
     guessed from ones already answered, so a first run still has
     something sensible to press Enter on.
     """
+    if key == "project_dir":
+        # Always offered as `./<name>`, even when a value is stored -
+        # unlike every other field, where the stored answer wins.
+        #
+        # Two reasons. The User Guide's flow is "navigate to your GitLab
+        # folder, then clone", so here is nearly always the right answer;
+        # and a stored value that was wrong is the one thing a reader
+        # cannot correct by pressing Enter, which is how the same clone
+        # landed in a home directory twice. Showing `./` makes where it
+        # will go legible at a glance, in a way an absolute path buried
+        # in brackets is not.
+        return f"./{config.project_name}" if config.project_name else "."
     current = getattr(config, key, "")
-    if current:
-        return str(current)
-    if key == "project_dir" and config.project_name:
-        return f"~/{config.project_name}"
-    return ""
+    return str(current) if current else ""

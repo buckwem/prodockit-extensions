@@ -19,7 +19,7 @@ answer for its reader.
 
     ```bash
     pip install prodockit
-    prodockit bootstrap --check
+    prodockit bootstrap
     ```
 
 ## What it covers {: #bootstrap-stages }
@@ -60,9 +60,16 @@ you push.
 
 ## Checking without changing anything {: #bootstrap-check }
 
+Checking is what you get by default - run it with no options at all:
+
 ```bash
-prodockit bootstrap --check
+prodockit bootstrap
 ```
+
+`--check` is accepted too, and does the same thing. The read-only
+behaviour is the default deliberately: the alternative, once applying is
+implemented, is a command that starts installing software because
+somebody typed it to see what it did.
 
 ```text
  1  MISS  Visual Studio Code - the `code` command is not on PATH
@@ -101,10 +108,74 @@ This is worth running before trusting any install tool with your machine,
 and it is also how a stage is reviewed here: the commands are the thing
 under test.
 
+## Setting it up {: #bootstrap-apply }
+
+```bash
+prodockit bootstrap --configure   # answer the questions, then stop
+prodockit bootstrap --apply       # set up what needs it, asking first
+```
+
+`--apply` walks the stages that need work, showing what it will run
+before it runs it, and asks each time. The defaults differ by state, and
+deliberately:
+
+| Stage state | Prompt |
+| --- | --- |
+| `MISS` - not there at all | `Apply? [Y/n]` |
+| `WRONG` - present but not usable | `Apply? [y/N]` |
+
+Reapplying over something that already exists is the case that can
+destroy work, so it is the case you have to ask for rather than get by
+pressing Enter.
+
+**Every stage is re-checked after it is applied.** A command exiting zero
+says the installer ran, not that the thing it installed works - which is
+the distinction behind most of the failures this project has had. If a
+stage runs but still does not check out, bootstrap says so and stops
+rather than continuing on a broken foundation.
+
+A failing command stops the run too. Later commands in a plan generally
+depend on earlier ones, so pressing on turns one clear failure into
+several confusing ones.
+
+## Which repository gets cloned {: #bootstrap-source }
+
+By default, this host's copy of the template - for Surrey that is
+`gitlab.surrey.ac.uk:mb0105/prodockit-template.git`, its own mirror,
+so you never need a GitHub account to start.
+
+If you have already been given a repository - a taught module usually
+issues one per student - put its URL in `source_url` and that is cloned
+instead:
+
+```toml
+source_url = "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git"
+```
+
+The later stages follow on their own: a clone made from `source_url`
+already has the right `origin`, so the repoint stage reports `ok` and
+does nothing.
+
 ## Configuration {: #bootstrap-configuration }
 
-Stored per **user**, not per project - it is needed before a project
-exists:
+You should not need to open this file. When a run finds an answer
+missing it offers to ask for it, and only for the ones actually blank:
+
+```text
+Some details are not set yet: project_name, project_dir.
+Answer them now? [Y/n]:
+```
+
+`prodockit bootstrap --configure` re-asks everything, with each current
+value as the default, so pressing Enter through confirms an unchanged
+setup.
+
+A piped or scripted run never prompts - it reports what is missing and
+carries on, rather than blocking on a question nobody is there to
+answer.
+
+The file itself is stored per **user**, not per project - it is needed
+before a project exists:
 
 | Platform | Path |
 | --- | --- |
@@ -119,6 +190,7 @@ host         = "surrey"
 namespace    = "comm058-2026"
 project_name = "report-al01234"
 project_dir  = "~/GitLab/report-al01234"
+source_url   = ""
 ```
 
 !!! danger "Never put a secret in this file"
@@ -148,11 +220,11 @@ URLs, and the vocabulary (GitLab's *project* in a *group*, GitHub's
 
 ## Status {: #bootstrap-status }
 
-Phase 1 implements `--check` and `--dry-run` only. **Nothing installs
-anything yet** - running either against a real machine is safe, which is
-the point of shipping this half first.
+Checking, `--dry-run`, `--configure` and `--apply` all work. macOS is
+the platform this has been exercised on end to end - a real clone of the
+Surrey template, applied and verified.
 
-Applying stages automatically follows in phases: macOS, then Ubuntu, then
-Windows. Windows is deliberately last: it is the hardest (MSYS2, `PATH`
+Ubuntu and Windows have their commands written and unit-tested, but
+neither has been run on a real machine yet. Windows is deliberately last: it is the hardest (MSYS2, `PATH`
 edits, the Administrator split for `ssh-agent`) and it is the one platform
 this project has [no automated coverage for at all](limitations.md#limitations-platforms).

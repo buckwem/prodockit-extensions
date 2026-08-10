@@ -288,11 +288,21 @@ def test_extensions_reports_which_are_missing(tmp_path: Path) -> None:
     ],
 )
 def test_every_platforms_install_plan_is_generated_from_any_platform(
-    tmp_path: Path, platform: str, expected: str
+    tmp_path: Path, platform: str, expected: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The reason the runner is injected: this asserts on Ubuntu's and
     Windows' commands while running on whatever the suite runs on, with
-    nothing installed and no network."""
+    nothing installed and no network.
+
+    `_vscode_app_installed` is pinned false because it reads the real
+    filesystem rather than going through the runner - so without this the
+    result depends on whether the machine running the tests happens to
+    have VS Code, which is precisely the coupling the injected runner
+    exists to remove. It caught this test out once already.
+    """
+    import prodockit.bootstrap.stages as stages_module
+
+    monkeypatch.setattr(stages_module, "_vscode_app_installed", lambda context: False)
     context = _context(tmp_path, platform=platform)
     plan = next(s for s in STAGES if s.id == "vscode").plan(context)
     flat = " ".join(" ".join(command) for command in plan.commands)
@@ -383,3 +393,337 @@ def test_unknown_stages_get_no_plan(tmp_path: Path) -> None:
         assert reports[stage_id].plan is None, stage_id
     # Stages that need no configuration still plan normally.
     assert reports["vscode"].plan is not None
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Invokes the real command against a fake machine.
+
+    `build_context` is replaced rather than the checks themselves, so the
+    genuine stage code runs - just against a runner that answers from a
+    table instead of the network. A real check would `ssh -T` Surrey's
+    GitLab, which a test suite has no business doing.
+    """
+    from click.testing import CliRunner
+
+    from prodockit.cli import main
+
+    def _invoke(
+        *args: str,
+        responses: dict[str, CommandResult] | None = None,
+        input: str | None = None,
+    ):
+        monkeypatch.setattr(
+            "prodockit.cli.build_bootstrap_context",
+            lambda config: build_context(
+                config,
+                runner=FakeRunner(responses or {}),
+                platform=MACOS,
+                home=tmp_path,
+            ),
+        )
+        return CliRunner().invoke(
+            main, ["bootstrap", "--config", str(tmp_path / "b.toml"), *args], input=input
+        )
+
+    return _invoke
+
+
+def test_bare_bootstrap_defaults_to_checking(cli_bootstrap) -> None:
+    """Running it with no options must report rather than refuse - and,
+    once applying exists, must not start installing software because
+    somebody typed the command to see what it did."""
+    result = cli_bootstrap()
+    assert "Visual Studio Code" in result.output
+    assert "stages need work" in result.output
+    # The old behaviour: a usage error telling you to pass a flag.
+    assert result.exit_code == 1
+    assert "supports --check and --dry-run only" not in result.output
+
+
+def test_bare_bootstrap_prints_no_commands(cli_bootstrap) -> None:
+    """Checking is read-only, so it must not print a plan - that is what
+    --dry-run is for, and showing commands implies something ran them."""
+    result = cli_bootstrap()
+    assert "run:" not in result.output
+    assert "--dry-run" in result.output
+
+
+def test_dry_run_prints_the_commands(cli_bootstrap, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Same host-state coupling as above: pinned to "no VS Code installed"
+    # so the assertion describes a machine rather than this one.
+    import prodockit.bootstrap.stages as stages_module
+
+    monkeypatch.setattr(stages_module, "_vscode_app_installed", lambda context: False)
+    result = cli_bootstrap("--dry-run")
+    assert "run: brew install --cask visual-studio-code" in result.output
+
+
+def test_bootstrap_exits_zero_when_everything_is_set_up(
+    cli_bootstrap, tmp_path: Path
+) -> None:
+    """Usable as a script check, matching `sync-repo --check`."""
+    (tmp_path / ".ssh").mkdir()
+    for suffix in ("", ".pub"):
+        (tmp_path / ".ssh" / f"id_ed25519_gitlab{suffix}").write_text("k", encoding="utf-8")
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "tools").mkdir()
+    save(tmp_path / "b.toml", _config())
+    result = cli_bootstrap(
+        responses={
+            "code": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
+            "git --version": CommandResult(0, "git version 2.43.0"),
+            "git config --global user.name": CommandResult(0, "Ada\n"),
+            "git config --global user.email": CommandResult(0, "a@b.c\n"),
+            "ssh": CommandResult(1, stderr="Welcome to GitLab, @al01234!"),
+            "git": CommandResult(
+                0, "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git\n"
+            ),
+            "pandoc": CommandResult(0, "pandoc 3.10.1"),
+            "node": CommandResult(0, "v22.14.0\n"),
+            "npm": CommandResult(0, "10.9.2\n"),
+        }
+    )
+    assert "All 10 stages are set up." in result.output
+    assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: template source, and applying
+# ---------------------------------------------------------------------------
+
+
+def test_surrey_clones_the_template_from_surrey_not_github(tmp_path: Path) -> None:
+    """Regression: phase 1 hardcoded the GitHub URL. Surrey mirrors the
+    template onto its own GitLab, and a student there has no GitHub
+    account - cloning the original would ask them for credentials they
+    have not got.
+    """
+    context = _context(tmp_path, source_url="")
+    plan = next(s for s in STAGES if s.id == "clone").plan(context)
+    assert plan.commands[0][2] == "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
+
+
+def test_source_url_overrides_the_template(tmp_path: Path) -> None:
+    """A reader given their own repository clones that instead - the
+    template would be a detour through work the host already did."""
+    own = "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git"
+    context = _context(tmp_path, source_url=own)
+    plan = next(s for s in STAGES if s.id == "clone").plan(context)
+    assert plan.commands[0][2] == own
+
+
+def test_building_a_plan_makes_no_network_call(tmp_path: Path) -> None:
+    """`--dry-run` builds every plan, so plan-building has to stay cheap
+    and side-effect-free. An earlier version probed the host to decide
+    which repository to clone, which put a network call inside it."""
+    runner = FakeRunner()
+    context = _context(tmp_path, runner=runner)
+    next(s for s in STAGES if s.id == "clone").plan(context)
+    assert runner.calls == []
+
+
+def test_apply_reruns_the_check_afterwards(tmp_path: Path) -> None:
+    """A command exiting zero says the installer ran, not that the thing
+    works - every failure this project has had exited zero while producing
+    something broken."""
+    from prodockit.bootstrap import apply_stage
+
+    runner = FakeRunner({"brew": CommandResult(0), "code": CommandResult(127)})
+    context = _context(tmp_path, runner=runner)
+    outcome = apply_stage(context, next(s for s in STAGES if s.id == "vscode"))
+    assert outcome.failed is None          # the install command "succeeded"
+    assert not outcome.ok                  # but the check still fails
+    assert outcome.verified is not None
+
+
+def test_apply_stops_at_the_first_failing_command(tmp_path: Path) -> None:
+    """Later commands in a plan depend on earlier ones, so pressing on
+    turns one clear failure into several confusing ones."""
+    from prodockit.bootstrap import apply_stage
+
+    runner = FakeRunner({"git": CommandResult(1, stderr="boom")})
+    context = _context(tmp_path, runner=runner)
+    outcome = apply_stage(context, next(s for s in STAGES if s.id == "remote"))
+    assert outcome.failed is not None
+    assert len(outcome.ran) == 1           # set-url failed; sync-repo never ran
+
+
+def test_the_runner_never_inherits_stdin() -> None:
+    """Regression: `subprocess` inherits stdin by default, so `ssh -T`
+    during a check consumed the answers typed for bootstrap's own prompts
+    and every later prompt aborted on end-of-input. Found by running
+    `--apply` with piped answers.
+    """
+    import inspect
+    import subprocess as sp
+
+    from prodockit.bootstrap.model import SubprocessRunner
+
+    source = inspect.getsource(SubprocessRunner.run)
+    assert "stdin=subprocess.DEVNULL" in source
+    assert sp.DEVNULL is not None
+
+
+def test_missing_keys_ignores_the_optional_override() -> None:
+    """A blank `source_url` means "use the template" - the common answer,
+    so treating it as missing would ask everyone a question most people
+    should skip."""
+    from prodockit.bootstrap import missing_keys
+
+    assert missing_keys(_config(source_url="")) == []
+    assert "project_name" in missing_keys(_config(project_name=""))
+
+
+def test_gaps_are_offered_as_prompts_not_a_file_to_edit(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Telling a first-time reader a value is "not set in your bootstrap
+    config" points them at a file they may not know how to edit - which is
+    the kind of step this command exists to remove.
+
+    Only the blank fields are asked for: filling one gap must not mean
+    walking the whole list again.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    save(tmp_path / "b.toml", _config(project_name="", project_dir=""))
+    result = cli_bootstrap(input="y\nreport-al01234\n~/GitLab/report-al01234\n")
+    assert "Answer them now?" in result.output
+    # Asked for the two blanks, not for the five already answered.
+    assert "Your full name" not in result.output
+    assert "Your project name" in result.output
+    assert load(tmp_path / "b.toml").project_name == "report-al01234"
+
+
+def test_declining_the_offer_carries_on(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    save(tmp_path / "b.toml", _config(project_name=""))
+    result = cli_bootstrap(input="n\n")
+    assert "Carrying on" in result.output
+    assert load(tmp_path / "b.toml").project_name == ""
+
+
+def test_a_piped_run_reports_instead_of_prompting(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A scripted or piped run must report and exit rather than block on a
+    prompt nobody is there to answer."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: False)
+    save(tmp_path / "b.toml", _config(project_name=""))
+    result = cli_bootstrap()
+    assert "Answer them now?" not in result.output
+    assert "--configure" in result.output
+
+
+def test_vscode_installed_without_the_shell_command_is_wrong(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression, reported from real use: the app and the `code` command
+    are separate installs, and on macOS the cask gives you only the first.
+    Treating a missing `code` as a missing VS Code reported "not
+    installed" on a machine that plainly had it, then tried to reinstall,
+    which fails outright:
+
+        Error: It seems there is already an App at
+        '/Applications/Visual Studio Code.app'.
+    """
+    import prodockit.bootstrap.stages as stages_module
+
+    monkeypatch.setattr(stages_module, "_vscode_app_installed", lambda context: True)
+    context = _context(tmp_path)  # FakeRunner: `code` is not on PATH
+    stage = next(s for s in STAGES if s.id == "vscode")
+
+    result = stage.check(context)
+    assert result.status is Status.WRONG
+    assert "not on PATH" in result.detail
+
+    plan = stage.plan(context)
+    # The fix is the Command Palette action, not an install that would fail.
+    assert plan.commands == []
+    assert any("Shell Command" in i for i in plan.instructions)
+
+
+def test_vscode_genuinely_absent_still_installs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import prodockit.bootstrap.stages as stages_module
+
+    monkeypatch.setattr(stages_module, "_vscode_app_installed", lambda context: False)
+    context = _context(tmp_path)
+    stage = next(s for s in STAGES if s.id == "vscode")
+    assert stage.check(context).status is Status.MISSING
+    assert stage.plan(context).commands[0][0] == "brew"
+
+
+def test_a_relative_project_dir_resolves_against_the_current_directory(
+    tmp_path: Path,
+) -> None:
+    """Reported from real use: a bare name landed in the home directory.
+    The User Guide's flow is "navigate to your GitLab folder, then clone",
+    so it belongs where the command was run from."""
+    config = _config(project_dir="report-al01234")
+    here = tmp_path / "GitLab"
+    assert config.resolved_project_dir(tmp_path, cwd=here) == here / "report-al01234"
+
+
+def test_an_absolute_project_dir_is_left_alone(tmp_path: Path) -> None:
+    config = _config(project_dir=str(tmp_path / "elsewhere"))
+    assert config.resolved_project_dir(tmp_path, cwd=tmp_path / "GitLab") == (
+        tmp_path / "elsewhere"
+    )
+
+
+def test_the_project_dir_default_is_offered_as_here(tmp_path: Path) -> None:
+    """Offered as `./<name>` even when a value is stored - the one field
+    where the stored answer does not win.
+
+    A stored path that was wrong is otherwise the one thing a reader
+    cannot correct by pressing Enter, which is how the same clone landed
+    in a home directory twice. It also means a project that has been
+    *moved* self-heals: re-running --configure from its new location
+    offers here, rather than the path it used to be at.
+    """
+    from prodockit.bootstrap import default_for
+
+    assert default_for(_config(project_dir=""), "project_dir") == "./report-al01234"
+    # Even with a stale absolute value stored.
+    stale = _config(project_dir=str(tmp_path / "somewhere" / "else"))
+    assert default_for(stale, "project_dir") == "./report-al01234"
+
+
+def test_every_other_field_still_keeps_its_stored_answer() -> None:
+    """The project_dir exception has to stay an exception - a rerun that
+    silently discarded your name and email would be worse than the
+    problem it solves."""
+    from prodockit.bootstrap import default_for
+
+    config = _config(full_name="Ada Lovelace", namespace="comm058-2026")
+    assert default_for(config, "full_name") == "Ada Lovelace"
+    assert default_for(config, "namespace") == "comm058-2026"
+
+
+def test_extensions_plan_installs_only_what_is_missing(tmp_path: Path) -> None:
+    """Reported from real use: with one extension absent the plan listed
+    an install for all three, which reads as though the check had not
+    been consulted at all."""
+    present = "\n".join(VSCODE_EXTENSIONS[:-1])
+    runner = FakeRunner({"code --list-extensions": CommandResult(0, present)})
+    context = _context(tmp_path, runner=runner)
+    stage = next(s for s in STAGES if s.id == "extensions")
+
+    plan = stage.plan(context)
+    assert len(plan.commands) == 1
+    assert plan.commands[0][-1] == VSCODE_EXTENSIONS[-1]
+
+    # And the check names what is already there, not only what is not.
+    detail = stage.check(context).detail
+    assert "2 of 3 installed" in detail
+    assert VSCODE_EXTENSIONS[-1] in detail

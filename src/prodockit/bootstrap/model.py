@@ -57,6 +57,11 @@ class Host:
     """
 
     key: str
+    #: Where this host's copy of the template is cloned from. Surrey
+    #: mirrors it onto its own GitLab, so a student never needs a GitHub
+    #: account to start - cloning the GitHub original would ask them for
+    #: credentials they have not got.
+    template_remote: str
     #: The suffix the User Guide's own `ssh-keygen -f` line uses, so a
     #: check finds the key a reader was actually told to create. Not
     #: `key`: Surrey's instance and gitlab.com are different *hosts* but
@@ -83,6 +88,7 @@ class Host:
 
 SURREY_GITLAB = Host(
     key="surrey",
+    template_remote="git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git",
     key_suffix="gitlab",
     hostname="gitlab.surrey.ac.uk",
     ssh_success="Welcome to GitLab",
@@ -97,6 +103,7 @@ SURREY_GITLAB = Host(
 #: has tested (prodockit-extensions#217).
 GITLAB_COM = Host(
     key="gitlab",
+    template_remote="git@github.com:buckwem/prodockit-template.git",
     key_suffix="gitlab",
     hostname="gitlab.com",
     ssh_success="Welcome to GitLab",
@@ -107,6 +114,7 @@ GITLAB_COM = Host(
 
 GITHUB_COM = Host(
     key="github",
+    template_remote="git@github.com:buckwem/prodockit-template.git",
     key_suffix="github",
     hostname="github.com",
     ssh_success="successfully authenticated",
@@ -153,6 +161,20 @@ class SubprocessRunner:
     `UnicodeDecodeError` that names nothing useful
     (prodockit-extensions#189). `tests/test_subprocess_encoding.py`
     enforces this across the package.
+
+    `stdin=DEVNULL` is not optional either, and for a subtler reason.
+    `subprocess` inherits the parent's stdin by default, so a command run
+    during a check reads the *user's* keyboard input - `ssh -T` during
+    stage 4 silently consumed the answers typed for bootstrap's own
+    prompts, and every later prompt then aborted on end-of-input. Any
+    command that decides to ask something (ssh confirming a host key, git
+    asking for credentials) would do the same, and would hang instead if
+    nothing was waiting on stdin.
+
+    A stage whose command genuinely needs a terminal - `ssh-keygen`
+    asking for a passphrase - cannot use this runner and will need one
+    that hands over the terminal deliberately. That is a later phase's
+    problem, but the default has to be the safe one.
     """
 
     def run(self, command: Sequence[str]) -> CommandResult:
@@ -162,6 +184,7 @@ class SubprocessRunner:
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
+                stdin=subprocess.DEVNULL,
                 timeout=300,
             )
         except FileNotFoundError:

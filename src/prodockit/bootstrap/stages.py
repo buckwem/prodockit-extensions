@@ -81,7 +81,7 @@ def _needs_config(context: Context, *required: str) -> CheckResult | None:
     """
     blank = [name for name in required if not getattr(context.config, name, "")]
     if blank:
-        return _unknown(f"needs {' and '.join(blank)} - run without --check to set them")
+        return _unknown(f"needs {' and '.join(blank)}")
     return None
 
 
@@ -100,15 +100,65 @@ def _key_path(context: Context) -> Path:
 # ---------------------------------------------------------------------------
 
 
+#: Where each platform's installer puts the application itself. The
+#: application and the `code` shell command are separate things, and on
+#: macOS installing the first does not give you the second.
+_VSCODE_APP_PATHS = {
+    MACOS: ("/Applications/Visual Studio Code.app",),
+    UBUNTU: ("/usr/share/code", "/snap/code"),
+    WINDOWS: (
+        r"C:\Program Files\Microsoft VS Code",
+        r"~\AppData\Local\Programs\Microsoft VS Code",
+    ),
+}
+
+#: How to add the `code` command once the application is installed.
+_VSCODE_SHELL_COMMAND_HELP = (
+    "In VS Code, open the Command Palette (Cmd+Shift+P / Ctrl+Shift+P) and run "
+    "'Shell Command: Install \'code\' command in PATH'."
+)
+
+
+def _vscode_app_installed(context: Context) -> bool:
+    for raw in _VSCODE_APP_PATHS.get(context.platform, ()):
+        path = Path(raw.replace("~", str(context.home), 1)) if raw.startswith("~") else Path(raw)
+        if path.exists():
+            return True
+    return False
+
+
 def _check_vscode(context: Context) -> CheckResult:
+    """Distinguishes the application from the `code` shell command.
+
+    They are separate installs, and on macOS the cask gives you only the
+    first - the second comes from a Command Palette action. Treating a
+    missing `code` as a missing VS Code reported "not installed" on a
+    machine with it plainly installed, and then tried to reinstall the
+    app, which fails outright:
+
+        Error: It seems there is already an App at
+        '/Applications/Visual Studio Code.app'.
+
+    That is precisely what `WRONG` is for - present, but not usable for
+    what the later stages need it for.
+    """
     if _installed(context, "code"):
         return _ok()
-    return _missing("the `code` command is not on PATH")
+    if _vscode_app_installed(context):
+        return _wrong("VS Code is installed, but the `code` command is not on PATH")
+    return _missing("VS Code is not installed")
 
 
 def _plan_vscode(context: Context) -> Plan:
+    # Installed already: the only thing missing is the shell command, and
+    # reinstalling the application would fail rather than supply it.
+    if _vscode_app_installed(context):
+        return Plan(instructions=[_VSCODE_SHELL_COMMAND_HELP])
     if context.platform == MACOS:
-        return Plan(commands=[["brew", "install", "--cask", "visual-studio-code"]])
+        return Plan(
+            commands=[["brew", "install", "--cask", "visual-studio-code"]],
+            instructions=[_VSCODE_SHELL_COMMAND_HELP],
+        )
     if context.platform == UBUNTU:
         return Plan(
             instructions=[
@@ -242,9 +292,6 @@ def _plan_ssh_upload(context: Context) -> Plan:
 # 5. Template cloned (platform-independent)
 # ---------------------------------------------------------------------------
 
-TEMPLATE_REMOTE = "https://github.com/buckwem/prodockit-template.git"
-
-
 def _check_clone(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "project_name")) is not None:
         return unknown
@@ -257,8 +304,26 @@ def _check_clone(context: Context) -> CheckResult:
 
 
 def _plan_clone(context: Context) -> Plan:
+    """Clone the template, or `source_url` when one is configured.
+
+    The template is the default because it is what most readers need.
+    Both paths are real in the User Guide though: a student on a taught
+    module is often *given* a repository instead, and cloning the template
+    over the top of that would be a detour through work the host already
+    did.
+
+    An explicit setting rather than probing the host for an existing
+    repository: the reader knows which case they are in, and asking the
+    host would put a network call inside plan-building - which has to stay
+    cheap and side-effect-free, since `--dry-run` calls it.
+
+    The later stages fall out correctly either way. A clone made from
+    `source_url` already has the right `origin`, so the repoint stage
+    reports `ok` and does nothing.
+    """
     project = context.config.resolved_project_dir(context.home)
-    return Plan(commands=[["git", "clone", TEMPLATE_REMOTE, str(project)]])
+    source = context.config.source_url or context.host.template_remote
+    return Plan(commands=[["git", "clone", source, str(project)]])
 
 
 # ---------------------------------------------------------------------------
@@ -420,21 +485,41 @@ def _plan_node(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
-def _check_extensions(context: Context) -> CheckResult:
+def _absent_extensions(context: Context) -> list[str] | None:
+    """Which wanted extensions are not installed, or None if unaskable."""
     result = context.runner.run(["code", "--list-extensions"])
     if not result.ok:
-        return _missing("could not list extensions - is VS Code installed?")
+        return None
     installed = {line.strip().lower() for line in result.stdout.splitlines() if line.strip()}
-    absent = [e for e in VSCODE_EXTENSIONS if e.lower() not in installed]
+    return [name for name in VSCODE_EXTENSIONS if name.lower() not in installed]
+
+
+def _check_extensions(context: Context) -> CheckResult:
+    absent = _absent_extensions(context)
+    if absent is None:
+        return _missing("could not list extensions - is VS Code installed?")
     if absent:
-        return _wrong(f"missing: {', '.join(absent)}")
-    return _ok(f"{len(VSCODE_EXTENSIONS)} extensions present")
+        # Name what is already there as well as what is not. "missing: x"
+        # alone, next to a plan that reinstalled all three, read as though
+        # nothing was installed.
+        present = len(VSCODE_EXTENSIONS) - len(absent)
+        return _wrong(
+            f"{present} of {len(VSCODE_EXTENSIONS)} installed; missing: {', '.join(absent)}"
+        )
+    return _ok(f"all {len(VSCODE_EXTENSIONS)} installed")
 
 
 def _plan_extensions(context: Context) -> Plan:
-    return Plan(
-        commands=[["code", "--install-extension", name] for name in VSCODE_EXTENSIONS]
-    )
+    """Installs only what is absent.
+
+    Reinstalling extensions that are already present is slow, noisy, and
+    misleading to read in `--dry-run`: three `code --install-extension`
+    lines under "missing: one-extension" says the tool has not understood
+    its own check.
+    """
+    absent = _absent_extensions(context)
+    wanted = VSCODE_EXTENSIONS if absent is None else absent
+    return Plan(commands=[["code", "--install-extension", name] for name in wanted])
 
 
 #: Every stage, in the order they have to happen. Ordering is a real

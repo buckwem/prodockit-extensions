@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- `prodockit bootstrap` - phase 2: configuration and installing the
+  template ([#217](https://github.com/buckwem/prodockit-extensions/issues/217)).
+
+    `--configure` asks each question with the stored answer as its
+    default; `--apply` sets up the stages that need it, asking before
+    each. A stage that is simply absent defaults to yes, one that exists
+    but is wrong defaults to **no** - reapplying over something already
+    there is the case that can destroy work.
+
+    Every stage is re-checked after being applied. A command exiting zero
+    says the installer ran, not that the thing works.
+
+    The template is cloned from the configured host's own copy - Surrey
+    mirrors it onto its own GitLab, so a student there never needs a
+    GitHub account. `source_url` overrides it with an existing repository
+    for a reader who has been given one.
+
 - `prodockit bootstrap` - phase 1: check and plan a full machine install
   ([#217](https://github.com/buckwem/prodockit-extensions/issues/217)).
 
@@ -9,10 +26,12 @@
     in ways that surface much later. This turns it into ten stages that
     can each be checked and repaired individually.
 
-    **Nothing installs anything yet.** Phase 1 ships `--check` (report
-    every stage, change nothing) and `--dry-run` (print the exact
-    commands a real run would use), so it is safe to run anywhere and
-    reviewable before it is trusted with a machine.
+    **Nothing installs anything yet.** Phase 1 reports by default -
+    `prodockit bootstrap` with no options checks every stage and changes
+    nothing - with `--dry-run` to print the exact commands a real run
+    would use. Read-only is the default deliberately: the alternative,
+    once applying exists, is a command that starts installing software
+    because somebody typed it to see what it did.
 
     Two stages are deliberately never automated: uploading an SSH key and
     creating your own project both need an authenticated human in a
