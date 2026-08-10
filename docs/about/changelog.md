@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.23.0 (2026-08-10)
 
 - **Fixed:** bootstrap asked for an email and then never applied it
   ([#222](https://github.com/buckwem/prodockit-extensions/issues/222)).
