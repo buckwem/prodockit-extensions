@@ -549,3 +549,55 @@ def test_work_dir_is_cleaned_up_by_default(tmp_path: Path, fake_weasyprint_on_pa
     build_source_bundle(str(tmp_path / "out.pdf"), root=str(repo), work_dir=str(work_dir))
 
     assert not work_dir.exists()
+
+
+# ---------------------------------------------------------------------------
+# Which repository the source came from: #262
+# ---------------------------------------------------------------------------
+
+
+def test_the_footer_names_the_remote_rather_than_a_local_path(monkeypatch) -> None:
+    """prodockit-extensions#262. A bundle is a thing people hand in, and
+    the reader of one could not tell which repository it came from.
+
+    The remote, not the directory: two checkouts of the same project have
+    different local paths and the same remote, and the path on a marker's
+    machine tells them nothing."""
+    from prodockit.pdf import source_bundle
+
+    monkeypatch.setattr(
+        source_bundle, "get_remote_url", lambda **kw: "git@gitlab.surrey.ac.uk:az1234/report.git"
+    )
+
+    assert source_bundle.source_label(".") == "git@gitlab.surrey.ac.uk:az1234/report"
+
+
+def test_a_directory_with_no_remote_still_says_where_it_came_from(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Better than an empty footer: it says which copy, on which machine."""
+    from prodockit.pdf import source_bundle
+
+    def no_remote(**kwargs: object) -> str:
+        raise RuntimeError("not a git repository")
+
+    monkeypatch.setattr(source_bundle, "get_remote_url", no_remote)
+
+    assert source_bundle.source_label(str(tmp_path)) == str(tmp_path)
+
+
+def test_a_token_in_the_remote_never_reaches_the_footer(monkeypatch) -> None:
+    """A bundle is submitted, printed and emailed. A credential embedded
+    in a remote URL is the one thing here that must not travel with it."""
+    from prodockit.pdf import source_bundle
+
+    monkeypatch.setattr(
+        source_bundle,
+        "get_remote_url",
+        lambda **kw: "https://az1234:glpat-SECRETTOKEN@gitlab.surrey.ac.uk/az1234/report.git",
+    )
+
+    label = source_bundle.source_label(".")
+    assert "glpat-SECRETTOKEN" not in label
+    assert "az1234:" not in label
+    assert label == "https://gitlab.surrey.ac.uk/az1234/report"

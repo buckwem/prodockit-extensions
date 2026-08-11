@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **The source bundle's footer names the repository it came from**
+  ([#262](https://github.com/buckwem/prodockit-extensions/issues/262)).
+  A bundle is a thing people hand in, and the reader of one could not
+  tell which repository the source belonged to. The git remote now sits
+  on the left of the footer, opposite the page number.
+
+    The remote rather than the directory, because two checkouts of the
+    same project have different local paths and the same remote - and a
+    path on somebody else's machine identifies nothing. A directory with
+    no remote falls back to its absolute path, which at least says which
+    copy. Any credentials embedded in the remote URL are stripped: a
+    bundle is submitted, printed and emailed.
+
 - **Documentation:** the "activate it again" instructions now change
   directory first
   ([#264](https://github.com/buckwem/prodockit-extensions/issues/264)). A

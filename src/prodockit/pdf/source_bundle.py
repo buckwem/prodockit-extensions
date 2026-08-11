@@ -32,6 +32,8 @@ import shutil
 import subprocess
 import tempfile
 
+from prodockit.sync_repo import get_remote_url
+
 
 class SourceBundleError(RuntimeError):
     """Raised when the underlying `git` or `weasyprint` invocation fails.
@@ -228,6 +230,11 @@ _CSS_TEMPLATE = """
         font-family: Courier !important;
         font-size: 8pt !important;
     }
+    @bottom-left {
+        content: "__REPO_PATH__" !important;
+        font-family: Courier !important;
+        font-size: 8pt !important;
+    }
     @bottom-right {
         content: "Page " counter(page) " of " counter(pages) !important;
         font-family: Courier !important;
@@ -270,6 +277,32 @@ pre {
     margin: 0 !important;
 }
 """
+
+
+def source_label(root: str) -> str:
+    """Where this bundle's source came from, for the footer.
+
+    The git remote when there is one, because that is what identifies a
+    repository to somebody reading the PDF - two checkouts of the same
+    project have different local paths and the same remote, and the local
+    path of a marker's machine tells a reader nothing.
+
+    Falls back to the absolute directory, which at least says which copy
+    on which machine. `.git` suffix and any embedded credentials are
+    dropped: a bundle is a thing people hand in (prodockit-extensions#262).
+    """
+    try:
+        url = str(get_remote_url(cwd=root)).strip()
+    except Exception:
+        url = ""
+    if not url:
+        return os.path.abspath(root)
+    if "@" in url and url.startswith(("http://", "https://")):
+        # https://token@host/ns/repo.git - a token in a submitted PDF is
+        # the one thing here that must not happen.
+        scheme, _, rest = url.partition("://")
+        url = f"{scheme}://{rest.rpartition('@')[2]}"
+    return url.removesuffix(".git")
 
 
 def build_source_bundle(
@@ -329,8 +362,10 @@ def build_source_bundle(
     os.makedirs(resolved_work_dir, exist_ok=True)
 
     try:
-        css = _CSS_TEMPLATE.replace("__PDF_PAGE_SIZE__", page_size).replace(
-            "__REPORT_NAME__", _css_escape(report_name)
+        css = (
+            _CSS_TEMPLATE.replace("__PDF_PAGE_SIZE__", page_size)
+            .replace("__REPORT_NAME__", _css_escape(report_name))
+            .replace("__REPO_PATH__", _css_escape(source_label(root)))
         )
 
         body_parts: list[str] = []
