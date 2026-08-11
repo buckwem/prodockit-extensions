@@ -578,6 +578,15 @@ class Plan:
     #: declares itself, rather than the default being inferred from a
     #: check's status, where the reason was invisible.
     destructive: bool = False
+    #: The question to ask once the manual steps have been shown.
+    #:
+    #: "Tell me when that is done" was asked after every one of them,
+    #: including the step whose whole content is "this deletes your
+    #: history and cannot be undone" - where there is nothing to have
+    #: done, and the honest question is whether to go ahead at all
+    #: (prodockit-extensions#260). A stage that asks a person to do
+    #: something should ask about the thing it asked for.
+    confirm: str = "Tell me when that is done"
 
     @property
     def is_manual(self) -> bool:
