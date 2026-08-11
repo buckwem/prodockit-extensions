@@ -314,6 +314,7 @@ def _announce_apply(context: Context, outstanding: int) -> None:
         "  Run this from your top-level project directory, with the Python\n"
         "  virtual environment active. Nothing is changed without asking first."
     )
+    click.echo("")
 
 
 def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
@@ -333,9 +334,23 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
 
     _announce_apply(context, len(outstanding))
 
-    total = len(outstanding)
-    for number, report in enumerate(outstanding, start=1):
-        if report.plan is None:  # pragma: no cover - filtered above, for mypy
+    # Every stage, not just the ones needing work. A run that skipped the
+    # rest silently jumped from `[1/17] Git` to `[2/17] SSH keypair` while
+    # actually being at stages 2 and 3 of eighteen - so the numbers agreed
+    # with nothing the reader could check, and the stages already set up
+    # were invisible rather than reassuring
+    # (prodockit-extensions#284).
+    total = len(reports)
+    for number, report in enumerate(reports, start=1):
+        if not report.needs_work:
+            click.echo(f"{number:2}  ok    {report.stage.summary}")
+            continue
+        if report.plan is None:
+            # Waiting on an answer rather than on the machine, so there is
+            # nothing to offer - said rather than skipped, or a stage
+            # simply vanishes from the run.
+            detail = f" - {report.result.detail}" if report.result.detail else ""
+            click.echo(f"{number:2}  ?     {report.stage.summary}{detail}")
             continue
         # Built now, not at the start of the run. `plan_all` computes every
         # plan before anything has been applied, so a plan that depends on

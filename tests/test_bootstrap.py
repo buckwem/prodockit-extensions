@@ -3519,3 +3519,56 @@ def test_the_check_no_longer_tells_the_reader_to_run_it_themselves(tmp_path: Pat
     assert result.status is Status.WRONG
     assert "not a known host on this machine yet" in result.detail
     assert "run `ssh" not in result.detail
+
+
+def test_apply_shows_the_stages_that_are_already_done(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#284: `--apply` skipped satisfied stages in
+    silence, so a reader could not tell whether they had been checked or
+    simply forgotten."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    responses = _ready_machine(tmp_path)
+    responses["code --list-extensions"] = CommandResult(0, "")
+
+    result = cli_bootstrap("--apply", responses=responses, input="n\n" * 40)
+
+    assert "ok    Visual Studio Code" in result.output
+    assert "ok    Template cloned" in result.output
+
+
+def test_apply_numbers_stages_absolutely_not_by_position_in_the_queue(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The second half of #284. Numbering the outstanding stages 1..N
+    meant the numbers agreed with nothing - `[1/17] Git` while actually
+    standing at stage 2 of eighteen, and never matching what `prodockit
+    bootstrap` had just listed."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    responses = _ready_machine(tmp_path)
+    responses["code --list-extensions"] = CommandResult(0, "")
+
+    result = cli_bootstrap("--apply", responses=responses, input="n\n" * 40)
+
+    extensions = next(s for s in STAGES if s.id == "extensions")
+    position = [s.id for s in STAGES].index("extensions") + 1
+    assert f"[{position}/{len(STAGES)}] {extensions.summary}" in result.output
+
+
+def test_a_stage_waiting_on_configuration_is_named_not_skipped(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An UNKNOWN stage has nothing to offer, but skipping it silently
+    makes a stage disappear from the run entirely."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    save(tmp_path / "b.toml", _config(project_name=""))
+    # `--apply` on an incomplete config asks the questions first, which
+    # would consume the input below - the state under test here is the
+    # apply loop meeting a stage that cannot be judged yet.
+    monkeypatch.setattr("prodockit.cli._ask_for_configuration", lambda config, **kw: config)
+    monkeypatch.setattr("prodockit.cli._offer_to_fill_gaps", lambda config, path: config)
+
+    result = cli_bootstrap("--apply", input="n\n" * 40)
+
+    assert "?     Template cloned" in result.output
+    assert "needs project_name" in result.output
