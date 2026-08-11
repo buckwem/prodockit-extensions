@@ -47,6 +47,20 @@
     installed without the command, and that Command Palette action really
     is how it is added.
 
+- **Fixed:** a long install looked like a hang
+  ([#244](https://github.com/buckwem/prodockit-extensions/issues/244)).
+  Applying captured every command's output, so `sudo apt update`, a 100
+  MB download and `apt install` behind it produced minutes of silence
+  after `These need administrator rights.` - and a silent terminal is
+  indistinguishable from a hung one. Installs that were working were
+  interrupted.
+
+    Installers now write to the terminal as they go. The re-check that
+    follows is still captured - it *reads* what a command printed, and
+    there are dozens per run - so both ends of it are announced, since a
+    silent check straight after a visibly finished command reads as a
+    hang of its own.
+
 - **`--apply` shows every stage, numbered by where it actually is**
   ([#284](https://github.com/buckwem/prodockit-extensions/issues/284)).
   Stages already set up were skipped in silence, and the ones remaining
