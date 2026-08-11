@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.26.3 (2026-08-11)
+
 - **Fixed:** Windows stopped after installing git, saying git was not
   installed
   ([#300](https://github.com/buckwem/prodockit-extensions/issues/300)).
