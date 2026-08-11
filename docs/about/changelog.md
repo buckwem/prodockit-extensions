@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Fixed:** a stage's instructions could describe the machine as it was
+  when the run *started*, not as it is when the step is reached
+  ([#281](https://github.com/buckwem/prodockit-extensions/issues/281)).
+
+    `--apply` built every plan up front, before applying anything. The SSH
+    upload step is where it showed: it embeds your public key, and on a
+    fresh machine the keypair stage has not run when the plans are built -
+    so it fell back to "paste the contents of
+    `~/.ssh/id_ed25519_gitlab.pub`" about a key that existed perfectly
+    well by the time the reader got there.
+
+    Each plan is now built when its stage is reached. The commands were
+    never affected - applying a stage already re-derived its plan - so
+    this only ever changed what was shown, which is precisely what made it
+    hard to spot.
+
 ## 0.26.0 (2026-08-11)
 
 - **Fixed:** the website showed raw TeX where an equation should be
