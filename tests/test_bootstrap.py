@@ -1309,7 +1309,16 @@ def test_an_unknown_host_is_reported_not_silently_trusted(tmp_path: Path) -> Non
     )
     assert result.status is Status.WRONG
     assert "not a known host" in result.detail
-    assert "ssh -T git@gitlab.surrey.ac.uk" in result.detail
+    # The point of this test is that the fingerprint is never accepted
+    # silently - not that the reader is told to go and do it elsewhere.
+    # Bootstrap now offers to run `ssh -T` with the terminal handed over,
+    # so ssh asks its own question and the reader still answers it.
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(
+        _context(tmp_path, runner=runner)
+    )
+    assert plan.needs_terminal
+    assert "-o BatchMode=yes" not in " ".join(plan.commands[0])
+    assert "yes" not in " ".join(plan.commands[0]), "nothing answers it on their behalf"
 
 
 def test_every_ssh_command_any_stage_runs_is_non_interactive(tmp_path: Path) -> None:
@@ -3371,3 +3380,78 @@ def test_the_non_interactive_message_names_the_host_too(
     result = cli_bootstrap()
 
     assert "Not configured yet (host," in result.output
+
+def _unknown_host_runner() -> FakeRunner:
+    return FakeRunner(
+        {"BatchMode": CommandResult(255, stderr="The authenticity of host 'x' can't be established.")}
+    )
+
+
+def test_an_unknown_host_is_accepted_here_not_in_another_terminal(tmp_path: Path) -> None:
+    """The fingerprint question is the reader's to answer - that has not
+    changed - but sending them to a second terminal to answer it is a
+    step where people lose their place.
+
+    `needs_terminal` hands over the real terminal, as it does for
+    `ssh-add`'s passphrase, so ssh asks its own question in place."""
+    _write_keypair(tmp_path)
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(
+        _context(tmp_path, runner=_unknown_host_runner())
+    )
+
+    assert plan.needs_terminal, "ssh cannot ask without the terminal"
+    command = " ".join(plan.commands[0])
+    assert "ssh -T" in command
+    assert "fingerprint" in plan.confirm
+
+
+def test_accepting_a_fingerprint_drops_batchmode_but_keeps_the_timeout(tmp_path: Path) -> None:
+    """`BatchMode=yes` is what makes a *check* safe (#225) - and exactly
+    what stops ssh offering its fingerprint question. It is dropped only
+    here, only after the reader has agreed to connect. `ConnectTimeout`
+    stays, so an unreachable host still fails rather than hanging."""
+    _write_keypair(tmp_path)
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(
+        _context(tmp_path, runner=_unknown_host_runner())
+    )
+    command = " ".join(plan.commands[0])
+
+    assert "BatchMode" not in command
+    assert "ConnectTimeout=10" in command
+
+
+def test_the_checking_probe_is_still_unable_to_ask_anything(tmp_path: Path) -> None:
+    """The half that must not change. A check that can block is a broken
+    check whatever it reports (#225)."""
+    from prodockit.bootstrap.stages import _ssh_probe
+
+    context = _context(tmp_path)
+    assert "BatchMode=yes" in " ".join(_ssh_probe(context))
+    assert "BatchMode" not in " ".join(_ssh_probe(context, interactive=True))
+
+
+def test_a_known_host_is_still_guide_and_verify(tmp_path: Path) -> None:
+    """Nothing to accept, so nothing to run - the stage stays instructions
+    only, and its verification stays the stage's own check (#234)."""
+    _write_keypair(tmp_path)
+    runner = FakeRunner({"BatchMode": CommandResult(255, stderr="Permission denied (publickey).")})
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert not plan.commands
+    assert not plan.needs_terminal
+    assert plan.confirm.startswith("Have you added the key")
+
+
+def test_the_check_no_longer_tells_the_reader_to_run_it_themselves(tmp_path: Path) -> None:
+    """The detail said "run `ssh -T ...` once and accept the fingerprint".
+    Bootstrap does that now, so saying it would be instructing a reader to
+    duplicate a step it is about to offer."""
+    result = next(s for s in STAGES if s.id == "ssh-upload").check(
+        _context(tmp_path, runner=_unknown_host_runner())
+    )
+
+    assert result.status is Status.WRONG
+    assert "not a known host on this machine yet" in result.detail
+    assert "run `ssh" not in result.detail
