@@ -188,6 +188,37 @@ against the User Guide step by step found six things it did not do at
 all, from the PDF fonts' checker language down to the project's own
 virtual environment - see [What "ready" means](#bootstrap-ready).
 
+### A check must be able to see what its plan does {: #bootstrap-invariant }
+
+The most persistent bug in this command has never been a wrong message.
+It is a stage whose **check is narrower than its own plan**: the check
+passes, the plan never runs, and the stage reports a state it is not in.
+`ok` stops you looking, which is the whole cost.
+
+It has happened seven times. Four were found by people running the tool;
+three more were added *after* the pattern was written down, in the same
+week - fonts added to a plan with no font check, Chromium and two shell
+exports added with neither. The suite passed throughout, because it
+asserted each half correctly and in isolation.
+
+So there are now two gates across all stages, rather than an audit of
+each:
+
+1. **Every stage declares what its plan produces.** A stage added without
+   an entry fails. Writing the entry is the point - it forces the
+   question "can a check see this?" at the moment the plan grows.
+2. **No stage whose plan installs something may report `ok` about a
+   machine where nothing is installed.** This is the behavioural half,
+   and it is what catches a declaration that was written without doing
+   the work.
+
+One refinement, learned from the case that nearly failed the rule while
+being correct. Stage 12 installs Pango and **cannot** verify it -
+importing WeasyPrint is the only real test, and WeasyPrint is not
+installed until stage 13. That hand-off is right, so the invariant is
+*some* stage's check must be able to observe what a plan changes, not
+necessarily its own.
+
 ### What "ready" means {: #bootstrap-ready }
 
 The bar is that **opening the project in VS Code is enough to start

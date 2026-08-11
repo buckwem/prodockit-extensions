@@ -790,12 +790,29 @@ def _check_fresh_history(context: Context) -> CheckResult:
         # No remote at all: `git init` has already been here.
         return _ok("a history of its own")
     if origin.stdout.strip() != context.host.template_remote:
+        if not _file_mode_ignored(context):
+            # The plan sets this alongside the reset, so the check has to
+            # be able to see it (#224) - and it is per-repository, so a
+            # fresh clone silently loses it again.
+            return _wrong("a history of its own, but core.fileMode is not off")
         return _ok("a history of its own")
     # WRONG rather than MISSING, for the prompt's default. `--apply`
     # offers MISSING as [Y/n] and WRONG as [y/N], and deleting a
     # repository's history is the last thing that should happen by
     # pressing Enter.
     return _wrong("still the template's history, and pointed at the template")
+
+
+def _file_mode_ignored(context: Context) -> bool:
+    """Whether git has been told to ignore the executable bit.
+
+    Cloud-sync clients rewrite those bits as they sync, and git reads a
+    changed bit as a changed file - so a project in a synced folder shows
+    every file as modified without a byte of content having changed.
+    """
+    project = context.config.resolved_project_dir(context.home)
+    result = context.runner.run(["git", "-C", str(project), "config", "core.fileMode"])
+    return result.ok and result.stdout.strip().lower() == "false"
 
 
 def _plan_fresh_history(context: Context) -> Plan:
@@ -1038,7 +1055,46 @@ def _check_pandoc(context: Context) -> CheckResult:
             f"pandoc {version} is too old - {PANDOC_MIN_MAJOR}.x or later is "
             f"needed (the builds pin {PANDOC_VERSION})"
         )
+    missing_fonts = _absent_pdf_fonts(context)
+    if missing_fonts:
+        # The plan installs these, so the check has to be able to see
+        # them (#224). WeasyPrint substitutes silently when they are
+        # absent, so nothing else will notice until a test does.
+        return _wrong(f"pandoc {version}, but the PDF fonts are missing: {missing_fonts}")
     return _ok(f"pandoc {version}")
+
+
+def _absent_pdf_fonts(context: Context) -> str:
+    """Which of the PDF's fonts are not installed, as a readable list.
+
+    Empty when they are all present *or* when the machine cannot be
+    asked. "I could not tell" must not read as "they are missing": a
+    false alarm here sends the reader to reinstall fonts they already
+    have, which is worse than the silence this replaces.
+    """
+    wanted = ("Inter", "JetBrains Mono")
+    if context.platform == WINDOWS:
+        # No package manager for these, so the plan asks the reader to
+        # install them by hand and there is nothing reliable to probe.
+        return ""
+    listed = context.runner.run(["fc-list", ":", "family"])
+    if not listed.ok:
+        # fontconfig is not there to ask. On macOS it often is not.
+        # Under `home` only. `/Library/Fonts` would answer for the
+        # machine running the tests rather than the machine being
+        # described - the same trap `Context.exists` was added for - and
+        # a cask installs into the user's own directory anyway.
+        fonts = context.home / "Library" / "Fonts"
+        if not fonts.is_dir():
+            return ""
+        installed = [path.name for path in fonts.iterdir()]
+        if not installed:
+            return ""
+        blob = " ".join(installed).replace("-", " ").replace("_", " ")
+    else:
+        blob = listed.stdout
+    absent = [name for name in wanted if name.replace(" ", "") not in blob.replace(" ", "")]
+    return ", ".join(absent)
 
 
 def _plan_pandoc(context: Context) -> Plan:
@@ -1216,7 +1272,46 @@ def _check_node(context: Context) -> CheckResult:
         # The signature of Ubuntu's own nodejs package, or a NodeSource
         # install whose `curl` line failed - node without npm.
         return _wrong("node is installed but npm is not")
+
+    # Everything above is about node itself; the rest of this stage's plan
+    # installs the two toolchains and, on Ubuntu, the browser Mermaid
+    # renders through. A check that stopped at `node --version` reported
+    # `ok` on a machine that had node and nothing else - so a reader who
+    # had installed Node themselves was told this stage was done, got no
+    # toolchains, and found out at the first diagram (#224).
+    if (unknown := _needs_config(context, "project_name")) is not None:
+        return unknown
+    project = context.config.resolved_project_dir(context.home)
+    if project.exists():
+        absent = [
+            name
+            for name in ("mermaid", "mathjax")
+            if not (project / "tools" / name / "node_modules").exists()
+        ]
+        if absent:
+            return _wrong(f"node {raw}, but {' and '.join(absent)} is not installed")
+    if context.platform == UBUNTU and not _chromium_ready(context):
+        return _wrong(
+            f"node {raw}, but Puppeteer has no system Chromium to use - it would "
+            "download one, which on ARM64 is a build that cannot run"
+        )
     return _ok(f"node {raw}")
+
+
+def _chromium_ready(context: Context) -> bool:
+    """Whether Mermaid has a browser it can actually use, on Ubuntu.
+
+    Both halves matter. A Chromium that is installed but never pointed at
+    leaves Puppeteer downloading its own; the exports without a Chromium
+    point at nothing.
+    """
+    found = context.runner.run(["bash", "-c", "which chromium-browser || which chromium"])
+    if not found.ok or not found.stdout.strip():
+        return False
+    exports = context.runner.run(
+        ["bash", "-c", f"grep -q {PUPPETEER_SKIP_VAR} {context.home / '.bashrc'}"]
+    )
+    return exports.ok
 
 
 #: Where Puppeteer is told to find a browser, and told not to fetch one.
