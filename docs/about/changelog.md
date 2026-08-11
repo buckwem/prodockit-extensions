@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **The email prompt names the host rather than a university**
+  ([#265](https://github.com/buckwem/prodockit-extensions/issues/265)).
+  "Your university email address" is wrong for anybody outside a
+  university, and wrong inside one for a reader whose GitLab login is not
+  their university address. It now reads
+  `The email address used for your gitlab.surrey.ac.uk login`, taking the
+  host from the answer given a moment earlier - which is what asking the
+  host first is for.
+
 - **`--apply` no longer prints a Python script at the reader**
   ([#261](https://github.com/buckwem/prodockit-extensions/issues/261)).
   Stage 16 carried an entire script as one argument, so the prompt filled

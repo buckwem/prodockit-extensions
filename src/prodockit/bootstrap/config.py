@@ -174,7 +174,13 @@ PROMPTS: tuple[tuple[str, str], ...] = (
     # about a setup that cannot be built (prodockit-extensions#255).
     ("host", "The git host your project lives on"),
     ("full_name", "Your full name, as it should appear on commits"),
-    ("email", "Your university email address"),
+    # Named for the account it belongs to rather than the institution it
+    # might come from. "Your university email address" is wrong for
+    # anybody outside a university, and wrong even inside one for a
+    # reader whose GitLab login is not their university address
+    # (prodockit-extensions#265). The host is asked first, so it can be
+    # named here.
+    ("email", "The email address used for your {host} login"),
     ("username", "Your GitLab username"),
     ("namespace", "The group or namespace your project lives in (e.g. comm058-2026)"),
     ("project_name", "Your project name (e.g. report-az1234)"),
@@ -198,6 +204,17 @@ def missing_keys(config: BootstrapConfig) -> list[str]:
     return [
         key for key, _ in PROMPTS if key not in optional and not getattr(config, key, "")
     ]
+
+
+def question_for(config: BootstrapConfig, key: str, question: str) -> str:
+    """A prompt's wording, with earlier answers folded in.
+
+    `{host}` is the only placeholder, and the email question is the only
+    user of it - but it reads from the config rather than from a constant
+    so it says whatever the reader actually answered a moment ago, not
+    what the default happened to be (prodockit-extensions#265).
+    """
+    return question.replace("{host}", config.host or "your git host")
 
 
 def default_for(config: BootstrapConfig, key: str) -> str:

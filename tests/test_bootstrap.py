@@ -3146,3 +3146,38 @@ def test_dry_run_still_prints_the_exact_commands(
     result = cli_bootstrap("--dry-run", responses={"code --version": CommandResult(127)})
 
     assert "import json, sys, pathlib" in result.output
+
+
+def test_the_email_prompt_names_the_host_not_a_university() -> None:
+    """prodockit-extensions#265: "Your university email address" is wrong
+    for anybody outside a university, and wrong inside one for a reader
+    whose GitLab login is not their university address."""
+    from prodockit.bootstrap import question_for
+
+    email_question = dict(PROMPTS)["email"]
+    assert "university" not in email_question
+
+    asked = question_for(_config(host="gitlab.surrey.ac.uk"), "email", email_question)
+    assert asked == "The email address used for your gitlab.surrey.ac.uk login"
+
+
+def test_the_email_prompt_follows_the_host_just_answered() -> None:
+    """It reads the answer rather than a constant, so it says whatever
+    was typed a moment ago - which is the point of asking the host
+    first."""
+    from prodockit.bootstrap import question_for
+
+    email_question = dict(PROMPTS)["email"]
+    assert "gitlab.example.edu" in question_for(
+        _config(host="gitlab.example.edu"), "email", email_question
+    )
+    # And says something sensible if the host is somehow blank.
+    assert "your git host" in question_for(_config(host=""), "email", email_question)
+
+
+def test_the_host_is_asked_before_the_prompt_that_needs_it() -> None:
+    """The email question interpolates the host, so a run that asked it
+    later would show a placeholder or a stale answer."""
+    keys = [key for key, _ in PROMPTS]
+
+    assert keys.index("host") < keys.index("email")
