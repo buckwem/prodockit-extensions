@@ -29,6 +29,7 @@ worked*, which is the half a written instruction can never do
 from __future__ import annotations
 
 import json
+import socket
 import sys
 from pathlib import Path
 
@@ -673,6 +674,16 @@ def _public_key_text(context: Context) -> str | None:
     return text or None
 
 
+def _machine_name() -> str:
+    """This computer's name, for use as an SSH key title.
+
+    A key title answers "which machine is this?", and the address the
+    key was made with does not - every key a reader creates carries the
+    same one.
+    """
+    return socket.gethostname().split(".")[0] or "this machine"
+
+
 def _plan_ssh_upload(context: Context) -> Plan:
     """The upload steps, in the User Guide's own words (#238).
 
@@ -723,12 +734,20 @@ def _plan_ssh_upload(context: Context) -> Plan:
             "one without it."
         )
 
+    # Key first, Title second, because that is the order the form
+    # actually works in. GitLab fills the Title in from the key's own
+    # comment the moment a key is pasted - so a title typed first is
+    # silently replaced, and the reader is left with a list of keys all
+    # called by their email address (prodockit-extensions#257).
+    machine = _machine_name()
     form = "\n".join(
         [
-            f"Click '{host.ssh_key_new_label}', then fill in:",
-            "Title: any clear name, so you can tell this machine's key from "
-            "another's later.",
+            f"Click '{host.ssh_key_new_label}', then fill in, in this order:",
             key_field,
+            "Title: filled in for you when you paste the key, from the address "
+            f"the key was made with. Replace it with {machine!r} - the name of "
+            "this machine - so you can tell which computer a key belongs to "
+            "when there are several.",
             *host.ssh_key_form_extra,
         ]
     )
