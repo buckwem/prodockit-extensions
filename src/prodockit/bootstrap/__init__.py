@@ -54,6 +54,7 @@ from prodockit.bootstrap.model import (
     Status,
     SubprocessRunner,
     authenticate_sudo,
+    host_problem,
     needs_sudo,
 )
 from prodockit.bootstrap.stages import STAGES
@@ -85,6 +86,7 @@ __all__ = [
     "config_path",
     "current_platform",
     "default_for",
+    "host_problem",
     "load",
     "missing_keys",
     "needs_sudo",
@@ -130,15 +132,11 @@ def build_context(
     Every dependency is overridable so a test can describe a machine it
     isn't running on.
     """
-    host = HOSTS.get(config.host)
-    if host is None:
-        known = ", ".join(sorted(HOSTS))
-        raise UnsupportedHostError(f"unknown host {config.host!r} (known: {known})")
-    if not host.supported:
-        raise UnsupportedHostError(
-            f"host {host.key!r} ({host.hostname}) is declared but not yet supported - "
-            "prodockit bootstrap currently implements Surrey's GitLab only"
-        )
+    # The same question the configure prompt asks, from the same place -
+    # so a host the prompt accepted cannot be one the run refuses (#255).
+    if (problem := host_problem(config.host)) is not None:
+        raise UnsupportedHostError(problem)
+    host = HOSTS[config.host]
     return Context(
         config=config,
         host=host,

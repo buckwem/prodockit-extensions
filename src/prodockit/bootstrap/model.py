@@ -175,6 +175,25 @@ GITHUB_COM = Host(
 HOSTS = {host.key: host for host in (SURREY_GITLAB, GITLAB_COM, GITHUB_COM)}
 
 
+def host_problem(key: str) -> str | None:
+    """Why this host cannot be used, or None if it can.
+
+    Separate from `build_context` so the *prompt* can ask the same
+    question the run will ask later. Finding out that a host is
+    unsupported after answering five more questions about it is a poor
+    way to learn (prodockit-extensions#255).
+    """
+    host = HOSTS.get(key)
+    if host is None:
+        return f"unknown host {key!r} (known: {', '.join(sorted(HOSTS))})"
+    if not host.supported:
+        return (
+            f"host {host.key!r} ({host.hostname}) is declared but not yet supported - "
+            "prodockit bootstrap currently implements Surrey's GitLab only"
+        )
+    return None
+
+
 @dataclass(frozen=True)
 class CommandResult:
     """What running one command produced."""

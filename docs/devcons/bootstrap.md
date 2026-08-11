@@ -696,6 +696,28 @@ Answer them now? [Y/n]:
 value as the default, so pressing Enter through confirms an unchanged
 setup.
 
+**The host is the first question**, and deliberately so. Everything else
+is shaped by it: which URLs the browser steps send you to, which key file
+is looked for, whether the thing you are creating is called a project or
+a repository. Answering it sixth would mean five questions about a setup
+that might not be buildable at all.
+
+```text
+Which git host: surrey (gitlab.surrey.ac.uk), gitlab or github [surrey]: github
+  host 'github' (github.com) is declared but not yet supported -
+  prodockit bootstrap currently implements Surrey's GitLab only
+
+Which git host: surrey (gitlab.surrey.ac.uk), gitlab or github [surrey]:
+```
+
+It is refused *here*, rather than accepted and refused by the run five
+questions later - which is the entire value of asking first. The prompt
+and the run both call the same function to decide, so one cannot accept
+what the other rejects.
+
+Press Enter and you get Surrey's GitLab, which is the only host
+implemented today.
+
 A piped or scripted run never prompts - it reports what is missing and
 carries on, rather than blocking on a question nobody is there to
 answer.

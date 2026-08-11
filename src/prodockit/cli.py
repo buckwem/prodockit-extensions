@@ -40,6 +40,7 @@ from prodockit.bootstrap import (
     authenticate_sudo,
     check_all,
     default_for,
+    host_problem,
     missing_keys,
     needs_sudo,
     plan_all,
@@ -124,12 +125,22 @@ def _ask_for_configuration(
     wanted = [(k, q) for k, q in PROMPTS if only is None or k in only]
     click.echo("\nPress Enter to keep the value in brackets.\n")
     for key, question in wanted:
-        # `default_for` fills a blank answer from one already given, so a
-        # first run still has something sensible to press Enter on.
-        answer = click.prompt(question, default=default_for(config, key), show_default=True)
+        while True:
+            # `default_for` fills a blank answer from one already given, so
+            # a first run still has something sensible to press Enter on.
+            answer = click.prompt(
+                question, default=default_for(config, key), show_default=True
+            ).strip()
+            # The host is asked first precisely so an unusable answer is
+            # caught here, rather than after five more questions about a
+            # setup that cannot be built (#255).
+            problem = host_problem(answer) if key == "host" else None
+            if problem is None:
+                break
+            click.echo(f"  {problem}\n", err=True)
         # Fed back in as it is given, so a later question can default off
         # an earlier answer.
-        setattr(config, key, answer.strip())
+        setattr(config, key, answer)
     # Stored absolute, though offered relative: `./report` is the clearest
     # thing to *read* at the prompt, and the worst thing to *keep* - it
     # would mean something different the next time bootstrap ran from

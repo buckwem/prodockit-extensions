@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **The git host is now the first configuration question**
+  ([#255](https://github.com/buckwem/prodockit-extensions/issues/255)).
+  Everything else is shaped by it - which URLs the browser steps send you
+  to, which key file is looked for, whether you are creating a project or
+  a repository - and it was not asked at all, only defaulted.
+
+    An unusable answer is refused at the prompt and asked again, rather
+    than stored and refused by the run five questions later, which is the
+    whole value of asking first. The prompt and `build_context` decide
+    through the same function, so one cannot accept what the other
+    rejects.
+
+    Pressing Enter still gives Surrey's GitLab, the only host implemented
+    today - the groundwork here is for public GitLab and GitHub, not a
+    change of default.
+
 ## 0.25.0 (2026-08-11)
 
 - **Windows is automated end to end** (#217 phase 4). All seventeen

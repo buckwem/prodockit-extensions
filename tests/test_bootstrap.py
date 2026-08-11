@@ -20,6 +20,7 @@ import pytest
 
 from prodockit.bootstrap import (
     HOSTS,
+    PROMPTS,
     STAGES,
     BootstrapConfig,
     BootstrapConfigError,
@@ -29,7 +30,9 @@ from prodockit.bootstrap import (
     build_context,
     check_all,
     config_path,
+    default_for,
     load,
+    missing_keys,
     plan_all,
     save,
 )
@@ -2683,3 +2686,92 @@ def test_every_windows_stage_produces_something_to_do(tmp_path: Path) -> None:
         assert plan.commands or plan.instructions or plan.follow_up, (
             f"{stage.id} has no Windows plan at all"
         )
+
+
+# ---------------------------------------------------------------------------
+# The host is the first question: #255
+# ---------------------------------------------------------------------------
+
+
+def test_the_host_is_the_first_thing_asked() -> None:
+    """#255. Everything else is shaped by it - which URLs the browser
+    steps send you to, which key file is looked for, whether you are
+    creating a project or a repository - so answering it sixth means
+    five questions about a setup that may not be buildable."""
+    assert PROMPTS[0][0] == "host"
+    question = PROMPTS[0][1]
+    assert "surrey" in question and "gitlab" in question and "github" in question
+
+
+def test_the_host_defaults_to_surrey_so_enter_is_the_right_answer() -> None:
+    """Only Surrey's GitLab is supported, so the reader who does not know
+    what is being asked should be able to press Enter and be right."""
+    assert BootstrapConfig().host == "surrey"
+    assert default_for(BootstrapConfig(), "host") == "surrey"
+
+
+def test_a_host_that_cannot_be_used_says_why() -> None:
+    from prodockit.bootstrap import host_problem
+
+    assert host_problem("surrey") is None
+    assert "not yet supported" in (host_problem("github") or "")
+    assert "not yet supported" in (host_problem("gitlab") or "")
+    unknown = host_problem("bitbucket") or ""
+    assert "unknown host" in unknown
+    assert "surrey" in unknown, "name the ones that exist"
+
+
+def test_the_prompt_and_the_run_ask_the_same_question(tmp_path: Path) -> None:
+    """`build_context` refuses through the same helper the prompt uses,
+    so a host the prompt accepted cannot be one the run then rejects."""
+    for key in ("gitlab", "github", "bitbucket"):
+        with pytest.raises(UnsupportedHostError) as exc_info:
+            build_context(_config(host=key))
+        from prodockit.bootstrap import host_problem
+
+        assert str(exc_info.value) == host_problem(key)
+
+
+def test_an_unusable_host_is_re_asked_rather_than_stored(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The point of asking first is finding out immediately. Accepting
+    `github` and failing five questions later would be worse than not
+    asking at all."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    config_file = tmp_path / "b.toml"
+
+    result = cli_bootstrap(
+        "--configure",
+        input="github\nsurrey\nAda\na@b.c\nal01234\ncomm058\nreport-x\n\n\n",
+    )
+
+    assert "not yet supported" in result.output
+    assert load(config_file).host == "surrey", "the refused answer must not be stored"
+
+
+def test_answering_the_host_does_not_disturb_the_other_questions(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A new first prompt shifts every answer by one, which is exactly
+    the kind of change that silently reassigns a name to an email."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+
+    cli_bootstrap(
+        "--configure",
+        input="surrey\nAda Lovelace\nal01234@surrey.ac.uk\nal01234\ncomm058-2026\nreport-x\n\n\n",
+    )
+
+    stored = load(tmp_path / "b.toml")
+    assert stored.host == "surrey"
+    assert stored.full_name == "Ada Lovelace"
+    assert stored.email == "al01234@surrey.ac.uk"
+    assert stored.username == "al01234"
+    assert stored.namespace == "comm058-2026"
+    assert stored.project_name == "report-x"
+
+
+def test_the_host_is_never_reported_missing(tmp_path: Path) -> None:
+    """It always has an answer, so listing it among "not set yet" would
+    ask an existing reader to re-confirm something they never chose."""
+    assert "host" not in missing_keys(BootstrapConfig())
