@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **The SSH key form is filled in the order it actually works in**
+  ([#257](https://github.com/buckwem/prodockit-extensions/issues/257)).
+  GitLab fills the Title in from the key's own comment the moment a key
+  is pasted, so a title typed first was silently replaced - and a reader
+  following the steps in order ended up with a list of keys all named
+  after their email address. Key first, then Title, with the suggestion
+  to replace the address GitLab puts there with this machine's name,
+  which is what a key title is for.
+
 - **The git host is now the first configuration question**
   ([#255](https://github.com/buckwem/prodockit-extensions/issues/255)).
   Everything else is shaped by it - which URLs the browser steps send you

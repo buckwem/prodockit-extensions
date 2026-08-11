@@ -2898,3 +2898,41 @@ def test_the_host_is_never_reported_missing() -> None:
     """It always has an answer, so listing it among "not set yet" would
     ask an existing reader to re-confirm something they never chose."""
     assert "host" not in missing_keys(BootstrapConfig())
+
+
+def test_the_key_is_entered_before_the_title(tmp_path: Path) -> None:
+    """prodockit-extensions#257. GitLab fills the Title in from the key's
+    own comment the moment a key is pasted, so a title typed first is
+    silently replaced - and the reader ends up with a list of keys all
+    named after their email address."""
+    _write_keypair(tmp_path)
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path))
+    form = next(step for step in plan.instructions if "Title:" in step)
+
+    assert form.index("Key:") < form.index("Title:")
+    assert "in this order" in form
+
+
+def test_the_title_is_suggested_as_this_machines_name(tmp_path: Path) -> None:
+    """A key title answers "which machine is this?", and the address the
+    key was made with does not - every key a reader creates carries the
+    same one."""
+    import socket
+
+    _write_keypair(tmp_path)
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path))
+    form = next(step for step in plan.instructions if "Title:" in step)
+
+    assert "filled in for you" in form
+    assert socket.gethostname().split(".")[0] in form
+
+
+def test_the_public_key_is_still_shown_in_the_form(tmp_path: Path) -> None:
+    """The first half of #257, delivered in #238 - kept asserted here so
+    the reordering above cannot quietly drop it."""
+    _write_keypair(tmp_path)
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path))
+    form = next(step for step in plan.instructions if "Title:" in step)
+
+    assert form.count(PUBLIC_KEY_MARKER) == 2
+    assert "ssh-ed25519 AAAAC3Nz-PUBLIC" in form
