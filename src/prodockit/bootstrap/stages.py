@@ -315,6 +315,22 @@ def _check_vscode(context: Context) -> CheckResult:
     return _missing("VS Code is not installed")
 
 
+def _deb_arch(context: Context) -> str:
+    """This machine's architecture, as VS Code's download URL spells it.
+
+    `dpkg` says `amd64` where the URL says `x64`; `arm64` agrees with
+    itself, which is what an Apple-silicon VM reports. Asked of the
+    machine rather than assumed, and asked at plan time so the command
+    shown to the reader names the architecture they are on.
+
+    Falls back to `x64` when dpkg cannot be asked - the commonest
+    architecture, and a better guess than an empty URL.
+    """
+    result = context.runner.run(["dpkg", "--print-architecture"])
+    reported = result.stdout.strip() if result.ok else ""
+    return "x64" if reported in ("amd64", "") else reported
+
+
 def _plan_vscode(context: Context) -> Plan:
     # Installed already: the only thing missing is the shell command, and
     # reinstalling the application would fail rather than supply it.
@@ -343,18 +359,27 @@ def _plan_vscode(context: Context) -> Plan:
         # stale. dpkg names the architecture as `amd64`, where VS Code's
         # URL calls the same thing `x64`; arm64 agrees with itself, which
         # is what a Parallels VM on an Apple-silicon Mac reports.
+        # The architecture is resolved here rather than in the shell, so
+        # the command a reader is asked to approve names *their* machine.
+        # It carried `case "$arch" in amd64) arch=x64 ;; esac`, which
+        # reads as a hardcoded target even though it only maps dpkg's
+        # name onto VS Code's - and asking somebody to approve a command
+        # they must parse to trust is asking too much (#287).
+        url = (
+            "https://update.code.visualstudio.com/latest/"
+            f"linux-deb-{_deb_arch(context)}/stable"
+        )
         return Plan(
             commands=[
                 _apt("install", "-y", "curl"),
-                [
-                    "bash",
-                    "-c",
-                    'arch="$(dpkg --print-architecture)"; '
-                    'case "$arch" in amd64) arch=x64 ;; esac; '
-                    "curl -fsSL -o /tmp/code.deb "
-                    '"https://update.code.visualstudio.com/latest/linux-deb-$arch/stable" '
-                    f"&& {APT_SH} install -y /tmp/code.deb",
-                ],
+                # Two commands rather than one shell line: the download
+                # needs no privileges and the install does, so splitting
+                # them keeps `sudo` at the front of a command where it
+                # can be seen - and where a timestamp expiring mid-run
+                # prompts visibly rather than inside a shell nobody is
+                # watching (#287, #244).
+                ["curl", "-fsSL", "-o", "/tmp/code.deb", url],
+                _apt("install", "-y", "/tmp/code.deb"),
             ]
         )
     return Plan(commands=[_winget("Microsoft.VisualStudioCode")])
