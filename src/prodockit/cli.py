@@ -61,6 +61,7 @@ from prodockit.init_tools import (
     init_tools,
     install_commands,
 )
+from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.pdf.build import PdfBuildError
 from prodockit.pdf.config import (
     build_pdf_from_zensical_config,
@@ -786,6 +787,43 @@ def sync_repo(
         )
         sys.exit(1)
     click.echo(f"Detected {result.label} remote ({result.repo_url}); updated: {changed}")
+
+
+@main.command("init-mathjax")
+@click.option(
+    "--root",
+    default=".",
+    show_default=True,
+    help="Project directory to install into.",
+)
+@click.option(
+    "--no-gitignore",
+    is_flag=True,
+    help="Do not add the installed files to .gitignore.",
+)
+def init_mathjax_command(root: str, no_gitignore: bool) -> None:
+    """Install MathJax for the website, from tools/mathjax's own copy.
+
+    Writes `docs/javascripts/mathjax.js` and copies the browser bundle
+    beside it, out of the `mathjax-full` install `prodockit pdf` already
+    renders through - so a formula cannot typeset one way on screen and
+    another in print, and the site works offline.
+
+    Neither file is committed: both are added to `.gitignore`, because
+    the bundle is third-party code that does not belong in your
+    repository. Anything that builds the site without running
+    `prodockit bootstrap` - a CI job, most obviously - should run this
+    first.
+    """
+    try:
+        result = install_mathjax(root, update_gitignore=not no_gitignore)
+    except MathJaxError as error:
+        click.echo(f"Error: {error}", err=True)
+        sys.exit(1)
+    click.echo(f"Wrote {result.config}")
+    click.echo(f"Copied {result.bundle}")
+    for line in result.ignored:
+        click.echo(f"Ignored {line}")
 
 
 @main.command("init-tools")

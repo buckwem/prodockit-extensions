@@ -3232,54 +3232,24 @@ def test_the_website_needs_both_the_config_and_the_bundle(tmp_path: Path) -> Non
     assert "config" in result.detail and "bundle" in result.detail
 
 
-def test_the_bundle_is_taken_from_the_install_the_pdf_uses(tmp_path: Path) -> None:
-    """The website and the PDF must typeset through the same MathJax, or
-    a formula can render one way on screen and another in print. The
-    bundle is copied out of tools/mathjax's pinned install rather than
-    fetched from a CDN."""
-    project = _mathjax_project(tmp_path)
+def test_the_mathjax_stage_calls_the_one_installer(tmp_path: Path) -> None:
+    """prodockit-extensions#276. The configuration lived here *and* in a
+    template's CI, which never runs bootstrap - two copies of a thing
+    whose whole failure mode is being subtly wrong, since both produce a
+    valid file and the site simply typesets one way locally and another
+    when published.
+
+    The stage calls `prodockit init-mathjax` now, the same arrangement
+    the repoint stage has with `prodockit sync-repo`."""
+    _mathjax_project(tmp_path)
     plan = next(s for s in STAGES if s.id == "mathjax").plan(_context(tmp_path))
-    flat = " ".join(" ".join(c) for c in plan.commands)
 
-    assert str(project / "tools" / "mathjax" / "node_modules") in flat
-    assert "unpkg" not in flat and "cdn" not in flat.lower()
+    assert plan.commands == [["prodockit", "init-mathjax"]]
+    assert plan.cwd is not None and plan.cwd.endswith("report-al01234")
+    # The config itself is no longer here to drift from.
+    from prodockit.bootstrap import stages
 
-
-def test_installing_it_writes_the_config_and_ignores_both(tmp_path: Path) -> None:
-    """The bundle is somebody else's code and does not belong in a
-    student's repository, so it is installed and git-ignored rather than
-    committed - the same standing as tools/*/node_modules, which it is
-    copied from."""
-    import subprocess
-
-    project = _mathjax_project(tmp_path)
-    (project / ".gitignore").write_text("tools/*/node_modules/\n", encoding="utf-8")
-    stage = next(s for s in STAGES if s.id == "mathjax")
-
-    subprocess.run(stage.plan(_context(tmp_path)).commands[0], check=True)
-
-    assert stage.check(_context(tmp_path)).status is Status.OK
-    config = (project / "docs" / "javascripts" / "mathjax.js").read_text(encoding="utf-8")
-    assert "processHtmlClass" in config and "arithmatex" in config
-    # The delimiters arithmatex actually emits, escaped as JavaScript.
-    assert r'inlineMath: [["\\(", "\\)"]]' in config
-    ignored = (project / ".gitignore").read_text(encoding="utf-8").splitlines()
-    assert "docs/javascripts/vendor/" in ignored
-    assert "tools/*/node_modules/" in ignored, "an existing entry must survive"
-
-
-def test_installing_it_twice_does_not_stack_gitignore_entries(tmp_path: Path) -> None:
-    """Bootstrap is rerunnable."""
-    import subprocess
-
-    project = _mathjax_project(tmp_path)
-    command = next(s for s in STAGES if s.id == "mathjax").plan(_context(tmp_path)).commands[0]
-
-    subprocess.run(command, check=True)
-    subprocess.run(command, check=True)
-
-    ignored = (project / ".gitignore").read_text(encoding="utf-8").splitlines()
-    assert ignored.count("docs/javascripts/vendor/") == 1
+    assert not hasattr(stages, "MATHJAX_CONFIG_SOURCE")
 
 
 def test_the_mathjax_stage_runs_after_the_toolchains(tmp_path: Path) -> None:

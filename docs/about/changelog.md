@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Added `prodockit init-mathjax`**, and with it one implementation of
+  something that had two
+  ([#276](https://github.com/buckwem/prodockit-extensions/issues/276)).
+  The MathJax configuration was written by bootstrap's stage 18 *and* by
+  a template's CI, which never runs bootstrap - two copies of a file
+  whose whole failure mode is being subtly wrong, since both produce
+  valid JavaScript and the site simply typesets one way locally and
+  another when published.
+
+    The delimiters are why it mattered: `inlineMath: [["\\(", "\\)"]]`
+    carries four layers of escaping, and a copy that looks right can be
+    wrong.
+
+    Stage 18 now runs the command, the same way the repoint stage runs
+    `prodockit sync-repo`, and anything that builds a site without
+    bootstrap can run it too.
+
 - **The Ubuntu VS Code install names your architecture instead of
   working it out in a shell**
   ([#287](https://github.com/buckwem/prodockit-extensions/issues/287)).
