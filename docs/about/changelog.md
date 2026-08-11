@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.25.0 (2026-08-11)
+
 - **Windows is automated end to end** (#217 phase 4). All seventeen
   stages now produce commands or instructions there. MSYS2 and Pango -
   which WeasyPrint draws text through, and which the User Guide walks the
