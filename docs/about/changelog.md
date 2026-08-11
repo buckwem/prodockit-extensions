@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Fixed:** the website showed raw TeX where an equation should be
+  ([#263](https://github.com/buckwem/prodockit-extensions/issues/263)).
+  MathJax was loaded with no configuration at all, so
+  `pymdownx.arithmatex`'s markup was emitted and never typeset. The
+  configuration has to load *first* - MathJax reads `window.MathJax` once
+  at startup, and one that arrives afterwards is ignored.
+
+    A new **stage 18** writes that configuration and installs the browser
+    bundle by copying it out of `tools/mathjax`'s own pinned install - the
+    very one `prodockit pdf` pre-renders through, so a formula cannot
+    typeset one way on screen and another in print.
+
+    **Installed, not committed.** The bundle is somebody else's code and
+    does not belong in a project's repository, so it is added to
+    `.gitignore` alongside `tools/*/node_modules`, which it comes from.
+    Nothing is fetched from a CDN, so the site typesets offline.
+
 - **The source bundle's footer names the repository it came from**
   ([#262](https://github.com/buckwem/prodockit-extensions/issues/262)).
   A bundle is a thing people hand in, and the reader of one could not

@@ -1,7 +1,7 @@
 # Machine bootstrap {: #bootstrap-machine-bootstrap }
 
 \index{`prodockit bootstrap`} turns the User Guide's install sequence into
-seventeen stages that can be checked individually and repaired one at a time,
+eighteen stages that can be checked individually and repaired one at a time,
 rather than followed top to bottom and hoped over.
 
 The install is long, sequential, and easy to get half-right in ways that
@@ -188,6 +188,7 @@ which Python is winning.
 | 15 | VS Code extensions | yes |
 | 16 | VS Code settings for the project | yes |
 | 17 | Citation style for the first build | yes |
+| 18 | MathJax for the website | yes |
 
 Stages 3, 4, 5, 7, 8, 10, 11, 13, 15, 16 and 17 are platform-independent
 - most of the work is the same on every operating system.
@@ -591,7 +592,7 @@ somebody typed it to see what it did.
  6  ok    SSH key on the host - authenticated to gitlab.surrey.ac.uk
  7  ?     Template cloned - needs project_name
  ...
-5 of 17 stages need work.
+5 of 18 stages need work.
 ```
 
 Four states, and the difference between them matters:
