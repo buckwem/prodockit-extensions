@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Fixed:** a first run reached configuration without ever being asked
+  which git host to use
+  ([#279](https://github.com/buckwem/prodockit-extensions/issues/279)).
+  `prodockit bootstrap` offers to fill in what is missing, and `host` has
+  a default - so it is never *empty*, never reported missing, and was
+  never asked on that route. Only `--configure` asked it, which is not the
+  path a first-time reader takes.
+
+    It is now asked on a first run - when there is no configuration file
+    yet - and still not re-asked of somebody who already answered it, since
+    that is what `--configure` is for. The scripted message lists it too.
+
 ## 0.26.0 (2026-08-11)
 
 - **Fixed:** the website showed raw TeX where an equation should be

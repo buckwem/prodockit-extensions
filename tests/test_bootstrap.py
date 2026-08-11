@@ -3285,3 +3285,57 @@ def test_the_stage_says_what_it_does_rather_than_showing_the_script(tmp_path: Pa
 
     assert plan.describe
     assert "import pathlib" not in plan.describe
+
+
+def test_a_first_run_asks_the_host_even_without_configure(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#279: reaching configuration through the
+    "Some details are not set yet" offer skipped the host entirely.
+
+    `host` has a default, so it is never *empty* and `missing_keys` never
+    reports it - which is right for somebody with a stored answer, and
+    wrong for somebody who has never been asked. This route is precisely
+    the one a first-time reader takes."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+    assert not (tmp_path / "b.toml").exists()
+
+    result = cli_bootstrap(
+        input="y\ngitlab.surrey.ac.uk\nAda\na@b.c\nal01234\ncomm058\nreport-x\n\n\n",
+    )
+
+    assert "The git host your project lives on" in result.output
+    # And first, as #255 requires - the email question names it.
+    assert result.output.index("git host") < result.output.index("full name")
+    assert load(tmp_path / "b.toml").host == "gitlab.surrey.ac.uk"
+
+
+def test_an_existing_config_is_not_re_asked_for_its_host(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other half. Somebody who answered once should not be asked
+    again just because a different field went blank - that is what
+    `--configure` is for."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+    save(tmp_path / "b.toml", _config(project_name=""))
+
+    result = cli_bootstrap(input="y\nreport-x\n\n\n")
+
+    assert "The git host your project lives on" not in result.output
+    # Left exactly as stored - including a legacy key, which still
+    # resolves and must not be silently rewritten.
+    assert load(tmp_path / "b.toml").host == "surrey"
+
+
+def test_the_non_interactive_message_names_the_host_too(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A scripted first run reports what is unanswered rather than
+    prompting, so the host belongs in that list as well."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: False)
+
+    result = cli_bootstrap()
+
+    assert "Not configured yet (host," in result.output
