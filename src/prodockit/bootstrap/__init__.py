@@ -35,6 +35,7 @@ from prodockit.bootstrap.config import (
     default_for,
     load,
     missing_keys,
+    question_for,
     save,
 )
 from prodockit.bootstrap.model import (
@@ -96,6 +97,7 @@ __all__ = [
     "needs_sudo",
     "normalise_host",
     "plan_all",
+    "question_for",
     "resolve_host",
     "save",
 ]

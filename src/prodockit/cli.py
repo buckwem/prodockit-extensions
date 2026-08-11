@@ -47,6 +47,7 @@ from prodockit.bootstrap import (
     missing_keys,
     needs_sudo,
     plan_all,
+    question_for,
 )
 from prodockit.bootstrap import build_context as build_bootstrap_context
 from prodockit.bootstrap import config_path as bootstrap_config_path
@@ -132,7 +133,9 @@ def _ask_for_configuration(
             # `default_for` fills a blank answer from one already given, so
             # a first run still has something sensible to press Enter on.
             answer = click.prompt(
-                question, default=default_for(config, key), show_default=True
+                question_for(config, key, question),
+                default=default_for(config, key),
+                show_default=True,
             ).strip()
             # The host is asked first precisely so an unusable answer is
             # caught here, rather than after five more questions about a
