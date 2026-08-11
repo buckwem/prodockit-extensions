@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+- **Fixed:** installing the VS Code extensions defaulted to *no*
+  ([#242](https://github.com/buckwem/prodockit-extensions/issues/242)).
+  With none of the three installed the prompt read
+  `Run 3 commands? [y/N]`, so pressing Enter declined the install the
+  reader had run bootstrap to get. The prompt's default follows the
+  stage's state, and `WRONG` defaults to no because reapplying over
+  something can destroy work - but nothing installed is `MISSING`, and
+  there is nothing there to destroy. A partly-installed set stays
+  `WRONG`, and still asks.
+
+- **Fixed:** a slow install was killed and reported as failed while it
+  went on to succeed
+  ([#243](https://github.com/buckwem/prodockit-extensions/issues/243)).
+
+    Two causes, and both needed fixing. `sudo` reads its password from
+    `/dev/tty` exactly as `ssh` does, so it asked from inside a captured
+    subprocess - the reader typed a password into a command whose output
+    was being swallowed, and their thinking time counted against the
+    clock. `sudo -v` now runs first, with the terminal attached, purely
+    to refresh the credential; plans needing no privileges are never
+    asked.
+
+    And an install is now allowed 30 minutes where a check gets 5. VS
+    Code's `.deb` is around 100 MB, and a download plus `apt install` on
+    a virtual machine can legitimately run past five minutes - which
+    printed `failed` next to a VS Code that was, by then, installed. A
+    timeout is also reported in the reader's terms now, rather than as
+    the raw command repr with the useful sentence at the end of it.
+
+- **Fixed:** `apt` gave up instead of waiting for the dpkg lock
+  ([#244](https://github.com/buckwem/prodockit-extensions/issues/244)).
+  On a freshly installed Ubuntu the process holding it is usually
+  `unattended-upgrades`, which starts on boot and can hold it for
+  minutes, so a first run met
+  `Unable to acquire the dpkg frontend lock` - which reads as a broken
+  machine rather than "something else is mid-update". Every apt call
+  bootstrap makes now passes `DPkg::Lock::Timeout`, so apt waits, which
+  is what a human would have done.
+
 - **Fixed:** bootstrap never wrote `~/.ssh/config`, so ssh had no way to
   know which key belonged to the host and asked for a password instead
   ([#239](https://github.com/buckwem/prodockit-extensions/issues/239)).

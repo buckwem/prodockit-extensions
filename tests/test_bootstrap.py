@@ -52,8 +52,15 @@ class FakeRunner:
         self.responses = responses or {}
         self.calls: list[list[str]] = []
         self.cwds: list[str | None] = []
+        self.timeouts: list[float | None] = []
 
-    def run(self, command: Sequence[str], cwd: str | None = None) -> CommandResult:
+    def run(
+        self,
+        command: Sequence[str],
+        cwd: str | None = None,
+        timeout: float | None = None,
+    ) -> CommandResult:
+        self.timeouts.append(timeout)
         self.calls.append(list(command))
         self.cwds.append(cwd)
         joined = " ".join(command)
@@ -754,13 +761,14 @@ def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         *args: str,
         responses: dict[str, CommandResult] | None = None,
         input: str | None = None,
+        platform: str = MACOS,
     ):
         monkeypatch.setattr(
             "prodockit.cli.build_bootstrap_context",
             lambda config: build_context(
                 config,
                 runner=FakeRunner(responses or {}),
-                platform=MACOS,
+                platform=platform,
                 home=tmp_path,
             ),
         )
@@ -1478,7 +1486,8 @@ def test_ubuntu_git_plan_runs_apt_update_first(tmp_path: Path) -> None:
     context = _context(tmp_path, platform=UBUNTU)
     plan = next(s for s in STAGES if s.id == "git").plan(context)
     # First command must be the update.
-    assert plan.commands[0] == ["sudo", "apt", "update"]
+    assert plan.commands[0][:2] == ["sudo", "apt"]
+    assert plan.commands[0][-1] == "update"
 
 
 def test_ubuntu_node_installs_curl_first(tmp_path: Path) -> None:
@@ -1603,7 +1612,7 @@ def test_ubuntu_vscode_installs_the_file_it_just_downloaded(tmp_path: Path) -> N
     script = " ".join(download)
 
     assert "-o /tmp/code.deb" in script
-    assert "apt install -y /tmp/code.deb" in script
+    assert "install -y /tmp/code.deb" in script
 
 
 def test_a_warning_is_not_reported_as_the_reason_a_command_failed() -> None:
@@ -1631,3 +1640,189 @@ def test_a_warning_is_still_reported_when_it_is_all_there_is() -> None:
     from prodockit.cli import _first_meaningful_line
 
     assert _first_meaningful_line("WARNING: something odd\n") == "WARNING: something odd"
+
+
+# ---------------------------------------------------------------------------
+# What a real Ubuntu run found: #242, #243, #244
+# ---------------------------------------------------------------------------
+
+
+def test_no_extensions_installed_is_missing_not_wrong(tmp_path: Path) -> None:
+    """prodockit-extensions#242: with none of the three installed, the
+    prompt read `Run 3 commands? [y/N]` - pressing Enter declined the
+    install the reader ran bootstrap to get.
+
+    The default follows the status, and WRONG defaults to no because
+    reapplying over something can destroy work. With nothing installed
+    there is nothing to destroy, so this is MISSING."""
+    runner = FakeRunner({"code --list-extensions": CommandResult(0, "")})
+    result = next(s for s in STAGES if s.id == "extensions").check(_context(tmp_path, runner=runner))
+
+    assert result.status is Status.MISSING
+    assert "0 of 3 installed" in result.detail
+
+
+def test_some_extensions_installed_is_still_wrong(tmp_path: Path) -> None:
+    """A partly-set-up VS Code is present but not right, which is what
+    WRONG means - and asking before touching an existing setup is the
+    behaviour that case was given deliberately."""
+    present = "\n".join(VSCODE_EXTENSIONS[:1])
+    runner = FakeRunner({"code --list-extensions": CommandResult(0, present)})
+    result = next(s for s in STAGES if s.id == "extensions").check(_context(tmp_path, runner=runner))
+
+    assert result.status is Status.WRONG
+    assert "1 of 3 installed" in result.detail
+
+
+def test_the_extensions_prompt_defaults_to_yes_on_a_bare_machine(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The end of #242 as the reader met it: the prompt itself."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    save(tmp_path / "b.toml", _config())
+
+    result = cli_bootstrap(
+        "--apply",
+        responses={"code --list-extensions": CommandResult(0, ""), "code": CommandResult(0)},
+        input="\n" * 40,
+    )
+
+    assert "Run 3 commands? [Y/n]" in result.output
+    assert "Run 3 commands? [y/N]" not in result.output
+
+
+def test_every_apt_command_waits_for_the_dpkg_lock(tmp_path: Path) -> None:
+    """prodockit-extensions#244: apt fails rather than waits when another
+    process holds the dpkg lock, and on a fresh Ubuntu that is usually
+    `unattended-upgrades` running on boot. The reader got
+
+        Error: Unable to acquire the dpkg frontend lock
+
+    which reads as a broken machine rather than "wait a moment"."""
+    context = _context(tmp_path, platform=UBUNTU)
+    seen = 0
+    for stage in STAGES:
+        for command in stage.plan(context).commands:
+            # The apt *executable*, not the string "apt" anywhere - a
+            # tmp_path carries the test's own name, which contains it.
+            if list(command[:2]) != ["sudo", "apt"]:
+                continue
+            seen += 1
+            assert "DPkg::Lock::Timeout" in " ".join(command), f"{stage.id}: {command}"
+    assert seen >= 4, "the Ubuntu plans should have several apt commands between them"
+
+
+def test_the_lock_wait_covers_apt_inside_a_shell_command(tmp_path: Path) -> None:
+    """Two plans wrap a download and an install in one `bash -c`, so the
+    apt call is inside a string rather than at the front of a list - the
+    easiest place for an option to be forgotten."""
+    context = _context(tmp_path, platform=UBUNTU)
+    for stage_id in ("vscode", "pandoc"):
+        plan = next(s for s in STAGES if s.id == stage_id).plan(context)
+        script = next(c for c in plan.commands if c[0] == "bash")[-1]
+        assert "DPkg::Lock::Timeout" in script, stage_id
+
+
+def test_an_install_gets_longer_than_a_check(tmp_path: Path) -> None:
+    """prodockit-extensions#243: VS Code's .deb is around 100 MB, and the
+    download plus `apt install` behind it ran past the 300 second limit a
+    *check* is held to. The run was killed and reported as failed while
+    the install it started went on to succeed - "failed" printed next to
+    a working VS Code."""
+    from prodockit.bootstrap import INSTALL_TIMEOUT_SECONDS, apply_stage
+    from prodockit.bootstrap.model import CHECK_TIMEOUT_SECONDS
+
+    assert INSTALL_TIMEOUT_SECONDS > CHECK_TIMEOUT_SECONDS
+
+    runner = FakeRunner({"brew": CommandResult(0), "code": CommandResult(0)})
+    context = _context(tmp_path, runner=runner)
+    apply_stage(context, next(s for s in STAGES if s.id == "vscode"))
+
+    ran = [t for t in runner.timeouts if t is not None]
+    assert ran, "an applied command must carry a timeout"
+    assert all(t == INSTALL_TIMEOUT_SECONDS for t in ran)
+
+
+def test_a_timeout_is_reported_in_the_readers_terms() -> None:
+    """The default rendering is the whole command list repr with the one
+    useful fact at the end of it. What the reader needs to know is that
+    it may still be running and a rerun is safe."""
+    import subprocess
+
+    from prodockit.bootstrap.model import SubprocessRunner
+
+    runner = SubprocessRunner()
+    original = subprocess.run
+
+    def _timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=["sudo", "apt", "install"], timeout=1800)
+
+    subprocess.run = _timeout
+    try:
+        result = runner.run(["sudo", "apt", "install", "-y", "git"])
+    finally:
+        subprocess.run = original
+
+    assert not result.ok
+    assert "1800 seconds" in result.stderr
+    assert "again" in result.stderr
+    assert "TimeoutExpired" not in result.stderr
+
+
+def test_sudo_is_recognised_at_the_front_and_inside_a_shell_string() -> None:
+    """The privileged call is at the head of the list in most plans and
+    buried in a `bash -c` script in two of them - both have to count, or
+    the password prompt lands back inside the timed subprocess."""
+    from prodockit.bootstrap import needs_sudo
+
+    assert needs_sudo([["sudo", "apt", "install", "-y", "git"]])
+    assert needs_sudo([["bash", "-c", "curl ... && sudo apt install -y /tmp/code.deb"]])
+    assert not needs_sudo([["brew", "install", "--cask", "visual-studio-code"]])
+    assert not needs_sudo([])
+
+
+def test_sudo_is_asked_for_before_the_commands_run(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Asked here, where there is a terminal, rather than inside a
+    captured subprocess whose clock is running (#243)."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    asked: list[bool] = []
+    monkeypatch.setattr("prodockit.cli.authenticate_sudo", lambda: (asked.append(True), True)[1])
+    monkeypatch.setattr("prodockit.bootstrap.stages._vscode_app_installed", lambda ctx: False)
+    save(tmp_path / "b.toml", _config())
+
+    result = cli_bootstrap(
+        "--apply",
+        responses={"code --version": CommandResult(127)},
+        input="\n" * 40,
+        platform=UBUNTU,
+    )
+
+    assert asked, "the privileged plan must authenticate before running"
+    # After the reader has agreed to run the commands, and before they
+    # run: the whole point is that the password question happens outside
+    # the subprocess being timed.
+    assert result.output.index("Will run:") < result.output.index("administrator rights")
+
+
+def test_a_plan_that_needs_no_sudo_is_not_asked_for_a_password(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """macOS installs VS Code with brew, which needs no privileges -
+    prompting for a password regardless would train the reader to type
+    one whenever bootstrap asks."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    asked: list[bool] = []
+    monkeypatch.setattr("prodockit.cli.authenticate_sudo", lambda: (asked.append(True), True)[1])
+    monkeypatch.setattr("prodockit.bootstrap.stages._vscode_app_installed", lambda ctx: False)
+    save(tmp_path / "b.toml", _config())
+
+    result = cli_bootstrap(
+        "--apply",
+        responses={"code --version": CommandResult(127), "brew": CommandResult(0)},
+        input="\n" * 40,
+    )
+
+    assert asked == []
+    assert "administrator rights" not in result.output

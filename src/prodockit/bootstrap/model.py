@@ -196,8 +196,27 @@ class Runner(Protocol):
     the test suite happens to be running on.
     """
 
-    def run(self, command: Sequence[str], cwd: str | None = None) -> CommandResult: ...
+    def run(
+        self,
+        command: Sequence[str],
+        cwd: str | None = None,
+        timeout: float | None = None,
+    ) -> CommandResult: ...
 
+
+#: How long a *check* may take. Checks are `--version` probes and one
+#: `ssh -T` that carries its own `ConnectTimeout`, so anything near this
+#: is a hang rather than slow work.
+CHECK_TIMEOUT_SECONDS = 300
+
+#: How long an *install* may take, which is a different question
+#: entirely. VS Code's `.deb` is around 100 MB, and a download plus
+#: `apt install` on a virtual machine over a domestic connection can run
+#: well past five minutes - so the run was killed at 300 seconds and
+#: reported as failed while the install it had started went on to
+#: succeed, leaving "failed" next to a working VS Code
+#: (prodockit-extensions#243).
+INSTALL_TIMEOUT_SECONDS = 1800
 
 #: The ssh invocation prefix that cannot stop for a human, shared by
 #: `_no_prompt_env` and by the `ssh -T` probe in `stages.py` so the two
@@ -276,7 +295,12 @@ class SubprocessRunner:
     problem, but the default has to be the safe one.
     """
 
-    def run(self, command: Sequence[str], cwd: str | None = None) -> CommandResult:
+    def run(
+        self,
+        command: Sequence[str],
+        cwd: str | None = None,
+        timeout: float | None = None,
+    ) -> CommandResult:
         try:
             completed = subprocess.run(
                 list(command),
@@ -286,12 +310,27 @@ class SubprocessRunner:
                 encoding="utf-8",
                 stdin=subprocess.DEVNULL,
                 env=_no_prompt_env(),
-                timeout=300,
+                timeout=CHECK_TIMEOUT_SECONDS if timeout is None else timeout,
             )
         except FileNotFoundError:
             # The command isn't installed. That is a finding, not a crash -
             # "is this installed?" is exactly what most checks are asking.
             return CommandResult(returncode=127, stderr=f"{command[0]}: not found")
+        except subprocess.TimeoutExpired as expired:
+            # Said in the reader's terms. The default rendering of this
+            # exception is the whole command list repr followed by "timed
+            # out after 300 seconds", which buries the one fact that
+            # matters at the end of a wall of quoting
+            # (prodockit-extensions#243).
+            seconds = int(expired.timeout or 0)
+            return CommandResult(
+                returncode=1,
+                stderr=(
+                    f"{command[0]} did not finish within {seconds} seconds. "
+                    "It may still be running, or still be waiting for input - "
+                    "check, then run `prodockit bootstrap --apply` again."
+                ),
+            )
         except (OSError, subprocess.SubprocessError) as error:
             return CommandResult(returncode=1, stderr=str(error))
         return CommandResult(
@@ -299,6 +338,53 @@ class SubprocessRunner:
             stdout=completed.stdout or "",
             stderr=completed.stderr or "",
         )
+
+
+def authenticate_sudo() -> bool:
+    """Gets sudo's password question over with, before anything is timed.
+
+    The one prompt bootstrap deliberately allows, and it has to be
+    deliberate. `sudo` reads its password from `/dev/tty`, exactly as
+    `ssh` does (prodockit-extensions#225), so `stdin=DEVNULL` does not
+    stop it asking - it asks *inside* a captured, timed subprocess
+    instead. The reader then types a password into a command whose output
+    is being swallowed, and their thinking time counts against the
+    install's clock:
+
+        [sudo: authenticate] Password:
+        failed: ... timed out after 300 seconds
+
+    So it is asked here first, with the terminal attached and nothing
+    captured. `sudo -v` only refreshes the credential timestamp; it runs
+    no command of its own. Afterwards the privileged commands in the plan
+    find a warm timestamp and never prompt.
+
+    Returns whether sudo is now usable. False is not fatal on its own -
+    the commands will fail with sudo's own message, which is clearer than
+    anything invented here.
+    """
+    try:
+        completed = subprocess.run(["sudo", "-v"], check=False)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return completed.returncode == 0
+
+
+def needs_sudo(commands: Sequence[Sequence[str]]) -> bool:
+    """Whether any of these commands would ask for a password.
+
+    Looks inside `bash -c` too: the Ubuntu installs wrap a download and
+    an `apt install` in one shell command, so the `sudo` is in the script
+    rather than at the front of the argument list.
+    """
+    for command in commands:
+        if not command:
+            continue
+        if command[0] == "sudo":
+            return True
+        if any("sudo " in str(argument) for argument in command):
+            return True
+    return False
 
 
 class Status(Enum):

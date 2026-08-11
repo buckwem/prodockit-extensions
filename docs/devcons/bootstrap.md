@@ -317,6 +317,26 @@ a finding bootstrap can report and act on, and a blinking cursor is not.
 
 If you have set `GIT_SSH_COMMAND` yourself, it is left alone.
 
+There is exactly one deliberate exception, and it is asked **before**
+anything runs rather than during it:
+
+```text
+  Run 2 commands? [Y/n]: y
+  These need administrator rights.
+  Password:
+```
+
+`sudo` reads its password from `/dev/tty` too, so telling it not to ask
+is not an option the way it is for ssh and git. Left alone, it asked from
+*inside* a captured subprocess: the reader typed a password into a
+command whose output was being swallowed, and their thinking time counted
+against the install's own time limit, which then expired
+([#243](https://github.com/buckwem/prodockit-extensions/issues/243)). So
+`sudo -v` is run first, with the terminal attached and nothing captured,
+purely to refresh the credential - it runs no command of its own. The
+privileged commands then find a warm timestamp and never prompt. Plans
+that need no privileges, such as macOS's `brew install`, are never asked.
+
 One consequence is deliberate. The first time a machine connects to a
 host, ssh asks whether to trust its fingerprint - and bootstrap will not
 answer that for you:

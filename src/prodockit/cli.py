@@ -37,9 +37,11 @@ from prodockit.bootstrap import (
     Status,
     UnsupportedHostError,
     apply_stage,
+    authenticate_sudo,
     check_all,
     default_for,
     missing_keys,
+    needs_sudo,
     plan_all,
 )
 from prodockit.bootstrap import build_context as build_bootstrap_context
@@ -273,6 +275,18 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
                                  default=default_yes):
                 click.echo("  skipped")
                 continue
+
+            # Get sudo's password question over with here, where there is
+            # a terminal for it, rather than inside a captured subprocess
+            # whose clock is running. sudo reads from /dev/tty exactly as
+            # ssh does, so it asks regardless of what stdin is set to -
+            # and the reader's typing time was counted against the
+            # install's timeout (#243).
+            if needs_sudo(plan.commands) and _is_interactive():
+                click.echo("  These need administrator rights.")
+                if not authenticate_sudo():
+                    click.echo("  sudo was not accepted - the commands may fail.", err=True)
+                click.echo("")
 
             outcome = apply_stage(context, report.stage)
             if outcome.failed is not None:

@@ -6,7 +6,7 @@
 The User Guide's install instructions are long, sequential, and easy to
 get half-right in ways that only surface much later (a missing Pango that
 looks fine until the first `prodockit pdf`, a Node without npm that fails
-in an apparently unrelated step). This turns that sequence into ten
+in an apparently unrelated step). This turns that sequence into twelve
 stages that can each be *checked*, and reapplied individually when a
 check fails (prodockit-extensions#217).
 
@@ -39,6 +39,7 @@ from prodockit.bootstrap.config import (
 )
 from prodockit.bootstrap.model import (
     HOSTS,
+    INSTALL_TIMEOUT_SECONDS,
     MACOS,
     SURREY_GITLAB,
     UBUNTU,
@@ -52,11 +53,14 @@ from prodockit.bootstrap.model import (
     Stage,
     Status,
     SubprocessRunner,
+    authenticate_sudo,
+    needs_sudo,
 )
 from prodockit.bootstrap.stages import STAGES
 
 __all__ = [
     "HOSTS",
+    "INSTALL_TIMEOUT_SECONDS",
     "PROMPTS",
     "STAGES",
     "SURREY_GITLAB",
@@ -75,6 +79,7 @@ __all__ = [
     "SubprocessRunner",
     "UnsupportedHostError",
     "apply_stage",
+    "authenticate_sudo",
     "build_context",
     "check_all",
     "config_path",
@@ -82,6 +87,7 @@ __all__ = [
     "default_for",
     "load",
     "missing_keys",
+    "needs_sudo",
     "plan_all",
     "save",
 ]
@@ -179,7 +185,11 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
     plan = stage.plan(context)
     result = ApplyResult(stage=stage)
     for command in plan.commands:
-        outcome = context.runner.run(command, cwd=plan.cwd)
+        # An install is allowed to be slow in a way a check is not: a
+        # 100 MB download and an `apt install` behind it are ordinary
+        # here, and killing them at the check's limit reported a failure
+        # over an install that then succeeded (#243).
+        outcome = context.runner.run(command, cwd=plan.cwd, timeout=INSTALL_TIMEOUT_SECONDS)
         result.ran.append(list(command))
         if not outcome.ok:
             return ApplyResult(stage=stage, ran=result.ran, failed=outcome)
