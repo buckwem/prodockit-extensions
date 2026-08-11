@@ -702,18 +702,52 @@ is looked for, whether the thing you are creating is called a project or
 a repository. Answering it sixth would mean five questions about a setup
 that might not be buildable at all.
 
-```text
-Which git host: surrey (gitlab.surrey.ac.uk), gitlab or github [surrey]: github
-  host 'github' (github.com) is declared but not yet supported -
-  prodockit bootstrap currently implements Surrey's GitLab only
+It is asked as a **hostname** - the thing in your address bar - rather
+than a nickname, and it is judged twice before it is stored.
 
-Which git host: surrey (gitlab.surrey.ac.uk), gitlab or github [surrey]:
+*Is it a GitLab?*
+
+```text
+The git host your project lives on [gitlab.surrey.ac.uk]: bitbucket.org
+  'bitbucket.org' does not look like a GitLab host - bootstrap's stages
+  are written around GitLab, so a hostname naming something else cannot
+  be set up (e.g. gitlab.surrey.ac.uk)
 ```
 
-It is refused *here*, rather than accepted and refused by the run five
-questions later - which is the entire value of asking first. The prompt
-and the run both call the same function to decide, so one cannot accept
-what the other rejects.
+*Is it one that works yet?*
+
+```text
+The git host your project lives on [gitlab.surrey.ac.uk]: github.com
+  github.com is declared but not yet supported - prodockit bootstrap
+  currently implements gitlab.surrey.ac.uk only
+```
+
+*Does it answer?*
+
+```text
+The git host your project lives on [gitlab.surrey.ac.uk]:
+  could not reach gitlab.surrey.ac.uk on port 22 - Operation timed out.
+  If this host is only reachable from your university network, connect
+  the VPN and press Enter to try again.
+```
+
+That last one earns its place. Without it the first sign of an
+unreachable host is stage 6 reporting that your key was rejected - after
+you have made a key and pasted it into a web page - and "I cannot reach
+this server" looks nothing like "this server refused you". These stages
+have produced that confusion three times already (#234, #239, #246), so
+it is worth one connection attempt to tell the two apart at the point the
+host is named.
+
+Re-asking with the same answer is a real retry, not a loop: connect the
+VPN, press Enter, and the second attempt succeeds.
+
+Port 22 rather than 443, because every URL bootstrap builds is
+`git@host:path`, which is ssh.
+
+A configuration written before this stored a key - `host = "surrey"` -
+and those files are on real machines, so they still resolve. The prompt
+stores a hostname from now on.
 
 Press Enter and you get Surrey's GitLab, which is the only host
 implemented today.

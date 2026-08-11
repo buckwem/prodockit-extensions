@@ -53,7 +53,7 @@ class BootstrapConfig:
     full_name: str = ""
     email: str = ""
     username: str = ""
-    host: str = "surrey"
+    host: str = "gitlab.surrey.ac.uk"
     namespace: str = ""
     project_name: str = ""
     project_dir: str = ""
@@ -172,7 +172,7 @@ PROMPTS: tuple[tuple[str, str], ...] = (
     # answers below even make sense. Asking it sixth would mean finding
     # out that a host is unsupported *after* answering five questions
     # about a setup that cannot be built (prodockit-extensions#255).
-    ("host", "Which git host: surrey (gitlab.surrey.ac.uk), gitlab or github"),
+    ("host", "The git host your project lives on"),
     ("full_name", "Your full name, as it should appear on commits"),
     ("email", "Your university email address"),
     ("username", "Your GitLab username"),

@@ -14,9 +14,23 @@
     through the same function, so one cannot accept what the other
     rejects.
 
-    Pressing Enter still gives Surrey's GitLab, the only host implemented
-    today - the groundwork here is for public GitLab and GitHub, not a
-    change of default.
+    It is asked as a **hostname** - `gitlab.surrey.ac.uk`, the thing in
+    the address bar - rather than a nickname, and judged three ways
+    before it is stored: a host that is not a GitLab is refused, one that
+    is not supported yet says so, and one that does not answer on port 22
+    is reported as unreachable.
+
+    That last check is worth the second it costs. Without it, the first
+    sign of an unreachable host is stage 6 reporting a rejected key -
+    after a key has been made and pasted into a web page - and "I cannot
+    reach this server" looks nothing like "this server refused you",
+    which is a confusion these stages have produced three times. Re-asking
+    is a real retry: connect the VPN, press Enter, and the second attempt
+    succeeds.
+
+    Configurations written before this stored `host = "surrey"`, and
+    still resolve. Pressing Enter still gives Surrey's GitLab, the only
+    host implemented today.
 
 ## 0.25.0 (2026-08-11)
 

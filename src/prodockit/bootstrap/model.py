@@ -17,6 +17,7 @@ one differ only in which runner receives it.
 from __future__ import annotations
 
 import os
+import socket
 import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -175,7 +176,48 @@ GITHUB_COM = Host(
 HOSTS = {host.key: host for host in (SURREY_GITLAB, GITLAB_COM, GITHUB_COM)}
 
 
-def host_problem(key: str) -> str | None:
+#: What a hostname must name to be worth going further with.
+#:
+#: GitLab only, for now. GitHub is declared as a `Host` record so the
+#: shape is proven, but nothing has been run against it - and a reader
+#: typing `github.com` is better told that plainly than allowed through
+#: to fail at a stage. Widening this is what adding GitHub support will
+#: mean (prodockit-extensions#255).
+HOST_FAMILIES = ("gitlab",)
+
+#: The port a git host is reached on. Every URL bootstrap builds is
+#: `git@host:path`, which is ssh.
+GIT_SSH_PORT = 22
+
+
+def normalise_host(value: str) -> str:
+    """A hostname as typed, reduced to just the hostname.
+
+    Readers paste what is in their address bar, so a scheme, a path and a
+    trailing slash all turn up.
+    """
+    cleaned = value.strip().lower()
+    for scheme in ("https://", "http://", "ssh://", "git@"):
+        if cleaned.startswith(scheme):
+            cleaned = cleaned[len(scheme) :]
+    return cleaned.split("/")[0].split(":")[0].strip()
+
+
+def resolve_host(value: str) -> Host | None:
+    """The `Host` this names, by hostname or by legacy key.
+
+    Configurations written before #255 stored a key - `surrey` - rather
+    than a hostname. Those files are on real machines, so they still
+    resolve; the prompt asks for a hostname and stores one from now on.
+    """
+    wanted = normalise_host(value)
+    for host in HOSTS.values():
+        if wanted in (host.hostname, host.key):
+            return host
+    return None
+
+
+def host_problem(value: str) -> str | None:
     """Why this host cannot be used, or None if it can.
 
     Separate from `build_context` so the *prompt* can ask the same
@@ -183,15 +225,62 @@ def host_problem(key: str) -> str | None:
     unsupported after answering five more questions about it is a poor
     way to learn (prodockit-extensions#255).
     """
-    host = HOSTS.get(key)
+    hostname = normalise_host(value)
+    if not hostname:
+        return "no host given - name the server your project lives on"
+    host = resolve_host(hostname)
     if host is None:
-        return f"unknown host {key!r} (known: {', '.join(sorted(HOSTS))})"
+        if not any(family in hostname for family in HOST_FAMILIES):
+            return (
+                f"{hostname!r} does not look like a GitLab host - bootstrap's "
+                "stages are written around GitLab, so a hostname naming "
+                "something else cannot be set up (e.g. gitlab.surrey.ac.uk)"
+            )
+        return (
+            f"{hostname!r} looks like a self-hosted instance, which is not "
+            "supported yet - prodockit bootstrap currently implements "
+            "gitlab.surrey.ac.uk only"
+        )
     if not host.supported:
         return (
-            f"host {host.key!r} ({host.hostname}) is declared but not yet supported - "
-            "prodockit bootstrap currently implements Surrey's GitLab only"
+            f"{host.hostname} is declared but not yet supported - "
+            "prodockit bootstrap currently implements gitlab.surrey.ac.uk only"
         )
     return None
+
+
+def connection_problem(
+    value: str,
+    *,
+    connect: Callable[[str, int, float], None] | None = None,
+    timeout: float = 5.0,
+) -> str | None:
+    """Whether the host answers on the ssh port, or why not.
+
+    Worth asking at the prompt because the alternative is finding out at
+    stage 6, after a key has been made and uploaded. A university GitLab
+    is frequently reachable only from the campus network or a VPN, and
+    "could not reach it" is a different problem from "it rejected your
+    key" - which is the confusion the SSH stages have already produced
+    three times.
+
+    `connect` is injected so a test can describe a network rather than
+    use one.
+    """
+    hostname = normalise_host(value)
+    opener = connect if connect is not None else _open_socket
+    try:
+        opener(hostname, GIT_SSH_PORT, timeout)
+    except OSError as error:
+        reason = getattr(error, "strerror", None) or str(error) or error.__class__.__name__
+        return f"could not reach {hostname} on port {GIT_SSH_PORT} - {reason}"
+    return None
+
+
+def _open_socket(hostname: str, port: int, timeout: float) -> None:
+    """Opens and closes a TCP connection, or raises `OSError`."""
+    with socket.create_connection((hostname, port), timeout=timeout):
+        pass
 
 
 @dataclass(frozen=True)
