@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **`--apply` shows every stage, numbered by where it actually is**
+  ([#284](https://github.com/buckwem/prodockit-extensions/issues/284)).
+  Stages already set up were skipped in silence, and the ones remaining
+  were numbered by their position in the queue - so `[1/17] Git` appeared
+  while standing at stage 2 of eighteen, agreeing with nothing the reader
+  could check against `prodockit bootstrap`'s own listing.
+
+    ```text
+     1  ok    Visual Studio Code
+     2  ok    Git, installed and configured
+     3  ok    SSH keypair
+     4  ok    SSH config points at the key
+
+    [5/18] Key loaded into the ssh agent
+            id_ed25519_gitlab is not loaded into the agent
+    ```
+
+    A stage waiting on a configuration answer is named too, rather than
+    vanishing from the run.
+
 - **Documentation:** the Windows prerequisites now set PowerShell's
   execution policy
   ([#288](https://github.com/buckwem/prodockit-extensions/issues/288)).
