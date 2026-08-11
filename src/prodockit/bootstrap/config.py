@@ -53,7 +53,7 @@ class BootstrapConfig:
     full_name: str = ""
     email: str = ""
     username: str = ""
-    host: str = "surrey"
+    host: str = "gitlab.surrey.ac.uk"
     namespace: str = ""
     project_name: str = ""
     project_dir: str = ""
@@ -165,6 +165,14 @@ def save(path: Path, config: BootstrapConfig) -> None:
 #: from a project name), which is why this is a list rather than the
 #: dataclass field order.
 PROMPTS: tuple[tuple[str, str], ...] = (
+    # First, because everything else is shaped by it. The host decides
+    # which URLs the browser steps send you to, which key file is looked
+    # for, whether the thing you are creating is called a project or a
+    # repository - and, once more than one is supported, whether the
+    # answers below even make sense. Asking it sixth would mean finding
+    # out that a host is unsupported *after* answering five questions
+    # about a setup that cannot be built (prodockit-extensions#255).
+    ("host", "The git host your project lives on"),
     ("full_name", "Your full name, as it should appear on commits"),
     ("email", "Your university email address"),
     ("username", "Your GitLab username"),

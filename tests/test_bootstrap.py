@@ -20,6 +20,7 @@ import pytest
 
 from prodockit.bootstrap import (
     HOSTS,
+    PROMPTS,
     STAGES,
     BootstrapConfig,
     BootstrapConfigError,
@@ -29,7 +30,9 @@ from prodockit.bootstrap import (
     build_context,
     check_all,
     config_path,
+    default_for,
     load,
+    missing_keys,
     plan_all,
     save,
 )
@@ -2683,3 +2686,215 @@ def test_every_windows_stage_produces_something_to_do(tmp_path: Path) -> None:
         assert plan.commands or plan.instructions or plan.follow_up, (
             f"{stage.id} has no Windows plan at all"
         )
+
+
+# ---------------------------------------------------------------------------
+# The host is the first question: #255
+# ---------------------------------------------------------------------------
+
+
+def test_the_host_is_the_first_thing_asked() -> None:
+    """#255. Everything else is shaped by it - which URLs the browser
+    steps send you to, which key file is looked for, whether you are
+    creating a project or a repository - so answering it sixth means
+    five questions about a setup that may not be buildable."""
+    assert PROMPTS[0][0] == "host"
+
+
+def test_the_host_is_a_hostname_not_a_nickname() -> None:
+    """Asked as the thing the reader can see in their address bar. A key
+    like `surrey` means nothing to somebody typing it for the first
+    time, and means nothing at all once a second self-hosted GitLab
+    exists."""
+    assert BootstrapConfig().host == "gitlab.surrey.ac.uk"
+    assert default_for(BootstrapConfig(), "host") == "gitlab.surrey.ac.uk"
+
+
+def test_a_host_that_is_not_gitlab_is_refused() -> None:
+    """The stages are written around GitLab. A hostname naming something
+    else is a different kind of service, not a typo to guess at."""
+    from prodockit.bootstrap import host_problem
+
+    problem = host_problem("bitbucket.org") or ""
+    assert "does not look like a GitLab host" in problem
+    assert "gitlab.surrey.ac.uk" in problem, "say what one looks like"
+    assert host_problem("") is not None
+
+
+def test_github_is_refused_too_and_told_why() -> None:
+    """Declared as a record so the shape is proven, but nothing has been
+    run against it - and a reader typing it is better told that plainly
+    than allowed through to fail at a stage."""
+    from prodockit.bootstrap import host_problem
+
+    assert host_problem("gitlab.surrey.ac.uk") is None
+    for refused in ("github.com", "gitlab.com"):
+        assert "not yet supported" in (host_problem(refused) or ""), refused
+
+
+def test_an_unknown_self_hosted_gitlab_is_told_apart_from_a_typo() -> None:
+    """`gitlab.example.edu` is what this is groundwork for, so it gets a
+    different answer from `bitbucket.org` - not supported yet, rather
+    than not a GitLab at all."""
+    from prodockit.bootstrap import host_problem
+
+    problem = host_problem("gitlab.example.edu") or ""
+    assert "self-hosted" in problem
+    assert "does not look like" not in problem
+
+
+def test_a_pasted_url_is_reduced_to_its_hostname() -> None:
+    """Readers paste what is in the address bar."""
+    from prodockit.bootstrap import normalise_host
+
+    for typed in (
+        "https://gitlab.surrey.ac.uk/",
+        "GitLab.Surrey.AC.UK",
+        "git@gitlab.surrey.ac.uk",
+        "  gitlab.surrey.ac.uk/mb0105/x  ",
+    ):
+        assert normalise_host(typed) == "gitlab.surrey.ac.uk", typed
+
+
+def test_a_config_written_before_this_still_works(tmp_path: Path) -> None:
+    """`host = "surrey"` is in configuration files on real machines. They
+    keep working; the prompt stores a hostname from now on."""
+    from prodockit.bootstrap import resolve_host
+
+    assert resolve_host("surrey") is SURREY_GITLAB
+    context = build_context(_config(host="surrey"), home=tmp_path)
+    assert context.host.hostname == "gitlab.surrey.ac.uk"
+
+
+def test_the_prompt_and_the_run_ask_the_same_question(tmp_path: Path) -> None:
+    """`build_context` refuses through the same helper the prompt uses,
+    so a host the prompt accepted cannot be one the run then rejects."""
+    from prodockit.bootstrap import host_problem
+
+    for value in ("gitlab.com", "github.com", "bitbucket.org"):
+        with pytest.raises(UnsupportedHostError) as exc_info:
+            build_context(_config(host=value))
+        assert str(exc_info.value) == host_problem(value)
+
+
+def test_a_host_that_does_not_answer_is_reported_as_unreachable() -> None:
+    """Asked at the prompt because the alternative is finding out at
+    stage 6, after a key has been made and uploaded - and "could not
+    reach it" looks nothing like "it rejected your key", which is a
+    confusion these stages have already produced three times."""
+    from prodockit.bootstrap import connection_problem
+
+    def refuse(hostname: str, port: int, timeout: float) -> None:
+        raise OSError(61, "Connection refused")
+
+    problem = connection_problem("gitlab.surrey.ac.uk", connect=refuse) or ""
+    assert "could not reach gitlab.surrey.ac.uk" in problem
+    assert "port 22" in problem, "name the port, since it is ssh not https"
+    assert "Connection refused" in problem
+
+    assert connection_problem("gitlab.surrey.ac.uk", connect=lambda h, p, t: None) is None
+
+
+def test_an_unreachable_host_is_re_asked_with_the_vpn_named(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A university GitLab is often reachable only over a VPN, so
+    re-asking with the same answer is a real retry rather than a loop -
+    connect it, press Enter, and the second attempt succeeds."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    attempts: list[str] = []
+
+    def flaky(value: str) -> str | None:
+        attempts.append(value)
+        if len(attempts) == 1:
+            return "could not reach gitlab.surrey.ac.uk on port 22 - timed out"
+        return None
+
+    monkeypatch.setattr("prodockit.cli.connection_problem", flaky)
+
+    result = cli_bootstrap(
+        "--configure",
+        input=(
+            "gitlab.surrey.ac.uk\ngitlab.surrey.ac.uk\nAda\na@b.c\n"
+            "al01234\ncomm058\nreport-x\n\n\n"
+        ),
+    )
+
+    assert "could not reach gitlab.surrey.ac.uk" in result.output
+    assert "connect the VPN" in result.output
+    assert len(attempts) == 2, "the second attempt is the retry"
+    assert load(tmp_path / "b.toml").host == "gitlab.surrey.ac.uk"
+
+
+def test_an_unusable_host_is_re_asked_rather_than_stored(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The point of asking first is finding out immediately. Accepting
+    `github.com` and failing five questions later would be worse than
+    not asking at all."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    result = cli_bootstrap(
+        "--configure",
+        input=(
+            "github.com\ngitlab.surrey.ac.uk\nAda\na@b.c\n"
+            "al01234\ncomm058\nreport-x\n\n\n"
+        ),
+    )
+
+    assert "not yet supported" in result.output
+    assert load(tmp_path / "b.toml").host == "gitlab.surrey.ac.uk"
+
+
+def test_a_reachable_host_is_never_asked_about_twice(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The connection is tested once, for the host being stored - not
+    once per remaining question."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    tested: list[str] = []
+    monkeypatch.setattr(
+        "prodockit.cli.connection_problem", lambda value: tested.append(value) or None
+    )
+
+    cli_bootstrap(
+        "--configure",
+        input=(
+            "gitlab.surrey.ac.uk\nAda Lovelace\nal01234@surrey.ac.uk\n"
+            "al01234\ncomm058-2026\nreport-x\n\n\n"
+        ),
+    )
+
+    assert tested == ["gitlab.surrey.ac.uk"]
+
+
+def test_answering_the_host_does_not_disturb_the_other_questions(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A new first prompt shifts every answer by one, which is exactly
+    the kind of change that silently reassigns a name to an email."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    cli_bootstrap(
+        "--configure",
+        input=(
+            "gitlab.surrey.ac.uk\nAda Lovelace\nal01234@surrey.ac.uk\n"
+            "al01234\ncomm058-2026\nreport-x\n\n\n"
+        ),
+    )
+
+    stored = load(tmp_path / "b.toml")
+    assert stored.host == "gitlab.surrey.ac.uk"
+    assert stored.full_name == "Ada Lovelace"
+    assert stored.email == "al01234@surrey.ac.uk"
+    assert stored.username == "al01234"
+    assert stored.namespace == "comm058-2026"
+    assert stored.project_name == "report-x"
+
+
+def test_the_host_is_never_reported_missing() -> None:
+    """It always has an answer, so listing it among "not set yet" would
+    ask an existing reader to re-confirm something they never chose."""
+    assert "host" not in missing_keys(BootstrapConfig())

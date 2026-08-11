@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- **The git host is now the first configuration question**
+  ([#255](https://github.com/buckwem/prodockit-extensions/issues/255)).
+  Everything else is shaped by it - which URLs the browser steps send you
+  to, which key file is looked for, whether you are creating a project or
+  a repository - and it was not asked at all, only defaulted.
+
+    An unusable answer is refused at the prompt and asked again, rather
+    than stored and refused by the run five questions later, which is the
+    whole value of asking first. The prompt and `build_context` decide
+    through the same function, so one cannot accept what the other
+    rejects.
+
+    It is asked as a **hostname** - `gitlab.surrey.ac.uk`, the thing in
+    the address bar - rather than a nickname, and judged three ways
+    before it is stored: a host that is not a GitLab is refused, one that
+    is not supported yet says so, and one that does not answer on port 22
+    is reported as unreachable.
+
+    That last check is worth the second it costs. Without it, the first
+    sign of an unreachable host is stage 6 reporting a rejected key -
+    after a key has been made and pasted into a web page - and "I cannot
+    reach this server" looks nothing like "this server refused you",
+    which is a confusion these stages have produced three times. Re-asking
+    is a real retry: connect the VPN, press Enter, and the second attempt
+    succeeds.
+
+    Configurations written before this stored `host = "surrey"`, and
+    still resolve. Pressing Enter still gives Surrey's GitLab, the only
+    host implemented today.
+
 ## 0.25.0 (2026-08-11)
 
 - **Windows is automated end to end** (#217 phase 4). All seventeen

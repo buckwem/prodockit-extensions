@@ -39,7 +39,9 @@ from prodockit.bootstrap import (
     apply_stage,
     authenticate_sudo,
     check_all,
+    connection_problem,
     default_for,
+    host_problem,
     missing_keys,
     needs_sudo,
     plan_all,
@@ -124,18 +126,53 @@ def _ask_for_configuration(
     wanted = [(k, q) for k, q in PROMPTS if only is None or k in only]
     click.echo("\nPress Enter to keep the value in brackets.\n")
     for key, question in wanted:
-        # `default_for` fills a blank answer from one already given, so a
-        # first run still has something sensible to press Enter on.
-        answer = click.prompt(question, default=default_for(config, key), show_default=True)
+        while True:
+            # `default_for` fills a blank answer from one already given, so
+            # a first run still has something sensible to press Enter on.
+            answer = click.prompt(
+                question, default=default_for(config, key), show_default=True
+            ).strip()
+            # The host is asked first precisely so an unusable answer is
+            # caught here, rather than after five more questions about a
+            # setup that cannot be built (#255).
+            problem = _host_answer_problem(answer) if key == "host" else None
+            if problem is None:
+                break
+            click.echo(f"  {problem}\n", err=True)
         # Fed back in as it is given, so a later question can default off
         # an earlier answer.
-        setattr(config, key, answer.strip())
+        setattr(config, key, answer)
     # Stored absolute, though offered relative: `./report` is the clearest
     # thing to *read* at the prompt, and the worst thing to *keep* - it
     # would mean something different the next time bootstrap ran from
     # somewhere else.
     config.project_dir = str(config.resolved_project_dir(Path.home()))
     return config
+
+
+def _host_answer_problem(answer: str) -> str | None:
+    """Why this host answer will not do - its name, or its silence.
+
+    Both halves are asked here rather than later. A name that cannot work
+    is cheap to catch; a host that cannot be *reached* is worth catching
+    because the alternative is discovering it at stage 6, after a key has
+    been made and uploaded - and "could not reach it" looks nothing like
+    "it rejected your key", which is a confusion these stages have
+    already produced three times.
+
+    Re-asking with the same answer is a real retry, not a loop: a
+    university GitLab is often reachable only over a VPN, so connecting
+    one and pressing Enter is exactly the fix.
+    """
+    if (problem := host_problem(answer)) is not None:
+        return problem
+    if (unreachable := connection_problem(answer)) is not None:
+        return (
+            f"{unreachable}.\n"
+            "  If this host is only reachable from your university network, "
+            "connect the VPN and press Enter to try again."
+        )
+    return None
 
 
 def _is_interactive() -> bool:

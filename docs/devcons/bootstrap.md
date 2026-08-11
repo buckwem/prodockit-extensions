@@ -696,6 +696,62 @@ Answer them now? [Y/n]:
 value as the default, so pressing Enter through confirms an unchanged
 setup.
 
+**The host is the first question**, and deliberately so. Everything else
+is shaped by it: which URLs the browser steps send you to, which key file
+is looked for, whether the thing you are creating is called a project or
+a repository. Answering it sixth would mean five questions about a setup
+that might not be buildable at all.
+
+It is asked as a **hostname** - the thing in your address bar - rather
+than a nickname, and it is judged twice before it is stored.
+
+*Is it a GitLab?*
+
+```text
+The git host your project lives on [gitlab.surrey.ac.uk]: bitbucket.org
+  'bitbucket.org' does not look like a GitLab host - bootstrap's stages
+  are written around GitLab, so a hostname naming something else cannot
+  be set up (e.g. gitlab.surrey.ac.uk)
+```
+
+*Is it one that works yet?*
+
+```text
+The git host your project lives on [gitlab.surrey.ac.uk]: github.com
+  github.com is declared but not yet supported - prodockit bootstrap
+  currently implements gitlab.surrey.ac.uk only
+```
+
+*Does it answer?*
+
+```text
+The git host your project lives on [gitlab.surrey.ac.uk]:
+  could not reach gitlab.surrey.ac.uk on port 22 - Operation timed out.
+  If this host is only reachable from your university network, connect
+  the VPN and press Enter to try again.
+```
+
+That last one earns its place. Without it the first sign of an
+unreachable host is stage 6 reporting that your key was rejected - after
+you have made a key and pasted it into a web page - and "I cannot reach
+this server" looks nothing like "this server refused you". These stages
+have produced that confusion three times already (#234, #239, #246), so
+it is worth one connection attempt to tell the two apart at the point the
+host is named.
+
+Re-asking with the same answer is a real retry, not a loop: connect the
+VPN, press Enter, and the second attempt succeeds.
+
+Port 22 rather than 443, because every URL bootstrap builds is
+`git@host:path`, which is ssh.
+
+A configuration written before this stored a key - `host = "surrey"` -
+and those files are on real machines, so they still resolve. The prompt
+stores a hostname from now on.
+
+Press Enter and you get Surrey's GitLab, which is the only host
+implemented today.
+
 A piped or scripted run never prompts - it reports what is missing and
 carries on, rather than blocking on a question nobody is there to
 answer.
