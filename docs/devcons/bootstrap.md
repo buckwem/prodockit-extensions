@@ -117,19 +117,28 @@ is what to do instead.
 
 A virtual environment lasts as long as the shell it was activated in.
 Open a new terminal window - or come back tomorrow - and `prodockit` is
-an unknown command again until you activate it:
+an unknown command again until you activate it.
+
+A new terminal also starts in your home directory, so **change to the
+directory holding `.venv` first** - the path below is relative to it, and
+from anywhere else it simply is not there:
 
 === "macOS / Ubuntu"
 
     ```bash
+    cd ~/GitLab
     source .venv/bin/activate
     ```
 
 === "Windows"
 
     ```powershell
+    cd ~\GitLab
     .\.venv\Scripts\Activate.ps1
     ```
+
+Use whichever directory you made the environment in - `~/GitLab` here,
+matching [Before you start](#bootstrap-prerequisites) above.
 
 You can tell it worked because the prompt gains a `(.venv)` prefix. If it
 is not there, nothing you install or run is going where you think it is.

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Documentation:** the "activate it again" instructions now change
+  directory first
+  ([#264](https://github.com/buckwem/prodockit-extensions/issues/264)). A
+  new terminal starts in your home directory, and `source
+  .venv/bin/activate` is a relative path - so from anywhere else it is
+  simply not there, and the error says the file does not exist rather
+  than that you are in the wrong place.
+
 - **The email prompt names the host rather than a university**
   ([#265](https://github.com/buckwem/prodockit-extensions/issues/265)).
   "Your university email address" is wrong for anybody outside a
