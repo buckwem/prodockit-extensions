@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.26.2 (2026-08-11)
+
 - **Added `prodockit init-mathjax`**, and with it one implementation of
   something that had two
   ([#276](https://github.com/buckwem/prodockit-extensions/issues/276)).
