@@ -1,7 +1,7 @@
 # Machine bootstrap {: #bootstrap-machine-bootstrap }
 
 \index{`prodockit bootstrap`} turns the User Guide's install sequence into
-thirteen stages that can be checked individually and repaired one at a time,
+sixteen stages that can be checked individually and repaired one at a time,
 rather than followed top to bottom and hoped over.
 
 The install is long, sequential, and easy to get half-right in ways that
@@ -72,7 +72,7 @@ is what to do instead.
     - Tick **Add python.exe to PATH** on the first screen. Without it,
       `python` is not a command and nothing below works.
     - Click **Disable path length limit** on the final screen. Node's
-      render toolchains in stage 12 nest deeply enough to hit the 260
+      render toolchains in stage 14 nest deeply enough to hit the 260
       character limit.
 
     Then, in PowerShell, in the directory you want to keep your projects
@@ -169,15 +169,100 @@ which Python is winning.
 | 5 | Key loaded into the ssh agent | yes |
 | 6 | Public key on the host | **guide and verify** |
 | 7 | Template cloned | yes |
-| 8 | Your own project on the host | **guide and verify** |
-| 9 | Clone pointed at your project | yes |
-| 10 | Commit identity in the project | yes |
-| 11 | Pandoc and WeasyPrint's libraries | yes |
-| 12 | Node.js and the render toolchains | yes |
-| 13 | VS Code extensions | yes |
+| 8 | A history of your own | **asks first** |
+| 9 | Your own project on the host | **guide and verify** |
+| 10 | Clone pointed at your project | yes |
+| 11 | Commit identity in the project | yes |
+| 12 | Pandoc, and the libraries WeasyPrint needs | yes |
+| 13 | Project environment and its dependencies | yes |
+| 14 | Node.js and the render toolchains | yes |
+| 15 | VS Code extensions | yes |
+| 16 | VS Code settings for the project | yes |
 
-Stages 3, 4, 5, 7, 9, 10 and 13 are platform-independent - over half the
-work is the same on every operating system.
+Stages 3, 4, 5, 7, 8, 10, 11, 13, 15 and 16 are platform-independent -
+most of the work is the same on every operating system.
+
+The list is longer than it was because it was wrong. Comparing it
+against the User Guide step by step found six things it did not do at
+all, from the PDF fonts' checker language down to the project's own
+virtual environment - see [What "ready" means](#bootstrap-ready).
+
+### What "ready" means {: #bootstrap-ready }
+
+The bar is that **opening the project in VS Code is enough to start
+writing**. Anything short of that is a stage, not a footnote - which is
+why the list grew from thirteen to sixteen when it was compared against
+the User Guide line by line.
+
+Six things it did not do at all:
+
+| | What was missing |
+| --- | --- |
+| **WeasyPrint was never verified** | Stage 12 was *named* "Pandoc and WeasyPrint's libraries" and only ever ran `pandoc --version`. It reported `ok` on a machine whose first PDF build would fail at `cannot load library`. Importing WeasyPrint is now the test, at stage 13 - a strict one, because the import loads Pango through the system linker, so success proves the package *and* the native libraries. `pip` exiting zero proves neither. |
+| **Two required extensions, absent** | Even Better TOML and LTeX+ were missing, while Code Spell Checker - from the *optional* tooling page - was installed in their place. |
+| **The project had no environment** | The clone ships a `requirements.txt` that nothing installed, so Zensical itself was absent from the project. |
+| **The template's history was kept** | The guide resets it; the clone carried the template's whole log and branches into your project. |
+| **Zensical Studio was unconfigured** | Markdown was not handed to its language mode. |
+| **The grammar checker had no language** | LTeX+ was installed with nothing telling it what it was reading. |
+
+Two of those deserve their own explanation, below: the project's own
+virtual environment, and the history reset.
+
+### Two virtual environments, and only one of them is yours {: #bootstrap-project-env }
+
+There are two, and confusing them is the whole difficulty of stage 13.
+
+Bootstrap runs from one that **necessarily predates the project** -
+`pip install prodockit` has to happen before there is anything to clone.
+The User Guide's is a *second* environment, created inside the project
+afterwards, and it is the one that matters day to day: the VS Code Python
+extension finds `.venv` in your project folder and activates it in every
+new terminal, which is why the guide's prompts read
+
+```text
+(.venv) yourname@Mac your-project %
+```
+
+So stage 13 creates `<project>/.venv` and installs `requirements.txt`
+into **that**, naming the interpreter explicitly:
+
+```bash
+<project>/.venv/bin/python -m pip install -r <project>/requirements.txt
+```
+
+The explicitness is load-bearing. A bare `pip install -r
+requirements.txt` finds whichever `pip` is on `PATH` - bootstrap's own -
+and installs your project's dependencies into bootstrap's environment
+instead. It exits zero, the stage re-checks, and your `.venv` is still
+empty. You would find out at your first `zensical build`, with nothing
+to suggest why.
+
+### Deleting history is the one thing that asks first {: #bootstrap-fresh-history }
+
+Stage 8 does what the guide's "Start with a fresh commit history" step
+does - `rm -rf .git`, `git init -b main`, `git config core.fileMode
+false` - and it is the only stage that destroys anything.
+
+Two safeguards, both deliberate:
+
+**It reports `WRONG`, not `MISSING`.** That is not a description of the
+repository so much as a choice about the prompt: `MISSING` offers
+`[Y/n]`, and deleting a repository's history should never happen by
+pressing Enter.
+
+**It is judged by `origin`, not by whether commits exist.** The obvious
+test - "does this repository have history?" - would tell somebody who had
+been writing for a month that theirs needed deleting. `origin` still
+pointing at the template is the only state where discarding it is
+unambiguously right, and it is one that cannot recur: resetting removes
+the remote, repointing replaces it. A clone made from your own
+`source_url` never matches it at all.
+
+`core.fileMode false` comes along from the guide, and earns its place: git
+treats a change to a file's executable bit as a change to the file, and
+cloud-sync clients rewrite those bits as they sync - so a project in a
+synced folder can show every file as modified without a byte of content
+having changed.
 
 ### The key ssh never offers {: #bootstrap-ssh-config }
 
@@ -275,7 +360,7 @@ command.
 
 ### Your commits, under your own name {: #bootstrap-identity }
 
-Stage 10 sets `user.name` and `user.email` **on the clone**, not globally:
+Stage 11 sets `user.name` and `user.email` **on the clone**, not globally:
 
 ```bash
 git config --local user.name  "Ada Lovelace"
@@ -423,7 +508,7 @@ somebody typed it to see what it did.
  6  ok    SSH key on the host - authenticated to gitlab.surrey.ac.uk
  7  ?     Template cloned - needs project_name
  ...
-5 of 13 stages need work.
+5 of 16 stages need work.
 ```
 
 Four states, and the difference between them matters:

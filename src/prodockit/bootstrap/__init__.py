@@ -6,7 +6,7 @@
 The User Guide's install instructions are long, sequential, and easy to
 get half-right in ways that only surface much later (a missing Pango that
 looks fine until the first `prodockit pdf`, a Node without npm that fails
-in an apparently unrelated step). This turns that sequence into thirteen
+in an apparently unrelated step). This turns that sequence into sixteen
 stages that can each be *checked*, and reapplied individually when a
 check fails (prodockit-extensions#217).
 

@@ -2,6 +2,58 @@
 
 ## Unreleased
 
+- **Bootstrap now leaves a machine you can start writing on.** Comparing
+  it against the User Guide step by step - prompted by `ssh-add` turning
+  out to be missing entirely in #246 - found six things it did not do at
+  all ([#248](https://github.com/buckwem/prodockit-extensions/issues/248)).
+  Three new stages, and the count goes from thirteen to sixteen.
+
+- **Fixed:** WeasyPrint was never verified, though a stage was named for
+  it. Stage 12 read "Pandoc and WeasyPrint's libraries" and ran
+  `pandoc --version` and nothing else, so it reported `ok` on a machine
+  whose first PDF build would fail at `cannot load library`. Importing
+  WeasyPrint is the test now, and a strict one: the import loads Pango
+  through the system linker, so success proves both the Python package
+  and the native libraries. `pip` exiting zero proves neither. The
+  pandoc stage is renamed to what it actually checks.
+
+- **Fixed:** the VS Code extension list disagreed with the guide. Even
+  Better TOML and LTeX+ - both required - were missing, while Code Spell
+  Checker, which comes from the *optional* tooling page, was installed in
+  their place. Marketplace identifiers were checked rather than guessed:
+  the obvious `valentjn.vscode-ltex` returns 404, and the maintained fork
+  is published under `ltex-plus`.
+
+- **Added:** the project's own virtual environment, and its dependencies.
+  Bootstrap cloned a template shipping a `requirements.txt` and never
+  installed it, so Zensical itself was absent from the project. The new
+  stage creates `<project>/.venv` and installs into it by naming that
+  interpreter explicitly - a bare `pip install` would find bootstrap's
+  own pip, install the project's dependencies into bootstrap's
+  environment, exit zero, and leave the project's `.venv` empty.
+
+- **Added:** a history of your own. The guide resets the template's
+  commit history; bootstrap carried its whole log and branches into every
+  project. This is the only stage that destroys anything, so it reports
+  `WRONG` rather than `MISSING` - deleting history should not happen by
+  pressing Enter - and is judged by whether `origin` still points at the
+  template, never by whether commits exist. The latter would tell
+  somebody who had been writing for a month that their history needed
+  deleting.
+
+- **Added:** the editor's settings for the project. Markdown is
+  associated with Zensical Studio's language mode, and LTeX+ is set to
+  **the language the machine is in** rather than the guide's `en-GB` -
+  bootstrap runs on other people's computers, and a document checked
+  against the wrong variety of a language is worse than one not checked,
+  because the corrections are confident and wrong. When the locale cannot
+  be read the setting is left out rather than guessed. Existing settings
+  are merged, never overwritten.
+
+- **Fixed:** `git remote set-url` failed on a repository `git init` had
+  just created, which is exactly what the new history stage leaves
+  behind. The repoint now adds the remote when there is none.
+
 - **Fixed:** a passphrase-protected key could never pass the SSH stage,
   because nothing ever loaded it into an agent
   ([#246](https://github.com/buckwem/prodockit-extensions/issues/246)).

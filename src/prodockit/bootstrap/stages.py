@@ -1,18 +1,19 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""The thirteen stages of a full install, as check/plan pairs.
+"""The sixteen stages of a full install, as check/plan pairs.
 
 Every stage answers two questions and performs neither: `check` decides
 whether it is already done, `plan` says what would make it done. Nothing
 here runs an installer - see `prodockit.bootstrap.model` for why that
 split is the whole testing strategy.
 
-Seven of the thirteen are platform-independent (SSH keys, the ssh
-config stanza, the agent, cloning, repointing the remote, the project's
-commit identity, VS Code extensions), which is over half the work
-written once. That is the argument for a stage abstraction over three
-separate per-platform scripts.
+Ten of the sixteen are platform-independent (SSH keys, the ssh config
+stanza, the agent, cloning, resetting the history, repointing the
+remote, the project's commit identity and environment, VS Code
+extensions and settings), which is most of the work written once. That
+is the argument for a stage abstraction over three separate per-platform
+scripts.
 
 Two are deliberately **not automatable at all**: uploading an SSH public
 key, and creating the project on the host. Both need an authenticated
@@ -26,6 +27,8 @@ worked*, which is the half a written instruction can never do
 
 from __future__ import annotations
 
+import json
+import sys
 from pathlib import Path
 
 from prodockit.bootstrap.model import (
@@ -34,6 +37,7 @@ from prodockit.bootstrap.model import (
     UBUNTU,
     WINDOWS,
     CheckResult,
+    CommandResult,
     Context,
     Plan,
     Stage,
@@ -42,10 +46,22 @@ from prodockit.bootstrap.model import (
 
 #: The VS Code extensions the User Guide installs. Kept here rather than
 #: in the template so bootstrap can check them without a project.
+#:
+#: These are the four the install guide requires, and only those. Code
+#: Spell Checker used to be here in place of two of them, which was
+#: wrong twice over: it comes from the *optional* tooling page, whose
+#: opening line is "You don't need any of this", while Even Better TOML
+#: and LTeX+ - which the guide does require - were missing entirely
+#: (prodockit-extensions#248).
+#:
+#: Marketplace identifiers, checked rather than guessed. `valentjn.
+#: vscode-ltex` is the obvious name for LTeX and returns 404 - the
+#: maintained fork is LTeX+, published under `ltex-plus`.
 VSCODE_EXTENSIONS = (
     "ms-python.python",
     "zensical.zensical-studio",
-    "streetsidesoftware.code-spell-checker",
+    "tamasfe.even-better-toml",
+    "ltex-plus.vscode-ltex-plus",
 )
 
 #: Minimum Node major version - what the automated builds use.
@@ -734,7 +750,77 @@ def _plan_clone(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 8. The reader's own project exists on the host - guide and verify
+# 8. A history of your own, not the template's
+# ---------------------------------------------------------------------------
+
+
+def _check_fresh_history(context: Context) -> CheckResult:
+    """Whether the clone still carries the template's commit history.
+
+    Judged by `origin`, and deliberately so. The obvious test - "does
+    this repository have commits?" - would report a project the reader
+    had been working in for weeks as needing its history deleted, which
+    is the one mistake this stage must never make. `origin` still
+    pointing at the template is the only state in which discarding the
+    history is unambiguously right, and it is a state that cannot recur:
+    resetting removes the remote, and repointing replaces it.
+
+    A clone made from `source_url` already belongs to the reader, so its
+    origin is not the template's and nothing here applies to it.
+    """
+    if (unknown := _needs_config(context, "project_name")) is not None:
+        return unknown
+    project = context.config.resolved_project_dir(context.home)
+    if not (project / ".git").exists():
+        return _missing("no clone yet")
+    origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"])
+    if not origin.ok:
+        # No remote at all: `git init` has already been here.
+        return _ok("a history of its own")
+    if origin.stdout.strip() != context.host.template_remote:
+        return _ok("a history of its own")
+    # WRONG rather than MISSING, for the prompt's default. `--apply`
+    # offers MISSING as [Y/n] and WRONG as [y/N], and deleting a
+    # repository's history is the last thing that should happen by
+    # pressing Enter.
+    return _wrong("still the template's history, and pointed at the template")
+
+
+def _plan_fresh_history(context: Context) -> Plan:
+    """Deletes `.git` and starts again. There is no undo.
+
+    `core.fileMode false` comes with it, from the guide: git treats a
+    change to a file's executable bit as a change to the file, and
+    cloud-sync clients rewrite those bits as they sync - so a project in
+    a synced folder can show every file as modified without a byte of
+    content having changed.
+    """
+    project = context.config.resolved_project_dir(context.home)
+    git_dir = project / ".git"
+    remove = (
+        ["powershell", "-NoProfile", "-Command", f"Remove-Item -Recurse -Force '{git_dir}'"]
+        if context.platform == WINDOWS
+        else ["rm", "-rf", str(git_dir)]
+    )
+    return Plan(
+        cwd=str(project),
+        instructions=[
+            "This deletes the template's commit history from your clone - every "
+            "commit, branch and tag - and cannot be undone. Your files are not "
+            "touched, only the history behind them.\n"
+            f"The directory is {project}.\n"
+            "Skip this if you want to keep the template's history.",
+        ],
+        commands=[
+            remove,
+            ["git", "init", "-b", "main"],
+            ["git", "config", "core.fileMode", "false"],
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# 9. The reader's own project exists on the host - guide and verify
 # ---------------------------------------------------------------------------
 
 
@@ -768,7 +854,7 @@ def _plan_own_project(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 9. Remote repointed at it (platform-independent)
+# 10. Remote repointed at it (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -807,10 +893,20 @@ def _plan_remote(context: Context) -> Plan:
     # `prodockit sync-repo` reads zensical.toml from the working directory
     # and has no equivalent flag, so the plan sets one for both rather
     # than half the commands knowing where they are.
+    # `set-url` if there is an origin, `add` if there is not. Resetting
+    # the history deletes `.git` and starts a new repository, which has
+    # no remotes at all - so after that stage `set-url` fails with "No
+    # such remote 'origin'" and the repoint never happens (#248).
+    has_origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"]).ok
+    repoint = (
+        ["git", "remote", "set-url", "origin", wanted]
+        if has_origin
+        else ["git", "remote", "add", "origin", wanted]
+    )
     return Plan(
         cwd=str(project),
         commands=[
-            ["git", "remote", "set-url", "origin", wanted],
+            repoint,
             # sync-repo rewrites repo_url/repo_name/edit_uri/site_url and the
             # README badges to match the new remote. Without it the clone
             # keeps advertising the template's own repository.
@@ -820,7 +916,7 @@ def _plan_remote(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 10. Commit identity, in the project (platform-independent)
+# 11. Commit identity, in the project (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -896,7 +992,7 @@ def _plan_project_identity(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 11. Pandoc and WeasyPrint's native stack
+# 12. Pandoc, and the libraries WeasyPrint needs
 # ---------------------------------------------------------------------------
 
 
@@ -978,7 +1074,107 @@ def _plan_pandoc(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 12. Node and the two toolchains
+# 13. The project's own virtual environment, and what goes in it
+# ---------------------------------------------------------------------------
+
+
+def _project_venv(context: Context) -> Path:
+    """The virtual environment *inside the project*.
+
+    Not the one bootstrap is running from. That one necessarily predates
+    the project - `pip install prodockit` has to happen before there is
+    anything to clone - and the User Guide's is a second, separate
+    environment created in the project directory afterwards. Its own
+    prompts say so (`(.venv) yourname@Mac your-project %`), and the VS
+    Code Python extension finds the project's `.venv` and activates it in
+    every new terminal, which is the whole reason it is there
+    (prodockit-extensions#248).
+    """
+    return context.config.resolved_project_dir(context.home) / ".venv"
+
+
+def _venv_python(context: Context) -> Path:
+    venv = _project_venv(context)
+    if context.platform == WINDOWS:
+        return venv / "Scripts" / "python.exe"
+    return venv / "bin" / "python"
+
+
+def _imports_from_project_venv(context: Context, module: str) -> CommandResult:
+    """Runs `import <module>` using the *project's* interpreter."""
+    return context.runner.run([str(_venv_python(context)), "-c", f"import {module}"])
+
+
+def _check_project_env(context: Context) -> CheckResult:
+    """Whether the project can actually build, asked of the project itself.
+
+    Three distinct failures, and they need distinct answers - "run pip
+    again" is the right advice for one of them and useless for the other
+    two.
+
+    The WeasyPrint probe is the one the User Guide singles out:
+
+        Check that WeasyPrint can find its graphics libraries. This is
+        the one part of the setup `pip` cannot verify for you.
+
+    It is a stricter test than it looks. Importing WeasyPrint loads Pango
+    and its friends through the system's dynamic linker, so a successful
+    import proves both that the Python package is installed *and* that
+    the native libraries the pandoc stage installed can actually be
+    found. `pip` exiting zero proves neither.
+    """
+    if (unknown := _needs_config(context, "project_name")) is not None:
+        return unknown
+    project = context.config.resolved_project_dir(context.home)
+    if not project.exists():
+        return _missing("no project directory yet")
+    if not _venv_python(context).exists():
+        return _missing(f"no virtual environment at {_project_venv(context)}")
+    if not (project / "requirements.txt").exists():
+        return _wrong("the project has no requirements.txt to install")
+    if not _imports_from_project_venv(context, "zensical").ok:
+        return _missing("the project's dependencies are not installed")
+    weasyprint = _imports_from_project_venv(context, "weasyprint")
+    if not weasyprint.ok:
+        # Installed but unusable, which is exactly what WRONG is for -
+        # and reinstalling it would not help, so the detail has to point
+        # at the libraries rather than at pip.
+        return _wrong(
+            "WeasyPrint is installed but cannot load its graphics libraries - "
+            "the pandoc stage installs them, so re-run that first"
+        )
+    return _ok(f"{_project_venv(context)} is ready")
+
+
+def _plan_project_env(context: Context) -> Plan:
+    """Creates the project's venv and installs its requirements into it.
+
+    `sys.executable` builds the environment - the interpreter bootstrap
+    is itself running under, which is a real Python of a known version -
+    and then the *new* environment's own pip does the installing.
+
+    That second part is the one worth being careful about. A bare `pip
+    install -r requirements.txt` would find whichever pip is on `PATH`,
+    which is bootstrap's own, and install the project's dependencies into
+    bootstrap's environment instead. It would exit zero, this stage would
+    re-check, and the project's `.venv` would still be empty - the failure
+    only surfacing at the reader's first build. Naming the interpreter
+    explicitly is what makes that impossible.
+    """
+    project = context.config.resolved_project_dir(context.home)
+    venv = _project_venv(context)
+    python = _venv_python(context)
+    commands: list[list[str]] = []
+    if not python.exists():
+        commands.append([sys.executable, "-m", "venv", str(venv)])
+    commands.append(
+        [str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")]
+    )
+    return Plan(cwd=str(project), commands=commands)
+
+
+# ---------------------------------------------------------------------------
+# 14. Node and the two toolchains
 # ---------------------------------------------------------------------------
 
 
@@ -1020,7 +1216,7 @@ def _plan_node(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 13. VS Code extensions (platform-independent)
+# 15. VS Code extensions (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -1072,6 +1268,138 @@ def _plan_extensions(context: Context) -> Plan:
 #: Every stage, in the order they have to happen. Ordering is a real
 #: dependency, not a preference: nothing can be cloned before SSH
 #: authenticates, and the Node toolchains install *into* the clone.
+# ---------------------------------------------------------------------------
+# 16. The editor's own settings, in the project
+# ---------------------------------------------------------------------------
+
+
+#: Zensical Studio needs Markdown files handed to the right language
+#: mode, and LTeX+ needs to be told which language it is checking. Both
+#: live in the project's own `.vscode/settings.json`, so they are one
+#: stage (prodockit-extensions#248).
+_MARKDOWN_ASSOCIATION = {"*.md": "python-markdown"}
+
+#: Merges the wanted keys into whatever is already there, rather than
+#: writing the file. `.vscode/settings.json` is the reader's, and may
+#: hold settings this knows nothing about; and VS Code writes it itself
+#: whenever a setting is changed in the UI. Run through the interpreter
+#: bootstrap is already using, so it needs nothing installed and behaves
+#: the same on all three platforms.
+_MERGE_SETTINGS = """
+import json, sys, pathlib
+path, incoming = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])
+path.parent.mkdir(parents=True, exist_ok=True)
+try:
+    current = json.loads(path.read_text(encoding="utf-8") or "{}")
+except (OSError, ValueError):
+    current = {}
+if not isinstance(current, dict):
+    current = {}
+associations = dict(current.get("files.associations") or {})
+associations.update(incoming.pop("files.associations", {}))
+if associations:
+    current["files.associations"] = associations
+current.update(incoming)
+path.write_text(json.dumps(current, indent=2) + "\\n", encoding="utf-8")
+"""
+
+
+def _reader_language(context: Context) -> str | None:
+    """The reader's own language, as LTeX+ spells it, or None.
+
+    Asked of the machine rather than pinned. The User Guide says `en-GB`
+    because that is right for its own readers, but bootstrap runs on
+    other people's computers - and a document checked against the wrong
+    variety of a language is worse than one not checked at all, because
+    the corrections are confident and wrong. Imposing `en-GB` on an
+    `en-US` reader is the same mistake as the reverse.
+
+    None when the machine will not say. Leaving the setting out is better
+    than guessing: LTeX+ has a default of its own, and an absent value is
+    at least honest about not knowing.
+    """
+    if context.platform == MACOS:
+        # The GUI locale, which is the one the reader actually chose;
+        # `LANG` is frequently unset in a macOS GUI session's shell.
+        result = context.runner.run(["defaults", "read", "-g", "AppleLocale"])
+    elif context.platform == WINDOWS:
+        result = context.runner.run(["powershell", "-NoProfile", "-Command", "(Get-Culture).Name"])
+    else:
+        result = context.runner.run(["locale"])
+    if not result.ok:
+        return None
+
+    raw = result.stdout.strip()
+    if context.platform == UBUNTU:
+        # `locale` prints a block of KEY=value lines; LANG is the one
+        # naming the language rather than a category override.
+        for line in raw.splitlines():
+            if line.startswith("LANG="):
+                raw = line.partition("=")[2].strip().strip('"')
+                break
+        else:
+            return None
+    # en_GB.UTF-8 / en_GB@euro / en-GB all mean the same thing here.
+    tag = raw.split(".")[0].split("@")[0].replace("_", "-").strip()
+    if not tag or tag.upper() in ("C", "POSIX"):
+        return None
+    return tag
+
+
+def _wanted_settings(context: Context) -> dict[str, object]:
+    settings: dict[str, object] = {"files.associations": dict(_MARKDOWN_ASSOCIATION)}
+    language = _reader_language(context)
+    if language is not None:
+        settings["ltex.language"] = language
+    return settings
+
+
+def _settings_path(context: Context) -> Path:
+    return context.config.resolved_project_dir(context.home) / ".vscode" / "settings.json"
+
+
+def _check_vscode_settings(context: Context) -> CheckResult:
+    if (unknown := _needs_config(context, "project_name")) is not None:
+        return unknown
+    project = context.config.resolved_project_dir(context.home)
+    if not project.exists():
+        return _missing("no project directory yet")
+    path = _settings_path(context)
+    try:
+        current = json.loads(path.read_text(encoding="utf-8") or "{}")
+    except (OSError, ValueError):
+        return _missing(f"{path} is not there yet")
+    if not isinstance(current, dict):
+        return _wrong(f"{path} is not a JSON object")
+
+    associations = current.get("files.associations") or {}
+    missing = [
+        key
+        for key, value in _MARKDOWN_ASSOCIATION.items()
+        if not isinstance(associations, dict) or associations.get(key) != value
+    ]
+    if missing:
+        return _missing("Markdown is not associated with Zensical Studio's language mode")
+    language = _reader_language(context)
+    if language is not None and current.get("ltex.language") != language:
+        return _missing(f"LTeX+ is not set to {language}")
+    return _ok(str(path))
+
+
+def _plan_vscode_settings(context: Context) -> Plan:
+    return Plan(
+        commands=[
+            [
+                sys.executable,
+                "-c",
+                _MERGE_SETTINGS,
+                str(_settings_path(context)),
+                json.dumps(_wanted_settings(context)),
+            ]
+        ]
+    )
+
+
 STAGES: tuple[Stage, ...] = (
     Stage("vscode", "Visual Studio Code", _check_vscode, _plan_vscode),
     Stage("git", "Git, installed and configured", _check_git, _plan_git),
@@ -1085,6 +1413,9 @@ STAGES: tuple[Stage, ...] = (
     Stage("ssh-agent", "Key loaded into the ssh agent", _check_ssh_agent, _plan_ssh_agent),
     Stage("ssh-upload", "SSH key on the host", _check_ssh_authenticates, _plan_ssh_upload),
     Stage("clone", "Template cloned", _check_clone, _plan_clone),
+    # Before the remote is set: resetting deletes .git, remotes and all,
+    # so doing it afterwards would throw away the repoint (#248).
+    Stage("fresh-history", "A history of your own", _check_fresh_history, _plan_fresh_history),
     Stage("own-project", "Your own project on the host", _check_own_project, _plan_own_project),
     Stage("remote", "Clone pointed at your project", _check_remote, _plan_remote),
     Stage(
@@ -1093,7 +1424,25 @@ STAGES: tuple[Stage, ...] = (
         _check_project_identity,
         _plan_project_identity,
     ),
-    Stage("pandoc", "Pandoc and WeasyPrint's libraries", _check_pandoc, _plan_pandoc),
+    # Named for what it checks. It installs the libraries WeasyPrint
+    # needs, but cannot verify them - importing WeasyPrint is what does
+    # that, and WeasyPrint is not installed until the project's own
+    # environment exists, one stage below (#248).
+    Stage("pandoc", "Pandoc, and the libraries WeasyPrint needs", _check_pandoc, _plan_pandoc),
+    Stage(
+        "project-env",
+        "Project environment and its dependencies",
+        _check_project_env,
+        _plan_project_env,
+    ),
     Stage("node", "Node.js and the render toolchains", _check_node, _plan_node),
     Stage("extensions", "VS Code extensions", _check_extensions, _plan_extensions),
+    # Last, so that the state bootstrap leaves behind is one where
+    # opening the project in VS Code is enough to start writing.
+    Stage(
+        "vscode-settings",
+        "VS Code settings for the project",
+        _check_vscode_settings,
+        _plan_vscode_settings,
+    ),
 )

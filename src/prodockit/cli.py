@@ -402,9 +402,10 @@ def bootstrap(
 ) -> None:
     """Set up this machine and your project from scratch.
 
-    Checks all 13 stages - editor, git, SSH key/config/agent/upload,
-    clone, remote, commit identity, pandoc, Node and the rest - and
-    reports which are already done. Rerunnable: a stage that is set up correctly
+    Checks all 16 stages - editor, git, SSH key/config/agent/upload,
+    clone, history, remote, commit identity, the project's own
+    environment, pandoc, Node and the rest - and reports which are
+    already done. Rerunnable: a stage that is set up correctly
     is left alone.
 
     This cannot be the first thing you run: it is a prodockit command, so
