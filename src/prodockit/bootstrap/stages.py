@@ -882,6 +882,9 @@ def _plan_fresh_history(context: Context) -> Plan:
     )
     return Plan(
         cwd=str(project),
+        # The only plan in bootstrap that cannot be undone, and the only
+        # one whose prompt does not default to yes (#259).
+        destructive=True,
         instructions=[
             "This deletes the template's commit history from your clone - every "
             "commit, branch and tag - and cannot be undone. Your files are not "

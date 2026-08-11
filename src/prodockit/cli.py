@@ -337,7 +337,12 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
             for command in plan.commands:
                 click.echo(f"    {' '.join(command)}")
             click.echo("")
-            default_yes = report.result.status is Status.MISSING
+            # Yes unless it destroys something. A reader who typed
+            # `--apply` has said what they want; making them say it again
+            # seventeen times, with the answer changing according to a
+            # status they cannot see, is how a prompt stops being read
+            # (#259).
+            default_yes = not plan.destructive
             count = len(plan.commands)
             if not click.confirm(f"  Run {count} command{'s' if count != 1 else ''}?",
                                  default=default_yes):

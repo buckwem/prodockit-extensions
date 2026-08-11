@@ -623,14 +623,17 @@ prodockit bootstrap --apply       # set up what needs it, asking first
 before it runs it, and asks each time. The defaults differ by state, and
 deliberately:
 
-| Stage state | Prompt |
+| What the plan does | Prompt |
 | --- | --- |
-| `MISS` - not there at all | `Apply? [Y/n]` |
-| `WRONG` - present but not usable | `Apply? [y/N]` |
+| Anything that can be undone | `Apply? [Y/n]` |
+| Anything that cannot - stage 8, and only stage 8 | `Apply? [y/N]` |
 
-Reapplying over something that already exists is the case that can
-destroy work, so it is the case you have to ask for rather than get by
-pressing Enter.
+One rule, and a visible one. The default used to follow the *check's
+status* - `MISS` meant yes, `WRONG` meant no - which is a rule you cannot
+see from the prompt, so the same key press meant different things at
+different stages for reasons that were never on screen.
+
+Now a plan says whether it destroys something, and only one does.
 
 **Every stage is re-checked after it is applied.** A command exiting zero
 says the installer ran, not that the thing it installed works - which is
