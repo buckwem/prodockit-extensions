@@ -1665,21 +1665,23 @@ def test_ubuntu_vscode_is_downloaded_rather_than_asked_for(tmp_path: Path) -> No
     assert "update.code.visualstudio.com" in flat
     # curl is not on a minimal Ubuntu, and the download is the whole step.
     assert flat.index("install -y curl") < flat.index("curl -fsSL")
-    # dpkg says amd64 where VS Code's URL says x64; arm64 agrees with
-    # itself, which is what an Apple-silicon VM reports.
-    assert "dpkg --print-architecture" in flat
-    assert "amd64) arch=x64" in flat
+    # The architecture is resolved when the plan is built, so the command
+    # names it outright rather than working it out in a shell (#287).
+    assert "dpkg --print-architecture" not in flat
+    assert "linux-deb-x64/stable" in flat
 
 
 def test_ubuntu_vscode_installs_the_file_it_just_downloaded(tmp_path: Path) -> None:
     """The download path and the install path have to be the same one -
     the previous plan's did not, which is the whole of #233."""
     plan = next(s for s in STAGES if s.id == "vscode").plan(_context(tmp_path, platform=UBUNTU))
-    download = next(c for c in plan.commands if "curl -fsSL" in " ".join(c))
-    script = " ".join(download)
+    download = next(c for c in plan.commands if c[0] == "curl")
+    install = next(c for c in plan.commands if c[-1] == "/tmp/code.deb")
 
-    assert "-o /tmp/code.deb" in script
-    assert "install -y /tmp/code.deb" in script
+    assert "/tmp/code.deb" in download
+    assert install[:2] == ["sudo", "apt"]
+    # The install must come after the download that produces the file.
+    assert plan.commands.index(download) < plan.commands.index(install)
 
 
 def test_a_warning_is_not_reported_as_the_reason_a_command_failed() -> None:
@@ -1787,7 +1789,7 @@ def test_the_lock_wait_covers_apt_inside_a_shell_command(tmp_path: Path) -> None
     apt call is inside a string rather than at the front of a list - the
     easiest place for an option to be forgotten."""
     context = _context(tmp_path, platform=UBUNTU)
-    for stage_id in ("vscode", "pandoc"):
+    for stage_id in ("pandoc",):
         plan = next(s for s in STAGES if s.id == stage_id).plan(context)
         script = next(c for c in plan.commands if c[0] == "bash")[-1]
         assert "DPkg::Lock::Timeout" in script, stage_id
@@ -3745,3 +3747,44 @@ def test_a_failure_with_nothing_captured_points_at_the_screen() -> None:
     # The summary function still works for the captured cases that remain.
     assert _first_meaningful_line("E: broken") == "E: broken"
     assert _first_meaningful_line("") == "no output"
+
+
+def test_the_architecture_is_named_rather_than_worked_out_in_a_shell(tmp_path: Path) -> None:
+    """prodockit-extensions#287. The command carried
+    `case "$arch" in amd64) arch=x64 ;; esac`, which reads as a hardcoded
+    target even though it only maps dpkg's name onto VS Code's - and a
+    reader is being asked to approve it.
+
+    Resolved when the plan is built, so it names the machine they are
+    on."""
+    for reported, expected in (("arm64", "arm64"), ("amd64", "x64")):
+        runner = FakeRunner({"dpkg --print-architecture": CommandResult(0, reported)})
+        plan = next(s for s in STAGES if s.id == "vscode").plan(
+            _context(tmp_path, runner=runner, platform=UBUNTU)
+        )
+        url = next(c for c in plan.commands if c[0] == "curl")[-1]
+        assert url.endswith(f"linux-deb-{expected}/stable"), reported
+        assert "$arch" not in " ".join(" ".join(c) for c in plan.commands)
+
+
+def test_an_unaskable_dpkg_falls_back_to_the_common_architecture(tmp_path: Path) -> None:
+    """Better than an empty URL, and x64 is what most machines are."""
+    plan = next(s for s in STAGES if s.id == "vscode").plan(
+        _context(tmp_path, platform=UBUNTU)
+    )
+
+    assert next(c for c in plan.commands if c[0] == "curl")[-1].endswith("linux-deb-x64/stable")
+
+
+def test_the_privileged_half_of_the_install_is_its_own_command(tmp_path: Path) -> None:
+    """The download needs no privileges and the install does. Splitting
+    them keeps `sudo` at the front of a command where it can be seen -
+    and where a timestamp expiring mid-run prompts visibly rather than
+    inside a shell nobody is watching (#287, #244)."""
+    plan = next(s for s in STAGES if s.id == "vscode").plan(
+        _context(tmp_path, platform=UBUNTU)
+    )
+
+    assert not any(c[0] == "bash" for c in plan.commands), "no shell wrapper left"
+    assert next(c for c in plan.commands if c[0] == "curl")[0] != "sudo"
+    assert any(c[0] == "sudo" and c[-1] == "/tmp/code.deb" for c in plan.commands)

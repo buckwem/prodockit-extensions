@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **The Ubuntu VS Code install names your architecture instead of
+  working it out in a shell**
+  ([#287](https://github.com/buckwem/prodockit-extensions/issues/287)).
+  The command carried `case "$arch" in amd64) arch=x64 ;; esac`, which
+  reads as a hardcoded target even though it only maps dpkg's name onto
+  VS Code's. It behaved correctly on arm64; it just could not be trusted
+  at a glance, and a reader is being asked to approve it.
+
+    It is resolved when the plan is built, so the command shows
+    `linux-deb-arm64/stable` on an arm64 machine and `linux-deb-x64` on
+    an amd64 one.
+
+    The download and the install are two commands now rather than one
+    shell line. The download needs no privileges and the install does, so
+    splitting them keeps `sudo` at the front of a command where it can be
+    seen - and where a credential timestamp expiring mid-run prompts
+    visibly, rather than inside a shell whose output nobody is watching,
+    which is how that stage reached its 30-minute timeout.
+
 - **Fixed:** three more Windows commands that could not have worked
   ([#295](https://github.com/buckwem/prodockit-extensions/issues/295)),
   found by reading the plans after #292 rather than by reaching them.
