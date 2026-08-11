@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.26.0 (2026-08-11)
+
 - **Fixed:** the website showed raw TeX where an equation should be
   ([#263](https://github.com/buckwem/prodockit-extensions/issues/263)).
   MathJax was loaded with no configuration at all, so

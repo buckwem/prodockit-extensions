@@ -8,11 +8,11 @@ whether it is already done, `plan` says what would make it done. Nothing
 here runs an installer - see `prodockit.bootstrap.model` for why that
 split is the whole testing strategy.
 
-Eleven of the seventeen are platform-independent (SSH keys, the ssh
+Twelve of the eighteen are platform-independent (SSH keys, the ssh
 config stanza, the agent, cloning, resetting the history, repointing the
 remote, the project's commit identity and environment, VS Code
-extensions and settings, the citation style), which is most of the work
-written once. That
+extensions and settings, the citation style, MathJax for the website),
+which is most of the work written once. That
 is the argument for a stage abstraction over three separate per-platform
 scripts.
 
