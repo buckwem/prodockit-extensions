@@ -427,12 +427,27 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
                     click.echo("  sudo was not accepted - the commands may fail.", err=True)
                 click.echo("")
 
+            # Output streams from here, so the reader can see progress -
+            # but the *check* that follows is captured and can take
+            # seconds (an `ssh -T` carries a ten-second connect timeout),
+            # which reads as a hang right after a command has visibly
+            # finished. So both ends are announced (#244).
+            click.echo("  Working - the commands' own output follows.")
+            click.echo("")
             outcome = apply_stage(context, report.stage)
+            click.echo("")
+            click.echo("  Commands finished, checking the result...")
             if outcome.failed is not None:
-                click.echo(
-                    f"  failed: {_first_meaningful_line(outcome.failed.stderr)}",
-                    err=True,
+                # The command's own output has just gone past on screen,
+                # so there is usually no captured stderr to summarise -
+                # point at what the reader can see rather than invent a
+                # sentence (#244).
+                summary = (
+                    _first_meaningful_line(outcome.failed.stderr)
+                    if outcome.failed.stderr.strip()
+                    else f"exit status {outcome.failed.returncode} - see the output above"
                 )
+                click.echo(f"  failed: {summary}", err=True)
                 click.echo("  Stopping - later stages depend on this one.", err=True)
                 sys.exit(1)
             if outcome.ok:
