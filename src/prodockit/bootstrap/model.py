@@ -24,7 +24,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from prodockit.bootstrap.config import BootstrapConfig
 
@@ -677,6 +677,14 @@ class Context:
     #: running them happened to have VS Code installed. This closes that,
     #: so "tests describe a machine, never read one" is true of all of it.
     exists: Callable[[Path], bool] = Path.exists
+    #: How many times this run has reached the host, and how many repeats
+    #: it answered without connecting again.
+    #:
+    #: Deliberately a plain counter with no policy attached. Waiting and
+    #: backing off are worth adding once this has shown what a real run
+    #: costs, and not before (prodockit-extensions#304). Typed loosely to
+    #: keep `model` free of a dependency on the module that wraps it.
+    contacts: Any = None
 
 
 @dataclass(frozen=True)

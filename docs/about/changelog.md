@@ -27,6 +27,30 @@
     that does not know the keyword rejects the whole config file rather
     than skipping the line, which would take every other host in it down
     too.
+- **Fixed:** bootstrap logged in to the host far more often than it
+  needed to, and a host that stops answering was reported as a rejected
+  key ([#304](https://github.com/buckwem/prodockit-extensions/issues/304)).
+
+    Every pass ran `ssh -T` for the check and again to decide whether the
+    plan needed the terminal, plus a `git ls-remote` - and the `--apply`
+    loop re-derives a plan and re-checks after every stage. A single run
+    made dozens of logins within seconds, which is what provokes a server
+    into refusing.
+
+    Repeats within a pass are now answered from the first connection. The
+    memo is dropped after any applied command, so the verification
+    re-check - the one claim bootstrap makes that is worth anything -
+    always connects for itself.
+
+    A run now also reports how many connections it made, which is the
+    measurement any later throttling should be built on rather than
+    guessed at.
+
+    Separately, a connection the host accepts and then closes is reported
+    as what it is, instead of as `could not confirm authentication` or a
+    key the host rejected. `Permission denied` still reports as a
+    rejection: that is a clean answer from a working server, and telling
+    the reader to wait would be wrong.
 
 ## 0.26.3 (2026-08-11)
 
