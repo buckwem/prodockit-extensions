@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.26.4 (2026-08-11)
+
 - **Fixed:** the SSH key was loaded into the agent for one session only,
   so a machine bootstrap had set up stopped authenticating after the next
   reboot
