@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Documentation:** the Windows prerequisites now set PowerShell's
+  execution policy
+  ([#288](https://github.com/buckwem/prodockit-extensions/issues/288)).
+  Windows blocks all scripts by default and activating a virtual
+  environment *is* a script, so the step immediately after failed:
+
+    ```text
+    .\.venv\Scripts\Activate.ps1 : File ...\Activate.ps1 cannot be loaded
+    because running scripts is disabled on this system.
+    ```
+
+    which names the script rather than the policy blocking it, and so
+    reads as a broken file. `Set-ExecutionPolicy -Scope CurrentUser
+    -ExecutionPolicy RemoteSigned` comes first now, with what it does and
+    does not change, and the CMD alternative for anyone who would rather
+    not change it. The "activate it again" section points back at it.
+
 ## 0.26.1 (2026-08-11)
 
 - **Fixed:** naming an existing repository to clone did not work
