@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from prodockit import __version__
 from prodockit.bootstrap import (
     HOSTS,
     PROMPTS,
@@ -2936,3 +2937,36 @@ def test_the_public_key_is_still_shown_in_the_form(tmp_path: Path) -> None:
 
     assert form.count(PUBLIC_KEY_MARKER) == 2
     assert "ssh-ed25519 AAAAC3Nz-PUBLIC" in form
+
+
+def test_apply_says_what_it_is_doing_before_it_starts(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#258: `--apply` opened straight into
+    `[1/11] Visual Studio Code`, which says which step you are on and
+    nothing about what you have started or where it will land."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    save(tmp_path / "b.toml", _config())
+
+    result = cli_bootstrap("--apply", input="n\n" * 40)
+
+    assert f"prodockit {__version__}" in result.output
+    assert "setting up your development environment" in result.output
+    assert "gitlab.surrey.ac.uk" in result.output, "which host it will use"
+    assert "report-al01234" in result.output, "and where the project will land"
+    assert f"of {len(STAGES)} stages" in result.output
+    assert "virtual environment active" in result.output
+    # Before the first stage, or it is not an announcement.
+    assert result.output.index("setting up your") < result.output.index("[1/")
+
+
+def test_the_heading_is_not_printed_when_there_is_nothing_to_do(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Announcing a setup and then doing nothing reads as a failure."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+
+    result = cli_bootstrap("--apply", responses=_ready_machine(tmp_path))
+
+    assert "setting up your development environment" not in result.output
+    assert "Nothing to do" in result.output

@@ -29,6 +29,7 @@ import click
 from prodockit import __version__
 from prodockit.bootstrap import (
     PROMPTS,
+    STAGES,
     BootstrapConfig,
     BootstrapConfigError,
     Context,
@@ -253,6 +254,34 @@ def _first_meaningful_line(text: str) -> str:
     return text.strip().splitlines()[0] if text.strip() else "no output"
 
 
+def _announce_apply(context: Context, outstanding: int) -> None:
+    """Says what is about to happen, before it starts happening.
+
+    `--apply` opened straight into `[1/11] Visual Studio Code`, which
+    tells a reader which step they are on and nothing about what they
+    have started or where it will land
+    (prodockit-extensions#258). Three facts are worth having before the
+    first prompt: what this is, where it is working, and that the two
+    things it cannot check for itself are as the reader intends.
+    """
+    click.echo("")
+    click.echo(
+        click.style(
+            f"prodockit {__version__} - setting up your development environment",
+            bold=True,
+        )
+    )
+    click.echo("")
+    click.echo(f"  Host:     {context.host.hostname}")
+    click.echo(f"  Project:  {context.config.resolved_project_dir(context.home)}")
+    click.echo(f"  To do:    {outstanding} of {len(STAGES)} stages")
+    click.echo("")
+    click.echo(
+        "  Run this from your top-level project directory, with the Python\n"
+        "  virtual environment active. Nothing is changed without asking first."
+    )
+
+
 def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
     """Applies the stages that need it, asking before each.
 
@@ -267,6 +296,8 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
         click.echo("Nothing to do - every stage is either set up or waiting on "
                    "configuration.")
         return
+
+    _announce_apply(context, len(outstanding))
 
     total = len(outstanding)
     for number, report in enumerate(outstanding, start=1):

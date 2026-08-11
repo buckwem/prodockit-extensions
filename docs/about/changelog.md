@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **`--apply` now says what it is doing before it starts**
+  ([#258](https://github.com/buckwem/prodockit-extensions/issues/258)).
+  It opened straight into `[1/11] Visual Studio Code`, which tells a
+  reader which step they are on and nothing about what they have started
+  or where it will land. It now names the version, the host, the project
+  directory and how many stages need work, and says to run it from the
+  project directory with the virtual environment active.
+
 - **The SSH key form is filled in the order it actually works in**
   ([#257](https://github.com/buckwem/prodockit-extensions/issues/257)).
   GitLab fills the Title in from the key's own comment the moment a key
