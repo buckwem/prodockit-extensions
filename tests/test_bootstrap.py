@@ -12,6 +12,7 @@ be checked from whichever one the suite happens to run on
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -84,6 +85,49 @@ AGENT_RESPONSES = {
     "ssh-add -l": CommandResult(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)"),
     "ssh-keygen -lf": CommandResult(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)"),
 }
+
+
+def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
+    """A machine on which every stage is satisfied.
+
+    One place rather than per-test, so adding a stage breaks this once
+    and visibly instead of leaving tests passing against a machine the
+    stage list no longer describes.
+    """
+    (tmp_path / ".ssh").mkdir(exist_ok=True)
+    for suffix in ("", ".pub"):
+        (tmp_path / ".ssh" / f"id_ed25519_gitlab{suffix}").write_text("k", encoding="utf-8")
+    _write_ssh_config(tmp_path)
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True, exist_ok=True)
+    (project / "tools").mkdir(exist_ok=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    venv_python = project / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True, exist_ok=True)
+    venv_python.write_text("", encoding="utf-8")
+    (project / ".vscode").mkdir(exist_ok=True)
+    (project / ".vscode" / "settings.json").write_text(
+        '{"files.associations": {"*.md": "python-markdown"}}', encoding="utf-8"
+    )
+    save(tmp_path / "b.toml", _config())
+    return {
+        "code --list-extensions": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
+        "code": CommandResult(0),
+        "git --version": CommandResult(0, "git version 2.43.0"),
+        "git config --global user.name": CommandResult(0, "Ada\n"),
+        "git config --global user.email": CommandResult(0, "a@b.c\n"),
+        "ssh": CommandResult(1, stderr="Welcome to GitLab, @al01234!"),
+        "git": CommandResult(0, "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git\n"),
+        "prodockit sync-repo --check": CommandResult(0),
+        "config --local user.name": CommandResult(0, "Ada Lovelace\n"),
+        "config --local user.email": CommandResult(0, "al01234@surrey.ac.uk\n"),
+        "pandoc": CommandResult(0, "pandoc 3.10.1"),
+        "node": CommandResult(0, "v22.14.0\n"),
+        "npm": CommandResult(0, "10.9.2\n"),
+        "import zensical": CommandResult(0),
+        "import weasyprint": CommandResult(0),
+        **AGENT_RESPONSES,
+    }
 
 
 def _write_ssh_config(tmp_path: Path, key: str = "~/.ssh/id_ed25519_gitlab") -> None:
@@ -697,7 +741,8 @@ def test_browser_instructions_use_the_hosts_own_vocabulary(tmp_path: Path) -> No
 def test_remote_plan_repoints_and_then_syncs(tmp_path: Path) -> None:
     """`git remote set-url` alone leaves the clone advertising the
     template's own repository in zensical.toml and the README badges."""
-    context = _context(tmp_path)
+    runner = FakeRunner({"remote get-url origin": CommandResult(0, "git@old.example:x/y.git")})
+    context = _context(tmp_path, runner=runner)
     plan = next(s for s in STAGES if s.id == "remote").plan(context)
     flat = [" ".join(command) for command in plan.commands]
     assert any("remote set-url" in c for c in flat)
@@ -825,37 +870,8 @@ def test_bootstrap_exits_zero_when_everything_is_set_up(
     cli_bootstrap, tmp_path: Path
 ) -> None:
     """Usable as a script check, matching `sync-repo --check`."""
-    (tmp_path / ".ssh").mkdir()
-    for suffix in ("", ".pub"):
-        (tmp_path / ".ssh" / f"id_ed25519_gitlab{suffix}").write_text("k", encoding="utf-8")
-    _write_ssh_config(tmp_path)
-    project = tmp_path / "GitLab" / "report-al01234"
-    (project / ".git").mkdir(parents=True)
-    (project / "tools").mkdir()
-    save(tmp_path / "b.toml", _config())
-    result = cli_bootstrap(
-        responses={
-            "code": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
-            "git --version": CommandResult(0, "git version 2.43.0"),
-            "git config --global user.name": CommandResult(0, "Ada\n"),
-            "git config --global user.email": CommandResult(0, "a@b.c\n"),
-            "ssh": CommandResult(1, stderr="Welcome to GitLab, @al01234!"),
-            **AGENT_RESPONSES,
-            "git": CommandResult(
-                0, "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git\n"
-            ),
-            # The repoint stage checks the config is synced too, not just
-            # the remote - see test_repoint_is_not_done_until_the_config_is_synced_too.
-            "prodockit sync-repo --check": CommandResult(0),
-            # The clone commits under the configured identity, not
-            # whatever the machine's global git config happens to say.
-            "config --local user.name": CommandResult(0, "Ada Lovelace\n"),
-            "config --local user.email": CommandResult(0, "al01234@surrey.ac.uk\n"),
-            "pandoc": CommandResult(0, "pandoc 3.10.1"),
-            "node": CommandResult(0, "v22.14.0\n"),
-            "npm": CommandResult(0, "10.9.2\n"),
-        }
-    )
+    result = cli_bootstrap(responses=_ready_machine(tmp_path))
+
     # Against the list, not a number typed in: a count in prose drifts
     # the moment a stage is added, which is how "ten stages" shipped.
     assert f"All {len(STAGES)} stages are set up." in result.output
@@ -1087,7 +1103,7 @@ def test_extensions_plan_installs_only_what_is_missing(tmp_path: Path) -> None:
 
     # And the check names what is already there, not only what is not.
     detail = stage.check(context).detail
-    assert "2 of 3 installed" in detail
+    assert f"{len(VSCODE_EXTENSIONS) - 1} of {len(VSCODE_EXTENSIONS)} installed" in detail
     assert VSCODE_EXTENSIONS[-1] in detail
 
 
@@ -1673,7 +1689,7 @@ def test_no_extensions_installed_is_missing_not_wrong(tmp_path: Path) -> None:
     result = next(s for s in STAGES if s.id == "extensions").check(_context(tmp_path, runner=runner))
 
     assert result.status is Status.MISSING
-    assert "0 of 3 installed" in result.detail
+    assert f"0 of {len(VSCODE_EXTENSIONS)} installed" in result.detail
 
 
 def test_some_extensions_installed_is_still_wrong(tmp_path: Path) -> None:
@@ -1685,7 +1701,7 @@ def test_some_extensions_installed_is_still_wrong(tmp_path: Path) -> None:
     result = next(s for s in STAGES if s.id == "extensions").check(_context(tmp_path, runner=runner))
 
     assert result.status is Status.WRONG
-    assert "1 of 3 installed" in result.detail
+    assert f"1 of {len(VSCODE_EXTENSIONS)} installed" in result.detail
 
 
 def test_the_extensions_prompt_defaults_to_yes_on_a_bare_machine(
@@ -1693,16 +1709,19 @@ def test_the_extensions_prompt_defaults_to_yes_on_a_bare_machine(
 ) -> None:
     """The end of #242 as the reader met it: the prompt itself."""
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
-    save(tmp_path / "b.toml", _config())
+    # Everything else already set up, so the extensions stage is the one
+    # doing the asking. An earlier version of this test asserted against
+    # `Run 3 commands?` on a bare machine and was in fact reading the
+    # *git* stage's prompt, which happened to have three commands too.
+    responses = _ready_machine(tmp_path)
+    responses["code --list-extensions"] = CommandResult(0, "")
 
-    result = cli_bootstrap(
-        "--apply",
-        responses={"code --list-extensions": CommandResult(0, ""), "code": CommandResult(0)},
-        input="\n" * 40,
-    )
+    result = cli_bootstrap("--apply", responses=responses, input="\n" * 40)
 
-    assert "Run 3 commands? [Y/n]" in result.output
-    assert "Run 3 commands? [y/N]" not in result.output
+    assert "VS Code extensions" in result.output
+    count = len(VSCODE_EXTENSIONS)
+    assert f"Run {count} commands? [Y/n]" in result.output
+    assert f"Run {count} commands? [y/N]" not in result.output
 
 
 def test_every_apt_command_waits_for_the_dpkg_lock(tmp_path: Path) -> None:
@@ -1963,3 +1982,285 @@ def test_windows_is_told_about_the_service_instead(tmp_path: Path) -> None:
     assert "Start-Service ssh-agent" in joined
     assert "Administrator" in joined
     assert "ssh-agent -s" not in joined, "that is the Unix route"
+
+
+# ---------------------------------------------------------------------------
+# Closing the gaps against the User Guide: #248
+# ---------------------------------------------------------------------------
+
+
+def test_the_extensions_are_the_ones_the_install_guide_requires() -> None:
+    """#248: the list had Code Spell Checker - which comes from the
+    *optional* tooling page, opening "You don't need any of this" - in
+    place of two the install guide does require."""
+    assert VSCODE_EXTENSIONS == (
+        "ms-python.python",
+        "zensical.zensical-studio",
+        "tamasfe.even-better-toml",
+        "ltex-plus.vscode-ltex-plus",
+    )
+    assert "streetsidesoftware.code-spell-checker" not in VSCODE_EXTENSIONS
+    # LTeX was renamed: `valentjn.vscode-ltex` 404s, the maintained fork
+    # is published under `ltex-plus`. Checked against the marketplace.
+    assert "valentjn.vscode-ltex" not in VSCODE_EXTENSIONS
+
+
+def test_the_template_history_is_reset_only_while_origin_is_the_template(
+    tmp_path: Path,
+) -> None:
+    """The dangerous mistake this stage could make is telling a reader
+    who has been working for weeks that their history needs deleting.
+
+    Judging by `origin` makes that impossible: the state is one the
+    template clone starts in and can never return to, because resetting
+    removes the remote and repointing replaces it."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+    stage = next(s for s in STAGES if s.id == "fresh-history")
+
+    still_template = FakeRunner({"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)})
+    assert stage.check(_context(tmp_path, runner=still_template)).status is Status.WRONG
+
+    their_own = FakeRunner(
+        {"remote get-url origin": CommandResult(0, "git@gitlab.surrey.ac.uk:x/report.git")}
+    )
+    assert stage.check(_context(tmp_path, runner=their_own)).status is Status.OK
+
+    already_reset = FakeRunner({"remote get-url origin": CommandResult(2, stderr="No such remote")})
+    assert stage.check(_context(tmp_path, runner=already_reset)).status is Status.OK
+
+
+def test_deleting_history_is_wrong_not_missing_so_enter_declines(tmp_path: Path) -> None:
+    """`--apply` offers MISSING as [Y/n] and WRONG as [y/N]. Deleting a
+    repository's history is the last thing that should happen by pressing
+    Enter, so the status is chosen for the prompt it produces."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    runner = FakeRunner({"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)})
+    result = next(s for s in STAGES if s.id == "fresh-history").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.status is Status.WRONG, "MISSING would default the prompt to yes"
+
+
+def test_the_history_reset_says_it_cannot_be_undone(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    runner = FakeRunner({"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)})
+    plan = next(s for s in STAGES if s.id == "fresh-history").plan(_context(tmp_path, runner=runner))
+    joined = "\n".join(plan.instructions)
+    flat = " ".join(" ".join(c) for c in plan.commands)
+
+    assert "cannot be undone" in joined
+    assert str(project) in joined, "say which directory, before deleting it"
+    assert "git init -b main" in flat
+    # From the guide: cloud-sync clients rewrite the executable bit, so a
+    # synced project shows every file as modified without a byte changing.
+    assert "core.fileMode false" in flat
+
+
+def test_the_history_reset_runs_before_the_remote_is_set() -> None:
+    """Resetting deletes .git, remotes included - so doing it after the
+    repoint would throw the repoint away."""
+    ids = [s.id for s in STAGES]
+
+    assert ids.index("fresh-history") > ids.index("clone")
+    assert ids.index("fresh-history") < ids.index("remote")
+
+
+def test_the_remote_is_added_when_the_reset_left_none(tmp_path: Path) -> None:
+    """`git remote set-url` fails with "No such remote 'origin'" on a
+    repository `git init` has just created, so the repoint has to add
+    rather than set (#248)."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    runner = FakeRunner({"remote get-url origin": CommandResult(2, stderr="No such remote")})
+    plan = next(s for s in STAGES if s.id == "remote").plan(_context(tmp_path, runner=runner))
+    flat = [" ".join(c) for c in plan.commands]
+
+    assert any("remote add origin" in c for c in flat)
+    assert not any("set-url" in c for c in flat)
+
+
+def test_the_project_venv_is_the_one_inside_the_project(tmp_path: Path) -> None:
+    """#248: bootstrap runs from a venv that predates the project. The
+    guide's is a second one, inside the clone, which is what the VS Code
+    Python extension finds and activates."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    plan = next(s for s in STAGES if s.id == "project-env").plan(_context(tmp_path))
+    flat = " ".join(" ".join(c) for c in plan.commands)
+
+    assert str(project / ".venv") in flat
+    assert "-m venv" in flat
+
+
+def test_requirements_are_installed_by_the_projects_own_interpreter(tmp_path: Path) -> None:
+    """The trap: a bare `pip install -r requirements.txt` finds whichever
+    pip is on PATH - bootstrap's own - installs the project's
+    dependencies into bootstrap's environment, exits zero, and leaves the
+    project venv empty. Naming the interpreter makes that impossible."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    plan = next(s for s in STAGES if s.id == "project-env").plan(_context(tmp_path))
+    install = next(c for c in plan.commands if "install" in c)
+
+    assert install[0] == str(project / ".venv" / "bin" / "python")
+    assert install[1:4] == ["-m", "pip", "install"]
+    assert install[-1] == str(project / "requirements.txt")
+
+
+def test_weasyprint_is_verified_from_the_projects_venv(tmp_path: Path) -> None:
+    """#248 gap 1: the pandoc stage was *named* for WeasyPrint's
+    libraries and only ever checked pandoc, so it reported ok on a
+    machine whose PDF build would fail at `cannot load library`.
+
+    Importing WeasyPrint is the guide's own test, and a strict one: it
+    loads Pango through the system linker, so a successful import proves
+    both the package and the native libraries."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    venv_python = project / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    save(tmp_path / "b.toml", _config())
+
+    runner = FakeRunner(
+        {
+            "import zensical": CommandResult(0),
+            "import weasyprint": CommandResult(1, stderr="cannot load library 'libgobject-2.0-0'"),
+        }
+    )
+    result = next(s for s in STAGES if s.id == "project-env").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.status is Status.WRONG, "installed but unusable is not missing"
+    assert "graphics libraries" in result.detail
+    assert "pandoc stage" in result.detail, "point at the fix, not at pip"
+
+
+def test_the_pandoc_stage_no_longer_claims_what_it_cannot_check() -> None:
+    """It installs the libraries and cannot verify them - importing
+    WeasyPrint does that, one stage later. The summary should not promise
+    otherwise."""
+    pandoc = next(s for s in STAGES if s.id == "pandoc")
+
+    assert "libraries WeasyPrint needs" in pandoc.summary
+
+
+def test_the_editor_settings_associate_markdown_for_zensical_studio(tmp_path: Path) -> None:
+    """#248 gap 5. Zensical Studio needs Markdown handed to its own
+    language mode, and the guide has the reader paste this in by hand."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    project.mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+    stage = next(s for s in STAGES if s.id == "vscode-settings")
+
+    assert stage.check(_context(tmp_path)).status is Status.MISSING
+
+    (project / ".vscode").mkdir()
+    (project / ".vscode" / "settings.json").write_text(
+        '{"files.associations": {"*.md": "python-markdown"}}', encoding="utf-8"
+    )
+    assert stage.check(_context(tmp_path)).status is Status.OK
+
+
+def test_the_settings_merge_keeps_what_is_already_there(tmp_path: Path) -> None:
+    """`.vscode/settings.json` is the reader's own file, and VS Code
+    rewrites it whenever a setting is changed in the UI - so the plan
+    merges rather than writes."""
+    import subprocess
+
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".vscode").mkdir(parents=True)
+    settings = project / ".vscode" / "settings.json"
+    settings.write_text(
+        '{"editor.wordWrap": "on", "files.associations": {"*.foo": "bar"}}', encoding="utf-8"
+    )
+    save(tmp_path / "b.toml", _config())
+
+    plan = next(s for s in STAGES if s.id == "vscode-settings").plan(_context(tmp_path))
+    subprocess.run(plan.commands[0], check=True)
+
+    written = json.loads(settings.read_text(encoding="utf-8"))
+    assert written["editor.wordWrap"] == "on", "an unrelated setting must survive"
+    assert written["files.associations"]["*.foo"] == "bar", "so must another association"
+    assert written["files.associations"]["*.md"] == "python-markdown"
+
+
+def test_the_settings_plan_survives_a_file_that_is_not_json(tmp_path: Path) -> None:
+    """VS Code tolerates comments and trailing commas in settings.json;
+    `json.loads` does not. Failing here would leave the reader with a
+    traceback over an editor preference."""
+    import subprocess
+
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".vscode").mkdir(parents=True)
+    settings = project / ".vscode" / "settings.json"
+    settings.write_text("{ // a comment VS Code allows\n}", encoding="utf-8")
+    save(tmp_path / "b.toml", _config())
+
+    plan = next(s for s in STAGES if s.id == "vscode-settings").plan(_context(tmp_path))
+    subprocess.run(plan.commands[0], check=True)
+
+    assert json.loads(settings.read_text(encoding="utf-8"))["files.associations"]
+
+
+def test_the_checker_language_follows_the_machine_not_the_guide(tmp_path: Path) -> None:
+    """#248 gap 6: the guide says `en-GB` because that is right for its
+    own readers. Bootstrap runs on other people's computers, and a
+    document checked against the wrong variety of a language is worse
+    than one not checked - the corrections are confident and wrong."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    project.mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+
+    american = FakeRunner({"AppleLocale": CommandResult(0, "en_US\n")})
+    plan = next(s for s in STAGES if s.id == "vscode-settings").plan(
+        _context(tmp_path, runner=american)
+    )
+    assert '"ltex.language": "en-US"' in plan.commands[0][-1]
+
+    british = FakeRunner({"AppleLocale": CommandResult(0, "en_GB.UTF-8\n")})
+    plan = next(s for s in STAGES if s.id == "vscode-settings").plan(
+        _context(tmp_path, runner=british)
+    )
+    assert '"ltex.language": "en-GB"' in plan.commands[0][-1]
+
+
+def test_an_unreadable_locale_leaves_the_language_unset(tmp_path: Path) -> None:
+    """Better than guessing: LTeX+ has a default of its own, and an
+    absent value is at least honest about not knowing."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    project.mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+
+    for listing in (CommandResult(127, stderr="not found"), CommandResult(0, "C\n")):
+        runner = FakeRunner({"AppleLocale": listing})
+        plan = next(s for s in STAGES if s.id == "vscode-settings").plan(
+            _context(tmp_path, runner=runner)
+        )
+        assert "ltex.language" not in plan.commands[0][-1]
+
+
+def test_ubuntu_reads_the_language_from_the_locale_command(tmp_path: Path) -> None:
+    """`defaults` is macOS-only; Ubuntu's `locale` prints a block of
+    KEY=value lines, of which LANG is the one naming the language."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    project.mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+    runner = FakeRunner(
+        {"locale": CommandResult(0, 'LANG=en_GB.UTF-8\nLC_NUMERIC="en_GB.UTF-8"\nLC_ALL=\n')}
+    )
+
+    plan = next(s for s in STAGES if s.id == "vscode-settings").plan(
+        _context(tmp_path, runner=runner, platform=UBUNTU)
+    )
+
+    assert '"ltex.language": "en-GB"' in plan.commands[0][-1]
