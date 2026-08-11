@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- **Carried the User Guide's three ARM64 findings into bootstrap**
+  ([#249](https://github.com/buckwem/prodockit-extensions/issues/249),
+  from prodockit-userguide#104). All three were found on the same fresh
+  Ubuntu ARM64 machine, and all three fail in a way that does not point
+  at itself.
+
+- **Fixed:** `npm ci` fetched a Chrome it could not run. Installing the
+  Mermaid toolchain triggers Puppeteer's own postinstall download, and
+  that download is not guaranteed to match the CPU it lands on - on
+  ARM64 it fetches an x86_64 build. Nothing fails at install time; the
+  symptom is a diagram that will not render, much later, with nothing to
+  connect it to the install. Ubuntu now installs a system Chromium and
+  exports `PUPPETEER_EXECUTABLE_PATH` and `PUPPETEER_SKIP_DOWNLOAD`
+  *before* `npm ci`, and appends them to `~/.bashrc` once - checked
+  first, so a rerun does not leave four copies. macOS and Windows are
+  untouched, where Puppeteer's own download is fine.
+
+- **Fixed:** the PDF's fonts were never installed. The website loads
+  Inter and JetBrains Mono from a CDN when a page is viewed, but a PDF
+  has to embed the files - and WeasyPrint substitutes a fallback
+  **silently** rather than failing. The build succeeds, the PDF looks
+  plausible, and the only symptom is a test reporting `No 'Inter' font
+  found`. They are installed with the graphics stack now, by cask on
+  macOS, apt on Ubuntu, and as an instruction on Windows, which has
+  neither.
+
+- **Added:** the citation style the first build needs.
+  `prodockit.bibliography` is enabled by default and points `csl_style`
+  at `harvard-cite-them-right.csl`, which is fetched rather than
+  committed - so `zensical serve`, `zensical build` and `prodockit pdf`
+  all failed outright on a fresh clone. An empty file counts as `WRONG`
+  rather than done, since a failed download leaves one behind; and a
+  project configured for a different style is told where to find its own
+  rather than given Harvard.
+
 - **Bootstrap now leaves a machine you can start writing on.** Comparing
   it against the User Guide step by step - prompted by `ssh-add` turning
   out to be missing entirely in #246 - found six things it did not do at

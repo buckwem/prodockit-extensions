@@ -34,7 +34,13 @@ from prodockit.bootstrap import (
     save,
 )
 from prodockit.bootstrap.model import GITHUB_COM, MACOS, SURREY_GITLAB, UBUNTU, WINDOWS
-from prodockit.bootstrap.stages import PUBLIC_KEY_MARKER, VSCODE_EXTENSIONS
+from prodockit.bootstrap.stages import (
+    DEFAULT_CSL_STYLE,
+    PDF_FONT_CASKS,
+    PDF_FONT_PACKAGES,
+    PUBLIC_KEY_MARKER,
+    VSCODE_EXTENSIONS,
+)
 
 
 class FakeRunner:
@@ -105,6 +111,7 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     venv_python = project / ".venv" / "bin" / "python"
     venv_python.parent.mkdir(parents=True, exist_ok=True)
     venv_python.write_text("", encoding="utf-8")
+    (project / "harvard-cite-them-right.csl").write_text("<style/>", encoding="utf-8")
     (project / ".vscode").mkdir(exist_ok=True)
     (project / ".vscode" / "settings.json").write_text(
         '{"files.associations": {"*.md": "python-markdown"}}', encoding="utf-8"
@@ -2264,3 +2271,136 @@ def test_ubuntu_reads_the_language_from_the_locale_command(tmp_path: Path) -> No
     )
 
     assert '"ltex.language": "en-GB"' in plan.commands[0][-1]
+
+
+# ---------------------------------------------------------------------------
+# What the User Guide learned on ARM64, carried over: #249
+# ---------------------------------------------------------------------------
+
+
+def test_npm_ci_is_told_not_to_fetch_its_own_chrome(tmp_path: Path) -> None:
+    """prodockit-userguide#102: `npm ci` in tools/mermaid triggers
+    Puppeteer's postinstall download, and that download is not guaranteed
+    to match the CPU it lands on. On ARM64 it fetches an x86_64 Chrome
+    that can never run - and nothing fails at install time, so the
+    symptom is a diagram that will not render, a long way from the
+    command that caused it."""
+    context = _context(tmp_path, platform=UBUNTU)
+    plan = next(s for s in STAGES if s.id == "node").plan(context)
+    flat = [" ".join(c) for c in plan.commands]
+
+    npm = [c for c in flat if "npm ci" in c]
+    assert npm, "the toolchains still have to be installed"
+    for command in npm:
+        assert "PUPPETEER_SKIP_DOWNLOAD=true" in command
+        assert "PUPPETEER_EXECUTABLE_PATH=" in command
+
+
+def test_chromium_is_installed_before_npm_ci_runs(tmp_path: Path) -> None:
+    """Ordering is the whole of the fix. Installing Chromium after
+    `npm ci` leaves the wasted download already done."""
+    context = _context(tmp_path, platform=UBUNTU)
+    flat = [" ".join(c) for c in next(s for s in STAGES if s.id == "node").plan(context).commands]
+
+    chromium = next(i for i, c in enumerate(flat) if "chromium-browser" in c)
+    first_npm = next(i for i, c in enumerate(flat) if "npm ci" in c)
+    assert chromium < first_npm
+
+
+def test_the_puppeteer_exports_are_appended_only_once(tmp_path: Path) -> None:
+    """Bootstrap is rerunnable, and a profile carrying the same two
+    exports four times over is the mark of a tool that assumed it was
+    not."""
+    context = _context(tmp_path, platform=UBUNTU)
+    flat = " ".join(
+        " ".join(c) for c in next(s for s in STAGES if s.id == "node").plan(context).commands
+    )
+
+    assert ".bashrc" in flat, "later sessions need them too, not just this run"
+    assert "grep -q" in flat, "appended only when not already there"
+
+
+def test_other_platforms_are_left_alone(tmp_path: Path) -> None:
+    """Puppeteer's own download works on macOS and Windows. Installing a
+    system Chromium there would be solving somebody else's problem."""
+    for platform in (MACOS, WINDOWS):
+        plan = next(s for s in STAGES if s.id == "node").plan(_context(tmp_path, platform=platform))
+        flat = " ".join(" ".join(c) for c in plan.commands)
+        assert "chromium" not in flat, platform
+        assert "PUPPETEER" not in flat, platform
+
+
+def test_the_pdf_fonts_are_installed_with_the_graphics_stack(tmp_path: Path) -> None:
+    """prodockit-userguide#101: the website loads these from a CDN at
+    view time, but a PDF has to embed the files - and WeasyPrint
+    substitutes a fallback *silently* when they are absent. The build
+    succeeds, the PDF looks plausible, and the only symptom is a test
+    reporting `No 'Inter' font found`."""
+    ubuntu = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=UBUNTU))
+    flat = " ".join(" ".join(c) for c in ubuntu.commands)
+    for package in PDF_FONT_PACKAGES:
+        assert package in flat
+
+    macos = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=MACOS))
+    flat = " ".join(" ".join(c) for c in macos.commands)
+    for cask in PDF_FONT_CASKS:
+        assert cask in flat
+
+
+def test_windows_is_told_to_install_the_fonts_by_hand(tmp_path: Path) -> None:
+    """There is no cask or apt on Windows, and the guide has the reader
+    download and right-click them - so it is an instruction, not a
+    silently missing step."""
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
+    joined = "\n".join(plan.follow_up)
+
+    assert "Inter" in joined and "JetBrains Mono" in joined
+
+
+def test_the_citation_style_is_fetched_because_the_first_build_needs_it(tmp_path: Path) -> None:
+    """prodockit-userguide#103: `prodockit.bibliography` is enabled by
+    default and points at a file the clone does not contain, so
+    `zensical serve`, `zensical build` and `prodockit pdf` all fail
+    outright until it is fetched."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    project.mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+    stage = next(s for s in STAGES if s.id == "csl-style")
+
+    assert stage.check(_context(tmp_path)).status is Status.MISSING
+
+    flat = " ".join(" ".join(c) for c in stage.plan(_context(tmp_path)).commands)
+    assert "zotero.org/styles/harvard-cite-them-right" in flat
+    assert DEFAULT_CSL_STYLE in flat
+
+    (project / DEFAULT_CSL_STYLE).write_text("<style/>", encoding="utf-8")
+    assert stage.check(_context(tmp_path)).status is Status.OK
+
+
+def test_an_empty_style_file_is_wrong_not_done(tmp_path: Path) -> None:
+    """A failed download leaves an empty file behind, and anything asking
+    only whether the path exists would call that finished."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    project.mkdir(parents=True)
+    (project / DEFAULT_CSL_STYLE).write_text("", encoding="utf-8")
+    save(tmp_path / "b.toml", _config())
+
+    result = next(s for s in STAGES if s.id == "csl-style").check(_context(tmp_path))
+
+    assert result.status is Status.WRONG
+    assert "did not complete" in result.detail
+
+
+def test_a_project_asking_for_another_style_is_not_given_this_one(tmp_path: Path) -> None:
+    """`csl_style` is configurable, and fetching Harvard over somebody's
+    chosen IEEE would be worse than saying so."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    project.mkdir(parents=True)
+    (project / "zensical.toml").write_text('csl_style = "ieee.csl"\n', encoding="utf-8")
+    save(tmp_path / "b.toml", _config())
+    context = _context(tmp_path)
+
+    assert "ieee.csl" in next(s for s in STAGES if s.id == "csl-style").check(context).detail
+    plan = next(s for s in STAGES if s.id == "csl-style").plan(context)
+    assert not plan.commands, "bootstrap only knows where the default one lives"
+    assert "ieee.csl" in "\n".join(plan.instructions)
