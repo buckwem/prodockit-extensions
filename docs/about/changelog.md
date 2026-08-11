@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **Fixed:** naming an existing repository to clone did not work
+  ([#283](https://github.com/buckwem/prodockit-extensions/issues/283)).
+  The prompt asks for "an existing repository to clone instead of the
+  template", and a repository is called `report-az1234` - not
+  `git@gitlab.surrey.ac.uk:comm058-2026/report-az1234.git`. That answer
+  reached `git clone` verbatim:
+
+    ```text
+      Will run:
+        git clone report-mb0105-v13 /Users/…/report-mb0105-v13
+      failed: fatal: repository 'report-mb0105-v13' does not exist
+    ```
+
+    which reads as though the repository were missing rather than the
+    address incomplete. Three forms are accepted now - a full URL used
+    exactly as given, `group/name`, or just `name`, expanded against the
+    configured host and namespace. The prompt says so.
+
 - **Fixed:** a stage's instructions could describe the machine as it was
   when the run *started*, not as it is when the step is reached
   ([#281](https://github.com/buckwem/prodockit-extensions/issues/281)).
