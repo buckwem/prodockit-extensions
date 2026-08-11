@@ -229,6 +229,34 @@ def _vscode_app_installed(context: Context) -> bool:
     return False
 
 
+def vscode_command(context: Context) -> str | None:
+    """How to invoke VS Code's CLI, or None if it cannot be found.
+
+    `code` when it is on `PATH`, which is the ordinary answer everywhere.
+
+    On Windows there is a second answer, and it matters. The installer
+    adds `code` to `PATH` itself - but `PATH` is read when a process
+    starts, so the shell that just ran `winget install` cannot see it.
+    The check therefore failed on a machine where VS Code was installed
+    perfectly well, and offered a Command Palette action that does not
+    exist on Windows (prodockit-extensions#292).
+
+    Rather than tell the reader to open a new terminal and start again,
+    the executable is looked for where the installer puts it, and used by
+    its full path. The extensions stage then works in this session too.
+    """
+    if _installed(context, "code"):
+        return "code"
+    if context.platform != WINDOWS:
+        return None
+    for raw in _VSCODE_APP_PATHS[WINDOWS]:
+        expanded = raw.replace("~", str(context.home), 1) if raw.startswith("~") else raw
+        candidate = Path(expanded) / "bin" / "code.cmd"
+        if context.exists(candidate):
+            return str(candidate)
+    return None
+
+
 def _check_vscode(context: Context) -> CheckResult:
     """Distinguishes the application from the `code` shell command.
 
@@ -244,8 +272,14 @@ def _check_vscode(context: Context) -> CheckResult:
     That is precisely what `WRONG` is for - present, but not usable for
     what the later stages need it for.
     """
-    if _installed(context, "code"):
+    command = vscode_command(context)
+    if command == "code":
         return _ok()
+    if command is not None:
+        # Found where the installer puts it, just not visible to this
+        # process yet - which is not a fault to report, and not something
+        # to send the reader to a Command Palette over (#292).
+        return _ok(f"{command} (PATH picks it up in a new terminal)")
     if _vscode_app_installed(context):
         return _wrong("VS Code is installed, but the `code` command is not on PATH")
     return _missing("VS Code is not installed")
@@ -1606,7 +1640,11 @@ def _plan_extensions(context: Context) -> Plan:
     """
     absent = _absent_extensions(context)
     wanted = VSCODE_EXTENSIONS if absent is None else absent
-    return Plan(commands=[["code", "--install-extension", name] for name in wanted])
+    # By the path it was found at, so a Windows session that has just
+    # installed VS Code can still install extensions without being sent
+    # away to open a new terminal (#292).
+    command = vscode_command(context) or "code"
+    return Plan(commands=[[command, "--install-extension", name] for name in wanted])
 
 
 #: Every stage, in the order they have to happen. Ordering is a real

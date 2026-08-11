@@ -3574,6 +3574,75 @@ def test_a_stage_waiting_on_configuration_is_named_not_skipped(
     assert "needs project_name" in result.output
 
 
+def _windows_context(tmp_path: Path, *, cli: bool, app: bool = True, runner=None):
+    """A Windows machine described rather than built.
+
+    Windows install paths are backslash strings, which are a single
+    filename on POSIX - so they cannot be created on disk here, and
+    `exists` answers for them instead. That is what `Context.exists` is
+    for.
+    """
+    return build_context(
+        _config(),
+        runner=runner or FakeRunner(),
+        platform=WINDOWS,
+        home=tmp_path,
+        exists=lambda path: (
+            cli if str(path).endswith("code.cmd") else (app and "Microsoft VS Code" in str(path))
+        ),
+    )
+
+
+def test_windows_finds_code_where_the_installer_put_it(tmp_path: Path) -> None:
+    """prodockit-extensions#292. VS Code's Windows installer adds `code`
+    to PATH itself - but PATH is read when a process starts, so the shell
+    that just ran `winget install` cannot see it. The stage reported a
+    machine with VS Code installed as broken, and offered a Command
+    Palette action that does not exist on Windows."""
+    from prodockit.bootstrap.stages import vscode_command
+
+    context = _windows_context(tmp_path, cli=True)
+
+    found = vscode_command(context)
+    assert found is not None and found.endswith("code.cmd")
+    assert next(s for s in STAGES if s.id == "vscode").check(context).status is Status.OK
+
+
+def test_the_extensions_stage_uses_the_path_it_found(tmp_path: Path) -> None:
+    """Otherwise the session that just installed VS Code still cannot
+    install extensions, and the reader is sent away to open a new
+    terminal after all."""
+    runner = FakeRunner({"--list-extensions": CommandResult(0, "")})
+    context = _windows_context(tmp_path, cli=True, runner=runner)
+
+    plan = next(s for s in STAGES if s.id == "extensions").plan(context)
+
+    assert plan.commands[0][0].endswith("code.cmd")
+
+
+def test_a_machine_without_vs_code_is_still_reported_missing(tmp_path: Path) -> None:
+    """The fallbacks must survive: nothing installed is still MISSING,
+    and an application with no CLI anywhere is still WRONG."""
+    from prodockit.bootstrap.stages import vscode_command
+
+    bare = _windows_context(tmp_path, cli=False, app=False)
+    assert vscode_command(bare) is None
+    assert next(s for s in STAGES if s.id == "vscode").check(bare).status is Status.MISSING
+
+    app_only = _windows_context(tmp_path, cli=False, app=True)
+    assert next(s for s in STAGES if s.id == "vscode").check(app_only).status is Status.WRONG
+
+
+def test_other_platforms_still_rely_on_path(tmp_path: Path) -> None:
+    """macOS really does install the application without the command,
+    and the Command Palette action really is how it is added there - so
+    that path is untouched."""
+    from prodockit.bootstrap.stages import vscode_command
+
+    context = _context(tmp_path, platform=MACOS, vscode_app=True)
+    assert vscode_command(context) is None
+    assert next(s for s in STAGES if s.id == "vscode").check(context).status is Status.WRONG
+
 def test_an_install_is_never_run_with_its_output_swallowed(tmp_path: Path) -> None:
     """prodockit-extensions#244: `apt update`, a 100 MB download and
     `apt install` behind it produced minutes of silence, because applying
