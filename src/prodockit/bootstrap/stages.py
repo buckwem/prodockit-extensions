@@ -821,8 +821,45 @@ def _plan_clone(context: Context) -> Plan:
     reports `ok` and does nothing.
     """
     project = context.config.resolved_project_dir(context.home)
-    source = context.config.source_url or context.host.template_remote
-    return Plan(commands=[["git", "clone", source, str(project)]])
+    return Plan(commands=[["git", "clone", clone_source(context), str(project)]])
+
+
+def clone_source(context: Context) -> str:
+    """What to clone: a URL, a name expanded against the host, or the template.
+
+    The prompt asks for "an existing repository to clone instead of the
+    template", so a reader answers with their repository - and a
+    repository is usually called `report-az1234`, not
+    `git@gitlab.surrey.ac.uk:comm058-2026/report-az1234.git`. That answer
+    went to `git clone` verbatim and failed with `repository
+    'report-az1234' does not exist`, which reads as though the repository
+    were missing rather than the address incomplete
+    (prodockit-extensions#283).
+
+    Three forms are accepted, because all three are things a reader
+    plausibly has to hand:
+
+    - a full URL - `git@host:group/repo.git`, `https://host/group/repo` -
+      used exactly as given, since somebody who pasted a URL means it;
+    - `group/repo` - the host is filled in;
+    - `repo` - the host and the configured namespace are filled in, which
+      is the case in the report.
+    """
+    given = context.config.source_url.strip()
+    if not given:
+        return context.host.template_remote
+    if given.startswith(("git@", "ssh://", "https://", "http://")):
+        return given
+
+    path = given.strip("/").removesuffix(".git")
+    if "/" not in path:
+        namespace = context.config.namespace.strip()
+        if not namespace:
+            # Nothing to expand it with. Left as given so the failure is
+            # git's own rather than a URL invented from a blank.
+            return given
+        path = f"{namespace}/{path}"
+    return f"git@{context.host.hostname}:{path}.git"
 
 
 # ---------------------------------------------------------------------------

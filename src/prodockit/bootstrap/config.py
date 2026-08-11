@@ -187,8 +187,8 @@ PROMPTS: tuple[tuple[str, str], ...] = (
     ("project_dir", "Where to put the project on this machine"),
     (
         "source_url",
-        "Existing repository to clone instead of the template "
-        "(leave blank to use the template)",
+        "Existing repository to clone instead of the template - its name, "
+        "group/name, or a full URL (leave blank to use the template)",
     ),
 )
 

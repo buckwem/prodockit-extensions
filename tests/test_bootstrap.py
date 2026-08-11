@@ -3371,3 +3371,67 @@ def test_the_non_interactive_message_names_the_host_too(
     result = cli_bootstrap()
 
     assert "Not configured yet (host," in result.output
+
+
+def test_a_repository_named_rather_than_url_ed_is_still_cloned(tmp_path: Path) -> None:
+    """prodockit-extensions#283. The prompt asks for "an existing
+    repository to clone instead of the template", and a repository is
+    called `report-az1234`, not
+    `git@gitlab.surrey.ac.uk:comm058-2026/report-az1234.git`.
+
+    That answer went to `git clone` verbatim and failed with `repository
+    'report-az1234' does not exist` - which reads as though the
+    repository were missing rather than the address incomplete."""
+    context = _context(tmp_path, source_url="report-mb0105-v13", namespace="docs-as-code-test-team")
+    plan = next(s for s in STAGES if s.id == "clone").plan(context)
+
+    assert plan.commands[0][:2] == ["git", "clone"]
+    assert plan.commands[0][2] == (
+        "git@gitlab.surrey.ac.uk:docs-as-code-test-team/report-mb0105-v13.git"
+    )
+
+
+def test_a_group_and_name_only_needs_the_host_filling_in(tmp_path: Path) -> None:
+    context = _context(tmp_path, source_url="other-group/report-x")
+    plan = next(s for s in STAGES if s.id == "clone").plan(context)
+
+    assert plan.commands[0][2] == "git@gitlab.surrey.ac.uk:other-group/report-x.git"
+
+
+def test_a_url_is_used_exactly_as_given(tmp_path: Path) -> None:
+    """Somebody who pasted a URL means it - including an https one, which
+    a reader without a key set up may deliberately want."""
+    for url in (
+        "git@gitlab.surrey.ac.uk:g/r.git",
+        "https://gitlab.surrey.ac.uk/g/r",
+        "ssh://git@gitlab.surrey.ac.uk/g/r.git",
+    ):
+        context = _context(tmp_path, source_url=url)
+        plan = next(s for s in STAGES if s.id == "clone").plan(context)
+        assert plan.commands[0][2] == url, url
+
+
+def test_a_blank_source_still_clones_the_template(tmp_path: Path) -> None:
+    """The common case, and the default."""
+    context = _context(tmp_path, source_url="")
+    plan = next(s for s in STAGES if s.id == "clone").plan(context)
+
+    assert plan.commands[0][2] == SURREY_GITLAB.template_remote
+
+
+def test_a_bare_name_with_no_namespace_is_left_alone(tmp_path: Path) -> None:
+    """Nothing to expand it with, so it is not expanded into a URL built
+    from a blank - the failure stays git's own rather than an address
+    bootstrap invented."""
+    context = _context(tmp_path, source_url="report-x", namespace="")
+    plan = next(s for s in STAGES if s.id == "clone").plan(context)
+
+    assert plan.commands[0][2] == "report-x"
+    assert "::" not in plan.commands[0][2] and ":/" not in plan.commands[0][2]
+
+
+def test_a_trailing_git_suffix_is_not_doubled(tmp_path: Path) -> None:
+    context = _context(tmp_path, source_url="report-x.git", namespace="grp")
+    plan = next(s for s in STAGES if s.id == "clone").plan(context)
+
+    assert plan.commands[0][2] == "git@gitlab.surrey.ac.uk:grp/report-x.git"
