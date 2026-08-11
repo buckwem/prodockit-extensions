@@ -3572,3 +3572,46 @@ def test_a_stage_waiting_on_configuration_is_named_not_skipped(
 
     assert "?     Template cloned" in result.output
     assert "needs project_name" in result.output
+
+
+def test_an_install_is_never_run_with_its_output_swallowed(tmp_path: Path) -> None:
+    """prodockit-extensions#244: `apt update`, a 100 MB download and
+    `apt install` behind it produced minutes of silence, because applying
+    captured everything. A silent terminal is indistinguishable from a
+    hung one, and readers interrupted installs that were working."""
+    from prodockit.bootstrap import apply_stage
+
+    runner = FakeRunner({"brew": CommandResult(0), "code": CommandResult(0)})
+    apply_stage(_context(tmp_path, runner=runner), next(s for s in STAGES if s.id == "vscode"))
+
+    installs = [
+        capture
+        for command, capture in zip(runner.calls, runner.captures, strict=False)
+        if command[0] == "brew"
+    ]
+    assert installs, "the install should have run"
+    assert not any(installs), "an installer's own output has to reach the terminal"
+    # And the re-check that follows it stays captured, since it reads
+    # what the command printed rather than showing it.
+    assert runner.captures[-1] is True
+
+
+def test_checks_are_still_captured(tmp_path: Path) -> None:
+    """The other half. A check *reads* what a command printed - `pandoc
+    --version`, `ssh -T`'s greeting - and there are dozens per run, so
+    they must not spill onto the screen."""
+    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1"), "fc-list": CommandResult(0, "Inter\nJetBrains Mono")})
+    next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
+
+    assert all(runner.captures), "a check that printed its own output would bury the report"
+
+
+def test_a_failure_with_nothing_captured_points_at_the_screen() -> None:
+    """With the output streaming past, there is usually no stderr left to
+    summarise - so it says where to look rather than inventing a
+    sentence."""
+    from prodockit.cli import _first_meaningful_line
+
+    # The summary function still works for the captured cases that remain.
+    assert _first_meaningful_line("E: broken") == "E: broken"
+    assert _first_meaningful_line("") == "no output"

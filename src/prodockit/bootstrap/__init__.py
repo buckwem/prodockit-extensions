@@ -200,9 +200,21 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
             command,
             cwd=plan.cwd,
             timeout=INSTALL_TIMEOUT_SECONDS,
-            # `ssh-add` has to have the terminal to ask for the key's
-            # passphrase; captured, it would wait unanswerable (#246).
-            capture=not plan.needs_terminal,
+            # Applying is never captured. An installer's own output is
+            # the only sign a run is alive: `apt update`, a 100 MB
+            # download and `apt install` behind it are minutes of
+            # silence otherwise, and a silent terminal is
+            # indistinguishable from a hung one - readers interrupted
+            # installs that were working (prodockit-extensions#244).
+            #
+            # It also covers what `needs_terminal` was added for: a
+            # command that has to ask something (#246) now always has
+            # the terminal, rather than only when a plan remembered to
+            # say so.
+            #
+            # Checks stay captured - they read what a command printed,
+            # and there are dozens of them per run.
+            capture=False,
         )
         result.ran.append(list(command))
         if not outcome.ok:
