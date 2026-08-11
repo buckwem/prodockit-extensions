@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.26.1 (2026-08-11)
+
 - **Fixed:** naming an existing repository to clone did not work
   ([#283](https://github.com/buckwem/prodockit-extensions/issues/283)).
   The prompt asks for "an existing repository to clone instead of the
