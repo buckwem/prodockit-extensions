@@ -94,6 +94,36 @@ def _apt(*args: str) -> list[str]:
 #: The same, for the two places apt is run inside a shell string.
 APT_SH = "sudo apt " + " ".join(APT_LOCK_OPTION)
 
+#: Where MSYS2 puts the MinGW64 libraries WeasyPrint draws text through.
+MSYS2_BIN = r"C:\msys64\mingw64\bin"
+_MSYS2_BASH = r"C:\msys64\usr\bin\bash.exe"
+
+
+def _winget(package_id: str) -> list[str]:
+    """One `winget install`, wired so it cannot stop for a human.
+
+    The two `--accept-*` flags are the point. winget asks for agreement
+    to its source terms the first time it is used, and to a package's
+    terms when one carries them - and it asks on the terminal, so a
+    captured, timed subprocess simply waits. That is the same failure
+    `sudo` produced on Ubuntu (prodockit-extensions#243), reached by a
+    different route, and it would have met every Windows reader on their
+    very first stage.
+
+    `-e` matches the id exactly. Without it an ambiguous name is another
+    question winget stops to ask.
+    """
+    return [
+        "winget",
+        "install",
+        "--id",
+        package_id,
+        "-e",
+        "--accept-source-agreements",
+        "--accept-package-agreements",
+    ]
+
+
 #: The fonts this template's PDF uses by default.
 #:
 #: Easy to leave out and hard to notice: the website loads them from a
@@ -254,7 +284,7 @@ def _plan_vscode(context: Context) -> Plan:
                 ],
             ]
         )
-    return Plan(commands=[["winget", "install", "--id", "Microsoft.VisualStudioCode"]])
+    return Plan(commands=[_winget("Microsoft.VisualStudioCode")])
 
 
 # ---------------------------------------------------------------------------
@@ -285,7 +315,7 @@ def _plan_git(context: Context) -> Plan:
     install = {
         MACOS: [["brew", "install", "git"]],
         UBUNTU: [_apt("update"), _apt("install", "-y", "git")],
-        WINDOWS: [["winget", "install", "Git.Git"]],
+        WINDOWS: [_winget("Git.Git")],
     }[context.platform]
     configure = [
         ["git", "config", "--global", "user.name", context.config.full_name],
@@ -1074,9 +1104,17 @@ def _absent_pdf_fonts(context: Context) -> str:
     """
     wanted = ("Inter", "JetBrains Mono")
     if context.platform == WINDOWS:
-        # No package manager for these, so the plan asks the reader to
-        # install them by hand and there is nothing reliable to probe.
-        return ""
+        # Windows has no package manager for these, so the plan asks the
+        # reader to install them - which is a reason to check, not a
+        # reason not to. An instruction nobody verifies is how a font
+        # goes missing silently, and a per-user install lands here.
+        fonts = context.home / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts"
+        if not fonts.is_dir():
+            return ""
+        blob = " ".join(path.name for path in fonts.iterdir())
+        blob = blob.replace("-", " ").replace("_", " ")
+        absent = [name for name in wanted if name.replace(" ", "") not in blob.replace(" ", "")]
+        return ", ".join(absent)
     listed = context.runner.run(["fc-list", ":", "family"])
     if not listed.ok:
         # fontconfig is not there to ask. On macOS it often is not.
@@ -1138,17 +1176,39 @@ def _plan_pandoc(context: Context) -> Plan:
                 ),
             ]
         )
+    # MSYS2 carries Pango, which is what WeasyPrint draws text through on
+    # Windows. The User Guide walks the reader through a MINGW64 shell
+    # and the Environment Variables dialog; all three steps run
+    # unattended, so they do.
+    path_entry = (
+        "$p=[Environment]::GetEnvironmentVariable('Path','User'); "
+        f"if ($p -notlike '*{MSYS2_BIN}*') {{ "
+        f"[Environment]::SetEnvironmentVariable('Path', $p + ';{MSYS2_BIN}', 'User') }}"
+    )
     return Plan(
-        commands=[["winget", "install", "--id", "JohnMacFarlane.Pandoc"]],
+        commands=[
+            _winget("JohnMacFarlane.Pandoc"),
+            _winget("MSYS2.MSYS2"),
+            # `--needed` so a rerun is a no-op rather than a reinstall,
+            # and `--noconfirm` because pacman asks otherwise.
+            [
+                _MSYS2_BASH,
+                "-lc",
+                "pacman -S --noconfirm --needed mingw-w64-x86_64-pango",
+            ],
+            # Appended only when absent: a PATH with the same entry on it
+            # four times is what a tool that assumed one run looks like.
+            ["powershell", "-NoProfile", "-Command", path_entry],
+        ],
         # Independent of the winget install, so either order works - after
         # it, so the automated half is not held up behind a manual one.
         follow_up=[
-            "WeasyPrint's graphics libraries come from MSYS2 on Windows: install "
-            "MSYS2, run `pacman -S mingw-w64-x86_64-pango` in the MINGW64 shell, "
-            "then add C:\\msys64\\mingw64\\bin to your user PATH.",
-            "Install the fonts the PDF uses: download the desktop (.ttf/.otf) "
-            "files for Inter and JetBrains Mono from fonts.google.com, select "
-            "them all, right-click, and choose 'Install for all users'.",
+            "Close and reopen PowerShell, so the PATH entry just added takes "
+            "effect - anything started before it will not see MSYS2.",
+            "Install the fonts the PDF uses, which Windows has no package "
+            "manager for: download the desktop (.ttf/.otf) files for Inter and "
+            "JetBrains Mono from fonts.google.com, select them all, right-click, "
+            "and choose 'Install'.",
         ],
     )
 
@@ -1345,7 +1405,7 @@ def _plan_node(context: Context) -> Plan:
             ["bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"],
             _apt("install", "-y", "nodejs"),
         ],
-        WINDOWS: [["winget", "install", "OpenJS.NodeJS.LTS"]],
+        WINDOWS: [_winget("OpenJS.NodeJS.LTS")],
     }[context.platform]
 
     mermaid = str(project / "tools" / "mermaid")

@@ -751,12 +751,37 @@ the platform this has been exercised on end to end - a real clone of the
 Surrey template, applied and verified.
 
 Ubuntu is being exercised now, on an ARM virtual machine, and the first
-run found two things no unit test could have: a `.deb` installed from a
-filename that never existed (#233), and the SSH stage ending the run on
-the very state it exists to repair (#234). Both are fixed; the platform
-should be treated as newly-trodden rather than proven.
+run found several things no unit test could have: a `.deb` installed from
+a filename that never existed (#233), the SSH stage ending the run on the
+very state it exists to repair (#234), and a Chrome downloaded for the
+wrong architecture (#249). All are fixed; the platform should be treated
+as newly-trodden rather than proven.
 
-Windows has its commands written and unit-tested but has not been run at
-all. It is deliberately last: it is the hardest (MSYS2, `PATH` edits, the
-Administrator split for `ssh-agent`) and it is the one platform this
-project has [no automated coverage for at all](limitations.md#limitations-platforms).
+**Windows now has every stage automated, and none of it has been run on a
+Windows machine.** Those two facts belong in the same sentence. All
+seventeen stages produce commands or instructions there, MSYS2 and Pango
+install unattended, and the checks are written - but the only evidence
+any of it works is that the command lists are what the User Guide says
+they should be, asserted from macOS. Treat the first real run as the
+test, and expect it to find things, because every other platform's first
+run did.
+
+Two Windows-specific hazards are handled because they are the same
+hazards seen elsewhere, not because anyone hit them here:
+
+- **`winget` asks questions.** It wants agreement to its source terms the
+  first time it is used, and to a package's terms when one carries them -
+  on the terminal, so a captured, timed subprocess simply waits. That is
+  [the `sudo` failure](#bootstrap-no-prompts) reached by a different
+  route, and it would have met every Windows reader at stage 1. Every
+  `winget install` carries `--accept-source-agreements`,
+  `--accept-package-agreements` and `-e`, the last because an ambiguous
+  package id is one more thing to be asked about.
+- **Rerunning must not accumulate.** The `PATH` entry for MSYS2 is added
+  only when absent, the same way the ssh config stanza and the Puppeteer
+  exports are.
+
+What is still yours to do on Windows: the `ssh-agent` service, which needs
+an Administrator window, and the PDF's two fonts, which Windows has no
+package manager for. Both are *checked* rather than merely suggested - an
+instruction nobody verifies is how a font goes missing silently.

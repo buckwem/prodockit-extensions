@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- **Windows is automated end to end** (#217 phase 4). All seventeen
+  stages now produce commands or instructions there. MSYS2 and Pango -
+  which WeasyPrint draws text through, and which the User Guide walks the
+  reader through a MINGW64 shell and the Environment Variables dialog to
+  install - are installed unattended, with the `PATH` entry added only
+  when absent.
+
+    **None of it has been run on a Windows machine**, and those two facts
+    belong in the same sentence. The evidence is that the command lists
+    match what the guide prescribes, asserted from macOS.
+
+- **Fixed:** every `winget install` could stop for a human. winget asks
+  for agreement to its source terms on first use, and to a package's own
+  terms when it carries them - on the terminal, so a captured, timed
+  subprocess waits. That is the `sudo` failure of #243 reached by another
+  route, and it would have met every Windows reader at stage 1. All of
+  them now pass `--accept-source-agreements`,
+  `--accept-package-agreements` and `-e`.
+
+- The two steps Windows genuinely cannot automate - the `ssh-agent`
+  service, which needs an Administrator window, and the PDF fonts, which
+  Windows has no package manager for - are now **checked** rather than
+  merely suggested.
+
 - **Fixed:** five stages installed things nothing then checked
   ([#224](https://github.com/buckwem/prodockit-extensions/issues/224)).
 

@@ -36,6 +36,7 @@ from prodockit.bootstrap import (
 from prodockit.bootstrap.model import GITHUB_COM, MACOS, SURREY_GITLAB, UBUNTU, WINDOWS
 from prodockit.bootstrap.stages import (
     DEFAULT_CSL_STYLE,
+    MSYS2_BIN,
     PDF_FONT_CASKS,
     PDF_FONT_PACKAGES,
     PUBLIC_KEY_MARKER,
@@ -2576,3 +2577,109 @@ def test_the_history_stage_notices_core_filemode(tmp_path: Path) -> None:
 
     assert result.needs_work
     assert "core.fileMode" in result.detail
+
+
+# ---------------------------------------------------------------------------
+# Windows: #217 phase 4
+# ---------------------------------------------------------------------------
+
+
+def test_no_winget_call_can_stop_for_a_human(tmp_path: Path) -> None:
+    """winget asks for agreement to its source terms the first time it
+    is used, and to a package's terms when one carries them - on the
+    terminal, so a captured, timed subprocess simply waits.
+
+    That is #243's `sudo` failure reached by a different route, and it
+    would have met every Windows reader on their very first stage."""
+    context = _context(tmp_path, platform=WINDOWS)
+    seen = 0
+    for stage in STAGES:
+        for command in stage.plan(context).commands:
+            if command[0] != "winget":
+                continue
+            seen += 1
+            joined = " ".join(command)
+            assert "--accept-source-agreements" in joined, joined
+            assert "--accept-package-agreements" in joined, joined
+            assert " -e " in f" {joined} ", "an ambiguous id is another question"
+    assert seen >= 4, "vscode, git, pandoc, MSYS2 and node between them"
+
+
+def test_windows_installs_pango_rather_than_describing_it(tmp_path: Path) -> None:
+    """WeasyPrint draws text through Pango, which on Windows comes from
+    MSYS2. The guide walks the reader through a MINGW64 shell and the
+    Environment Variables dialog; all three steps run unattended."""
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
+    flat = " ".join(" ".join(c) for c in plan.commands)
+
+    assert "MSYS2.MSYS2" in flat
+    assert "mingw-w64-x86_64-pango" in flat
+    assert "--noconfirm" in flat, "pacman asks otherwise"
+    assert "--needed" in flat, "a rerun should be a no-op, not a reinstall"
+    assert "SetEnvironmentVariable" in flat and MSYS2_BIN in flat
+
+
+def test_the_msys2_path_entry_is_added_only_once(tmp_path: Path) -> None:
+    """A PATH carrying the same directory four times is what a tool that
+    assumed a single run looks like."""
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
+    path_command = next(c for c in plan.commands if "SetEnvironmentVariable" in " ".join(c))
+
+    assert "-notlike" in " ".join(path_command)
+
+
+def test_windows_pango_is_still_verified_somewhere(tmp_path: Path) -> None:
+    """#224's rule. The pandoc stage installs Pango and cannot check it;
+    importing WeasyPrint at stage 13 can, and does - so the hand-off is
+    deliberate rather than a gap."""
+    ids = [s.id for s in STAGES]
+
+    assert ids.index("pandoc") < ids.index("project-env")
+
+
+def test_windows_fonts_are_checked_even_though_they_are_installed_by_hand(
+    tmp_path: Path,
+) -> None:
+    """Windows has no package manager for these, which is a reason to
+    check rather than a reason not to - an instruction nobody verifies is
+    how a font goes missing silently."""
+    fonts = tmp_path / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts"
+    fonts.mkdir(parents=True)
+    (fonts / "DejaVuSans.ttf").write_text("", encoding="utf-8")
+    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})
+
+    result = next(s for s in STAGES if s.id == "pandoc").check(
+        _context(tmp_path, runner=runner, platform=WINDOWS)
+    )
+    assert result.needs_work and "Inter" in result.detail
+
+    for name in ("Inter-Regular.ttf", "JetBrainsMono-Regular.ttf"):
+        (fonts / name).write_text("", encoding="utf-8")
+    result = next(s for s in STAGES if s.id == "pandoc").check(
+        _context(tmp_path, runner=runner, platform=WINDOWS)
+    )
+    assert result.status is Status.OK
+
+
+def test_a_windows_machine_with_no_font_directory_is_not_accused(tmp_path: Path) -> None:
+    """Same rule as elsewhere: "I could not tell" must not read as "they
+    are missing"."""
+    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})
+
+    result = next(s for s in STAGES if s.id == "pandoc").check(
+        _context(tmp_path, runner=runner, platform=WINDOWS)
+    )
+
+    assert result.status is Status.OK
+
+
+def test_every_windows_stage_produces_something_to_do(tmp_path: Path) -> None:
+    """Phase 4's own acceptance test: no stage may be silently empty on
+    Windows. A stage with neither commands nor instructions there would
+    be one nobody had thought about, and would report `nothing to do`."""
+    context = _context(tmp_path, platform=WINDOWS)
+    for stage in STAGES:
+        plan = stage.plan(context)
+        assert plan.commands or plan.instructions or plan.follow_up, (
+            f"{stage.id} has no Windows plan at all"
+        )
