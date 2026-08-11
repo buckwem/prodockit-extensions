@@ -567,6 +567,17 @@ class Plan:
     #: captured it would sit unanswered until the timeout, exactly as
     #: `sudo` did (prodockit-extensions#243, #246).
     needs_terminal: bool = False
+    #: Whether applying this plan destroys something that cannot be got
+    #: back.
+    #:
+    #: The one thing that decides an `--apply` prompt's default. Every
+    #: other prompt defaults to yes, because a reader who typed `--apply`
+    #: has already said what they want and should not have to say it
+    #: seventeen more times (prodockit-extensions#259). Pressing Enter
+    #: must not delete a repository's history, though - so that one
+    #: declares itself, rather than the default being inferred from a
+    #: check's status, where the reason was invisible.
+    destructive: bool = False
 
     @property
     def is_manual(self) -> bool:

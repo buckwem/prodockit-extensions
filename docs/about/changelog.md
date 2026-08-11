@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Every `--apply` prompt defaults to yes, except the one that cannot be
+  undone** ([#259](https://github.com/buckwem/prodockit-extensions/issues/259)).
+
+    The default used to follow the check's status - `MISS` meant yes,
+    `WRONG` meant no - which is a rule a reader cannot see from the
+    prompt, so the same key press meant different things at different
+    stages for reasons that were never on screen.
+
+    A plan now declares whether applying it destroys something, and
+    exactly one does: resetting the template's commit history. Pressing
+    Enter through a run installs things and never deletes a repository's
+    history.
+
 - **`--apply` now says what it is doing before it starts**
   ([#258](https://github.com/buckwem/prodockit-extensions/issues/258)).
   It opened straight into `[1/11] Visual Studio Code`, which tells a

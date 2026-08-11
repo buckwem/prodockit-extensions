@@ -2970,3 +2970,51 @@ def test_the_heading_is_not_printed_when_there_is_nothing_to_do(
 
     assert "setting up your development environment" not in result.output
     assert "Nothing to do" in result.output
+
+
+def test_every_prompt_defaults_to_yes_except_the_destructive_one(tmp_path: Path) -> None:
+    """prodockit-extensions#259: the default came from the check's status
+    - MISSING meant yes, WRONG meant no - which is a rule the reader
+    cannot see, so the same key press meant different things at different
+    stages.
+
+    One visible rule now: yes, unless applying it cannot be undone."""
+    save(tmp_path / "b.toml", _config())
+    context = _context(tmp_path)
+    destructive = [s.id for s in STAGES if s.plan(context).destructive]
+
+    assert destructive == ["fresh-history"], (
+        "if a second plan destroys something, it must say so - the prompt "
+        "default is the only thing standing in front of it"
+    )
+
+
+def test_pressing_enter_never_deletes_a_history(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The one prompt that must not be answered by reflex."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+    responses = _ready_machine(tmp_path)
+    responses["remote get-url origin"] = CommandResult(0, SURREY_GITLAB.template_remote)
+
+    result = cli_bootstrap("--apply", responses=responses, input="\n" * 40)
+
+    assert "A history of your own" in result.output
+    assert "[y/N]" in result.output, "deleting history must not be the Enter answer"
+
+
+def test_an_ordinary_install_is_the_enter_answer(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other seventeen. A reader who typed `--apply` has already said
+    what they want."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    responses = _ready_machine(tmp_path)
+    responses["code --list-extensions"] = CommandResult(0, "")
+
+    result = cli_bootstrap("--apply", responses=responses, input="\n" * 40)
+
+    assert f"Run {len(VSCODE_EXTENSIONS)} commands? [Y/n]" in result.output
