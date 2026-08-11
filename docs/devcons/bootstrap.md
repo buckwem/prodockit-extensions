@@ -1,7 +1,7 @@
 # Machine bootstrap {: #bootstrap-machine-bootstrap }
 
 \index{`prodockit bootstrap`} turns the User Guide's install sequence into
-twelve stages that can be checked individually and repaired one at a time,
+thirteen stages that can be checked individually and repaired one at a time,
 rather than followed top to bottom and hoped over.
 
 The install is long, sequential, and easy to get half-right in ways that
@@ -72,7 +72,7 @@ is what to do instead.
     - Tick **Add python.exe to PATH** on the first screen. Without it,
       `python` is not a command and nothing below works.
     - Click **Disable path length limit** on the final screen. Node's
-      render toolchains in stage 11 nest deeply enough to hit the 260
+      render toolchains in stage 12 nest deeply enough to hit the 260
       character limit.
 
     Then, in PowerShell, in the directory you want to keep your projects
@@ -166,17 +166,18 @@ which Python is winning.
 | 2 | Git, installed **and** configured | yes |
 | 3 | SSH keypair | yes |
 | 4 | `~/.ssh/config` points this host at that key | yes |
-| 5 | Public key on the host | **guide and verify** |
-| 6 | Template cloned | yes |
-| 7 | Your own project on the host | **guide and verify** |
-| 8 | Clone pointed at your project | yes |
-| 9 | Commit identity in the project | yes |
-| 10 | Pandoc and WeasyPrint's libraries | yes |
-| 11 | Node.js and the render toolchains | yes |
-| 12 | VS Code extensions | yes |
+| 5 | Key loaded into the ssh agent | yes |
+| 6 | Public key on the host | **guide and verify** |
+| 7 | Template cloned | yes |
+| 8 | Your own project on the host | **guide and verify** |
+| 9 | Clone pointed at your project | yes |
+| 10 | Commit identity in the project | yes |
+| 11 | Pandoc and WeasyPrint's libraries | yes |
+| 12 | Node.js and the render toolchains | yes |
+| 13 | VS Code extensions | yes |
 
-Stages 3, 4, 6, 8, 9 and 12 are platform-independent - half the work is
-the same on every operating system.
+Stages 3, 4, 5, 7, 9, 10 and 13 are platform-independent - over half the
+work is the same on every operating system.
 
 ### The key ssh never offers {: #bootstrap-ssh-config }
 
@@ -223,9 +224,58 @@ cause. `chmod 600` on both the key and the config closes it. Windows has
 no `chmod` and restricts a profile file to its owner already, so it gets
 the stanza without the permission step.
 
+### The key ssh cannot use {: #bootstrap-ssh-agent }
+
+Stage 5 is the second half of the same trap, and it catches the machines
+stage 4 does not.
+
+Stage 3 tells you to give the key a passphrase, which is right. But every
+ssh command bootstrap runs carries `BatchMode=yes`, so none of them may
+ask you for it. Those two are only compatible if an **agent** is holding
+the decrypted key.
+
+Without one, the failure is subtle enough to be worth spelling out. `ssh
+-T` reads the `.pub` file and offers the public half quite happily - that
+needs no passphrase:
+
+```text
+debug1: Offering public key: ~/.ssh/id_ed25519_gitlab ED25519 SHA256:NXf+... explicit
+```
+
+The host recognises it and challenges ssh to prove it holds the private
+half. *That* needs the passphrase, and there is nobody to ask:
+
+```text
+Load key "~/.ssh/id_ed25519_gitlab": incorrect passphrase supplied to decrypt private key
+```
+
+So authentication fails, and stage 6 reports `the host rejected the key`
+about a key that is correct, uploaded, and simply locked.
+
+`ssh-add` is run with **the terminal handed over** - the only command in
+bootstrap that gets it - because the passphrase prompt has to appear
+somewhere and ssh reads it from `/dev/tty` regardless of what the caller
+does with stdin. Run captured, it would sit unanswerable until the
+timeout, which is exactly what `sudo` did in #243.
+
+Starting an agent, though, is genuinely not automatable:
+
+```bash
+eval "$(ssh-agent -s)"
+```
+
+works by exporting `SSH_AUTH_SOCK` into *the shell that runs it*, and a
+subprocess cannot export anything into its parent. Bootstrap running that
+would start an agent, set the variable in a shell that then exits, and
+change nothing at all. So when no agent is running it says so and gives
+you the line to run - and asks you to re-run bootstrap in that same
+terminal. On Windows the agent is a service, and enabling it needs an
+Administrator window, which is a different shell rather than a different
+command.
+
 ### Your commits, under your own name {: #bootstrap-identity }
 
-Stage 9 sets `user.name` and `user.email` **on the clone**, not globally:
+Stage 10 sets `user.name` and `user.email` **on the clone**, not globally:
 
 ```bash
 git config --local user.name  "Ada Lovelace"
@@ -369,10 +419,11 @@ somebody typed it to see what it did.
  2  ok    Git, installed and configured - Ada Lovelace <al01234@surrey.ac.uk>
  3  ok    SSH keypair - /Users/al01234/.ssh/id_ed25519_gitlab
  4  ok    SSH config points at the key - gitlab.surrey.ac.uk uses id_ed25519_gitlab
- 5  ok    SSH key on the host - authenticated to gitlab.surrey.ac.uk
- 6  ?     Template cloned - needs project_name
+ 5  ok    Key loaded into the ssh agent - id_ed25519_gitlab is loaded
+ 6  ok    SSH key on the host - authenticated to gitlab.surrey.ac.uk
+ 7  ?     Template cloned - needs project_name
  ...
-5 of 12 stages need work.
+5 of 13 stages need work.
 ```
 
 Four states, and the difference between them matters:

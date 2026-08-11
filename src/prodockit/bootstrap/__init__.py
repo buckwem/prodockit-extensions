@@ -6,7 +6,7 @@
 The User Guide's install instructions are long, sequential, and easy to
 get half-right in ways that only surface much later (a missing Pango that
 looks fine until the first `prodockit pdf`, a Node without npm that fails
-in an apparently unrelated step). This turns that sequence into twelve
+in an apparently unrelated step). This turns that sequence into thirteen
 stages that can each be *checked*, and reapplied individually when a
 check fails (prodockit-extensions#217).
 
@@ -189,7 +189,14 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
         # 100 MB download and an `apt install` behind it are ordinary
         # here, and killing them at the check's limit reported a failure
         # over an install that then succeeded (#243).
-        outcome = context.runner.run(command, cwd=plan.cwd, timeout=INSTALL_TIMEOUT_SECONDS)
+        outcome = context.runner.run(
+            command,
+            cwd=plan.cwd,
+            timeout=INSTALL_TIMEOUT_SECONDS,
+            # `ssh-add` has to have the terminal to ask for the key's
+            # passphrase; captured, it would wait unanswerable (#246).
+            capture=not plan.needs_terminal,
+        )
         result.ran.append(list(command))
         if not outcome.ok:
             return ApplyResult(stage=stage, ran=result.ran, failed=outcome)

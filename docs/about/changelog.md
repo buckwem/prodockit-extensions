@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- **Fixed:** a passphrase-protected key could never pass the SSH stage,
+  because nothing ever loaded it into an agent
+  ([#246](https://github.com/buckwem/prodockit-extensions/issues/246)).
+
+    Stage 3 tells the reader to set a passphrase, and every ssh command
+    bootstrap runs carries `BatchMode=yes`, which forbids prompting for
+    one. Those two are only compatible if an agent holds the decrypted
+    key - and `ssh-add` appeared nowhere in the code.
+
+    The failure is a quiet one. `ssh -T` reads the `.pub` file and offers
+    the public half without needing a passphrase; the host then
+    challenges it to sign, that needs the private half, and there is
+    nobody to ask. Authentication fails, and the upload stage reports
+    `the host rejected the key` about a key that is correct, uploaded,
+    and simply locked - the third failure in this area to lie about its
+    own cause, after #234 and #239.
+
+    A new **stage 5** checks the key's fingerprint against `ssh-add -l`
+    and runs `ssh-add` when it is absent, with the terminal handed over
+    so the passphrase prompt has somewhere to appear. It is the only
+    command in bootstrap that gets the terminal.
+
+    Starting an agent is not automatable and is not attempted:
+    `eval "$(ssh-agent -s)"` exports `SSH_AUTH_SOCK` into the shell that
+    runs it, and a subprocess cannot export into its parent - so
+    bootstrap would start an agent, set the variable in a shell that then
+    exits, and change nothing. When none is running it says so and gives
+    the line to run. On Windows the agent is a service, and enabling it
+    needs an Administrator window.
+
+- Bootstrap now reports **thirteen** stages, and the numbers after the
+  new stage 5 shift by one.
+
 - **Fixed:** installing the VS Code extensions defaulted to *no*
   ([#242](https://github.com/buckwem/prodockit-extensions/issues/242)).
   With none of the three installed the prompt read

@@ -201,6 +201,7 @@ class Runner(Protocol):
         command: Sequence[str],
         cwd: str | None = None,
         timeout: float | None = None,
+        capture: bool = True,
     ) -> CommandResult: ...
 
 
@@ -300,15 +301,20 @@ class SubprocessRunner:
         command: Sequence[str],
         cwd: str | None = None,
         timeout: float | None = None,
+        capture: bool = True,
     ) -> CommandResult:
+        # `capture=False` hands over the terminal: no captured pipes, no
+        # DEVNULL stdin. Only for a command that has to ask something no
+        # environment variable can answer - `ssh-add` and the key's
+        # passphrase (#246). Everything else stays unable to prompt.
         try:
             completed = subprocess.run(
                 list(command),
                 cwd=cwd,
-                capture_output=True,
+                capture_output=capture,
+                stdin=subprocess.DEVNULL if capture else None,
                 text=True,
                 encoding="utf-8",
-                stdin=subprocess.DEVNULL,
                 env=_no_prompt_env(),
                 timeout=CHECK_TIMEOUT_SECONDS if timeout is None else timeout,
             )
@@ -443,6 +449,16 @@ class Plan:
     #: remote and failed with a message about a repository it was never
     #: looking at.
     cwd: str | None = None
+    #: Whether these commands must be given the terminal rather than run
+    #: with their output captured.
+    #:
+    #: Almost nothing needs this, and that is the point - a command that
+    #: can stop for a human is a command that can hang a run. `ssh-add`
+    #: genuinely needs it: it asks for the key's passphrase, reads it
+    #: from `/dev/tty`, and there is no way to supply one otherwise. Run
+    #: captured it would sit unanswered until the timeout, exactly as
+    #: `sudo` did (prodockit-extensions#243, #246).
+    needs_terminal: bool = False
 
     @property
     def is_manual(self) -> bool:
