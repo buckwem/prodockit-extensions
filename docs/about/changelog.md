@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-<<<<<<< HEAD
 - **Fixed:** a stage's instructions could describe the machine as it was
   when the run *started*, not as it is when the step is reached
   ([#281](https://github.com/buckwem/prodockit-extensions/issues/281)).
@@ -18,7 +17,7 @@
     never affected - applying a stage already re-derived its plan - so
     this only ever changed what was shown, which is precisely what made it
     hard to spot.
-=======
+
 - **Fixed:** a first run reached configuration without ever being asked
   which git host to use
   ([#279](https://github.com/buckwem/prodockit-extensions/issues/279)).
@@ -30,7 +29,24 @@
     It is now asked on a first run - when there is no configuration file
     yet - and still not re-asked of somebody who already answered it, since
     that is what `--configure` is for. The scripted message lists it too.
->>>>>>> origin/main
+
+- **Accepting a host's fingerprint no longer means opening another
+  terminal.** The SSH upload stage used to end with "run
+  `ssh -T git@gitlab.surrey.ac.uk` in a terminal once and answer `yes`" -
+  a step in the middle of a guided run that sends the reader somewhere
+  else to take it.
+
+    Bootstrap offers to run it now, with the terminal handed over, so ssh
+    shows its own fingerprint and asks its own question in place. What has
+    not changed is who answers: trusting a host key is still the reader's
+    decision, and nothing answers it on their behalf.
+
+    `BatchMode=yes` is dropped for that one command only. It is what makes
+    a *check* safe - a check that can block is a broken check whatever it
+    reports - and it is also exactly what suppresses ssh's fingerprint
+    question, so it comes off deliberately and only after the reader has
+    agreed to connect. `ConnectTimeout` stays, so an unreachable host
+    still fails rather than hanging.
 
 ## 0.26.0 (2026-08-11)
 
