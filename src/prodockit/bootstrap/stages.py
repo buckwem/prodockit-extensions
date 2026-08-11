@@ -51,6 +51,32 @@ VSCODE_EXTENSIONS = (
 #: Minimum Node major version - what the automated builds use.
 NODE_MAJOR = 22
 
+#: How long apt should wait for the dpkg lock rather than giving up.
+#:
+#: apt's default is to fail immediately if another process holds it, and
+#: on a freshly installed Ubuntu that other process is very often
+#: `unattended-upgrades`, which starts on boot and can hold the lock for
+#: minutes. A reader who runs bootstrap on a machine they have just
+#: installed gets:
+#:
+#:     Error: Unable to acquire the dpkg frontend lock
+#:     (/var/lib/dpkg/lock-frontend), is another process using it?
+#:
+#: which reads like a broken machine rather than "something else is
+#: mid-update, wait a moment" (prodockit-extensions#244). Waiting is what
+#: a human would do, so apt is told to do it.
+APT_LOCK_WAIT_SECONDS = 600
+APT_LOCK_OPTION = ("-o", f"DPkg::Lock::Timeout={APT_LOCK_WAIT_SECONDS}")
+
+
+def _apt(*args: str) -> list[str]:
+    """One `sudo apt` command, set to wait for the dpkg lock."""
+    return ["sudo", "apt", *APT_LOCK_OPTION, *args]
+
+
+#: The same, for the two places apt is run inside a shell string.
+APT_SH = "sudo apt " + " ".join(APT_LOCK_OPTION)
+
 #: The pandoc version this family of repos pins. Set in one place so a
 #: bump does not leave bootstrap behind - the CI workflows pin the same
 #: version independently, and `prodockit pins` checks the two agree.
@@ -188,7 +214,7 @@ def _plan_vscode(context: Context) -> Plan:
         # is what a Parallels VM on an Apple-silicon Mac reports.
         return Plan(
             commands=[
-                ["sudo", "apt", "install", "-y", "curl"],
+                _apt("install", "-y", "curl"),
                 [
                     "bash",
                     "-c",
@@ -196,7 +222,7 @@ def _plan_vscode(context: Context) -> Plan:
                     'case "$arch" in amd64) arch=x64 ;; esac; '
                     "curl -fsSL -o /tmp/code.deb "
                     '"https://update.code.visualstudio.com/latest/linux-deb-$arch/stable" '
-                    "&& sudo apt install -y /tmp/code.deb",
+                    f"&& {APT_SH} install -y /tmp/code.deb",
                 ],
             ]
         )
@@ -230,7 +256,7 @@ def _check_git(context: Context) -> CheckResult:
 def _plan_git(context: Context) -> Plan:
     install = {
         MACOS: [["brew", "install", "git"]],
-        UBUNTU: [["sudo", "apt", "update"], ["sudo", "apt", "install", "-y", "git"]],
+        UBUNTU: [_apt("update"), _apt("install", "-y", "git")],
         WINDOWS: [["winget", "install", "Git.Git"]],
     }[context.platform]
     configure = [
@@ -825,22 +851,20 @@ def _plan_pandoc(context: Context) -> Plan:
         )
         return Plan(
             commands=[
-                ["sudo", "apt", "install", "-y", "curl"],
+                _apt("install", "-y", "curl"),
                 [
                     "bash",
                     "-c",
                     f'curl -fsSL -o /tmp/pandoc.deb "{deb_url}" '
-                    "&& sudo apt install -y /tmp/pandoc.deb",
+                    f"&& {APT_SH} install -y /tmp/pandoc.deb",
                 ],
-                [
-                    "sudo",
-                    "apt",
+                _apt(
                     "install",
                     "-y",
                     "libpango-1.0-0",
                     "libpangoft2-1.0-0",
                     "libharfbuzz-subset0",
-                ],
+                ),
             ]
         )
     return Plan(
@@ -882,9 +906,9 @@ def _plan_node(context: Context) -> Plan:
     install = {
         MACOS: [["brew", "install", "node"]],
         UBUNTU: [
-            ["sudo", "apt", "install", "-y", "curl"],
+            _apt("install", "-y", "curl"),
             ["bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"],
-            ["sudo", "apt", "install", "-y", "nodejs"],
+            _apt("install", "-y", "nodejs"),
         ],
         WINDOWS: [["winget", "install", "OpenJS.NodeJS.LTS"]],
     }[context.platform]
@@ -920,9 +944,17 @@ def _check_extensions(context: Context) -> CheckResult:
         # alone, next to a plan that reinstalled all three, read as though
         # nothing was installed.
         present = len(VSCODE_EXTENSIONS) - len(absent)
-        return _wrong(
-            f"{present} of {len(VSCODE_EXTENSIONS)} installed; missing: {', '.join(absent)}"
-        )
+        detail = f"{present} of {len(VSCODE_EXTENSIONS)} installed; missing: {', '.join(absent)}"
+        if not present:
+            # None of them installed is MISSING, not WRONG, and the
+            # difference is what the `--apply` prompt defaults to. Asking
+            # `[y/N]` to install extensions on a machine that has none is
+            # asking the reader to argue for the thing they ran bootstrap
+            # to get (prodockit-extensions#242). WRONG defaults to no
+            # because reapplying can destroy work; there is nothing here
+            # to destroy.
+            return _missing(detail)
+        return _wrong(detail)
     return _ok(f"all {len(VSCODE_EXTENSIONS)} installed")
 
 
