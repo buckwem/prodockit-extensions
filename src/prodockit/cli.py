@@ -483,6 +483,25 @@ def _echo_wrapped_instruction(instruction: str) -> None:
         click.echo(f"             {line}")
 
 
+def _report_contacts(context: Context) -> None:
+    """Says how many times this pass reached the host.
+
+    Printed rather than merely recorded because the number is the point:
+    a host that stops answering after too many logins in quick succession
+    is answering a question about *this tool's* behaviour, and the only
+    way to tune anything later is to know what a real run costs
+    (prodockit-extensions#304).
+
+    Silent when nothing reached the host, which is the common case for a
+    run that stops early on unanswered configuration.
+    """
+    contacts = context.contacts
+    if contacts is None or not contacts.asked:
+        return
+    saved = f", {contacts.reused} reused" if contacts.reused else ""
+    click.echo(f"{contacts.made} connection(s) to {context.host.hostname}{saved}.")
+
+
 def _show_steps(title: str, steps: list[str]) -> None:
     """Prints a numbered list of things a human has to do.
 
@@ -632,6 +651,7 @@ def bootstrap(
 
     outstanding = [r for r in reports if r.needs_work]
     click.echo()
+    _report_contacts(context)
     if not outstanding:
         click.echo(f"All {len(reports)} stages are set up.")
         return

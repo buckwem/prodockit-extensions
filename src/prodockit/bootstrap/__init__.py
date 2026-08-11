@@ -38,6 +38,7 @@ from prodockit.bootstrap.config import (
     question_for,
     save,
 )
+from prodockit.bootstrap.contact import CountingRunner, HostContacts, contacts_host
 from prodockit.bootstrap.model import (
     HOSTS,
     INSTALL_TIMEOUT_SECONDS,
@@ -76,7 +77,9 @@ __all__ = [
     "CheckResult",
     "CommandResult",
     "Context",
+    "CountingRunner",
     "Host",
+    "HostContacts",
     "Plan",
     "Runner",
     "Stage",
@@ -90,6 +93,7 @@ __all__ = [
     "check_all",
     "config_path",
     "connection_problem",
+    "contacts_host",
     "current_platform",
     "default_for",
     "host_problem",
@@ -107,6 +111,16 @@ __all__ = [
 
 class UnsupportedHostError(Exception):
     """Raised for a host that is declared but not yet implemented."""
+
+
+def _forget_contacts(context: Context) -> None:
+    """Drops any remembered answer about the host.
+
+    A no-op for a context built without a counter, which keeps every
+    existing caller and test working unchanged.
+    """
+    if context.contacts is not None:
+        context.contacts.forget()
 
 
 def current_platform() -> str:
@@ -148,13 +162,18 @@ def build_context(
         raise UnsupportedHostError(problem)
     host = resolve_host(config.host)
     assert host is not None  # host_problem returned None, so it resolves
+    # Wrapped here rather than at each call site so every command that
+    # reaches the host is counted by construction, including any a stage
+    # added later introduces (#304).
+    contacts = HostContacts()
     return Context(
         config=config,
         host=host,
         platform=platform or current_platform(),
-        runner=runner or SubprocessRunner(),
+        runner=CountingRunner(runner or SubprocessRunner(), contacts),
         home=home or Path.home(),
         exists=exists or Path.exists,
+        contacts=contacts,
     )
 
 
@@ -219,6 +238,11 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
             capture=False,
         )
         result.ran.append(list(command))
+        # Whatever this command did, anything remembered about the host
+        # from before it ran is now a statement about the past. Dropped
+        # here rather than only before the check below, so a later
+        # command in the same plan cannot read a stale answer either.
+        _forget_contacts(context)
         # A Windows installer adds itself to PATH by writing the registry;
         # a running process never sees that, because its environment was
         # copied when it started. So `winget install Git.Git` succeeds and
@@ -244,7 +268,14 @@ class StageReport:
 
 
 def check_all(context: Context, stages: tuple[Stage, ...] = STAGES) -> list[StageReport]:
-    """Runs every stage's `check` and reports. Changes nothing."""
+    """Runs every stage's `check` and reports. Changes nothing.
+
+    Host answers are reused within this one pass: three stages ask the
+    same `ssh -T` and cannot get different answers seconds apart, and
+    asking three times is what provoked the host into refusing (#304).
+    Starting fresh, because state may have changed since the last pass.
+    """
+    _forget_contacts(context)
     return [StageReport(stage=stage, result=stage.check(context)) for stage in stages]
 
 
@@ -259,6 +290,7 @@ def plan_all(context: Context, stages: tuple[Stage, ...] = STAGES) -> list[Stage
     and `create a blank project named '' in the group ''`, which reads as
     an instruction rather than as the missing answer it actually is.
     """
+    _forget_contacts(context)
     reports = []
     for stage in stages:
         result = stage.check(context)

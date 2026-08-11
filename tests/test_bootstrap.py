@@ -3882,3 +3882,51 @@ def test_refreshing_is_a_no_op_off_windows() -> None:
     before = os.environ.get("PATH")
     assert refresh_windows_path() is None
     assert os.environ.get("PATH") == before, "another platform's PATH must be left alone"
+
+
+def test_a_dropped_connection_does_not_blame_the_key(tmp_path: Path) -> None:
+    """The host accepts the connection, then closes it mid-authentication
+    without a verdict. That used to fall through to "could not confirm
+    authentication", which tells a reader nothing they can act on - and
+    the natural reading of a failing auth step is that the key was
+    refused, which cost an afternoon to disprove (#304)."""
+    machine = _ready_machine(tmp_path)
+    machine["ssh"] = CommandResult(255, stderr="Connection closed by 131.227.81.118 port 22")
+    result = next(s for s in STAGES if s.id == "ssh-upload").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.WRONG
+    assert "closed it" in result.detail
+    assert "key is probably fine" in result.detail
+    assert "rejected the key" not in result.detail
+
+
+def test_a_real_rejection_still_says_so(tmp_path: Path) -> None:
+    """`Permission denied` is a clean answer from a working server - the
+    key really is wrong, or really is not uploaded. Reading it as a
+    refusal would tell the reader to wait when the fix is in their
+    hands."""
+    machine = _ready_machine(tmp_path)
+    machine["ssh"] = CommandResult(255, stderr="git@gitlab.surrey.ac.uk: Permission denied (publickey).")
+    result = next(s for s in STAGES if s.id == "ssh-upload").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.MISSING
+    assert "rejected the key" in result.detail
+
+
+def test_a_dropped_connection_is_not_read_as_a_missing_project(tmp_path: Path) -> None:
+    """`git ls-remote` failing normally means "you have not created it in
+    the browser yet", which is the wrong instruction when the host is
+    simply refusing to talk."""
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(128, stderr="Connection closed by 131.227.81.118 port 22")
+    result = next(s for s in STAGES if s.id == "own-project").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.WRONG
+    assert "closed it" in result.detail
+    assert "not reachable" not in result.detail

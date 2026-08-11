@@ -794,6 +794,43 @@ def _ssh_probe(context: Context, *, interactive: bool = False) -> list[str]:
     return [ssh, "-T", *options, context.host.ssh_target]
 
 
+#: What a server says when it is refusing to talk rather than refusing a
+#: key. The connection is accepted and then dropped, mid-authentication,
+#: without a verdict either way.
+#:
+#: `Permission denied` is deliberately not in this list. That is a clean
+#: answer from a working server - the key really is wrong, or really is
+#: not uploaded - and treating it as a refusal would tell a reader to
+#: wait when the fix is in their hands.
+_REFUSAL_SIGNS = (
+    "Connection closed by",
+    "Connection reset by",
+    "kex_exchange_identification",
+)
+
+
+def _connection_refused(combined: str) -> bool:
+    """Whether the host hung up rather than answering."""
+    return any(sign in combined for sign in _REFUSAL_SIGNS)
+
+
+def _refusal_detail(context: Context) -> str:
+    """Says who hung up, and that the key is not the suspect.
+
+    Worth spelling out. The reader sees an authentication step fail and
+    reasonably concludes the key was rejected - which is what this stage
+    used to tell them. It cost a working afternoon to establish that a
+    key can be accepted and the connection still dropped
+    (prodockit-extensions#304).
+    """
+    return (
+        f"{context.host.hostname} accepted the connection and then closed it "
+        "without answering. A server does that when it is refusing logins for "
+        "a while, often after too many in quick succession. Your key is "
+        "probably fine - wait a few minutes and try again."
+    )
+
+
 def _check_ssh_authenticates(context: Context) -> CheckResult:
     """Whether the key actually authenticates.
 
@@ -808,6 +845,11 @@ def _check_ssh_authenticates(context: Context) -> CheckResult:
         return _ok(f"authenticated to {context.host.hostname}")
     if "Host key verification failed" in combined or "authenticity of host" in combined:
         return _wrong(f"{context.host.hostname} is not a known host on this machine yet")
+    # Before `Permission denied`, and before the catch-all: a dropped
+    # connection reached neither of those and was reported as "could not
+    # confirm", which says nothing a reader can act on.
+    if _connection_refused(combined):
+        return _wrong(_refusal_detail(context))
     if "Permission denied" in combined:
         return _missing(f"{context.host.hostname} rejected the key")
     return _wrong(f"could not confirm authentication to {context.host.hostname}")
@@ -1130,6 +1172,11 @@ def _check_own_project(context: Context) -> CheckResult:
     result = context.runner.run(["git", "ls-remote", url])
     if result.ok:
         return _ok(url)
+    # "not reachable" would be read as "you have not created it yet",
+    # which is this stage's normal finding and the wrong advice when the
+    # host is simply refusing to talk (#304).
+    if _connection_refused(f"{result.stdout}\n{result.stderr}"):
+        return _wrong(_refusal_detail(context))
     return _missing(f"{url} is not reachable")
 
 
