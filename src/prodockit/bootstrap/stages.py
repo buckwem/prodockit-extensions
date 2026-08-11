@@ -611,7 +611,19 @@ def _plan_ssh_agent(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
-def _ssh_probe(context: Context) -> list[str]:
+def _host_is_unknown(context: Context) -> bool:
+    """Whether this machine has never accepted the host's key.
+
+    Asked separately from the stage's own check because the answer decides
+    whether the plan needs the terminal, and a plan is built before its
+    check result is in hand.
+    """
+    result = context.runner.run(_ssh_probe(context))
+    combined = f"{result.stdout}\n{result.stderr}"
+    return "Host key verification failed" in combined or "authenticity of host" in combined
+
+
+def _ssh_probe(context: Context, *, interactive: bool = False) -> list[str]:
     """`ssh -T`, wired so it can never wait for a human.
 
     `BatchMode=yes` is the load-bearing option. ssh reads passphrases and
@@ -636,6 +648,14 @@ def _ssh_probe(context: Context) -> list[str]:
     to run.
     """
     ssh, *options = SSH_NO_PROMPT_OPTIONS
+    if interactive:
+        # The one probe allowed to ask something. `BatchMode=yes` is what
+        # makes a *check* safe (#225), and it is exactly what stops ssh
+        # offering its fingerprint question - so accepting a host key
+        # needs it dropped, deliberately, and only when the reader has
+        # agreed to connect. `ConnectTimeout` stays: an unreachable host
+        # should still fail rather than hang.
+        return [ssh, "-T", "-o", "ConnectTimeout=10", context.host.ssh_target]
     return [ssh, "-T", *options, context.host.ssh_target]
 
 
@@ -652,10 +672,7 @@ def _check_ssh_authenticates(context: Context) -> CheckResult:
     if context.host.ssh_success in combined:
         return _ok(f"authenticated to {context.host.hostname}")
     if "Host key verification failed" in combined or "authenticity of host" in combined:
-        return _wrong(
-            f"{context.host.hostname} is not a known host yet - run "
-            f"`ssh -T {context.host.ssh_target}` once and accept the fingerprint"
-        )
+        return _wrong(f"{context.host.hostname} is not a known host on this machine yet")
     if "Permission denied" in combined:
         return _missing(f"{context.host.hostname} rejected the key")
     return _wrong(f"could not confirm authentication to {context.host.hostname}")
@@ -767,11 +784,24 @@ def _plan_ssh_upload(context: Context) -> Plan:
     instructions += [
         form,
         f"Click '{host.ssh_key_save_label}' to save it.",
-        f"If this machine has never connected to {host.hostname} before, "
-        f"run `ssh -T {host.ssh_target}` in a terminal once and answer "
-        "`yes` to the fingerprint question. Trusting a host key is a decision "
-        "bootstrap leaves to you rather than making silently on your behalf.",
     ]
+
+    # First contact with a host asks whether to trust its fingerprint, and
+    # that is the reader's decision - but it is not a reason to send them
+    # to a second terminal to make it (prodockit-extensions#281 thread).
+    # `needs_terminal` hands over the real one, as it does for `ssh-add`'s
+    # passphrase, so ssh asks its own question here and the reader answers
+    # it in place. Bootstrap still never answers it for them.
+    if _host_is_unknown(context):
+        return Plan(
+            instructions=instructions,
+            needs_terminal=True,
+            commands=[_ssh_probe(context, interactive=True)],
+            confirm=(
+                f"Ready to connect to {host.hostname}? ssh will show its "
+                "fingerprint and ask you to confirm it"
+            ),
+        )
     # Instructions only, deliberately. `ssh -T` is the *check*, and it
     # cannot also be a plan command: against a git host it exits non-zero
     # even on success (there is no shell to give you), so a runner that
