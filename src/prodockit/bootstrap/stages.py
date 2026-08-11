@@ -1,18 +1,18 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""The twelve stages of a full install, as check/plan pairs.
+"""The thirteen stages of a full install, as check/plan pairs.
 
 Every stage answers two questions and performs neither: `check` decides
 whether it is already done, `plan` says what would make it done. Nothing
 here runs an installer - see `prodockit.bootstrap.model` for why that
 split is the whole testing strategy.
 
-Six of the twelve are platform-independent (SSH keys, the ssh config
-stanza, cloning, repointing the remote, the project's commit identity,
-VS Code extensions), which is half the work written once. That is the
-argument for a stage abstraction over three separate per-platform
-scripts.
+Seven of the thirteen are platform-independent (SSH keys, the ssh
+config stanza, the agent, cloning, repointing the remote, the project's
+commit identity, VS Code extensions), which is over half the work
+written once. That is the argument for a stage abstraction over three
+separate per-platform scripts.
 
 Two are deliberately **not automatable at all**: uploading an SSH public
 key, and creating the project on the host. Both need an authenticated
@@ -438,7 +438,105 @@ def _plan_ssh_config(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 5. Public key on the host - guide and verify
+# 5. The key is loaded into an ssh agent
+# ---------------------------------------------------------------------------
+
+
+#: `ssh-add -l` says which of three states the agent is in by its exit
+#: code, and the difference matters: "no agent" is something only the
+#: reader can fix, "no identities" is something bootstrap can.
+_AGENT_HAS_KEYS = 0
+_AGENT_IS_EMPTY = 1
+_AGENT_NOT_RUNNING = 2
+
+
+def _key_fingerprint(context: Context) -> str | None:
+    """This key's SHA256 fingerprint, as `ssh-add -l` would print it."""
+    public = _key_path(context).with_suffix(".pub")
+    result = context.runner.run(["ssh-keygen", "-lf", str(public)])
+    if not result.ok:
+        return None
+    # `256 SHA256:abc... comment (ED25519)` - the fingerprint is the one
+    # field worth comparing; the comment and bit count vary.
+    for field in result.stdout.split():
+        if field.startswith("SHA256:"):
+            return field
+    return None
+
+
+def _check_ssh_agent(context: Context) -> CheckResult:
+    """Whether the key is loaded and therefore usable without a prompt.
+
+    Stage 3 tells the reader to set a passphrase, and every ssh command
+    bootstrap runs carries `BatchMode=yes`, which forbids prompting. Those
+    two are only compatible if an agent is holding the decrypted key.
+
+    Without one, `ssh -T` offers the public half quite happily - that
+    needs no passphrase - and then cannot sign the host's challenge,
+    because signing needs the private half. Authentication fails, and the
+    upload stage reports it as `the host rejected the key`: the key is
+    fine, uploaded, and unusable (prodockit-extensions#246).
+    """
+    listed = context.runner.run(["ssh-add", "-l"])
+    if listed.returncode == _AGENT_NOT_RUNNING:
+        return _missing("no ssh agent is running")
+    fingerprint = _key_fingerprint(context)
+    if fingerprint is None:
+        return _missing("no key to load yet")
+    if listed.returncode == _AGENT_IS_EMPTY or fingerprint not in listed.stdout:
+        return _missing(f"{_key_path(context).name} is not loaded into the agent")
+    return _ok(f"{_key_path(context).name} is loaded")
+
+
+def _plan_ssh_agent(context: Context) -> Plan:
+    """Loads the key, or explains how to start an agent to load it into.
+
+    Starting an agent is the one thing that genuinely cannot be
+    automated. `eval "$(ssh-agent -s)"` works by exporting `SSH_AUTH_SOCK`
+    into *the shell that runs it*, and a subprocess cannot export
+    anything into its parent - so bootstrap running it would start an
+    agent, set the variable in a shell that then exits, and change
+    nothing. That one is the reader's to run.
+    """
+    private = _key_path(context)
+    listed = context.runner.run(["ssh-add", "-l"])
+
+    if listed.returncode == _AGENT_NOT_RUNNING:
+        if context.platform == WINDOWS:
+            return Plan(
+                instructions=[
+                    "The ssh-agent service is not running. In a PowerShell window "
+                    "opened as Administrator:\n"
+                    "Set-Service ssh-agent -StartupType Automatic\n"
+                    "Start-Service ssh-agent\n"
+                    "Then run bootstrap again in your normal window.",
+                ]
+            )
+        return Plan(
+            instructions=[
+                "No ssh agent is running. Start one in this terminal - bootstrap "
+                "cannot do it for you, because the agent is found through a "
+                "variable that only the shell running it can set:\n"
+                'eval "$(ssh-agent -s)"\n'
+                "Then run bootstrap again in the same terminal.",
+            ]
+        )
+
+    return Plan(
+        # `ssh-add` asks for the key's passphrase and reads it from
+        # /dev/tty, so it has to have the terminal. Run captured it would
+        # wait, unanswerable, until the timeout (#243).
+        needs_terminal=True,
+        commands=[["ssh-add", str(private)]],
+        instructions=[
+            "ssh-add will ask for the passphrase you gave the key when it "
+            "was created.",
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# 6. Public key on the host - guide and verify
 # ---------------------------------------------------------------------------
 
 
@@ -598,7 +696,7 @@ def _plan_ssh_upload(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 6. Template cloned (platform-independent)
+# 7. Template cloned (platform-independent)
 # ---------------------------------------------------------------------------
 
 def _check_clone(context: Context) -> CheckResult:
@@ -636,7 +734,7 @@ def _plan_clone(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 7. The reader's own project exists on the host - guide and verify
+# 8. The reader's own project exists on the host - guide and verify
 # ---------------------------------------------------------------------------
 
 
@@ -670,7 +768,7 @@ def _plan_own_project(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 8. Remote repointed at it (platform-independent)
+# 9. Remote repointed at it (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -722,7 +820,7 @@ def _plan_remote(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 9. Commit identity, in the project (platform-independent)
+# 10. Commit identity, in the project (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -798,7 +896,7 @@ def _plan_project_identity(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 10. Pandoc and WeasyPrint's native stack
+# 11. Pandoc and WeasyPrint's native stack
 # ---------------------------------------------------------------------------
 
 
@@ -880,7 +978,7 @@ def _plan_pandoc(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 11. Node and the two toolchains
+# 12. Node and the two toolchains
 # ---------------------------------------------------------------------------
 
 
@@ -922,7 +1020,7 @@ def _plan_node(context: Context) -> Plan:
 
 
 # ---------------------------------------------------------------------------
-# 12. VS Code extensions (platform-independent)
+# 13. VS Code extensions (platform-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -982,6 +1080,9 @@ STAGES: tuple[Stage, ...] = (
     # checks itself, and without this stanza ssh never offers the key at
     # all (prodockit-extensions#239).
     Stage("ssh-config", "SSH config points at the key", _check_ssh_config, _plan_ssh_config),
+    # Also before the upload: a passphrase-protected key cannot sign
+    # the host's challenge unless an agent is holding it (#246).
+    Stage("ssh-agent", "Key loaded into the ssh agent", _check_ssh_agent, _plan_ssh_agent),
     Stage("ssh-upload", "SSH key on the host", _check_ssh_authenticates, _plan_ssh_upload),
     Stage("clone", "Template cloned", _check_clone, _plan_clone),
     Stage("own-project", "Your own project on the host", _check_own_project, _plan_own_project),

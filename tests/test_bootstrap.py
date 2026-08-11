@@ -53,14 +53,17 @@ class FakeRunner:
         self.calls: list[list[str]] = []
         self.cwds: list[str | None] = []
         self.timeouts: list[float | None] = []
+        self.captures: list[bool] = []
 
     def run(
         self,
         command: Sequence[str],
         cwd: str | None = None,
         timeout: float | None = None,
+        capture: bool = True,
     ) -> CommandResult:
         self.timeouts.append(timeout)
+        self.captures.append(capture)
         self.calls.append(list(command))
         self.cwds.append(cwd)
         joined = " ".join(command)
@@ -72,6 +75,15 @@ class FakeRunner:
         if command[0] in self.responses:
             return self.responses[command[0]]
         return CommandResult(returncode=127, stderr="not found")
+
+
+#: What `ssh-add -l` prints for a loaded key, and what `ssh-keygen -lf`
+#: prints for the same one - the fingerprint has to match between them.
+LOADED_FINGERPRINT = "SHA256:AAAAfingerprintAAAA"
+AGENT_RESPONSES = {
+    "ssh-add -l": CommandResult(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)"),
+    "ssh-keygen -lf": CommandResult(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)"),
+}
 
 
 def _write_ssh_config(tmp_path: Path, key: str = "~/.ssh/id_ed25519_gitlab") -> None:
@@ -828,6 +840,7 @@ def test_bootstrap_exits_zero_when_everything_is_set_up(
             "git config --global user.name": CommandResult(0, "Ada\n"),
             "git config --global user.email": CommandResult(0, "a@b.c\n"),
             "ssh": CommandResult(1, stderr="Welcome to GitLab, @al01234!"),
+            **AGENT_RESPONSES,
             "git": CommandResult(
                 0, "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git\n"
             ),
@@ -1128,6 +1141,7 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
             ),
         ),
         "git": CommandResult(0, "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git\n"),
+        **AGENT_RESPONSES,
         "prodockit sync-repo --check": CommandResult(0),
         "config --local user.name": CommandResult(0, "Ada Lovelace\n"),
         "config --local user.email": CommandResult(0, "al01234@surrey.ac.uk\n"),
@@ -1826,3 +1840,126 @@ def test_a_plan_that_needs_no_sudo_is_not_asked_for_a_password(
 
     assert asked == []
     assert "administrator rights" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# The key has to be usable, not just present: #246
+# ---------------------------------------------------------------------------
+
+
+def _agent(returncode: int, listing: str = "") -> dict[str, CommandResult]:
+    """An `ssh-add -l` answer, plus a fingerprint for the key on disk."""
+    return {
+        "ssh-add -l": CommandResult(returncode, listing),
+        "ssh-keygen -lf": CommandResult(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)"),
+    }
+
+
+def test_no_agent_running_is_missing(tmp_path: Path) -> None:
+    """prodockit-extensions#246: stage 3 tells the reader to give the key
+    a passphrase, and every ssh command carries `BatchMode=yes`, which
+    forbids prompting. Those two are only compatible if an agent holds
+    the decrypted key - otherwise `ssh -T` offers the public half quite
+    happily and then cannot sign the challenge, and the upload stage
+    reports a key that is fine and uploaded as *rejected*."""
+    runner = FakeRunner(_agent(2, "Could not open a connection to your agent."))
+    result = next(s for s in STAGES if s.id == "ssh-agent").check(_context(tmp_path, runner=runner))
+
+    assert result.status is Status.MISSING
+    assert "no ssh agent is running" in result.detail
+
+
+def test_an_empty_agent_is_missing(tmp_path: Path) -> None:
+    runner = FakeRunner(_agent(1, "The agent has no identities."))
+    result = next(s for s in STAGES if s.id == "ssh-agent").check(_context(tmp_path, runner=runner))
+
+    assert result.status is Status.MISSING
+    assert "not loaded" in result.detail
+
+
+def test_somebody_elses_key_in_the_agent_does_not_count(tmp_path: Path) -> None:
+    """An agent holding a *different* key authenticates nothing here, and
+    "the agent has keys" would report it as done."""
+    runner = FakeRunner(_agent(0, "256 SHA256:SomeOtherKeyEntirely me@elsewhere (ED25519)"))
+    result = next(s for s in STAGES if s.id == "ssh-agent").check(_context(tmp_path, runner=runner))
+
+    assert result.status is Status.MISSING
+
+
+def test_the_loaded_key_is_ok(tmp_path: Path) -> None:
+    runner = FakeRunner(_agent(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)"))
+    result = next(s for s in STAGES if s.id == "ssh-agent").check(_context(tmp_path, runner=runner))
+
+    assert result.status is Status.OK
+    assert "id_ed25519_gitlab" in result.detail
+
+
+def test_no_key_yet_is_not_a_crash(tmp_path: Path) -> None:
+    """`--dry-run` builds every plan, including on a machine where the
+    keypair stage has not run - so a missing key must be a finding."""
+    runner = FakeRunner({"ssh-add -l": CommandResult(1, "The agent has no identities.")})
+    result = next(s for s in STAGES if s.id == "ssh-agent").check(_context(tmp_path, runner=runner))
+
+    assert result.status is Status.MISSING
+    assert "no key" in result.detail
+
+
+def test_the_agent_stage_runs_before_the_upload(tmp_path: Path) -> None:
+    """Same reasoning as the config stage: the upload stage checks itself
+    with `ssh -T`, which cannot sign anything until the key is loaded."""
+    ids = [s.id for s in STAGES]
+
+    assert ids.index("ssh-agent") > ids.index("ssh-key"), "there must be a key to load"
+    assert ids.index("ssh-agent") < ids.index("ssh-upload")
+
+
+def test_loading_the_key_takes_the_terminal(tmp_path: Path) -> None:
+    """`ssh-add` asks for the passphrase and reads it from /dev/tty. Run
+    with its output captured it would wait, unanswerable, until the
+    timeout - which is exactly what sudo did in #243."""
+    runner = FakeRunner(_agent(1, "The agent has no identities."))
+    plan = next(s for s in STAGES if s.id == "ssh-agent").plan(_context(tmp_path, runner=runner))
+
+    assert plan.needs_terminal, "the passphrase prompt needs somewhere to appear"
+    assert plan.commands == [["ssh-add", str(tmp_path / ".ssh" / "id_ed25519_gitlab")]]
+
+
+def test_apply_hands_the_terminal_over_for_that_plan(tmp_path: Path) -> None:
+    """The flag is no use unless the runner is actually told."""
+    from prodockit.bootstrap import apply_stage
+
+    runner = FakeRunner(_agent(1, "The agent has no identities."))
+    context = _context(tmp_path, runner=runner)
+    apply_stage(context, next(s for s in STAGES if s.id == "ssh-agent"))
+
+    assert False in runner.captures, "ssh-add must be run uncaptured"
+
+
+def test_starting_an_agent_is_explained_rather_than_attempted(tmp_path: Path) -> None:
+    """The one thing here that genuinely cannot be automated. `eval
+    "$(ssh-agent -s)"` works by exporting SSH_AUTH_SOCK into the shell
+    that runs it, and a subprocess cannot export into its parent - so
+    running it would start an agent, set the variable in a shell that
+    then exits, and change nothing."""
+    runner = FakeRunner(_agent(2, "Could not open a connection to your agent."))
+    plan = next(s for s in STAGES if s.id == "ssh-agent").plan(_context(tmp_path, runner=runner))
+
+    assert not plan.commands, "bootstrap cannot start an agent for its own parent shell"
+    joined = "\n".join(plan.instructions)
+    assert 'eval "$(ssh-agent -s)"' in joined
+    assert "same terminal" in joined
+
+
+def test_windows_is_told_about_the_service_instead(tmp_path: Path) -> None:
+    """Windows runs the agent as a service, and enabling it needs an
+    Administrator window - a different shell, not just a different
+    command."""
+    runner = FakeRunner(_agent(2, "Could not open a connection to your agent."))
+    plan = next(s for s in STAGES if s.id == "ssh-agent").plan(
+        _context(tmp_path, runner=runner, platform=WINDOWS)
+    )
+    joined = "\n".join(plan.instructions)
+
+    assert "Start-Service ssh-agent" in joined
+    assert "Administrator" in joined
+    assert "ssh-agent -s" not in joined, "that is the Unix route"
