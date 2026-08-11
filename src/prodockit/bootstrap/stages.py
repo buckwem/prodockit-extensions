@@ -473,21 +473,45 @@ def _ssh_config_path(context: Context) -> Path:
     return context.home / ".ssh" / "config"
 
 
+def _persistence_keywords(context: Context) -> tuple[str, ...]:
+    """The directives that keep the key loaded past this login session.
+
+    `AddKeysToAgent` is ordinary OpenSSH (7.2+) and belongs everywhere.
+    `UseKeychain` is Apple's alone, and is emphatically not ignored by
+    other builds: an OpenSSH that does not know the keyword rejects the
+    *whole config file*, taking every other host in it down as well. So
+    it is written on macOS only, and the test suite asserts its absence
+    elsewhere rather than merely its presence here.
+    """
+    if context.platform == MACOS:
+        return ("AddKeysToAgent", "UseKeychain")
+    return ("AddKeysToAgent",)
+
+
 def _ssh_config_block(context: Context) -> str:
     """The `Host` stanza this host needs, in the User Guide's own shape.
 
     `~` rather than an absolute path, as the guide writes it: the file is
     read by ssh, which expands it, and a config copied between machines
     with different usernames then still works.
+
+    `IdentityFile` names the key; it does not put it in the agent. On its
+    own it produces a machine that works until the agent is next emptied
+    - a reboot, a logout - and then fails in the way #246 describes,
+    having reported itself set up correctly at the time
+    (prodockit-extensions#303). The directives below are what make the
+    setup outlast the session.
     """
     host = context.host
     key = f"~/.ssh/{_key_path(context).name}"
+    directives = "".join(f"    {keyword} yes\n" for keyword in _persistence_keywords(context))
     return (
         f"# {host.hostname} - added by prodockit bootstrap\n"
         f"Host {host.hostname}\n"
         f"    HostName {host.hostname}\n"
         f"    User git\n"
         f"    IdentityFile {key}\n"
+        f"{directives}"
     )
 
 
@@ -542,7 +566,18 @@ def _check_ssh_config(context: Context) -> CheckResult:
             f"{path} has a Host entry for {context.host.hostname} but it does "
             f"not point at {key_name}"
         )
-    return _ok(f"{context.host.hostname} uses {key_name}")
+    # A stanza naming the right key still leaves the machine breaking on
+    # the next reboot, and reporting that as OK is how it goes unnoticed
+    # for weeks: the key drops out of the agent, and the failure that
+    # surfaces blames the key rather than the config (#303).
+    lowered = body.lower()
+    absent = [word for word in _persistence_keywords(context) if word.lower() not in lowered]
+    if absent:
+        return _wrong(
+            f"{path} points at {key_name} but will not keep it loaded past "
+            f"this session - {' and '.join(absent)} missing"
+        )
+    return _ok(f"{context.host.hostname} uses {key_name}, and keeps it loaded")
 
 
 def _plan_ssh_config(context: Context) -> Plan:
@@ -682,12 +717,22 @@ def _plan_ssh_agent(context: Context) -> Plan:
             confirm="Have you started an agent in this terminal?",
         )
 
+    # On macOS the passphrase can be stored in the login keychain, which
+    # is the difference between loading the key for this session and
+    # loading it for good: without it the agent is empty again after the
+    # next reboot, and bootstrap has to be run a second time to fix
+    # something it already reported as done (#303). No other platform has
+    # an equivalent flag - `AddKeysToAgent` in the stanza covers them.
+    command = ["ssh-add", str(private)]
+    if context.platform == MACOS:
+        command = ["ssh-add", "--apple-use-keychain", str(private)]
+
     return Plan(
         # `ssh-add` asks for the key's passphrase and reads it from
         # /dev/tty, so it has to have the terminal. Run captured it would
         # wait, unanswerable, until the timeout (#243).
         needs_terminal=True,
-        commands=[["ssh-add", str(private)]],
+        commands=[command],
         instructions=[
             "ssh-add will ask for the passphrase you gave the key when it "
             "was created.",

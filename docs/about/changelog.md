@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- **Fixed:** the SSH key was loaded into the agent for one session only,
+  so a machine bootstrap had set up stopped authenticating after the next
+  reboot
+  ([#303](https://github.com/buckwem/prodockit-extensions/issues/303)).
+
+    `ssh-add` loaded the key into the running agent and nowhere else, and
+    the `Host` stanza named the key with `IdentityFile` but had nothing
+    that would reload it. The stage reported itself `OK`, quite correctly
+    at the time, and the machine then broke silently days later.
+
+    The failure does not name its own cause: SSH offers the *public* half
+    of the key without needing a passphrase and only fails at the signing
+    step, so the error looks like a key the host has rejected. It is the
+    same trap as #246, one layer further out.
+
+    `ssh-add --apple-use-keychain` is used on macOS now, and the stanza
+    carries `AddKeysToAgent yes` on every platform plus `UseKeychain yes`
+    on macOS. The config check reports a stanza missing them rather than
+    passing it, since a setup that works only until the next reboot is
+    not a finished one.
+
+    `UseKeychain` is written on macOS alone, deliberately: an OpenSSH
+    that does not know the keyword rejects the whole config file rather
+    than skipping the line, which would take every other host in it down
+    too.
+
 ## 0.26.3 (2026-08-11)
 
 - **Fixed:** Windows stopped after installing git, saying git was not

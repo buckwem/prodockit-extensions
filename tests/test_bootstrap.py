@@ -154,17 +154,28 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     }
 
 
-def _write_ssh_config(tmp_path: Path, key: str = "~/.ssh/id_ed25519_gitlab") -> None:
+def _write_ssh_config(
+    tmp_path: Path,
+    key: str = "~/.ssh/id_ed25519_gitlab",
+    *,
+    persist: bool = True,
+) -> None:
     """A ~/.ssh/config that points Surrey's GitLab at the key.
 
     Needed by any test that expects the SSH stages to be satisfied:
     without the stanza ssh never offers the key, which is the whole of
     prodockit-extensions#239.
+
+    `persist` writes the directives that keep the key in the agent past
+    this session. On by default because a machine missing them is not a
+    finished one - it works today and fails after the next reboot
+    (prodockit-extensions#303) - so a test wanting that state says so.
     """
+    keeps_loaded = "    AddKeysToAgent yes\n    UseKeychain yes\n" if persist else ""
     (tmp_path / ".ssh").mkdir(exist_ok=True)
     (tmp_path / ".ssh" / "config").write_text(
         f"Host gitlab.surrey.ac.uk\n    HostName gitlab.surrey.ac.uk\n"
-        f"    User git\n    IdentityFile {key}\n",
+        f"    User git\n    IdentityFile {key}\n{keeps_loaded}",
         encoding="utf-8",
     )
 
@@ -597,6 +608,59 @@ def test_an_existing_wrong_entry_is_explained_rather_than_edited(tmp_path: Path)
     joined = "\n".join(plan.instructions)
     assert "already has a Host entry" in joined
     assert "IdentityFile ~/.ssh/id_ed25519_gitlab" in joined, "show what it should say"
+
+
+def test_the_stanza_keeps_the_key_loaded_past_this_session(tmp_path: Path) -> None:
+    """`IdentityFile` names the key; it does not put it in the agent.
+    Without these two the machine works until the agent is next emptied
+    and then fails blaming the key (#303)."""
+    plan = next(s for s in STAGES if s.id == "ssh-config").plan(_context(tmp_path))
+    script = " ".join(" ".join(command) for command in plan.commands)
+
+    assert "AddKeysToAgent yes" in script, "load the key on first use"
+    assert "UseKeychain yes" in script, "take the passphrase from the login keychain"
+
+
+@pytest.mark.parametrize("platform", [UBUNTU, WINDOWS])
+def test_usekeychain_is_never_written_off_macos(tmp_path: Path, platform: str) -> None:
+    """Not a cosmetic difference. An OpenSSH that does not know the
+    keyword rejects the entire config file rather than skipping the line,
+    which would break every other host in it too."""
+    plan = next(s for s in STAGES if s.id == "ssh-config").plan(
+        _context(tmp_path, platform=platform)
+    )
+    script = " ".join(" ".join(command) for command in plan.commands)
+
+    assert "UseKeychain" not in script, "Apple-only, and fatal elsewhere"
+    assert "AddKeysToAgent yes" in script, "this one is ordinary OpenSSH"
+
+
+def test_a_stanza_that_will_not_survive_a_reboot_is_reported(tmp_path: Path) -> None:
+    """The state this laptop was found in: right key, no way to reload
+    it. Reporting it OK is how it goes unnoticed until the agent empties."""
+    _write_ssh_config(tmp_path, persist=False)
+    result = next(s for s in STAGES if s.id == "ssh-config").check(_context(tmp_path))
+
+    assert result.status is Status.WRONG
+    assert "keep it loaded" in result.detail
+    assert "AddKeysToAgent" in result.detail
+
+
+def test_ubuntu_does_not_want_usekeychain_in_an_existing_stanza(tmp_path: Path) -> None:
+    """The check must ask for exactly what the plan writes, or a machine
+    bootstrap set up would report itself unfinished for ever."""
+    (tmp_path / ".ssh").mkdir(exist_ok=True)
+    (tmp_path / ".ssh" / "config").write_text(
+        "Host gitlab.surrey.ac.uk\n    HostName gitlab.surrey.ac.uk\n"
+        "    User git\n    IdentityFile ~/.ssh/id_ed25519_gitlab\n"
+        "    AddKeysToAgent yes\n",
+        encoding="utf-8",
+    )
+    result = next(s for s in STAGES if s.id == "ssh-config").check(
+        _context(tmp_path, platform=UBUNTU)
+    )
+
+    assert result.status is Status.OK
 
 
 def test_windows_writes_the_config_without_chmod(tmp_path: Path) -> None:
@@ -1980,6 +2044,31 @@ def test_loading_the_key_takes_the_terminal(tmp_path: Path) -> None:
     plan = next(s for s in STAGES if s.id == "ssh-agent").plan(_context(tmp_path, runner=runner))
 
     assert plan.needs_terminal, "the passphrase prompt needs somewhere to appear"
+    assert plan.commands == [
+        ["ssh-add", "--apple-use-keychain", str(tmp_path / ".ssh" / "id_ed25519_gitlab")]
+    ]
+
+
+def test_macos_stores_the_passphrase_in_the_keychain(tmp_path: Path) -> None:
+    """Without the flag `ssh-add` loads the key for this session only, so
+    the agent is empty again after the next reboot and bootstrap has to
+    repair something it already reported as done (#303)."""
+    runner = FakeRunner(_agent(1, "The agent has no identities."))
+    plan = next(s for s in STAGES if s.id == "ssh-agent").plan(_context(tmp_path, runner=runner))
+
+    assert plan.commands[0][:2] == ["ssh-add", "--apple-use-keychain"]
+
+
+@pytest.mark.parametrize("platform", [UBUNTU, WINDOWS])
+def test_the_keychain_flag_is_macos_only(tmp_path: Path, platform: str) -> None:
+    """No other platform has an equivalent, and `ssh-add` rejects the
+    unknown option rather than ignoring it - which would turn a working
+    stage into a failing one."""
+    runner = FakeRunner(_agent(1, "The agent has no identities."))
+    plan = next(s for s in STAGES if s.id == "ssh-agent").plan(
+        _context(tmp_path, platform=platform, runner=runner)
+    )
+
     assert plan.commands == [["ssh-add", str(tmp_path / ".ssh" / "id_ed25519_gitlab")]]
 
 
