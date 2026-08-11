@@ -587,6 +587,16 @@ class Plan:
     #: (prodockit-extensions#260). A stage that asks a person to do
     #: something should ask about the thing it asked for.
     confirm: str = "Tell me when that is done"
+    #: What these commands do, in a sentence, for when the commands
+    #: themselves are not readable.
+    #:
+    #: Most are perfectly legible - `brew install pandoc` needs no gloss.
+    #: A few carry an entire script as one argument, and printing that
+    #: verbatim fills the screen with Python and asks the reader to
+    #: approve it (prodockit-extensions#261). Shown instead of the
+    #: commands when set; `--dry-run` still prints them in full, which is
+    #: what `--dry-run` is for.
+    describe: str = ""
 
     @property
     def is_manual(self) -> bool:

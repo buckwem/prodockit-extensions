@@ -3085,3 +3085,64 @@ def test_the_question_asked_is_the_one_the_plan_carries(
 
     assert "Have you added the key to your gitlab.surrey.ac.uk account?" in result.output
     assert "Tell me when that is done" not in result.output
+
+
+def test_stage_16_says_what_it_does_not_how(tmp_path: Path) -> None:
+    """prodockit-extensions#261: the plan carried an entire Python script
+    as one argument, so `--apply` printed a wall of source and asked the
+    reader to approve it."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    project.mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+    runner = FakeRunner({"AppleLocale": CommandResult(0, "en_GB.UTF-8\n")})
+
+    plan = next(s for s in STAGES if s.id == "vscode-settings").plan(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert plan.describe
+    assert "settings.json" in plan.describe
+    assert "Zensical Studio" in plan.describe
+    assert "en-GB" in plan.describe
+    assert "import json" not in plan.describe, "that is the how, not the what"
+
+
+def test_apply_shows_the_description_rather_than_the_script(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    responses = _ready_machine(tmp_path)
+    (tmp_path / "GitLab" / "report-al01234" / ".vscode" / "settings.json").unlink()
+
+    result = cli_bootstrap("--apply", responses=responses, input="n\n" * 20)
+
+    assert "Will do:" in result.output
+    assert "import json, sys, pathlib" not in result.output, "no script on screen"
+
+
+def test_a_command_carrying_a_script_is_never_printed_whole() -> None:
+    """The general guard. Any command with a newline in an argument is a
+    script being handed to an interpreter, and printing it verbatim is
+    always the wrong choice for a prompt."""
+    from prodockit.cli import _readable_command
+
+    rendered = _readable_command(
+        ["python", "-c", "import json\nfor line in open('x'):\n    print(line)"]
+    )
+
+    assert "\n" not in rendered
+    assert "<script:" in rendered
+    assert len(rendered) <= 110
+
+
+def test_dry_run_still_prints_the_exact_commands(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--dry-run` is how a plan is reviewed before being trusted, so it
+    keeps showing the real thing - the summary is for the prompt."""
+    monkeypatch.setattr("prodockit.bootstrap.stages._vscode_app_installed", lambda ctx: False)
+    save(tmp_path / "b.toml", _config())
+
+    result = cli_bootstrap("--dry-run", responses={"code --version": CommandResult(127)})
+
+    assert "import json, sys, pathlib" in result.output

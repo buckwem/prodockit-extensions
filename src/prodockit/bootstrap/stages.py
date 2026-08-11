@@ -1664,7 +1664,12 @@ def _check_vscode_settings(context: Context) -> CheckResult:
 
 
 def _plan_vscode_settings(context: Context) -> Plan:
+    language = _reader_language(context)
+    wanted = "Markdown opens in Zensical Studio's editor"
+    if language is not None:
+        wanted += f", and LTeX+ checks your writing as {language}"
     return Plan(
+        describe=f"Update {_settings_path(context)} so {wanted}",
         commands=[
             [
                 sys.executable,
