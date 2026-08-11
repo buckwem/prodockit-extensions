@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Fixed:** Windows reported VS Code as broken immediately after
+  installing it
+  ([#292](https://github.com/buckwem/prodockit-extensions/issues/292)).
+  The installer adds `code` to `PATH` itself - but `PATH` is read when a
+  process starts, so the shell that has just run `winget install` cannot
+  see it:
+
+    ```text
+      ran, but still not right: VS Code is installed, but the `code`
+      command is not on PATH
+    ```
+
+    and the advice offered was a Command Palette action that exists on
+    macOS and not on Windows.
+
+    The executable is looked for where the installer puts it now, and used
+    by its full path - so the extensions stage works in the same session
+    too, rather than the reader being sent to open a new terminal and
+    start again. macOS is untouched: there the application really is
+    installed without the command, and that Command Palette action really
+    is how it is added.
+
 - **`--apply` shows every stage, numbered by where it actually is**
   ([#284](https://github.com/buckwem/prodockit-extensions/issues/284)).
   Stages already set up were skipped in silence, and the ones remaining
