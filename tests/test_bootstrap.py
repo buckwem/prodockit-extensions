@@ -39,6 +39,7 @@ from prodockit.bootstrap.stages import (
     PDF_FONT_CASKS,
     PDF_FONT_PACKAGES,
     PUBLIC_KEY_MARKER,
+    PUPPETEER_SKIP_VAR,
     VSCODE_EXTENSIONS,
 )
 
@@ -106,7 +107,8 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     _write_ssh_config(tmp_path)
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True, exist_ok=True)
-    (project / "tools").mkdir(exist_ok=True)
+    for toolchain in ("mermaid", "mathjax"):
+        (project / "tools" / toolchain / "node_modules").mkdir(parents=True, exist_ok=True)
     (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
     venv_python = project / ".venv" / "bin" / "python"
     venv_python.parent.mkdir(parents=True, exist_ok=True)
@@ -132,6 +134,8 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         "node": CommandResult(0, "v22.14.0\n"),
         "npm": CommandResult(0, "10.9.2\n"),
         "import zensical": CommandResult(0),
+        "fc-list": CommandResult(0, "Inter\nJetBrains Mono\nDejaVu Sans\n"),
+        "config core.fileMode": CommandResult(0, "false\n"),
         "import weasyprint": CommandResult(0),
         **AGENT_RESPONSES,
     }
@@ -1497,7 +1501,12 @@ def test_pandoc_too_old_is_wrong_not_ok(tmp_path: Path) -> None:
 
 
 def test_pandoc_current_version_is_ok(tmp_path: Path) -> None:
-    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})
+    runner = FakeRunner(
+        {
+            "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
+            "fc-list": CommandResult(0, "Inter\nJetBrains Mono\n"),
+        }
+    )
     result = next(s for s in STAGES if s.id == "pandoc").check(
         _context(tmp_path, runner=runner)
     )
@@ -2030,7 +2039,10 @@ def test_the_template_history_is_reset_only_while_origin_is_the_template(
     assert stage.check(_context(tmp_path, runner=still_template)).status is Status.WRONG
 
     their_own = FakeRunner(
-        {"remote get-url origin": CommandResult(0, "git@gitlab.surrey.ac.uk:x/report.git")}
+        {
+            "remote get-url origin": CommandResult(0, "git@gitlab.surrey.ac.uk:x/report.git"),
+            "config core.fileMode": CommandResult(0, "false\n"),
+        }
     )
     assert stage.check(_context(tmp_path, runner=their_own)).status is Status.OK
 
@@ -2404,3 +2416,163 @@ def test_a_project_asking_for_another_style_is_not_given_this_one(tmp_path: Path
     plan = next(s for s in STAGES if s.id == "csl-style").plan(context)
     assert not plan.commands, "bootstrap only knows where the default one lives"
     assert "ieee.csl" in "\n".join(plan.instructions)
+
+
+# ---------------------------------------------------------------------------
+# The invariant itself: #224
+# ---------------------------------------------------------------------------
+
+
+#: What each stage's plan produces, and how to describe a machine that is
+#: missing exactly that one thing.
+#:
+#: The entry is the point. Writing one forces the question "can this
+#: stage's check see this?", which is the question nobody asked when
+#: fonts were added to a plan with no font check, and Chromium and the
+#: `~/.bashrc` exports were added with neither (#224).
+#:
+#: `None` means the stage's plan produces nothing a check could observe -
+#: the two browser steps, where a human does the work elsewhere. Stated
+#: rather than omitted, so silence is never the reason a stage escapes.
+PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
+    "vscode": ("the `code` command",),
+    "git": ("git itself", "the global identity"),
+    "ssh-key": ("the keypair",),
+    "ssh-config": ("the Host stanza",),
+    "ssh-agent": ("the loaded key",),
+    "ssh-upload": None,
+    "clone": ("the clone",),
+    "fresh-history": ("a history of its own", "core.fileMode"),
+    "own-project": None,
+    "remote": ("origin", "the synced config"),
+    "identity": ("the project's identity",),
+    "pandoc": ("pandoc", "the PDF fonts"),
+    "project-env": ("the venv", "its dependencies"),
+    "node": ("node", "the toolchains", "chromium and the exports"),
+    "extensions": ("the extensions",),
+    "vscode-settings": ("the settings file",),
+    "csl-style": ("the style file",),
+}
+
+
+def test_every_stage_declares_what_its_plan_produces() -> None:
+    """The gate. A stage added without an entry fails here, which is the
+    only part of this that survives contact with a future stage.
+
+    Four bugs were traced to a check narrower than its own plan, and
+    three more were introduced after that was known - each time by adding
+    something to a plan and nothing to a check, with the whole suite
+    passing throughout."""
+    declared, actual = set(PLAN_EFFECTS), {stage.id for stage in STAGES}
+
+    assert actual - declared == set(), (
+        f"stages with no entry in PLAN_EFFECTS: {sorted(actual - declared)} - "
+        f"say what the plan produces, and check the stage can see it"
+    )
+    assert declared - actual == set(), (
+        f"entries for stages that no longer exist: {sorted(declared - actual)}"
+    )
+
+
+def test_a_stage_with_commands_is_never_satisfied_by_an_empty_machine(
+    tmp_path: Path,
+) -> None:
+    """The invariant, as far as a fixed fake can carry it: a stage whose
+    plan installs something must not report `ok` about a machine where
+    nothing is installed.
+
+    This is what caught nothing when `npm ci`, Chromium and the fonts
+    were added: `node --version` answered, so the stage said `ok` while
+    its plan had four more commands the check never looked at."""
+    empty = FakeRunner({})
+    for platform in (MACOS, UBUNTU, WINDOWS):
+        context = _context(tmp_path, runner=empty, platform=platform)
+        for stage in STAGES:
+            result = stage.check(context)
+            if result.status is Status.UNKNOWN:
+                continue  # waiting on configuration, not on the machine
+            assert result.needs_work, (
+                f"{stage.id} reports {result.status.value} on {platform} with "
+                f"nothing installed: {result.detail}"
+            )
+
+
+def test_a_stage_that_installs_toolchains_notices_they_are_absent(tmp_path: Path) -> None:
+    """The regression that prompted the review: node present, toolchains
+    not. The stage said `ok` and the reader found out at a diagram."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    project.mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+    runner = FakeRunner(
+        {"node": CommandResult(0, "v22.14.0\n"), "npm": CommandResult(0, "10.9.2\n")}
+    )
+
+    result = next(s for s in STAGES if s.id == "node").check(_context(tmp_path, runner=runner))
+
+    assert result.needs_work
+    assert "mermaid" in result.detail and "mathjax" in result.detail
+
+
+def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> None:
+    """Chromium installed but never pointed at leaves Puppeteer
+    downloading its own; the exports without a Chromium point at
+    nothing. Both halves are the stage's own plan, so both are checked."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    for toolchain in ("mermaid", "mathjax"):
+        (project / "tools" / toolchain / "node_modules").mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+    stage = next(s for s in STAGES if s.id == "node")
+    base = {"node": CommandResult(0, "v22.14.0\n"), "npm": CommandResult(0, "10.9.2\n")}
+
+    no_chromium = FakeRunner({**base, "which chromium": CommandResult(1)})
+    result = stage.check(_context(tmp_path, runner=no_chromium, platform=UBUNTU))
+    assert result.needs_work and "Chromium" in result.detail
+
+    both = FakeRunner(
+        {
+            **base,
+            "which chromium-browser": CommandResult(0, "/usr/bin/chromium\n"),
+            f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
+        }
+    )
+    assert stage.check(_context(tmp_path, runner=both, platform=UBUNTU)).status is Status.OK
+
+
+def test_the_pandoc_stage_notices_its_own_fonts_are_missing(tmp_path: Path) -> None:
+    """Added to the plan in #249 with nothing checking them."""
+    runner = FakeRunner(
+        {"pandoc": CommandResult(0, "pandoc 3.10.1\n"), "fc-list": CommandResult(0, "DejaVu Sans\n")}
+    )
+    result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
+
+    assert result.needs_work
+    assert "Inter" in result.detail and "JetBrains Mono" in result.detail
+
+
+def test_a_machine_that_cannot_be_asked_about_fonts_is_not_accused(tmp_path: Path) -> None:
+    """"I could not tell" must not read as "they are missing". A false
+    alarm sends the reader to reinstall fonts they already have, which is
+    worse than the silence this replaced."""
+    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})  # no fc-list
+
+    result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
+
+    assert result.status is Status.OK
+
+
+def test_the_history_stage_notices_core_filemode(tmp_path: Path) -> None:
+    """Set by the plan, and per-repository - so a fresh clone loses it
+    again and the check has to be able to say so."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+    runner = FakeRunner(
+        {"remote get-url origin": CommandResult(0, "git@gitlab.surrey.ac.uk:x/report.git")}
+    )
+
+    result = next(s for s in STAGES if s.id == "fresh-history").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.needs_work
+    assert "core.fileMode" in result.detail

@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- **Fixed:** five stages installed things nothing then checked
+  ([#224](https://github.com/buckwem/prodockit-extensions/issues/224)).
+
+    The pattern behind four earlier bugs - a stage's check narrower than
+    its own plan - had produced three more, all introduced in the two
+    days before this. On a machine with node and pandoc present and
+    nothing else, both stages reported `ok` while their plans would have
+    installed Chromium, written shell exports, run `npm ci` for two
+    toolchains, and installed two fonts. A reader who had installed Node
+    themselves was told the stage was done, got no toolchains, and found
+    out at the first diagram.
+
+    The node check now verifies both toolchains and, on Ubuntu, that
+    Puppeteer has a system Chromium *and* is pointed at it. The pandoc
+    check verifies the PDF fonts - and says nothing when the machine
+    cannot be asked, since a false alarm sends the reader to reinstall
+    fonts they already have. The history check verifies
+    `core.fileMode`.
+
+- **Added:** a test that holds across every stage, so the next one
+  inherits it rather than being audited by hand. Two gates: each stage
+  must declare what its plan produces, and no stage whose plan installs
+  something may report `ok` about a machine where nothing is installed.
+  Both were confirmed to fire on a deliberately careless new stage.
+
 - **Carried the User Guide's three ARM64 findings into bootstrap**
   ([#249](https://github.com/buckwem/prodockit-extensions/issues/249),
   from prodockit-userguide#104). All three were found on the same fresh
