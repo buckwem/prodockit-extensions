@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 import socket
 import subprocess
+import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
@@ -452,6 +453,55 @@ class SubprocessRunner:
             stdout=completed.stdout or "",
             stderr=completed.stderr or "",
         )
+
+
+def refresh_windows_path() -> str | None:
+    """Re-reads `PATH` from the registry, as a new terminal would.
+
+    Windows installers add themselves to `PATH` by writing the registry
+    and broadcasting a change. A process that is already running never
+    sees it: its environment was copied when it started. So a stage that
+    installs a tool and then uses it - `winget install Git.Git` followed
+    by `git config` - fails with "git: not found" about a tool that has
+    just installed successfully (prodockit-extensions#300).
+
+    Reading the registry back is what a new terminal does, and doing it
+    here is why the reader does not have to open one. The machine's
+    `PATH` comes first and the user's after, which is the order Windows
+    composes them in.
+
+    Returns the new value, or None where there is nothing to do - every
+    other platform, and a Windows registry that will not answer.
+    """
+    # Read into a plain `str` first: mypy narrows `sys.platform` to
+    # whichever platform it is checking *on*, which makes everything
+    # below unreachable and (with warn_unreachable) an error. The same
+    # trick `current_platform` uses, for the same reason.
+    running_on: str = sys.platform
+    if running_on != "win32":
+        return None
+    import winreg
+
+    # `winreg` has no stubs off Windows, so mypy sees an empty module -
+    # hence the ignores rather than a redesign.
+    machine = r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+    parts: list[str] = []
+    for root, subkey in (
+        (winreg.HKEY_LOCAL_MACHINE, machine),  # type: ignore[attr-defined]
+        (winreg.HKEY_CURRENT_USER, "Environment"),  # type: ignore[attr-defined]
+    ):
+        try:
+            with winreg.OpenKey(root, subkey) as key:  # type: ignore[attr-defined]
+                value, _ = winreg.QueryValueEx(key, "Path")  # type: ignore[attr-defined]
+        except OSError:
+            continue
+        if value:
+            parts.append(os.path.expandvars(str(value)))
+    if not parts:
+        return None
+    merged = os.pathsep.join(parts)
+    os.environ["PATH"] = merged
+    return merged
 
 
 def authenticate_sudo() -> bool:

@@ -13,6 +13,7 @@ be checked from whichever one the suite happens to run on
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -3758,3 +3759,37 @@ def test_the_privileged_half_of_the_install_is_its_own_command(tmp_path: Path) -
     assert not any(c[0] == "bash" for c in plan.commands), "no shell wrapper left"
     assert next(c for c in plan.commands if c[0] == "curl")[0] != "sudo"
     assert any(c[0] == "sudo" and c[-1] == "/tmp/code.deb" for c in plan.commands)
+
+
+def test_the_path_is_refreshed_between_a_stages_commands(tmp_path: Path) -> None:
+    """prodockit-extensions#300: `winget install Git.Git` succeeded and
+    the `git config` on the next line reported "git: not found".
+
+    A Windows installer adds itself to PATH by writing the registry; a
+    running process never sees that, because its environment was copied
+    when it started. Reading the registry back is what a new terminal
+    does, and doing it here is why the reader does not have to open
+    one."""
+    import prodockit.bootstrap as bootstrap
+    from prodockit.bootstrap import apply_stage
+
+    refreshed: list[int] = []
+    original = bootstrap.refresh_windows_path
+    bootstrap.refresh_windows_path = lambda: refreshed.append(1)  # type: ignore[assignment]
+    try:
+        runner = FakeRunner({"brew": CommandResult(0), "code": CommandResult(0)})
+        apply_stage(_context(tmp_path, runner=runner), next(s for s in STAGES if s.id == "vscode"))
+    finally:
+        bootstrap.refresh_windows_path = original  # type: ignore[assignment]
+
+    assert refreshed, "a command that may have changed PATH must be followed by a refresh"
+
+
+def test_refreshing_is_a_no_op_off_windows() -> None:
+    """It reads the Windows registry, so everywhere else there is
+    nothing to read and nothing to change."""
+    from prodockit.bootstrap import refresh_windows_path
+
+    before = os.environ.get("PATH")
+    assert refresh_windows_path() is None
+    assert os.environ.get("PATH") == before, "another platform's PATH must be left alone"

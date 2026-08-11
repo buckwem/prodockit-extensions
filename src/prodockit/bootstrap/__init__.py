@@ -59,6 +59,7 @@ from prodockit.bootstrap.model import (
     host_problem,
     needs_sudo,
     normalise_host,
+    refresh_windows_path,
     resolve_host,
 )
 from prodockit.bootstrap.stages import STAGES
@@ -98,6 +99,7 @@ __all__ = [
     "normalise_host",
     "plan_all",
     "question_for",
+    "refresh_windows_path",
     "resolve_host",
     "save",
 ]
@@ -217,6 +219,12 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
             capture=False,
         )
         result.ran.append(list(command))
+        # A Windows installer adds itself to PATH by writing the registry;
+        # a running process never sees that, because its environment was
+        # copied when it started. So `winget install Git.Git` succeeds and
+        # the `git config` on the next line reports "git: not found"
+        # (#300). Reading the registry back is what a new terminal does.
+        refresh_windows_path()
         if not outcome.ok:
             return ApplyResult(stage=stage, ran=result.ran, failed=outcome)
     return ApplyResult(stage=stage, ran=result.ran, verified=stage.check(context))

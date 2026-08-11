@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Fixed:** Windows stopped after installing git, saying git was not
+  installed
+  ([#300](https://github.com/buckwem/prodockit-extensions/issues/300)).
+  winget reported `Successfully installed`, and the `git config` on the
+  next line failed with `git: not found`.
+
+    A Windows installer adds itself to `PATH` by writing the registry and
+    broadcasting a change. A process that is already running never sees
+    it - its environment was copied when it started - so any stage that
+    installs a tool and then uses it failed on a machine where the
+    install had just succeeded.
+
+    `PATH` is re-read from the registry between commands now, which is
+    what opening a new terminal does. It is a different fault from #292
+    and #295, which were about `.cmd` shims and `PATHEXT`; this one
+    affects `git.exe` and every other real executable too.
+
 ## 0.26.2 (2026-08-11)
 
 - **Added `prodockit init-mathjax`**, and with it one implementation of
