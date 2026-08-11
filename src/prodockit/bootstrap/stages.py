@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""The seventeen stages of a full install, as check/plan pairs.
+"""The eighteen stages of a full install, as check/plan pairs.
 
 Every stage answers two questions and performs neither: `check` decides
 whether it is already done, `plan` says what would make it done. Nothing
@@ -1762,6 +1762,141 @@ def _plan_csl_style(context: Context) -> Plan:
     return Plan(cwd=str(project), commands=[command])
 
 
+# ---------------------------------------------------------------------------
+# 18. MathJax for the website, installed rather than committed
+# ---------------------------------------------------------------------------
+
+
+#: The browser bundle, and where npm puts it. `tools/mathjax` already
+#: pins `mathjax-full` for the PDF, so taking the website's copy from the
+#: very same install is what stops a formula typesetting one way on
+#: screen and another in print.
+MATHJAX_BUNDLE = "tex-svg-full.js"
+MATHJAX_SOURCE = ("tools", "mathjax", "node_modules", "mathjax-full", "es5", MATHJAX_BUNDLE)
+#: Where the site loads it from. Installed at bootstrap and ignored by
+#: git: the bundle is somebody else's code and does not belong in a
+#: student's repository (prodockit-extensions#263).
+MATHJAX_DEST = ("docs", "javascripts", "vendor", "mathjax")
+MATHJAX_CONFIG = ("docs", "javascripts", "mathjax.js")
+
+#: The configuration MathJax reads once at startup. Small, hand-written,
+#: and the thing whose absence stops any of this working: without it the
+#: arithmatex wrappers are emitted and never typeset, which is exactly
+#: what a reader sees as raw TeX on the page.
+MATHJAX_CONFIG_SOURCE = """\
+// Written by `prodockit bootstrap`. Loaded *before* the MathJax bundle,
+// because MathJax reads `window.MathJax` once at startup - a config that
+// arrives afterwards is ignored, and the page shows raw TeX.
+window.MathJax = {
+  tex: {
+    // pymdownx.arithmatex's `generic = true` has already turned every
+    // `$...$` / `$$...$$` into explicit delimiters server-side, which is
+    // also the only form prodockit.pdf's Lua filter can pre-render.
+    inlineMath: [["\\\\(", "\\\\)"]],
+    displayMath: [["\\\\[", "\\\\]"]],
+    processEscapes: true,
+    processEnvironments: true,
+  },
+  options: {
+    // Typeset only inside the wrappers arithmatex emitted, rather than
+    // scanning the page - documentation is full of `$HOME` and `$1`, and
+    // none of it is maths.
+    ignoreHtmlClass: ".*|",
+    processHtmlClass: "arithmatex",
+  },
+};
+"""
+
+
+def _mathjax_paths(context: Context) -> tuple[Path, Path, Path]:
+    project = context.config.resolved_project_dir(context.home)
+    return (
+        project.joinpath(*MATHJAX_SOURCE),
+        project.joinpath(*MATHJAX_DEST, MATHJAX_BUNDLE),
+        project.joinpath(*MATHJAX_CONFIG),
+    )
+
+
+def _check_mathjax(context: Context) -> CheckResult:
+    """Whether the website can typeset the maths the PDF already can.
+
+    Both halves are needed and they fail differently. Without the config
+    the bundle loads and does nothing; without the bundle the config
+    configures nothing. Either way the page shows raw TeX, which is what
+    was reported (prodockit-extensions#263).
+    """
+    if (unknown := _needs_config(context, "project_name")) is not None:
+        return unknown
+    project = context.config.resolved_project_dir(context.home)
+    if not (project / "docs").is_dir():
+        return _missing("no project to install it into yet")
+    source, bundle, config = _mathjax_paths(context)
+    absent = [
+        name
+        for name, path in (("the config", config), ("the bundle", bundle))
+        if not path.exists()
+    ]
+    if absent:
+        return _missing(f"{' and '.join(absent)} for the website is not installed")
+    if not source.exists():
+        # Installed, but the pinned copy it came from is gone - so nothing
+        # can say whether the two still agree.
+        return _ok(f"{bundle.name} is installed")
+    return _ok(f"{bundle.name} is installed")
+
+
+def _plan_mathjax(context: Context) -> Plan:
+    """Copies the bundle out of the pinned install, and writes the config.
+
+    Nothing is vendored into the repository. The bundle is somebody
+    else's code and does not belong in a student's project, so it is
+    installed here and added to `.gitignore` - the same standing as
+    `tools/*/node_modules`, which it is copied from.
+    """
+    project = context.config.resolved_project_dir(context.home)
+    source, bundle, config = _mathjax_paths(context)
+    return Plan(
+        describe=(
+            f"Install MathJax for the website: copy {MATHJAX_BUNDLE} out of "
+            f"tools/mathjax's pinned install into docs/javascripts/vendor/, "
+            f"write its configuration, and keep both out of git"
+        ),
+        commands=[
+            [
+                sys.executable,
+                "-c",
+                _MATHJAX_INSTALL,
+                str(source),
+                str(bundle),
+                str(config),
+                str(project / ".gitignore"),
+                MATHJAX_CONFIG_SOURCE,
+            ]
+        ],
+    )
+
+
+#: Copies the bundle, writes the config, and adds both to `.gitignore` -
+#: appended only when absent, so a rerun does not stack entries.
+_MATHJAX_INSTALL = """
+import pathlib, shutil, sys
+NL = chr(10)
+source, bundle, config, ignore = (pathlib.Path(a) for a in sys.argv[1:5])
+bundle.parent.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(source, bundle)
+config.parent.mkdir(parents=True, exist_ok=True)
+config.write_text(sys.argv[5], encoding="utf-8")
+wanted = ["docs/javascripts/vendor/", "docs/javascripts/mathjax.js"]
+current = ignore.read_text(encoding="utf-8") if ignore.exists() else ""
+missing = [line for line in wanted if line not in current.splitlines()]
+if missing:
+    lead = "" if current.endswith(NL) or not current else NL
+    note = "# Installed by `prodockit bootstrap` - not committed"
+    added = NL.join([lead, note] + missing) + NL
+    ignore.write_text(current + added, encoding="utf-8")
+"""
+
+
 STAGES: tuple[Stage, ...] = (
     Stage("vscode", "Visual Studio Code", _check_vscode, _plan_vscode),
     Stage("git", "Git, installed and configured", _check_git, _plan_git),
@@ -1810,4 +1945,7 @@ STAGES: tuple[Stage, ...] = (
     # `prodockit.bibliography` is on by default and this file is not in
     # the clone, so without it the very first build fails outright.
     Stage("csl-style", "Citation style for the first build", _check_csl_style, _plan_csl_style),
+    # After node, because the bundle is copied out of what `npm ci` put
+    # in tools/mathjax (#263).
+    Stage("mathjax", "MathJax for the website", _check_mathjax, _plan_mathjax),
 )

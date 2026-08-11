@@ -119,6 +119,13 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     venv_python.parent.mkdir(parents=True, exist_ok=True)
     venv_python.write_text("", encoding="utf-8")
     (project / "harvard-cite-them-right.csl").write_text("<style/>", encoding="utf-8")
+    pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
+    pinned.mkdir(parents=True, exist_ok=True)
+    (pinned / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
+    vendor = project / "docs" / "javascripts" / "vendor" / "mathjax"
+    vendor.mkdir(parents=True, exist_ok=True)
+    (vendor / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
+    (project / "docs" / "javascripts" / "mathjax.js").write_text("window.MathJax={}", encoding="utf-8")
     (project / ".vscode").mkdir(exist_ok=True)
     (project / ".vscode" / "settings.json").write_text(
         '{"files.associations": {"*.md": "python-markdown"}}', encoding="utf-8"
@@ -2457,6 +2464,7 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "extensions": ("the extensions",),
     "vscode-settings": ("the settings file",),
     "csl-style": ("the style file",),
+    "mathjax": ("the bundle", "its config", "the gitignore entries"),
 }
 
 
@@ -3181,3 +3189,99 @@ def test_the_host_is_asked_before_the_prompt_that_needs_it() -> None:
     keys = [key for key, _ in PROMPTS]
 
     assert keys.index("host") < keys.index("email")
+
+
+# ---------------------------------------------------------------------------
+# MathJax installed, not committed: #263
+# ---------------------------------------------------------------------------
+
+
+def _mathjax_project(tmp_path: Path) -> Path:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / "docs").mkdir(parents=True)
+    pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
+    pinned.mkdir(parents=True)
+    (pinned / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
+    save(tmp_path / "b.toml", _config())
+    return project
+
+
+def test_the_website_needs_both_the_config_and_the_bundle(tmp_path: Path) -> None:
+    """prodockit-extensions#263: the equation showed as raw TeX because
+    MathJax was loaded with no configuration.
+
+    Both halves fail differently and neither is visible: without the
+    config the bundle loads and does nothing, without the bundle the
+    config configures nothing."""
+    _mathjax_project(tmp_path)
+    stage = next(s for s in STAGES if s.id == "mathjax")
+
+    result = stage.check(_context(tmp_path))
+    assert result.status is Status.MISSING
+    assert "config" in result.detail and "bundle" in result.detail
+
+
+def test_the_bundle_is_taken_from_the_install_the_pdf_uses(tmp_path: Path) -> None:
+    """The website and the PDF must typeset through the same MathJax, or
+    a formula can render one way on screen and another in print. The
+    bundle is copied out of tools/mathjax's pinned install rather than
+    fetched from a CDN."""
+    project = _mathjax_project(tmp_path)
+    plan = next(s for s in STAGES if s.id == "mathjax").plan(_context(tmp_path))
+    flat = " ".join(" ".join(c) for c in plan.commands)
+
+    assert str(project / "tools" / "mathjax" / "node_modules") in flat
+    assert "unpkg" not in flat and "cdn" not in flat.lower()
+
+
+def test_installing_it_writes_the_config_and_ignores_both(tmp_path: Path) -> None:
+    """The bundle is somebody else's code and does not belong in a
+    student's repository, so it is installed and git-ignored rather than
+    committed - the same standing as tools/*/node_modules, which it is
+    copied from."""
+    import subprocess
+
+    project = _mathjax_project(tmp_path)
+    (project / ".gitignore").write_text("tools/*/node_modules/\n", encoding="utf-8")
+    stage = next(s for s in STAGES if s.id == "mathjax")
+
+    subprocess.run(stage.plan(_context(tmp_path)).commands[0], check=True)
+
+    assert stage.check(_context(tmp_path)).status is Status.OK
+    config = (project / "docs" / "javascripts" / "mathjax.js").read_text(encoding="utf-8")
+    assert "processHtmlClass" in config and "arithmatex" in config
+    # The delimiters arithmatex actually emits, escaped as JavaScript.
+    assert r'inlineMath: [["\\(", "\\)"]]' in config
+    ignored = (project / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "docs/javascripts/vendor/" in ignored
+    assert "tools/*/node_modules/" in ignored, "an existing entry must survive"
+
+
+def test_installing_it_twice_does_not_stack_gitignore_entries(tmp_path: Path) -> None:
+    """Bootstrap is rerunnable."""
+    import subprocess
+
+    project = _mathjax_project(tmp_path)
+    command = next(s for s in STAGES if s.id == "mathjax").plan(_context(tmp_path)).commands[0]
+
+    subprocess.run(command, check=True)
+    subprocess.run(command, check=True)
+
+    ignored = (project / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert ignored.count("docs/javascripts/vendor/") == 1
+
+
+def test_the_mathjax_stage_runs_after_the_toolchains(tmp_path: Path) -> None:
+    """The bundle is copied out of what `npm ci` put there."""
+    ids = [s.id for s in STAGES]
+
+    assert ids.index("mathjax") > ids.index("node")
+
+
+def test_the_stage_says_what_it_does_rather_than_showing_the_script(tmp_path: Path) -> None:
+    """#261's rule, applied to a stage written after it."""
+    _mathjax_project(tmp_path)
+    plan = next(s for s in STAGES if s.id == "mathjax").plan(_context(tmp_path))
+
+    assert plan.describe
+    assert "import pathlib" not in plan.describe
