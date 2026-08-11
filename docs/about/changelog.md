@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **`--apply` no longer prints a Python script at the reader**
+  ([#261](https://github.com/buckwem/prodockit-extensions/issues/261)).
+  Stage 16 carried an entire script as one argument, so the prompt filled
+  the screen with source and asked for approval of it. It says what it
+  does instead:
+
+    ```text
+      Will do:
+        Update ~/GitLab/report-x/.vscode/settings.json so Markdown opens in
+        Zensical Studio's editor, and LTeX+ checks your writing as en-GB
+    ```
+
+    Any command carrying a script in an argument is collapsed rather than
+    printed whole, so this cannot come back through another stage.
+    `--dry-run` still prints commands exactly, which is what `--dry-run`
+    is for.
+
 - **Each manual step now asks about the thing it asked for**
   ([#260](https://github.com/buckwem/prodockit-extensions/issues/260)).
   Every one of them ended in `Tell me when that is done` - including the

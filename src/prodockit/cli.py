@@ -22,6 +22,7 @@ This module is the CLI for the whole package, not just the PDF build -
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import click
@@ -254,6 +255,28 @@ def _first_meaningful_line(text: str) -> str:
     return text.strip().splitlines()[0] if text.strip() else "no output"
 
 
+def _readable_command(command: Sequence[str], limit: int = 110) -> str:
+    """One command, fit to be read rather than executed.
+
+    A command carrying a whole script as one argument - `python -c`,
+    `bash -c` - prints as a wall of source and asks the reader to approve
+    it (prodockit-extensions#261). The script becomes a placeholder; the
+    reader who wants the exact text has `--dry-run`, which is what that
+    is for.
+    """
+    parts = []
+    for argument in command:
+        if "\n" in argument:
+            first = argument.strip().splitlines()[0]
+            parts.append(f"<script: {first[:40]}...>")
+        else:
+            parts.append(argument)
+    rendered = " ".join(parts)
+    if len(rendered) > limit:
+        return rendered[: limit - 1] + "…"
+    return rendered
+
+
 def _announce_apply(context: Context, outstanding: int) -> None:
     """Says what is about to happen, before it starts happening.
 
@@ -333,9 +356,13 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
             click.echo("")
 
         if plan.commands:
-            click.echo("  Will run:")
-            for command in plan.commands:
-                click.echo(f"    {' '.join(command)}")
+            if plan.describe:
+                click.echo("  Will do:")
+                click.echo(f"    {plan.describe}")
+            else:
+                click.echo("  Will run:")
+                for command in plan.commands:
+                    click.echo(f"    {_readable_command(command)}")
             click.echo("")
             # Yes unless it destroys something. A reader who typed
             # `--apply` has said what they want; making them say it again
