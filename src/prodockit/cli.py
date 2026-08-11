@@ -335,9 +335,22 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
 
     total = len(outstanding)
     for number, report in enumerate(outstanding, start=1):
-        plan = report.plan
-        if plan is None:  # pragma: no cover - filtered above, narrows for mypy
+        if report.plan is None:  # pragma: no cover - filtered above, for mypy
             continue
+        # Built now, not at the start of the run. `plan_all` computes every
+        # plan before anything has been applied, so a plan that depends on
+        # what an earlier stage creates was describing a machine that no
+        # longer exists by the time the reader sees it.
+        #
+        # The SSH upload step is the case that showed it: it embeds the
+        # public key, and on a fresh machine the keypair stage has not run
+        # when the plans are built - so it fell back to "paste the contents
+        # of ~/.ssh/id_ed25519_gitlab.pub" about a key that existed by the
+        # time the step was reached (prodockit-extensions#281).
+        #
+        # `apply_stage` already re-derives the plan before running it, so
+        # the commands were always current; only what was shown was stale.
+        plan = report.stage.plan(context)
 
         click.echo("")
         click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))

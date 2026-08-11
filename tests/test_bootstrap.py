@@ -3287,6 +3287,38 @@ def test_the_stage_says_what_it_does_rather_than_showing_the_script(tmp_path: Pa
     assert "import pathlib" not in plan.describe
 
 
+def test_a_stages_instructions_describe_the_machine_as_it_is_now(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#281: on a fresh machine the SSH upload step
+    said "paste the contents of ~/.ssh/id_ed25519_gitlab.pub" about a key
+    that existed by the time the step was reached.
+
+    `plan_all` builds every plan before anything is applied, so a plan
+    depending on what an earlier stage creates was describing a machine
+    that no longer existed. Here the keypair appears *after* the plans are
+    built, exactly as `ssh-keygen` would create it mid-run."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    responses = _machine_ready_except_ssh(tmp_path)
+    public = tmp_path / ".ssh" / "id_ed25519_gitlab.pub"
+    public.unlink()  # no key when the plans are built
+
+    real_plan_all = __import__("prodockit.bootstrap", fromlist=["plan_all"]).plan_all
+
+    def plan_then_create_the_key(context, *args, **kwargs):
+        reports = real_plan_all(context, *args, **kwargs)
+        public.write_text("ssh-ed25519 AAAAC3Nz-CREATED-MIDRUN al@surrey.ac.uk\n", encoding="utf-8")
+        return reports
+
+    monkeypatch.setattr("prodockit.cli.plan_all", plan_then_create_the_key)
+
+    result = cli_bootstrap("--apply", responses=responses, input="y\nn\n")
+
+    assert "AAAAC3Nz-CREATED-MIDRUN" in result.output, (
+        "the step must show the key that exists when it is reached"
+    )
+    assert "paste the contents of" not in result.output, "that is the no-key fallback"
+
 def test_a_first_run_asks_the_host_even_without_configure(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
