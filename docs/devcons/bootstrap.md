@@ -75,6 +75,31 @@ is what to do instead.
       render toolchains in stage 14 nest deeply enough to hit the 260
       character limit.
 
+    Then allow PowerShell to run scripts. Windows blocks all of them by
+    default, and activating a virtual environment *is* a script - so
+    without this the very next step fails:
+
+    ```powershell
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    ```
+
+    Depending on your PowerShell version it may ask you to confirm;
+    answer `Y`. Often it simply returns to the prompt, which means it
+    worked.
+
+    !!! info "What this changes, and what it does not"
+        Without it, activating the environment fails with `... cannot be
+        loaded because running scripts is disabled on this system` -
+        which names the script rather than the policy blocking it, so it
+        reads as a broken file. `RemoteSigned` allows scripts you wrote
+        locally while still requiring a signature on anything downloaded;
+        `-Scope CurrentUser` limits the change to your own account, so it
+        needs no Administrator window and is done once.
+
+        Rather not change it at all? Use classic **CMD** instead of
+        PowerShell and run `.\.venv\Scripts\activate.bat` - `.bat`
+        files are not covered by execution policy.
+
     Then, in PowerShell, in the directory you want to keep your projects
     in:
 
@@ -136,6 +161,10 @@ from anywhere else it simply is not there:
     cd ~\GitLab
     .\.venv\Scripts\Activate.ps1
     ```
+
+    Fails with `running scripts is disabled on this system`? The
+    execution policy has not been set on this account - see
+    [Before you start](#bootstrap-prerequisites).
 
 Use whichever directory you made the environment in - `~/GitLab` here,
 matching [Before you start](#bootstrap-prerequisites) above.
