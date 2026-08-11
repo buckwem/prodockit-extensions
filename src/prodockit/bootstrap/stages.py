@@ -96,8 +96,9 @@ def _apt(*args: str) -> list[str]:
 APT_SH = "sudo apt " + " ".join(APT_LOCK_OPTION)
 
 #: Where MSYS2 puts the MinGW64 libraries WeasyPrint draws text through.
-MSYS2_BIN = r"C:\msys64\mingw64\bin"
-_MSYS2_BASH = r"C:\msys64\usr\bin\bash.exe"
+MSYS2_ROOT = r"C:\msys64"
+MSYS2_BIN = MSYS2_ROOT + r"\mingw64\bin"
+_MSYS2_BASH = MSYS2_ROOT + r"\usr\bin\bash.exe"
 
 
 def _winget(package_id: str) -> list[str]:
@@ -255,6 +256,35 @@ def vscode_command(context: Context) -> str | None:
         if context.exists(candidate):
             return str(candidate)
     return None
+
+
+#: Where Node's installer puts `npm.cmd` on Windows.
+_NPM_PATHS = (
+    r"C:\Program Files\nodejs",
+    r"~\AppData\Roaming\npm",
+)
+
+
+def npm_command(context: Context) -> str:
+    """How to invoke npm, falling back to its full path on Windows.
+
+    Same trap as VS Code's CLI, and for the same reason (#292, #295).
+    `npm` on Windows is `npm.cmd`, and Python's `subprocess` uses
+    `CreateProcess`, which does not apply `PATHEXT` - so a bare `npm`
+    is "not found" on a machine where Node is installed correctly.
+
+    Returns `npm` unchanged when that works, or when nothing better can
+    be found: a command that fails as `npm` at least fails under the
+    name the reader knows.
+    """
+    if context.platform != WINDOWS or _installed(context, "npm"):
+        return "npm"
+    for raw in _NPM_PATHS:
+        expanded = raw.replace("~", str(context.home), 1) if raw.startswith("~") else raw
+        candidate = Path(expanded) / "npm.cmd"
+        if context.exists(candidate):
+            return str(candidate)
+    return "npm"
 
 
 def _check_vscode(context: Context) -> CheckResult:
@@ -1333,10 +1363,20 @@ def _plan_pandoc(context: Context) -> Plan:
             _winget("MSYS2.MSYS2"),
             # `--needed` so a rerun is a no-op rather than a reinstall,
             # and `--noconfirm` because pacman asks otherwise.
+            # Through cmd, so a machine where winget put MSYS2 somewhere
+            # other than the default says what is wrong instead of
+            # failing on a path bootstrap invented (#295).
             [
-                _MSYS2_BASH,
-                "-lc",
-                "pacman -S --noconfirm --needed mingw-w64-x86_64-pango",
+                "cmd",
+                "/c",
+                f'if exist "{_MSYS2_BASH}" ('
+                f'"{_MSYS2_BASH}" -lc "pacman -S --noconfirm --needed '
+                'mingw-w64-x86_64-pango"'
+                ") else ("
+                f"echo MSYS2 is not at {MSYS2_ROOT} "
+                "- install it there, or run "
+                '"pacman -S mingw-w64-x86_64-pango" in its MINGW64 shell yourself'
+                " & exit /b 1)",
             ],
             # Appended only when absent: a PATH with the same entry on it
             # four times is what a tool that assumed one run looks like.
@@ -1471,7 +1511,7 @@ def _check_node(context: Context) -> CheckResult:
         return _wrong(f"could not read a version from {result.stdout.strip()!r}")
     if int(major) < NODE_MAJOR:
         return _wrong(f"node {raw} is older than the {NODE_MAJOR}.x the builds use")
-    if not context.runner.run(["npm", "--version"]).ok:
+    if not context.runner.run([npm_command(context), "--version"]).ok:
         # The signature of Ubuntu's own nodejs package, or a NodeSource
         # install whose `curl` line failed - node without npm.
         return _wrong("node is installed but npm is not")
@@ -1558,8 +1598,8 @@ def _plan_node(context: Context) -> Plan:
         return Plan(
             commands=[
                 *install,
-                ["npm", "ci", "--prefix", mermaid],
-                ["npm", "ci", "--prefix", mathjax],
+                [npm_command(context), "ci", "--prefix", mermaid],
+                [npm_command(context), "ci", "--prefix", mathjax],
             ]
         )
 
@@ -1860,6 +1900,11 @@ def _plan_csl_style(context: Context) -> Plan:
             "powershell",
             "-NoProfile",
             "-Command",
+            # `$ProgressPreference` first: on PowerShell 5.1, still the
+            # Windows default, Invoke-WebRequest's progress bar makes a
+            # download dramatically slower - minutes rather than seconds
+            # - which reads as a hang (#244, #295).
+            f"$ProgressPreference = 'SilentlyContinue'; "
             f'Invoke-WebRequest -Uri "{CSL_STYLE_URL}" -OutFile {style}',
         ]
     else:

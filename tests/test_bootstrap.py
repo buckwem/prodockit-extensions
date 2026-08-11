@@ -3643,6 +3643,67 @@ def test_other_platforms_still_rely_on_path(tmp_path: Path) -> None:
     assert vscode_command(context) is None
     assert next(s for s in STAGES if s.id == "vscode").check(context).status is Status.WRONG
 
+
+def test_windows_finds_npm_by_path_when_the_bare_name_will_not_run(tmp_path: Path) -> None:
+    """prodockit-extensions#295, the same trap as #292. `npm` on Windows
+    is `npm.cmd`, and Python's subprocess uses CreateProcess, which does
+    not apply PATHEXT - so a bare `npm` is "not found" on a machine where
+    Node is installed correctly, and neither toolchain installs."""
+    from prodockit.bootstrap.stages import npm_command
+
+    context = build_context(
+        _config(), runner=FakeRunner(), platform=WINDOWS, home=tmp_path,
+        exists=lambda path: str(path).endswith("npm.cmd"),
+    )
+
+    assert npm_command(context).endswith("npm.cmd")
+    plan = next(s for s in STAGES if s.id == "node").plan(context)
+    installs = [c for c in plan.commands if "ci" in c]
+    assert installs and all(c[0].endswith("npm.cmd") for c in installs)
+
+
+def test_npm_is_left_alone_where_it_works(tmp_path: Path) -> None:
+    """Everywhere else, and on a Windows machine where the bare name runs
+    - a command that fails as `npm` should fail under the name the reader
+    knows, not a path bootstrap guessed."""
+    from prodockit.bootstrap.stages import npm_command
+
+    assert npm_command(_context(tmp_path, platform=MACOS)) == "npm"
+    assert npm_command(_context(tmp_path, platform=UBUNTU)) == "npm"
+    working = FakeRunner({"npm": CommandResult(0, "10.9.2")})
+    assert npm_command(_context(tmp_path, platform=WINDOWS, runner=working)) == "npm"
+    # Nothing found anywhere: still `npm`, not a path that does not exist.
+    assert npm_command(_context(tmp_path, platform=WINDOWS)) == "npm"
+
+
+def test_msys2_says_where_it_looked_rather_than_failing_on_a_guess(tmp_path: Path) -> None:
+    """`C:\\msys64` is winget's default, not a guarantee. A machine with
+    MSYS2 elsewhere got "file not found" from a path bootstrap invented -
+    and Pango is what WeasyPrint draws text through, so what breaks is
+    the PDF build, a long way from this stage."""
+    from prodockit.bootstrap.stages import MSYS2_ROOT
+
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
+    pacman = next(c for c in plan.commands if "pacman" in " ".join(c))
+    script = " ".join(pacman)
+
+    assert script.startswith("cmd /c if exist")
+    assert MSYS2_ROOT in script
+    assert "install it there" in script, "say what to do, not just that it failed"
+
+
+def test_the_csl_download_turns_powershells_progress_bar_off(tmp_path: Path) -> None:
+    """On PowerShell 5.1 - still the Windows default - Invoke-WebRequest's
+    progress bar makes a download dramatically slower, which reads as a
+    hang (#244)."""
+    plan = next(s for s in STAGES if s.id == "csl-style").plan(
+        _context(tmp_path, platform=WINDOWS)
+    )
+    script = " ".join(plan.commands[0])
+
+    assert "$ProgressPreference = 'SilentlyContinue'" in script
+    assert script.index("ProgressPreference") < script.index("Invoke-WebRequest")
+
 def test_an_install_is_never_run_with_its_output_swallowed(tmp_path: Path) -> None:
     """prodockit-extensions#244: `apt update`, a 100 MB download and
     `apt install` behind it produced minutes of silence, because applying

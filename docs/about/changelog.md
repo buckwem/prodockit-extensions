@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Fixed:** three more Windows commands that could not have worked
+  ([#295](https://github.com/buckwem/prodockit-extensions/issues/295)),
+  found by reading the plans after #292 rather than by reaching them.
+
+    **`npm` would not have been found at all.** On Windows it is
+    `npm.cmd`, and Python's `subprocess` uses `CreateProcess`, which does
+    not apply `PATHEXT` - so a bare `npm` reports "not found" on a machine
+    where Node is installed correctly, and neither render toolchain
+    installs. It is resolved by path now, exactly as VS Code's CLI is.
+    That is also *why* #292 happened: `code` is `code.cmd` for the same
+    reason.
+
+    **MSYS2 was assumed to be at `C:\msys64`** - winget's default, not a
+    guarantee. A machine with it elsewhere got "file not found" about a
+    path bootstrap invented, and what breaks is the PDF build much later,
+    since Pango is what WeasyPrint draws text through. It now says where
+    it looked and what to do.
+
+    **The citation style download turns PowerShell's progress bar off.**
+    On PowerShell 5.1, still the Windows default, `Invoke-WebRequest`'s
+    progress rendering makes a download dramatically slower - which reads
+    as a hang.
+
 - **Fixed:** Windows reported VS Code as broken immediately after
   installing it
   ([#292](https://github.com/buckwem/prodockit-extensions/issues/292)).
