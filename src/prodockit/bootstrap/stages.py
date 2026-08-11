@@ -1,17 +1,18 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""The sixteen stages of a full install, as check/plan pairs.
+"""The seventeen stages of a full install, as check/plan pairs.
 
 Every stage answers two questions and performs neither: `check` decides
 whether it is already done, `plan` says what would make it done. Nothing
 here runs an installer - see `prodockit.bootstrap.model` for why that
 split is the whole testing strategy.
 
-Ten of the sixteen are platform-independent (SSH keys, the ssh config
-stanza, the agent, cloning, resetting the history, repointing the
+Eleven of the seventeen are platform-independent (SSH keys, the ssh
+config stanza, the agent, cloning, resetting the history, repointing the
 remote, the project's commit identity and environment, VS Code
-extensions and settings), which is most of the work written once. That
+extensions and settings, the citation style), which is most of the work
+written once. That
 is the argument for a stage abstraction over three separate per-platform
 scripts.
 
@@ -92,6 +93,17 @@ def _apt(*args: str) -> list[str]:
 
 #: The same, for the two places apt is run inside a shell string.
 APT_SH = "sudo apt " + " ".join(APT_LOCK_OPTION)
+
+#: The fonts this template's PDF uses by default.
+#:
+#: Easy to leave out and hard to notice: the website loads them from a
+#: CDN when a page is viewed, but a PDF has to embed the actual files,
+#: and WeasyPrint substitutes a fallback **silently** rather than failing
+#: when they are absent. So the build succeeds, the PDF looks plausible,
+#: and the only symptom is a test reporting `No 'Inter' font found`
+#: (prodockit-userguide#101, prodockit-extensions#249).
+PDF_FONT_PACKAGES = ("fonts-inter", "fonts-jetbrains-mono")
+PDF_FONT_CASKS = ("font-inter", "font-jetbrains-mono")
 
 #: The pandoc version this family of repos pins. Set in one place so a
 #: bump does not leave bootstrap behind - the CI workflows pin the same
@@ -1031,7 +1043,15 @@ def _check_pandoc(context: Context) -> CheckResult:
 
 def _plan_pandoc(context: Context) -> Plan:
     if context.platform == MACOS:
-        return Plan(commands=[["brew", "install", "pandoc", "pango"]])
+        return Plan(
+            commands=[
+                ["brew", "install", "pandoc", "pango"],
+                # The PDF embeds these; the website loads them from a CDN
+                # at view time and so never notices they are absent
+                # (prodockit-userguide#101, #249).
+                ["brew", "install", "--cask", *PDF_FONT_CASKS],
+            ]
+        )
     if context.platform == UBUNTU:
         # Ubuntu's own pandoc package is several major versions behind -
         # far enough to change how the PDF renders (#207, #209). The CI
@@ -1058,6 +1078,7 @@ def _plan_pandoc(context: Context) -> Plan:
                     "libpango-1.0-0",
                     "libpangoft2-1.0-0",
                     "libharfbuzz-subset0",
+                    *PDF_FONT_PACKAGES,
                 ),
             ]
         )
@@ -1069,6 +1090,9 @@ def _plan_pandoc(context: Context) -> Plan:
             "WeasyPrint's graphics libraries come from MSYS2 on Windows: install "
             "MSYS2, run `pacman -S mingw-w64-x86_64-pango` in the MINGW64 shell, "
             "then add C:\\msys64\\mingw64\\bin to your user PATH.",
+            "Install the fonts the PDF uses: download the desktop (.ttf/.otf) "
+            "files for Inter and JetBrains Mono from fonts.google.com, select "
+            "them all, right-click, and choose 'Install for all users'.",
         ],
     )
 
@@ -1195,6 +1219,28 @@ def _check_node(context: Context) -> CheckResult:
     return _ok(f"node {raw}")
 
 
+#: Where Puppeteer is told to find a browser, and told not to fetch one.
+PUPPETEER_PATH_VAR = "PUPPETEER_EXECUTABLE_PATH"
+PUPPETEER_SKIP_VAR = "PUPPETEER_SKIP_DOWNLOAD"
+
+#: Resolves the system Chromium the way the User Guide does. Ubuntu has
+#: called the package both things across releases.
+_WHICH_CHROMIUM = "$(which chromium-browser || which chromium)"
+
+
+def _puppeteer_exports() -> str:
+    """The two exports, as a shell prefix.
+
+    Computed by the shell at run time rather than by a plan beforehand,
+    because the path does not exist yet when the plan is built - the same
+    plan installs Chromium a command earlier.
+    """
+    return (
+        f"export {PUPPETEER_PATH_VAR}={_WHICH_CHROMIUM}; "
+        f"export {PUPPETEER_SKIP_VAR}=true; "
+    )
+
+
 def _plan_node(context: Context) -> Plan:
     project = context.config.resolved_project_dir(context.home)
     install = {
@@ -1206,11 +1252,45 @@ def _plan_node(context: Context) -> Plan:
         ],
         WINDOWS: [["winget", "install", "OpenJS.NodeJS.LTS"]],
     }[context.platform]
+
+    mermaid = str(project / "tools" / "mermaid")
+    mathjax = str(project / "tools" / "mathjax")
+
+    if context.platform != UBUNTU:
+        return Plan(
+            commands=[
+                *install,
+                ["npm", "ci", "--prefix", mermaid],
+                ["npm", "ci", "--prefix", mathjax],
+            ]
+        )
+
+    # Chromium first, and the exports before `npm ci` rather than after.
+    #
+    # `npm ci` in tools/mermaid triggers Puppeteer's own postinstall
+    # download, and that download is not guaranteed to match the CPU it
+    # lands on: on ARM64 - an Apple-silicon Linux VM, Graviton, a
+    # Raspberry Pi - it fetches an x86_64 Chrome that can never run.
+    # Nothing fails at install time. Mermaid simply cannot render a
+    # diagram later, a long way from the command that caused it
+    # (prodockit-userguide#102, prodockit-extensions#249).
+    exports = _puppeteer_exports()
+    bashrc = context.home / ".bashrc"
+    persist = (
+        f"grep -q {PUPPETEER_SKIP_VAR} {bashrc} 2>/dev/null || "
+        f"printf '%s\n%s\n' "
+        f"'export {PUPPETEER_PATH_VAR}={_WHICH_CHROMIUM}' "
+        f"'export {PUPPETEER_SKIP_VAR}=true' >> {bashrc}"
+    )
     return Plan(
         commands=[
             *install,
-            ["npm", "ci", "--prefix", str(project / "tools" / "mermaid")],
-            ["npm", "ci", "--prefix", str(project / "tools" / "mathjax")],
+            _apt("install", "-y", "chromium-browser"),
+            # Appended once. Rerunning bootstrap should not leave a
+            # profile with the same two exports in it four times over.
+            ["bash", "-c", persist],
+            ["bash", "-c", f"{exports}npm ci --prefix {mermaid}"],
+            ["bash", "-c", f"{exports}npm ci --prefix {mathjax}"],
         ]
     )
 
@@ -1400,6 +1480,86 @@ def _plan_vscode_settings(context: Context) -> Plan:
     )
 
 
+# ---------------------------------------------------------------------------
+# 17. The citation style the first build needs
+# ---------------------------------------------------------------------------
+
+
+#: What the template points `csl_style` at, and where to get it. Fetched
+#: rather than committed (prodockit-userguide#97), which would be a
+#: detail except that `prodockit.bibliography` is enabled by default - so
+#: `zensical serve`, `zensical build` and `prodockit pdf` all fail
+#: outright until the file is there (prodockit-userguide#103, #249).
+DEFAULT_CSL_STYLE = "harvard-cite-them-right.csl"
+CSL_STYLE_URL = "https://www.zotero.org/styles/harvard-cite-them-right"
+
+
+def _configured_csl_style(context: Context) -> str:
+    """The style the project asks for, or the template's default.
+
+    Read by scanning rather than parsing: the value is wanted before the
+    project's own environment exists, so this cannot depend on anything
+    installed into it.
+    """
+    config = context.config.resolved_project_dir(context.home) / "zensical.toml"
+    try:
+        text = config.read_text(encoding="utf-8")
+    except OSError:
+        return DEFAULT_CSL_STYLE
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#") or "csl_style" not in stripped:
+            continue
+        _, _, value = stripped.partition("=")
+        name = value.strip().strip("\"'")
+        if name:
+            return name
+    return DEFAULT_CSL_STYLE
+
+
+def _check_csl_style(context: Context) -> CheckResult:
+    if (unknown := _needs_config(context, "project_name")) is not None:
+        return unknown
+    project = context.config.resolved_project_dir(context.home)
+    if not project.exists():
+        return _missing("no project directory yet")
+    style = _configured_csl_style(context)
+    path = project / style
+    if not path.exists():
+        return _missing(f"{style} is not in the project")
+    if not path.stat().st_size:
+        # A failed download leaves an empty file behind, and an empty
+        # file is not a missing one - it looks satisfied to anything
+        # asking only whether the path exists.
+        return _wrong(f"{style} is empty - the download did not complete")
+    return _ok(str(path))
+
+
+def _plan_csl_style(context: Context) -> Plan:
+    project = context.config.resolved_project_dir(context.home)
+    style = _configured_csl_style(context)
+    if style != DEFAULT_CSL_STYLE:
+        # Somebody has chosen a different style, and this only knows
+        # where the default one lives.
+        return Plan(
+            instructions=[
+                f"This project asks for {style}, which is not the style bootstrap "
+                f"knows how to fetch. Download it into {project} yourself - "
+                "https://www.zotero.org/styles lists them.",
+            ]
+        )
+    if context.platform == WINDOWS:
+        command = [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            f'Invoke-WebRequest -Uri "{CSL_STYLE_URL}" -OutFile {style}',
+        ]
+    else:
+        command = ["curl", "-fsSL", "-o", style, CSL_STYLE_URL]
+    return Plan(cwd=str(project), commands=[command])
+
+
 STAGES: tuple[Stage, ...] = (
     Stage("vscode", "Visual Studio Code", _check_vscode, _plan_vscode),
     Stage("git", "Git, installed and configured", _check_git, _plan_git),
@@ -1445,4 +1605,7 @@ STAGES: tuple[Stage, ...] = (
         _check_vscode_settings,
         _plan_vscode_settings,
     ),
+    # `prodockit.bibliography` is on by default and this file is not in
+    # the clone, so without it the very first build fails outright.
+    Stage("csl-style", "Citation style for the first build", _check_csl_style, _plan_csl_style),
 )

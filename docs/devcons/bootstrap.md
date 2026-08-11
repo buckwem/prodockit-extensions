@@ -1,7 +1,7 @@
 # Machine bootstrap {: #bootstrap-machine-bootstrap }
 
 \index{`prodockit bootstrap`} turns the User Guide's install sequence into
-sixteen stages that can be checked individually and repaired one at a time,
+seventeen stages that can be checked individually and repaired one at a time,
 rather than followed top to bottom and hoped over.
 
 The install is long, sequential, and easy to get half-right in ways that
@@ -178,9 +178,10 @@ which Python is winning.
 | 14 | Node.js and the render toolchains | yes |
 | 15 | VS Code extensions | yes |
 | 16 | VS Code settings for the project | yes |
+| 17 | Citation style for the first build | yes |
 
-Stages 3, 4, 5, 7, 8, 10, 11, 13, 15 and 16 are platform-independent -
-most of the work is the same on every operating system.
+Stages 3, 4, 5, 7, 8, 10, 11, 13, 15, 16 and 17 are platform-independent
+- most of the work is the same on every operating system.
 
 The list is longer than it was because it was wrong. Comparing it
 against the User Guide step by step found six things it did not do at
@@ -207,6 +208,48 @@ Six things it did not do at all:
 
 Two of those deserve their own explanation, below: the project's own
 virtual environment, and the history reset.
+
+### Three things the first build needs {: #bootstrap-first-build }
+
+The User Guide found these on a fresh Ubuntu ARM64 machine
+(prodockit-userguide#101, #102 and #103), and all three were true here
+too. Each fails in a way that does not point at itself.
+
+**Mermaid's browser has to be the right architecture.** `npm ci` in
+`tools/mermaid` triggers Puppeteer's own postinstall download, and that
+download is not guaranteed to match the CPU it lands on. On ARM64 - an
+Apple-silicon Linux VM, Graviton, a Raspberry Pi - it fetches an x86_64
+Chrome that can never run. Nothing fails at install time. The symptom is
+a diagram that will not render, much later, with nothing to connect it to
+the install. So on Ubuntu the stage installs a system Chromium and
+exports
+
+```bash
+PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser || which chromium)
+PUPPETEER_SKIP_DOWNLOAD=true
+```
+
+**before** `npm ci`, and appends them to `~/.bashrc` so later sessions
+have them too - once, checked first, because a profile carrying the same
+two exports four times over is the mark of a tool that assumed it would
+only ever run once. macOS and Windows are left alone: Puppeteer's own
+download is fine there.
+
+**The PDF's fonts are not the website's fonts.** The site loads Inter and
+JetBrains Mono from a CDN when a page is viewed; a PDF has to embed the
+actual files. WeasyPrint **substitutes a fallback silently** rather than
+failing, so the build succeeds, the PDF looks plausible, and the only
+symptom is a test reporting `No 'Inter' font found`. They are installed
+with the graphics stack now, per platform.
+
+**The citation style is fetched, not committed.** `prodockit.bibliography`
+is enabled by default and points `csl_style` at
+`harvard-cite-them-right.csl`, which is not in the clone - so `zensical
+serve`, `zensical build` and `prodockit pdf` all fail outright until it is
+there. Stage 17 fetches it. An *empty* file counts as `WRONG` rather than
+done: a failed download leaves one behind, and anything asking only
+whether the path exists would call that finished. A project configured
+for a different style is told to fetch its own rather than given Harvard.
 
 ### Two virtual environments, and only one of them is yours {: #bootstrap-project-env }
 
@@ -508,7 +551,7 @@ somebody typed it to see what it did.
  6  ok    SSH key on the host - authenticated to gitlab.surrey.ac.uk
  7  ?     Template cloned - needs project_name
  ...
-5 of 16 stages need work.
+5 of 17 stages need work.
 ```
 
 Four states, and the difference between them matters:
