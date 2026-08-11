@@ -206,6 +206,14 @@ def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> BootstrapConfig:
     report and exit rather than block on a prompt nobody can answer.
     """
     blank = missing_keys(config)
+    # `host` has a default, so it is never *empty* and never reported
+    # missing - which is right for somebody who has a stored answer, and
+    # wrong for somebody who has never been asked. On a first run there is
+    # no file yet, and the host decides everything below it, so it is
+    # asked here too rather than only by `--configure`
+    # (prodockit-extensions#279).
+    if blank and not path.exists():
+        blank = ["host", *blank]
     if not blank:
         return config
     if not _is_interactive():
