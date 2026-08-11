@@ -324,12 +324,12 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
                 # Guide and verify. The stage's own check is the
                 # verification, and "not finished yet" is the normal
                 # answer to it, not a failure - so it asks again.
-                if not _verify_until_done(context, report.stage):
+                if not _verify_until_done(context, report.stage, plan.confirm):
                     click.echo("  skipped")
                 continue
             # There are commands, and they need the step above done
             # first. One acknowledgement, then run them.
-            click.confirm("  Tell me when that is done", default=True)
+            click.confirm(f"  {plan.confirm}", default=True)
             click.echo("")
 
         if plan.commands:
@@ -381,7 +381,7 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
                 detail = outcome.verified.detail if outcome.verified else "unknown"
                 click.echo(f"  ran, but still not right: {detail}", err=True)
                 sys.exit(1)
-            if not _verify_until_done(context, report.stage):
+            if not _verify_until_done(context, report.stage, plan.confirm):
                 click.echo("  skipped")
             continue
 
@@ -420,14 +420,14 @@ def _show_steps(title: str, steps: list[str]) -> None:
     click.echo("")
 
 
-def _verify_until_done(context: Context, stage: Stage) -> bool:
+def _verify_until_done(context: Context, stage: Stage, question: str) -> bool:
     """Waits for a manual step, re-checking until it takes or you stop.
 
     Returns whether it ended up satisfied. A failed check here means "not
     yet", not "broken" - so it says so, and asks again.
     """
     while True:
-        click.confirm("  Tell me when that is done", default=True)
+        click.confirm(f"  {question}", default=True)
         result = stage.check(context)
         if not result.needs_work:
             click.echo("  confirmed")

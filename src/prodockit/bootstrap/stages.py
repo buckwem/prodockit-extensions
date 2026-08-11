@@ -210,6 +210,10 @@ _VSCODE_APP_PATHS = {
     ),
 }
 
+#: What to ask once that has been shown. "Tell me when that is done"
+#: does not say which of several things, and this one is easy to skip.
+_VSCODE_CONFIRM = "Have you run the 'Shell Command' action in VS Code?"
+
 #: How to add the `code` command once the application is installed.
 _VSCODE_SHELL_COMMAND_HELP = (
     "In VS Code, open the Command Palette (Cmd+Shift+P / Ctrl+Shift+P) and run "
@@ -251,13 +255,17 @@ def _plan_vscode(context: Context) -> Plan:
     # Installed already: the only thing missing is the shell command, and
     # reinstalling the application would fail rather than supply it.
     if _vscode_app_installed(context):
-        return Plan(instructions=[_VSCODE_SHELL_COMMAND_HELP])
+        return Plan(
+            instructions=[_VSCODE_SHELL_COMMAND_HELP],
+            confirm=_VSCODE_CONFIRM,
+        )
     if context.platform == MACOS:
         return Plan(
             commands=[["brew", "install", "--cask", "visual-studio-code"]],
             # After the install: the Command Palette being asked for is
             # the one in the application brew has just put there (#230).
             follow_up=[_VSCODE_SHELL_COMMAND_HELP],
+            confirm=_VSCODE_CONFIRM,
         )
     if context.platform == UBUNTU:
         # Downloaded rather than asked for (#233). The old plan told the
@@ -362,6 +370,7 @@ def _plan_ssh_key(context: Context) -> Plan:
             "ssh-keygen will ask for a passphrase - choose a strong one and "
             "remember it; it protects the key if your machine is lost.",
         ],
+        confirm="Ready to create the key?",
     )
 
 
@@ -569,7 +578,8 @@ def _plan_ssh_agent(context: Context) -> Plan:
                     "Set-Service ssh-agent -StartupType Automatic\n"
                     "Start-Service ssh-agent\n"
                     "Then run bootstrap again in your normal window.",
-                ]
+                ],
+                confirm="Have you started the ssh-agent service?",
             )
         return Plan(
             instructions=[
@@ -578,7 +588,8 @@ def _plan_ssh_agent(context: Context) -> Plan:
                 "variable that only the shell running it can set:\n"
                 'eval "$(ssh-agent -s)"\n'
                 "Then run bootstrap again in the same terminal.",
-            ]
+            ],
+            confirm="Have you started an agent in this terminal?",
         )
 
     return Plan(
@@ -591,6 +602,7 @@ def _plan_ssh_agent(context: Context) -> Plan:
             "ssh-add will ask for the passphrase you gave the key when it "
             "was created.",
         ],
+        confirm="Ready to load the key into the agent?",
     )
 
 
@@ -769,7 +781,10 @@ def _plan_ssh_upload(context: Context) -> Plan:
     #
     # Nothing is lost by dropping it: applying a stage always re-runs its
     # check, and that check reads the greeting rather than the exit code.
-    return Plan(instructions=instructions)
+    return Plan(
+        instructions=instructions,
+        confirm=f"Have you added the key to your {host.hostname} account?",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -885,6 +900,7 @@ def _plan_fresh_history(context: Context) -> Plan:
         # The only plan in bootstrap that cannot be undone, and the only
         # one whose prompt does not default to yes (#259).
         destructive=True,
+        confirm="Delete the template's history and start a new repository?",
         instructions=[
             "This deletes the template's commit history from your clone - every "
             "commit, branch and tag - and cannot be undone. Your files are not "
@@ -926,6 +942,9 @@ def _plan_own_project(context: Context) -> Plan:
             "Untick every 'initialize with' option - the clone you already have "
             "provides the contents, and an initialised remote would conflict with it.",
         ],
+        confirm=(
+            f"Have you created the {host.project_word} on {host.hostname}?"
+        ),
         # Instructions only, for the same reason as the SSH upload above:
         # `git ls-remote` is this stage's check, and a check run as a plan
         # command turns "you have not finished in the browser yet" - the
@@ -1232,6 +1251,7 @@ def _plan_pandoc(context: Context) -> Plan:
             "JetBrains Mono from fonts.google.com, select them all, right-click, "
             "and choose 'Install'.",
         ],
+        confirm="Have you installed the fonts?",
     )
 
 

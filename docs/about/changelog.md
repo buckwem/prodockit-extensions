@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Each manual step now asks about the thing it asked for**
+  ([#260](https://github.com/buckwem/prodockit-extensions/issues/260)).
+  Every one of them ended in `Tell me when that is done` - including the
+  step whose entire content is "this deletes your history and cannot be
+  undone", where nothing has been asked of the reader at all and the
+  honest question is whether to go ahead:
+
+    ```text
+    Delete the template's history and start a new repository? [y/N]:
+    Have you added the key to your gitlab.surrey.ac.uk account? [Y/n]:
+    Have you created the project on gitlab.surrey.ac.uk? [Y/n]:
+    Have you run the 'Shell Command' action in VS Code? [Y/n]:
+    ```
+
+    A test walks every stage on all three platforms and fails any that
+    still asks the generic question.
+
 - **Every `--apply` prompt defaults to yes, except the one that cannot be
   undone** ([#259](https://github.com/buckwem/prodockit-extensions/issues/259)).
 

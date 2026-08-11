@@ -3018,3 +3018,70 @@ def test_an_ordinary_install_is_the_enter_answer(
     result = cli_bootstrap("--apply", responses=responses, input="\n" * 40)
 
     assert f"Run {len(VSCODE_EXTENSIONS)} commands? [Y/n]" in result.output
+
+
+def test_no_manual_step_is_left_asking_the_generic_question(tmp_path: Path) -> None:
+    """prodockit-extensions#260. "Tell me when that is done" was asked
+    after every manual step, including the one whose whole content is
+    "this deletes your history and cannot be undone" - where there is
+    nothing to have done, and the honest question is whether to go ahead
+    at all.
+
+    The gate: a stage that asks a person to do something must ask about
+    the thing it asked for."""
+    save(tmp_path / "b.toml", _config())
+    for platform in (MACOS, UBUNTU, WINDOWS):
+        context = _context(tmp_path, platform=platform)
+        for stage in STAGES:
+            plan = stage.plan(context)
+            if not (plan.instructions or plan.follow_up):
+                continue
+            assert plan.confirm != "Tell me when that is done", (
+                f"{stage.id} on {platform} still asks the generic question"
+            )
+            assert plan.confirm.endswith("?"), f"{stage.id}: {plan.confirm!r}"
+
+
+def test_the_history_prompt_asks_whether_to_do_it_not_whether_it_is_done(
+    tmp_path: Path,
+) -> None:
+    """The case from the issue. Nothing is being asked *of* the reader
+    here - the step is bootstrap's to run - so "tell me when that is
+    done" asks about something that has not been offered yet."""
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+    runner = FakeRunner({"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)})
+
+    plan = next(s for s in STAGES if s.id == "fresh-history").plan(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert plan.confirm == "Delete the template's history and start a new repository?"
+
+
+def test_the_browser_steps_name_the_host_they_are_about(tmp_path: Path) -> None:
+    """"Have you loaded the SSH key into your online Git repo?" was the
+    issue's own suggestion; naming the host makes it checkable."""
+    _write_keypair(tmp_path)
+    save(tmp_path / "b.toml", _config())
+    context = _context(tmp_path)
+
+    upload = next(s for s in STAGES if s.id == "ssh-upload").plan(context)
+    assert upload.confirm == "Have you added the key to your gitlab.surrey.ac.uk account?"
+
+    project = next(s for s in STAGES if s.id == "own-project").plan(context)
+    assert project.confirm == "Have you created the project on gitlab.surrey.ac.uk?"
+
+
+def test_the_question_asked_is_the_one_the_plan_carries(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The field is no use unless the prompt uses it."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    responses = _machine_ready_except_ssh(tmp_path)
+
+    result = cli_bootstrap("--apply", responses=responses, input="y\nn\n")
+
+    assert "Have you added the key to your gitlab.surrey.ac.uk account?" in result.output
+    assert "Tell me when that is done" not in result.output
