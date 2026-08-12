@@ -119,9 +119,23 @@ jobs:
           node-version: "22"
       - run: sudo apt-get update && sudo apt-get install -y curl fonts-inter fonts-jetbrains-mono
       # Upstream release rather than the image's package - see PANDOC_VERSION.
-      - run: |
+      #
+      # Cached because the release CDN is the single most fragile thing in
+      # this job: it returned 503 for hours one evening and failed every
+      # run in the matrix before a single test executed. The key carries
+      # the version, so a bump fetches afresh and an unchanged pin never
+      # touches the network again.
+      - id: pandoc-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/pandoc.deb
+          key: pandoc-${{ env.PANDOC_VERSION }}-amd64-deb
+      # The retry stays for the first run on a new key, and for the day
+      # the cache is evicted - a cache is a saving, not a guarantee.
+      - if: steps.pandoc-cache.outputs.cache-hit != 'true'
+        run: |
           curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 20 -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
-          sudo apt install -y /tmp/pandoc.deb
+      - run: sudo apt install -y /tmp/pandoc.deb
       # mermaid-cli, so the ```mermaid diagram in extensions/bibliography.md
       # is pre-rendered to a static SVG for the PDF - WeasyPrint has no JS
       # engine to run Mermaid.js the way the live site does, and without
