@@ -204,13 +204,15 @@ GITHUB_COM = Host(
         "your plan, making the repository public is the way round it, and "
         "can be changed later in Settings."
     ),
-    after_creating_steps=(
-        "Open the new repository's Settings, then Pages in the left sidebar.",
-        "Under 'Build and deployment', set Source to 'GitHub Actions'.\n"
-        "Without this the documentation workflow cannot publish, and every "
-        "push fails at 'Get Pages site failed' - which names the site "
-        "rather than the setting that is missing.",
-    ),
+    # No Pages step. The template's workflow enables Pages itself
+    # (`configure-pages` with `enablement: true`, prodockit-template#169),
+    # so telling a reader to switch it on describes work that is already
+    # done - and a step that does nothing is one more thing to skim past
+    # in a list where the others matter (prodockit-extensions#336).
+    #
+    # Stage 19 still checks the site actually answers, so nothing is
+    # taken on trust; what has gone is the instruction, not the
+    # verification.
 )
 
 HOSTS = {host.key: host for host in (SURREY_GITLAB, GITLAB_COM, GITHUB_COM)}

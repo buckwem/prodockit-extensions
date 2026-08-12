@@ -22,6 +22,7 @@ This module is the CLI for the whole package, not just the PDF build -
 from __future__ import annotations
 
 import sys
+import textwrap
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -132,7 +133,11 @@ def _ask_for_configuration(
     """
     wanted = [(k, q) for k, q in PROMPTS if only is None or k in only]
     click.echo("\nPress Enter to keep the value in brackets.\n")
-    for key, question in wanted:
+    # Numbered so the list has a visible end. Eight unnumbered questions
+    # read as an open-ended interrogation; "3/8" says how much is left,
+    # and matches how the stages themselves are reported.
+    total = len(wanted)
+    for number, (key, question) in enumerate(wanted, start=1):
         # Asked here rather than mid-run. A prompt during `--apply` is
         # answered once and forgotten, so a rerun asks again, and
         # declining leaves a stage undone with nowhere to go. Recorded as
@@ -150,7 +155,7 @@ def _ask_for_configuration(
             # `default_for` fills a blank answer from one already given, so
             # a first run still has something sensible to press Enter on.
             answer = click.prompt(
-                question_for(config, key, question),
+                f"{number}/{total} {question_for(config, key, question)}",
                 default=default_for(config, key),
                 show_default=True,
             ).strip()
@@ -170,6 +175,28 @@ def _ask_for_configuration(
     # somewhere else.
     config.project_dir = str(config.resolved_project_dir(Path.home()))
     return config
+
+
+def _wrapped(text: str, *, first: str = "  ", rest: str = "  ") -> str:
+    """A paragraph wrapped to the width, however long its values are.
+
+    Written with hardcoded line breaks to begin with, which only line up
+    for one length of project name: a longer one overflowed the first
+    line and left the others short. The values here - a namespace, a
+    project, a hostname - are exactly the parts that vary.
+    """
+    return textwrap.fill(
+        " ".join(text.split()),
+        width=78,
+        initial_indent=first,
+        subsequent_indent=rest,
+        # A repository name is one thing, not a phrase. Left to itself
+        # textwrap splits on the hyphens inside it, so
+        # `report-linux-v2` could arrive as `report-linux-` on one line
+        # and `v2` on the next - unreadable, and worse, uncopyable.
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
 
 
 def _explain_existing_project(config: BootstrapConfig) -> bool:
@@ -216,31 +243,38 @@ def _explain_existing_project(config: BootstrapConfig) -> bool:
         # used" on its own reads as though the issued repository were
         # being ignored.
         state = "is empty" if own_project_exists(context) else "does not exist yet"
+        click.echo("")
         click.echo(
-            f"\n  {name} {state} on {host}, so the template will be used for the\n"
-            f"  contents. Your work will still be pushed to {name}, which keeps\n"
-            "  whatever permissions were set on it.\n"
+            _wrapped(
+                f"{name} {state} on {host}, so the template will be used for the "
+                f"contents. Your work will still be pushed to {name}, which keeps "
+                "whatever permissions were set on it."
+            )
         )
+        click.echo("")
         config.source_url = ""
         config.history = ""
         return True
 
-    click.echo(f"\n  {name} already exists on {host} and has content in it.")
-    click.echo("  Do you want to:\n")
-    click.echo(
-        f"  1. clone the full repo {name!r}, then leave the existing git records\n"
-        "     and sync origin unchanged"
-    )
-    click.echo(
-        f"  2. clone the full repo {name!r}, then delete the existing git records\n"
-        "     and set up a new remote repo"
-    )
-    click.echo(
-        "  3. start from the template in a new repository of your own.\n"
-        f"     Choose this only if {name} is not the repository your work belongs\n"
-        "     in - a repository issued to you carries the permissions that decide\n"
-        "     who can read it, and a new one will not have them.\n"
-    )
+    click.echo("")
+    click.echo(_wrapped(f"{name} already exists on {host} and has content in it."))
+    click.echo(_wrapped("Do you want to:"))
+    click.echo("")
+    for number, option in enumerate(
+        (
+            f"clone the full repo {name!r}, then leave the existing git records "
+            "and sync origin unchanged",
+            f"clone the full repo {name!r}, then delete the existing git records "
+            "and set up a new remote repo",
+            "start from the template in a new repository of your own. Choose this "
+            f"only if {name} is not the repository your work belongs in - a "
+            "repository issued to you carries the permissions that decide who can "
+            "read it, and a new one will not have them.",
+        ),
+        start=1,
+    ):
+        click.echo(_wrapped(option, first=f"  {number}. ", rest="     "))
+    click.echo("")
     choice = click.prompt(
         "  Select 1, 2 or 3", type=click.Choice(["1", "2", "3"]), show_choices=False
     )
@@ -647,6 +681,12 @@ def _verify_until_done(context: Context, stage: Stage, question: str) -> bool:
         if not result.needs_work:
             click.echo("  confirmed")
             return True
+        if result.status is Status.BLOCKED:
+            # Waiting on an earlier stage, not on anything the reader can
+            # do in a browser. Asking again would loop for ever on a
+            # question they have already answered correctly (#336).
+            click.echo(f"  waiting - {result.detail}")
+            return False
         click.echo(f"  not there yet - {result.detail}")
         if not click.confirm("  Try again?", default=True):
             return False
