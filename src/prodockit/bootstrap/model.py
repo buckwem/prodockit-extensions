@@ -583,6 +583,12 @@ class Status(Enum):
     MISSING = "missing"
     WRONG = "wrong"
     UNKNOWN = "unknown"
+    #: Waiting on an earlier stage, and not answerable until that one is
+    #: done. Counts as needing work - so nothing reads as finished - but
+    #: builds no plan, because acting now would do work a later stage
+    #: destroys: `rm -rf .git` deletes every remote, taking a repoint and
+    #: its `sync-repo` with it (prodockit-extensions#311).
+    BLOCKED = "blocked"
 
 
 @dataclass(frozen=True)

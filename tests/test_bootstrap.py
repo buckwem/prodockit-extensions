@@ -4002,3 +4002,86 @@ def test_the_username_question_names_the_host_that_was_answered() -> None:
     question = dict(PROMPTS)["username"]
     assert "GitLab" not in question
     assert "github.com" in question_for(_config(host="github.com"), "username", question)
+
+
+TEMPLATE_ORIGIN = "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
+
+
+def _clone_pointing_at(tmp_path: Path, origin: str) -> FakeRunner:
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(0, f"{origin}\n")
+    return FakeRunner(machine)
+
+
+def test_the_project_stage_waits_for_the_history_reset(tmp_path: Path) -> None:
+    """Creating the blank project while the clone is still the template
+    is premature, and the reader is better told which stage to do first
+    than sent to a browser (#311)."""
+    result = next(s for s in STAGES if s.id == "own-project").check(
+        _context(tmp_path, runner=_clone_pointing_at(tmp_path, TEMPLATE_ORIGIN))
+    )
+
+    assert result.status is Status.BLOCKED
+    assert "A history of your own" in result.detail
+
+
+def test_the_remote_stage_never_reports_the_template_as_ok(tmp_path: Path) -> None:
+    """The rule this exists to enforce. A run must not be able to finish
+    with origin pointing at the template: for a student that fails at the
+    first push, and for anyone with write access to the template it
+    pushes their coursework into it."""
+    result = next(s for s in STAGES if s.id == "remote").check(
+        _context(tmp_path, runner=_clone_pointing_at(tmp_path, TEMPLATE_ORIGIN))
+    )
+
+    assert result.status is Status.BLOCKED
+    assert result.needs_work, "never reads as finished"
+    assert "still the template" in result.detail
+
+
+def test_a_blocked_stage_gets_no_plan(tmp_path: Path) -> None:
+    """The whole point: `rm -rf .git` deletes every remote, so a repoint
+    and its `sync-repo` run now would be thrown away by the reset that
+    has to come first."""
+    reports = plan_all(_context(tmp_path, runner=_clone_pointing_at(tmp_path, TEMPLATE_ORIGIN)))
+    blocked = [r for r in reports if r.result.status is Status.BLOCKED]
+
+    assert {r.stage.id for r in blocked} == {"own-project", "remote"}
+    assert all(r.plan is None for r in blocked), "no commands to be undone"
+
+
+def test_applying_never_runs_a_blocked_stage(tmp_path: Path) -> None:
+    """A blocked stage has no plan, and the apply loop selects on that -
+    so this holds by construction rather than by a second rule that could
+    drift out of step."""
+    reports = plan_all(_context(tmp_path, runner=_clone_pointing_at(tmp_path, TEMPLATE_ORIGIN)))
+    would_apply = [r.stage.id for r in reports if r.needs_work and r.plan is not None]
+
+    assert "remote" not in would_apply
+    assert "own-project" not in would_apply
+
+
+def test_the_reset_unblocks_both_stages(tmp_path: Path) -> None:
+    """After `rm -rf .git && git init` there is no origin at all, which
+    is the state the two stages exist for - so blocking must not outlast
+    the thing it waits on."""
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(128, stderr="No such remote 'origin'")
+    context = _context(tmp_path, runner=FakeRunner(machine))
+
+    for stage_id in ("own-project", "remote"):
+        result = next(s for s in STAGES if s.id == stage_id).check(context)
+        assert result.status is not Status.BLOCKED, stage_id
+
+
+def test_a_clone_of_your_own_repository_is_never_blocked(tmp_path: Path) -> None:
+    """`source_url` clones already belong to the reader, so there is no
+    template history to separate from and nothing to wait for."""
+    own = "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git"
+    context = _context(
+        tmp_path, runner=_clone_pointing_at(tmp_path, own), source_url="report-al01234"
+    )
+
+    for stage_id in ("own-project", "remote"):
+        result = next(s for s in STAGES if s.id == stage_id).check(context)
+        assert result.status is Status.OK, stage_id

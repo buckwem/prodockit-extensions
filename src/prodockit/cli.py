@@ -635,6 +635,7 @@ def bootstrap(
         Status.MISSING: "MISS",
         Status.WRONG: "WRONG",
         Status.UNKNOWN: "?   ",
+        Status.BLOCKED: "WAIT",
     }
     for number, report in enumerate(reports, start=1):
         symbol = symbols[report.result.status]

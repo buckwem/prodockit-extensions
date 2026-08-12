@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **Fixed:** two stages acted before the history reset, and a run could
+  finish with `origin` still pointing at the template
+  ([#311](https://github.com/buckwem/prodockit-extensions/issues/311)).
+
+    `rm -rf .git` deletes every remote. A reader who declined the reset,
+    let the remote stage repoint `origin` and run `sync-repo`, then
+    changed their mind and reset, silently lost the repoint - ending with
+    a fresh repository, no origin, and a `sync-repo` that had run against
+    a state no longer there.
+
+    Leaving `origin` at the template was worse. For a student it fails at
+    the first `push`; for anyone with write access to the template it
+    pushes their own work into it, and the template is public and cloned
+    by every new reader.
+
+    Both stages now report `blocked` while the clone still points at the
+    template - counting as work outstanding, so nothing reads as
+    finished, but building no plan, so no command runs that the reset
+    would undo. A clone made from `source_url` is unaffected: its origin
+    is the reader's own, so there is nothing to wait for.
+
 - **Added: github.com as a supported host.** Bootstrap could only be
   pointed at `gitlab.surrey.ac.uk`, so when that server stopped answering
   there was no way to run or test any of it.
