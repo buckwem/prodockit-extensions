@@ -69,9 +69,13 @@ jobs:
             sudo apt install -y /tmp/pandoc.deb
           else
             curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 20 -o /tmp/pandoc.tar.gz "${release_url}/pandoc-${PANDOC_VERSION}-linux-amd64.tar.gz"
-            tar -xzf /tmp/pandoc.tar.gz -C /tmp
-            sudo install -m 0755 "/tmp/pandoc-${PANDOC_VERSION}/bin/pandoc" /usr/local/bin/pandoc
-            sudo install -m 0755 "/tmp/pandoc-${PANDOC_VERSION}/bin/pandoc-lua" /usr/local/bin/pandoc-lua
+            rm -rf /tmp/pandoc-bin
+            mkdir -p /tmp/pandoc-bin
+            tar -xzf /tmp/pandoc.tar.gz -C /tmp/pandoc-bin --strip-components=1
+            sudo install -m 0755 /tmp/pandoc-bin/bin/pandoc /usr/local/bin/pandoc
+            if [ -x /tmp/pandoc-bin/bin/pandoc-lua ]; then
+              sudo install -m 0755 /tmp/pandoc-bin/bin/pandoc-lua /usr/local/bin/pandoc-lua
+            fi
           fi
       # weasyprint on top of [dev]: tests/test_pdf_build.py's
       # `real_pandoc_and_weasyprint_required` cases render a real PDF and
