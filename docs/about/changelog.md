@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- **Fixed: the clone decision is now actually offered**, as a stage
+  between the SSH stages and the clone
+  ([#348](https://github.com/buckwem/prodockit-extensions/issues/348)).
+
+    `--configure` runs before there is an SSH key, so it could never see
+    whether the project existed and had to say it could not look - which
+    left the three-option question unreachable on every first run, the
+    one where it matters most.
+
+    It is asked at the first point the answer is knowable, and the last
+    at which it still matters. Nothing to decide stays `ok` rather than
+    becoming a question: a project that does not exist, or exists and is
+    empty, gets the template and nobody is asked to choose between one
+    thing. A recorded answer is read, not asked again.
+
+    A plan can put a numbered choice now rather than a yes/no. Three
+    paths as three consecutive yes/no questions invites pressing Enter
+    through them, and one of these deletes commits that cannot be
+    recovered - so it has no default.
+
+- **Fixed:** whether a repository holds a *project* was being judged by
+  "has any commits" again. The check for `zensical.toml` and `README.md`
+  was written for #332 and lost when `stages.py` was reset during #339,
+  so it never reached a release. A pass costs four host connections now
+  rather than three, which the test that tracks that number records.
+
 - **Added: `boot`**, a short name for `bootstrap`.
 
     `pdk boot --apply` is the form this is typed in most, and it is typed

@@ -788,6 +788,13 @@ class Plan:
     #: commands when set; `--dry-run` still prints them in full, which is
     #: what `--dry-run` is for.
     describe: str = ""
+    #: A numbered choice to put to the reader, instead of a yes/no.
+    #:
+    #: Some decisions are not "shall I?" - they are "which of these?", and
+    #: offering three paths as three yes/no questions in a row invites
+    #: pressing Enter through them. Each entry is one option, in order;
+    #: the answer is its 1-based number (prodockit-extensions#348).
+    choices: tuple[str, ...] = ()
 
     @property
     def is_manual(self) -> bool:
