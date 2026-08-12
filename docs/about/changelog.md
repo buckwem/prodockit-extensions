@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Fixed:** `--apply` trusted checks taken before any stage had run
+  ([#351](https://github.com/buckwem/prodockit-extensions/issues/351)).
+
+    A project with work on the host was cloned over with the template,
+    and the reader was never asked: "Where the project comes from"
+    reported `ok` because it had been checked *before* the SSH stages
+    ran, when the host could not be reached.
+
+    Each stage is checked again when the loop reaches it now. Earlier
+    stages change the machine the later ones are about - that is what a
+    setup tool is - so a single snapshot taken up front was never going
+    to hold. The memo keeps repeats free within a pass and is dropped
+    between stages, which is what makes the second look real.
+
 ## 0.30.0 (2026-08-12)
 
 - **Fixed: the clone decision is now actually offered**, as a stage
