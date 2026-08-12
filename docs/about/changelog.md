@@ -55,6 +55,13 @@
     It waits on the clone and on `origin`: committing into a directory
     that is not a repository, or pushing to a remote that was never set,
     cannot be a plan worth running.
+- **Added: `pdk`**, the same tool under a shorter name.
+
+    Every command here is typed at a prompt, often several times over
+    while a setup is being repaired - `pdk bootstrap --apply` rather than
+    `prodockit bootstrap --apply`. Both names stay, so anything written
+    against `prodockit` keeps working, and the help text says whichever
+    one was typed.
 
 ## 0.28.1 (2026-08-12)
 

@@ -85,6 +85,13 @@ Issues = "https://github.com/buckwem/prodockit-extensions/issues"
 
 [project.scripts]
 prodockit = "prodockit.cli:main"
+# The same tool under a shorter name. Every command here is typed at a
+# prompt, often several times over while a setup is being repaired -
+# `pdk bootstrap --apply` beats `prodockit bootstrap --apply` by nine
+# characters each time. Both names stay: scripts and documentation
+# written against `prodockit` keep working, and click takes the program
+# name from argv, so the help text says whichever one was typed.
+pdk = "prodockit.cli:main"
 
 [project.optional-dependencies]
 dev = [

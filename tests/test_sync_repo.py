@@ -648,3 +648,19 @@ def test_the_same_question_gets_the_same_answer_twice(monkeypatch) -> None:
 
     assert first is True
     assert second is True, "the second call must not see a different world"
+def test_the_tool_is_installable_under_a_short_name() -> None:
+    """`pdk` is the same entry point as `prodockit`, for a tool whose
+    commands are typed at a prompt, often several times over while a
+    setup is being repaired.
+
+    Read from the *installed* metadata rather than from `pyproject.toml`.
+    It is the stronger check - a declaration that never became a command
+    would pass a file-parsing test - and it avoids `tomllib`, which is
+    3.11 and later while this project supports 3.10.
+    """
+    from importlib.metadata import entry_points
+
+    scripts = {e.name: e.value for e in entry_points(group="console_scripts")}
+
+    assert "pdk" in scripts, "installed as a command, not merely declared"
+    assert scripts["pdk"] == scripts["prodockit"], "the same entry point, not a copy"
