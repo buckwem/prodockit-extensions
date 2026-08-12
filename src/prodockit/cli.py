@@ -51,6 +51,7 @@ from prodockit.bootstrap import (
     own_project_exists,
     own_project_has_content,
     plan_all,
+    project_on_host,
     question_for,
 )
 from prodockit.bootstrap import build_context as build_bootstrap_context
@@ -132,6 +133,12 @@ def _ask_for_configuration(
     setup costs a few keystrokes rather than an edit.
     """
     wanted = [(k, q) for k, q in PROMPTS if only is None or k in only]
+    # `source_url` is never reported missing - blank is a valid answer -
+    # so a run filling in a few gaps skipped the question about an
+    # existing project entirely, and ended without the summary that goes
+    # with it. Included whenever it has no answer yet (#344).
+    if only is not None and not config.source_url.strip():
+        wanted += [(k, q) for k, q in PROMPTS if k == "source_url"]
     click.echo("\nPress Enter to keep the value in brackets.\n")
     # Numbered so the list has a visible end. Eight unnumbered questions
     # read as an open-ended interrogation; "3/8" says how much is left,
@@ -228,6 +235,26 @@ def _explain_existing_project(config: BootstrapConfig) -> bool:
     # same shape they would type themselves.
     name = f"{config.namespace.strip()}/{config.project_name.strip()}"
     host = config.host
+
+    # "Cannot tell" is not "not there". On a machine with no SSH key yet
+    # - which is every machine, before stage 3 - `git ls-remote` fails on
+    # authentication, and saying the project does not exist told a reader
+    # their work was missing when it was on the host in front of them
+    # (prodockit-extensions#344).
+    if project_on_host(context) is None:
+        click.echo("")
+        click.echo(
+            _wrapped(
+                f"Could not check whether {name} exists on {host} - this machine "
+                "cannot reach it yet, which is what the SSH stages set up. The "
+                "template will be used for the contents, and you can run "
+                "--configure again afterwards to choose differently."
+            )
+        )
+        click.echo("")
+        config.source_url = ""
+        config.history = ""
+        return True
 
     if not own_project_has_content(context):
         # No decision here, because there is nothing to decide between: an
