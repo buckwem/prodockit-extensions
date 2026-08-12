@@ -436,7 +436,7 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
 
     # Every stage, not just the ones needing work. A run that skipped the
     # rest silently jumped from `[1/17] Git` to `[2/17] SSH keypair` while
-    # actually being at stages 2 and 3 of eighteen - so the numbers agreed
+    # actually being at stages 2 and 3 of nineteen - so the numbers agreed
     # with nothing the reader could check, and the stages already set up
     # were invisible rather than reassuring
     # (prodockit-extensions#284).
@@ -690,7 +690,7 @@ def bootstrap(
 ) -> None:
     """Set up this machine and your project from scratch.
 
-    Checks all 18 stages - editor, git, SSH key/config/agent/upload,
+    Checks all 19 stages - editor, git, SSH key/config/agent/upload,
     clone, history, remote, commit identity, the project's own
     environment, pandoc, Node and the rest - and reports which are
     already done. Rerunnable: a stage that is set up correctly

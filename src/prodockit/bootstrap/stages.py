@@ -2265,6 +2265,81 @@ def _plan_mathjax(context: Context) -> Plan:
     )
 
 
+# ---------------------------------------------------------------------------
+# 19. The published site answers - the last thing, and only a test
+# ---------------------------------------------------------------------------
+
+
+def site_url(context: Context) -> str:
+    """Where this project's site is published, or "" if unknowable."""
+    template = context.host.pages_url
+    namespace = context.config.namespace.strip()
+    project = context.config.project_name.strip()
+    if not (template and namespace and project):
+        return ""
+    return template.format(namespace=namespace, project=project)
+
+
+def _check_site_published(context: Context) -> CheckResult:
+    """Whether the documentation site actually answers.
+
+    Deliberately a *test* and not a step. The template's workflow enables
+    Pages itself now (`configure-pages` with `enablement: true`), so
+    there is nothing here for a reader to do - and an instruction telling
+    them to do it anyway is one more thing to misread
+    (prodockit-extensions#333).
+
+    It is last because it can only be true after a push has built the
+    site. On a first run, before anything has been pushed, "not published
+    yet" is the correct and expected answer - which is why it is worded
+    as waiting rather than as a fault.
+
+    Fetched anonymously on purpose: a Pages site is public even when the
+    repository behind it is private, so this needs no token - which is
+    what makes it checkable at all.
+    """
+    if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
+        return unknown
+    url = site_url(context)
+    if not url:
+        # A self-hosted GitLab publishes wherever its administrator
+        # decided, so there is no address to try. Not a finding - leaving
+        # every Surrey run permanently one stage short would be worse
+        # than the gap it reports - but the detail says it was not
+        # checked, rather than implying a site was found.
+        return _ok(f"not checked - {context.host.hostname} publishes at no fixed address")
+    result = context.runner.run(
+        ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20", url]
+    )
+    if result.ok and result.stdout.strip() == "200":
+        # Said plainly, because it is the part readers get wrong: a Pages
+        # site is readable by anyone, even when the repository behind it
+        # is private. Only an Enterprise plan can restrict who sees it, so
+        # on any other plan "private repository" does not mean "private
+        # site" - and drafts in docs/ are published as soon as they build.
+        return _ok(f"Pages is enabled - {url} (public: anyone with the link can read it)")
+    return _missing(f"{url} is not answering yet")
+
+
+def _plan_site_published(context: Context) -> Plan:
+    """Nothing to run - the site appears once a build has published it."""
+    url = site_url(context)
+    return Plan(
+        instructions=[
+            f"Push your first commit, and the workflow will publish {url}.",
+            "It enables Pages itself, so there is nothing to switch on.",
+            "The site will be public. A private repository does not make a "
+            "private site - only a GitHub Enterprise plan can restrict who "
+            "reads one - so anything in docs/ is readable by anyone with the "
+            "link from the moment it builds.",
+            "If the site is still missing after a successful build, check "
+            "Settings > Pages: an organisation policy can forbid Pages "
+            "entirely, and that is the one case the workflow cannot fix.",
+        ],
+        confirm="Has your first build published the site?",
+    )
+
+
 STAGES: tuple[Stage, ...] = (
     Stage("vscode", "Visual Studio Code", _check_vscode, _plan_vscode),
     Stage("git", "Git, installed and configured", _check_git, _plan_git),
@@ -2316,4 +2391,13 @@ STAGES: tuple[Stage, ...] = (
     # After node, because the bundle is copied out of what `npm ci` put
     # in tools/mathjax (#263).
     Stage("mathjax", "MathJax for the website", _check_mathjax, _plan_mathjax),
+    # Last of all, because it can only be true once a push has built the
+    # site - and it is a test rather than a step: the workflow enables
+    # Pages itself (#333).
+    Stage(
+        "site",
+        "Documentation site published",
+        _check_site_published,
+        _plan_site_published,
+    ),
 )

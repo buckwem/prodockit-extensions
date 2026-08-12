@@ -106,6 +106,12 @@ class Host:
     #: followed "set it to Private" on a free account got a repository
     #: whose site could never build (prodockit-extensions#324).
     project_visibility: str = "Set visibility to Private."
+    #: Where this host publishes a project's site, as a template taking
+    #: `namespace` and `project`. Blank where it cannot be worked out -
+    #: a self-hosted GitLab publishes wherever its administrator decided,
+    #: and guessing would send a reader to a URL that was never going to
+    #: answer. The stage that checks it simply does not apply there.
+    pages_url: str = ""
     #: Anything else to do in the browser once the project exists, as
     #: numbered steps. GitHub needs Pages switching on by hand; GitLab's
     #: CI job configures its own, so this is empty there.
@@ -163,6 +169,7 @@ GITLAB_COM = Host(
         "key stops `git push` with a permission error that reads like a "
         "misconfigured key rather than an expired one, months after you set it up.",
     ),
+    pages_url="https://{namespace}.gitlab.io/{project}/",
     supported=False,
 )
 
@@ -184,6 +191,7 @@ GITHUB_COM = Host(
     ssh_key_save_label="Add SSH key",
     project_word="repository",
     group_word="organisation",
+    pages_url="https://{namespace}.github.io/{project}/",
     project_visibility=(
         "Set visibility to Private.\n"
         "The repository stays private; the site built from it does not. "

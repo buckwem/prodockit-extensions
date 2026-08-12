@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Added: a nineteenth stage** that checks the documentation site is
+  actually published
+  ([#333](https://github.com/buckwem/prodockit-extensions/issues/333)).
+
+    A test rather than a step. The template's workflow enables Pages
+    itself now, so there is nothing for a reader to switch on - and an
+    instruction telling them to anyway is one more thing to rush past,
+    which is how two projects reached a red first build.
+
+    Last of all, because it can only be true once a push has built the
+    site. Fetched anonymously: a Pages site answers to anyone even when
+    the repository behind it is private, which is what makes it checkable
+    without a token at all.
+
+    The `ok` message says the site is **public**, because that is the
+    part readers get wrong: a private repository does not make a private
+    site - only a GitHub Enterprise plan can restrict who reads one - so
+    anything in `docs/` is readable from the moment it builds.
+
+    A host that publishes at no address bootstrap can work out - a
+    self-hosted GitLab - reports `not checked` rather than claiming a
+    site was found.
+
 - **Changed:** where the project comes from is decided at `--configure`
   time, as a question naming every path
   ([#332](https://github.com/buckwem/prodockit-extensions/issues/332)).

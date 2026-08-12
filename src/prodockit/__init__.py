@@ -33,7 +33,7 @@ Zensical doesn't provide out of the box, each usable independently:
   content and config, one file per page, into ``docs_dir`` - for a
   submission needing the underlying source alongside the rendered
   document, without paying for both PDFs on every build.
-- ``prodockit.bootstrap`` - set a new machine up from scratch, as eighteen
+- ``prodockit.bootstrap`` - set a new machine up from scratch, as nineteen
   stages that can each be checked and repaired individually rather than a
   long sequence of instructions followed once and hoped over. Run
   ``prodockit bootstrap`` to report what is set up, ``--dry-run`` to see
