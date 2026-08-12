@@ -149,6 +149,10 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         "import zensical": CommandResult(0),
         "fc-list": CommandResult(0, "Inter\nJetBrains Mono\nDejaVu Sans\n"),
         "config core.fileMode": CommandResult(0, "false\n"),
+        # A finished project has nothing uncommitted and something on the
+        # remote - without both, the first-push stage is rightly not done.
+        "status --porcelain": CommandResult(0, ""),
+        "ls-remote origin HEAD": CommandResult(0, "abc123\tHEAD\n"),
         "import weasyprint": CommandResult(0),
         **AGENT_RESPONSES,
     }
@@ -2568,6 +2572,7 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "ssh-upload": None,
     "clone": ("the clone",),
     "fresh-history": ("a history of its own", "core.fileMode"),
+    "first-push": ("the commit", "the push"),
     "own-project": None,
     # Nothing to run: the workflow publishes the site, and this only
     # asks whether it did (#333).
@@ -4728,3 +4733,69 @@ def test_the_questions_say_how_many_there_are(
 
     assert "1/8 The git host" in result.output
     assert "6/8 Your project name" in result.output
+
+
+def test_the_project_is_committed_and_pushed(tmp_path: Path) -> None:
+    """Everything before this left a working project on one machine and
+    an empty repository on the host. The push is what makes it real -
+    it builds the site, and it is what the next machine clones (#339)."""
+    machine = _ready_machine(tmp_path)
+    machine["status --porcelain"] = CommandResult(0, " M docs/index.md\n")
+    plan = next(s for s in STAGES if s.id == "first-push").plan(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert [c[:2] for c in plan.commands] == [
+        ["git", "add"], ["git", "commit"], ["git", "push"]
+    ]
+    assert plan.commands[-1] == ["git", "push", "-u", "origin", "main"]
+    assert plan.confirm.endswith("?")
+
+
+def test_uncommitted_work_is_what_makes_it_outstanding(tmp_path: Path) -> None:
+    machine = _ready_machine(tmp_path)
+    machine["status --porcelain"] = CommandResult(0, " M zensical.toml\n")
+    result = next(s for s in STAGES if s.id == "first-push").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.MISSING
+    assert "never been committed" in result.detail
+
+
+def test_an_empty_remote_is_reported_even_with_a_clean_tree(tmp_path: Path) -> None:
+    """A reset history leaves a clean tree and nothing on the host - the
+    state that had a reader publishing by hand from VS Code."""
+    machine = _ready_machine(tmp_path)
+    machine["ls-remote origin HEAD"] = CommandResult(0, "")
+    result = next(s for s in STAGES if s.id == "first-push").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.MISSING
+    assert "still empty" in result.detail
+
+
+def test_pushing_waits_for_a_clone_and_a_remote(tmp_path: Path) -> None:
+    """Committing into a directory that is not a repository, or pushing
+    to a remote that was never set, cannot be a plan worth running."""
+    save(tmp_path / "b.toml", _config())
+    no_clone = next(s for s in STAGES if s.id == "first-push").check(_context(tmp_path))
+    assert no_clone.status is Status.BLOCKED
+    assert "no clone yet" in no_clone.detail
+
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(128, stderr="No such remote")
+    no_origin = next(s for s in STAGES if s.id == "first-push").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+    assert no_origin.status is Status.BLOCKED
+    assert "no origin yet" in no_origin.detail
+
+
+def test_the_push_comes_before_the_site_is_checked() -> None:
+    """The push is what builds the site, so checking the site first would
+    report a fault that the very next stage fixes."""
+    ids = [s.id for s in STAGES]
+    assert ids.index("first-push") < ids.index("site")
+    assert ids.index("first-push") > ids.index("remote"), "there must be an origin to push to"

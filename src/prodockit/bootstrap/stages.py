@@ -2346,6 +2346,67 @@ def _plan_site_published(context: Context) -> Plan:
     )
 
 
+# ---------------------------------------------------------------------------
+# 19. The first commit, pushed - what actually publishes the project
+# ---------------------------------------------------------------------------
+
+
+def _check_first_push(context: Context) -> CheckResult:
+    """Whether the project has been committed and pushed to its remote.
+
+    Everything before this leaves a working project on one machine and an
+    empty repository on the host. The push is what makes it real: it is
+    what builds the site, and what the next machine clones
+    (prodockit-extensions#339).
+
+    Placed after the local setup stages deliberately, so the first commit
+    carries the CSL style, the MathJax bundle and the VS Code settings
+    rather than needing a second commit for them.
+    """
+    if (unknown := _needs_config(context, "project_name")) is not None:
+        return unknown
+    project = context.config.resolved_project_dir(context.home)
+    if not (project / ".git").exists():
+        return _blocked("there is no clone yet - do the 'Project cloned' stage first")
+    origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"])
+    if not origin.ok:
+        return _blocked("no origin yet - do the 'Clone pointed at your project' stage first")
+    pending = context.runner.run(["git", "-C", str(project), "status", "--porcelain"])
+    if pending.ok and pending.stdout.strip():
+        return _missing("there is work here that has never been committed")
+    remote = context.runner.run(["git", "-C", str(project), "ls-remote", "origin", "HEAD"])
+    if not remote.ok:
+        return _wrong("could not reach origin to see what is there")
+    if not remote.stdout.strip():
+        return _missing(f"{project.name} is still empty on {context.host.hostname}")
+    return _ok(f"pushed to {context.host.hostname}")
+
+
+def _plan_first_push(context: Context) -> Plan:
+    """Commit everything and push it.
+
+    `git add -A` is right here and nowhere else: this runs once, on a
+    project whose entire contents bootstrap has just assembled, so there
+    is nothing of the reader's it could sweep up by accident. The
+    `.gitignore` the template ships keeps the virtualenv, node_modules
+    and the fonts out.
+    """
+    project = context.config.resolved_project_dir(context.home)
+    return Plan(
+        cwd=str(project),
+        commands=[
+            ["git", "add", "-A"],
+            ["git", "commit", "-m", "Initial commit"],
+            ["git", "push", "-u", "origin", "main"],
+        ],
+        instructions=[
+            "This commits everything in the project and pushes it, which is "
+            "what publishes the site.",
+        ],
+        confirm="Commit and push the project?",
+    )
+
+
 STAGES: tuple[Stage, ...] = (
     Stage("vscode", "Visual Studio Code", _check_vscode, _plan_vscode),
     Stage("git", "Git, installed and configured", _check_git, _plan_git),
@@ -2400,6 +2461,8 @@ STAGES: tuple[Stage, ...] = (
     # Last of all, because it can only be true once a push has built the
     # site - and it is a test rather than a step: the workflow enables
     # Pages itself (#333).
+    # Before the site check, because the push is what builds the site.
+    Stage("first-push", "First commit pushed", _check_first_push, _plan_first_push),
     Stage(
         "site",
         "Documentation site published",

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Added: a twentieth stage** that makes the first commit and pushes it
+  ([#339](https://github.com/buckwem/prodockit-extensions/issues/339)).
+
+    Everything before it left a working project on one machine and an
+    empty repository on the host - and a reader trying to finish the job
+    from VS Code's "Publish Branch" could not, because that creates a
+    repository and theirs already existed.
+
+    It runs after the local setup stages, so the first commit carries the
+    CSL style, the MathJax bundle and the VS Code settings rather than
+    needing a second commit for them, and before the site check, because
+    the push is what builds the site.
+
+    It waits on the clone and on `origin`: committing into a directory
+    that is not a repository, or pushing to a remote that was never set,
+    cannot be a plan worth running.
+
 ## 0.28.1 (2026-08-12)
 
 - **Fixed:** the "your own project" stage could loop for ever, and still

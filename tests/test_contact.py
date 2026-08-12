@@ -168,9 +168,14 @@ def test_the_memo_distinguishes_working_directories() -> None:
 def test_a_check_pass_on_a_finished_machine_costs_two_logins(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """The measurement #304 asked for, on the real stage list.
 
-    One `ssh -T` and one `git ls-remote`, both genuinely different
-    questions - so there is nothing here for the memo to save, and the
+    Three now: one `ssh -T`, one `git ls-remote` for the project, and one
+    against `origin` for the first-push stage. All genuinely different
+    questions, so there is nothing here for the memo to save, and the
     number is the honest floor for a pass.
+
+    It is worth watching. Every stage that asks the host something adds
+    to what a run costs, and #304 exists because that number got away
+    from the tool once already.
     """
     from test_bootstrap import FakeRunner, _context, _ready_machine
 
@@ -179,8 +184,8 @@ def test_a_check_pass_on_a_finished_machine_costs_two_logins(tmp_path) -> None: 
     context = _context(tmp_path, runner=FakeRunner(_ready_machine(tmp_path)))
     check_all(context)
 
-    assert context.contacts.made == 2
-    assert context.contacts.reused == 0, "two different questions"
+    assert context.contacts.made == 3
+    assert context.contacts.reused == 0, "three different questions"
 
 
 def test_planning_a_broken_ssh_stage_reuses_the_probe(tmp_path) -> None:  # type: ignore[no-untyped-def]
