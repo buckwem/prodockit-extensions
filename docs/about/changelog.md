@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 0.29.0 (2026-08-12)
+
+- **Changed:** CI caches the pandoc download, so an outage at the release
+  CDN cannot stop a build.
+
+    It returned `503` for hours one evening and failed every job in the
+    matrix before a single test ran, three times across three branches.
+    The retry added earlier rides out a blip and did not help with that:
+    it fired five times and still gave up.
+
+    Keyed on the pinned version, so a bump fetches afresh and an
+    unchanged pin never touches the network again. The retry stays for
+    the first run on a new key, and for the day the cache is evicted - a
+    cache is a saving, not a guarantee.
+
+    Only affects building this project; nothing in the package changes.
+
 - **Fixed:** a repository bootstrap could not reach was reported as not
   existing, and a partial run never asked where the project comes from
   ([#344](https://github.com/buckwem/prodockit-extensions/issues/344)).
@@ -56,7 +73,7 @@
     could not look, rather than guessing - the site check at the end of
     the run is the honest test either way.
 
-- **Added: a twentieth stage** that makes the first commit and pushes it
+- **Added: a stage** that makes the first commit and pushes it
   ([#339](https://github.com/buckwem/prodockit-extensions/issues/339)).
 
     Everything before it left a working project on one machine and an
