@@ -1137,6 +1137,30 @@ def _plan_clone(context: Context) -> Plan:
     )
 
 
+def _ls_remote_own_project(context: Context) -> CommandResult | None:
+    """`git ls-remote` against the reader's own project, or None."""
+    namespace = context.config.namespace.strip()
+    project = context.config.project_name.strip()
+    if not (namespace and project):
+        return None
+    return context.runner.run(["git", "ls-remote", context.host.remote_url(namespace, project)])
+
+
+def own_project_exists(context: Context) -> bool:
+    """Whether the reader's own project is there at all, empty or not.
+
+    Asked separately from `own_project_has_content` because an *empty*
+    issued repository still matters. A taught module creates one per
+    student with permissions already set - the instructor can see it, the
+    other students cannot - and those permissions belong to that
+    repository, not to its contents. Making a new one instead would
+    quietly publish a student's work to the wrong audience
+    (prodockit-extensions#332).
+    """
+    result = _ls_remote_own_project(context)
+    return result is not None and result.ok
+
+
 def own_project_has_content(context: Context) -> bool:
     """Whether the reader's own project exists on the host *and* has commits.
 
@@ -1153,12 +1177,8 @@ def own_project_has_content(context: Context) -> bool:
     since #304 the answer is remembered within a pass, so asking here
     costs nothing beyond the first time.
     """
-    namespace = context.config.namespace.strip()
-    project = context.config.project_name.strip()
-    if not (namespace and project):
-        return False
-    result = context.runner.run(["git", "ls-remote", context.host.remote_url(namespace, project)])
-    return result.ok and bool(result.stdout.strip())
+    result = _ls_remote_own_project(context)
+    return result is not None and result.ok and bool(result.stdout.strip())
 
 
 def clone_source(context: Context) -> str:

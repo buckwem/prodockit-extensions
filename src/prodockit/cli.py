@@ -47,6 +47,7 @@ from prodockit.bootstrap import (
     host_problem,
     missing_keys,
     needs_sudo,
+    own_project_exists,
     own_project_has_content,
     plan_all,
     question_for,
@@ -202,10 +203,24 @@ def _explain_existing_project(config: BootstrapConfig) -> bool:
     host = config.host
 
     if not own_project_has_content(context):
-        # Nothing to choose between: an empty or absent repository has no
-        # contents to keep, and cloning it would leave nothing to work on.
-        # Said anyway, so the template is never a silent decision.
-        click.echo(f"\n  {name} has no content on {host} yet, so the template will be used.\n")
+        # No decision here, because there is nothing to decide between: an
+        # empty repository has no contents to keep, and cloning it would
+        # leave no zensical.toml, no requirements.txt and no tools/ - every
+        # later stage would fail on the absence.
+        #
+        # The permissions an issued repository carries are not lost by
+        # this. They belong to the repository on the host, and the remote
+        # stage points `origin` at it either way - so a student's work
+        # still lands where their instructor can see it and their
+        # classmates cannot. Said out loud, because "the template will be
+        # used" on its own reads as though the issued repository were
+        # being ignored.
+        state = "is empty" if own_project_exists(context) else "does not exist yet"
+        click.echo(
+            f"\n  {name} {state} on {host}, so the template will be used for the\n"
+            f"  contents. Your work will still be pushed to {name}, which keeps\n"
+            "  whatever permissions were set on it.\n"
+        )
         config.source_url = ""
         config.history = ""
         return True
@@ -221,8 +236,10 @@ def _explain_existing_project(config: BootstrapConfig) -> bool:
         "     and set up a new remote repo"
     )
     click.echo(
-        "  3. start from the template instead, discarding nothing on the host -\n"
-        f"     but a first push would then replace what is in {name}\n"
+        "  3. start from the template in a new repository of your own.\n"
+        f"     Choose this only if {name} is not the repository your work belongs\n"
+        "     in - a repository issued to you carries the permissions that decide\n"
+        "     who can read it, and a new one will not have them.\n"
     )
     choice = click.prompt(
         "  Select 1, 2 or 3", type=click.Choice(["1", "2", "3"]), show_choices=False

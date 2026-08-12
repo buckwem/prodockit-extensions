@@ -28,6 +28,15 @@
     nothing else is chosen, and a reader who cannot see it among the
     options has to infer it from the absence of anything else.
 
+    A repository that is empty, or not there at all, is a *message*
+    rather than a question: cloning an empty one would leave no
+    `zensical.toml`, no `requirements.txt` and no `tools/`, so every
+    later stage would fail on the absence. The permissions an issued
+    repository carries are not lost by that - they belong to the
+    repository on the host, and `origin` is pointed at it either way,
+    which the message says so it does not read as the repository being
+    ignored.
+
     **No default.** One answer deletes commits that cannot be recovered,
     and none of them is safe enough to be taken by pressing Enter.
 

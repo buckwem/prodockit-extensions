@@ -4558,9 +4558,19 @@ def test_an_own_history_clone_is_never_offered_the_reset(tmp_path: Path) -> None
     assert not any("rm -rf" in " ".join(c) for c in plan.commands)
 
 
-def _configured(cli_bootstrap, monkeypatch, *, has_content: bool, answer: str) -> object:
+def _configured(
+    cli_bootstrap, monkeypatch, *, answer: str, exists: bool = True, has_content: bool = True
+) -> object:
+    """A `--configure` run against a described host.
+
+    `exists` and `has_content` are separate because an *empty* issued
+    repository is still a decision: its permissions are what decide who
+    can read the work, and they belong to the repository rather than to
+    its contents (#332).
+    """
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+    monkeypatch.setattr("prodockit.cli.own_project_exists", lambda context: exists)
     monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: has_content)
     return cli_bootstrap(
         "--configure",
@@ -4574,7 +4584,7 @@ def test_all_three_paths_are_named_in_the_question(
     """Including the template. It is what happens when nothing else is
     chosen, and a reader who cannot see it among the options has to infer
     it from the absence of anything else (#332)."""
-    result = _configured(cli_bootstrap, monkeypatch, has_content=True, answer="1")
+    result = _configured(cli_bootstrap, monkeypatch, answer="1")
 
     assert "already exists on github.com and has content in it" in result.output
     assert "leave the existing git records" in result.output
@@ -4585,7 +4595,7 @@ def test_all_three_paths_are_named_in_the_question(
 def test_keeping_the_history_is_recorded(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _configured(cli_bootstrap, monkeypatch, has_content=True, answer="1")
+    _configured(cli_bootstrap, monkeypatch, answer="1")
     config = load(tmp_path / "b.toml")
 
     assert config.source_url == "buckwem/report-windows-v1", "qualified, as a clone needs"
@@ -4597,7 +4607,7 @@ def test_starting_again_still_clones_the_repository(
 ) -> None:
     """Somebody starting again still wants the contents that are already
     there - which is what "existing project or template" got wrong."""
-    _configured(cli_bootstrap, monkeypatch, has_content=True, answer="2")
+    _configured(cli_bootstrap, monkeypatch, answer="2")
     config = load(tmp_path / "b.toml")
 
     assert config.source_url == "buckwem/report-windows-v1"
@@ -4607,7 +4617,7 @@ def test_starting_again_still_clones_the_repository(
 def test_choosing_the_template_records_neither(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _configured(cli_bootstrap, monkeypatch, has_content=True, answer="3")
+    _configured(cli_bootstrap, monkeypatch, answer="3")
     config = load(tmp_path / "b.toml")
 
     assert config.source_url == ""
@@ -4619,27 +4629,46 @@ def test_the_question_has_no_default(
 ) -> None:
     """One answer deletes commits that cannot be recovered, and none of
     them is safe enough to be taken by pressing Enter."""
-    result = _configured(cli_bootstrap, monkeypatch, has_content=True, answer="\n2")
+    result = _configured(cli_bootstrap, monkeypatch, answer="\n2")
 
     assert "Select 1, 2 or 3" in result.output
     assert result.output.count("Select 1, 2 or 3") > 1, "a blank answer asks again"
 
 
-def test_a_project_with_no_work_in_it_is_not_offered(
+def test_an_empty_repository_gets_the_template_and_keeps_its_permissions(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An empty repository is the ordinary first run, and needs the
-    template. Offering to clone it would leave nothing to work on."""
-    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
-    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
-    monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: False)
+    """Cloning an empty repository would leave no zensical.toml, no
+    requirements.txt and no tools/ - every later stage would fail on the
+    absence. So the template supplies the contents.
 
-    result = cli_bootstrap(
-        "--configure",
-        input="github.com\nAda\na@b.c\nbuckwem\nbuckwem\nreport-windows-v1\n\n\n",
+    The permissions an issued repository carries are not lost by that:
+    they belong to the repository on the host, and the remote stage points
+    `origin` at it either way. Said out loud, because "the template will
+    be used" alone reads as though the issued repository were being
+    ignored (#332).
+    """
+    result = _configured(
+        cli_bootstrap, monkeypatch, answer="", exists=True, has_content=False
     )
 
-    assert "already exists" not in result.output
+    assert "is empty on github.com" in result.output
+    assert "keeps" in result.output and "permissions" in result.output
+    assert "Select 1, 2 or 3" not in result.output, "nothing to decide between"
+    assert load(tmp_path / "b.toml").source_url == ""
+
+
+def test_a_repository_that_is_not_there_says_so_differently(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """"Does not exist yet" and "is empty" are different states, and a
+    reader checking whether they created the thing needs to be told
+    which."""
+    result = _configured(
+        cli_bootstrap, monkeypatch, answer="", exists=False, has_content=False
+    )
+
+    assert "does not exist yet on github.com" in result.output
     assert load(tmp_path / "b.toml").source_url == ""
 
 
