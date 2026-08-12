@@ -4556,3 +4556,77 @@ def test_an_own_history_clone_is_never_offered_the_reset(tmp_path: Path) -> None
     assert plan.commands == [["git", "config", "core.fileMode", "false"]]
     assert not plan.destructive, "nothing here destroys anything"
     assert not any("rm -rf" in " ".join(c) for c in plan.commands)
+
+
+def test_configure_offers_the_existing_project_before_the_run_starts(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reader cannot know this without looking - the repository is on
+    the host, not on the machine in front of them. Asked at configure
+    time so the decision is recorded once, rather than mid-run where it is
+    answered and forgotten (#332)."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+    monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: True)
+
+    result = cli_bootstrap(
+        "--configure",
+        input="github.com\nAda\na@b.c\nbuckwem\nbuckwem\nreport-windows-v1\n\n\n",
+    )
+
+    assert "already exists on github.com and has work in it" in result.output
+    assert "nothing" in result.output and "delete it" in result.output
+    assert "start from the template instead" in result.output
+
+
+def test_the_existing_project_is_the_offered_default(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Adopting existing work is what someone with an existing project
+    almost always means, and it is the answer that cannot lose anything -
+    so pressing Enter takes it."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+    monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: True)
+
+    cli_bootstrap(
+        "--configure",
+        input="github.com\nAda\na@b.c\nbuckwem\nbuckwem\nreport-windows-v1\n\n\n",
+    )
+
+    assert load(tmp_path / "b.toml").source_url == "report-windows-v1"
+
+
+def test_a_project_with_no_work_in_it_is_not_offered(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty repository is the ordinary first run, and needs the
+    template. Offering to clone it would leave nothing to work on."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+    monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: False)
+
+    result = cli_bootstrap(
+        "--configure",
+        input="github.com\nAda\na@b.c\nbuckwem\nbuckwem\nreport-windows-v1\n\n\n",
+    )
+
+    assert "already exists" not in result.output
+    assert load(tmp_path / "b.toml").source_url == ""
+
+
+def test_a_recorded_decision_means_no_prompt_during_the_run(tmp_path: Path) -> None:
+    """The point of moving it. Once `source_url` is set the clone stage
+    has nothing to ask, so the run has one less thing to interrupt for."""
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    plan = next(s for s in STAGES if s.id == "clone").plan(
+        _context(
+            tmp_path, host="github.com", namespace="buckwem",
+            project_name="report-windows-v1", source_url="report-windows-v1",
+            runner=FakeRunner(machine),
+        )
+    )
+
+    assert not plan.instructions, "the decision was already made"
+    assert "report-windows-v1.git" in " ".join(plan.commands[0])

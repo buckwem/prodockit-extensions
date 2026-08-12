@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Changed:** whether to adopt an existing project is decided at
+  `--configure` time, not mid-run
+  ([#332](https://github.com/buckwem/prodockit-extensions/issues/332)).
+
+    When the configured project already exists on the host with work in
+    it, `--configure` says so and offers it as the answer to "existing
+    repository to clone instead of the template", with what each choice
+    leads to. Adopting is the default: it is what someone with an
+    existing project almost always means, and the only answer that cannot
+    lose anything.
+
+    A prompt during `--apply` was answered once and forgotten, so a rerun
+    asked again and declining left a stage undone with nowhere to go.
+    Recorded as configuration it survives, appears in the report as a
+    setting rather than an inference, and leaves nothing surprising to
+    decide while commands are running.
+
 - **Fixed:** the history stage offered to delete a project's real
   history because `core.fileMode` was unset, and adopting an existing
   repository happened silently

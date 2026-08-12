@@ -47,6 +47,7 @@ from prodockit.bootstrap import (
     host_problem,
     missing_keys,
     needs_sudo,
+    own_project_has_content,
     plan_all,
     question_for,
 )
@@ -131,6 +132,15 @@ def _ask_for_configuration(
     wanted = [(k, q) for k, q in PROMPTS if only is None or k in only]
     click.echo("\nPress Enter to keep the value in brackets.\n")
     for key, question in wanted:
+        # Asked here rather than mid-run. A prompt during `--apply` is
+        # answered once and forgotten, so a rerun asks again, and
+        # declining leaves a stage undone with nowhere to go. Recorded as
+        # configuration, the decision survives, shows in the report as a
+        # setting rather than an inference, and leaves nothing surprising
+        # to decide while commands are running
+        # (prodockit-extensions#332).
+        if key == "source_url" and not config.source_url.strip():
+            _explain_existing_project(config)
         while True:
             # `default_for` fills a blank answer from one already given, so
             # a first run still has something sensible to press Enter on.
@@ -155,6 +165,36 @@ def _ask_for_configuration(
     # somewhere else.
     config.project_dir = str(config.resolved_project_dir(Path.home()))
     return config
+
+
+def _explain_existing_project(config: BootstrapConfig) -> None:
+    """Says so when the project already exists on the host, and offers it.
+
+    The reader is the only one who knows which case they are in, but they
+    cannot know this one without looking: the repository is on the host,
+    not on the machine in front of them. Told plainly here, with what each
+    answer leads to, so the choice is made once and with the consequences
+    visible.
+    """
+    try:
+        context = build_bootstrap_context(config)
+    except UnsupportedHostError:
+        return
+    if not own_project_has_content(context):
+        return
+    name = config.project_name.strip()
+    click.echo(
+        f"  {name} already exists on {config.host} and has work in it.\n"
+        f"  Answer {name!r} to bring that work here, with its history - nothing\n"
+        "  will offer to delete it.\n"
+        "  Leave this blank to start from the template instead: its history is\n"
+        "  then deleted and a new repository started, and pushing that would\n"
+        f"  replace what is on {config.host}.\n"
+    )
+    # Offered as the default, because adopting existing work is almost
+    # always what someone with an existing project means - and it is the
+    # answer that cannot lose anything.
+    config.source_url = name
 
 
 def _host_answer_problem(answer: str) -> str | None:

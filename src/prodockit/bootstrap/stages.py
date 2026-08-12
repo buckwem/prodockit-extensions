@@ -1137,7 +1137,7 @@ def _plan_clone(context: Context) -> Plan:
     )
 
 
-def _own_project_has_content(context: Context) -> bool:
+def own_project_has_content(context: Context) -> bool:
     """Whether the reader's own project exists on the host *and* has commits.
 
     The distinction matters. A project created in the browser and never
@@ -1189,7 +1189,7 @@ def clone_source(context: Context) -> str:
         # cloning the template over it gave the reader template content in
         # a checkout whose origin was then repointed at their real work.
         # Nothing errored; every stage reported done (#327).
-        if _own_project_has_content(context):
+        if own_project_has_content(context):
             return context.host.remote_url(
                 context.config.namespace.strip(), context.config.project_name.strip()
             )
