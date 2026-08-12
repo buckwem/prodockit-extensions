@@ -61,7 +61,7 @@ jobs:
           curl libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
       # Upstream release rather than the image's package - see PANDOC_VERSION.
       - run: |
-          curl -fsSL -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 20 -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
           sudo apt install -y /tmp/pandoc.deb
       # weasyprint on top of [dev]: tests/test_pdf_build.py's
       # `real_pandoc_and_weasyprint_required` cases render a real PDF and
