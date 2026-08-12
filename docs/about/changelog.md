@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Fixed:** the history stage offered to delete a project's real
+  history because `core.fileMode` was unset, and adopting an existing
+  repository happened silently
+  ([#332](https://github.com/buckwem/prodockit-extensions/issues/332)).
+
+    On a clone that already carried its own history, the stage reported
+    wrong only because `core.fileMode` was off - and its plan was still
+    `rm -rf .git`. Its plan is now that one setting and nothing else, and
+    is not marked destructive, because nothing there destroys anything.
+
+    Adopting an existing project is put to the reader, saying what each
+    answer means: cloning brings their work and its history, and the
+    history stage will not offer to delete it; answering no takes the
+    template, whose history that stage then deletes with `git init -b
+    main`.
+
+    The report says which repository was used - `from the template` or
+    `your own project` - so the decision is still visible once the prompt
+    has scrolled away.
+
 - **Fixed:** answering no to the history reset showed the commands
   anyway ([#330](https://github.com/buckwem/prodockit-extensions/issues/330)).
 

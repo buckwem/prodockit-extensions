@@ -1076,7 +1076,14 @@ def _check_clone(context: Context) -> CheckResult:
         return _missing(f"{project} does not exist")
     if not (project / ".git").exists():
         return _wrong(f"{project} exists but is not a git repository")
-    return _ok(str(project))
+    # Which repository this came from decides which path the rest of the
+    # run takes - whether the history stage offers a reset, and whether
+    # the reader's existing work is here at all. Saying only the path left
+    # that invisible in the final report, where it is the one place a
+    # reader can check what was decided (prodockit-extensions#332).
+    if _origin_is_the_template(context):
+        return _ok(f"{project} - from the template")
+    return _ok(f"{project} - your own project")
 
 
 def _plan_clone(context: Context) -> Plan:
@@ -1098,11 +1105,36 @@ def _plan_clone(context: Context) -> Plan:
     reports `ok` and does nothing.
     """
     project = context.config.resolved_project_dir(context.home)
-    # Which repository was chosen is visible without saying it twice:
-    # the command carries the URL, and both `--dry-run` and the apply
-    # prompt print it in full. An instruction line repeating it would
-    # also make this read as a manual step, which it is not (#327).
-    return Plan(commands=[["git", "clone", clone_source(context), str(project)]])
+    source = clone_source(context)
+    clone = [["git", "clone", source, str(project)]]
+    if source == context.host.template_remote or context.config.source_url.strip():
+        # The template, or a repository the reader named themselves.
+        # Neither is a surprise, and the command carries the URL.
+        return Plan(commands=clone)
+
+    # Adopted by detection rather than asked for, so it is put to the
+    # reader with what each answer means. Which repository is used decides
+    # whether their existing work arrives or a fresh template lands on top
+    # of it, and that is too big a thing to infer silently
+    # (prodockit-extensions#332).
+    host = context.host
+    project_name = context.config.project_name.strip()
+    return Plan(
+        commands=clone,
+        instructions=[
+            f"{project_name} already exists on {host.hostname} and has work in it.",
+            "Cloning it brings that work to this machine, with its history - "
+            "and the 'A history of your own' stage will not offer to delete it, "
+            "because the history is already yours.",
+            "Answering no starts from the template instead: a fresh copy of it "
+            "is cloned, and the 'A history of your own' stage then deletes the "
+            "template's history and runs `git init -b main`, leaving you a new "
+            f"repository with no past. Pushing that to {project_name} would "
+            "replace what is on the host - so choose it only if you mean to "
+            "start again.",
+        ],
+        confirm=f"Clone your existing {host.project_word} {project_name!r}?",
+    )
 
 
 def _own_project_has_content(context: Context) -> bool:
@@ -1244,6 +1276,17 @@ def _plan_fresh_history(context: Context) -> Plan:
     content having changed.
     """
     project = context.config.resolved_project_dir(context.home)
+    # A clone that already carries its own history has nothing to reset,
+    # and this stage's other concern - core.fileMode - is a one-line
+    # setting. Returning the reset here offered to `rm -rf .git` on the
+    # reader's own project because a git *option* was unset: the exact
+    # mistake `_check_fresh_history` says this stage must never make
+    # (prodockit-extensions#332).
+    if not _origin_is_the_template(context):
+        return Plan(
+            cwd=str(project),
+            commands=[["git", "config", "core.fileMode", "false"]],
+        )
     git_dir = project / ".git"
     remove = (
         ["powershell", "-NoProfile", "-Command", f"Remove-Item -Recurse -Force '{git_dir}'"]

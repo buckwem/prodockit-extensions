@@ -1267,6 +1267,10 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
         "git --version": CommandResult(0, "git version 2.43.0"),
         "git config --global user.name": CommandResult(0, "Ada\n"),
         "git config --global user.email": CommandResult(0, "a@b.c\n"),
+        # Named in the docstring above and previously missing, which left
+        # the history stage with work to do and made this helper describe
+        # a machine it does not claim to.
+        "config core.fileMode": CommandResult(0, "false\n"),
         # The reported machine: the key exists locally, the host has
         # never seen it.
         "BatchMode": CommandResult(
@@ -3127,7 +3131,15 @@ def test_every_prompt_defaults_to_yes_except_the_destructive_one(tmp_path: Path)
 
     One visible rule now: yes, unless applying it cannot be undone."""
     save(tmp_path / "b.toml", _config())
-    context = _context(tmp_path)
+    # A clone still pointing at the template - the one state in which the
+    # history reset applies at all. Anywhere else its plan is a one-line
+    # `core.fileMode` setting and destroys nothing (#332), so asking this
+    # question of a machine without that state would prove nothing.
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(
+        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
+    )
+    context = _context(tmp_path, runner=FakeRunner(machine))
     destructive = [s.id for s in STAGES if s.plan(context).destructive]
 
     assert destructive == ["fresh-history"], (
@@ -4472,3 +4484,75 @@ def test_there_is_nothing_to_reset_before_there_is_a_clone(tmp_path: Path) -> No
     assert history.result.status is Status.BLOCKED
     assert "no clone yet" in history.result.detail
     assert history.plan is None, "nothing to run on a directory that is not there"
+
+
+def _own_project_machine(tmp_path: Path) -> dict[str, CommandResult]:
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    return machine
+
+
+def test_adopting_an_existing_project_is_put_to_the_reader(tmp_path: Path) -> None:
+    """Which repository is used decides whether the reader's existing work
+    arrives or a fresh template lands on top of it. Too big a thing to
+    infer silently (#332)."""
+    plan = next(s for s in STAGES if s.id == "clone").plan(
+        _context(
+            tmp_path, host="github.com", namespace="buckwem",
+            project_name="report-windows-v1", runner=FakeRunner(_own_project_machine(tmp_path)),
+        )
+    )
+    said = "\n".join(plan.instructions)
+
+    assert plan.confirm.endswith("?")
+    assert "already exists" in said
+    assert "will not offer to delete it" in said, "say what it means for the history stage"
+    assert "git init -b main" in said, "and what answering no leads to"
+
+
+def test_the_template_and_a_named_repository_are_not_second_guessed(tmp_path: Path) -> None:
+    """Neither is a surprise: one is the default, the other was typed by
+    the reader. Only detection needs confirming."""
+    template = next(s for s in STAGES if s.id == "clone").plan(_context(tmp_path))
+    named = next(s for s in STAGES if s.id == "clone").plan(
+        _context(tmp_path, source_url="some-repo", runner=FakeRunner(_own_project_machine(tmp_path)))
+    )
+
+    assert not template.instructions
+    assert not named.instructions
+
+
+def test_the_report_says_which_repository_was_used(tmp_path: Path) -> None:
+    """The one place a reader can check what was decided, after the prompt
+    has scrolled away."""
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(
+        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
+    )
+    from_template = next(s for s in STAGES if s.id == "clone").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+    own = next(s for s in STAGES if s.id == "clone").check(
+        _context(tmp_path, runner=FakeRunner(_ready_machine(tmp_path)))
+    )
+
+    assert "from the template" in from_template.detail
+    assert "your own project" in own.detail
+
+
+def test_an_own_history_clone_is_never_offered_the_reset(tmp_path: Path) -> None:
+    """It reported wrong only because `core.fileMode` was unset, and its
+    plan was still `rm -rf .git` - offering to delete the reader's real
+    history because a git option was off (#332)."""
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(
+        0, "git@github.com:buckwem/report-windows-v1.git\n"
+    )
+    machine["config core.fileMode"] = CommandResult(0, "true\n")
+    plan = next(s for s in STAGES if s.id == "fresh-history").plan(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+
+    assert plan.commands == [["git", "config", "core.fileMode", "false"]]
+    assert not plan.destructive, "nothing here destroys anything"
+    assert not any("rm -rf" in " ".join(c) for c in plan.commands)
