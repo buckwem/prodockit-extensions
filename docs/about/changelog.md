@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.30.1 (2026-08-12)
+
 - **Fixed:** `--apply` trusted checks taken before any stage had run
   ([#351](https://github.com/buckwem/prodockit-extensions/issues/351)).
 
