@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- **Fixed:** a second machine cloned the template over a project that
+  already existed
+  ([#327](https://github.com/buckwem/prodockit-extensions/issues/327)).
+
+    Set up on one machine, pushed, then run on another, bootstrap cloned
+    the *template* - giving the reader template content in a checkout
+    whose `origin` the next stages repointed at their real work. Nothing
+    errored; every stage reported done.
+
+    The project on the host is cloned instead when it already holds
+    commits. A project that exists but is empty - created in the browser,
+    never pushed to - still gets the template, since cloning it would
+    leave nothing to work on. `git ls-remote` tells the two apart on
+    evidence rather than a flag.
+
+    This is also the case where a taught module hands a student a
+    repository that already holds their starting point. Deleting its
+    history would throw that away, so the history-reset stage is not
+    offered for a clone of the reader's own project - now asserted rather
+    than left to fall out of how `origin` happens to compare.
+
+    An explicit `source_url` still wins: detection is a default, not an
+    override.
+
 - **Added: a Documentation badge**, and dropped two that cannot work on a
   private repository
   ([#326](https://github.com/buckwem/prodockit-extensions/issues/326)).

@@ -994,14 +994,43 @@ def test_source_url_overrides_the_template(tmp_path: Path) -> None:
     assert plan.commands[0][2] == own
 
 
-def test_building_a_plan_makes_no_network_call(tmp_path: Path) -> None:
-    """`--dry-run` builds every plan, so plan-building has to stay cheap
-    and side-effect-free. An earlier version probed the host to decide
-    which repository to clone, which put a network call inside it."""
+def test_plan_building_asks_the_host_only_what_the_run_already_asks(tmp_path: Path) -> None:
+    """This rule used to be "plan-building makes no network call at all",
+    because `--dry-run` builds every plan and had to stay cheap.
+
+    It was relaxed deliberately (#327). The clone stage has to know
+    whether the reader's own project already exists, or a second machine
+    clones the template over work that is already on the host - silently,
+    with every stage reporting done. Two things make the cost nil:
+    `_check_own_project` asks this exact question one stage later, so the
+    run connects regardless; and since #304 the answer is remembered
+    within a pass.
+
+    So the rule now is narrower and still worth keeping: plan-building may
+    ask *that* question and no other.
+    """
     runner = FakeRunner()
     context = _context(tmp_path, runner=runner)
     next(s for s in STAGES if s.id == "clone").plan(context)
-    assert runner.calls == []
+
+    assert all(
+        command[:2] == ["git", "ls-remote"] for command in runner.calls
+    ), f"plan-building asked something new: {runner.calls}"
+
+
+def test_the_clone_plan_costs_no_extra_connection(tmp_path: Path) -> None:
+    """The whole justification for relaxing the rule above. If this ever
+    stops holding, the network call in plan-building is no longer free and
+    the trade has to be made again."""
+    machine = _ready_machine(tmp_path)
+    context = _context(tmp_path, runner=FakeRunner(machine))
+    stage = next(s for s in STAGES if s.id == "clone")
+
+    next(s for s in STAGES if s.id == "own-project").check(context)
+    before = context.contacts.made
+    stage.plan(context)
+
+    assert context.contacts.made == before, "answered from the pass's memo"
 
 
 def test_apply_reruns_the_check_afterwards(tmp_path: Path) -> None:
@@ -3605,7 +3634,7 @@ def test_apply_shows_the_stages_that_are_already_done(
     result = cli_bootstrap("--apply", responses=responses, input="n\n" * 40)
 
     assert "ok    Visual Studio Code" in result.output
-    assert "ok    Template cloned" in result.output
+    assert "ok    Project cloned" in result.output
 
 
 def test_apply_numbers_stages_absolutely_not_by_position_in_the_queue(
@@ -3641,7 +3670,7 @@ def test_a_stage_waiting_on_configuration_is_named_not_skipped(
 
     result = cli_bootstrap("--apply", input="n\n" * 40)
 
-    assert "?     Template cloned" in result.output
+    assert "?     Project cloned" in result.output
     assert "needs project_name" in result.output
 
 
@@ -4302,3 +4331,88 @@ def test_the_extra_steps_come_after_the_project_is_created(tmp_path: Path) -> No
     pages = next(i for i, s in enumerate(plan.instructions) if "Pages" in s)
 
     assert pages > creating
+
+
+def _host_with_project(tmp_path: Path, refs: str) -> FakeRunner:
+    """A host whose `git ls-remote` answers with `refs` for the project."""
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(0, refs)
+    return FakeRunner(machine)
+
+
+def test_a_project_that_already_has_work_is_cloned_instead_of_the_template(
+    tmp_path: Path,
+) -> None:
+    """Adding a second machine is one of the two normal ways to arrive
+    here. Cloning the template over an existing project gave the reader
+    template content in a checkout whose origin was then repointed at
+    their real work - silently, with every stage reporting done (#327)."""
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem", project_name="report-windows-v1",
+        runner=_host_with_project(tmp_path, "abc123\trefs/heads/main\n"),
+    )
+    script = " ".join(next(s for s in STAGES if s.id == "clone").plan(context).commands[0])
+
+    assert "buckwem/report-windows-v1.git" in script
+    assert "prodockit-template" not in script
+
+
+def test_an_empty_project_still_gets_the_template(tmp_path: Path) -> None:
+    """A repository created in the browser and never pushed to is the
+    ordinary first run. Cloning it would leave nothing to work on, so the
+    two cases are told apart on evidence: an empty repository answers
+    successfully and lists no refs."""
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem", project_name="report-windows-v1",
+        runner=_host_with_project(tmp_path, ""),
+    )
+    script = " ".join(next(s for s in STAGES if s.id == "clone").plan(context).commands[0])
+
+    assert "prodockit-template" in script
+
+
+def test_a_project_that_does_not_exist_gets_the_template(tmp_path: Path) -> None:
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(128, stderr="repository not found")
+    context = _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    script = " ".join(next(s for s in STAGES if s.id == "clone").plan(context).commands[0])
+
+    assert "prodockit-template" in script
+
+
+def test_an_explicit_source_url_still_wins(tmp_path: Path) -> None:
+    """Detection is a default, not an override. Someone who named a
+    repository meant it."""
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem", project_name="report-windows-v1",
+        source_url="some-other-repo",
+        runner=_host_with_project(tmp_path, "abc123\trefs/heads/main\n"),
+    )
+    script = " ".join(next(s for s in STAGES if s.id == "clone").plan(context).commands[0])
+
+    assert "some-other-repo.git" in script
+
+
+def test_a_student_given_a_repo_is_never_offered_the_history_reset(tmp_path: Path) -> None:
+    """The case this exists for: a taught module hands the student a
+    repository that already holds their starting point. Deleting its
+    history would throw that away, and there is no undo.
+
+    It holds because `fresh-history` keys off `origin` still being the
+    template, and a clone of the reader's own project never is - but it is
+    the property that matters most here, so it is asserted rather than
+    left to fall out (#311, #327).
+    """
+    own = "git@github.com:buckwem/report-windows-v1.git"
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(0, f"{own}\n")
+    machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem", project_name="report-windows-v1",
+        runner=FakeRunner(machine),
+    )
+
+    result = next(s for s in STAGES if s.id == "fresh-history").check(context)
+
+    assert result.status is Status.OK
+    assert "a history of its own" in result.detail

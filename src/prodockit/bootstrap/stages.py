@@ -1098,7 +1098,35 @@ def _plan_clone(context: Context) -> Plan:
     reports `ok` and does nothing.
     """
     project = context.config.resolved_project_dir(context.home)
+    # Which repository was chosen is visible without saying it twice:
+    # the command carries the URL, and both `--dry-run` and the apply
+    # prompt print it in full. An instruction line repeating it would
+    # also make this read as a manual step, which it is not (#327).
     return Plan(commands=[["git", "clone", clone_source(context), str(project)]])
+
+
+def _own_project_has_content(context: Context) -> bool:
+    """Whether the reader's own project exists on the host *and* has commits.
+
+    The distinction matters. A project created in the browser and never
+    pushed to is the ordinary first-run case, and it needs the template -
+    cloning an empty repository would leave nothing to work on. `git
+    ls-remote` tells them apart on evidence rather than on a flag: an
+    empty repository answers successfully and lists no refs.
+
+    This puts a network call inside plan-building, which `_plan_clone`
+    once argued against because `--dry-run` builds every plan. Two things
+    changed. `_check_own_project` already asks this exact question one
+    stage later, so the run was making the connection regardless; and
+    since #304 the answer is remembered within a pass, so asking here
+    costs nothing beyond the first time.
+    """
+    namespace = context.config.namespace.strip()
+    project = context.config.project_name.strip()
+    if not (namespace and project):
+        return False
+    result = context.runner.run(["git", "ls-remote", context.host.remote_url(namespace, project)])
+    return result.ok and bool(result.stdout.strip())
 
 
 def clone_source(context: Context) -> str:
@@ -1124,6 +1152,15 @@ def clone_source(context: Context) -> str:
     """
     given = context.config.source_url.strip()
     if not given:
+        # Adding a second machine to a project that already exists is one
+        # of the two normal ways to arrive here, not an exotic case - and
+        # cloning the template over it gave the reader template content in
+        # a checkout whose origin was then repointed at their real work.
+        # Nothing errored; every stage reported done (#327).
+        if _own_project_has_content(context):
+            return context.host.remote_url(
+                context.config.namespace.strip(), context.config.project_name.strip()
+            )
         return context.host.template_remote
     if given.startswith(("git@", "ssh://", "https://", "http://")):
         return given
@@ -2196,7 +2233,7 @@ STAGES: tuple[Stage, ...] = (
     # the host's challenge unless an agent is holding it (#246).
     Stage("ssh-agent", "Key loaded into the ssh agent", _check_ssh_agent, _plan_ssh_agent),
     Stage("ssh-upload", "SSH key on the host", _check_ssh_authenticates, _plan_ssh_upload),
-    Stage("clone", "Template cloned", _check_clone, _plan_clone),
+    Stage("clone", "Project cloned", _check_clone, _plan_clone),
     # Before the remote is set: resetting deletes .git, remotes and all,
     # so doing it afterwards would throw away the repoint (#248).
     Stage("fresh-history", "A history of your own", _check_fresh_history, _plan_fresh_history),
