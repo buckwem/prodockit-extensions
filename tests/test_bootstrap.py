@@ -2573,6 +2573,8 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "clone": ("the clone",),
     "fresh-history": ("a history of its own", "core.fileMode"),
     "first-push": ("the commit", "the push"),
+    # Guide and verify: the browser does the work, `gh` confirms it.
+    "pages": None,
     "own-project": None,
     # Nothing to run: the workflow publishes the site, and this only
     # asks whether it did (#333).
@@ -2625,6 +2627,12 @@ def test_a_stage_with_commands_is_never_satisfied_by_an_empty_machine(
             result = stage.check(context)
             if result.status is Status.UNKNOWN:
                 continue  # waiting on configuration, not on the machine
+            if stage.id == "pages" and not context.host.pages_url:
+                # Same reasoning as `site` below: Surrey publishes at no
+                # address bootstrap can work out, so there is nothing to
+                # switch on that this could look for.
+                assert "not checked" in result.detail
+                continue
             if stage.id == "site" and not context.host.pages_url:
                 # The one honest exception. A self-hosted GitLab publishes
                 # at no address bootstrap can work out, so this stage
@@ -4799,3 +4807,54 @@ def test_the_push_comes_before_the_site_is_checked() -> None:
     ids = [s.id for s in STAGES]
     assert ids.index("first-push") < ids.index("site")
     assert ids.index("first-push") > ids.index("remote"), "there must be an origin to push to"
+
+
+def test_pages_is_its_own_stage_right_after_the_project(tmp_path: Path) -> None:
+    """It was a trailing item on stage 9's list and was missed twice, at
+    a cost of a red first build whose error names the site rather than
+    the setting (#341)."""
+    ids = [s.id for s in STAGES]
+
+    assert ids.index("pages") == ids.index("own-project") + 1, "while still in the browser"
+    assert ids.index("pages") < ids.index("first-push"), "before the push it would break"
+
+
+def test_pages_is_confirmed_with_gh_when_it_is_there(tmp_path: Path) -> None:
+    """`gh` already holds a token, so bootstrap does not have to."""
+    machine = _ready_machine(tmp_path)
+    machine["gh --version"] = CommandResult(0, "gh version 2.0.0")
+    machine["gh api"] = CommandResult(0, '{"status":"built"}')
+    result = next(s for s in STAGES if s.id == "pages").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.OK
+    assert "enabled" in result.detail
+
+
+def test_pages_off_is_reported_as_off(tmp_path: Path) -> None:
+    machine = _ready_machine(tmp_path)
+    machine["gh --version"] = CommandResult(0, "gh version 2.0.0")
+    machine["gh api"] = CommandResult(1, stderr="Not Found")
+    result = next(s for s in STAGES if s.id == "pages").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.MISSING
+    assert "not switched on" in result.detail
+
+
+def test_without_gh_it_says_it_could_not_look(tmp_path: Path) -> None:
+    """There is no tokenless way to ask: the Pages API answers 404 to an
+    anonymous caller even for a public repository, and the site cannot be
+    fetched until a push has built it. Reported as unlooked-at rather
+    than guessed, and blocked so the confirm loop does not spin."""
+    machine = _ready_machine(tmp_path)
+    machine["gh --version"] = CommandResult(127, stderr="gh: not found")
+    result = next(s for s in STAGES if s.id == "pages").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.BLOCKED
+    assert "cannot check without the gh command" in result.detail
+    assert "after your first push" in result.detail, "say what does confirm it"

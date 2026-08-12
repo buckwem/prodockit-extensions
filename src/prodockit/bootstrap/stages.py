@@ -2407,6 +2407,59 @@ def _plan_first_push(context: Context) -> Plan:
     )
 
 
+# ---------------------------------------------------------------------------
+# 10. Pages switched on - asked while the reader is still in the browser
+# ---------------------------------------------------------------------------
+
+
+def _check_pages(context: Context) -> CheckResult:
+    """Whether Pages is switched on for this project.
+
+    There is no tokenless way to ask. The Pages API answers `404` to an
+    anonymous caller even for a *public* repository with Pages enabled,
+    and the published site cannot be fetched until a push has built it -
+    so before the first push nothing about this is observable from
+    outside (prodockit-extensions#341).
+
+    `gh` is asked when it is there, because it already holds a token and
+    bootstrap does not have to. Where it is not, this reports that it
+    could not look rather than guessing: stage 20 fetches the site after
+    the push, which is the honest test either way.
+    """
+    if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
+        return unknown
+    if not context.host.pages_url:
+        return _ok(f"not checked - {context.host.hostname} publishes at no fixed address")
+    if not _installed(context, "gh", "--version"):
+        return _blocked(
+            "cannot check without the gh command - the site check at the end "
+            "of the run confirms it after your first push"
+        )
+    where = f"repos/{context.config.namespace.strip()}/{context.config.project_name.strip()}/pages"
+    if context.runner.run(["gh", "api", where]).ok:
+        return _ok("Pages is enabled")
+    return _missing("Pages is not switched on for this repository")
+
+
+def _plan_pages(context: Context) -> Plan:
+    """The browser steps, put here rather than buried in stage 9.
+
+    A stage of its own because it was missed twice as a trailing item on
+    somebody else's list, and the cost of missing it is a red first
+    build whose error names the site rather than the setting.
+    """
+    return Plan(
+        instructions=[
+            "Open your repository's Settings, then Pages in the left sidebar.",
+            "Under 'Build and deployment', set Source to 'GitHub Actions'.",
+            "Without this the documentation workflow cannot publish, and every "
+            "push fails at 'Get Pages site failed' - which names the site "
+            "rather than the setting that is missing.",
+        ],
+        confirm="Have you set Pages to build from GitHub Actions?",
+    )
+
+
 STAGES: tuple[Stage, ...] = (
     Stage("vscode", "Visual Studio Code", _check_vscode, _plan_vscode),
     Stage("git", "Git, installed and configured", _check_git, _plan_git),
@@ -2424,6 +2477,10 @@ STAGES: tuple[Stage, ...] = (
     # so doing it afterwards would throw away the repoint (#248).
     Stage("fresh-history", "A history of your own", _check_fresh_history, _plan_fresh_history),
     Stage("own-project", "Your own project on the host", _check_own_project, _plan_own_project),
+    # Straight after creating the project, while the reader is still in
+    # the browser - it was missed twice as a trailing item on stage 9's
+    # list (#341).
+    Stage("pages", "Pages switched on", _check_pages, _plan_pages),
     Stage("remote", "Clone pointed at your project", _check_remote, _plan_remote),
     Stage(
         "identity",

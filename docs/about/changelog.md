@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Added: Pages is a stage of its own**, straight after creating the
+  project ([#341](https://github.com/buckwem/prodockit-extensions/issues/341)).
+
+    It was a trailing item on the "create your project" list and was
+    missed twice, at a cost of a red first build whose error names the
+    site rather than the setting. Now it is asked while the reader is
+    still in the browser, and before the push, where missing it breaks
+    the build.
+
+    Confirmed with `gh` where that is installed, since it already holds a
+    token and bootstrap does not have to. There is no tokenless way to
+    ask: the Pages API answers `404` to an anonymous caller even for a
+    *public* repository with Pages enabled, and the published site cannot
+    be fetched until a push has built it. Without `gh` the stage says it
+    could not look, rather than guessing - the site check at the end of
+    the run is the honest test either way.
+
 - **Added: a twentieth stage** that makes the first commit and pushes it
   ([#339](https://github.com/buckwem/prodockit-extensions/issues/339)).
 
