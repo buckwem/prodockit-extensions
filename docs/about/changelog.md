@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Fixed:** accepting a host's key stopped the run, even though the
+  connection had just succeeded
+  ([#316](https://github.com/buckwem/prodockit-extensions/issues/316)).
+
+    `ssh -T` against a git host exits non-zero *even when it works* -
+    there is no shell to give you, so the exit code says nothing at all.
+    The checks have always known this and match on the greeting instead,
+    but the apply loop was still reading the code:
+
+        Hi buckwem! You've successfully authenticated...
+        failed: exit status 1 - see the output above
+
+    That probe is never fatal now. A genuine rejection is still caught,
+    by the stage's own check re-running it and reading the greeting -
+    which is the one thing that can tell the two apart.
+
 ## 0.26.5 (2026-08-12)
 
 - **Fixed:** on Windows, a rerun stopped at "Git install failed" when git

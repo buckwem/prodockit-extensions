@@ -370,6 +370,24 @@ def benign_outcome(command: Sequence[str], result: CommandResult) -> bool:
     if not command:
         return False
     name = Path(command[0]).name.lower().removesuffix(".exe")
+    # `ssh -T` against a git host exits non-zero *even when it works*:
+    # there is no shell to give you, so the exit code says nothing at
+    # all. The greeting is the only signal, which is why every `Host`
+    # carries its own and why the checks match on it.
+    #
+    # The host-key stage runs exactly this as its plan, so a reader who
+    # accepted the fingerprint and authenticated successfully was told
+    # `failed: exit status 1` and the run stopped
+    # (prodockit-extensions#316):
+    #
+    #     Hi buckwem! You've successfully authenticated...
+    #     failed: exit status 1 - see the output above
+    #
+    # Never fatal here, therefore - the stage's own check re-runs the
+    # probe and reads the greeting, so a genuine failure is still caught,
+    # and by the one thing that can actually tell the difference.
+    if name == "ssh" and "-T" in command:
+        return True
     if name != "winget":
         return False
     # Windows reports these as large unsigned values; a signed

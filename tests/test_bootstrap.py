@@ -4140,3 +4140,63 @@ def test_a_clone_of_your_own_repository_is_never_blocked(tmp_path: Path) -> None
     for stage_id in ("own-project", "remote"):
         result = next(s for s in STAGES if s.id == stage_id).check(context)
         assert result.status is Status.OK, stage_id
+
+
+def test_a_successful_ssh_probe_is_never_a_failed_command() -> None:
+    """`ssh -T` against a git host exits non-zero even when it works -
+    there is no shell to give you. A reader who accepted the fingerprint
+    and authenticated was told `failed: exit status 1` (#316)."""
+    from prodockit.bootstrap import benign_outcome
+
+    greeted = CommandResult(
+        1, stderr="Hi buckwem! You've successfully authenticated, but GitHub does not provide shell access."
+    )
+    assert benign_outcome(["ssh", "-T", "-o", "ConnectTimeout=10", "git@github.com"], greeted)
+
+
+def test_a_rejected_ssh_probe_is_also_not_fatal_here(tmp_path: Path) -> None:
+    """Deliberate: the exit code cannot tell success from failure, so
+    neither case may stop the run. The stage's own check re-runs the
+    probe and reads the greeting, which is the one thing that can."""
+    from prodockit.bootstrap import benign_outcome
+
+    denied = CommandResult(255, stderr="git@github.com: Permission denied (publickey).")
+    assert benign_outcome(["ssh", "-T", "git@github.com"], denied)
+
+    machine = _ready_machine(tmp_path)
+    machine["ssh"] = denied
+    result = next(s for s in STAGES if s.id == "ssh-upload").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+    assert result.needs_work, "the check still catches it"
+
+
+def test_other_ssh_commands_are_not_excused() -> None:
+    """Only the `-T` probe has a meaningless exit code. An `ssh` doing
+    anything else is a normal command."""
+    from prodockit.bootstrap import benign_outcome
+
+    assert not benign_outcome(["ssh", "git@github.com", "some-command"], CommandResult(255))
+    assert not benign_outcome(["ssh-add", "-l"], CommandResult(1))
+
+
+def test_accepting_the_host_key_lets_the_run_continue(tmp_path: Path) -> None:
+    """End to end: the stage only *plans* the probe when the host is
+    unknown, which is the state a reader accepting a fingerprint is in -
+    so the machine has to be described that way, or the plan carries no
+    commands and this tests nothing.
+
+    The assertion is that the run is not stopped by the probe's exit
+    code. What the probe then proves is the verification's business, and
+    it is left to say so.
+    """
+    from prodockit.bootstrap import apply_stage
+
+    machine = _ready_machine(tmp_path)
+    machine["ssh"] = CommandResult(1, stderr="The authenticity of host 'github.com' can't be established.")
+    context = _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+
+    result = apply_stage(context, next(s for s in STAGES if s.id == "ssh-upload"))
+
+    assert any("ssh" in c[0] for c in result.ran), "the probe really ran"
+    assert result.failed is None, "its exit code must not stop the run"
