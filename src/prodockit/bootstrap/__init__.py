@@ -56,6 +56,7 @@ from prodockit.bootstrap.model import (
     Status,
     SubprocessRunner,
     authenticate_sudo,
+    benign_outcome,
     connection_problem,
     host_problem,
     needs_sudo,
@@ -89,6 +90,7 @@ __all__ = [
     "UnsupportedHostError",
     "apply_stage",
     "authenticate_sudo",
+    "benign_outcome",
     "build_context",
     "check_all",
     "config_path",
@@ -249,7 +251,12 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
         # the `git config` on the next line reports "git: not found"
         # (#300). Reading the registry back is what a new terminal does.
         refresh_windows_path()
-        if not outcome.ok:
+        # A non-zero exit does not always mean the goal was missed.
+        # winget reports "already installed, no upgrade available" as a
+        # failure, and stopping there abandoned the `git config` commands
+        # that followed in the same plan - leaving git installed and
+        # unconfigured, with the run blaming the install (#309).
+        if not benign_outcome(command, outcome):
             return ApplyResult(stage=stage, ran=result.ran, failed=outcome)
     return ApplyResult(stage=stage, ran=result.ran, verified=stage.check(context))
 
