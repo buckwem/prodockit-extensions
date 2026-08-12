@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.30.0 (2026-08-12)
+
 - **Fixed: the clone decision is now actually offered**, as a stage
   between the SSH stages and the clone
   ([#348](https://github.com/buckwem/prodockit-extensions/issues/348)).
