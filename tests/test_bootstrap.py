@@ -4200,3 +4200,50 @@ def test_accepting_the_host_key_lets_the_run_continue(tmp_path: Path) -> None:
 
     assert any("ssh" in c[0] for c in result.ran), "the probe really ran"
     assert result.failed is None, "its exit code must not stop the run"
+
+
+def test_the_key_plan_creates_the_ssh_directory_first(tmp_path: Path) -> None:
+    """`ssh-keygen` does not create the directory it writes into, and
+    fails naming the key rather than the missing folder (#318)."""
+    plan = next(s for s in STAGES if s.id == "ssh-key").plan(_context(tmp_path))
+    script = [" ".join(c) for c in plan.commands]
+
+    assert any("mkdir" in c for c in script), "the directory has to exist first"
+    assert script.index(next(c for c in script if "mkdir" in c)) < script.index(
+        next(c for c in script if "ssh-keygen" in c)
+    ), "and be made before the key is written"
+
+
+def test_a_fresh_posix_machine_gets_a_private_ssh_directory(tmp_path: Path) -> None:
+    """ssh refuses to use a key others can read, and the same reasoning
+    applies to the directory holding it."""
+    plan = next(s for s in STAGES if s.id == "ssh-key").plan(_context(tmp_path))
+    chmods = [c for c in plan.commands if c[0] == "chmod"]
+
+    assert [c[1] for c in chmods] == ["700"]
+    assert chmods[0][2].endswith(".ssh")
+
+
+def test_windows_makes_the_directory_without_chmod(tmp_path: Path) -> None:
+    """No chmod on Windows, and PowerShell rather than mkdir - the same
+    shape the ssh-config stage already uses."""
+    plan = next(s for s in STAGES if s.id == "ssh-key").plan(
+        _context(tmp_path, platform=WINDOWS)
+    )
+    script = " ".join(" ".join(c) for c in plan.commands)
+
+    assert "New-Item -ItemType Directory" in script
+    assert "chmod" not in script
+    assert script.index("New-Item") < script.index("ssh-keygen")
+
+
+def test_an_existing_ssh_directory_is_left_alone(tmp_path: Path) -> None:
+    """Only created when absent, so a reader's existing directory keeps
+    whatever permissions they chose for it."""
+    (tmp_path / ".ssh").mkdir(exist_ok=True)
+    plan = next(s for s in STAGES if s.id == "ssh-key").plan(_context(tmp_path))
+    script = " ".join(" ".join(c) for c in plan.commands)
+
+    assert "mkdir" not in script
+    assert "chmod" not in script
+    assert "ssh-keygen" in script
