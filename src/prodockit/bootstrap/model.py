@@ -171,7 +171,6 @@ GITHUB_COM = Host(
     ssh_key_save_label="Add SSH key",
     project_word="repository",
     group_word="organisation",
-    supported=False,
 )
 
 HOSTS = {host.key: host for host in (SURREY_GITLAB, GITLAB_COM, GITHUB_COM)}
@@ -179,12 +178,16 @@ HOSTS = {host.key: host for host in (SURREY_GITLAB, GITLAB_COM, GITHUB_COM)}
 
 #: What a hostname must name to be worth going further with.
 #:
-#: GitLab only, for now. GitHub is declared as a `Host` record so the
-#: shape is proven, but nothing has been run against it - and a reader
-#: typing `github.com` is better told that plainly than allowed through
-#: to fail at a stage. Widening this is what adding GitHub support will
-#: mean (prodockit-extensions#255).
-HOST_FAMILIES = ("gitlab",)
+#: GitHub joined GitLab here when Surrey's GitLab became unreachable for
+#: long enough to block testing entirely. That is the honest reason, and
+#: it is a good one: a tool whose every stage runs against exactly one
+#: server cannot be developed when that server is down, and the `Host`
+#: record already carried everything github.com needed.
+#:
+#: A self-hosted instance of either still gets the "not supported yet"
+#: answer - naming a family is not the same as having been run against
+#: that particular server.
+HOST_FAMILIES = ("gitlab", "github")
 
 #: The port a git host is reached on. Every URL bootstrap builds is
 #: `git@host:path`, which is ssh.
@@ -218,6 +221,21 @@ def resolve_host(value: str) -> Host | None:
     return None
 
 
+def _supported_hosts() -> str:
+    """The hosts a run can actually be pointed at, for a message.
+
+    Read from `HOSTS` rather than written out, so turning one on or off
+    cannot leave the refusal message naming the wrong set - which is
+    exactly what it did while GitHub was being enabled.
+    """
+    names = [host.hostname for host in HOSTS.values() if host.supported]
+    if len(names) == 1:
+        return f"prodockit bootstrap currently implements {names[0]}"
+    return "prodockit bootstrap currently implements " + " and ".join(
+        (", ".join(names[:-1]), names[-1])
+    )
+
+
 def host_problem(value: str) -> str | None:
     """Why this host cannot be used, or None if it can.
 
@@ -233,19 +251,19 @@ def host_problem(value: str) -> str | None:
     if host is None:
         if not any(family in hostname for family in HOST_FAMILIES):
             return (
-                f"{hostname!r} does not look like a GitLab host - bootstrap's "
-                "stages are written around GitLab, so a hostname naming "
-                "something else cannot be set up (e.g. gitlab.surrey.ac.uk)"
+                f"{hostname!r} does not look like a GitLab or GitHub host - "
+                "bootstrap's stages are written around those two, so a hostname "
+                "naming something else cannot be set up "
+                f"(e.g. {SURREY_GITLAB.hostname}, {GITHUB_COM.hostname})"
             )
         return (
             f"{hostname!r} looks like a self-hosted instance, which is not "
-            "supported yet - prodockit bootstrap currently implements "
-            "gitlab.surrey.ac.uk only"
+            f"supported yet - {_supported_hosts()} only"
         )
     if not host.supported:
         return (
             f"{host.hostname} is declared but not yet supported - "
-            "prodockit bootstrap currently implements gitlab.surrey.ac.uk only"
+            f"{_supported_hosts()} only"
         )
     return None
 

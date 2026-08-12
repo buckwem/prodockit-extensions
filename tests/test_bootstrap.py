@@ -259,12 +259,15 @@ def test_the_keypair_check_looks_where_the_guide_says_to_create_it(tmp_path: Pat
 
 
 def test_declared_but_unsupported_hosts_are_refused_clearly() -> None:
-    """gitlab.com and github.com exist as records so the shape is right,
-    but phase 1 has tested neither - refusing beats half-working."""
-    for key in ("gitlab", "github"):
-        with pytest.raises(UnsupportedHostError) as exc_info:
-            build_context(_config(host=key))
-        assert "not yet supported" in str(exc_info.value)
+    """gitlab.com exists as a record so the shape is right, but nothing
+    has been run against it - refusing beats half-working.
+
+    github.com used to be in this list and no longer is: it has been run
+    against, which is the only thing that moves a host out of here.
+    """
+    with pytest.raises(UnsupportedHostError) as exc_info:
+        build_context(_config(host="gitlab"))
+    assert "not yet supported" in str(exc_info.value)
 
 
 def test_an_unknown_host_names_the_ones_that_exist() -> None:
@@ -2820,26 +2823,32 @@ def test_the_host_is_a_hostname_not_a_nickname() -> None:
     assert default_for(BootstrapConfig(), "host") == "gitlab.surrey.ac.uk"
 
 
-def test_a_host_that_is_not_gitlab_is_refused() -> None:
-    """The stages are written around GitLab. A hostname naming something
-    else is a different kind of service, not a typo to guess at."""
+def test_a_host_that_is_neither_gitlab_nor_github_is_refused() -> None:
+    """The stages are written around those two. A hostname naming
+    something else is a different kind of service, not a typo to guess
+    at."""
     from prodockit.bootstrap import host_problem
 
     problem = host_problem("bitbucket.org") or ""
-    assert "does not look like a GitLab host" in problem
+    assert "does not look like a GitLab or GitHub host" in problem
     assert "gitlab.surrey.ac.uk" in problem, "say what one looks like"
+    assert "github.com" in problem
     assert host_problem("") is not None
 
 
-def test_github_is_refused_too_and_told_why() -> None:
-    """Declared as a record so the shape is proven, but nothing has been
-    run against it - and a reader typing it is better told that plainly
-    than allowed through to fail at a stage."""
+def test_github_is_usable_and_gitlab_com_still_is_not() -> None:
+    """github.com was enabled when Surrey's GitLab became unreachable for
+    long enough to block testing entirely - a tool whose every stage runs
+    against one server cannot be developed while that server is down.
+
+    gitlab.com stays refused, so this is a host being turned on
+    deliberately rather than the check being loosened.
+    """
     from prodockit.bootstrap import host_problem
 
+    assert host_problem("github.com") is None
     assert host_problem("gitlab.surrey.ac.uk") is None
-    for refused in ("github.com", "gitlab.com"):
-        assert "not yet supported" in (host_problem(refused) or ""), refused
+    assert "not yet supported" in (host_problem("gitlab.com") or "")
 
 
 def test_an_unknown_self_hosted_gitlab_is_told_apart_from_a_typo() -> None:
@@ -2881,7 +2890,7 @@ def test_the_prompt_and_the_run_ask_the_same_question(tmp_path: Path) -> None:
     so a host the prompt accepted cannot be one the run then rejects."""
     from prodockit.bootstrap import host_problem
 
-    for value in ("gitlab.com", "github.com", "bitbucket.org"):
+    for value in ("gitlab.com", "bitbucket.org"):
         with pytest.raises(UnsupportedHostError) as exc_info:
             build_context(_config(host=value))
         assert str(exc_info.value) == host_problem(value)
@@ -2940,15 +2949,15 @@ def test_an_unusable_host_is_re_asked_rather_than_stored(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The point of asking first is finding out immediately. Accepting
-    `github.com` and failing five questions later would be worse than
-    not asking at all."""
+    an unsupported host and failing five questions later would be worse
+    than not asking at all."""
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
     result = cli_bootstrap(
         "--configure",
         input=(
-            "github.com\ngitlab.surrey.ac.uk\nAda\na@b.c\n"
+            "gitlab.com\ngitlab.surrey.ac.uk\nAda\na@b.c\n"
             "al01234\ncomm058\nreport-x\n\n\n"
         ),
     )
@@ -3930,3 +3939,66 @@ def test_a_dropped_connection_is_not_read_as_a_missing_project(tmp_path: Path) -
     assert result.status is Status.WRONG
     assert "closed it" in result.detail
     assert "not reachable" not in result.detail
+
+
+def test_only_surrey_clones_from_surrey() -> None:
+    """Surrey mirrors the template onto its own GitLab so a student never
+    needs a GitHub account to start. Every other host has no such mirror,
+    so it clones the GitHub original - which is also what makes testing
+    possible while Surrey is unreachable."""
+    from prodockit.bootstrap import HOSTS
+
+    assert HOSTS["surrey"].template_remote.startswith("git@gitlab.surrey.ac.uk:")
+    for key in ("github", "gitlab"):
+        assert HOSTS[key].template_remote == "git@github.com:buckwem/prodockit-template.git"
+
+
+def test_github_clones_the_template_from_github(tmp_path: Path) -> None:
+    """The end of the chain that matters: a run configured for github.com
+    must actually build its clone command against GitHub, not merely
+    carry the right string in a record."""
+    context = _context(tmp_path, host="github.com", namespace="buckwem")
+    plan = next(s for s in STAGES if s.id == "clone").plan(context)
+    script = " ".join(" ".join(command) for command in plan.commands)
+
+    assert "git@github.com:buckwem/prodockit-template.git" in script
+    assert "gitlab.surrey.ac.uk" not in script
+
+
+def test_github_uses_its_own_key_rather_than_the_gitlab_one(tmp_path: Path) -> None:
+    """`key_suffix` differs per family, so a reader with both hosts set up
+    has two keys and each stanza points at its own. Sharing one would
+    make removing a key from one host break the other."""
+    context = _context(tmp_path, host="github.com")
+    plan = next(s for s in STAGES if s.id == "ssh-config").plan(context)
+    script = " ".join(" ".join(command) for command in plan.commands)
+
+    assert "id_ed25519_github" in script
+    assert "Host github.com" in script
+    assert "id_ed25519_gitlab" not in script
+
+
+def test_githubs_own_greeting_is_what_proves_authentication(tmp_path: Path) -> None:
+    """`ssh -T` exits non-zero on success against both hosts, so the
+    greeting is the only signal - and GitHub's differs from GitLab's.
+    Matching GitLab's string would report a working GitHub key as
+    broken."""
+    machine = _ready_machine(tmp_path)
+    machine["ssh"] = CommandResult(
+        1, stderr="Hi buckwem! You've successfully authenticated, but GitHub does not provide shell access."
+    )
+    result = next(s for s in STAGES if s.id == "ssh-upload").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.OK
+
+
+def test_the_username_question_names_the_host_that_was_answered() -> None:
+    """"Your GitLab username" is simply wrong once the answer was
+    github.com."""
+    from prodockit.bootstrap import PROMPTS, question_for
+
+    question = dict(PROMPTS)["username"]
+    assert "GitLab" not in question
+    assert "github.com" in question_for(_config(host="github.com"), "username", question)

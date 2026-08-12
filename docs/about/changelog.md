@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **Added: github.com as a supported host.** Bootstrap could only be
+  pointed at `gitlab.surrey.ac.uk`, so when that server stopped answering
+  there was no way to run or test any of it.
+
+    The `Host` record already carried everything github.com needed - its
+    own greeting string (`ssh -T` exits non-zero on success against both,
+    so the greeting is the only signal), its own key-form labels, and
+    `repository`/`organisation` in place of `project`/`group`. Turning it
+    on was enabling the record and widening the hostname check, not
+    rewriting any stage.
+
+    Only Surrey clones from Surrey: it mirrors the template onto its own
+    GitLab so a student never needs a GitHub account. Every other host
+    clones the GitHub original.
+
+    gitlab.com stays unsupported, and a self-hosted instance of either
+    family still gets the "not supported yet" answer - naming a family is
+    not the same as having been run against that server.
+
 ## 0.26.4 (2026-08-11)
 
 - **Fixed:** the SSH key was loaded into the agent for one session only,

@@ -181,8 +181,15 @@ PROMPTS: tuple[tuple[str, str], ...] = (
     # (prodockit-extensions#265). The host is asked first, so it can be
     # named here.
     ("email", "The email address used for your {host} login"),
-    ("username", "Your GitLab username"),
-    ("namespace", "The group or namespace your project lives in (e.g. comm058-2026)"),
+    # Named after whatever host was answered a moment ago, for the same
+    # reason as the email question above: "Your GitLab username" is
+    # simply wrong once the answer was github.com.
+    ("username", "Your {host} username"),
+    (
+        "namespace",
+        "The group, organisation or user the project lives under "
+        "(e.g. comm058-2026, or your own username on github.com)",
+    ),
     ("project_name", "Your project name (e.g. report-az1234)"),
     ("project_dir", "Where to put the project on this machine"),
     (
