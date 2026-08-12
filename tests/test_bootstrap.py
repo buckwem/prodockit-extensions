@@ -2569,6 +2569,9 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "clone": ("the clone",),
     "fresh-history": ("a history of its own", "core.fileMode"),
     "own-project": None,
+    # Nothing to run: the workflow publishes the site, and this only
+    # asks whether it did (#333).
+    "site": None,
     "remote": ("origin", "the synced config"),
     "identity": ("the project's identity",),
     "pandoc": ("pandoc", "the PDF fonts"),
@@ -2617,6 +2620,15 @@ def test_a_stage_with_commands_is_never_satisfied_by_an_empty_machine(
             result = stage.check(context)
             if result.status is Status.UNKNOWN:
                 continue  # waiting on configuration, not on the machine
+            if stage.id == "site" and not context.host.pages_url:
+                # The one honest exception. A self-hosted GitLab publishes
+                # at no address bootstrap can work out, so this stage
+                # cannot be checked there at all - and it says exactly
+                # that in its detail rather than claiming a site was
+                # found. Leaving every Surrey run permanently one stage
+                # short would be worse than the gap it reports (#333).
+                assert "not checked" in result.detail
+                continue
             assert result.needs_work, (
                 f"{stage.id} reports {result.status.value} on {platform} with "
                 f"nothing installed: {result.detail}"
