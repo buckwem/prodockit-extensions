@@ -994,43 +994,19 @@ def test_source_url_overrides_the_template(tmp_path: Path) -> None:
     assert plan.commands[0][2] == own
 
 
-def test_plan_building_asks_the_host_only_what_the_run_already_asks(tmp_path: Path) -> None:
-    """This rule used to be "plan-building makes no network call at all",
-    because `--dry-run` builds every plan and had to stay cheap.
+def test_building_a_plan_makes_no_network_call(tmp_path: Path) -> None:
+    """`--dry-run` builds every plan, so plan-building has to stay cheap
+    and side-effect-free.
 
-    It was relaxed deliberately (#327). The clone stage has to know
-    whether the reader's own project already exists, or a second machine
-    clones the template over work that is already on the host - silently,
-    with every stage reporting done. Two things make the cost nil:
-    `_check_own_project` asks this exact question one stage later, so the
-    run connects regardless; and since #304 the answer is remembered
-    within a pass.
-
-    So the rule now is narrower and still worth keeping: plan-building may
-    ask *that* question and no other.
+    This rule was relaxed for a while, to let the clone stage detect an
+    existing project. Moving that decision into `--configure` (#332) won
+    it back: the stage reads a recorded answer instead of asking the
+    host, and nothing here connects at all.
     """
     runner = FakeRunner()
     context = _context(tmp_path, runner=runner)
     next(s for s in STAGES if s.id == "clone").plan(context)
-
-    assert all(
-        command[:2] == ["git", "ls-remote"] for command in runner.calls
-    ), f"plan-building asked something new: {runner.calls}"
-
-
-def test_the_clone_plan_costs_no_extra_connection(tmp_path: Path) -> None:
-    """The whole justification for relaxing the rule above. If this ever
-    stops holding, the network call in plan-building is no longer free and
-    the trade has to be made again."""
-    machine = _ready_machine(tmp_path)
-    context = _context(tmp_path, runner=FakeRunner(machine))
-    stage = next(s for s in STAGES if s.id == "clone")
-
-    next(s for s in STAGES if s.id == "own-project").check(context)
-    before = context.contacts.made
-    stage.plan(context)
-
-    assert context.contacts.made == before, "answered from the pass's memo"
+    assert runner.calls == []
 
 
 def test_apply_reruns_the_check_afterwards(tmp_path: Path) -> None:
@@ -1267,6 +1243,10 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
         "git --version": CommandResult(0, "git version 2.43.0"),
         "git config --global user.name": CommandResult(0, "Ada\n"),
         "git config --global user.email": CommandResult(0, "a@b.c\n"),
+        # Named in the docstring above and previously missing, which left
+        # the history stage with work to do and made this helper describe
+        # a machine it does not claim to.
+        "config core.fileMode": CommandResult(0, "false\n"),
         # The reported machine: the key exists locally, the host has
         # never seen it.
         "BatchMode": CommandResult(
@@ -3127,7 +3107,15 @@ def test_every_prompt_defaults_to_yes_except_the_destructive_one(tmp_path: Path)
 
     One visible rule now: yes, unless applying it cannot be undone."""
     save(tmp_path / "b.toml", _config())
-    context = _context(tmp_path)
+    # A clone still pointing at the template - the one state in which the
+    # history reset applies at all. Anywhere else its plan is a one-line
+    # `core.fileMode` setting and destroys nothing (#332), so asking this
+    # question of a machine without that state would prove nothing.
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(
+        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
+    )
+    context = _context(tmp_path, runner=FakeRunner(machine))
     destructive = [s.id for s in STAGES if s.plan(context).destructive]
 
     assert destructive == ["fresh-history"], (
@@ -4333,28 +4321,37 @@ def test_the_extra_steps_come_after_the_project_is_created(tmp_path: Path) -> No
     assert pages > creating
 
 
-def _host_with_project(tmp_path: Path, refs: str) -> FakeRunner:
-    """A host whose `git ls-remote` answers with `refs` for the project."""
+#: What the shallow probe finds in a repository that really is a project.
+PROJECT_TREE = "zensical.toml\nREADME.md\ndocs\nrequirements.txt\n"
+
+
+def _host_with_project(tmp_path: Path, refs: str, tree: str = PROJECT_TREE) -> FakeRunner:
+    """A host whose project answers `git ls-remote` with `refs`, and whose
+    shallow probe finds `tree`.
+
+    Both are needed: refs say the repository is not empty, and the tree
+    says it holds a project rather than a stray file (#332).
+    """
     machine = _ready_machine(tmp_path)
     machine["git ls-remote"] = CommandResult(0, refs)
+    machine["ls-tree"] = CommandResult(0, tree)
     return FakeRunner(machine)
 
 
-def test_a_project_that_already_has_work_is_cloned_instead_of_the_template(
-    tmp_path: Path,
-) -> None:
-    """Adding a second machine is one of the two normal ways to arrive
-    here. Cloning the template over an existing project gave the reader
-    template content in a checkout whose origin was then repointed at
-    their real work - silently, with every stage reporting done (#327)."""
+def test_a_recorded_choice_is_what_the_clone_stage_reads(tmp_path: Path) -> None:
+    """Detection lives in `--configure`, which records the answer. The
+    stage reads that rather than asking the host again, which is what
+    keeps plan-building free of network calls (#332)."""
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
     context = _context(
-        tmp_path, host="github.com", namespace="buckwem", project_name="report-windows-v1",
-        runner=_host_with_project(tmp_path, "abc123\trefs/heads/main\n"),
+        tmp_path, host="github.com", namespace="buckwem",
+        project_name="report-windows-v1", runner=FakeRunner(machine),
     )
     script = " ".join(next(s for s in STAGES if s.id == "clone").plan(context).commands[0])
 
-    assert "buckwem/report-windows-v1.git" in script
-    assert "prodockit-template" not in script
+    assert "prodockit-template" in script, "no source_url recorded, so the template"
 
 
 def test_an_empty_project_still_gets_the_template(tmp_path: Path) -> None:
@@ -4416,3 +4413,246 @@ def test_a_student_given_a_repo_is_never_offered_the_history_reset(tmp_path: Pat
 
     assert result.status is Status.OK
     assert "a history of its own" in result.detail
+
+
+def test_saying_no_to_a_destructive_step_does_not_then_offer_it(
+    cli_bootstrap, tmp_path: Path
+) -> None:
+    """Reported from real use. "Delete the template's history and start a
+    new repository? [Y/n]: n" printed the commands anyway and asked again,
+    which reads as the tool ignoring a refusal (#330).
+
+    The answer was collected and discarded - it had been written as a bare
+    acknowledgement, which is defensible for "have you uploaded the key?"
+    and not for a deletion that cannot be undone.
+    """
+    machine = _ready_machine(tmp_path)
+    project = tmp_path / "GitLab" / "report-al01234"
+    machine["remote get-url origin"] = CommandResult(
+        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
+    )
+    (project / ".git").mkdir(parents=True, exist_ok=True)
+
+    result = cli_bootstrap("--apply", responses=machine, input="n\n" * 30)
+
+    assert "Delete the template's history" in result.output
+    assert "rm -rf" not in result.output, "a refusal must not be followed by the commands"
+
+
+def test_a_deletion_never_defaults_to_yes(tmp_path: Path) -> None:
+    """#259 established that the one plan with no undo is the one whose
+    prompt does not default to yes. That held for the command prompt and
+    not for the question above it, which is the prompt a reader actually
+    reads."""
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(
+        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
+    )
+    plan = next(s for s in STAGES if s.id == "fresh-history").plan(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert plan.destructive, "the flag the default is taken from"
+    assert plan.confirm.endswith("?")
+
+
+def test_there_is_nothing_to_reset_before_there_is_a_clone(tmp_path: Path) -> None:
+    """It reported "no clone yet" and then offered to `rm -rf` a `.git`
+    that does not exist, and `git init` in a directory that does not
+    either (#330)."""
+    # Deliberately not `_ready_machine`: that one creates the clone, which
+    # is the whole state this is about not having.
+    save(tmp_path / "b.toml", _config())
+    reports = plan_all(_context(tmp_path))
+    history = next(r for r in reports if r.stage.id == "fresh-history")
+
+    assert history.result.status is Status.BLOCKED
+    assert "no clone yet" in history.result.detail
+    assert history.plan is None, "nothing to run on a directory that is not there"
+
+
+def _own_project_machine(tmp_path: Path) -> dict[str, CommandResult]:
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
+    return machine
+
+
+def test_the_template_and_a_named_repository_are_not_second_guessed(tmp_path: Path) -> None:
+    """Neither is a surprise: one is the default, the other was typed by
+    the reader. Only detection needs confirming."""
+    template = next(s for s in STAGES if s.id == "clone").plan(_context(tmp_path))
+    named = next(s for s in STAGES if s.id == "clone").plan(
+        _context(tmp_path, source_url="some-repo", runner=FakeRunner(_own_project_machine(tmp_path)))
+    )
+
+    assert not template.instructions
+    assert not named.instructions
+
+
+def test_the_report_says_which_repository_was_used(tmp_path: Path) -> None:
+    """The one place a reader can check what was decided, after the prompt
+    has scrolled away."""
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(
+        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
+    )
+    from_template = next(s for s in STAGES if s.id == "clone").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+    own = next(s for s in STAGES if s.id == "clone").check(
+        _context(tmp_path, runner=FakeRunner(_ready_machine(tmp_path)))
+    )
+
+    assert "from the template" in from_template.detail
+    assert "your own project" in own.detail
+
+
+def test_an_own_history_clone_is_never_offered_the_reset(tmp_path: Path) -> None:
+    """It reported wrong only because `core.fileMode` was unset, and its
+    plan was still `rm -rf .git` - offering to delete the reader's real
+    history because a git option was off (#332)."""
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(
+        0, "git@github.com:buckwem/report-windows-v1.git\n"
+    )
+    machine["config core.fileMode"] = CommandResult(0, "true\n")
+    plan = next(s for s in STAGES if s.id == "fresh-history").plan(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+
+    assert plan.commands == [["git", "config", "core.fileMode", "false"]]
+    assert not plan.destructive, "nothing here destroys anything"
+    assert not any("rm -rf" in " ".join(c) for c in plan.commands)
+
+
+def _configured(
+    cli_bootstrap, monkeypatch, *, answer: str, exists: bool = True, has_content: bool = True
+) -> object:
+    """A `--configure` run against a described host.
+
+    `exists` and `has_content` are separate because an *empty* issued
+    repository is still a decision: its permissions are what decide who
+    can read the work, and they belong to the repository rather than to
+    its contents (#332).
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+    monkeypatch.setattr("prodockit.cli.own_project_exists", lambda context: exists)
+    monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: has_content)
+    return cli_bootstrap(
+        "--configure",
+        input=f"github.com\nAda\na@b.c\nbuckwem\nbuckwem\nreport-windows-v1\n\n{answer}\n",
+    )
+
+
+def test_all_three_paths_are_named_in_the_question(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Including the template. It is what happens when nothing else is
+    chosen, and a reader who cannot see it among the options has to infer
+    it from the absence of anything else (#332)."""
+    result = _configured(cli_bootstrap, monkeypatch, answer="1")
+
+    assert "already exists on github.com and has content in it" in result.output
+    assert "leave the existing git records" in result.output
+    assert "delete the existing git records" in result.output
+    assert "start from the template" in result.output
+
+
+def test_keeping_the_history_is_recorded(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configured(cli_bootstrap, monkeypatch, answer="1")
+    config = load(tmp_path / "b.toml")
+
+    assert config.source_url == "buckwem/report-windows-v1", "qualified, as a clone needs"
+    assert config.history == "keep"
+
+
+def test_starting_again_still_clones_the_repository(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Somebody starting again still wants the contents that are already
+    there - which is what "existing project or template" got wrong."""
+    _configured(cli_bootstrap, monkeypatch, answer="2")
+    config = load(tmp_path / "b.toml")
+
+    assert config.source_url == "buckwem/report-windows-v1"
+    assert config.history == "reset"
+
+
+def test_choosing_the_template_records_neither(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configured(cli_bootstrap, monkeypatch, answer="3")
+    config = load(tmp_path / "b.toml")
+
+    assert config.source_url == ""
+    assert config.history == ""
+
+
+def test_the_question_has_no_default(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One answer deletes commits that cannot be recovered, and none of
+    them is safe enough to be taken by pressing Enter."""
+    result = _configured(cli_bootstrap, monkeypatch, answer="\n2")
+
+    assert "Select 1, 2 or 3" in result.output
+    assert result.output.count("Select 1, 2 or 3") > 1, "a blank answer asks again"
+
+
+def test_an_empty_repository_gets_the_template_and_keeps_its_permissions(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cloning an empty repository would leave no zensical.toml, no
+    requirements.txt and no tools/ - every later stage would fail on the
+    absence. So the template supplies the contents.
+
+    The permissions an issued repository carries are not lost by that:
+    they belong to the repository on the host, and the remote stage points
+    `origin` at it either way. Said out loud, because "the template will
+    be used" alone reads as though the issued repository were being
+    ignored (#332).
+    """
+    result = _configured(
+        cli_bootstrap, monkeypatch, answer="", exists=True, has_content=False
+    )
+
+    assert "is empty on github.com" in result.output
+    assert "keeps" in result.output and "permissions" in result.output
+    assert "Select 1, 2 or 3" not in result.output, "nothing to decide between"
+    assert load(tmp_path / "b.toml").source_url == ""
+
+
+def test_a_repository_that_is_not_there_says_so_differently(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """"Does not exist yet" and "is empty" are different states, and a
+    reader checking whether they created the thing needs to be told
+    which."""
+    result = _configured(
+        cli_bootstrap, monkeypatch, answer="", exists=False, has_content=False
+    )
+
+    assert "does not exist yet on github.com" in result.output
+    assert load(tmp_path / "b.toml").source_url == ""
+
+
+def test_a_recorded_decision_means_no_prompt_during_the_run(tmp_path: Path) -> None:
+    """The point of moving it. Once `source_url` is set the clone stage
+    has nothing to ask, so the run has one less thing to interrupt for."""
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
+    plan = next(s for s in STAGES if s.id == "clone").plan(
+        _context(
+            tmp_path, host="github.com", namespace="buckwem",
+            project_name="report-windows-v1", source_url="report-windows-v1",
+            runner=FakeRunner(machine),
+        )
+    )
+
+    assert not plan.instructions, "the decision was already made"
+    assert "report-windows-v1.git" in " ".join(plan.commands[0])

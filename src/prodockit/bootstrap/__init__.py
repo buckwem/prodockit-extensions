@@ -64,7 +64,11 @@ from prodockit.bootstrap.model import (
     refresh_windows_path,
     resolve_host,
 )
-from prodockit.bootstrap.stages import STAGES
+from prodockit.bootstrap.stages import (
+    STAGES,
+    own_project_exists,
+    own_project_has_content,
+)
 
 __all__ = [
     "HOSTS",
@@ -104,6 +108,8 @@ __all__ = [
     "missing_keys",
     "needs_sudo",
     "normalise_host",
+    "own_project_exists",
+    "own_project_has_content",
     "plan_all",
     "question_for",
     "refresh_windows_path",

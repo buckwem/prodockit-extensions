@@ -64,6 +64,18 @@ class BootstrapConfig:
     #: reader knows whether they were given a repository, and asking the
     #: host would put a network call inside plan-building.
     source_url: str = ""
+    #: What to do with the history of a repository that already exists:
+    #: `keep` leaves its commits and its `origin` alone; `reset` clones it
+    #: for its contents and then starts a new repository from them. Blank
+    #: means the question was never put - a first run against a project
+    #: that does not exist yet - and the template is used.
+    #:
+    #: Recorded rather than inferred from whether `origin` still points at
+    #: the template. That inference was right for the case it was written
+    #: for and silent about every other, and it is not a decision to make
+    #: on somebody's behalf: one branch of it deletes history that cannot
+    #: be recovered (prodockit-extensions#332).
+    history: str = ""
 
     @property
     def is_complete(self) -> bool:

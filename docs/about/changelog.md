@@ -2,6 +2,85 @@
 
 ## Unreleased
 
+- **Changed:** where the project comes from is decided at `--configure`
+  time, as a question naming every path
+  ([#332](https://github.com/buckwem/prodockit-extensions/issues/332)).
+
+        buckwem/report-windows-v1 already exists on github.com and has content in it.
+        Do you want to:
+
+        1. clone the full repo 'buckwem/report-windows-v1', then leave the existing
+           git records and sync origin unchanged
+        2. clone the full repo 'buckwem/report-windows-v1', then delete the existing
+           git records and set up a new remote repo
+        3. start from the template instead, discarding nothing on the host -
+           but a first push would then replace what is in buckwem/report-windows-v1
+
+        Select 1, 2 or 3:
+
+    Both of the first two clone the repository itself: the difference is
+    what becomes of its history and its remote, which is the only part
+    there is to decide. "Existing project or template" framed that
+    wrongly - somebody starting again still wants the contents that are
+    already there.
+
+    The template is named rather than implied. It is what happens when
+    nothing else is chosen, and a reader who cannot see it among the
+    options has to infer it from the absence of anything else.
+
+    A repository that is empty, or not there at all, is a *message*
+    rather than a question: cloning an empty one would leave no
+    `zensical.toml`, no `requirements.txt` and no `tools/`, so every
+    later stage would fail on the absence. The permissions an issued
+    repository carries are not lost by that - they belong to the
+    repository on the host, and `origin` is pointed at it either way,
+    which the message says so it does not read as the repository being
+    ignored.
+
+    **No default.** One answer deletes commits that cannot be recovered,
+    and none of them is safe enough to be taken by pressing Enter.
+
+    The answer is recorded, so the run follows an explicit path rather
+    than re-deriving the decision from what `origin` happens to say - and
+    a rerun does not ask again.
+
+- **Fixed:** the history stage offered to delete a project's real
+  history because `core.fileMode` was unset, and adopting an existing
+  repository happened silently
+  ([#332](https://github.com/buckwem/prodockit-extensions/issues/332)).
+
+    On a clone that already carried its own history, the stage reported
+    wrong only because `core.fileMode` was off - and its plan was still
+    `rm -rf .git`. Its plan is now that one setting and nothing else, and
+    is not marked destructive, because nothing there destroys anything.
+
+    Adopting an existing project is put to the reader, saying what each
+    answer means: cloning brings their work and its history, and the
+    history stage will not offer to delete it; answering no takes the
+    template, whose history that stage then deletes with `git init -b
+    main`.
+
+    The report says which repository was used - `from the template` or
+    `your own project` - so the decision is still visible once the prompt
+    has scrolled away.
+
+- **Fixed:** answering no to the history reset showed the commands
+  anyway ([#330](https://github.com/buckwem/prodockit-extensions/issues/330)).
+
+    `Delete the template's history and start a new repository? [Y/n]: n`
+    printed `rm -rf .../.git` and asked again. The answer was collected
+    and discarded - written as a bare acknowledgement, which is fine for
+    "have you uploaded the key?" and not for a deletion with no undo.
+
+    That prompt also defaulted to yes on a destructive plan. The rule that
+    this one plan must not default to yes had been applied to the command
+    prompt below it, and not to the question a reader reads first.
+
+    The same stage reported `no clone yet` and then offered to delete a
+    `.git` that did not exist, and run `git init` in a directory that did
+    not either. It waits for the clone stage now, the way the two stages
+    after it already do.
+
 ## 0.27.0 (2026-08-12)
 
 - **Fixed:** a second machine cloned the template over a project that

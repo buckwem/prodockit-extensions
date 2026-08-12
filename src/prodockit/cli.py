@@ -47,6 +47,8 @@ from prodockit.bootstrap import (
     host_problem,
     missing_keys,
     needs_sudo,
+    own_project_exists,
+    own_project_has_content,
     plan_all,
     question_for,
 )
@@ -131,6 +133,19 @@ def _ask_for_configuration(
     wanted = [(k, q) for k, q in PROMPTS if only is None or k in only]
     click.echo("\nPress Enter to keep the value in brackets.\n")
     for key, question in wanted:
+        # Asked here rather than mid-run. A prompt during `--apply` is
+        # answered once and forgotten, so a rerun asks again, and
+        # declining leaves a stage undone with nowhere to go. Recorded as
+        # configuration, the decision survives, shows in the report as a
+        # setting rather than an inference, and leaves nothing surprising
+        # to decide while commands are running
+        # (prodockit-extensions#332).
+        # Asked in its own shape, with every path named - so the
+        # free-text prompt below is skipped rather than asked a second
+        # time in worse words.
+        answered_here = key == "source_url" and not config.source_url.strip()
+        if answered_here and _explain_existing_project(config):
+            continue
         while True:
             # `default_for` fills a blank answer from one already given, so
             # a first run still has something sensible to press Enter on.
@@ -155,6 +170,89 @@ def _ask_for_configuration(
     # somewhere else.
     config.project_dir = str(config.resolved_project_dir(Path.home()))
     return config
+
+
+def _explain_existing_project(config: BootstrapConfig) -> bool:
+    """Puts the choice about where the project comes from, and records it.
+
+    The template is always one of the answers, named rather than implied.
+    It is what happens when nothing else is chosen, and a reader who
+    cannot see it among the options has to infer it from the absence of
+    anything else - which is how the silent version of this decision went
+    unnoticed in the first place (prodockit-extensions#332).
+
+    Where a repository already has content, both of the other answers
+    clone it: the difference is what becomes of its history and its
+    remote, which is the only part there is to decide. "Existing project
+    or template" framed that wrongly - somebody starting again still
+    wants the contents that are already there.
+
+    No default. One answer deletes commits that cannot be recovered, and
+    none of them is safe enough to be taken by pressing Enter.
+    """
+    try:
+        context = build_bootstrap_context(config)
+    except UnsupportedHostError:
+        # Nothing can be asked about a host that cannot be used. The
+        # ordinary prompt runs instead, and the host stage refuses later.
+        return False
+    # Qualified with the namespace: `report-windows-v1` alone is not
+    # something `git clone` can resolve, and the reader should see the
+    # same shape they would type themselves.
+    name = f"{config.namespace.strip()}/{config.project_name.strip()}"
+    host = config.host
+
+    if not own_project_has_content(context):
+        # No decision here, because there is nothing to decide between: an
+        # empty repository has no contents to keep, and cloning it would
+        # leave no zensical.toml, no requirements.txt and no tools/ - every
+        # later stage would fail on the absence.
+        #
+        # The permissions an issued repository carries are not lost by
+        # this. They belong to the repository on the host, and the remote
+        # stage points `origin` at it either way - so a student's work
+        # still lands where their instructor can see it and their
+        # classmates cannot. Said out loud, because "the template will be
+        # used" on its own reads as though the issued repository were
+        # being ignored.
+        state = "is empty" if own_project_exists(context) else "does not exist yet"
+        click.echo(
+            f"\n  {name} {state} on {host}, so the template will be used for the\n"
+            f"  contents. Your work will still be pushed to {name}, which keeps\n"
+            "  whatever permissions were set on it.\n"
+        )
+        config.source_url = ""
+        config.history = ""
+        return True
+
+    click.echo(f"\n  {name} already exists on {host} and has content in it.")
+    click.echo("  Do you want to:\n")
+    click.echo(
+        f"  1. clone the full repo {name!r}, then leave the existing git records\n"
+        "     and sync origin unchanged"
+    )
+    click.echo(
+        f"  2. clone the full repo {name!r}, then delete the existing git records\n"
+        "     and set up a new remote repo"
+    )
+    click.echo(
+        "  3. start from the template in a new repository of your own.\n"
+        f"     Choose this only if {name} is not the repository your work belongs\n"
+        "     in - a repository issued to you carries the permissions that decide\n"
+        "     who can read it, and a new one will not have them.\n"
+    )
+    choice = click.prompt(
+        "  Select 1, 2 or 3", type=click.Choice(["1", "2", "3"]), show_choices=False
+    )
+    if choice == "3":
+        config.source_url = ""
+        config.history = ""
+    else:
+        # Both clone the repository; only its history differs.
+        config.source_url = name
+        config.history = "keep" if choice == "1" else "reset"
+    click.echo("")
+    return True
 
 
 def _host_answer_problem(answer: str) -> str | None:
@@ -392,8 +490,18 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
                     click.echo("  skipped")
                 continue
             # There are commands, and they need the step above done
-            # first. One acknowledgement, then run them.
-            click.confirm(f"  {plan.confirm}", default=True)
+            # first. The answer is *acted on*: this was written as a bare
+            # acknowledgement, so "Delete the template's history and start
+            # a new repository? [Y/n]: n" printed the commands anyway and
+            # asked again, which reads as the tool ignoring a refusal
+            # (prodockit-extensions#330).
+            #
+            # Default follows the same rule as the command prompt below -
+            # No when the plan destroys something (#259). Defaulting a
+            # deletion to Yes was the other half of the same fault.
+            if not click.confirm(f"  {plan.confirm}", default=not plan.destructive):
+                click.echo("  skipped")
+                continue
             click.echo("")
 
         if plan.commands:

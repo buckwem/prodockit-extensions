@@ -1076,7 +1076,14 @@ def _check_clone(context: Context) -> CheckResult:
         return _missing(f"{project} does not exist")
     if not (project / ".git").exists():
         return _wrong(f"{project} exists but is not a git repository")
-    return _ok(str(project))
+    # Which repository this came from decides which path the rest of the
+    # run takes - whether the history stage offers a reset, and whether
+    # the reader's existing work is here at all. Saying only the path left
+    # that invisible in the final report, where it is the one place a
+    # reader can check what was decided (prodockit-extensions#332).
+    if _origin_is_the_template(context):
+        return _ok(f"{project} - from the template")
+    return _ok(f"{project} - your own project")
 
 
 def _plan_clone(context: Context) -> Plan:
@@ -1098,14 +1105,37 @@ def _plan_clone(context: Context) -> Plan:
     reports `ok` and does nothing.
     """
     project = context.config.resolved_project_dir(context.home)
-    # Which repository was chosen is visible without saying it twice:
-    # the command carries the URL, and both `--dry-run` and the apply
-    # prompt print it in full. An instruction line repeating it would
-    # also make this read as a manual step, which it is not (#327).
+    # No prompt here. `--configure` put the choice with every path named
+    # and recorded it; asking again mid-run would be the same decision in
+    # worse words (#332).
     return Plan(commands=[["git", "clone", clone_source(context), str(project)]])
 
 
-def _own_project_has_content(context: Context) -> bool:
+def _ls_remote_own_project(context: Context) -> CommandResult | None:
+    """`git ls-remote` against the reader's own project, or None."""
+    namespace = context.config.namespace.strip()
+    project = context.config.project_name.strip()
+    if not (namespace and project):
+        return None
+    return context.runner.run(["git", "ls-remote", context.host.remote_url(namespace, project)])
+
+
+def own_project_exists(context: Context) -> bool:
+    """Whether the reader's own project is there at all, empty or not.
+
+    Asked separately from `own_project_has_content` because an *empty*
+    issued repository still matters. A taught module creates one per
+    student with permissions already set - the instructor can see it, the
+    other students cannot - and those permissions belong to that
+    repository, not to its contents. Making a new one instead would
+    quietly publish a student's work to the wrong audience
+    (prodockit-extensions#332).
+    """
+    result = _ls_remote_own_project(context)
+    return result is not None and result.ok
+
+
+def own_project_has_content(context: Context) -> bool:
     """Whether the reader's own project exists on the host *and* has commits.
 
     The distinction matters. A project created in the browser and never
@@ -1121,12 +1151,8 @@ def _own_project_has_content(context: Context) -> bool:
     since #304 the answer is remembered within a pass, so asking here
     costs nothing beyond the first time.
     """
-    namespace = context.config.namespace.strip()
-    project = context.config.project_name.strip()
-    if not (namespace and project):
-        return False
-    result = context.runner.run(["git", "ls-remote", context.host.remote_url(namespace, project)])
-    return result.ok and bool(result.stdout.strip())
+    result = _ls_remote_own_project(context)
+    return result is not None and result.ok and bool(result.stdout.strip())
 
 
 def clone_source(context: Context) -> str:
@@ -1152,15 +1178,10 @@ def clone_source(context: Context) -> str:
     """
     given = context.config.source_url.strip()
     if not given:
-        # Adding a second machine to a project that already exists is one
-        # of the two normal ways to arrive here, not an exotic case - and
-        # cloning the template over it gave the reader template content in
-        # a checkout whose origin was then repointed at their real work.
-        # Nothing errored; every stage reported done (#327).
-        if _own_project_has_content(context):
-            return context.host.remote_url(
-                context.config.namespace.strip(), context.config.project_name.strip()
-            )
+        # Nothing is detected here. `--configure` asks whether an existing
+        # repository should be used and records the answer, so this reads
+        # a decision rather than making one - which keeps plan-building
+        # free of network calls, as `--dry-run` needs (#332).
         return context.host.template_remote
     if given.startswith(("git@", "ssh://", "https://", "http://")):
         return given
@@ -1199,7 +1220,11 @@ def _check_fresh_history(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not (project / ".git").exists():
-        return _missing("no clone yet")
+        # Not "missing": there is nothing here to repair yet, and a plan
+        # built from it deleted a `.git` that does not exist and ran
+        # `git init` in a directory that does not exist either. Waiting
+        # on the clone, like the two stages after this one (#330).
+        return _blocked("there is no clone yet - do the 'Project cloned' stage first")
     origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"])
     if not origin.ok:
         # No remote at all: `git init` has already been here.
@@ -1211,6 +1236,13 @@ def _check_fresh_history(context: Context) -> CheckResult:
             # fresh clone silently loses it again.
             return _wrong("a history of its own, but core.fileMode is not off")
         return _ok("a history of its own")
+    # An explicit "keep" settles it. The reader was shown both paths at
+    # configure time and chose this one, so nothing here re-derives the
+    # decision from what `origin` happens to say (#332).
+    if context.config.history.strip() == "keep":
+        if not _file_mode_ignored(context):
+            return _wrong("keeping your history, but core.fileMode is not off")
+        return _ok("keeping your history")
     # WRONG rather than MISSING, for the prompt's default. `--apply`
     # offers MISSING as [Y/n] and WRONG as [y/N], and deleting a
     # repository's history is the last thing that should happen by
@@ -1240,6 +1272,18 @@ def _plan_fresh_history(context: Context) -> Plan:
     content having changed.
     """
     project = context.config.resolved_project_dir(context.home)
+    # A clone that already carries its own history has nothing to reset,
+    # and this stage's other concern - core.fileMode - is a one-line
+    # setting. Returning the reset here offered to `rm -rf .git` on the
+    # reader's own project because a git *option* was unset: the exact
+    # mistake `_check_fresh_history` says this stage must never make
+    # (prodockit-extensions#332).
+    chosen = context.config.history.strip()
+    if chosen == "keep" or (not chosen and not _origin_is_the_template(context)):
+        return Plan(
+            cwd=str(project),
+            commands=[["git", "config", "core.fileMode", "false"]],
+        )
     git_dir = project / ".git"
     remove = (
         ["powershell", "-NoProfile", "-Command", f"Remove-Item -Recurse -Force '{git_dir}'"]
