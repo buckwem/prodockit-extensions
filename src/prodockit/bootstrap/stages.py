@@ -1105,36 +1105,10 @@ def _plan_clone(context: Context) -> Plan:
     reports `ok` and does nothing.
     """
     project = context.config.resolved_project_dir(context.home)
-    source = clone_source(context)
-    clone = [["git", "clone", source, str(project)]]
-    if source == context.host.template_remote or context.config.source_url.strip():
-        # The template, or a repository the reader named themselves.
-        # Neither is a surprise, and the command carries the URL.
-        return Plan(commands=clone)
-
-    # Adopted by detection rather than asked for, so it is put to the
-    # reader with what each answer means. Which repository is used decides
-    # whether their existing work arrives or a fresh template lands on top
-    # of it, and that is too big a thing to infer silently
-    # (prodockit-extensions#332).
-    host = context.host
-    project_name = context.config.project_name.strip()
-    return Plan(
-        commands=clone,
-        instructions=[
-            f"{project_name} already exists on {host.hostname} and has work in it.",
-            "Cloning it brings that work to this machine, with its history - "
-            "and the 'A history of your own' stage will not offer to delete it, "
-            "because the history is already yours.",
-            "Answering no starts from the template instead: a fresh copy of it "
-            "is cloned, and the 'A history of your own' stage then deletes the "
-            "template's history and runs `git init -b main`, leaving you a new "
-            f"repository with no past. Pushing that to {project_name} would "
-            "replace what is on the host - so choose it only if you mean to "
-            "start again.",
-        ],
-        confirm=f"Clone your existing {host.project_word} {project_name!r}?",
-    )
+    # No prompt here. `--configure` put the choice with every path named
+    # and recorded it; asking again mid-run would be the same decision in
+    # worse words (#332).
+    return Plan(commands=[["git", "clone", clone_source(context), str(project)]])
 
 
 def _ls_remote_own_project(context: Context) -> CommandResult | None:
@@ -1204,15 +1178,10 @@ def clone_source(context: Context) -> str:
     """
     given = context.config.source_url.strip()
     if not given:
-        # Adding a second machine to a project that already exists is one
-        # of the two normal ways to arrive here, not an exotic case - and
-        # cloning the template over it gave the reader template content in
-        # a checkout whose origin was then repointed at their real work.
-        # Nothing errored; every stage reported done (#327).
-        if own_project_has_content(context):
-            return context.host.remote_url(
-                context.config.namespace.strip(), context.config.project_name.strip()
-            )
+        # Nothing is detected here. `--configure` asks whether an existing
+        # repository should be used and records the answer, so this reads
+        # a decision rather than making one - which keeps plan-building
+        # free of network calls, as `--dry-run` needs (#332).
         return context.host.template_remote
     if given.startswith(("git@", "ssh://", "https://", "http://")):
         return given

@@ -994,43 +994,19 @@ def test_source_url_overrides_the_template(tmp_path: Path) -> None:
     assert plan.commands[0][2] == own
 
 
-def test_plan_building_asks_the_host_only_what_the_run_already_asks(tmp_path: Path) -> None:
-    """This rule used to be "plan-building makes no network call at all",
-    because `--dry-run` builds every plan and had to stay cheap.
+def test_building_a_plan_makes_no_network_call(tmp_path: Path) -> None:
+    """`--dry-run` builds every plan, so plan-building has to stay cheap
+    and side-effect-free.
 
-    It was relaxed deliberately (#327). The clone stage has to know
-    whether the reader's own project already exists, or a second machine
-    clones the template over work that is already on the host - silently,
-    with every stage reporting done. Two things make the cost nil:
-    `_check_own_project` asks this exact question one stage later, so the
-    run connects regardless; and since #304 the answer is remembered
-    within a pass.
-
-    So the rule now is narrower and still worth keeping: plan-building may
-    ask *that* question and no other.
+    This rule was relaxed for a while, to let the clone stage detect an
+    existing project. Moving that decision into `--configure` (#332) won
+    it back: the stage reads a recorded answer instead of asking the
+    host, and nothing here connects at all.
     """
     runner = FakeRunner()
     context = _context(tmp_path, runner=runner)
     next(s for s in STAGES if s.id == "clone").plan(context)
-
-    assert all(
-        command[:2] == ["git", "ls-remote"] for command in runner.calls
-    ), f"plan-building asked something new: {runner.calls}"
-
-
-def test_the_clone_plan_costs_no_extra_connection(tmp_path: Path) -> None:
-    """The whole justification for relaxing the rule above. If this ever
-    stops holding, the network call in plan-building is no longer free and
-    the trade has to be made again."""
-    machine = _ready_machine(tmp_path)
-    context = _context(tmp_path, runner=FakeRunner(machine))
-    stage = next(s for s in STAGES if s.id == "clone")
-
-    next(s for s in STAGES if s.id == "own-project").check(context)
-    before = context.contacts.made
-    stage.plan(context)
-
-    assert context.contacts.made == before, "answered from the pass's memo"
+    assert runner.calls == []
 
 
 def test_apply_reruns_the_check_afterwards(tmp_path: Path) -> None:
@@ -4345,28 +4321,37 @@ def test_the_extra_steps_come_after_the_project_is_created(tmp_path: Path) -> No
     assert pages > creating
 
 
-def _host_with_project(tmp_path: Path, refs: str) -> FakeRunner:
-    """A host whose `git ls-remote` answers with `refs` for the project."""
+#: What the shallow probe finds in a repository that really is a project.
+PROJECT_TREE = "zensical.toml\nREADME.md\ndocs\nrequirements.txt\n"
+
+
+def _host_with_project(tmp_path: Path, refs: str, tree: str = PROJECT_TREE) -> FakeRunner:
+    """A host whose project answers `git ls-remote` with `refs`, and whose
+    shallow probe finds `tree`.
+
+    Both are needed: refs say the repository is not empty, and the tree
+    says it holds a project rather than a stray file (#332).
+    """
     machine = _ready_machine(tmp_path)
     machine["git ls-remote"] = CommandResult(0, refs)
+    machine["ls-tree"] = CommandResult(0, tree)
     return FakeRunner(machine)
 
 
-def test_a_project_that_already_has_work_is_cloned_instead_of_the_template(
-    tmp_path: Path,
-) -> None:
-    """Adding a second machine is one of the two normal ways to arrive
-    here. Cloning the template over an existing project gave the reader
-    template content in a checkout whose origin was then repointed at
-    their real work - silently, with every stage reporting done (#327)."""
+def test_a_recorded_choice_is_what_the_clone_stage_reads(tmp_path: Path) -> None:
+    """Detection lives in `--configure`, which records the answer. The
+    stage reads that rather than asking the host again, which is what
+    keeps plan-building free of network calls (#332)."""
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
     context = _context(
-        tmp_path, host="github.com", namespace="buckwem", project_name="report-windows-v1",
-        runner=_host_with_project(tmp_path, "abc123\trefs/heads/main\n"),
+        tmp_path, host="github.com", namespace="buckwem",
+        project_name="report-windows-v1", runner=FakeRunner(machine),
     )
     script = " ".join(next(s for s in STAGES if s.id == "clone").plan(context).commands[0])
 
-    assert "buckwem/report-windows-v1.git" in script
-    assert "prodockit-template" not in script
+    assert "prodockit-template" in script, "no source_url recorded, so the template"
 
 
 def test_an_empty_project_still_gets_the_template(tmp_path: Path) -> None:
@@ -4489,25 +4474,8 @@ def test_there_is_nothing_to_reset_before_there_is_a_clone(tmp_path: Path) -> No
 def _own_project_machine(tmp_path: Path) -> dict[str, CommandResult]:
     machine = _ready_machine(tmp_path)
     machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
     return machine
-
-
-def test_adopting_an_existing_project_is_put_to_the_reader(tmp_path: Path) -> None:
-    """Which repository is used decides whether the reader's existing work
-    arrives or a fresh template lands on top of it. Too big a thing to
-    infer silently (#332)."""
-    plan = next(s for s in STAGES if s.id == "clone").plan(
-        _context(
-            tmp_path, host="github.com", namespace="buckwem",
-            project_name="report-windows-v1", runner=FakeRunner(_own_project_machine(tmp_path)),
-        )
-    )
-    said = "\n".join(plan.instructions)
-
-    assert plan.confirm.endswith("?")
-    assert "already exists" in said
-    assert "will not offer to delete it" in said, "say what it means for the history stage"
-    assert "git init -b main" in said, "and what answering no leads to"
 
 
 def test_the_template_and_a_named_repository_are_not_second_guessed(tmp_path: Path) -> None:
@@ -4677,6 +4645,7 @@ def test_a_recorded_decision_means_no_prompt_during_the_run(tmp_path: Path) -> N
     has nothing to ask, so the run has one less thing to interrupt for."""
     machine = _ready_machine(tmp_path)
     machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
     plan = next(s for s in STAGES if s.id == "clone").plan(
         _context(
             tmp_path, host="github.com", namespace="buckwem",
