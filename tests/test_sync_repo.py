@@ -664,3 +664,29 @@ def test_the_tool_is_installable_under_a_short_name() -> None:
 
     assert "pdk" in scripts, "installed as a command, not merely declared"
     assert scripts["pdk"] == scripts["prodockit"], "the same entry point, not a copy"
+
+
+def test_boot_is_the_same_command_as_bootstrap() -> None:
+    """Registered rather than wrapped - one object under two names, so
+    the two cannot take different options or drift in their help.
+
+    `bootstrap` stays: the User Guide, the issues and every script
+    written so far name it.
+    """
+    from prodockit.cli import main
+
+    assert main.commands["boot"] is main.commands["bootstrap"]
+
+
+def test_boot_accepts_what_bootstrap_accepts() -> None:
+    """The point of one object rather than two: a flag added to one is
+    on the other by construction."""
+    from click.testing import CliRunner
+
+    from prodockit.cli import main
+
+    for name in ("boot", "bootstrap"):
+        result = CliRunner().invoke(main, [name, "--help"])
+        assert result.exit_code == 0
+        for flag in ("--check", "--dry-run", "--apply", "--configure", "--config"):
+            assert flag in result.output, f"{name} is missing {flag}"
