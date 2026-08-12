@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.26.7 (2026-08-12)
+
 - **Fixed:** the two browser stages could not see what you had just done
   in the browser
   ([#321](https://github.com/buckwem/prodockit-extensions/issues/321)).
