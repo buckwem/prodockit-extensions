@@ -1319,8 +1319,14 @@ def _plan_fresh_history(context: Context) -> Plan:
 def _check_own_project(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
         return unknown
-    if _origin_is_the_template(context):
-        return _blocked(_STILL_THE_TEMPLATE)
+    # Deliberately not blocked on the history reset. The repository lives
+    # on the *host*, and `rm -rf .git` is local - so nothing here is
+    # thrown away by the reset, unlike the repoint in the stage below.
+    #
+    # Blocking it made the retry loop unescapable: the reader created the
+    # repository, said yes, and was told the clone still points at the
+    # template - a fact about their machine that creating a repository
+    # cannot change (prodockit-extensions#336).
     url = context.host.remote_url(context.config.namespace, context.config.project_name)
     result = context.runner.run(["git", "ls-remote", url])
     if result.ok:

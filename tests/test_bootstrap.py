@@ -4097,16 +4097,21 @@ def _clone_pointing_at(tmp_path: Path, origin: str) -> FakeRunner:
     return FakeRunner(machine)
 
 
-def test_the_project_stage_waits_for_the_history_reset(tmp_path: Path) -> None:
-    """Creating the blank project while the clone is still the template
-    is premature, and the reader is better told which stage to do first
-    than sent to a browser (#311)."""
+def test_creating_the_project_is_not_blocked_by_the_history_reset(tmp_path: Path) -> None:
+    """It was, and that was wrong. The repository lives on the *host*, and
+    `rm -rf .git` is local - so nothing about creating it is thrown away
+    by the reset, unlike the repoint in the stage below.
+
+    Blocking it made the retry loop unescapable: the reader created the
+    repository, answered yes, and was told the clone still points at the
+    template - a fact about their machine that creating a repository
+    cannot change (#336).
+    """
     result = next(s for s in STAGES if s.id == "own-project").check(
         _context(tmp_path, runner=_clone_pointing_at(tmp_path, TEMPLATE_ORIGIN))
     )
 
-    assert result.status is Status.BLOCKED
-    assert "A history of your own" in result.detail
+    assert result.status is not Status.BLOCKED
 
 
 def test_the_remote_stage_never_reports_the_template_as_ok(tmp_path: Path) -> None:
@@ -4130,7 +4135,9 @@ def test_a_blocked_stage_gets_no_plan(tmp_path: Path) -> None:
     reports = plan_all(_context(tmp_path, runner=_clone_pointing_at(tmp_path, TEMPLATE_ORIGIN)))
     blocked = [r for r in reports if r.result.status is Status.BLOCKED]
 
-    assert {r.stage.id for r in blocked} == {"own-project", "remote"}
+    assert {r.stage.id for r in blocked} == {"remote"}, (
+        "only the repoint is undone by the reset; the repository on the host is not"
+    )
     assert all(r.plan is None for r in blocked), "no commands to be undone"
 
 
@@ -4278,17 +4285,25 @@ def test_an_existing_ssh_directory_is_left_alone(tmp_path: Path) -> None:
     assert "ssh-keygen" in script
 
 
-def test_github_is_told_to_switch_pages_on(tmp_path: Path) -> None:
-    """Bootstrap reported 18 of 18 stages done and the first push then
-    failed in CI with `Get Pages site failed` - which names the site
-    rather than the setting nobody had been told to switch on (#324)."""
+def test_nobody_is_told_to_switch_pages_on_any_more(tmp_path: Path) -> None:
+    """The template's workflow enables Pages itself now
+    (prodockit-template#169), so the instruction describes work already
+    done - and a step that does nothing is one more thing to skim past in
+    a list where the others matter (#336).
+
+    Nothing is taken on trust by dropping it: stage 19 still checks the
+    published site actually answers. What has gone is the instruction,
+    not the verification.
+    """
     plan = next(s for s in STAGES if s.id == "own-project").plan(
         _context(tmp_path, host="github.com")
     )
-    said = "\n".join(plan.instructions)
+    said = " ".join("\n".join(plan.instructions).split())
 
-    assert "Settings" in said and "Pages" in said
-    assert "GitHub Actions" in said, "the Source it has to be set to"
+    assert "Pages in the left sidebar" not in said
+    assert "Build and deployment" not in said
+    assert "Set visibility" in said, "the other steps are untouched"
+    assert any(s.id == "site" for s in STAGES), "still verified, one stage later"
 
 
 def test_github_warns_that_a_private_repo_still_publishes_publicly(tmp_path: Path) -> None:
@@ -4565,11 +4580,16 @@ def test_all_three_paths_are_named_in_the_question(
     chosen, and a reader who cannot see it among the options has to infer
     it from the absence of anything else (#332)."""
     result = _configured(cli_bootstrap, monkeypatch, answer="1")
+    # Compared with the line breaks flattened: the text is wrapped to the
+    # terminal now, so where a phrase happens to break depends on how long
+    # the project name is, and asserting on raw output would tie these to
+    # one particular name.
+    said = " ".join(result.output.split())
 
-    assert "already exists on github.com and has content in it" in result.output
-    assert "leave the existing git records" in result.output
-    assert "delete the existing git records" in result.output
-    assert "start from the template" in result.output
+    assert "already exists on github.com and has content in it" in said
+    assert "leave the existing git records" in said
+    assert "delete the existing git records" in said
+    assert "start from the template" in said
 
 
 def test_keeping_the_history_is_recorded(
@@ -4668,3 +4688,43 @@ def test_a_recorded_decision_means_no_prompt_during_the_run(tmp_path: Path) -> N
 
     assert not plan.instructions, "the decision was already made"
     assert "report-windows-v1.git" in " ".join(plan.commands[0])
+
+
+def test_the_question_wraps_whatever_the_project_is_called(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """It was written with the line breaks typed in, which only line up
+    for one length of name - a longer one overflowed the first line and
+    left the rest short."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+    monkeypatch.setattr("prodockit.cli.own_project_exists", lambda context: True)
+    monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: True)
+    long_name = "a-considerably-longer-project-name-for-testing-wrapping"
+
+    result = cli_bootstrap(
+        "--configure",
+        input=f"github.com\nAda\na@b.c\nbuckwem\nbuckwem\n{long_name}\n\n1\n",
+    )
+    lines = [line for line in result.output.splitlines() if line.startswith("  ")]
+
+    assert lines, "the question printed"
+    assert max(len(line) for line in lines) <= 79, "nothing runs past the width"
+    assert long_name in result.output, "and the name is not broken across lines"
+
+
+def test_the_questions_say_how_many_there_are(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Eight unnumbered questions read as an open-ended interrogation."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+    monkeypatch.setattr("prodockit.cli.own_project_exists", lambda context: False)
+    monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: False)
+
+    result = cli_bootstrap(
+        "--configure", input="github.com\nAda\na@b.c\nbuckwem\nbuckwem\nreport\n\n\n"
+    )
+
+    assert "1/8 The git host" in result.output
+    assert "6/8 Your project name" in result.output

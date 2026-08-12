@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- **Fixed:** the "your own project" stage could loop for ever, and still
+  asked for a Pages step the workflow now does itself
+  ([#336](https://github.com/buckwem/prodockit-extensions/issues/336)).
+
+    The repository existed, the reader said so, and was told the clone
+    still points at the template - a fact about their machine that
+    creating a repository cannot change. Blocking that stage on the
+    history reset was wrong: the repository lives on the host, and
+    `rm -rf .git` is local, so nothing about creating it is undone by the
+    reset. Only the repoint is, and only that stage is blocked now.
+
+    A blocked stage also ends the confirm loop with `waiting` rather than
+    asking again, since no answer can satisfy a stage waiting on another
+    one.
+
+    The Settings > Pages instruction is gone. The template's workflow
+    enables Pages itself, so it described work already done. Stage 19
+    still checks the published site answers - what has gone is the
+    instruction, not the verification.
+
+- **Changed:** the configure questions are numbered, and their text wraps
+  to the terminal instead of at line breaks typed in by hand - which only
+  lined up for one length of project name.
+
 ## 0.28.0 (2026-08-12)
 
 - **Added: a nineteenth stage** that checks the documentation site is
