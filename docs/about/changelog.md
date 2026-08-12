@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.27.0 (2026-08-12)
+
 - **Fixed:** a second machine cloned the template over a project that
   already existed
   ([#327](https://github.com/buckwem/prodockit-extensions/issues/327)).
