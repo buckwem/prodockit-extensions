@@ -2574,6 +2574,9 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "ssh-config": ("the Host stanza",),
     "ssh-agent": ("the loaded key",),
     "ssh-upload": None,
+    # A recorded answer, not a command: what it produces is the setting
+    # the clone stage then reads.
+    "clone-source": None,
     "clone": ("the clone",),
     "fresh-history": ("a history of its own", "core.fileMode"),
     "first-push": ("the commit", "the push"),
@@ -2632,6 +2635,12 @@ def test_a_stage_with_commands_is_never_satisfied_by_an_empty_machine(
             result = stage.check(context)
             if result.status is Status.UNKNOWN:
                 continue  # waiting on configuration, not on the machine
+            if stage.id == "clone-source":
+                # Nothing to decide on a machine with no project on the
+                # host - and "the template" is the honest answer, not a
+                # silent pass.
+                assert "template" in result.detail or result.needs_work
+                continue
             if stage.id == "pages" and not context.host.pages_url:
                 # Same reasoning as `site` below: Surrey publishes at no
                 # address bootstrap can work out, so there is nothing to
@@ -3204,6 +3213,13 @@ def test_no_manual_step_is_left_asking_the_generic_question(tmp_path: Path) -> N
             assert plan.confirm != "Tell me when that is done", (
                 f"{stage.id} on {platform} still asks the generic question"
             )
+            if plan.choices:
+                # A numbered choice, not a yes/no. "Select 1, 2 or 3" is
+                # the right prompt for it, and a question mark would
+                # invite Enter - which is exactly what a choice with no
+                # default must not accept (#348).
+                assert plan.confirm.startswith("Select "), f"{stage.id}: {plan.confirm!r}"
+                continue
             assert plan.confirm.endswith("?"), f"{stage.id}: {plan.confirm!r}"
 
 
@@ -5027,3 +5043,71 @@ def test_only_the_host_saying_so_counts_as_absent(tmp_path: Path) -> None:
             _context(tmp_path, host="github.com", runner=FakeRunner(machine))
         )
         assert answer is expected, stderr
+
+
+def test_the_decision_stage_sits_between_the_key_and_the_clone(tmp_path: Path) -> None:
+    """After the SSH stages because that is the first point the question
+    can be *answered* - `--configure` runs before any key exists, so it
+    can only say it could not look. Before the clone because that is the
+    last point the answer still matters (#348)."""
+    ids = [s.id for s in STAGES]
+
+    assert ids.index("clone-source") > ids.index("ssh-upload")
+    assert ids.index("clone-source") < ids.index("clone")
+
+
+def test_nothing_to_decide_is_not_a_question(tmp_path: Path) -> None:
+    """A reader whose project does not exist, or exists and is empty,
+    gets the template - the only workable answer - and is not asked to
+    choose between one thing."""
+    result = next(s for s in STAGES if s.id == "clone-source").check(
+        _context(tmp_path, runner=FakeRunner(_ready_machine(tmp_path)))
+    )
+
+    assert result.status is Status.OK
+    assert "template" in result.detail
+
+
+def test_a_project_with_work_in_it_is_put_to_the_reader(tmp_path: Path) -> None:
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
+    stage = next(s for s in STAGES if s.id == "clone-source")
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem",
+        project_name="report-linux-v4", runner=FakeRunner(machine),
+    )
+
+    assert stage.check(context).status is Status.MISSING
+    plan = stage.plan(context)
+    assert len(plan.choices) == 3, "three paths, not three yes/no questions"
+    assert plan.confirm == "Select 1, 2 or 3"
+    assert "delete the existing git records" in plan.choices[1]
+
+
+def test_an_answer_already_recorded_is_not_asked_again(tmp_path: Path) -> None:
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
+    result = next(s for s in STAGES if s.id == "clone-source").check(
+        _context(tmp_path, source_url="buckwem/report-linux-v4", runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.OK
+    assert "buckwem/report-linux-v4" in result.detail
+
+
+def test_the_choice_is_written_down(tmp_path: Path) -> None:
+    """So a rerun reads the answer rather than asking again - which is
+    the whole reason this is a stage and not a prompt."""
+    from prodockit.cli import _record_clone_source
+
+    for picked, source, history in (
+        ("1", "buckwem/report", "keep"),
+        ("2", "buckwem/report", "reset"),
+        ("3", "", ""),
+    ):
+        config = _config(namespace="buckwem", project_name="report")
+        _record_clone_source(config, picked, None)
+        assert config.source_url == source, picked
+        assert config.history == history, picked

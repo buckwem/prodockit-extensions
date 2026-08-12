@@ -165,13 +165,18 @@ def test_the_memo_distinguishes_working_directories() -> None:
     assert len(inner.calls) == 2
 
 
-def test_a_check_pass_on_a_finished_machine_costs_two_logins(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_a_check_pass_on_a_finished_machine_costs_four_logins(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """The measurement #304 asked for, on the real stage list.
 
-    Three now: one `ssh -T`, one `git ls-remote` for the project, and one
-    against `origin` for the first-push stage. All genuinely different
-    questions, so there is nothing here for the memo to save, and the
-    number is the honest floor for a pass.
+    Four now: one `ssh -T`, one `git ls-remote` for the project, the
+    shallow fetch that asks whether it holds a project rather than a
+    stray file, and one `ls-remote` against `origin` for the first-push
+    stage.
+
+    Rising, and worth watching for that reason. Every stage that asks the
+    host something adds to what a run costs, and #304 exists because that
+    number got away from the tool once already - a server stopped
+    answering and the tool blamed the reader's key.
 
     It is worth watching. Every stage that asks the host something adds
     to what a run costs, and #304 exists because that number got away
@@ -184,8 +189,8 @@ def test_a_check_pass_on_a_finished_machine_costs_two_logins(tmp_path) -> None: 
     context = _context(tmp_path, runner=FakeRunner(_ready_machine(tmp_path)))
     check_all(context)
 
-    assert context.contacts.made == 3
-    assert context.contacts.reused == 0, "three different questions"
+    assert context.contacts.made == 4
+    assert context.contacts.reused == 1, "the project probe is asked twice, connected once"
 
 
 def test_planning_a_broken_ssh_stage_reuses_the_probe(tmp_path) -> None:  # type: ignore[no-untyped-def]

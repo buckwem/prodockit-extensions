@@ -478,7 +478,9 @@ def _announce_apply(context: Context, outstanding: int) -> None:
     click.echo("")
 
 
-def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
+def _apply_outstanding(
+    context: Context, reports: list[StageReport], config_path: Path | None = None
+) -> None:
     """Applies the stages that need it, asking before each.
 
     A stage whose work is *yours* - the two browser steps - is retried
@@ -541,6 +543,25 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
         # entirely (#230), and commands-first ran the SSH probe before the
         # reader had been told to upload the key, which fails by
         # definition and ended the run (#234).
+        if plan.choices:
+            # A choice, not a confirmation. Rendered with no default,
+            # because one of these answers deletes commits that cannot be
+            # recovered (#348).
+            for line in plan.instructions:
+                click.echo(_wrapped(line))
+            click.echo("")
+            for number, option in enumerate(plan.choices, start=1):
+                click.echo(_wrapped(option, first=f"  {number}. ", rest="     "))
+            click.echo("")
+            picked = click.prompt(
+                f"  {plan.confirm}",
+                type=click.Choice([str(n) for n in range(1, len(plan.choices) + 1)]),
+                show_choices=False,
+            )
+            _record_clone_source(context.config, picked, config_path)
+            click.echo("")
+            continue
+
         if plan.instructions:
             _show_steps("  What you need to do:", plan.instructions)
             if not plan.commands:
@@ -691,6 +712,26 @@ def _show_steps(title: str, steps: list[str]) -> None:
     click.echo("")
 
 
+def _record_clone_source(
+    config: BootstrapConfig, picked: str, config_path: Path | None
+) -> None:
+    """Writes down which of the three paths was chosen.
+
+    Both of the first two clone the repository itself - the difference is
+    what becomes of its history and its remote, which is the only part
+    there is to decide. Saved immediately, so a rerun reads the answer
+    rather than asking again.
+    """
+    if picked == "3":
+        config.source_url = ""
+        config.history = ""
+    else:
+        config.source_url = f"{config.namespace.strip()}/{config.project_name.strip()}"
+        config.history = "keep" if picked == "1" else "reset"
+    if config_path is not None:
+        save_bootstrap_config(config_path, config)
+
+
 def _verify_until_done(context: Context, stage: Stage, question: str) -> bool:
     """Waits for a manual step, re-checking until it takes or you stop.
 
@@ -757,7 +798,7 @@ def bootstrap(
 ) -> None:
     """Set up this machine and your project from scratch.
 
-    Checks all 22 stages - editor, git, SSH key/config/agent/upload,
+    Checks all 23 stages - editor, git, SSH key/config/agent/upload,
     clone, history, remote, commit identity, the project's own
     environment, pandoc, Node and the rest - and reports which are
     already done. Rerunnable: a stage that is set up correctly
@@ -808,7 +849,7 @@ def bootstrap(
     reports = check_all(context) if check_only else plan_all(context)
 
     if apply_stages:
-        _apply_outstanding(context, reports)
+        _apply_outstanding(context, reports, path)
         return
 
     symbols = {

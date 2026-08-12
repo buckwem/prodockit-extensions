@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import socket
 import sys
+import tempfile
 from pathlib import Path
 
 from prodockit import mathjax
@@ -1162,6 +1163,44 @@ def own_project_exists(context: Context) -> bool:
     return project_on_host(context) is True
 
 
+#: What makes a repository a *project* rather than merely non-empty.
+#:
+#: `zensical.toml` is what every later stage reads, and `README.md` is
+#: what `prodockit sync-repo` rewrites. A repository holding a stray note
+#: and neither of those is as unusable as an empty one, and "has any
+#: commits" called it usable (prodockit-extensions#348).
+PROJECT_FILES = ("zensical.toml", "README.md")
+
+
+def _remote_holds_a_project(context: Context) -> bool:
+    """Whether the default branch carries `PROJECT_FILES`.
+
+    `git ls-remote` lists refs and says nothing about files, so this
+    fetches the tree and no blobs - `--filter=blob:none --no-checkout`
+    over the reader's own key, which is what makes it work against a
+    private repository without a token. The clone is thrown away.
+
+    Any failure answers "no". A probe that cannot complete must not be
+    read as evidence that the repository is usable: that way round the
+    reader gets the template and a working project, rather than a clone
+    of something missing what every later stage needs.
+    """
+    namespace = context.config.namespace.strip()
+    project = context.config.project_name.strip()
+    url = context.host.remote_url(namespace, project)
+    with tempfile.TemporaryDirectory() as into:
+        clone = context.runner.run(
+            ["git", "clone", "--depth", "1", "--filter=blob:none", "--no-checkout", url, into]
+        )
+        if not clone.ok:
+            return False
+        listed = context.runner.run(["git", "-C", into, "ls-tree", "--name-only", "HEAD"])
+    if not listed.ok:
+        return False
+    present = set(listed.stdout.split())
+    return all(wanted in present for wanted in PROJECT_FILES)
+
+
 def own_project_has_content(context: Context) -> bool:
     """Whether the reader's own project exists on the host *and* has commits.
 
@@ -1179,7 +1218,9 @@ def own_project_has_content(context: Context) -> bool:
     costs nothing beyond the first time.
     """
     result = _ls_remote_own_project(context)
-    return result is not None and result.ok and bool(result.stdout.strip())
+    if result is None or not result.ok or not result.stdout.strip():
+        return False
+    return _remote_holds_a_project(context)
 
 
 def clone_source(context: Context) -> str:
@@ -2597,6 +2638,61 @@ def _plan_host_cli(context: Context) -> Plan:
     )
 
 
+# ---------------------------------------------------------------------------
+# 7. Where the project comes from - asked once the host can be reached
+# ---------------------------------------------------------------------------
+
+
+def _check_clone_source(context: Context) -> CheckResult:
+    """Whether it is settled where the project's contents come from.
+
+    Placed after the SSH stages and before the clone, because that is the
+    first point at which the question can be *answered*. `--configure`
+    runs before any of this: on a fresh machine there is no key yet, so
+    `git ls-remote` cannot authenticate and the honest answer there is "I
+    could not look" - which left the decision never actually offered, on
+    the run where it matters most (prodockit-extensions#348).
+
+    Nothing to decide is `ok`, not a question. A reader whose project
+    does not exist yet, or exists and is empty, gets the template - the
+    only workable answer - and is not asked to choose between one thing.
+    """
+    if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
+        return unknown
+    if context.config.source_url.strip():
+        return _ok(f"cloning {context.config.source_url.strip()}")
+    if not own_project_has_content(context):
+        return _ok("the template - nothing of your own on the host yet")
+    return _missing(
+        f"{context.config.namespace.strip()}/{context.config.project_name.strip()} has "
+        "work on the host - choose what to do with it"
+    )
+
+
+def _plan_clone_source(context: Context) -> Plan:
+    """The three paths, as a numbered choice with no default.
+
+    Not three yes/no questions in a row: that invites pressing Enter
+    through them, and one of these answers deletes commits that cannot be
+    recovered.
+    """
+    name = f"{context.config.namespace.strip()}/{context.config.project_name.strip()}"
+    return Plan(
+        instructions=[f"{name} already exists on {context.host.hostname} and has content in it."],
+        choices=(
+            f"clone the full repo {name!r}, then leave the existing git records and "
+            "sync origin unchanged",
+            f"clone the full repo {name!r}, then delete the existing git records and "
+            "set up a new remote repo",
+            "start from the template in a new repository of your own. Choose this only "
+            f"if {name} is not the repository your work belongs in - a repository "
+            "issued to you carries the permissions that decide who can read it, and a "
+            "new one will not have them.",
+        ),
+        confirm="Select 1, 2 or 3",
+    )
+
+
 STAGES: tuple[Stage, ...] = (
     Stage("vscode", "Visual Studio Code", _check_vscode, _plan_vscode),
     Stage("git", "Git, installed and configured", _check_git, _plan_git),
@@ -2609,6 +2705,15 @@ STAGES: tuple[Stage, ...] = (
     # the host's challenge unless an agent is holding it (#246).
     Stage("ssh-agent", "Key loaded into the ssh agent", _check_ssh_agent, _plan_ssh_agent),
     Stage("ssh-upload", "SSH key on the host", _check_ssh_authenticates, _plan_ssh_upload),
+    # Between the SSH stages and the clone: the first point at which the
+    # host can be reached, and the last at which the answer still
+    # matters (#348).
+    Stage(
+        "clone-source",
+        "Where the project comes from",
+        _check_clone_source,
+        _plan_clone_source,
+    ),
     Stage("clone", "Project cloned", _check_clone, _plan_clone),
     # Before the remote is set: resetting deletes .git, remotes and all,
     # so doing it afterwards would throw away the repoint (#248).
