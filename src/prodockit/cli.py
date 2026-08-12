@@ -139,8 +139,12 @@ def _ask_for_configuration(
         # setting rather than an inference, and leaves nothing surprising
         # to decide while commands are running
         # (prodockit-extensions#332).
-        if key == "source_url" and not config.source_url.strip():
-            _explain_existing_project(config)
+        # Asked in its own shape, with every path named - so the
+        # free-text prompt below is skipped rather than asked a second
+        # time in worse words.
+        answered_here = key == "source_url" and not config.source_url.strip()
+        if answered_here and _explain_existing_project(config):
+            continue
         while True:
             # `default_for` fills a blank answer from one already given, so
             # a first run still has something sensible to press Enter on.
@@ -167,34 +171,71 @@ def _ask_for_configuration(
     return config
 
 
-def _explain_existing_project(config: BootstrapConfig) -> None:
-    """Says so when the project already exists on the host, and offers it.
+def _explain_existing_project(config: BootstrapConfig) -> bool:
+    """Puts the choice about where the project comes from, and records it.
 
-    The reader is the only one who knows which case they are in, but they
-    cannot know this one without looking: the repository is on the host,
-    not on the machine in front of them. Told plainly here, with what each
-    answer leads to, so the choice is made once and with the consequences
-    visible.
+    The template is always one of the answers, named rather than implied.
+    It is what happens when nothing else is chosen, and a reader who
+    cannot see it among the options has to infer it from the absence of
+    anything else - which is how the silent version of this decision went
+    unnoticed in the first place (prodockit-extensions#332).
+
+    Where a repository already has content, both of the other answers
+    clone it: the difference is what becomes of its history and its
+    remote, which is the only part there is to decide. "Existing project
+    or template" framed that wrongly - somebody starting again still
+    wants the contents that are already there.
+
+    No default. One answer deletes commits that cannot be recovered, and
+    none of them is safe enough to be taken by pressing Enter.
     """
     try:
         context = build_bootstrap_context(config)
     except UnsupportedHostError:
-        return
+        # Nothing can be asked about a host that cannot be used. The
+        # ordinary prompt runs instead, and the host stage refuses later.
+        return False
+    # Qualified with the namespace: `report-windows-v1` alone is not
+    # something `git clone` can resolve, and the reader should see the
+    # same shape they would type themselves.
+    name = f"{config.namespace.strip()}/{config.project_name.strip()}"
+    host = config.host
+
     if not own_project_has_content(context):
-        return
-    name = config.project_name.strip()
+        # Nothing to choose between: an empty or absent repository has no
+        # contents to keep, and cloning it would leave nothing to work on.
+        # Said anyway, so the template is never a silent decision.
+        click.echo(f"\n  {name} has no content on {host} yet, so the template will be used.\n")
+        config.source_url = ""
+        config.history = ""
+        return True
+
+    click.echo(f"\n  {name} already exists on {host} and has content in it.")
+    click.echo("  Do you want to:\n")
     click.echo(
-        f"  {name} already exists on {config.host} and has work in it.\n"
-        f"  Answer {name!r} to bring that work here, with its history - nothing\n"
-        "  will offer to delete it.\n"
-        "  Leave this blank to start from the template instead: its history is\n"
-        "  then deleted and a new repository started, and pushing that would\n"
-        f"  replace what is on {config.host}.\n"
+        f"  1. clone the full repo {name!r}, then leave the existing git records\n"
+        "     and sync origin unchanged"
     )
-    # Offered as the default, because adopting existing work is almost
-    # always what someone with an existing project means - and it is the
-    # answer that cannot lose anything.
-    config.source_url = name
+    click.echo(
+        f"  2. clone the full repo {name!r}, then delete the existing git records\n"
+        "     and set up a new remote repo"
+    )
+    click.echo(
+        "  3. start from the template instead, discarding nothing on the host -\n"
+        f"     but a first push would then replace what is in {name}\n"
+    )
+    choice = click.prompt(
+        "  Select 1, 2 or 3", type=click.Choice(["1", "2", "3"]), show_choices=False
+    )
+    if choice == "3":
+        config.source_url = ""
+        config.history = ""
+    else:
+        # Both clone the repository; only its history differs.
+        config.source_url = name
+        config.history = "keep" if choice == "1" else "reset"
+    click.echo("")
+    return True
 
 
 def _host_answer_problem(answer: str) -> str | None:

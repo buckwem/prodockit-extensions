@@ -4558,43 +4558,71 @@ def test_an_own_history_clone_is_never_offered_the_reset(tmp_path: Path) -> None
     assert not any("rm -rf" in " ".join(c) for c in plan.commands)
 
 
-def test_configure_offers_the_existing_project_before_the_run_starts(
-    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The reader cannot know this without looking - the repository is on
-    the host, not on the machine in front of them. Asked at configure
-    time so the decision is recorded once, rather than mid-run where it is
-    answered and forgotten (#332)."""
+def _configured(cli_bootstrap, monkeypatch, *, has_content: bool, answer: str) -> object:
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
-    monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: True)
-
-    result = cli_bootstrap(
+    monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: has_content)
+    return cli_bootstrap(
         "--configure",
-        input="github.com\nAda\na@b.c\nbuckwem\nbuckwem\nreport-windows-v1\n\n\n",
+        input=f"github.com\nAda\na@b.c\nbuckwem\nbuckwem\nreport-windows-v1\n\n{answer}\n",
     )
 
-    assert "already exists on github.com and has work in it" in result.output
-    assert "nothing" in result.output and "delete it" in result.output
-    assert "start from the template instead" in result.output
 
-
-def test_the_existing_project_is_the_offered_default(
+def test_all_three_paths_are_named_in_the_question(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Adopting existing work is what someone with an existing project
-    almost always means, and it is the answer that cannot lose anything -
-    so pressing Enter takes it."""
-    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
-    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
-    monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: True)
+    """Including the template. It is what happens when nothing else is
+    chosen, and a reader who cannot see it among the options has to infer
+    it from the absence of anything else (#332)."""
+    result = _configured(cli_bootstrap, monkeypatch, has_content=True, answer="1")
 
-    cli_bootstrap(
-        "--configure",
-        input="github.com\nAda\na@b.c\nbuckwem\nbuckwem\nreport-windows-v1\n\n\n",
-    )
+    assert "already exists on github.com and has content in it" in result.output
+    assert "leave the existing git records" in result.output
+    assert "delete the existing git records" in result.output
+    assert "start from the template" in result.output
 
-    assert load(tmp_path / "b.toml").source_url == "report-windows-v1"
+
+def test_keeping_the_history_is_recorded(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configured(cli_bootstrap, monkeypatch, has_content=True, answer="1")
+    config = load(tmp_path / "b.toml")
+
+    assert config.source_url == "buckwem/report-windows-v1", "qualified, as a clone needs"
+    assert config.history == "keep"
+
+
+def test_starting_again_still_clones_the_repository(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Somebody starting again still wants the contents that are already
+    there - which is what "existing project or template" got wrong."""
+    _configured(cli_bootstrap, monkeypatch, has_content=True, answer="2")
+    config = load(tmp_path / "b.toml")
+
+    assert config.source_url == "buckwem/report-windows-v1"
+    assert config.history == "reset"
+
+
+def test_choosing_the_template_records_neither(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configured(cli_bootstrap, monkeypatch, has_content=True, answer="3")
+    config = load(tmp_path / "b.toml")
+
+    assert config.source_url == ""
+    assert config.history == ""
+
+
+def test_the_question_has_no_default(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One answer deletes commits that cannot be recovered, and none of
+    them is safe enough to be taken by pressing Enter."""
+    result = _configured(cli_bootstrap, monkeypatch, has_content=True, answer="\n2")
+
+    assert "Select 1, 2 or 3" in result.output
+    assert result.output.count("Select 1, 2 or 3") > 1, "a blank answer asks again"
 
 
 def test_a_project_with_no_work_in_it_is_not_offered(

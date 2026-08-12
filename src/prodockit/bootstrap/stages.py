@@ -1247,6 +1247,13 @@ def _check_fresh_history(context: Context) -> CheckResult:
             # fresh clone silently loses it again.
             return _wrong("a history of its own, but core.fileMode is not off")
         return _ok("a history of its own")
+    # An explicit "keep" settles it. The reader was shown both paths at
+    # configure time and chose this one, so nothing here re-derives the
+    # decision from what `origin` happens to say (#332).
+    if context.config.history.strip() == "keep":
+        if not _file_mode_ignored(context):
+            return _wrong("keeping your history, but core.fileMode is not off")
+        return _ok("keeping your history")
     # WRONG rather than MISSING, for the prompt's default. `--apply`
     # offers MISSING as [Y/n] and WRONG as [y/N], and deleting a
     # repository's history is the last thing that should happen by
@@ -1282,7 +1289,8 @@ def _plan_fresh_history(context: Context) -> Plan:
     # reader's own project because a git *option* was unset: the exact
     # mistake `_check_fresh_history` says this stage must never make
     # (prodockit-extensions#332).
-    if not _origin_is_the_template(context):
+    chosen = context.config.history.strip()
+    if chosen == "keep" or (not chosen and not _origin_is_the_template(context)):
         return Plan(
             cwd=str(project),
             commands=[["git", "config", "core.fileMode", "false"]],

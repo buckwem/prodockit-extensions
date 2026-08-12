@@ -2,22 +2,38 @@
 
 ## Unreleased
 
-- **Changed:** whether to adopt an existing project is decided at
-  `--configure` time, not mid-run
+- **Changed:** where the project comes from is decided at `--configure`
+  time, as a question naming every path
   ([#332](https://github.com/buckwem/prodockit-extensions/issues/332)).
 
-    When the configured project already exists on the host with work in
-    it, `--configure` says so and offers it as the answer to "existing
-    repository to clone instead of the template", with what each choice
-    leads to. Adopting is the default: it is what someone with an
-    existing project almost always means, and the only answer that cannot
-    lose anything.
+        buckwem/report-windows-v1 already exists on github.com and has content in it.
+        Do you want to:
 
-    A prompt during `--apply` was answered once and forgotten, so a rerun
-    asked again and declining left a stage undone with nowhere to go.
-    Recorded as configuration it survives, appears in the report as a
-    setting rather than an inference, and leaves nothing surprising to
-    decide while commands are running.
+        1. clone the full repo 'buckwem/report-windows-v1', then leave the existing
+           git records and sync origin unchanged
+        2. clone the full repo 'buckwem/report-windows-v1', then delete the existing
+           git records and set up a new remote repo
+        3. start from the template instead, discarding nothing on the host -
+           but a first push would then replace what is in buckwem/report-windows-v1
+
+        Select 1, 2 or 3:
+
+    Both of the first two clone the repository itself: the difference is
+    what becomes of its history and its remote, which is the only part
+    there is to decide. "Existing project or template" framed that
+    wrongly - somebody starting again still wants the contents that are
+    already there.
+
+    The template is named rather than implied. It is what happens when
+    nothing else is chosen, and a reader who cannot see it among the
+    options has to infer it from the absence of anything else.
+
+    **No default.** One answer deletes commits that cannot be recovered,
+    and none of them is safe enough to be taken by pressing Enter.
+
+    The answer is recorded, so the run follows an explicit path rather
+    than re-deriving the decision from what `origin` happens to say - and
+    a rerun does not ask again.
 
 - **Fixed:** the history stage offered to delete a project's real
   history because `core.fileMode` was unset, and adopting an existing
