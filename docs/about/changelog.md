@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.28.0 (2026-08-12)
+
 - **Added: a nineteenth stage** that checks the documentation site is
   actually published
   ([#333](https://github.com/buckwem/prodockit-extensions/issues/333)).
