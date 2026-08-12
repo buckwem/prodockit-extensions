@@ -43,6 +43,7 @@ from prodockit.bootstrap import (
     check_all,
     connection_problem,
     default_for,
+    forget_contacts,
     host_problem,
     missing_keys,
     needs_sudo,
@@ -529,6 +530,11 @@ def _verify_until_done(context: Context, stage: Stage, question: str) -> bool:
     """
     while True:
         click.confirm(f"  {question}", default=True)
+        # The reader has just been to a browser, so anything remembered
+        # about the host is older than what they did. Without this the
+        # retry loop replayed its first answer and "Try again?" could
+        # never succeed (#321).
+        forget_contacts(context)
         result = stage.check(context)
         if not result.needs_work:
             click.echo("  confirmed")

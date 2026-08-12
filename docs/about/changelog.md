@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Fixed:** the two browser stages could not see what you had just done
+  in the browser
+  ([#321](https://github.com/buckwem/prodockit-extensions/issues/321)).
+
+    A repository created on the host was reported as missing, and
+    "Try again?" repeated the same answer however many times it was
+    accepted:
+
+        not there yet - git@github.com:you/report.git is not reachable
+        Try again? [Y/n]:
+
+    A regression from the connection-reuse work in 0.26.4. Answers about
+    the host are remembered within a pass and dropped after each applied
+    command - but a browser stage's plan is instructions only, so no
+    command ran, nothing was dropped, and the verification read an answer
+    from before the reader went to the browser.
+
+    Anything remembered is dropped now before every re-check that follows
+    a human step, in both the verification and the retry loop. The saving
+    those memos exist for is unaffected: it comes from repeats within a
+    single pass, none of which have a person acting in between.
+
 ## 0.26.6 (2026-08-12)
 
 - **Fixed:** creating the SSH key failed on a machine with no `~/.ssh`
