@@ -4002,3 +4002,60 @@ def test_the_username_question_names_the_host_that_was_answered() -> None:
     question = dict(PROMPTS)["username"]
     assert "GitLab" not in question
     assert "github.com" in question_for(_config(host="github.com"), "username", question)
+
+
+WINGET_NO_UPGRADE = 2316632107  # 0x8A15002B, as Windows reports it
+
+
+def test_winget_saying_already_installed_is_not_a_failure() -> None:
+    """The exact code seen on Windows when git was already present:
+    `No available upgrade found` followed by exit 2316632107 (#309)."""
+    from prodockit.bootstrap import benign_outcome
+
+    outcome = CommandResult(WINGET_NO_UPGRADE, stdout="No available upgrade found.")
+    assert benign_outcome(["winget", "install", "--id", "Git.Git", "-e"], outcome)
+    assert benign_outcome(["winget.exe", "install", "--id", "Git.Git"], outcome)
+
+
+def test_the_same_code_from_anything_else_is_still_a_failure() -> None:
+    """Narrow on purpose: the code means "already installed" for winget
+    and nothing at all for git, so excusing it everywhere would swallow a
+    genuine failure."""
+    from prodockit.bootstrap import benign_outcome
+
+    outcome = CommandResult(WINGET_NO_UPGRADE)
+    assert not benign_outcome(["git", "config", "--global", "user.name", "Ada"], outcome)
+    assert not benign_outcome([], outcome)
+
+
+def test_a_real_winget_failure_still_stops_the_run() -> None:
+    """A package that genuinely could not be installed must not be waved
+    through - the set holds only codes seen to mean "already done"."""
+    from prodockit.bootstrap import benign_outcome
+
+    assert not benign_outcome(["winget", "install", "--id", "Git.Git"], CommandResult(1))
+    assert not benign_outcome(["winget", "install", "--id", "Git.Git"], CommandResult(0x8A150044))
+
+
+def test_the_rest_of_the_plan_runs_after_a_no_op_install(tmp_path: Path) -> None:
+    """The fault this fixes. Stopping at the winget line abandoned the
+    two `git config` commands behind it, so git was left installed and
+    unconfigured while the run reported an install failure."""
+    from prodockit.bootstrap import apply_stage
+
+    machine = _ready_machine(tmp_path)
+    # The state that produces this: git is not on *this process's* PATH,
+    # so the stage plans an install - and winget then reports the package
+    # as already present, because it is.
+    machine["git --version"] = CommandResult(1, stderr="git: not found")
+    machine["winget"] = CommandResult(WINGET_NO_UPGRADE, stdout="No available upgrade found.")
+    runner = FakeRunner(machine)
+    context = _context(tmp_path, platform=WINDOWS, runner=runner)
+
+    result = apply_stage(context, next(s for s in STAGES if s.id == "git"))
+
+    ran = [" ".join(c) for c in result.ran]
+    assert any("winget" in c for c in ran)
+    assert any("user.name" in c for c in ran), "the plan carried on"
+    assert any("user.email" in c for c in ran)
+    assert result.failed is None

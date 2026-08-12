@@ -332,6 +332,51 @@ class Runner(Protocol):
     ) -> CommandResult: ...
 
 
+#: winget exit codes that mean "nothing needed doing" rather than "it
+#: failed".
+#:
+#: `0x8A15002B` is `APPINSTALLER_CLI_ERROR_UPDATE_NOT_APPLICABLE`. winget
+#: returns it when the package is already installed and no newer version
+#: exists - which is a *satisfied* stage, not a failure, and is exactly
+#: what a rerun on a working machine produces:
+#:
+#:     Found an existing package already installed. Trying to upgrade...
+#:     No available upgrade found.
+#:     failed: exit status 2316632107
+#:
+#: Bootstrap stopped there, so the `git config --global user.name` and
+#: `user.email` that followed in the same plan never ran, leaving git
+#: installed and unconfigured with the run reporting an install failure
+#: (prodockit-extensions#309).
+#:
+#: Only the code actually observed is listed. Others exist, but guessing
+#: at them would risk swallowing a genuine failure - the point of this
+#: set is that every member has been seen to mean "already done".
+WINGET_NOTHING_TO_DO = frozenset({0x8A15002B})
+
+
+def benign_outcome(command: Sequence[str], result: CommandResult) -> bool:
+    """Whether a non-zero exit still left the machine as the plan wanted.
+
+    Narrow on purpose: it asks *which program* exited, not merely what
+    the code was, so a code that means "already installed" for winget
+    cannot excuse the same number from anything else.
+
+    The stage's own check still has the last word - this only decides
+    whether the remaining commands in a plan are allowed to run.
+    """
+    if result.ok:
+        return True
+    if not command:
+        return False
+    name = Path(command[0]).name.lower().removesuffix(".exe")
+    if name != "winget":
+        return False
+    # Windows reports these as large unsigned values; a signed
+    # interpretation of the same bits would miss them.
+    return (result.returncode & 0xFFFFFFFF) in WINGET_NOTHING_TO_DO
+
+
 #: How long a *check* may take. Checks are `--version` probes and one
 #: `ssh -T` that carries its own `ConnectTimeout`, so anything near this
 #: is a hang rather than slow work.

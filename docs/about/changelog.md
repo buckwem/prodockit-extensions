@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Fixed:** on Windows, a rerun stopped at "Git install failed" when git
+  was already installed
+  ([#309](https://github.com/buckwem/prodockit-extensions/issues/309)).
+
+    winget reports "already installed, no upgrade available" as exit
+    `2316632107` (`0x8A15002B`), which bootstrap read as a failed
+    install. It stopped there, so the `git config --global user.name` and
+    `user.email` behind it in the same plan never ran - leaving git
+    installed and unconfigured, with the run blaming the install.
+
+    That code from winget is treated as "nothing needed doing" now, and
+    the rest of the plan runs. Deliberately narrow: it matches on the
+    program as well as the code, so the same number from anything else is
+    still a failure, and only codes actually observed to mean "already
+    done" are listed - guessing at more would risk swallowing a real one.
+
 - **Added: github.com as a supported host.** Bootstrap could only be
   pointed at `gitlab.surrey.ac.uk`, so when that server stopped answering
   there was no way to run or test any of it.
