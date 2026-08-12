@@ -68,6 +68,7 @@ from prodockit.bootstrap.stages import (
     STAGES,
     own_project_exists,
     own_project_has_content,
+    project_on_host,
 )
 
 __all__ = [
@@ -111,6 +112,7 @@ __all__ = [
     "own_project_exists",
     "own_project_has_content",
     "plan_all",
+    "project_on_host",
     "question_for",
     "refresh_windows_path",
     "resolve_host",

@@ -4572,7 +4572,13 @@ def test_an_own_history_clone_is_never_offered_the_reset(tmp_path: Path) -> None
 
 
 def _configured(
-    cli_bootstrap, monkeypatch, *, answer: str, exists: bool = True, has_content: bool = True
+    cli_bootstrap,
+    monkeypatch,
+    *,
+    answer: str,
+    exists: bool = True,
+    has_content: bool = True,
+    reachable: bool = True,
 ) -> object:
     """A `--configure` run against a described host.
 
@@ -4583,6 +4589,12 @@ def _configured(
     """
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+    # Three-way, like the real thing: True there, False definitely not,
+    # None cannot tell. `False` for unreachable would be the very
+    # conflation this fixes.
+    monkeypatch.setattr(
+        "prodockit.cli.project_on_host", lambda context: exists if reachable else None
+    )
     monkeypatch.setattr("prodockit.cli.own_project_exists", lambda context: exists)
     monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: has_content)
     return cli_bootstrap(
@@ -4978,3 +4990,40 @@ def test_a_host_with_no_tool_is_not_a_finding(tmp_path: Path) -> None:
     object.__setattr__(context, "host", bare)
 
     assert next(s for s in STAGES if s.id == "host-cli").check(context).status is Status.OK
+
+
+def test_a_host_it_cannot_reach_is_not_called_missing(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reported from a fresh machine. There is no SSH key until stage 3,
+    so `git ls-remote` fails on authentication - and reading that as "the
+    repository does not exist" told a reader their project was missing
+    when it was sitting on the host in front of them (#344)."""
+    result = _configured(
+        cli_bootstrap, monkeypatch, answer="", exists=True, has_content=True, reachable=False
+    )
+
+    assert "Could not check whether" in result.output
+    assert "cannot reach it yet" in result.output
+    assert "does not exist yet" not in result.output, "never claim that without looking"
+    assert "Select 1, 2 or 3" not in result.output, "nothing to choose between blind"
+
+
+def test_only_the_host_saying_so_counts_as_absent(tmp_path: Path) -> None:
+    """A refused key, an unreachable network and a name that will not
+    resolve are all failures, and none of them is evidence about whether
+    the repository exists."""
+    from prodockit.bootstrap import project_on_host
+
+    for stderr, expected in (
+        ("ERROR: Repository not found.", False),
+        ("git@github.com: Permission denied (publickey).", None),
+        ("ssh: Could not resolve hostname github.com", None),
+        ("Connection closed by 131.227.81.118 port 22", None),
+    ):
+        machine = _ready_machine(tmp_path)
+        machine["git ls-remote"] = CommandResult(128, stderr=stderr)
+        answer = project_on_host(
+            _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+        )
+        assert answer is expected, stderr

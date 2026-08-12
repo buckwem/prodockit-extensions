@@ -1120,6 +1120,34 @@ def _ls_remote_own_project(context: Context) -> CommandResult | None:
     return context.runner.run(["git", "ls-remote", context.host.remote_url(namespace, project)])
 
 
+#: What a host says when it really means "there is no such repository",
+#: as opposed to "I will not tell you". GitHub and GitLab word it
+#: differently, and neither is the only way `git ls-remote` can fail.
+_ABSENT_SIGNS = ("repository not found", "project not found", "does not appear to be a git")
+
+
+def project_on_host(context: Context) -> bool | None:
+    """Whether the reader's project exists: yes, no, or *cannot tell*.
+
+    `None` is the important one. On a machine with no SSH key yet -
+    which is every machine, before stage 3 - `git ls-remote` fails on
+    authentication, and reading that as "the repository does not exist"
+    told a reader their project was missing when it was sitting on the
+    host in front of them (prodockit-extensions#344).
+
+    Only the host saying so counts as absent. Anything else - a refused
+    key, an unreachable network, a name that will not resolve - is
+    unknown, because none of them is evidence about the repository.
+    """
+    result = _ls_remote_own_project(context)
+    if result is None:
+        return None
+    if result.ok:
+        return True
+    said = f"{result.stdout}\n{result.stderr}".lower()
+    return False if any(sign in said for sign in _ABSENT_SIGNS) else None
+
+
 def own_project_exists(context: Context) -> bool:
     """Whether the reader's own project is there at all, empty or not.
 
@@ -1131,8 +1159,7 @@ def own_project_exists(context: Context) -> bool:
     quietly publish a student's work to the wrong audience
     (prodockit-extensions#332).
     """
-    result = _ls_remote_own_project(context)
-    return result is not None and result.ok
+    return project_on_host(context) is True
 
 
 def own_project_has_content(context: Context) -> bool:

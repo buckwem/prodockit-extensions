@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Fixed:** a repository bootstrap could not reach was reported as not
+  existing, and a partial run never asked where the project comes from
+  ([#344](https://github.com/buckwem/prodockit-extensions/issues/344)).
+
+    On a fresh machine there is no SSH key until stage 3, so
+    `git ls-remote` fails on authentication - and that was read as the
+    repository being absent. A reader was told their work was not on the
+    host while it was sitting there.
+
+    Only the host saying so counts as absent now. A refused key, an
+    unreachable network, a name that will not resolve: none of them is
+    evidence about the repository, and "cannot tell" says so plainly.
+
+    Separately, `missing_keys` omits `source_url` - blank is a valid
+    answer - so a run filling in a few gaps skipped the question about an
+    existing project and ended without its summary. Both paths ask it now.
+
 - **Added: the host's own command line** is installed and signed in as a
   stage ([#342](https://github.com/buckwem/prodockit-extensions/issues/342)).
 
