@@ -392,8 +392,18 @@ def _apply_outstanding(context: Context, reports: list[StageReport]) -> None:
                     click.echo("  skipped")
                 continue
             # There are commands, and they need the step above done
-            # first. One acknowledgement, then run them.
-            click.confirm(f"  {plan.confirm}", default=True)
+            # first. The answer is *acted on*: this was written as a bare
+            # acknowledgement, so "Delete the template's history and start
+            # a new repository? [Y/n]: n" printed the commands anyway and
+            # asked again, which reads as the tool ignoring a refusal
+            # (prodockit-extensions#330).
+            #
+            # Default follows the same rule as the command prompt below -
+            # No when the plan destroys something (#259). Defaulting a
+            # deletion to Yes was the other half of the same fault.
+            if not click.confirm(f"  {plan.confirm}", default=not plan.destructive):
+                click.echo("  skipped")
+                continue
             click.echo("")
 
         if plan.commands:

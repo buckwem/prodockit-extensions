@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Fixed:** answering no to the history reset showed the commands
+  anyway ([#330](https://github.com/buckwem/prodockit-extensions/issues/330)).
+
+    `Delete the template's history and start a new repository? [Y/n]: n`
+    printed `rm -rf .../.git` and asked again. The answer was collected
+    and discarded - written as a bare acknowledgement, which is fine for
+    "have you uploaded the key?" and not for a deletion with no undo.
+
+    That prompt also defaulted to yes on a destructive plan. The rule that
+    this one plan must not default to yes had been applied to the command
+    prompt below it, and not to the question a reader reads first.
+
+    The same stage reported `no clone yet` and then offered to delete a
+    `.git` that did not exist, and run `git init` in a directory that did
+    not either. It waits for the clone stage now, the way the two stages
+    after it already do.
+
 ## 0.27.0 (2026-08-12)
 
 - **Fixed:** a second machine cloned the template over a project that

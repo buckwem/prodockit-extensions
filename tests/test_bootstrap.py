@@ -4416,3 +4416,59 @@ def test_a_student_given_a_repo_is_never_offered_the_history_reset(tmp_path: Pat
 
     assert result.status is Status.OK
     assert "a history of its own" in result.detail
+
+
+def test_saying_no_to_a_destructive_step_does_not_then_offer_it(
+    cli_bootstrap, tmp_path: Path
+) -> None:
+    """Reported from real use. "Delete the template's history and start a
+    new repository? [Y/n]: n" printed the commands anyway and asked again,
+    which reads as the tool ignoring a refusal (#330).
+
+    The answer was collected and discarded - it had been written as a bare
+    acknowledgement, which is defensible for "have you uploaded the key?"
+    and not for a deletion that cannot be undone.
+    """
+    machine = _ready_machine(tmp_path)
+    project = tmp_path / "GitLab" / "report-al01234"
+    machine["remote get-url origin"] = CommandResult(
+        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
+    )
+    (project / ".git").mkdir(parents=True, exist_ok=True)
+
+    result = cli_bootstrap("--apply", responses=machine, input="n\n" * 30)
+
+    assert "Delete the template's history" in result.output
+    assert "rm -rf" not in result.output, "a refusal must not be followed by the commands"
+
+
+def test_a_deletion_never_defaults_to_yes(tmp_path: Path) -> None:
+    """#259 established that the one plan with no undo is the one whose
+    prompt does not default to yes. That held for the command prompt and
+    not for the question above it, which is the prompt a reader actually
+    reads."""
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(
+        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
+    )
+    plan = next(s for s in STAGES if s.id == "fresh-history").plan(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert plan.destructive, "the flag the default is taken from"
+    assert plan.confirm.endswith("?")
+
+
+def test_there_is_nothing_to_reset_before_there_is_a_clone(tmp_path: Path) -> None:
+    """It reported "no clone yet" and then offered to `rm -rf` a `.git`
+    that does not exist, and `git init` in a directory that does not
+    either (#330)."""
+    # Deliberately not `_ready_machine`: that one creates the clone, which
+    # is the whole state this is about not having.
+    save(tmp_path / "b.toml", _config())
+    reports = plan_all(_context(tmp_path))
+    history = next(r for r in reports if r.stage.id == "fresh-history")
+
+    assert history.result.status is Status.BLOCKED
+    assert "no clone yet" in history.result.detail
+    assert history.plan is None, "nothing to run on a directory that is not there"

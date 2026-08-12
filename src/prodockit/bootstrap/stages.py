@@ -1199,7 +1199,11 @@ def _check_fresh_history(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not (project / ".git").exists():
-        return _missing("no clone yet")
+        # Not "missing": there is nothing here to repair yet, and a plan
+        # built from it deleted a `.git` that does not exist and ran
+        # `git init` in a directory that does not exist either. Waiting
+        # on the clone, like the two stages after this one (#330).
+        return _blocked("there is no clone yet - do the 'Project cloned' stage first")
     origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"])
     if not origin.ok:
         # No remote at all: `git init` has already been here.
