@@ -2614,26 +2614,45 @@ def _plan_host_cli(context: Context) -> Plan:
     """
     host = context.host
     command = host.cli_command
+    installed = _installed(context, command, "--version")
     installs = CLI_INSTALL.get(command, {}).get(context.platform, [])
-    signed_in = _installed(context, command, "--version")
-    return Plan(
-        commands=[] if signed_in else installs,
-        needs_terminal=True,
-        instructions=(
-            []
-            if installs or signed_in
-            else [
-                f"{host.cli_label} ({command}) is not in this platform's package "
-                f"archive. Install it from https://gitlab.com/gitlab-org/cli/-/releases "
-                "and come back."
-            ]
+
+    sign_in = [
+        f"Run `{command} auth login` and follow the prompts - it opens a "
+        "browser to sign you in.",
+        f"This is what lets bootstrap check things only {host.hostname} "
+        "knows, such as whether Pages is switched on.",
+    ]
+
+    if installed:
+        # Present but not signed in: nothing to run, only something to do.
+        return Plan(
+            needs_terminal=True,
+            instructions=sign_in,
+            confirm=f"Have you signed in with {command}?",
         )
-        + [
-            f"Run `{command} auth login` and follow the prompts - it opens a "
-            "browser to sign you in.",
-            f"This is what lets bootstrap check things only {host.hostname} "
-            "knows, such as whether Pages is switched on.",
-        ],
+
+    if not installs:
+        # Nothing packaged for this platform - `glab` on Ubuntu. Both
+        # steps are the reader's, in order.
+        return Plan(
+            needs_terminal=True,
+            instructions=[
+                f"{host.cli_label} ({command}) is not in this platform's package "
+                "archive. Install it from its releases page, then come back.",
+                *sign_in,
+            ],
+            confirm=f"Have you installed {command} and signed in?",
+        )
+
+    # The ordinary case: install it, *then* sign in. `follow_up` rather
+    # than `instructions`, because instructions come before the commands
+    # - which asked the reader to run `gh auth login` while `gh` was
+    # still not installed (prodockit-extensions#354).
+    return Plan(
+        commands=installs,
+        needs_terminal=True,
+        follow_up=sign_in,
         confirm=f"Have you signed in with {command}?",
     )
 

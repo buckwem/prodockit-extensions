@@ -1255,6 +1255,9 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
         # the history stage with work to do and made this helper describe
         # a machine it does not claim to.
         "config core.fileMode": CommandResult(0, "false\n"),
+        # Same reason: without these the host-CLI stage plans an install.
+        "glab --version": CommandResult(0, "glab 1.0.0"),
+        "glab auth status": CommandResult(0, "Logged in"),
         # The reported machine: the key exists locally, the host has
         # never seen it.
         "BatchMode": CommandResult(
@@ -4992,7 +4995,11 @@ def test_signing_in_is_left_to_the_reader(tmp_path: Path) -> None:
     )
 
     assert plan.needs_terminal
-    assert any("auth login" in step for step in plan.instructions)
+    # In `follow_up`, not `instructions`: instructions are printed
+    # *before* the commands, which asked the reader to run `gh auth
+    # login` while gh was still not installed (#354).
+    assert any("auth login" in step for step in plan.follow_up)
+    assert not plan.instructions, "nothing to do before the install"
     assert not any("auth" in " ".join(c) for c in plan.commands), "not run for them"
 
 
@@ -5210,3 +5217,31 @@ def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
     printed = out.getvalue().decode()
 
     assert "Select 1, 2 or 3" in printed, "the question was put once the host answered"
+
+
+def test_the_tool_is_installed_before_being_signed_into(tmp_path: Path) -> None:
+    """It asked the reader to run `gh auth login` while gh was still not
+    installed - instructions are printed before the commands, and the
+    sign-in only makes sense after them (#354)."""
+    machine = _ready_machine(tmp_path)
+    machine["gh --version"] = CommandResult(127, stderr="gh: not found")
+    plan = next(s for s in STAGES if s.id == "host-cli").plan(
+        _context(tmp_path, host="github.com", platform=UBUNTU, runner=FakeRunner(machine))
+    )
+
+    assert not plan.instructions, "nothing to do before it exists"
+    assert any("install" in " ".join(c) for c in plan.commands)
+    assert any("auth login" in step for step in plan.follow_up), "signed into afterwards"
+
+
+def test_an_installed_tool_only_needs_signing_into(tmp_path: Path) -> None:
+    """Nothing to install, so nothing to run - and the sign-in is the
+    whole of it, before rather than after."""
+    machine = _ready_machine(tmp_path)
+    machine["gh auth status"] = CommandResult(1, stderr="not logged in")
+    plan = next(s for s in STAGES if s.id == "host-cli").plan(
+        _context(tmp_path, host="github.com", platform=UBUNTU, runner=FakeRunner(machine))
+    )
+
+    assert not plan.commands
+    assert any("auth login" in step for step in plan.instructions)
