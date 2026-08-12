@@ -653,15 +653,14 @@ def test_the_tool_is_installable_under_a_short_name() -> None:
     commands are typed at a prompt, often several times over while a
     setup is being repaired.
 
-    Both names stay: scripts and documentation written against
-    `prodockit` keep working, and click takes the program name from
-    argv, so the help text says whichever was typed.
+    Read from the *installed* metadata rather than from `pyproject.toml`.
+    It is the stronger check - a declaration that never became a command
+    would pass a file-parsing test - and it avoids `tomllib`, which is
+    3.11 and later while this project supports 3.10.
     """
-    from pathlib import Path
+    from importlib.metadata import entry_points
 
-    import tomllib
+    scripts = {e.name: e.value for e in entry_points(group="console_scripts")}
 
-    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
-    scripts = pyproject["project"]["scripts"]
-
+    assert "pdk" in scripts, "installed as a command, not merely declared"
     assert scripts["pdk"] == scripts["prodockit"], "the same entry point, not a copy"
