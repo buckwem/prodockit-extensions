@@ -557,3 +557,73 @@ def test_detect_default_branch_falls_back_without_a_remote_head(tmp_path: Path) 
     error - a wrong edit_uri is a better failure than a stopped build."""
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     assert detect_default_branch(cwd=str(tmp_path)) == "main"
+
+
+def test_a_documentation_badge_links_to_the_published_site() -> None:
+    """`sync-repo` kept `site_url` correct in the config while the README
+    - the page a human actually lands on - had no way through to the site
+    at all (#326)."""
+    badges = badges_for_host(
+        "github", "github.com", "owner", "repo", "main",
+        site_url="https://owner.github.io/repo/",
+    )
+    assert badges is not None
+    assert 'href="https://owner.github.io/repo/"' in badges
+    assert "Documentation" in badges
+    assert badges.index("Documentation") < badges.index("Build"), "first, as the useful link"
+
+
+def test_the_site_badge_reports_status_only_where_shields_can_reach_it() -> None:
+    """On a public Pages host a rotting link is worth catching. On a
+    self-hosted instance shields cannot reach the site, and a status badge
+    would sit permanently on "down" while it worked fine."""
+    public = badges_for_host(
+        "gitlab", "gitlab.com", "o", "r", "main", site_url="https://o.gitlab.io/r/"
+    )
+    private = badges_for_host(
+        "gitlab", "gitlab.surrey.ac.uk", "o", "r", "main", site_url="https://docs.surrey.ac.uk/r/"
+    )
+    assert public is not None and private is not None
+    assert "img.shields.io/website" in public
+    assert "img.shields.io/website" not in private
+    assert 'href="https://docs.surrey.ac.uk/r/"' in private, "still linked"
+
+
+def test_a_private_repository_loses_the_badges_shields_cannot_read() -> None:
+    """On a private repository the star and fork badges render "Stars:
+    repo not found" - two of three wrong on the setup bootstrap tells
+    readers to create."""
+    badges = badges_for_host("github", "github.com", "owner", "repo", "main", public=False)
+    assert badges is not None
+    assert "shields.io/github/stars" not in badges
+    assert "shields.io/github/forks" not in badges
+    assert "docs.yml/badge.svg" in badges, "GitHub serves this one itself, so it works"
+
+
+def test_a_public_repository_keeps_them() -> None:
+    badges = badges_for_host("github", "github.com", "owner", "repo", "main", public=True)
+    assert badges is not None
+    assert "shields.io/github/stars" in badges
+    assert "shields.io/github/forks" in badges
+
+
+def test_visibility_is_read_from_what_a_stranger_sees() -> None:
+    """A private repository is indistinguishable from a missing one to an
+    anonymous visitor - which is exactly the view shields.io has."""
+    from prodockit.sync_repo import repository_is_public
+
+    assert repository_is_public("https://x/y", fetch=lambda _: 200) is True
+    assert repository_is_public("https://x/y", fetch=lambda _: 404) is False
+
+
+def test_an_unanswerable_probe_changes_nothing() -> None:
+    """Offline, a timeout, or a host answering something unexpected.
+    Stripping somebody's badges because their network blinked would be a
+    worse fault than the one this fixes."""
+    from prodockit.sync_repo import repository_is_public
+
+    def offline(_: str) -> int:
+        raise OSError("no route to host")
+
+    assert repository_is_public("https://x/y", fetch=offline) is None
+    assert repository_is_public("https://x/y", fetch=lambda _: 500) is None

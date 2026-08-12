@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from urllib.parse import quote, urlparse
 
@@ -323,8 +324,81 @@ def update_config(
     return text, changes
 
 
+def repository_is_public(
+    repo_url: str, *, fetch: Callable[[str], int] | None = None
+) -> bool | None:
+    """Whether an anonymous visitor can see this repository.
+
+    `None` means the question could not be answered - offline, a timeout,
+    a host that answers something unexpected. Callers must treat that as
+    "unknown" and change nothing, because the alternative is stripping a
+    reader's badges because their train went into a tunnel.
+
+    An unauthenticated GET is the whole test: a private repository is
+    indistinguishable from a missing one to a stranger, which is exactly
+    the view shields.io has when it tries to read the badge.
+    """
+    getter = fetch if fetch is not None else _status_of
+    try:
+        status = getter(repo_url)
+    except OSError:
+        return None
+    if status == 200:
+        return True
+    if status == 404:
+        return False
+    return None
+
+
+def _status_of(url: str, timeout: float = 10.0) -> int:
+    """The HTTP status of an anonymous GET, or raises `OSError`."""
+    import urllib.error
+    import urllib.request
+
+    request = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "prodockit"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return int(response.status)
+    except urllib.error.HTTPError as error:
+        return int(error.code)
+
+
+def site_badge(site_url: str) -> str:
+    """A badge linking to the published site.
+
+    First in the row deliberately: of everything the badges point at, the
+    documentation is what a visitor most likely wants, and nothing in the
+    README linked to it at all - `sync-repo` kept `site_url` correct in
+    the config while the page a human actually reads had no way through
+    (prodockit-extensions#326).
+
+    On a public Pages host it reports whether the site is *up*, because
+    shields.io can reach it and a link that quietly rots is worth
+    catching. Anywhere else - a self-hosted GitLab, very likely private -
+    shields cannot reach it, and a status badge would sit permanently on
+    "down" while the site worked fine. Those get a plain label instead.
+    """
+    host = (urlparse(site_url).hostname or "").lower()
+    reachable = any(
+        host == suffix.lstrip(".") or host.endswith(suffix) for suffix in _PAGES_HOST_SUFFIXES
+    )
+    src = (
+        f"https://img.shields.io/website?url={quote(site_url, safe='')}"
+        "&label=Documentation&style=flat"
+        if reachable
+        else "https://img.shields.io/badge/Documentation-blue?style=flat"
+    )
+    return f'  <a href="{site_url}"><img\n    src="{src}"\n    alt="Documentation"\n  /></a>\n'
+
+
 def badges_for_host(
-    kind: str, host: str, namespace: str, repo_name: str, default_branch: str
+    kind: str,
+    host: str,
+    namespace: str,
+    repo_name: str,
+    default_branch: str,
+    site_url: str | None = None,
+    public: bool = True,
 ) -> str | None:
     """The README badge-row markup for a host, or `None` for a host with no
     known badge set (left untouched in that case).
@@ -341,24 +415,29 @@ def badges_for_host(
     shields.io. The star and fork badges have no such native form, and are
     emitted only for `gitlab.com`, where shields can actually read them.
     """
+    docs = site_badge(site_url) if site_url else ""
     if kind == "github":
         base = f"https://{host}/{namespace}/{repo_name}"
-        return (
-            '<p align="center">\n'
+        rows = [
             f'  <a href="{base}/actions"><img\n'
             f'    src="{base}/actions/workflows/docs.yml/badge.svg"\n'
             '    alt="Build"\n'
             "  /></a>\n"
-            f'  <a href="{base}/stargazers"><img\n'
-            f'    src="https://img.shields.io/github/stars/{namespace}/{repo_name}?style=flat&logo=github&label=Stars"\n'
-            '    alt="GitHub Stars"\n'
-            "  /></a>\n"
-            f'  <a href="{base}/forks"><img\n'
-            f'    src="https://img.shields.io/github/forks/{namespace}/{repo_name}?style=flat&logo=github&label=Forks"\n'
-            '    alt="GitHub Forks"\n'
-            "  /></a>\n"
-            "</p>"
-        )
+        ]
+        if public:
+            rows.append(
+                f'  <a href="{base}/stargazers"><img\n'
+                f'    src="https://img.shields.io/github/stars/{namespace}/{repo_name}?style=flat&logo=github&label=Stars"\n'
+                '    alt="GitHub Stars"\n'
+                "  /></a>\n"
+            )
+            rows.append(
+                f'  <a href="{base}/forks"><img\n'
+                f'    src="https://img.shields.io/github/forks/{namespace}/{repo_name}?style=flat&logo=github&label=Forks"\n'
+                '    alt="GitHub Forks"\n'
+                "  /></a>\n"
+            )
+        return '<p align="center">\n' + docs + "".join(rows) + "</p>"
     if kind == "gitlab":
         base = f"https://{host}/{namespace}/{repo_name}"
         rows = [
@@ -367,7 +446,7 @@ def badges_for_host(
             '    alt="Build"\n'
             "  /></a>\n"
         ]
-        if host.lower() == "gitlab.com":
+        if public and host.lower() == "gitlab.com":
             # shields.io takes the project as one percent-encoded path, so
             # every separator in a nested namespace needs encoding too.
             encoded = quote(f"{namespace}/{repo_name}", safe="")
@@ -383,7 +462,7 @@ def badges_for_host(
                 '    alt="GitLab Forks"\n'
                 "  /></a>\n"
             )
-        return '<p align="center">\n' + "".join(rows) + "</p>"
+        return '<p align="center">\n' + docs + "".join(rows) + "</p>"
     return None
 
 
@@ -493,7 +572,23 @@ def sync_repo_metadata(
         _write(config_path, updated_config)
 
     if readme_path is not None:
-        badges = badges_for_host(kind, host, namespace, repo_name, branch)
+        # Asked once, and only to decide whether shields.io can read
+        # this repository. A private one is invisible to it, so its star
+        # and fork badges render "repo not found" - two of three badges
+        # wrong on the setup bootstrap tells readers to create (#326).
+        #
+        # `None` means the question could not be answered - offline, a
+        # timeout - and changes nothing. Stripping somebody's badges
+        # because their network blinked would be a worse fault than the
+        # one this fixes.
+        visible = repository_is_public(f"https://{host}/{namespace}/{repo_name}")
+        if visible is None:
+            result.notes.append(
+                f"could not tell whether {label} is public; badges left as they are"
+            )
+        badges = badges_for_host(
+            kind, host, namespace, repo_name, branch, site_url=site_url, public=visible is not False
+        )
         if badges is None:
             result.notes.append(f"no known README badge set for {label}; README left unchanged")
         else:

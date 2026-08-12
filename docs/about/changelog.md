@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+- **Added: a Documentation badge**, and dropped two that cannot work on a
+  private repository
+  ([#326](https://github.com/buckwem/prodockit-extensions/issues/326)).
+
+    `prodockit sync-repo` kept `site_url` correct in the config while the
+    README - the page a human actually lands on - had no way through to
+    the published site. It leads the badge row now, reporting whether the
+    site is up where shields.io can reach it and linking plainly where it
+    cannot.
+
+    The star and fork badges rendered `Stars: repo not found` on a
+    private repository, which is what `prodockit bootstrap` tells readers
+    to create - so two of three badges were wrong by default. They are
+    emitted only when an anonymous visitor can see the repository, which
+    is exactly the view shields.io has. A visibility check that cannot be
+    answered - offline, a timeout - changes nothing and says so.
+
+- **Fixed:** nothing enabled GitHub Pages, so the first push failed in CI
+  ([#324](https://github.com/buckwem/prodockit-extensions/issues/324)).
+
+    Bootstrap reported every stage done, the initial commit and push both
+    succeeded, and the Documentation workflow then failed with `Get Pages
+    site failed` - which names the site rather than the setting nobody
+    had been asked to switch on.
+
+    Two GitHub-only problems, both now said while the reader is still in
+    the browser rather than left to be found from a failed build:
+
+    - Pages has to be enabled by hand, under Settings > Pages, with
+      Source set to 'GitHub Actions'. GitLab needs no equivalent - its CI
+      job configures its own.
+    - The repository stays private but the site built from it does not,
+      which is what GitHub itself warns when Pages is switched on. Said
+      here because drafts and notes in `docs/` are published the moment
+      they build, not when their author decides they are ready.
+
+    Both are `Host` fields rather than branches in the stage, following
+    the rule that a difference between hosts is a value.
+
 ## 0.26.7 (2026-08-12)
 
 - **Fixed:** the two browser stages could not see what you had just done

@@ -4247,3 +4247,58 @@ def test_an_existing_ssh_directory_is_left_alone(tmp_path: Path) -> None:
     assert "mkdir" not in script
     assert "chmod" not in script
     assert "ssh-keygen" in script
+
+
+def test_github_is_told_to_switch_pages_on(tmp_path: Path) -> None:
+    """Bootstrap reported 18 of 18 stages done and the first push then
+    failed in CI with `Get Pages site failed` - which names the site
+    rather than the setting nobody had been told to switch on (#324)."""
+    plan = next(s for s in STAGES if s.id == "own-project").plan(
+        _context(tmp_path, host="github.com")
+    )
+    said = "\n".join(plan.instructions)
+
+    assert "Settings" in said and "Pages" in said
+    assert "GitHub Actions" in said, "the Source it has to be set to"
+
+
+def test_github_warns_that_a_private_repo_still_publishes_publicly(tmp_path: Path) -> None:
+    """The repository stays private and the site does not - which is what
+    GitHub itself warns when Pages is switched on, and the thing a reader
+    putting drafts in docs/ needs to know (#324).
+
+    Private is still the advice: Pages publishes from a private
+    repository, verified against a real one.
+    """
+    plan = next(s for s in STAGES if s.id == "own-project").plan(
+        _context(tmp_path, host="github.com")
+    )
+    said = "\n".join(plan.instructions)
+
+    assert "Set visibility to Private." in said, "private is still right"
+    assert "the published site will be public" in said
+    assert "docs/" in said, "say where the risk actually is"
+
+
+def test_gitlab_still_simply_says_private(tmp_path: Path) -> None:
+    """GitLab publishes Pages from a private project, so Private is
+    better advice there and the extra steps do not apply - the difference
+    is a value on the host, not a branch in the stage."""
+    plan = next(s for s in STAGES if s.id == "own-project").plan(_context(tmp_path))
+    said = "\n".join(plan.instructions)
+
+    assert "Set visibility to Private." in said
+    assert "GitHub Actions" not in said
+    assert "Pro, Team" not in said
+
+
+def test_the_extra_steps_come_after_the_project_is_created(tmp_path: Path) -> None:
+    """They are things to do *to* the new repository, so they cannot
+    sensibly be read before the step that creates it."""
+    plan = next(s for s in STAGES if s.id == "own-project").plan(
+        _context(tmp_path, host="github.com")
+    )
+    creating = next(i for i, s in enumerate(plan.instructions) if "Create a blank" in s)
+    pages = next(i for i, s in enumerate(plan.instructions) if "Pages" in s)
+
+    assert pages > creating
