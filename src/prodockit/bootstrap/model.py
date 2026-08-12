@@ -185,12 +185,16 @@ GITHUB_COM = Host(
     project_word="repository",
     group_word="organisation",
     project_visibility=(
-        "Set visibility. Choose Private if your account is GitHub Pro, Team "
-        "or Enterprise. On a free account choose Public instead: GitHub "
-        "Pages does not publish from a private repository below those "
-        "plans, and the site build fails on your first push with 'Get "
-        "Pages site failed'. Changing this later is a setting, not a "
-        "rebuild, so it is not a decision you are stuck with."
+        "Set visibility to Private.\n"
+        "The repository stays private; the site built from it does not. "
+        "GitHub says so itself when you switch Pages on: 'This repository "
+        "is private but the published site will be public.' So anything "
+        "you would not show a stranger does not belong in docs/ - drafts "
+        "and notes are published the moment they build, not when you "
+        "decide they are ready.\n"
+        "If Pages turns out not to be offered for a private repository on "
+        "your plan, making the repository public is the way round it, and "
+        "can be changed later in Settings."
     ),
     after_creating_steps=(
         "Open the new repository's Settings, then Pages in the left sidebar.",

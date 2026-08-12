@@ -16,11 +16,10 @@
     - Pages has to be enabled by hand, under Settings > Pages, with
       Source set to 'GitHub Actions'. GitLab needs no equivalent - its CI
       job configures its own.
-    - "Set visibility to Private" is wrong on a free GitHub account.
-      Pages does not publish from a private repository below Pro, Team or
-      Enterprise, so a reader following that advice got a repository
-      whose site could never build. GitLab publishes Pages from a private
-      project, so Private stays the advice there.
+    - The repository stays private but the site built from it does not,
+      which is what GitHub itself warns when Pages is switched on. Said
+      here because drafts and notes in `docs/` are published the moment
+      they build, not when their author decides they are ready.
 
     Both are `Host` fields rather than branches in the stage, following
     the rule that a difference between hosts is a value.

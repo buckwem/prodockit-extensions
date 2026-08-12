@@ -4262,18 +4262,22 @@ def test_github_is_told_to_switch_pages_on(tmp_path: Path) -> None:
     assert "GitHub Actions" in said, "the Source it has to be set to"
 
 
-def test_github_visibility_advice_depends_on_the_plan(tmp_path: Path) -> None:
-    """"Set visibility to Private" is wrong on a free GitHub account:
-    Pages will not publish from a private repository, so the site can
-    never build."""
+def test_github_warns_that_a_private_repo_still_publishes_publicly(tmp_path: Path) -> None:
+    """The repository stays private and the site does not - which is what
+    GitHub itself warns when Pages is switched on, and the thing a reader
+    putting drafts in docs/ needs to know (#324).
+
+    Private is still the advice: Pages publishes from a private
+    repository, verified against a real one.
+    """
     plan = next(s for s in STAGES if s.id == "own-project").plan(
         _context(tmp_path, host="github.com")
     )
     said = "\n".join(plan.instructions)
 
-    assert "Pro, Team" in said
-    assert "Public" in said, "what a free account has to choose"
-    assert said.count("Set visibility to Private.") == 0, "not stated unconditionally"
+    assert "Set visibility to Private." in said, "private is still right"
+    assert "the published site will be public" in said
+    assert "docs/" in said, "say where the risk actually is"
 
 
 def test_gitlab_still_simply_says_private(tmp_path: Path) -> None:
