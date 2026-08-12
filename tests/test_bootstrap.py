@@ -5168,6 +5168,8 @@ def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
     one proves the loop notices. Without it the run reports `ok` from a
     pass taken before the SSH stages ran.
     """
+    from contextlib import suppress
+
     from click.testing import CliRunner
 
     from prodockit.bootstrap import plan_all
@@ -5199,11 +5201,12 @@ def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
     )
 
     runner = CliRunner()
-    with runner.isolation(input="1\n" + "n\n" * 60) as (out, _err, _):
-        try:
-            _apply_outstanding(context, reports)
-        except (SystemExit, RuntimeError):
-            pass
+    # Whatever the run does after the question is not this test's
+    # business - it may exit or run out of answers, and either is fine.
+    with runner.isolation(input="1\n" + "n\n" * 60) as (out, _err, _), suppress(
+        SystemExit, RuntimeError
+    ):
+        _apply_outstanding(context, reports)
     printed = out.getvalue().decode()
 
     assert "Select 1, 2 or 3" in printed, "the question was put once the host answered"
