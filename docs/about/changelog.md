@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Fixed:** bootstrap asked you to sign in with a tool it had not
+  installed yet
+  ([#354](https://github.com/buckwem/prodockit-extensions/issues/354)).
+
+    The stage reported `gh is not installed` and the next line said "Run
+    `gh auth login`". Both halves were in `instructions`, which are
+    printed before a plan's commands - so the install came after the
+    request to use it.
+
+    The sign-in is `follow_up` now, which exists for work that only makes
+    sense once the commands have run.
+
 ## 0.30.1 (2026-08-12)
 
 - **Fixed:** `--apply` trusted checks taken before any stage had run
