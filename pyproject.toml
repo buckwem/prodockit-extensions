@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "prodockit"
-version = "0.26.4"
+version = "0.26.5"
 description = "A family of extensions for Zensical needed for professional and academic documentation: section cross-references, bibliography/citation handling, a glossary, a back-of-book index, a Pandoc/WeasyPrint PDF pipeline, Jinja macros for word counts and reference-style spacing, repo-metadata syncing, build-input version pinning, and machine setup automation"
 readme = "README.md"
 license = "MIT"
