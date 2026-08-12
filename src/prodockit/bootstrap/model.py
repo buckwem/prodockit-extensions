@@ -97,6 +97,19 @@ class Host:
     #: The button that saves the key - "Add key" on GitLab, "Add SSH key"
     #: on GitHub.
     ssh_key_save_label: str = "Add key"
+    #: What to say about the new project's visibility.
+    #:
+    #: A field rather than one sentence in the stage because the right
+    #: answer differs by host in a way that matters. GitLab publishes
+    #: Pages from a private project, so Private is simply better advice
+    #: there. GitHub does not, below a paid plan - so a reader who
+    #: followed "set it to Private" on a free account got a repository
+    #: whose site could never build (prodockit-extensions#324).
+    project_visibility: str = "Set visibility to Private."
+    #: Anything else to do in the browser once the project exists, as
+    #: numbered steps. GitHub needs Pages switching on by hand; GitLab's
+    #: CI job configures its own, so this is empty there.
+    after_creating_steps: tuple[str, ...] = ()
     supported: bool = True
 
     @property
@@ -171,6 +184,21 @@ GITHUB_COM = Host(
     ssh_key_save_label="Add SSH key",
     project_word="repository",
     group_word="organisation",
+    project_visibility=(
+        "Set visibility. Choose Private if your account is GitHub Pro, Team "
+        "or Enterprise. On a free account choose Public instead: GitHub "
+        "Pages does not publish from a private repository below those "
+        "plans, and the site build fails on your first push with 'Get "
+        "Pages site failed'. Changing this later is a setting, not a "
+        "rebuild, so it is not a decision you are stuck with."
+    ),
+    after_creating_steps=(
+        "Open the new repository's Settings, then Pages in the left sidebar.",
+        "Under 'Build and deployment', set Source to 'GitHub Actions'.\n"
+        "Without this the documentation workflow cannot publish, and every "
+        "push fails at 'Get Pages site failed' - which names the site "
+        "rather than the setting that is missing.",
+    ),
 )
 
 HOSTS = {host.key: host for host in (SURREY_GITLAB, GITLAB_COM, GITHUB_COM)}

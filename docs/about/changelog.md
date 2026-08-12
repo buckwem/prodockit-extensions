@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Fixed:** nothing enabled GitHub Pages, so the first push failed in CI
+  ([#324](https://github.com/buckwem/prodockit-extensions/issues/324)).
+
+    Bootstrap reported every stage done, the initial commit and push both
+    succeeded, and the Documentation workflow then failed with `Get Pages
+    site failed` - which names the site rather than the setting nobody
+    had been asked to switch on.
+
+    Two GitHub-only problems, both now said while the reader is still in
+    the browser rather than left to be found from a failed build:
+
+    - Pages has to be enabled by hand, under Settings > Pages, with
+      Source set to 'GitHub Actions'. GitLab needs no equivalent - its CI
+      job configures its own.
+    - "Set visibility to Private" is wrong on a free GitHub account.
+      Pages does not publish from a private repository below Pro, Team or
+      Enterprise, so a reader following that advice got a repository
+      whose site could never build. GitLab publishes Pages from a private
+      project, so Private stays the advice there.
+
+    Both are `Host` fields rather than branches in the stage, following
+    the rule that a difference between hosts is a value.
+
 ## 0.26.7 (2026-08-12)
 
 - **Fixed:** the two browser stages could not see what you had just done

@@ -1259,9 +1259,14 @@ def _plan_own_project(context: Context) -> Plan:
             f"Open {host.new_project_url}",
             f"Create a blank {host.project_word} named {context.config.project_name!r} "
             f"in the {host.group_word} {context.config.namespace!r}.",
-            "Set visibility to Private.",
+            host.project_visibility,
             "Untick every 'initialize with' option - the clone you already have "
             "provides the contents, and an initialised remote would conflict with it.",
+            # Whatever else this host needs doing in the browser. Said here,
+            # while the reader is already in the right place, rather than
+            # left for them to discover from a failed build afterwards
+            # (#324).
+            *host.after_creating_steps,
         ],
         confirm=(
             f"Have you created the {host.project_word} on {host.hostname}?"
