@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Added: a Documentation badge**, and dropped two that cannot work on a
+  private repository
+  ([#326](https://github.com/buckwem/prodockit-extensions/issues/326)).
+
+    `prodockit sync-repo` kept `site_url` correct in the config while the
+    README - the page a human actually lands on - had no way through to
+    the published site. It leads the badge row now, reporting whether the
+    site is up where shields.io can reach it and linking plainly where it
+    cannot.
+
+    The star and fork badges rendered `Stars: repo not found` on a
+    private repository, which is what `prodockit bootstrap` tells readers
+    to create - so two of three badges were wrong by default. They are
+    emitted only when an anonymous visitor can see the repository, which
+    is exactly the view shields.io has. A visibility check that cannot be
+    answered - offline, a timeout - changes nothing and says so.
+
 - **Fixed:** nothing enabled GitHub Pages, so the first push failed in CI
   ([#324](https://github.com/buckwem/prodockit-extensions/issues/324)).
 
