@@ -120,7 +120,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y curl fonts-inter fonts-jetbrains-mono
       # Upstream release rather than the image's package - see PANDOC_VERSION.
       - run: |
-          curl -fsSL -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 20 -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
           sudo apt install -y /tmp/pandoc.deb
       # mermaid-cli, so the ```mermaid diagram in extensions/bibliography.md
       # is pre-rendered to a static SVG for the PDF - WeasyPrint has no JS

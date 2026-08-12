@@ -73,7 +73,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y curl fonts-inter fonts-jetbrains-mono
       # Upstream release rather than the image's package - see PANDOC_VERSION.
       - run: |
-          curl -fsSL -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 20 -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
           sudo apt install -y /tmp/pandoc.deb
       - run: curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg > /dev/null
       - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
