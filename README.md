@@ -142,7 +142,7 @@ It cannot be the first thing you run - it is a prodockit command, so
 Python and `pip install prodockit` come first. Two steps need a human at
 a browser (uploading an SSH key, creating your own project); those are
 guided and then *verified*, rather than automated with a token. Currently
-implements the University of Surrey's GitLab only.
+implements the University of Surrey's GitLab and github.com.
 
 ## Website macros
 

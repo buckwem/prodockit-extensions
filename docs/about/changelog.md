@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.26.5 (2026-08-12)
+
 - **Fixed:** on Windows, a rerun stopped at "Git install failed" when git
   was already installed
   ([#309](https://github.com/buckwem/prodockit-extensions/issues/309)).
