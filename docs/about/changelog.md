@@ -2,6 +2,60 @@
 
 ## Unreleased
 
+- **Added: the host's own command line** is installed and signed in as a
+  stage ([#342](https://github.com/buckwem/prodockit-extensions/issues/342)).
+
+    `gh` for GitHub, `glab` for GitLab - including a self-hosted one,
+    which is still GitLab. It is the only thing that can answer questions
+    no anonymous caller can: whether Pages is switched on, and what the
+    repository's About panel says. It holds a token so bootstrap does
+    not.
+
+    Signed in counts as much as installed - an unauthenticated tool is
+    installed and useless, and calling that done would leave the stages
+    depending on it failing for a reason two stages away. `auth login`
+    opens a browser, so it stays the reader's to run.
+
+- **Added: Pages is a stage of its own**, straight after creating the
+  project ([#341](https://github.com/buckwem/prodockit-extensions/issues/341)).
+
+    It was a trailing item on the "create your project" list and was
+    missed twice, at a cost of a red first build whose error names the
+    site rather than the setting. Now it is asked while the reader is
+    still in the browser, and before the push, where missing it breaks
+    the build.
+
+    The site stage also fills in the repository's About > Website field,
+    using `gh` for the same reason. GitHub does not set it from Pages, so
+    a project with a perfectly good published site showed no link at all
+    on the page anybody actually lands on. `sync-repo` cannot do it - it
+    reads and writes local files, and this lives on the host.
+
+    Confirmed with `gh` where that is installed, since it already holds a
+    token and bootstrap does not have to. There is no tokenless way to
+    ask: the Pages API answers `404` to an anonymous caller even for a
+    *public* repository with Pages enabled, and the published site cannot
+    be fetched until a push has built it. Without `gh` the stage says it
+    could not look, rather than guessing - the site check at the end of
+    the run is the honest test either way.
+
+- **Added: a twentieth stage** that makes the first commit and pushes it
+  ([#339](https://github.com/buckwem/prodockit-extensions/issues/339)).
+
+    Everything before it left a working project on one machine and an
+    empty repository on the host - and a reader trying to finish the job
+    from VS Code's "Publish Branch" could not, because that creates a
+    repository and theirs already existed.
+
+    It runs after the local setup stages, so the first commit carries the
+    CSL style, the MathJax bundle and the VS Code settings rather than
+    needing a second commit for them, and before the site check, because
+    the push is what builds the site.
+
+    It waits on the clone and on `origin`: committing into a directory
+    that is not a repository, or pushing to a remote that was never set,
+    cannot be a plan worth running.
+
 ## 0.28.1 (2026-08-12)
 
 - **Fixed:** the "your own project" stage could loop for ever, and still

@@ -149,6 +149,14 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         "import zensical": CommandResult(0),
         "fc-list": CommandResult(0, "Inter\nJetBrains Mono\nDejaVu Sans\n"),
         "config core.fileMode": CommandResult(0, "false\n"),
+        # A finished project has nothing uncommitted and something on the
+        # remote - without both, the first-push stage is rightly not done.
+        "glab --version": CommandResult(0, "glab 1.0.0"),
+        "glab auth status": CommandResult(0, "Logged in"),
+        "gh --version": CommandResult(0, "gh version 2.0.0"),
+        "gh auth status": CommandResult(0, "Logged in"),
+        "status --porcelain": CommandResult(0, ""),
+        "ls-remote origin HEAD": CommandResult(0, "abc123\tHEAD\n"),
         "import weasyprint": CommandResult(0),
         **AGENT_RESPONSES,
     }
@@ -2568,6 +2576,10 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "ssh-upload": None,
     "clone": ("the clone",),
     "fresh-history": ("a history of its own", "core.fileMode"),
+    "first-push": ("the commit", "the push"),
+    # Guide and verify: the browser does the work, `gh` confirms it.
+    "host-cli": ("the tool itself", "being signed in"),
+    "pages": None,
     "own-project": None,
     # Nothing to run: the workflow publishes the site, and this only
     # asks whether it did (#333).
@@ -2620,6 +2632,12 @@ def test_a_stage_with_commands_is_never_satisfied_by_an_empty_machine(
             result = stage.check(context)
             if result.status is Status.UNKNOWN:
                 continue  # waiting on configuration, not on the machine
+            if stage.id == "pages" and not context.host.pages_url:
+                # Same reasoning as `site` below: Surrey publishes at no
+                # address bootstrap can work out, so there is nothing to
+                # switch on that this could look for.
+                assert "not checked" in result.detail
+                continue
             if stage.id == "site" and not context.host.pages_url:
                 # The one honest exception. A self-hosted GitLab publishes
                 # at no address bootstrap can work out, so this stage
@@ -4728,3 +4746,235 @@ def test_the_questions_say_how_many_there_are(
 
     assert "1/8 The git host" in result.output
     assert "6/8 Your project name" in result.output
+
+
+def test_the_project_is_committed_and_pushed(tmp_path: Path) -> None:
+    """Everything before this left a working project on one machine and
+    an empty repository on the host. The push is what makes it real -
+    it builds the site, and it is what the next machine clones (#339)."""
+    machine = _ready_machine(tmp_path)
+    machine["status --porcelain"] = CommandResult(0, " M docs/index.md\n")
+    plan = next(s for s in STAGES if s.id == "first-push").plan(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert [c[:2] for c in plan.commands] == [
+        ["git", "add"], ["git", "commit"], ["git", "push"]
+    ]
+    assert plan.commands[-1] == ["git", "push", "-u", "origin", "main"]
+    assert plan.confirm.endswith("?")
+
+
+def test_uncommitted_work_is_what_makes_it_outstanding(tmp_path: Path) -> None:
+    machine = _ready_machine(tmp_path)
+    machine["status --porcelain"] = CommandResult(0, " M zensical.toml\n")
+    result = next(s for s in STAGES if s.id == "first-push").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.MISSING
+    assert "never been committed" in result.detail
+
+
+def test_an_empty_remote_is_reported_even_with_a_clean_tree(tmp_path: Path) -> None:
+    """A reset history leaves a clean tree and nothing on the host - the
+    state that had a reader publishing by hand from VS Code."""
+    machine = _ready_machine(tmp_path)
+    machine["ls-remote origin HEAD"] = CommandResult(0, "")
+    result = next(s for s in STAGES if s.id == "first-push").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.MISSING
+    assert "still empty" in result.detail
+
+
+def test_pushing_waits_for_a_clone_and_a_remote(tmp_path: Path) -> None:
+    """Committing into a directory that is not a repository, or pushing
+    to a remote that was never set, cannot be a plan worth running."""
+    save(tmp_path / "b.toml", _config())
+    no_clone = next(s for s in STAGES if s.id == "first-push").check(_context(tmp_path))
+    assert no_clone.status is Status.BLOCKED
+    assert "no clone yet" in no_clone.detail
+
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(128, stderr="No such remote")
+    no_origin = next(s for s in STAGES if s.id == "first-push").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+    assert no_origin.status is Status.BLOCKED
+    assert "no origin yet" in no_origin.detail
+
+
+def test_the_push_comes_before_the_site_is_checked() -> None:
+    """The push is what builds the site, so checking the site first would
+    report a fault that the very next stage fixes."""
+    ids = [s.id for s in STAGES]
+    assert ids.index("first-push") < ids.index("site")
+    assert ids.index("first-push") > ids.index("remote"), "there must be an origin to push to"
+
+
+def test_pages_is_its_own_stage_right_after_the_project(tmp_path: Path) -> None:
+    """It was a trailing item on stage 9's list and was missed twice, at
+    a cost of a red first build whose error names the site rather than
+    the setting (#341)."""
+    ids = [s.id for s in STAGES]
+
+    assert ids.index("pages") == ids.index("host-cli") + 1, "the tool it uses comes first"
+    assert ids.index("host-cli") == ids.index("own-project") + 1, "still in the browser"
+    assert ids.index("pages") < ids.index("first-push"), "before the push it would break"
+
+
+def test_pages_is_confirmed_with_gh_when_it_is_there(tmp_path: Path) -> None:
+    """`gh` already holds a token, so bootstrap does not have to."""
+    machine = _ready_machine(tmp_path)
+    machine["gh --version"] = CommandResult(0, "gh version 2.0.0")
+    machine["gh api"] = CommandResult(0, '{"status":"built"}')
+    result = next(s for s in STAGES if s.id == "pages").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.OK
+    assert "enabled" in result.detail
+
+
+def test_pages_off_is_reported_as_off(tmp_path: Path) -> None:
+    machine = _ready_machine(tmp_path)
+    machine["gh --version"] = CommandResult(0, "gh version 2.0.0")
+    machine["gh api"] = CommandResult(1, stderr="Not Found")
+    result = next(s for s in STAGES if s.id == "pages").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.MISSING
+    assert "not switched on" in result.detail
+
+
+def test_without_gh_it_says_it_could_not_look(tmp_path: Path) -> None:
+    """There is no tokenless way to ask: the Pages API answers 404 to an
+    anonymous caller even for a public repository, and the site cannot be
+    fetched until a push has built it. Reported as unlooked-at rather
+    than guessed, and blocked so the confirm loop does not spin."""
+    machine = _ready_machine(tmp_path)
+    machine["gh --version"] = CommandResult(127, stderr="gh: not found")
+    result = next(s for s in STAGES if s.id == "pages").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.MISSING, (
+        "outstanding, not blocked - a blocked stage builds no plan, so the "
+        "browser steps would never print, which is how this went unseen before"
+    )
+    assert "without the gh command" in result.detail
+    assert "after your first push" in result.detail, "say what does confirm it"
+
+    plan = next(s for s in STAGES if s.id == "pages").plan(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+    assert any("Build and deployment" in step for step in plan.instructions), (
+        "the steps a reader needs are shown"
+    )
+
+
+def _published(tmp_path: Path, homepage: str, gh: bool = True) -> dict[str, CommandResult]:
+    machine = _ready_machine(tmp_path)
+    # Keyed on "curl -sS", not "curl": the probe carries `%{http_code}`,
+    # which contains "code" - a key of the same length that answers for
+    # VS Code and wins the tie, returning empty output and a green exit.
+    machine["curl -sS"] = CommandResult(0, "200")
+    machine["gh --version"] = CommandResult(0 if gh else 127, "gh version 2.0.0")
+    machine["gh repo view"] = CommandResult(0, f"{homepage}\n")
+    return machine
+
+
+def test_the_front_page_is_made_to_link_to_the_site(tmp_path: Path) -> None:
+    """GitHub keeps this in the About panel and does not fill it in from
+    Pages, so a project with a perfectly good published site showed
+    nothing on the page anybody actually lands on (#340)."""
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem", project_name="report-linux-v4",
+        runner=FakeRunner(_published(tmp_path, homepage="")),
+    )
+    stage = next(s for s in STAGES if s.id == "site")
+
+    assert stage.check(context).needs_work, "a site nobody can find is not finished"
+    assert stage.plan(context).commands == [
+        ["gh", "repo", "edit", "buckwem/report-linux-v4",
+         "--homepage", "https://buckwem.github.io/report-linux-v4/"]
+    ]
+
+
+def test_a_site_already_linked_is_done(tmp_path: Path) -> None:
+    url = "https://buckwem.github.io/report-linux-v4/"
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem", project_name="report-linux-v4",
+        runner=FakeRunner(_published(tmp_path, homepage=url)),
+    )
+    result = next(s for s in STAGES if s.id == "site").check(context)
+
+    assert result.status is Status.OK
+    assert "public" in result.detail
+
+
+def test_without_gh_a_working_site_is_still_finished(tmp_path: Path) -> None:
+    """`sync-repo` cannot set this - it writes local files, and this lives
+    on the host. Where `gh` is absent, its absence must not turn a working
+    site into a finding."""
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem", project_name="report-linux-v4",
+        runner=FakeRunner(_published(tmp_path, homepage="", gh=False)),
+    )
+
+    assert next(s for s in STAGES if s.id == "site").check(context).status is Status.OK
+
+
+def test_the_tool_installed_is_the_one_the_host_uses(tmp_path: Path) -> None:
+    """`gh` for GitHub, `glab` for GitLab - including a self-hosted one,
+    which is still GitLab (#342)."""
+    for host, expected in (("github.com", "gh"), ("gitlab.surrey.ac.uk", "glab")):
+        machine = _ready_machine(tmp_path)
+        machine[f"{expected} --version"] = CommandResult(127, stderr="not found")
+        plan = next(s for s in STAGES if s.id == "host-cli").plan(
+            _context(tmp_path, host=host, runner=FakeRunner(machine))
+        )
+        script = " ".join(" ".join(c) for c in plan.commands) + " ".join(plan.instructions)
+        assert expected in script, host
+
+
+def test_installed_but_not_signed_in_is_not_done(tmp_path: Path) -> None:
+    """An unauthenticated tool is installed and useless, and calling it
+    done leaves the stages that depend on it failing two stages away."""
+    machine = _ready_machine(tmp_path)
+    machine["glab auth status"] = CommandResult(1, stderr="not logged in")
+    result = next(s for s in STAGES if s.id == "host-cli").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.WRONG
+    assert "not signed in" in result.detail
+
+
+def test_signing_in_is_left_to_the_reader(tmp_path: Path) -> None:
+    """`auth login` opens a browser and asks questions, so it is theirs
+    to run - the same shape as every other step a person finishes."""
+    machine = _ready_machine(tmp_path)
+    machine["glab --version"] = CommandResult(127, stderr="not found")
+    plan = next(s for s in STAGES if s.id == "host-cli").plan(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert plan.needs_terminal
+    assert any("auth login" in step for step in plan.instructions)
+    assert not any("auth" in " ".join(c) for c in plan.commands), "not run for them"
+
+
+def test_a_host_with_no_tool_is_not_a_finding(tmp_path: Path) -> None:
+    """Nothing to install is not the same as something missing."""
+    from prodockit.bootstrap.model import Host
+
+    bare = Host(key="x", template_remote="", key_suffix="k", hostname="example.com",
+                ssh_success="hi", ssh_keys_url="", new_project_url="")
+    context = _context(tmp_path)
+    object.__setattr__(context, "host", bare)
+
+    assert next(s for s in STAGES if s.id == "host-cli").check(context).status is Status.OK

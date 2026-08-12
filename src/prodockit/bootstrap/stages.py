@@ -2317,7 +2317,7 @@ def _check_site_published(context: Context) -> CheckResult:
     result = context.runner.run(
         ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20", url]
     )
-    if result.ok and result.stdout.strip() == "200":
+    if result.ok and result.stdout.strip() == "200" and not _site_link_missing(context, url):
         # Said plainly, because it is the part readers get wrong: a Pages
         # site is readable by anyone, even when the repository behind it
         # is private. Only an Enterprise plan can restrict who sees it, so
@@ -2327,9 +2327,34 @@ def _check_site_published(context: Context) -> CheckResult:
     return _missing(f"{url} is not answering yet")
 
 
+def _site_link_missing(context: Context, url: str) -> bool:
+    """Whether the repository's own front page fails to link to its site.
+
+    GitHub keeps this in the About panel's `homepage` field, and does not
+    fill it in from Pages - so a project with a perfectly good published
+    site showed nothing at all on the page anybody actually lands on
+    (prodockit-extensions#340).
+
+    `sync-repo` cannot do this: it reads and writes local files, and this
+    lives on the host. `gh` can, and already holds a token. Where `gh` is
+    absent the answer is "not missing", so its absence never turns a
+    working site into a finding.
+    """
+    if not _installed(context, "gh", "--version"):
+        return False
+    where = f"{context.config.namespace.strip()}/{context.config.project_name.strip()}"
+    shown = context.runner.run(
+        ["gh", "repo", "view", where, "--json", "homepageUrl", "-q", ".homepageUrl"]
+    )
+    return shown.ok and shown.stdout.strip().rstrip("/") != url.rstrip("/")
+
+
 def _plan_site_published(context: Context) -> Plan:
-    """Nothing to run - the site appears once a build has published it."""
+    """Set the front page's link, once there is a site to link to."""
     url = site_url(context)
+    if _installed(context, "gh", "--version") and _site_link_missing(context, url):
+        where = f"{context.config.namespace.strip()}/{context.config.project_name.strip()}"
+        return Plan(commands=[["gh", "repo", "edit", where, "--homepage", url]])
     return Plan(
         instructions=[
             f"Push your first commit, and the workflow will publish {url}.",
@@ -2343,6 +2368,205 @@ def _plan_site_published(context: Context) -> Plan:
             "entirely, and that is the one case the workflow cannot fix.",
         ],
         confirm="Has your first build published the site?",
+    )
+
+
+# ---------------------------------------------------------------------------
+# 19. The first commit, pushed - what actually publishes the project
+# ---------------------------------------------------------------------------
+
+
+def _check_first_push(context: Context) -> CheckResult:
+    """Whether the project has been committed and pushed to its remote.
+
+    Everything before this leaves a working project on one machine and an
+    empty repository on the host. The push is what makes it real: it is
+    what builds the site, and what the next machine clones
+    (prodockit-extensions#339).
+
+    Placed after the local setup stages deliberately, so the first commit
+    carries the CSL style, the MathJax bundle and the VS Code settings
+    rather than needing a second commit for them.
+    """
+    if (unknown := _needs_config(context, "project_name")) is not None:
+        return unknown
+    project = context.config.resolved_project_dir(context.home)
+    if not (project / ".git").exists():
+        return _blocked("there is no clone yet - do the 'Project cloned' stage first")
+    origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"])
+    if not origin.ok:
+        return _blocked("no origin yet - do the 'Clone pointed at your project' stage first")
+    pending = context.runner.run(["git", "-C", str(project), "status", "--porcelain"])
+    if pending.ok and pending.stdout.strip():
+        return _missing("there is work here that has never been committed")
+    remote = context.runner.run(["git", "-C", str(project), "ls-remote", "origin", "HEAD"])
+    if not remote.ok:
+        return _wrong("could not reach origin to see what is there")
+    if not remote.stdout.strip():
+        return _missing(f"{project.name} is still empty on {context.host.hostname}")
+    return _ok(f"pushed to {context.host.hostname}")
+
+
+def _plan_first_push(context: Context) -> Plan:
+    """Commit everything and push it.
+
+    `git add -A` is right here and nowhere else: this runs once, on a
+    project whose entire contents bootstrap has just assembled, so there
+    is nothing of the reader's it could sweep up by accident. The
+    `.gitignore` the template ships keeps the virtualenv, node_modules
+    and the fonts out.
+    """
+    project = context.config.resolved_project_dir(context.home)
+    return Plan(
+        cwd=str(project),
+        commands=[
+            ["git", "add", "-A"],
+            ["git", "commit", "-m", "Initial commit"],
+            ["git", "push", "-u", "origin", "main"],
+        ],
+        instructions=[
+            "This commits everything in the project and pushes it, which is "
+            "what publishes the site.",
+        ],
+        confirm="Commit and push the project?",
+    )
+
+
+# ---------------------------------------------------------------------------
+# 10. Pages switched on - asked while the reader is still in the browser
+# ---------------------------------------------------------------------------
+
+
+def _check_pages(context: Context) -> CheckResult:
+    """Whether Pages is switched on for this project.
+
+    There is no tokenless way to ask. The Pages API answers `404` to an
+    anonymous caller even for a *public* repository with Pages enabled,
+    and the published site cannot be fetched until a push has built it -
+    so before the first push nothing about this is observable from
+    outside (prodockit-extensions#341).
+
+    `gh` is asked when it is there, because it already holds a token and
+    bootstrap does not have to. Where it is not, this reports that it
+    could not look rather than guessing: stage 20 fetches the site after
+    the push, which is the honest test either way.
+    """
+    if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
+        return unknown
+    if not context.host.pages_url:
+        return _ok(f"not checked - {context.host.hostname} publishes at no fixed address")
+    if not _installed(context, "gh", "--version"):
+        # Not `blocked`: a blocked stage builds no plan, so the browser
+        # steps below would never print - which is exactly how this
+        # instruction went unseen in 0.27.0. Reported as outstanding so
+        # the steps show, with the detail saying plainly that answering
+        # cannot be verified here (prodockit-extensions#340).
+        return _missing(
+            "cannot be confirmed from here without the gh command - the site "
+            "check at the end of the run is what proves it, after your first push"
+        )
+    where = f"repos/{context.config.namespace.strip()}/{context.config.project_name.strip()}/pages"
+    if context.runner.run(["gh", "api", where]).ok:
+        return _ok("Pages is enabled")
+    return _missing("Pages is not switched on for this repository")
+
+
+def _plan_pages(context: Context) -> Plan:
+    """The browser steps, put here rather than buried in stage 9.
+
+    A stage of its own because it was missed twice as a trailing item on
+    somebody else's list, and the cost of missing it is a red first
+    build whose error names the site rather than the setting.
+    """
+    return Plan(
+        instructions=[
+            "Open your repository's Settings, then Pages in the left sidebar.",
+            "Under 'Build and deployment', set Source to 'GitHub Actions'.",
+            "Without this the documentation workflow cannot publish, and every "
+            "push fails at 'Get Pages site failed' - which names the site "
+            "rather than the setting that is missing.",
+        ],
+        confirm="Have you set Pages to build from GitHub Actions?",
+    )
+
+
+# ---------------------------------------------------------------------------
+# 10. The host's own command line - whichever host this project uses
+# ---------------------------------------------------------------------------
+
+
+#: How to install each host's CLI, per platform. `glab` is not in
+#: Ubuntu's archive, so that one is a download rather than a package -
+#: named here rather than branched in the stage, for the same reason
+#: every other host difference is a value.
+CLI_INSTALL: dict[str, dict[str, list[list[str]]]] = {
+    "gh": {
+        MACOS: [["brew", "install", "gh"]],
+        UBUNTU: [_apt("install", "-y", "gh")],
+        WINDOWS: [["winget", "install", "--id", "GitHub.cli", "-e",
+                   "--accept-source-agreements", "--accept-package-agreements"]],
+    },
+    "glab": {
+        MACOS: [["brew", "install", "glab"]],
+        UBUNTU: [],  # not packaged; the plan explains instead
+        WINDOWS: [["winget", "install", "--id", "glab.glab", "-e",
+                   "--accept-source-agreements", "--accept-package-agreements"]],
+    },
+}
+
+
+def _check_host_cli(context: Context) -> CheckResult:
+    """Whether this host's command line is installed and signed in.
+
+    It is the only thing that can answer questions no anonymous caller
+    can - whether Pages is switched on, what the About panel says -
+    because it holds a token and bootstrap does not
+    (prodockit-extensions#342).
+
+    Signed in matters as much as installed: an unauthenticated `gh` is
+    installed and useless, and reporting it as done would leave the
+    stages that depend on it failing for a reason two stages away.
+    """
+    command = context.host.cli_command
+    if not command:
+        return _ok(f"{context.host.hostname} has no command-line tool to install")
+    if not _installed(context, command, "--version"):
+        return _missing(f"{command} is not installed")
+    if not context.runner.run([command, "auth", "status"]).ok:
+        return _wrong(f"{command} is installed but not signed in")
+    return _ok(f"{command} is installed and signed in")
+
+
+def _plan_host_cli(context: Context) -> Plan:
+    """Install it, then hand over for the sign-in.
+
+    `auth login` opens a browser and asks questions, so it is the
+    reader's to run - the same shape as the other steps a person has to
+    finish themselves.
+    """
+    host = context.host
+    command = host.cli_command
+    installs = CLI_INSTALL.get(command, {}).get(context.platform, [])
+    signed_in = _installed(context, command, "--version")
+    return Plan(
+        commands=[] if signed_in else installs,
+        needs_terminal=True,
+        instructions=(
+            []
+            if installs or signed_in
+            else [
+                f"{host.cli_label} ({command}) is not in this platform's package "
+                f"archive. Install it from https://gitlab.com/gitlab-org/cli/-/releases "
+                "and come back."
+            ]
+        )
+        + [
+            f"Run `{command} auth login` and follow the prompts - it opens a "
+            "browser to sign you in.",
+            f"This is what lets bootstrap check things only {host.hostname} "
+            "knows, such as whether Pages is switched on.",
+        ],
+        confirm=f"Have you signed in with {command}?",
     )
 
 
@@ -2363,6 +2587,12 @@ STAGES: tuple[Stage, ...] = (
     # so doing it afterwards would throw away the repoint (#248).
     Stage("fresh-history", "A history of your own", _check_fresh_history, _plan_fresh_history),
     Stage("own-project", "Your own project on the host", _check_own_project, _plan_own_project),
+    # Straight after creating the project, while the reader is still in
+    # the browser - it was missed twice as a trailing item on stage 9's
+    # list (#341).
+    # Before the Pages stage, which is the first thing that needs it.
+    Stage("host-cli", "Host command line, signed in", _check_host_cli, _plan_host_cli),
+    Stage("pages", "Pages switched on", _check_pages, _plan_pages),
     Stage("remote", "Clone pointed at your project", _check_remote, _plan_remote),
     Stage(
         "identity",
@@ -2400,6 +2630,8 @@ STAGES: tuple[Stage, ...] = (
     # Last of all, because it can only be true once a push has built the
     # site - and it is a test rather than a step: the workflow enables
     # Pages itself (#333).
+    # Before the site check, because the push is what builds the site.
+    Stage("first-push", "First commit pushed", _check_first_push, _plan_first_push),
     Stage(
         "site",
         "Documentation site published",
