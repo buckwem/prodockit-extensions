@@ -2317,7 +2317,7 @@ def _check_site_published(context: Context) -> CheckResult:
     result = context.runner.run(
         ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20", url]
     )
-    if result.ok and result.stdout.strip() == "200":
+    if result.ok and result.stdout.strip() == "200" and not _site_link_missing(context, url):
         # Said plainly, because it is the part readers get wrong: a Pages
         # site is readable by anyone, even when the repository behind it
         # is private. Only an Enterprise plan can restrict who sees it, so
@@ -2327,9 +2327,34 @@ def _check_site_published(context: Context) -> CheckResult:
     return _missing(f"{url} is not answering yet")
 
 
+def _site_link_missing(context: Context, url: str) -> bool:
+    """Whether the repository's own front page fails to link to its site.
+
+    GitHub keeps this in the About panel's `homepage` field, and does not
+    fill it in from Pages - so a project with a perfectly good published
+    site showed nothing at all on the page anybody actually lands on
+    (prodockit-extensions#340).
+
+    `sync-repo` cannot do this: it reads and writes local files, and this
+    lives on the host. `gh` can, and already holds a token. Where `gh` is
+    absent the answer is "not missing", so its absence never turns a
+    working site into a finding.
+    """
+    if not _installed(context, "gh", "--version"):
+        return False
+    where = f"{context.config.namespace.strip()}/{context.config.project_name.strip()}"
+    shown = context.runner.run(
+        ["gh", "repo", "view", where, "--json", "homepageUrl", "-q", ".homepageUrl"]
+    )
+    return shown.ok and shown.stdout.strip().rstrip("/") != url.rstrip("/")
+
+
 def _plan_site_published(context: Context) -> Plan:
-    """Nothing to run - the site appears once a build has published it."""
+    """Set the front page's link, once there is a site to link to."""
     url = site_url(context)
+    if _installed(context, "gh", "--version") and _site_link_missing(context, url):
+        where = f"{context.config.namespace.strip()}/{context.config.project_name.strip()}"
+        return Plan(commands=[["gh", "repo", "edit", where, "--homepage", url]])
     return Plan(
         instructions=[
             f"Push your first commit, and the workflow will publish {url}.",

@@ -11,6 +11,12 @@
     still in the browser, and before the push, where missing it breaks
     the build.
 
+    The site stage also fills in the repository's About > Website field,
+    using `gh` for the same reason. GitHub does not set it from Pages, so
+    a project with a perfectly good published site showed no link at all
+    on the page anybody actually lands on. `sync-repo` cannot do it - it
+    reads and writes local files, and this lives on the host.
+
     Confirmed with `gh` where that is installed, since it already holds a
     token and bootstrap does not have to. There is no tokenless way to
     ask: the Pages API answers `404` to an anonymous caller even for a

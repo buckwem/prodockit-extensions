@@ -4858,3 +4858,55 @@ def test_without_gh_it_says_it_could_not_look(tmp_path: Path) -> None:
     assert result.status is Status.BLOCKED
     assert "cannot check without the gh command" in result.detail
     assert "after your first push" in result.detail, "say what does confirm it"
+
+
+def _published(tmp_path: Path, homepage: str, gh: bool = True) -> dict[str, CommandResult]:
+    machine = _ready_machine(tmp_path)
+    # Keyed on "curl -sS", not "curl": the probe carries `%{http_code}`,
+    # which contains "code" - a key of the same length that answers for
+    # VS Code and wins the tie, returning empty output and a green exit.
+    machine["curl -sS"] = CommandResult(0, "200")
+    machine["gh --version"] = CommandResult(0 if gh else 127, "gh version 2.0.0")
+    machine["gh repo view"] = CommandResult(0, f"{homepage}\n")
+    return machine
+
+
+def test_the_front_page_is_made_to_link_to_the_site(tmp_path: Path) -> None:
+    """GitHub keeps this in the About panel and does not fill it in from
+    Pages, so a project with a perfectly good published site showed
+    nothing on the page anybody actually lands on (#340)."""
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem", project_name="report-linux-v4",
+        runner=FakeRunner(_published(tmp_path, homepage="")),
+    )
+    stage = next(s for s in STAGES if s.id == "site")
+
+    assert stage.check(context).needs_work, "a site nobody can find is not finished"
+    assert stage.plan(context).commands == [
+        ["gh", "repo", "edit", "buckwem/report-linux-v4",
+         "--homepage", "https://buckwem.github.io/report-linux-v4/"]
+    ]
+
+
+def test_a_site_already_linked_is_done(tmp_path: Path) -> None:
+    url = "https://buckwem.github.io/report-linux-v4/"
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem", project_name="report-linux-v4",
+        runner=FakeRunner(_published(tmp_path, homepage=url)),
+    )
+    result = next(s for s in STAGES if s.id == "site").check(context)
+
+    assert result.status is Status.OK
+    assert "public" in result.detail
+
+
+def test_without_gh_a_working_site_is_still_finished(tmp_path: Path) -> None:
+    """`sync-repo` cannot set this - it writes local files, and this lives
+    on the host. Where `gh` is absent, its absence must not turn a working
+    site into a finding."""
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem", project_name="report-linux-v4",
+        runner=FakeRunner(_published(tmp_path, homepage="", gh=False)),
+    )
+
+    assert next(s for s in STAGES if s.id == "site").check(context).status is Status.OK
