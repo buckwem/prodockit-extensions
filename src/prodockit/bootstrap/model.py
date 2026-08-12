@@ -106,6 +106,12 @@ class Host:
     #: followed "set it to Private" on a free account got a repository
     #: whose site could never build (prodockit-extensions#324).
     project_visibility: str = "Set visibility to Private."
+    #: The host's own command-line tool, and what to call it. It is what
+    #: answers questions no anonymous caller can - whether Pages is on,
+    #: what the About panel says - because it holds a token and bootstrap
+    #: does not (prodockit-extensions#342).
+    cli_command: str = ""
+    cli_label: str = ""
     #: Where this host publishes a project's site, as a template taking
     #: `namespace` and `project`. Blank where it cannot be worked out -
     #: a self-hosted GitLab publishes wherever its administrator decided,
@@ -145,6 +151,8 @@ SURREY_GITLAB = Host(
         "key stops `git push` with a permission error that reads like a "
         "misconfigured key rather than an expired one, months after you set it up.",
     ),
+    cli_command="glab",
+    cli_label="GitLab CLI",
 )
 
 #: Deliberately declared but unsupported. The shape is proven by having
@@ -170,6 +178,8 @@ GITLAB_COM = Host(
         "misconfigured key rather than an expired one, months after you set it up.",
     ),
     pages_url="https://{namespace}.gitlab.io/{project}/",
+    cli_command="glab",
+    cli_label="GitLab CLI",
     supported=False,
 )
 
@@ -191,6 +201,8 @@ GITHUB_COM = Host(
     ssh_key_save_label="Add SSH key",
     project_word="repository",
     group_word="organisation",
+    cli_command="gh",
+    cli_label="GitHub CLI",
     pages_url="https://{namespace}.github.io/{project}/",
     project_visibility=(
         "Set visibility to Private.\n"

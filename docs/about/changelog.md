@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Added: the host's own command line** is installed and signed in as a
+  stage ([#342](https://github.com/buckwem/prodockit-extensions/issues/342)).
+
+    `gh` for GitHub, `glab` for GitLab - including a self-hosted one,
+    which is still GitLab. It is the only thing that can answer questions
+    no anonymous caller can: whether Pages is switched on, and what the
+    repository's About panel says. It holds a token so bootstrap does
+    not.
+
+    Signed in counts as much as installed - an unauthenticated tool is
+    installed and useless, and calling that done would leave the stages
+    depending on it failing for a reason two stages away. `auth login`
+    opens a browser, so it stays the reader's to run.
+
 - **Added: Pages is a stage of its own**, straight after creating the
   project ([#341](https://github.com/buckwem/prodockit-extensions/issues/341)).
 

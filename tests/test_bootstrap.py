@@ -151,6 +151,10 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         "config core.fileMode": CommandResult(0, "false\n"),
         # A finished project has nothing uncommitted and something on the
         # remote - without both, the first-push stage is rightly not done.
+        "glab --version": CommandResult(0, "glab 1.0.0"),
+        "glab auth status": CommandResult(0, "Logged in"),
+        "gh --version": CommandResult(0, "gh version 2.0.0"),
+        "gh auth status": CommandResult(0, "Logged in"),
         "status --porcelain": CommandResult(0, ""),
         "ls-remote origin HEAD": CommandResult(0, "abc123\tHEAD\n"),
         "import weasyprint": CommandResult(0),
@@ -2574,6 +2578,7 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "fresh-history": ("a history of its own", "core.fileMode"),
     "first-push": ("the commit", "the push"),
     # Guide and verify: the browser does the work, `gh` confirms it.
+    "host-cli": ("the tool itself", "being signed in"),
     "pages": None,
     "own-project": None,
     # Nothing to run: the workflow publishes the site, and this only
@@ -4815,7 +4820,8 @@ def test_pages_is_its_own_stage_right_after_the_project(tmp_path: Path) -> None:
     the setting (#341)."""
     ids = [s.id for s in STAGES]
 
-    assert ids.index("pages") == ids.index("own-project") + 1, "while still in the browser"
+    assert ids.index("pages") == ids.index("host-cli") + 1, "the tool it uses comes first"
+    assert ids.index("host-cli") == ids.index("own-project") + 1, "still in the browser"
     assert ids.index("pages") < ids.index("first-push"), "before the push it would break"
 
 
@@ -4855,9 +4861,19 @@ def test_without_gh_it_says_it_could_not_look(tmp_path: Path) -> None:
         _context(tmp_path, host="github.com", runner=FakeRunner(machine))
     )
 
-    assert result.status is Status.BLOCKED
-    assert "cannot check without the gh command" in result.detail
+    assert result.status is Status.MISSING, (
+        "outstanding, not blocked - a blocked stage builds no plan, so the "
+        "browser steps would never print, which is how this went unseen before"
+    )
+    assert "without the gh command" in result.detail
     assert "after your first push" in result.detail, "say what does confirm it"
+
+    plan = next(s for s in STAGES if s.id == "pages").plan(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+    assert any("Build and deployment" in step for step in plan.instructions), (
+        "the steps a reader needs are shown"
+    )
 
 
 def _published(tmp_path: Path, homepage: str, gh: bool = True) -> dict[str, CommandResult]:
@@ -4910,3 +4926,55 @@ def test_without_gh_a_working_site_is_still_finished(tmp_path: Path) -> None:
     )
 
     assert next(s for s in STAGES if s.id == "site").check(context).status is Status.OK
+
+
+def test_the_tool_installed_is_the_one_the_host_uses(tmp_path: Path) -> None:
+    """`gh` for GitHub, `glab` for GitLab - including a self-hosted one,
+    which is still GitLab (#342)."""
+    for host, expected in (("github.com", "gh"), ("gitlab.surrey.ac.uk", "glab")):
+        machine = _ready_machine(tmp_path)
+        machine[f"{expected} --version"] = CommandResult(127, stderr="not found")
+        plan = next(s for s in STAGES if s.id == "host-cli").plan(
+            _context(tmp_path, host=host, runner=FakeRunner(machine))
+        )
+        script = " ".join(" ".join(c) for c in plan.commands) + " ".join(plan.instructions)
+        assert expected in script, host
+
+
+def test_installed_but_not_signed_in_is_not_done(tmp_path: Path) -> None:
+    """An unauthenticated tool is installed and useless, and calling it
+    done leaves the stages that depend on it failing two stages away."""
+    machine = _ready_machine(tmp_path)
+    machine["glab auth status"] = CommandResult(1, stderr="not logged in")
+    result = next(s for s in STAGES if s.id == "host-cli").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.WRONG
+    assert "not signed in" in result.detail
+
+
+def test_signing_in_is_left_to_the_reader(tmp_path: Path) -> None:
+    """`auth login` opens a browser and asks questions, so it is theirs
+    to run - the same shape as every other step a person finishes."""
+    machine = _ready_machine(tmp_path)
+    machine["glab --version"] = CommandResult(127, stderr="not found")
+    plan = next(s for s in STAGES if s.id == "host-cli").plan(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert plan.needs_terminal
+    assert any("auth login" in step for step in plan.instructions)
+    assert not any("auth" in " ".join(c) for c in plan.commands), "not run for them"
+
+
+def test_a_host_with_no_tool_is_not_a_finding(tmp_path: Path) -> None:
+    """Nothing to install is not the same as something missing."""
+    from prodockit.bootstrap.model import Host
+
+    bare = Host(key="x", template_remote="", key_suffix="k", hostname="example.com",
+                ssh_success="hi", ssh_keys_url="", new_project_url="")
+    context = _context(tmp_path)
+    object.__setattr__(context, "host", bare)
+
+    assert next(s for s in STAGES if s.id == "host-cli").check(context).status is Status.OK

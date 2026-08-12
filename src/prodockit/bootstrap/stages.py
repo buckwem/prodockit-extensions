@@ -2456,9 +2456,14 @@ def _check_pages(context: Context) -> CheckResult:
     if not context.host.pages_url:
         return _ok(f"not checked - {context.host.hostname} publishes at no fixed address")
     if not _installed(context, "gh", "--version"):
-        return _blocked(
-            "cannot check without the gh command - the site check at the end "
-            "of the run confirms it after your first push"
+        # Not `blocked`: a blocked stage builds no plan, so the browser
+        # steps below would never print - which is exactly how this
+        # instruction went unseen in 0.27.0. Reported as outstanding so
+        # the steps show, with the detail saying plainly that answering
+        # cannot be verified here (prodockit-extensions#340).
+        return _missing(
+            "cannot be confirmed from here without the gh command - the site "
+            "check at the end of the run is what proves it, after your first push"
         )
     where = f"repos/{context.config.namespace.strip()}/{context.config.project_name.strip()}/pages"
     if context.runner.run(["gh", "api", where]).ok:
@@ -2485,6 +2490,86 @@ def _plan_pages(context: Context) -> Plan:
     )
 
 
+# ---------------------------------------------------------------------------
+# 10. The host's own command line - whichever host this project uses
+# ---------------------------------------------------------------------------
+
+
+#: How to install each host's CLI, per platform. `glab` is not in
+#: Ubuntu's archive, so that one is a download rather than a package -
+#: named here rather than branched in the stage, for the same reason
+#: every other host difference is a value.
+CLI_INSTALL: dict[str, dict[str, list[list[str]]]] = {
+    "gh": {
+        MACOS: [["brew", "install", "gh"]],
+        UBUNTU: [_apt("install", "-y", "gh")],
+        WINDOWS: [["winget", "install", "--id", "GitHub.cli", "-e",
+                   "--accept-source-agreements", "--accept-package-agreements"]],
+    },
+    "glab": {
+        MACOS: [["brew", "install", "glab"]],
+        UBUNTU: [],  # not packaged; the plan explains instead
+        WINDOWS: [["winget", "install", "--id", "glab.glab", "-e",
+                   "--accept-source-agreements", "--accept-package-agreements"]],
+    },
+}
+
+
+def _check_host_cli(context: Context) -> CheckResult:
+    """Whether this host's command line is installed and signed in.
+
+    It is the only thing that can answer questions no anonymous caller
+    can - whether Pages is switched on, what the About panel says -
+    because it holds a token and bootstrap does not
+    (prodockit-extensions#342).
+
+    Signed in matters as much as installed: an unauthenticated `gh` is
+    installed and useless, and reporting it as done would leave the
+    stages that depend on it failing for a reason two stages away.
+    """
+    command = context.host.cli_command
+    if not command:
+        return _ok(f"{context.host.hostname} has no command-line tool to install")
+    if not _installed(context, command, "--version"):
+        return _missing(f"{command} is not installed")
+    if not context.runner.run([command, "auth", "status"]).ok:
+        return _wrong(f"{command} is installed but not signed in")
+    return _ok(f"{command} is installed and signed in")
+
+
+def _plan_host_cli(context: Context) -> Plan:
+    """Install it, then hand over for the sign-in.
+
+    `auth login` opens a browser and asks questions, so it is the
+    reader's to run - the same shape as the other steps a person has to
+    finish themselves.
+    """
+    host = context.host
+    command = host.cli_command
+    installs = CLI_INSTALL.get(command, {}).get(context.platform, [])
+    signed_in = _installed(context, command, "--version")
+    return Plan(
+        commands=[] if signed_in else installs,
+        needs_terminal=True,
+        instructions=(
+            []
+            if installs or signed_in
+            else [
+                f"{host.cli_label} ({command}) is not in this platform's package "
+                f"archive. Install it from https://gitlab.com/gitlab-org/cli/-/releases "
+                "and come back."
+            ]
+        )
+        + [
+            f"Run `{command} auth login` and follow the prompts - it opens a "
+            "browser to sign you in.",
+            f"This is what lets bootstrap check things only {host.hostname} "
+            "knows, such as whether Pages is switched on.",
+        ],
+        confirm=f"Have you signed in with {command}?",
+    )
+
+
 STAGES: tuple[Stage, ...] = (
     Stage("vscode", "Visual Studio Code", _check_vscode, _plan_vscode),
     Stage("git", "Git, installed and configured", _check_git, _plan_git),
@@ -2505,6 +2590,8 @@ STAGES: tuple[Stage, ...] = (
     # Straight after creating the project, while the reader is still in
     # the browser - it was missed twice as a trailing item on stage 9's
     # list (#341).
+    # Before the Pages stage, which is the first thing that needs it.
+    Stage("host-cli", "Host command line, signed in", _check_host_cli, _plan_host_cli),
     Stage("pages", "Pages switched on", _check_pages, _plan_pages),
     Stage("remote", "Clone pointed at your project", _check_remote, _plan_remote),
     Stage(
