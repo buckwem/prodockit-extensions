@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.28.1 (2026-08-12)
+
 - **Fixed:** the "your own project" stage could loop for ever, and still
   asked for a Pages step the workflow now does itself
   ([#336](https://github.com/buckwem/prodockit-extensions/issues/336)).
