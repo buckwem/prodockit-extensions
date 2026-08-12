@@ -5111,3 +5111,99 @@ def test_the_choice_is_written_down(tmp_path: Path) -> None:
         _record_clone_source(config, picked, None)
         assert config.source_url == source, picked
         assert config.history == history, picked
+
+
+def test_each_stage_is_checked_when_the_loop_reaches_it(tmp_path: Path) -> None:
+    """Earlier stages change the machine the later ones are about.
+
+    Reported from a real run: "where the project comes from" was decided
+    before there was an SSH key, found nothing on the host, and reported
+    `ok` - so the question was skipped on the very run that had just made
+    the host reachable (#351).
+
+    Checked at the level the fault lives at: the up-front pass and a
+    later check of the same stage must be able to disagree.
+    """
+    from prodockit.bootstrap import forget_contacts, plan_all
+
+    machine = _ready_machine(tmp_path)
+    seen: list[int] = []
+
+    class Reachable(FakeRunner):
+        """A host that becomes readable part-way through, as one does
+        once the SSH stages have been applied."""
+
+        def run(self, command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
+            joined = " ".join(command)
+            if "ls-remote" in joined and "origin" not in joined:
+                seen.append(1)
+                if len(seen) > 1:
+                    return CommandResult(0, "abc123\trefs/heads/main\n")
+                return CommandResult(128, stderr="Permission denied (publickey).")
+            if "ls-tree" in joined:
+                return CommandResult(0, PROJECT_TREE)
+            return super().run(command, cwd, timeout, capture)
+
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem",
+        project_name="report-linux-v4", runner=Reachable(machine),
+    )
+    stage = next(s for s in STAGES if s.id == "clone-source")
+
+    first = next(r for r in plan_all(context) if r.stage.id == "clone-source").result
+    forget_contacts(context)
+    later = stage.check(context)
+
+    assert not first.needs_work, "unreachable host, so nothing to decide - yet"
+    assert later.needs_work, "reachable now, so the question is live"
+    assert "choose what to do with it" in later.detail
+
+
+def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The fix for #351 lives in the loop, so it is pinned there.
+
+    The stage-level test above proves the two checks *can* disagree; this
+    one proves the loop notices. Without it the run reports `ok` from a
+    pass taken before the SSH stages ran.
+    """
+    from click.testing import CliRunner
+
+    from prodockit.bootstrap import plan_all
+    from prodockit.cli import _apply_outstanding
+
+    machine = _ready_machine(tmp_path)
+    seen: list[int] = []
+
+    class Reachable(FakeRunner):
+        def run(self, command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
+            joined = " ".join(command)
+            if "ls-remote" in joined and "origin" not in joined:
+                seen.append(1)
+                if len(seen) > 1:
+                    return CommandResult(0, "abc123\trefs/heads/main\n")
+                return CommandResult(128, stderr="Permission denied (publickey).")
+            if "ls-tree" in joined:
+                return CommandResult(0, PROJECT_TREE)
+            return super().run(command, cwd, timeout, capture)
+
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    context = _context(
+        tmp_path, host="github.com", namespace="buckwem",
+        project_name="report-linux-v4", runner=Reachable(machine),
+    )
+    reports = plan_all(context)
+    assert not next(r for r in reports if r.stage.id == "clone-source").needs_work, (
+        "the up-front pass saw an unreachable host"
+    )
+
+    runner = CliRunner()
+    with runner.isolation(input="1\n" + "n\n" * 60) as (out, _err, _):
+        try:
+            _apply_outstanding(context, reports)
+        except (SystemExit, RuntimeError):
+            pass
+    printed = out.getvalue().decode()
+
+    assert "Select 1, 2 or 3" in printed, "the question was put once the host answered"

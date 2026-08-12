@@ -505,6 +505,24 @@ def _apply_outstanding(
     # (prodockit-extensions#284).
     total = len(reports)
     for number, report in enumerate(reports, start=1):
+        # Asked again, here, rather than trusting the pass taken before
+        # any of this ran. Earlier stages change the machine the later
+        # ones are about: "where the project comes from" was decided
+        # before there was an SSH key, found nothing on the host, and
+        # reported `ok` - so the question was skipped on the very run
+        # that had just made the host reachable
+        # (prodockit-extensions#351).
+        #
+        # Within a pass the memo makes a repeat free; between stages it
+        # must not, which is what dropping it here buys.
+        forget_contacts(context)
+        result = report.stage.check(context)
+        plannable = result.needs_work and result.status not in (Status.UNKNOWN, Status.BLOCKED)
+        report = StageReport(
+            stage=report.stage,
+            result=result,
+            plan=report.stage.plan(context) if plannable else None,
+        )
         if not report.needs_work:
             click.echo(f"{number:2}  ok    {report.stage.summary}")
             continue
