@@ -627,3 +627,24 @@ def test_an_unanswerable_probe_changes_nothing() -> None:
 
     assert repository_is_public("https://x/y", fetch=offline) is None
     assert repository_is_public("https://x/y", fetch=lambda _: 500) is None
+
+
+def test_the_same_question_gets_the_same_answer_twice(monkeypatch) -> None:
+    """`sync-repo` is asked this twice in a run, and a `404` on one call
+    with a timeout on the next produced two different badge rows - so it
+    reported a change it had just written itself.
+
+    A tool that rewrites files has to be deterministic within a run
+    (#343).
+    """
+    from prodockit import sync_repo
+
+    monkeypatch.setattr(sync_repo, "_VISIBILITY_SEEN", {})
+    answers = iter([200, 404])
+    monkeypatch.setattr(sync_repo, "_status_of", lambda url, timeout=10.0: next(answers))
+
+    first = sync_repo.repository_is_public("https://github.com/o/r")
+    second = sync_repo.repository_is_public("https://github.com/o/r")
+
+    assert first is True
+    assert second is True, "the second call must not see a different world"

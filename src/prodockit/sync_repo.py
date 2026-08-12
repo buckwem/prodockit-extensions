@@ -324,6 +324,17 @@ def update_config(
     return text, changes
 
 
+#: Answers already given, so one run cannot contradict itself.
+#:
+#: Without this the same question was asked twice in a run and could get
+#: two answers - a `404` on one call and a timeout or a rate-limit on the
+#: next - which produced two different badge rows and made `sync-repo`
+#: report a change it had just written. A file-rewriting tool has to be
+#: deterministic within a run, and this one is asked twice by design
+#: (prodockit-extensions#343).
+_VISIBILITY_SEEN: dict[str, bool | None] = {}
+
+
 def repository_is_public(
     repo_url: str, *, fetch: Callable[[str], int] | None = None
 ) -> bool | None:
@@ -338,16 +349,22 @@ def repository_is_public(
     indistinguishable from a missing one to a stranger, which is exactly
     the view shields.io has when it tries to read the badge.
     """
+    # Only the real probe is remembered. An injected one is a caller
+    # saying exactly what it wants answered, and caching that would make
+    # the second question return the first question's answer.
+    remember = fetch is None
+    if remember and repo_url in _VISIBILITY_SEEN:
+        return _VISIBILITY_SEEN[repo_url]
     getter = fetch if fetch is not None else _status_of
     try:
         status = getter(repo_url)
     except OSError:
-        return None
-    if status == 200:
-        return True
-    if status == 404:
-        return False
-    return None
+        answer: bool | None = None
+    else:
+        answer = True if status == 200 else False if status == 404 else None
+    if remember:
+        _VISIBILITY_SEEN[repo_url] = answer
+    return answer
 
 
 def _status_of(url: str, timeout: float = 10.0) -> int:
