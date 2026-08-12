@@ -648,3 +648,20 @@ def test_the_same_question_gets_the_same_answer_twice(monkeypatch) -> None:
 
     assert first is True
     assert second is True, "the second call must not see a different world"
+def test_the_tool_is_installable_under_a_short_name() -> None:
+    """`pdk` is the same entry point as `prodockit`, for a tool whose
+    commands are typed at a prompt, often several times over while a
+    setup is being repaired.
+
+    Both names stay: scripts and documentation written against
+    `prodockit` keep working, and click takes the program name from
+    argv, so the help text says whichever was typed.
+    """
+    from pathlib import Path
+
+    import tomllib
+
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    scripts = pyproject["project"]["scripts"]
+
+    assert scripts["pdk"] == scripts["prodockit"], "the same entry point, not a copy"
