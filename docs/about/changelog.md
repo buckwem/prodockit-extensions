@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Added: `boot`**, a short name for `bootstrap`.
+
+    `pdk boot --apply` is the form this is typed in most, and it is typed
+    repeatedly while a machine is being brought up. Registered rather
+    than wrapped - one command object under two names - so the two can
+    never take different options or drift in their help. `bootstrap`
+    stays.
+
 ## 0.29.0 (2026-08-12)
 
 - **Changed:** CI caches the pandoc download, so an outage at the release

@@ -1340,3 +1340,13 @@ def pins(
             err=True,
         )
         sys.exit(1)
+
+
+# The same command under a shorter name, registered rather than wrapped -
+# one object, so the two can never take different options or drift in
+# their help. `pdk boot --apply` is the form this is typed in most, and
+# it is typed repeatedly while a machine is being brought up.
+#
+# `bootstrap` stays: the User Guide, the issues and every script written
+# so far name it.
+main.add_command(bootstrap, name="boot")
