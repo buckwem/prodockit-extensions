@@ -98,6 +98,7 @@ __all__ = [
     "contacts_host",
     "current_platform",
     "default_for",
+    "forget_contacts",
     "host_problem",
     "load",
     "missing_keys",
@@ -115,8 +116,12 @@ class UnsupportedHostError(Exception):
     """Raised for a host that is declared but not yet implemented."""
 
 
-def _forget_contacts(context: Context) -> None:
+def forget_contacts(context: Context) -> None:
     """Drops any remembered answer about the host.
+
+    Public, because the CLI needs it too: a stage whose plan is
+    instructions only is applied by a *human*, and every re-check after
+    one has to connect for itself.
 
     A no-op for a context built without a counter, which keeps every
     existing caller and test working unchanged.
@@ -244,7 +249,7 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
         # from before it ran is now a statement about the past. Dropped
         # here rather than only before the check below, so a later
         # command in the same plan cannot read a stale answer either.
-        _forget_contacts(context)
+        forget_contacts(context)
         # A Windows installer adds itself to PATH by writing the registry;
         # a running process never sees that, because its environment was
         # copied when it started. So `winget install Git.Git` succeeds and
@@ -258,6 +263,13 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
         # unconfigured, with the run blaming the install (#309).
         if not benign_outcome(command, outcome):
             return ApplyResult(stage=stage, ran=result.ran, failed=outcome)
+    # Unconditionally, not only after a command. The two browser stages
+    # have instructions-only plans, so the loop above never ran and never
+    # cleared anything - and their whole point is that a *human* changed
+    # something on the host in between. Verifying from a memo taken
+    # before they did reported the repository they had just created as
+    # missing, for ever (prodockit-extensions#321).
+    forget_contacts(context)
     return ApplyResult(stage=stage, ran=result.ran, verified=stage.check(context))
 
 
@@ -282,7 +294,7 @@ def check_all(context: Context, stages: tuple[Stage, ...] = STAGES) -> list[Stag
     asking three times is what provoked the host into refusing (#304).
     Starting fresh, because state may have changed since the last pass.
     """
-    _forget_contacts(context)
+    forget_contacts(context)
     return [StageReport(stage=stage, result=stage.check(context)) for stage in stages]
 
 
@@ -297,7 +309,7 @@ def plan_all(context: Context, stages: tuple[Stage, ...] = STAGES) -> list[Stage
     and `create a blank project named '' in the group ''`, which reads as
     an instruction rather than as the missing answer it actually is.
     """
-    _forget_contacts(context)
+    forget_contacts(context)
     reports = []
     for stage in stages:
         result = stage.check(context)

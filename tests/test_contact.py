@@ -224,3 +224,90 @@ def test_verification_after_a_stage_never_reads_a_stale_answer(tmp_path) -> None
     apply_stage(context, stage)
 
     assert context.contacts.made > before, "the re-check connected for itself"
+
+
+class ChangingRunner:
+    """A machine whose answer changes, because a human changed it.
+
+    The static `FakeRunner` cannot describe the two browser stages at
+    all: their whole point is that somebody creates something on the host
+    *between* one check and the next. A memo bug is invisible to a runner
+    that always answers the same way (#321).
+    """
+
+    def __init__(self, inner, changes: str, before, after) -> None:  # type: ignore[no-untyped-def]
+        self._inner = inner
+        self._changes = changes
+        self._before = before
+        self._after = after
+        self.asked = 0
+
+    def run(self, command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
+        if self._changes in " ".join(command):
+            self.asked += 1
+            return self._before if self.asked == 1 else self._after
+        return self._inner.run(command, cwd, timeout, capture)
+
+
+def _project_machine(tmp_path):  # type: ignore[no-untyped-def]
+    from test_bootstrap import FakeRunner, _ready_machine
+
+    machine = _ready_machine(tmp_path)
+    machine["remote get-url origin"] = CommandResult(
+        0, "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git\n"
+    )
+    return FakeRunner(machine)
+
+
+def test_a_browser_stage_verifies_against_the_host_not_a_memo(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """The fault in #321. `own-project`'s plan is instructions only, so
+    the command loop never ran and never dropped the memo - and the
+    verification then reported the repository the reader had just created
+    as missing."""
+    from test_bootstrap import _context
+
+    from prodockit.bootstrap import apply_stage
+    from prodockit.bootstrap.stages import STAGES
+
+    runner = ChangingRunner(
+        _project_machine(tmp_path),
+        "ls-remote",
+        CommandResult(128, stderr="repository not found"),
+        CommandResult(0, "abc123\trefs/heads/main\n"),
+    )
+    context = _context(tmp_path, runner=runner)
+    stage = next(s for s in STAGES if s.id == "own-project")
+
+    stage.check(context)  # the reader is shown "not reachable", goes to the browser
+    result = apply_stage(context, stage)
+
+    assert runner.asked > 1, "it asked the host again"
+    assert result.verified is not None and not result.verified.needs_work
+
+
+def test_trying_again_asks_the_host_again(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """The loop the reader was stuck in: every "Try again?" replayed the
+    first answer, so it could never succeed however many times they
+    said yes."""
+    from click.testing import CliRunner
+    from test_bootstrap import _context
+
+    from prodockit.bootstrap.stages import STAGES
+    from prodockit.cli import _verify_until_done
+
+    runner = ChangingRunner(
+        _project_machine(tmp_path),
+        "ls-remote",
+        CommandResult(128, stderr="repository not found"),
+        CommandResult(0, "abc123\trefs/heads/main\n"),
+    )
+    context = _context(tmp_path, runner=runner)
+    stage = next(s for s in STAGES if s.id == "own-project")
+
+    # First round says no, second says yes - which only works if the
+    # second round actually connects.
+    with CliRunner().isolation(input="y\ny\ny\n"):
+        done = _verify_until_done(context, stage, "Have you created it?")
+
+    assert done, "the second attempt saw the new repository"
+    assert runner.asked >= 2
