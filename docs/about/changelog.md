@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Fixed:** creating the SSH key failed on a machine with no `~/.ssh`
+  directory
+  ([#318](https://github.com/buckwem/prodockit-extensions/issues/318)).
+
+    `ssh-keygen` does not create the directory it is asked to write
+    into, and the error names the *key* rather than the missing folder:
+
+        Saving key "C:\Users\you\.ssh\id_ed25519_github" failed:
+        No such file or directory
+
+    The stage creates it first now, on all three platforms - Windows is
+    where it bites, since macOS and Linux usually have `~/.ssh` already
+    from some earlier ssh use, but a genuinely fresh machine of any kind
+    has no such directory.
+
+    Only when it is absent, so an existing directory keeps whatever
+    permissions its owner chose. One this created gets `700` on
+    macOS/Linux: ssh refuses a key others can read, and the same applies
+    to the directory holding it.
+
 - **Fixed:** accepting a host's key stopped the run, even though the
   connection had just succeeded
   ([#316](https://github.com/buckwem/prodockit-extensions/issues/316)).

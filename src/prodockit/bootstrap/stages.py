@@ -475,10 +475,47 @@ def _check_ssh_key(context: Context) -> CheckResult:
     return _missing(f"no keypair at {private}")
 
 
+def _create_ssh_dir(context: Context) -> list[list[str]]:
+    """Commands that make `~/.ssh` exist, or none if it already does.
+
+    `ssh-keygen` does not create the directory it is asked to write into,
+    and fails with an error naming the *key* rather than the missing
+    folder (prodockit-extensions#318):
+
+        Saving key "C:\\Users\\you\\.ssh\\id_ed25519_github" failed:
+        No such file or directory
+
+    Windows is where this bites, because macOS and Linux tend to have
+    `~/.ssh` already from some earlier ssh use - but a genuinely fresh
+    machine of any kind has no such directory, so it is created on all
+    three.
+
+    Only when absent, so an existing directory's permissions are left
+    alone. `700` is applied to one this created: ssh refuses to use a
+    key others can read, and the same applies to the directory holding
+    it. Windows restricts a user profile folder to that user already,
+    which is what the User Guide says too.
+    """
+    directory = context.home / ".ssh"
+    if context.exists(directory):
+        return []
+    if context.platform == WINDOWS:
+        return [
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                f"New-Item -ItemType Directory -Force -Path '{directory}' | Out-Null",
+            ]
+        ]
+    return [["mkdir", "-p", str(directory)], ["chmod", "700", str(directory)]]
+
+
 def _plan_ssh_key(context: Context) -> Plan:
     private = _key_path(context)
     return Plan(
         commands=[
+            *_create_ssh_dir(context),
             [
                 "ssh-keygen",
                 "-t",
@@ -487,7 +524,7 @@ def _plan_ssh_key(context: Context) -> Plan:
                 context.config.email,
                 "-f",
                 str(private),
-            ]
+            ],
         ],
         instructions=[
             "ssh-keygen will ask for a passphrase - choose a strong one and "
