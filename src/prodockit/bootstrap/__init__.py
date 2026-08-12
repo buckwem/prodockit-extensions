@@ -301,7 +301,10 @@ def plan_all(context: Context, stages: tuple[Stage, ...] = STAGES) -> list[Stage
     reports = []
     for stage in stages:
         result = stage.check(context)
-        plannable = result.needs_work and result.status is not Status.UNKNOWN
+        # `BLOCKED` joins `UNKNOWN` here for a different reason but the
+        # same treatment: a plan built now would run commands an earlier
+        # stage is about to undo (#311).
+        plannable = result.needs_work and result.status not in (Status.UNKNOWN, Status.BLOCKED)
         plan = stage.plan(context) if plannable else None
         reports.append(StageReport(stage=stage, result=result, plan=plan))
     return reports

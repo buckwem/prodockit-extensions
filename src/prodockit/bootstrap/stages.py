@@ -171,6 +171,39 @@ def _unknown(detail: str) -> CheckResult:
     return CheckResult(Status.UNKNOWN, detail)
 
 
+def _blocked(detail: str) -> CheckResult:
+    return CheckResult(Status.BLOCKED, detail)
+
+
+#: Why the two stages after `fresh-history` wait for it.
+#:
+#: Said in full rather than as "waiting for fresh-history", because the
+#: state it describes is dangerous on its own: a clone still pointing at
+#: the template will push *into the template* for anyone who has write
+#: access to it, and the template is public and cloned by every new
+#: reader (prodockit-extensions#311).
+_STILL_THE_TEMPLATE = (
+    "this clone's origin is still the template. Do the 'A history of your "
+    "own' stage first - it deletes the template's history and its remote, "
+    "which would throw away anything done here"
+)
+
+
+def _origin_is_the_template(context: Context) -> bool:
+    """Whether the clone has not been separated from the template yet.
+
+    Asked by the two stages that follow the reset, so neither acts on a
+    repository the reset is about to empty. A clone made from
+    `source_url` never matches - its origin is the reader's own - so that
+    path is untouched.
+    """
+    project = context.config.resolved_project_dir(context.home)
+    if not (project / ".git").exists():
+        return False
+    origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"])
+    return origin.ok and origin.stdout.strip() == context.host.template_remote
+
+
 def _needs_config(context: Context, *required: str) -> CheckResult | None:
     """`UNKNOWN` if any of `required` is unanswered, else None.
 
@@ -1168,6 +1201,8 @@ def _plan_fresh_history(context: Context) -> Plan:
 def _check_own_project(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
         return unknown
+    if _origin_is_the_template(context):
+        return _blocked(_STILL_THE_TEMPLATE)
     url = context.host.remote_url(context.config.namespace, context.config.project_name)
     result = context.runner.run(["git", "ls-remote", url])
     if result.ok:
@@ -1218,6 +1253,12 @@ def _check_remote(context: Context) -> CheckResult:
     if not result.ok:
         return _missing("no `origin` remote is set")
     actual = result.stdout.strip()
+    # Named for what it is rather than reported as "not the expected
+    # URL". Repointing now would be undone by the reset that has to come
+    # first, and leaving it is how a project ends up pushing into the
+    # template (#311).
+    if actual == context.host.template_remote:
+        return _blocked(_STILL_THE_TEMPLATE)
     if actual != wanted:
         return _wrong(f"origin is {actual}, expected {wanted}")
 
