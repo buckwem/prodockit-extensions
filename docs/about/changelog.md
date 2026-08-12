@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.26.6 (2026-08-12)
+
 - **Fixed:** creating the SSH key failed on a machine with no `~/.ssh`
   directory
   ([#318](https://github.com/buckwem/prodockit-extensions/issues/318)).
