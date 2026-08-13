@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Added: gitlab.com is a supported host**
+  ([#361](https://github.com/buckwem/prodockit-extensions/issues/361)).
+
+    Declared since the beginning and refused, because nothing had been
+    run against it. It is covered by tests rather than by a machine -
+    Surrey's own instance has been unreachable, so no GitLab path has
+    been run end to end - and that is worth knowing before relying on it.
+
+    A self-hosted instance of either family is still refused. What cannot
+    be guessed for one is where it publishes its Pages and where its API
+    lives, and inventing either would send a reader somewhere that was
+    never going to answer.
+
 - **Changed:** a green stage says why, and the history reset defaults to
   yes ([#356](https://github.com/buckwem/prodockit-extensions/issues/356)).
 

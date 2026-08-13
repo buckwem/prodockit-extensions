@@ -158,10 +158,13 @@ SURREY_GITLAB = Host(
     ),
 )
 
-#: Deliberately declared but unsupported. The shape is proven by having
-#: more than one entry, and `supported=False` makes phase 1 refuse them
-#: with a clear message rather than half-working against a host nothing
-#: has tested (prodockit-extensions#217).
+#: gitlab.com. Supported, though not yet run end to end - Surrey's own
+#: instance has been unreachable, so the GitLab path is covered by tests
+#: and not by a machine (prodockit-extensions#361).
+#:
+#: `supported` stays on the record rather than being deleted: a
+#: self-hosted instance still resolves to no host at all and is refused,
+#: and the flag is what a newly declared host starts life with.
 GITLAB_COM = Host(
     key="gitlab",
     template_remote="git@github.com:buckwem/prodockit-template.git",
@@ -181,7 +184,6 @@ GITLAB_COM = Host(
         "misconfigured key rather than an expired one, months after you set it up.",
     ),
     pages_url="https://{namespace}.gitlab.io/{project}/",
-    supported=False,
 )
 
 GITHUB_COM = Host(

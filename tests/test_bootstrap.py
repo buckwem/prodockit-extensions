@@ -267,15 +267,12 @@ def test_the_keypair_check_looks_where_the_guide_says_to_create_it(tmp_path: Pat
 
 
 def test_declared_but_unsupported_hosts_are_refused_clearly() -> None:
-    """gitlab.com exists as a record so the shape is right, but nothing
-    has been run against it - refusing beats half-working.
-
-    github.com used to be in this list and no longer is: it has been run
-    against, which is the only thing that moves a host out of here.
-    """
+    """Every declared host is supported now. What is still refused is a
+    host with no record at all - a self-hosted instance of either family
+    - and that is the case worth keeping a message for (#361)."""
     with pytest.raises(UnsupportedHostError) as exc_info:
-        build_context(_config(host="gitlab"))
-    assert "not yet supported" in str(exc_info.value)
+        build_context(_config(host="gitlab.example.edu"))
+    assert "self-hosted" in str(exc_info.value)
 
 
 def test_an_unknown_host_names_the_ones_that_exist() -> None:
@@ -2904,7 +2901,8 @@ def test_github_is_usable_and_gitlab_com_still_is_not() -> None:
 
     assert host_problem("github.com") is None
     assert host_problem("gitlab.surrey.ac.uk") is None
-    assert "not yet supported" in (host_problem("gitlab.com") or "")
+    assert host_problem("gitlab.com") is None, "flipped on in #361"
+    assert "self-hosted" in (host_problem("gitlab.example.edu") or "")
 
 
 def test_an_unknown_self_hosted_gitlab_is_told_apart_from_a_typo() -> None:
@@ -2946,7 +2944,7 @@ def test_the_prompt_and_the_run_ask_the_same_question(tmp_path: Path) -> None:
     so a host the prompt accepted cannot be one the run then rejects."""
     from prodockit.bootstrap import host_problem
 
-    for value in ("gitlab.com", "bitbucket.org"):
+    for value in ("gitlab.example.edu", "bitbucket.org"):
         with pytest.raises(UnsupportedHostError) as exc_info:
             build_context(_config(host=value))
         assert str(exc_info.value) == host_problem(value)
@@ -3013,12 +3011,12 @@ def test_an_unusable_host_is_re_asked_rather_than_stored(
     result = cli_bootstrap(
         "--configure",
         input=(
-            "gitlab.com\ngitlab.surrey.ac.uk\nAda\na@b.c\n"
+            "gitlab.example.edu\ngitlab.surrey.ac.uk\nAda\na@b.c\n"
             "al01234\ncomm058\nreport-x\n\n\n"
         ),
     )
 
-    assert "not yet supported" in result.output
+    assert "self-hosted" in result.output, "a host with no record is still refused"
     assert load(tmp_path / "b.toml").host == "gitlab.surrey.ac.uk"
 
 
@@ -5232,3 +5230,38 @@ def test_the_metadata_url_comes_from_the_host(tmp_path: Path) -> None:
     assert "api.github.com" in HOSTS["github"].repo_api
     assert HOSTS["surrey"].repo_api == "", "no anonymous equivalent"
     assert HOSTS["gitlab"].repo_api == ""
+
+
+def test_gitlab_com_is_selectable(tmp_path: Path) -> None:
+    """Flipped on in #361. Covered by tests rather than by a machine -
+    Surrey's instance has been unreachable, so no GitLab path has been
+    run end to end."""
+    from prodockit.bootstrap import HOSTS, host_problem
+
+    assert host_problem("gitlab.com") is None
+    assert HOSTS["gitlab"].supported
+    context = _context(tmp_path, host="gitlab.com")
+    assert context.host.key == "gitlab"
+
+
+def test_gitlab_com_gets_gitlabs_own_everything(tmp_path: Path) -> None:
+    """The point of the record: no GitHub wording, URLs or API reach a
+    GitLab reader."""
+    context = _context(tmp_path, host="gitlab.com", namespace="ns", project_name="proj")
+    host = context.host
+
+    assert host.pages_url.format(namespace="ns", project="proj") == "https://ns.gitlab.io/proj/"
+    assert host.repo_api == "", "GitLab has no anonymous metadata to read"
+    assert not host.pages_setup_steps, "its CI job configures Pages"
+    assert host.ssh_success == "Welcome to GitLab"
+    assert host.remote_url("ns", "proj") == "git@gitlab.com:ns/proj.git"
+
+
+def test_a_self_hosted_instance_is_still_refused() -> None:
+    """`github.ibm.com` and `gitlab.example.edu` resolve to no record, so
+    there is nothing to fill in the two things that cannot be guessed:
+    where it publishes, and where its API lives."""
+    from prodockit.bootstrap import host_problem
+
+    for unknown in ("github.ibm.com", "gitlab.example.edu"):
+        assert "self-hosted" in (host_problem(unknown) or ""), unknown
