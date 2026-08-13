@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Changed:** a green stage says why, and the history reset defaults to
+  yes ([#356](https://github.com/buckwem/prodockit-extensions/issues/356)).
+
+    "Where the project comes from" reporting `ok` read the same whether
+    the host had been searched and found empty or never reached at all -
+    the ambiguity behind #344 and #351. It now says `no existing
+    repository found - the template will be cloned`, or `could not reach
+    <host> to look`, and the apply loop prints the detail rather than
+    discarding it.
+
+    The history reset defaults to yes. It deletes only ever the
+    *template's* history - a clone carrying the reader's own is never
+    offered it, and the stage is blocked while the decision is unmade -
+    so defaulting to No left anyone who pressed Enter with the template's
+    commits behind their project.
+
 - **Fixed:** bootstrap asked you to sign in with a tool it had not
   installed yet
   ([#354](https://github.com/buckwem/prodockit-extensions/issues/354)).
