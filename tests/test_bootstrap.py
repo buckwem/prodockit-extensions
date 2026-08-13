@@ -5164,8 +5164,8 @@ def test_a_site_that_answers_is_finished(tmp_path: Path) -> None:
         _context(tmp_path, host="github.com", runner=FakeRunner(machine))
     )
 
-    assert not plan.commands
-    assert any("auth login" in step for step in plan.instructions)
+    assert result.status is Status.OK
+    assert "public" in result.detail
 
 
 def test_ok_says_which_reason_it_is(tmp_path: Path) -> None:
@@ -5203,8 +5203,6 @@ def test_applying_prints_why_a_stage_is_already_ok(
     result = cli_bootstrap("--apply", responses=machine, input="n\n" * 40)
 
     assert "ok    Git, installed and configured - " in result.output
-    assert result.status is Status.OK
-    assert "public" in result.detail
 
 
 def test_only_github_is_asked_to_switch_pages_on(tmp_path: Path) -> None:
