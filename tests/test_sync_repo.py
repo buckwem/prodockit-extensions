@@ -666,27 +666,52 @@ def test_the_tool_is_installable_under_a_short_name() -> None:
     assert scripts["pdk"] == scripts["prodockit"], "the same entry point, not a copy"
 
 
-def test_boot_is_the_same_command_as_bootstrap() -> None:
-    """Registered rather than wrapped - one object under two names, so
-    the two cannot take different options or drift in their help.
+def test_every_alias_names_a_real_command() -> None:
+    """A table is only worth having if nothing can be added to it wrongly
+    - a typo would otherwise register a command nobody can reach (#366)."""
+    from prodockit.cli import COMMAND_ALIASES, main
 
-    `bootstrap` stays: the User Guide, the issues and every script
-    written so far name it.
-    """
-    from prodockit.cli import main
+    for alias, target in COMMAND_ALIASES.items():
+        assert target in main.commands, f"{alias} points at nothing"
+        assert main.commands[alias] is main.commands[target], (
+            f"{alias} must be the same object as {target}, not a copy"
+        )
 
-    assert main.commands["boot"] is main.commands["bootstrap"]
+
+def test_no_alias_shadows_a_command() -> None:
+    """Registering an alias over a real command would silently replace
+    it, and the help would still list one name."""
+    from prodockit.cli import COMMAND_ALIASES
+
+    real = {"bootstrap", "source-bundle", "pdf", "pins", "sync-repo",
+            "init-tools", "init-mathjax"}
+
+    assert not (set(COMMAND_ALIASES) & real), "an alias may not take a command's own name"
 
 
-def test_boot_accepts_what_bootstrap_accepts() -> None:
-    """The point of one object rather than two: a flag added to one is
-    on the other by construction."""
+def test_an_alias_accepts_what_its_command_accepts() -> None:
+    """The point of one object rather than two: an option added to the
+    command is on the alias by construction, not by remembering."""
     from click.testing import CliRunner
 
+    from prodockit.cli import COMMAND_ALIASES, main
+
+    runner = CliRunner()
+    for alias, target in COMMAND_ALIASES.items():
+        under_alias = runner.invoke(main, [alias, "--help"])
+        under_name = runner.invoke(main, [target, "--help"])
+
+        assert under_alias.exit_code == 0 and under_name.exit_code == 0
+        flags = lambda out: sorted(  # noqa: E731
+            f for line in out.splitlines() for f in line.split() if f.startswith("--")
+        )
+        assert flags(under_alias.output) == flags(under_name.output), alias
+
+
+def test_the_long_names_all_survive() -> None:
+    """They are what the User Guide, the changelog and anything scripted
+    use - an alias adds a name, it never replaces one."""
     from prodockit.cli import main
 
-    for name in ("boot", "bootstrap"):
-        result = CliRunner().invoke(main, [name, "--help"])
-        assert result.exit_code == 0
-        for flag in ("--check", "--dry-run", "--apply", "--configure", "--config"):
-            assert flag in result.output, f"{name} is missing {flag}"
+    for name in ("bootstrap", "source-bundle", "pdf", "pins", "sync-repo"):
+        assert name in main.commands, name
