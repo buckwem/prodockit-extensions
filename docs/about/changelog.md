@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Fixed:** a finished setup was told its project needed a decision
+  ([#368](https://github.com/buckwem/prodockit-extensions/issues/368)).
+
+    Every stage done, `prodockit boot` run once more to confirm, and the
+    stage that asks where the project comes from reported `MISS` and put
+    three choices to somebody whose project was already cloned, pushed
+    and published. None of the three could change where the contents had
+    come from: they were on disk.
+
+    It now says where they came from. A clone still on the template keeps
+    the question, because there the decision really is ahead - and an
+    `origin` that cannot be read stays unknown rather than being taken
+    for an answer.
+
+    A check pass on a finished machine now costs three connections to the
+    host rather than four.
+
 - **Added: `source`**, a short name for `source-bundle`
   ([#366](https://github.com/buckwem/prodockit-extensions/issues/366)).
 

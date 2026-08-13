@@ -165,13 +165,17 @@ def test_the_memo_distinguishes_working_directories() -> None:
     assert len(inner.calls) == 2
 
 
-def test_a_check_pass_on_a_finished_machine_costs_four_logins(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_a_check_pass_on_a_finished_machine_costs_three_logins(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """The measurement #304 asked for, on the real stage list.
 
-    Four now: one `ssh -T`, one `git ls-remote` for the project, the
-    shallow fetch that asks whether it holds a project rather than a
-    stray file, and one `ls-remote` against `origin` for the first-push
-    stage.
+    Three now: one `ssh -T` greeting, one `git ls-remote` for the project
+    itself, and one against `origin` for the first-push stage.
+
+    It was four until #368. The clone-source stage also ran a shallow
+    fetch to ask whether the project held work rather than a stray file -
+    on a machine whose clone was already sitting there with an origin
+    naming it. Nothing that answer could say would change the outcome,
+    and it was paid for with a connection on every run.
 
     Rising, and worth watching for that reason. Every stage that asks the
     host something adds to what a run costs, and #304 exists because that
@@ -189,8 +193,11 @@ def test_a_check_pass_on_a_finished_machine_costs_four_logins(tmp_path) -> None:
     context = _context(tmp_path, runner=FakeRunner(_ready_machine(tmp_path)))
     check_all(context)
 
-    assert context.contacts.made == 4
-    assert context.contacts.reused == 2, "asked again to say *why*, at no extra cost"
+    assert context.contacts.made == 3
+    assert context.contacts.reused == 0, (
+        "the repeat questions were the clone-source stage's, and #368 "
+        "stopped it asking at all - not answered from the memo, not asked"
+    )
 
 
 def test_planning_a_broken_ssh_stage_reuses_the_probe(tmp_path) -> None:  # type: ignore[no-untyped-def]
