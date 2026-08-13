@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.31.0 (2026-08-13)
+
 - **Added: gitlab.com is a supported host**
   ([#361](https://github.com/buckwem/prodockit-extensions/issues/361)).
 
