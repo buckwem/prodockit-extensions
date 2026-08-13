@@ -190,7 +190,7 @@ def test_a_check_pass_on_a_finished_machine_costs_four_logins(tmp_path) -> None:
     check_all(context)
 
     assert context.contacts.made == 4
-    assert context.contacts.reused == 1, "the project probe is asked twice, connected once"
+    assert context.contacts.reused == 2, "asked again to say *why*, at no extra cost"
 
 
 def test_planning_a_broken_ssh_stage_reuses_the_probe(tmp_path) -> None:  # type: ignore[no-untyped-def]

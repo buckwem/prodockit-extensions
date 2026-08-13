@@ -1360,9 +1360,19 @@ def _plan_fresh_history(context: Context) -> Plan:
     )
     return Plan(
         cwd=str(project),
-        # The only plan in bootstrap that cannot be undone, and the only
-        # one whose prompt does not default to yes (#259).
-        destructive=True,
+        # Not marked destructive, and that is a change worth explaining.
+        #
+        # #259 made this the one prompt defaulting to No, because it is
+        # the one plan that cannot be undone. What it deletes, though, is
+        # only ever the *template's* history: a clone carrying the
+        # reader's own is never offered this at all - its plan is one
+        # `core.fileMode` setting (#332), and the stage is blocked while
+        # the decision is unmade (#348).
+        #
+        # So the answer here is always yes, and defaulting to No cost a
+        # student who pressed Enter a project stuck with the template's
+        # commits behind it (prodockit-extensions#356).
+        destructive=False,
         confirm="Delete the template's history and start a new repository?",
         instructions=[
             "This deletes the template's commit history from your clone - every "
@@ -2681,7 +2691,16 @@ def _check_clone_source(context: Context) -> CheckResult:
     if context.config.source_url.strip():
         return _ok(f"cloning {context.config.source_url.strip()}")
     if not own_project_has_content(context):
-        return _ok("the template - nothing of your own on the host yet")
+        # Which of these it is matters. "ok" with nothing after it reads
+        # the same whether the host was searched and found empty or never
+        # reachable at all - and that ambiguity is the fault chased
+        # through #344 and #351 (prodockit-extensions#356).
+        if project_on_host(context) is None:
+            return _ok(
+                f"could not reach {context.host.hostname} to look - the template "
+                "will be cloned"
+            )
+        return _ok("no existing repository found - the template will be cloned")
     return _missing(
         f"{context.config.namespace.strip()}/{context.config.project_name.strip()} has "
         "work on the host - choose what to do with it"

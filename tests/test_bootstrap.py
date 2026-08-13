@@ -3160,16 +3160,27 @@ def test_every_prompt_defaults_to_yes_except_the_destructive_one(tmp_path: Path)
     context = _context(tmp_path, runner=FakeRunner(machine))
     destructive = [s.id for s in STAGES if s.plan(context).destructive]
 
-    assert destructive == ["fresh-history"], (
-        "if a second plan destroys something, it must say so - the prompt "
+    assert destructive == [], (
+        "nothing left destroys anything the reader owns: the history reset "
+        "only ever deletes the template's commits, and a clone carrying "
+        "the reader's own history is never offered it (#356). If a plan "
+        "starts destroying something again, it must say so - the prompt "
         "default is the only thing standing in front of it"
     )
 
 
-def test_pressing_enter_never_deletes_a_history(
+def test_pressing_enter_takes_the_history_reset(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The one prompt that must not be answered by reflex."""
+    """Reversed deliberately (#356).
+
+    This prompt defaulted to No because it cannot be undone. What it
+    deletes is only ever the *template's* history: a clone carrying the
+    reader's own is never offered it, and the stage is blocked while the
+    decision is unmade. So the answer is always yes, and defaulting to No
+    left students who pressed Enter with the template's commits behind
+    their project.
+    """
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True)
@@ -3180,7 +3191,7 @@ def test_pressing_enter_never_deletes_a_history(
     result = cli_bootstrap("--apply", responses=responses, input="\n" * 40)
 
     assert "A history of your own" in result.output
-    assert "[y/N]" in result.output, "deleting history must not be the Enter answer"
+    assert "[Y/n]" in result.output, "the template's history is meant to go"
 
 
 def test_an_ordinary_install_is_the_enter_answer(
@@ -4503,21 +4514,27 @@ def test_saying_no_to_a_destructive_step_does_not_then_offer_it(
     assert "rm -rf" not in result.output, "a refusal must not be followed by the commands"
 
 
-def test_a_deletion_never_defaults_to_yes(tmp_path: Path) -> None:
-    """#259 established that the one plan with no undo is the one whose
-    prompt does not default to yes. That held for the command prompt and
-    not for the question above it, which is the prompt a reader actually
-    reads."""
+def test_the_reset_only_ever_deletes_the_templates_history(tmp_path: Path) -> None:
+    """What makes defaulting to yes safe: the plan that deletes history
+    is reachable only while `origin` still points at the template, and a
+    clone carrying the reader's own gets a one-line setting instead
+    (#332, #356)."""
     machine = _ready_machine(tmp_path)
-    machine["remote get-url origin"] = CommandResult(
-        0, "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git\n"
-    )
-    plan = next(s for s in STAGES if s.id == "fresh-history").plan(
+    machine["remote get-url origin"] = CommandResult(0, SURREY_GITLAB.template_remote)
+    from_template = next(s for s in STAGES if s.id == "fresh-history").plan(
         _context(tmp_path, runner=FakeRunner(machine))
     )
 
-    assert plan.destructive, "the flag the default is taken from"
-    assert plan.confirm.endswith("?")
+    own = dict(machine)
+    own["remote get-url origin"] = CommandResult(0, "git@github.com:buckwem/report.git\n")
+    own["config core.fileMode"] = CommandResult(0, "true\n")
+    mine = next(s for s in STAGES if s.id == "fresh-history").plan(
+        _context(tmp_path, host="github.com", runner=FakeRunner(own))
+    )
+
+    assert any("rm -rf" in " ".join(c) for c in from_template.commands)
+    assert not any("rm -rf" in " ".join(c) for c in mine.commands), "never the reader's own"
+    assert mine.commands == [["git", "config", "core.fileMode", "false"]]
 
 
 def test_there_is_nothing_to_reset_before_there_is_a_clone(tmp_path: Path) -> None:
@@ -5245,3 +5262,40 @@ def test_an_installed_tool_only_needs_signing_into(tmp_path: Path) -> None:
 
     assert not plan.commands
     assert any("auth login" in step for step in plan.instructions)
+
+
+def test_ok_says_which_reason_it_is(tmp_path: Path) -> None:
+    """"ok" with nothing after it read the same whether the host had been
+    searched and found empty or never reached at all - and that ambiguity
+    is the fault chased through #344 and #351 (#356)."""
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(128, stderr="ERROR: Repository not found.")
+    absent = next(s for s in STAGES if s.id == "clone-source").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+
+    unreachable = dict(machine)
+    unreachable["git ls-remote"] = CommandResult(255, stderr="Permission denied (publickey).")
+    blind = next(s for s in STAGES if s.id == "clone-source").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(unreachable))
+    )
+
+    assert absent.status is Status.OK and blind.status is Status.OK
+    assert "no existing repository found" in absent.detail
+    assert "the template will be cloned" in absent.detail
+    assert "could not reach" in blind.detail, "not the same sentence as having looked"
+    assert absent.detail != blind.detail
+
+
+def test_applying_prints_why_a_stage_is_already_ok(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The apply loop printed the summary and threw the detail away, so a
+    reader watching a run could not see what a green line meant."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+
+    machine = _ready_machine(tmp_path)
+    machine["code --list-extensions"] = CommandResult(0, "")  # one stage left to do
+    result = cli_bootstrap("--apply", responses=machine, input="n\n" * 40)
+
+    assert "ok    Git, installed and configured - " in result.output

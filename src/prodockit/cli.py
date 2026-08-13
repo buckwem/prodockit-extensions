@@ -524,7 +524,13 @@ def _apply_outstanding(
             plan=report.stage.plan(context) if plannable else None,
         )
         if not report.needs_work:
-            click.echo(f"{number:2}  ok    {report.stage.summary}")
+            # With the detail, as the report itself prints it. Without
+            # it, "ok" said nothing about *why* - and for the stage that
+            # decides where the project comes from, "searched and found
+            # nothing" and "never managed to look" read identically
+            # (#356).
+            detail = f" - {report.result.detail}" if report.result.detail else ""
+            click.echo(f"{number:2}  ok    {report.stage.summary}{detail}")
             continue
         if report.plan is None:
             # Waiting on an answer rather than on the machine, so there is
