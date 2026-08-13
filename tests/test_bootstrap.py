@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Sequence
-from pathlib import Path
+from pathlib import Path, PurePath
 
 import pytest
 
@@ -4809,8 +4809,8 @@ def test_the_project_is_committed_and_pushed(tmp_path: Path) -> None:
         _context(tmp_path, runner=FakeRunner(machine))
     )
 
-    assert [c[:2] for c in plan.commands] == [
-        ["git", "add"], ["git", "commit"], ["git", "push"]
+    assert [c[-2:] if c[0].endswith("zensical") else c[:2] for c in plan.commands] == [
+        ["build", "--clean"], ["git", "add"], ["git", "commit"], ["git", "push"]
     ]
     assert plan.commands[-1] == ["git", "push", "-u", "origin", "main"]
     assert plan.confirm.endswith("?")
@@ -5265,3 +5265,39 @@ def test_a_self_hosted_instance_is_still_refused() -> None:
 
     for unknown in ("github.ibm.com", "gitlab.example.edu"):
         assert "self-hosted" in (host_problem(unknown) or ""), unknown
+
+
+def test_the_site_is_built_clean_before_the_first_commit(tmp_path: Path) -> None:
+    """`prodockit sync-repo` rewrites the brand icon in `zensical.toml`,
+    and a build served from `.cache/` keeps showing the template's logo
+    until something clears it - which readers were doing by running
+    `zensical serve` and wondering why (#364)."""
+    machine = _ready_machine(tmp_path)
+    machine["status --porcelain"] = CommandResult(0, " M docs/index.md\n")
+    plan = next(s for s in STAGES if s.id == "first-push").plan(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+    first = plan.commands[0]
+
+    assert first[0].endswith("zensical"), "the project's own, not whichever is on PATH"
+    assert first[1:] == ["build", "--clean"], "--clean is what drops the stale cache"
+    assert plan.commands.index(first) < next(
+        i for i, c in enumerate(plan.commands) if c[:2] == ["git", "commit"]
+    ), "built before it is committed"
+
+
+def test_the_build_uses_the_projects_own_zensical(tmp_path: Path) -> None:
+    """Its version is pinned in the project's requirements.txt. A
+    different one from PATH would build the site differently from CI."""
+    machine = _ready_machine(tmp_path)
+    machine["status --porcelain"] = CommandResult(0, " M x\n")
+    # Compared as path parts, not as a string: a Windows path built on
+    # POSIX renders with forward slashes, so `endswith("Scripts\\...")`
+    # fails for a reason that has nothing to do with the code.
+    for platform, parts in ((MACOS, ("bin", "zensical")), (WINDOWS, ("Scripts", "zensical.exe"))):
+        plan = next(s for s in STAGES if s.id == "first-push").plan(
+            _context(tmp_path, platform=platform, runner=FakeRunner(machine))
+        )
+        built = PurePath(plan.commands[0][0])
+        assert built.parts[-2:] == parts, platform
+        assert ".venv" in built.parts
