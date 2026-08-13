@@ -2395,7 +2395,7 @@ def _check_site_published(context: Context) -> CheckResult:
     result = context.runner.run(
         ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20", url]
     )
-    if result.ok and result.stdout.strip() == "200" and not _site_link_missing(context, url):
+    if result.ok and result.stdout.strip() == "200":
         # Said plainly, because it is the part readers get wrong: a Pages
         # site is readable by anyone, even when the repository behind it
         # is private. Only an Enterprise plan can restrict who sees it, so
@@ -2405,37 +2405,20 @@ def _check_site_published(context: Context) -> CheckResult:
     return _missing(f"{url} is not answering yet")
 
 
-def _site_link_missing(context: Context, url: str) -> bool:
-    """Whether the repository's own front page fails to link to its site.
-
-    GitHub keeps this in the About panel's `homepage` field, and does not
-    fill it in from Pages - so a project with a perfectly good published
-    site showed nothing at all on the page anybody actually lands on
-    (prodockit-extensions#340).
-
-    `sync-repo` cannot do this: it reads and writes local files, and this
-    lives on the host. `gh` can, and already holds a token. Where `gh` is
-    absent the answer is "not missing", so its absence never turns a
-    working site into a finding.
-    """
-    if not _installed(context, "gh", "--version"):
-        return False
-    where = f"{context.config.namespace.strip()}/{context.config.project_name.strip()}"
-    shown = context.runner.run(
-        ["gh", "repo", "view", where, "--json", "homepageUrl", "-q", ".homepageUrl"]
-    )
-    return shown.ok and shown.stdout.strip().rstrip("/") != url.rstrip("/")
-
-
 def _plan_site_published(context: Context) -> Plan:
     """Set the front page's link, once there is a site to link to."""
     url = site_url(context)
-    if _installed(context, "gh", "--version") and _site_link_missing(context, url):
-        where = f"{context.config.namespace.strip()}/{context.config.project_name.strip()}"
-        return Plan(commands=[["gh", "repo", "edit", where, "--homepage", url]])
     return Plan(
         instructions=[
             f"Push your first commit, and the workflow will publish {url}.",
+            # Said rather than done. Setting it needs an authenticated API
+            # call, and asking a reader to install and sign into a command
+            # line for one field was four ways to go wrong for a link they
+            # can paste in ten seconds (#357).
+            "Once it is up, put the link on the repository's front page: open "
+            "the repository, click the gear beside 'About', and tick 'Use your "
+            "GitHub Pages website'. Nothing links to your site from there "
+            "otherwise.",
             "It enables Pages itself, so there is nothing to switch on.",
             "The site will be public. A private repository does not make a "
             "private site - only a GitHub Enterprise plan can restrict who "
@@ -2515,38 +2498,61 @@ def _plan_first_push(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
+def _json_object(text: str) -> dict[str, object] | None:
+    """The JSON object in `text`, or None if it is not one.
+
+    Parsed rather than matched on substrings: `"has_pages": false` and
+    `"has_pages": true` differ by four characters, and a string test for
+    the wrong one would report a repository as configured when it is not.
+    """
+    try:
+        parsed = json.loads(text)
+    except (ValueError, TypeError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def _check_pages(context: Context) -> CheckResult:
-    """Whether Pages is switched on for this project.
+    """Whether Pages is switched on, where that can be seen without a token.
 
-    There is no tokenless way to ask. The Pages API answers `404` to an
-    anonymous caller even for a *public* repository with Pages enabled,
-    and the published site cannot be fetched until a push has built it -
-    so before the first push nothing about this is observable from
-    outside (prodockit-extensions#341).
+    A **public** repository says so in its own API object - `has_pages` -
+    to any anonymous caller. A **private** one answers `404` to
+    everything, so nothing about it is visible from outside until a push
+    has built the site; the stage that fetches the site is the honest
+    test there, and needs no token either.
 
-    `gh` is asked when it is there, because it already holds a token and
-    bootstrap does not have to. Where it is not, this reports that it
-    could not look rather than guessing: stage 20 fetches the site after
-    the push, which is the honest test either way.
+    This asked `gh` until 0.30.1, which meant installing a tool,
+    authenticating it in a browser, from the right directory, on every
+    machine - four ways to go wrong for a check another stage already
+    makes for free (prodockit-extensions#357).
     """
     if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
         return unknown
-    if not context.host.pages_url:
-        return _ok(f"not checked - {context.host.hostname} publishes at no fixed address")
-    if not _installed(context, "gh", "--version"):
-        # Not `blocked`: a blocked stage builds no plan, so the browser
-        # steps below would never print - which is exactly how this
-        # instruction went unseen in 0.27.0. Reported as outstanding so
-        # the steps show, with the detail saying plainly that answering
-        # cannot be verified here (prodockit-extensions#340).
-        return _missing(
-            "cannot be confirmed from here without the gh command - the site "
-            "check at the end of the run is what proves it, after your first push"
-        )
-    where = f"repos/{context.config.namespace.strip()}/{context.config.project_name.strip()}/pages"
-    if context.runner.run(["gh", "api", where]).ok:
-        return _ok("Pages is enabled")
-    return _missing("Pages is not switched on for this repository")
+    host = context.host
+    if not host.pages_setup_steps:
+        # GitLab configures its own Pages from the CI job, so there is
+        # nothing here for a reader to switch on - and printing GitHub's
+        # steps to them would be an instruction to do nothing (#360).
+        return _ok(f"{host.hostname} configures Pages from its CI job")
+    if not host.repo_api:
+        return _ok(f"not checked - {host.hostname} has no anonymous metadata to read")
+    namespace = context.config.namespace.strip()
+    project = context.config.project_name.strip()
+    api = host.repo_api.format(namespace=namespace, project=project)
+    seen = context.runner.run(["curl", "-sS", "--max-time", "20", api])
+    described = _json_object(seen.stdout) if seen.ok else None
+    if described is not None and "has_pages" in described:
+        if described["has_pages"]:
+            return _ok("Pages is enabled")
+        return _missing("Pages is not switched on for this repository")
+    # Private, or the host does not answer anonymously. Not a finding:
+    # the site stage proves it after the first push, and saying Pages is
+    # off without having looked is this project's recurring mistake in
+    # the other direction.
+    return _ok(
+        "cannot be seen from outside a private repository - the site check at "
+        "the end of the run proves it after your first push"
+    )
 
 
 def _plan_pages(context: Context) -> Plan:
@@ -2556,114 +2562,12 @@ def _plan_pages(context: Context) -> Plan:
     somebody else's list, and the cost of missing it is a red first
     build whose error names the site rather than the setting.
     """
+    # The host's own words, not GitHub's. A GitLab reader has nothing to
+    # switch on, and the check above reports them satisfied before this
+    # is ever built (#360).
     return Plan(
-        instructions=[
-            "Open your repository's Settings, then Pages in the left sidebar.",
-            "Under 'Build and deployment', set Source to 'GitHub Actions'.",
-            "Without this the documentation workflow cannot publish, and every "
-            "push fails at 'Get Pages site failed' - which names the site "
-            "rather than the setting that is missing.",
-        ],
-        confirm="Have you set Pages to build from GitHub Actions?",
-    )
-
-
-# ---------------------------------------------------------------------------
-# 10. The host's own command line - whichever host this project uses
-# ---------------------------------------------------------------------------
-
-
-#: How to install each host's CLI, per platform. `glab` is not in
-#: Ubuntu's archive, so that one is a download rather than a package -
-#: named here rather than branched in the stage, for the same reason
-#: every other host difference is a value.
-CLI_INSTALL: dict[str, dict[str, list[list[str]]]] = {
-    "gh": {
-        MACOS: [["brew", "install", "gh"]],
-        UBUNTU: [_apt("install", "-y", "gh")],
-        WINDOWS: [["winget", "install", "--id", "GitHub.cli", "-e",
-                   "--accept-source-agreements", "--accept-package-agreements"]],
-    },
-    "glab": {
-        MACOS: [["brew", "install", "glab"]],
-        UBUNTU: [],  # not packaged; the plan explains instead
-        WINDOWS: [["winget", "install", "--id", "glab.glab", "-e",
-                   "--accept-source-agreements", "--accept-package-agreements"]],
-    },
-}
-
-
-def _check_host_cli(context: Context) -> CheckResult:
-    """Whether this host's command line is installed and signed in.
-
-    It is the only thing that can answer questions no anonymous caller
-    can - whether Pages is switched on, what the About panel says -
-    because it holds a token and bootstrap does not
-    (prodockit-extensions#342).
-
-    Signed in matters as much as installed: an unauthenticated `gh` is
-    installed and useless, and reporting it as done would leave the
-    stages that depend on it failing for a reason two stages away.
-    """
-    command = context.host.cli_command
-    if not command:
-        return _ok(f"{context.host.hostname} has no command-line tool to install")
-    if not _installed(context, command, "--version"):
-        return _missing(f"{command} is not installed")
-    if not context.runner.run([command, "auth", "status"]).ok:
-        return _wrong(f"{command} is installed but not signed in")
-    return _ok(f"{command} is installed and signed in")
-
-
-def _plan_host_cli(context: Context) -> Plan:
-    """Install it, then hand over for the sign-in.
-
-    `auth login` opens a browser and asks questions, so it is the
-    reader's to run - the same shape as the other steps a person has to
-    finish themselves.
-    """
-    host = context.host
-    command = host.cli_command
-    installed = _installed(context, command, "--version")
-    installs = CLI_INSTALL.get(command, {}).get(context.platform, [])
-
-    sign_in = [
-        f"Run `{command} auth login` and follow the prompts - it opens a "
-        "browser to sign you in.",
-        f"This is what lets bootstrap check things only {host.hostname} "
-        "knows, such as whether Pages is switched on.",
-    ]
-
-    if installed:
-        # Present but not signed in: nothing to run, only something to do.
-        return Plan(
-            needs_terminal=True,
-            instructions=sign_in,
-            confirm=f"Have you signed in with {command}?",
-        )
-
-    if not installs:
-        # Nothing packaged for this platform - `glab` on Ubuntu. Both
-        # steps are the reader's, in order.
-        return Plan(
-            needs_terminal=True,
-            instructions=[
-                f"{host.cli_label} ({command}) is not in this platform's package "
-                "archive. Install it from its releases page, then come back.",
-                *sign_in,
-            ],
-            confirm=f"Have you installed {command} and signed in?",
-        )
-
-    # The ordinary case: install it, *then* sign in. `follow_up` rather
-    # than `instructions`, because instructions come before the commands
-    # - which asked the reader to run `gh auth login` while `gh` was
-    # still not installed (prodockit-extensions#354).
-    return Plan(
-        commands=installs,
-        needs_terminal=True,
-        follow_up=sign_in,
-        confirm=f"Have you signed in with {command}?",
+        instructions=list(context.host.pages_setup_steps),
+        confirm=f"Have you switched Pages on for {context.host.hostname}?",
     )
 
 
@@ -2760,8 +2664,6 @@ STAGES: tuple[Stage, ...] = (
     # Straight after creating the project, while the reader is still in
     # the browser - it was missed twice as a trailing item on stage 9's
     # list (#341).
-    # Before the Pages stage, which is the first thing that needs it.
-    Stage("host-cli", "Host command line, signed in", _check_host_cli, _plan_host_cli),
     Stage("pages", "Pages switched on", _check_pages, _plan_pages),
     Stage("remote", "Clone pointed at your project", _check_remote, _plan_remote),
     Stage(

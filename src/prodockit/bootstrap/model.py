@@ -106,12 +106,17 @@ class Host:
     #: followed "set it to Private" on a free account got a repository
     #: whose site could never build (prodockit-extensions#324).
     project_visibility: str = "Set visibility to Private."
-    #: The host's own command-line tool, and what to call it. It is what
-    #: answers questions no anonymous caller can - whether Pages is on,
-    #: what the About panel says - because it holds a token and bootstrap
-    #: does not (prodockit-extensions#342).
-    cli_command: str = ""
-    cli_label: str = ""
+    #: Where a repository's own metadata can be read anonymously, as a
+    #: template taking `namespace` and `project`. GitHub reports
+    #: `has_pages` there to any caller; GitLab has no anonymous
+    #: equivalent, so this is blank and the site check is the only proof.
+    repo_api: str = ""
+    #: What a reader must do in a browser to switch Pages on. GitLab
+    #: needs nothing - its CI job configures its own Pages - so this is
+    #: empty there, and the stage reports itself satisfied rather than
+    #: printing GitHub's steps to a GitLab reader
+    #: (prodockit-extensions#360).
+    pages_setup_steps: tuple[str, ...] = ()
     #: Where this host publishes a project's site, as a template taking
     #: `namespace` and `project`. Blank where it cannot be worked out -
     #: a self-hosted GitLab publishes wherever its administrator decided,
@@ -151,14 +156,15 @@ SURREY_GITLAB = Host(
         "key stops `git push` with a permission error that reads like a "
         "misconfigured key rather than an expired one, months after you set it up.",
     ),
-    cli_command="glab",
-    cli_label="GitLab CLI",
 )
 
-#: Deliberately declared but unsupported. The shape is proven by having
-#: more than one entry, and `supported=False` makes phase 1 refuse them
-#: with a clear message rather than half-working against a host nothing
-#: has tested (prodockit-extensions#217).
+#: gitlab.com. Supported, though not yet run end to end - Surrey's own
+#: instance has been unreachable, so the GitLab path is covered by tests
+#: and not by a machine (prodockit-extensions#361).
+#:
+#: `supported` stays on the record rather than being deleted: a
+#: self-hosted instance still resolves to no host at all and is refused,
+#: and the flag is what a newly declared host starts life with.
 GITLAB_COM = Host(
     key="gitlab",
     template_remote="git@github.com:buckwem/prodockit-template.git",
@@ -178,9 +184,6 @@ GITLAB_COM = Host(
         "misconfigured key rather than an expired one, months after you set it up.",
     ),
     pages_url="https://{namespace}.gitlab.io/{project}/",
-    cli_command="glab",
-    cli_label="GitLab CLI",
-    supported=False,
 )
 
 GITHUB_COM = Host(
@@ -201,9 +204,15 @@ GITHUB_COM = Host(
     ssh_key_save_label="Add SSH key",
     project_word="repository",
     group_word="organisation",
-    cli_command="gh",
-    cli_label="GitHub CLI",
     pages_url="https://{namespace}.github.io/{project}/",
+    repo_api="https://api.github.com/repos/{namespace}/{project}",
+    pages_setup_steps=(
+        "Open your repository's Settings, then Pages in the left sidebar.",
+        "Under 'Build and deployment', set Source to 'GitHub Actions'.",
+        "Without this the documentation workflow cannot publish, and every "
+        "push fails at 'Get Pages site failed' - which names the site "
+        "rather than the setting that is missing.",
+    ),
     project_visibility=(
         "Set visibility to Private.\n"
         "The repository stays private; the site built from it does not. "

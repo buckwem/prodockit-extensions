@@ -267,15 +267,12 @@ def test_the_keypair_check_looks_where_the_guide_says_to_create_it(tmp_path: Pat
 
 
 def test_declared_but_unsupported_hosts_are_refused_clearly() -> None:
-    """gitlab.com exists as a record so the shape is right, but nothing
-    has been run against it - refusing beats half-working.
-
-    github.com used to be in this list and no longer is: it has been run
-    against, which is the only thing that moves a host out of here.
-    """
+    """Every declared host is supported now. What is still refused is a
+    host with no record at all - a self-hosted instance of either family
+    - and that is the case worth keeping a message for (#361)."""
     with pytest.raises(UnsupportedHostError) as exc_info:
-        build_context(_config(host="gitlab"))
-    assert "not yet supported" in str(exc_info.value)
+        build_context(_config(host="gitlab.example.edu"))
+    assert "self-hosted" in str(exc_info.value)
 
 
 def test_an_unknown_host_names_the_ones_that_exist() -> None:
@@ -2584,7 +2581,6 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "fresh-history": ("a history of its own", "core.fileMode"),
     "first-push": ("the commit", "the push"),
     # Guide and verify: the browser does the work, `gh` confirms it.
-    "host-cli": ("the tool itself", "being signed in"),
     "pages": None,
     "own-project": None,
     # Nothing to run: the workflow publishes the site, and this only
@@ -2644,11 +2640,10 @@ def test_a_stage_with_commands_is_never_satisfied_by_an_empty_machine(
                 # silent pass.
                 assert "template" in result.detail or result.needs_work
                 continue
-            if stage.id == "pages" and not context.host.pages_url:
-                # Same reasoning as `site` below: Surrey publishes at no
-                # address bootstrap can work out, so there is nothing to
-                # switch on that this could look for.
-                assert "not checked" in result.detail
+            if stage.id == "pages" and not context.host.pages_setup_steps:
+                # GitLab configures its own Pages from the CI job, so
+                # there is nothing here for a reader to switch on.
+                assert "configures Pages from its CI job" in result.detail
                 continue
             if stage.id == "site" and not context.host.pages_url:
                 # The one honest exception. A self-hosted GitLab publishes
@@ -2846,6 +2841,13 @@ def test_every_windows_stage_produces_something_to_do(tmp_path: Path) -> None:
     be one nobody had thought about, and would report `nothing to do`."""
     context = _context(tmp_path, platform=WINDOWS)
     for stage in STAGES:
+        if stage.id == "pages" and not context.host.pages_setup_steps:
+            # Nothing for a GitLab reader to switch on, and the check
+            # reports the stage satisfied - so this plan is never built
+            # in a real run. Empty is the correct answer, not an
+            # oversight (#360).
+            assert not stage.check(context).needs_work
+            continue
         plan = stage.plan(context)
         assert plan.commands or plan.instructions or plan.follow_up, (
             f"{stage.id} has no Windows plan at all"
@@ -2899,7 +2901,8 @@ def test_github_is_usable_and_gitlab_com_still_is_not() -> None:
 
     assert host_problem("github.com") is None
     assert host_problem("gitlab.surrey.ac.uk") is None
-    assert "not yet supported" in (host_problem("gitlab.com") or "")
+    assert host_problem("gitlab.com") is None, "flipped on in #361"
+    assert "self-hosted" in (host_problem("gitlab.example.edu") or "")
 
 
 def test_an_unknown_self_hosted_gitlab_is_told_apart_from_a_typo() -> None:
@@ -2941,7 +2944,7 @@ def test_the_prompt_and_the_run_ask_the_same_question(tmp_path: Path) -> None:
     so a host the prompt accepted cannot be one the run then rejects."""
     from prodockit.bootstrap import host_problem
 
-    for value in ("gitlab.com", "bitbucket.org"):
+    for value in ("gitlab.example.edu", "bitbucket.org"):
         with pytest.raises(UnsupportedHostError) as exc_info:
             build_context(_config(host=value))
         assert str(exc_info.value) == host_problem(value)
@@ -3008,12 +3011,12 @@ def test_an_unusable_host_is_re_asked_rather_than_stored(
     result = cli_bootstrap(
         "--configure",
         input=(
-            "gitlab.com\ngitlab.surrey.ac.uk\nAda\na@b.c\n"
+            "gitlab.example.edu\ngitlab.surrey.ac.uk\nAda\na@b.c\n"
             "al01234\ncomm058\nreport-x\n\n\n"
         ),
     )
 
-    assert "not yet supported" in result.output
+    assert "self-hosted" in result.output, "a host with no record is still refused"
     assert load(tmp_path / "b.toml").host == "gitlab.surrey.ac.uk"
 
 
@@ -4868,60 +4871,11 @@ def test_pages_is_its_own_stage_right_after_the_project(tmp_path: Path) -> None:
     the setting (#341)."""
     ids = [s.id for s in STAGES]
 
-    assert ids.index("pages") == ids.index("host-cli") + 1, "the tool it uses comes first"
-    assert ids.index("host-cli") == ids.index("own-project") + 1, "still in the browser"
+    assert ids.index("pages") == ids.index("own-project") + 1, "still in the browser"
     assert ids.index("pages") < ids.index("first-push"), "before the push it would break"
 
 
-def test_pages_is_confirmed_with_gh_when_it_is_there(tmp_path: Path) -> None:
-    """`gh` already holds a token, so bootstrap does not have to."""
-    machine = _ready_machine(tmp_path)
-    machine["gh --version"] = CommandResult(0, "gh version 2.0.0")
-    machine["gh api"] = CommandResult(0, '{"status":"built"}')
-    result = next(s for s in STAGES if s.id == "pages").check(
-        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
-    )
 
-    assert result.status is Status.OK
-    assert "enabled" in result.detail
-
-
-def test_pages_off_is_reported_as_off(tmp_path: Path) -> None:
-    machine = _ready_machine(tmp_path)
-    machine["gh --version"] = CommandResult(0, "gh version 2.0.0")
-    machine["gh api"] = CommandResult(1, stderr="Not Found")
-    result = next(s for s in STAGES if s.id == "pages").check(
-        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
-    )
-
-    assert result.status is Status.MISSING
-    assert "not switched on" in result.detail
-
-
-def test_without_gh_it_says_it_could_not_look(tmp_path: Path) -> None:
-    """There is no tokenless way to ask: the Pages API answers 404 to an
-    anonymous caller even for a public repository, and the site cannot be
-    fetched until a push has built it. Reported as unlooked-at rather
-    than guessed, and blocked so the confirm loop does not spin."""
-    machine = _ready_machine(tmp_path)
-    machine["gh --version"] = CommandResult(127, stderr="gh: not found")
-    result = next(s for s in STAGES if s.id == "pages").check(
-        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
-    )
-
-    assert result.status is Status.MISSING, (
-        "outstanding, not blocked - a blocked stage builds no plan, so the "
-        "browser steps would never print, which is how this went unseen before"
-    )
-    assert "without the gh command" in result.detail
-    assert "after your first push" in result.detail, "say what does confirm it"
-
-    plan = next(s for s in STAGES if s.id == "pages").plan(
-        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
-    )
-    assert any("Build and deployment" in step for step in plan.instructions), (
-        "the steps a reader needs are shown"
-    )
 
 
 def _published(tmp_path: Path, homepage: str, gh: bool = True) -> dict[str, CommandResult]:
@@ -4935,101 +4889,7 @@ def _published(tmp_path: Path, homepage: str, gh: bool = True) -> dict[str, Comm
     return machine
 
 
-def test_the_front_page_is_made_to_link_to_the_site(tmp_path: Path) -> None:
-    """GitHub keeps this in the About panel and does not fill it in from
-    Pages, so a project with a perfectly good published site showed
-    nothing on the page anybody actually lands on (#340)."""
-    context = _context(
-        tmp_path, host="github.com", namespace="buckwem", project_name="report-linux-v4",
-        runner=FakeRunner(_published(tmp_path, homepage="")),
-    )
-    stage = next(s for s in STAGES if s.id == "site")
 
-    assert stage.check(context).needs_work, "a site nobody can find is not finished"
-    assert stage.plan(context).commands == [
-        ["gh", "repo", "edit", "buckwem/report-linux-v4",
-         "--homepage", "https://buckwem.github.io/report-linux-v4/"]
-    ]
-
-
-def test_a_site_already_linked_is_done(tmp_path: Path) -> None:
-    url = "https://buckwem.github.io/report-linux-v4/"
-    context = _context(
-        tmp_path, host="github.com", namespace="buckwem", project_name="report-linux-v4",
-        runner=FakeRunner(_published(tmp_path, homepage=url)),
-    )
-    result = next(s for s in STAGES if s.id == "site").check(context)
-
-    assert result.status is Status.OK
-    assert "public" in result.detail
-
-
-def test_without_gh_a_working_site_is_still_finished(tmp_path: Path) -> None:
-    """`sync-repo` cannot set this - it writes local files, and this lives
-    on the host. Where `gh` is absent, its absence must not turn a working
-    site into a finding."""
-    context = _context(
-        tmp_path, host="github.com", namespace="buckwem", project_name="report-linux-v4",
-        runner=FakeRunner(_published(tmp_path, homepage="", gh=False)),
-    )
-
-    assert next(s for s in STAGES if s.id == "site").check(context).status is Status.OK
-
-
-def test_the_tool_installed_is_the_one_the_host_uses(tmp_path: Path) -> None:
-    """`gh` for GitHub, `glab` for GitLab - including a self-hosted one,
-    which is still GitLab (#342)."""
-    for host, expected in (("github.com", "gh"), ("gitlab.surrey.ac.uk", "glab")):
-        machine = _ready_machine(tmp_path)
-        machine[f"{expected} --version"] = CommandResult(127, stderr="not found")
-        plan = next(s for s in STAGES if s.id == "host-cli").plan(
-            _context(tmp_path, host=host, runner=FakeRunner(machine))
-        )
-        script = " ".join(" ".join(c) for c in plan.commands) + " ".join(plan.instructions)
-        assert expected in script, host
-
-
-def test_installed_but_not_signed_in_is_not_done(tmp_path: Path) -> None:
-    """An unauthenticated tool is installed and useless, and calling it
-    done leaves the stages that depend on it failing two stages away."""
-    machine = _ready_machine(tmp_path)
-    machine["glab auth status"] = CommandResult(1, stderr="not logged in")
-    result = next(s for s in STAGES if s.id == "host-cli").check(
-        _context(tmp_path, runner=FakeRunner(machine))
-    )
-
-    assert result.status is Status.WRONG
-    assert "not signed in" in result.detail
-
-
-def test_signing_in_is_left_to_the_reader(tmp_path: Path) -> None:
-    """`auth login` opens a browser and asks questions, so it is theirs
-    to run - the same shape as every other step a person finishes."""
-    machine = _ready_machine(tmp_path)
-    machine["glab --version"] = CommandResult(127, stderr="not found")
-    plan = next(s for s in STAGES if s.id == "host-cli").plan(
-        _context(tmp_path, runner=FakeRunner(machine))
-    )
-
-    assert plan.needs_terminal
-    # In `follow_up`, not `instructions`: instructions are printed
-    # *before* the commands, which asked the reader to run `gh auth
-    # login` while gh was still not installed (#354).
-    assert any("auth login" in step for step in plan.follow_up)
-    assert not plan.instructions, "nothing to do before the install"
-    assert not any("auth" in " ".join(c) for c in plan.commands), "not run for them"
-
-
-def test_a_host_with_no_tool_is_not_a_finding(tmp_path: Path) -> None:
-    """Nothing to install is not the same as something missing."""
-    from prodockit.bootstrap.model import Host
-
-    bare = Host(key="x", template_remote="", key_suffix="k", hostname="example.com",
-                ssh_success="hi", ssh_keys_url="", new_project_url="")
-    context = _context(tmp_path)
-    object.__setattr__(context, "host", bare)
-
-    assert next(s for s in STAGES if s.id == "host-cli").check(context).status is Status.OK
 
 
 def test_a_host_it_cannot_reach_is_not_called_missing(
@@ -5236,32 +5096,74 @@ def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
     assert "Select 1, 2 or 3" in printed, "the question was put once the host answered"
 
 
-def test_the_tool_is_installed_before_being_signed_into(tmp_path: Path) -> None:
-    """It asked the reader to run `gh auth login` while gh was still not
-    installed - instructions are printed before the commands, and the
-    sign-in only makes sense after them (#354)."""
+
+
+
+def test_pages_is_read_without_a_token_where_that_is_possible(tmp_path: Path) -> None:
+    """A public repository says so in its own API object, to any
+    anonymous caller - no tool to install, nothing to sign in to (#357)."""
+    for has_pages, expected in ((True, Status.OK), (False, Status.MISSING)):
+        machine = _ready_machine(tmp_path)
+        machine["curl -sS"] = CommandResult(0, f'{{"name":"r","has_pages":{str(has_pages).lower()}}}')
+        result = next(s for s in STAGES if s.id == "pages").check(
+            _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+        )
+        assert result.status is expected, has_pages
+
+
+def test_a_private_repository_is_left_to_the_site_check(tmp_path: Path) -> None:
+    """It answers 404 to everything anonymous, so nothing about it is
+    visible until a push has built the site. Saying Pages is off without
+    having looked is this project's recurring mistake in the other
+    direction, so it says what it is instead."""
     machine = _ready_machine(tmp_path)
-    machine["gh --version"] = CommandResult(127, stderr="gh: not found")
-    plan = next(s for s in STAGES if s.id == "host-cli").plan(
-        _context(tmp_path, host="github.com", platform=UBUNTU, runner=FakeRunner(machine))
+    machine["curl -sS"] = CommandResult(0, '{"message":"Not Found","status":"404"}')
+    result = next(s for s in STAGES if s.id == "pages").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
     )
 
-    assert not plan.instructions, "nothing to do before it exists"
-    assert any("install" in " ".join(c) for c in plan.commands)
-    assert any("auth login" in step for step in plan.follow_up), "signed into afterwards"
+    assert result.status is Status.OK
+    assert "cannot be seen from outside a private repository" in result.detail
+    assert "after your first push" in result.detail
 
 
-def test_an_installed_tool_only_needs_signing_into(tmp_path: Path) -> None:
-    """Nothing to install, so nothing to run - and the sign-in is the
-    whole of it, before rather than after."""
+def test_nothing_asks_for_a_command_line_tool_any_more(tmp_path: Path) -> None:
+    """Installing a tool, authenticating it in a browser, from the right
+    directory, on every machine - four ways to go wrong for a check the
+    site stage already makes for free."""
+    assert not any(s.id == "host-cli" for s in STAGES)
+    for stage in STAGES:
+        plan = stage.plan(_context(tmp_path, host="github.com"))
+        script = " ".join(" ".join(c) for c in plan.commands)
+        assert "gh auth" not in script and "glab auth" not in script, stage.id
+
+
+def test_the_front_page_link_is_told_not_done(tmp_path: Path) -> None:
+    """Setting it needs an authenticated API call, and asking a reader to
+    install and sign into a command line for one field was four ways to
+    go wrong for a link they can paste in ten seconds (#357)."""
     machine = _ready_machine(tmp_path)
-    machine["gh auth status"] = CommandResult(1, stderr="not logged in")
-    plan = next(s for s in STAGES if s.id == "host-cli").plan(
-        _context(tmp_path, host="github.com", platform=UBUNTU, runner=FakeRunner(machine))
+    machine["curl -sS"] = CommandResult(0, "200")
+    plan = next(s for s in STAGES if s.id == "site").plan(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+    said = " ".join(" ".join(plan.instructions).split())
+
+    assert "About" in said and "GitHub Pages website" in said
+    assert not plan.commands, "nothing to run for it"
+
+
+def test_a_site_that_answers_is_finished(tmp_path: Path) -> None:
+    """The published site is the whole test now - no token, no tool, and
+    it works for a private repository because the site is public."""
+    machine = _ready_machine(tmp_path)
+    machine["curl -sS"] = CommandResult(0, "200")
+    result = next(s for s in STAGES if s.id == "site").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
     )
 
-    assert not plan.commands
-    assert any("auth login" in step for step in plan.instructions)
+    assert result.status is Status.OK
+    assert "public" in result.detail
 
 
 def test_ok_says_which_reason_it_is(tmp_path: Path) -> None:
@@ -5299,3 +5201,67 @@ def test_applying_prints_why_a_stage_is_already_ok(
     result = cli_bootstrap("--apply", responses=machine, input="n\n" * 40)
 
     assert "ok    Git, installed and configured - " in result.output
+
+
+def test_only_github_is_asked_to_switch_pages_on(tmp_path: Path) -> None:
+    """GitLab configures its own Pages from the CI job, so printing
+    GitHub's steps to a GitLab reader would be an instruction to do
+    nothing - and the API those steps are checked against is GitHub's
+    alone (#360)."""
+    stage = next(s for s in STAGES if s.id == "pages")
+
+    gitlab = stage.check(_context(tmp_path, runner=FakeRunner(_ready_machine(tmp_path))))
+    assert gitlab.status is Status.OK
+    assert "configures Pages from its CI job" in gitlab.detail
+
+    machine = _ready_machine(tmp_path)
+    machine["curl -sS"] = CommandResult(0, '{"has_pages":false}')
+    github = stage.check(_context(tmp_path, host="github.com", runner=FakeRunner(machine)))
+    assert github.status is Status.MISSING
+    said = " ".join(stage.plan(_context(tmp_path, host="github.com")).instructions)
+    assert "Build and deployment" in said
+
+
+def test_the_metadata_url_comes_from_the_host(tmp_path: Path) -> None:
+    """It was `api.github.com` written into the stage, so a gitlab.com
+    project would have been asked about against GitHub's API."""
+    from prodockit.bootstrap import HOSTS
+
+    assert "api.github.com" in HOSTS["github"].repo_api
+    assert HOSTS["surrey"].repo_api == "", "no anonymous equivalent"
+    assert HOSTS["gitlab"].repo_api == ""
+
+
+def test_gitlab_com_is_selectable(tmp_path: Path) -> None:
+    """Flipped on in #361. Covered by tests rather than by a machine -
+    Surrey's instance has been unreachable, so no GitLab path has been
+    run end to end."""
+    from prodockit.bootstrap import HOSTS, host_problem
+
+    assert host_problem("gitlab.com") is None
+    assert HOSTS["gitlab"].supported
+    context = _context(tmp_path, host="gitlab.com")
+    assert context.host.key == "gitlab"
+
+
+def test_gitlab_com_gets_gitlabs_own_everything(tmp_path: Path) -> None:
+    """The point of the record: no GitHub wording, URLs or API reach a
+    GitLab reader."""
+    context = _context(tmp_path, host="gitlab.com", namespace="ns", project_name="proj")
+    host = context.host
+
+    assert host.pages_url.format(namespace="ns", project="proj") == "https://ns.gitlab.io/proj/"
+    assert host.repo_api == "", "GitLab has no anonymous metadata to read"
+    assert not host.pages_setup_steps, "its CI job configures Pages"
+    assert host.ssh_success == "Welcome to GitLab"
+    assert host.remote_url("ns", "proj") == "git@gitlab.com:ns/proj.git"
+
+
+def test_a_self_hosted_instance_is_still_refused() -> None:
+    """`github.ibm.com` and `gitlab.example.edu` resolve to no record, so
+    there is nothing to fill in the two things that cannot be guessed:
+    where it publishes, and where its API lives."""
+    from prodockit.bootstrap import host_problem
+
+    for unknown in ("github.ibm.com", "gitlab.example.edu"):
+        assert "self-hosted" in (host_problem(unknown) or ""), unknown

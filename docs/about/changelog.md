@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Added: gitlab.com is a supported host**
+  ([#361](https://github.com/buckwem/prodockit-extensions/issues/361)).
+
+    Declared since the beginning and refused, because nothing had been
+    run against it. It is covered by tests rather than by a machine -
+    Surrey's own instance has been unreachable, so no GitLab path has
+    been run end to end - and that is worth knowing before relying on it.
+
+    A self-hosted instance of either family is still refused. What cannot
+    be guessed for one is where it publishes its Pages and where its API
+    lives, and inventing either would send a reader somewhere that was
+    never going to answer.
+
 - **Changed:** a green stage says why, and the history reset defaults to
   yes ([#356](https://github.com/buckwem/prodockit-extensions/issues/356)).
 
@@ -17,6 +30,33 @@
     offered it, and the stage is blocked while the decision is unmade -
     so defaulting to No left anyone who pressed Enter with the template's
     commits behind their project.
+- **Removed: the `gh`/`glab` requirement**
+  ([#357](https://github.com/buckwem/prodockit-extensions/issues/357)).
+
+    Verifying Pages through a host CLI meant installing a tool,
+    authenticating it in a browser, from the right directory, on every
+    machine - four ways to go wrong, each of them hit in testing.
+
+    A public repository reports `has_pages` to any anonymous caller, and
+    the published site answers anonymously even when the repository
+    behind it is private. So Pages is read without a token where that is
+    possible, and where it is not the stage says so and leaves the proof
+    to the site check at the end of the run - which needed no token in
+    the first place.
+
+    The About > Website link is an instruction now rather than an
+    authenticated call: open the repository, click the gear beside
+    'About', tick 'Use your GitHub Pages website'.
+
+    The Pages stage is GitHub's alone now, too. GitLab configures its
+    own Pages from the CI job, so a GitLab reader was being shown
+    GitHub's steps - an instruction to do nothing - and the metadata URL
+    those steps were checked against was `api.github.com` written into
+    the stage, which a gitlab.com project would have been asked about.
+    Both are fields on the host.
+
+    Nothing that was proven stops being proven; it moves one push later.
+    Bootstrap is 22 stages.
 
 - **Fixed:** bootstrap asked you to sign in with a tool it had not
   installed yet
