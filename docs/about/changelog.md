@@ -17,6 +17,26 @@
     offered it, and the stage is blocked while the decision is unmade -
     so defaulting to No left anyone who pressed Enter with the template's
     commits behind their project.
+- **Removed: the `gh`/`glab` requirement**
+  ([#357](https://github.com/buckwem/prodockit-extensions/issues/357)).
+
+    Verifying Pages through a host CLI meant installing a tool,
+    authenticating it in a browser, from the right directory, on every
+    machine - four ways to go wrong, each of them hit in testing.
+
+    A public repository reports `has_pages` to any anonymous caller, and
+    the published site answers anonymously even when the repository
+    behind it is private. So Pages is read without a token where that is
+    possible, and where it is not the stage says so and leaves the proof
+    to the site check at the end of the run - which needed no token in
+    the first place.
+
+    The About > Website link is an instruction now rather than an
+    authenticated call: open the repository, click the gear beside
+    'About', tick 'Use your GitHub Pages website'.
+
+    Nothing that was proven stops being proven; it moves one push later.
+    Bootstrap is 22 stages.
 
 - **Fixed:** bootstrap asked you to sign in with a tool it had not
   installed yet
