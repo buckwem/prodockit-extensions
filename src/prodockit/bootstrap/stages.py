@@ -198,11 +198,21 @@ def _origin_is_the_template(context: Context) -> bool:
     `source_url` never matches - its origin is the reader's own - so that
     path is untouched.
     """
+    return _origin_url(context) == context.host.template_remote
+
+
+def _origin_url(context: Context) -> str:
+    """The clone's `origin`, or empty when that cannot be established.
+
+    Empty means *unknown* - no clone, no remote, or a git that refused to
+    answer - and never "some other repository". Callers turn a known
+    origin into a decision; they must not read silence as one.
+    """
     project = context.config.resolved_project_dir(context.home)
     if not (project / ".git").exists():
-        return False
+        return ""
     origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"])
-    return origin.ok and origin.stdout.strip() == context.host.template_remote
+    return origin.stdout.strip() if origin.ok else ""
 
 
 def _needs_config(context: Context, *required: str) -> CheckResult | None:
@@ -2618,6 +2628,15 @@ def _check_clone_source(context: Context) -> CheckResult:
     """
     if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
         return unknown
+    # A clone already pointing at the reader's own project settles it:
+    # the contents are on disk and answering cannot change where they
+    # came from. Re-running a finished machine was putting three paths to
+    # a reader who had already taken one (prodockit-extensions#368). A
+    # clone still on the template is the case where the decision really
+    # is ahead of them, so that one stays a question.
+    origin = _origin_url(context)
+    if origin and origin != context.host.template_remote:
+        return _ok(f"already cloned from {origin}")
     if context.config.source_url.strip():
         return _ok(f"cloning {context.config.source_url.strip()}")
     if not own_project_has_content(context):

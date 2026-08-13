@@ -100,6 +100,17 @@ AGENT_RESPONSES = {
 }
 
 
+def _before_the_clone(machine: dict[str, CommandResult]) -> dict[str, CommandResult]:
+    """`_ready_machine`, wound back to where the clone decision is live.
+
+    The clone-source stage settles itself once `origin` names the
+    reader's own project (prodockit-extensions#368), so a fixture that
+    wants the *question* has to sit before that is true: nothing cloned
+    yet, and so no origin to read.
+    """
+    return machine | {"remote get-url origin": CommandResult(2, stderr="No such remote")}
+
+
 def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     """A machine on which every stage is satisfied.
 
@@ -4945,7 +4956,7 @@ def test_nothing_to_decide_is_not_a_question(tmp_path: Path) -> None:
     gets the template - the only workable answer - and is not asked to
     choose between one thing."""
     result = next(s for s in STAGES if s.id == "clone-source").check(
-        _context(tmp_path, runner=FakeRunner(_ready_machine(tmp_path)))
+        _context(tmp_path, runner=FakeRunner(_before_the_clone(_ready_machine(tmp_path))))
     )
 
     assert result.status is Status.OK
@@ -4953,7 +4964,7 @@ def test_nothing_to_decide_is_not_a_question(tmp_path: Path) -> None:
 
 
 def test_a_project_with_work_in_it_is_put_to_the_reader(tmp_path: Path) -> None:
-    machine = _ready_machine(tmp_path)
+    machine = _before_the_clone(_ready_machine(tmp_path))
     machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
     machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
     stage = next(s for s in STAGES if s.id == "clone-source")
@@ -4970,7 +4981,7 @@ def test_a_project_with_work_in_it_is_put_to_the_reader(tmp_path: Path) -> None:
 
 
 def test_an_answer_already_recorded_is_not_asked_again(tmp_path: Path) -> None:
-    machine = _ready_machine(tmp_path)
+    machine = _before_the_clone(_ready_machine(tmp_path))
     machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
     machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
     result = next(s for s in STAGES if s.id == "clone-source").check(
@@ -4997,6 +5008,35 @@ def test_the_choice_is_written_down(tmp_path: Path) -> None:
         assert config.history == history, picked
 
 
+def test_a_finished_machine_is_not_asked_where_its_project_came_from(
+    tmp_path: Path,
+) -> None:
+    """Reported after four clean runs (prodockit-extensions#368).
+
+    Every stage done, `prodockit boot` run once more to confirm - and the
+    stage put three choices to a reader whose project was already cloned,
+    pushed and published. Answering could not have changed where the
+    contents came from: they were on disk, with an origin naming them.
+
+    A `MISS` on a finished setup is worse than useless to a student. It
+    reads as a fault, in the one run whose whole purpose is to say there
+    is none.
+    """
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
+    machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
+    runner = FakeRunner(machine)
+    result = next(s for s in STAGES if s.id == "clone-source").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.status is Status.OK
+    assert "report-al01234" in result.detail, "say where it did come from"
+    assert not any("ls-remote" in " ".join(call) for call in runner.calls), (
+        "a decision already settled should not cost a host connection"
+    )
+
+
 def test_each_stage_is_checked_when_the_loop_reaches_it(tmp_path: Path) -> None:
     """Earlier stages change the machine the later ones are about.
 
@@ -5010,7 +5050,7 @@ def test_each_stage_is_checked_when_the_loop_reaches_it(tmp_path: Path) -> None:
     """
     from prodockit.bootstrap import forget_contacts, plan_all
 
-    machine = _ready_machine(tmp_path)
+    machine = _before_the_clone(_ready_machine(tmp_path))
     seen: list[int] = []
 
     class Reachable(FakeRunner):
@@ -5059,7 +5099,7 @@ def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
     from prodockit.bootstrap import plan_all
     from prodockit.cli import _apply_outstanding
 
-    machine = _ready_machine(tmp_path)
+    machine = _before_the_clone(_ready_machine(tmp_path))
     seen: list[int] = []
 
     class Reachable(FakeRunner):
@@ -5170,7 +5210,7 @@ def test_ok_says_which_reason_it_is(tmp_path: Path) -> None:
     """"ok" with nothing after it read the same whether the host had been
     searched and found empty or never reached at all - and that ambiguity
     is the fault chased through #344 and #351 (#356)."""
-    machine = _ready_machine(tmp_path)
+    machine = _before_the_clone(_ready_machine(tmp_path))
     machine["git ls-remote"] = CommandResult(128, stderr="ERROR: Repository not found.")
     absent = next(s for s in STAGES if s.id == "clone-source").check(
         _context(tmp_path, host="github.com", runner=FakeRunner(machine))
