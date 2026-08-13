@@ -1407,11 +1407,22 @@ def pins(
         sys.exit(1)
 
 
-# The same command under a shorter name, registered rather than wrapped -
-# one object, so the two can never take different options or drift in
-# their help. `pdk boot --apply` is the form this is typed in most, and
-# it is typed repeatedly while a machine is being brought up.
-#
-# `bootstrap` stays: the User Guide, the issues and every script written
-# so far name it.
-main.add_command(bootstrap, name="boot")
+#: Short names for the commands typed most, and typed repeatedly - while
+#: a machine is being brought up, or a submission checked.
+#:
+#: A table rather than a line each, so the rule is one thing to read and
+#: one thing to test. Two aliases did not need it; a third would have
+#: meant three places to keep in step, which is how a list starts
+#: disagreeing with itself (prodockit-extensions#366).
+#:
+#: The long names all stay. They are what the User Guide, the changelog
+#: and anything anyone has scripted use.
+COMMAND_ALIASES = {
+    "boot": "bootstrap",
+    "source": "source-bundle",
+}
+
+# Registered rather than wrapped: one command object under two names, so
+# they cannot take different options or drift in their help.
+for _alias, _target in COMMAND_ALIASES.items():
+    main.add_command(main.commands[_target], name=_alias)

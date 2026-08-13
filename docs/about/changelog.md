@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Added: `source`**, a short name for `source-bundle`
+  ([#366](https://github.com/buckwem/prodockit-extensions/issues/366)).
+
+    The longest name on the list, typed at a prompt while a submission is
+    being checked. `bootstrap` already answered to `boot`; both now come
+    from one table, so a third alias is one line rather than three places
+    to keep in step.
+
+    The long names all stay - they are what the User Guide, the changelog
+    and anything scripted use.
+
 - **Fixed:** the brand logo stayed the template's until something cleared
   the cache
   ([#364](https://github.com/buckwem/prodockit-extensions/issues/364)).
