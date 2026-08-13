@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Fixed:** the brand logo stayed the template's until something cleared
+  the cache
+  ([#364](https://github.com/buckwem/prodockit-extensions/issues/364)).
+
+    `prodockit sync-repo` rewrites the icon in `zensical.toml`, and a
+    build served from `.cache/` kept showing the old one - readers were
+    clearing it by running `zensical serve` and wondering why it
+    changed.
+
+    The commit-and-push stage builds once with `--clean` before
+    committing. It also means the first push is the first time the
+    project is *proved* to build, rather than that being discovered from
+    a red pipeline minutes later.
+
 ## 0.31.0 (2026-08-13)
 
 - **Added: gitlab.com is a supported host**

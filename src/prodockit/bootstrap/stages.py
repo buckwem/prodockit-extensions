@@ -1789,6 +1789,19 @@ def _venv_python(context: Context) -> Path:
     return venv / "bin" / "python"
 
 
+def _venv_command(context: Context, name: str) -> Path:
+    """A console script inside the project's own environment.
+
+    The project's `zensical`, not whichever one happens to be on PATH:
+    the version is pinned in the project's `requirements.txt`, and a
+    different one outside it would build the site differently from CI.
+    """
+    venv = _project_venv(context)
+    if context.platform == WINDOWS:
+        return venv / "Scripts" / f"{name}.exe"
+    return venv / "bin" / name
+
+
 def _imports_from_project_venv(context: Context, module: str) -> CommandResult:
     """Runs `import <module>` using the *project's* interpreter."""
     return context.runner.run([str(_venv_python(context)), "-c", f"import {module}"])
@@ -2481,13 +2494,26 @@ def _plan_first_push(context: Context) -> Plan:
     return Plan(
         cwd=str(project),
         commands=[
+            # Built before the commit, and with the cache cleared.
+            #
+            # `prodockit sync-repo` rewrites the brand icon in
+            # `zensical.toml`, and a build served from `.cache/` keeps
+            # showing the template's logo until something clears it -
+            # which readers were doing by running `zensical serve` and
+            # wondering why (prodockit-extensions#364).
+            #
+            # It earns its place twice over: the first push is also the
+            # first time anything proves this project *builds*, and
+            # finding that out here beats finding it out from a red
+            # pipeline minutes later.
+            [str(_venv_command(context, "zensical")), "build", "--clean"],
             ["git", "add", "-A"],
             ["git", "commit", "-m", "Initial commit"],
             ["git", "push", "-u", "origin", "main"],
         ],
         instructions=[
-            "This commits everything in the project and pushes it, which is "
-            "what publishes the site.",
+            "This builds the site once, commits everything in the project, "
+            "and pushes it - which is what publishes it.",
         ],
         confirm="Commit and push the project?",
     )
