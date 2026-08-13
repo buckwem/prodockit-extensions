@@ -2528,11 +2528,17 @@ def _check_pages(context: Context) -> CheckResult:
     """
     if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
         return unknown
-    if not context.host.pages_url:
-        return _ok(f"not checked - {context.host.hostname} publishes at no fixed address")
+    host = context.host
+    if not host.pages_setup_steps:
+        # GitLab configures its own Pages from the CI job, so there is
+        # nothing here for a reader to switch on - and printing GitHub's
+        # steps to them would be an instruction to do nothing (#360).
+        return _ok(f"{host.hostname} configures Pages from its CI job")
+    if not host.repo_api:
+        return _ok(f"not checked - {host.hostname} has no anonymous metadata to read")
     namespace = context.config.namespace.strip()
     project = context.config.project_name.strip()
-    api = f"https://api.github.com/repos/{namespace}/{project}"
+    api = host.repo_api.format(namespace=namespace, project=project)
     seen = context.runner.run(["curl", "-sS", "--max-time", "20", api])
     described = _json_object(seen.stdout) if seen.ok else None
     if described is not None and "has_pages" in described:
@@ -2556,15 +2562,12 @@ def _plan_pages(context: Context) -> Plan:
     somebody else's list, and the cost of missing it is a red first
     build whose error names the site rather than the setting.
     """
+    # The host's own words, not GitHub's. A GitLab reader has nothing to
+    # switch on, and the check above reports them satisfied before this
+    # is ever built (#360).
     return Plan(
-        instructions=[
-            "Open your repository's Settings, then Pages in the left sidebar.",
-            "Under 'Build and deployment', set Source to 'GitHub Actions'.",
-            "Without this the documentation workflow cannot publish, and every "
-            "push fails at 'Get Pages site failed' - which names the site "
-            "rather than the setting that is missing.",
-        ],
-        confirm="Have you set Pages to build from GitHub Actions?",
+        instructions=list(context.host.pages_setup_steps),
+        confirm=f"Have you switched Pages on for {context.host.hostname}?",
     )
 
 

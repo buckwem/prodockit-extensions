@@ -35,6 +35,13 @@
     authenticated call: open the repository, click the gear beside
     'About', tick 'Use your GitHub Pages website'.
 
+    The Pages stage is GitHub's alone now, too. GitLab configures its
+    own Pages from the CI job, so a GitLab reader was being shown
+    GitHub's steps - an instruction to do nothing - and the metadata URL
+    those steps were checked against was `api.github.com` written into
+    the stage, which a gitlab.com project would have been asked about.
+    Both are fields on the host.
+
     Nothing that was proven stops being proven; it moves one push later.
     Bootstrap is 22 stages.
 

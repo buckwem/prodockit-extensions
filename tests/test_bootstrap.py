@@ -2643,11 +2643,10 @@ def test_a_stage_with_commands_is_never_satisfied_by_an_empty_machine(
                 # silent pass.
                 assert "template" in result.detail or result.needs_work
                 continue
-            if stage.id == "pages" and not context.host.pages_url:
-                # Same reasoning as `site` below: Surrey publishes at no
-                # address bootstrap can work out, so there is nothing to
-                # switch on that this could look for.
-                assert "not checked" in result.detail
+            if stage.id == "pages" and not context.host.pages_setup_steps:
+                # GitLab configures its own Pages from the CI job, so
+                # there is nothing here for a reader to switch on.
+                assert "configures Pages from its CI job" in result.detail
                 continue
             if stage.id == "site" and not context.host.pages_url:
                 # The one honest exception. A self-hosted GitLab publishes
@@ -2845,6 +2844,13 @@ def test_every_windows_stage_produces_something_to_do(tmp_path: Path) -> None:
     be one nobody had thought about, and would report `nothing to do`."""
     context = _context(tmp_path, platform=WINDOWS)
     for stage in STAGES:
+        if stage.id == "pages" and not context.host.pages_setup_steps:
+            # Nothing for a GitLab reader to switch on, and the check
+            # reports the stage satisfied - so this plan is never built
+            # in a real run. Empty is the correct answer, not an
+            # oversight (#360).
+            assert not stage.check(context).needs_work
+            continue
         plan = stage.plan(context)
         assert plan.commands or plan.instructions or plan.follow_up, (
             f"{stage.id} has no Windows plan at all"
@@ -5199,3 +5205,32 @@ def test_applying_prints_why_a_stage_is_already_ok(
     assert "ok    Git, installed and configured - " in result.output
     assert result.status is Status.OK
     assert "public" in result.detail
+
+
+def test_only_github_is_asked_to_switch_pages_on(tmp_path: Path) -> None:
+    """GitLab configures its own Pages from the CI job, so printing
+    GitHub's steps to a GitLab reader would be an instruction to do
+    nothing - and the API those steps are checked against is GitHub's
+    alone (#360)."""
+    stage = next(s for s in STAGES if s.id == "pages")
+
+    gitlab = stage.check(_context(tmp_path, runner=FakeRunner(_ready_machine(tmp_path))))
+    assert gitlab.status is Status.OK
+    assert "configures Pages from its CI job" in gitlab.detail
+
+    machine = _ready_machine(tmp_path)
+    machine["curl -sS"] = CommandResult(0, '{"has_pages":false}')
+    github = stage.check(_context(tmp_path, host="github.com", runner=FakeRunner(machine)))
+    assert github.status is Status.MISSING
+    said = " ".join(stage.plan(_context(tmp_path, host="github.com")).instructions)
+    assert "Build and deployment" in said
+
+
+def test_the_metadata_url_comes_from_the_host(tmp_path: Path) -> None:
+    """It was `api.github.com` written into the stage, so a gitlab.com
+    project would have been asked about against GitHub's API."""
+    from prodockit.bootstrap import HOSTS
+
+    assert "api.github.com" in HOSTS["github"].repo_api
+    assert HOSTS["surrey"].repo_api == "", "no anonymous equivalent"
+    assert HOSTS["gitlab"].repo_api == ""
