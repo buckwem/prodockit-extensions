@@ -42,12 +42,13 @@ Markdown and Pandoc/WeasyPrint PDF pipeline.
 > `prodockit.bibliography`, `prodockit.index`, `prodockit.steps`,
 > `prodockit.pdf`,
 > `prodockit.sync_repo`, `prodockit.pins` and `prodockit.zensical_macros`
-> are implemented and tested. `prodockit.bootstrap` is newer: exercised
-> end to end on macOS and Ubuntu against the University of Surrey's
-> GitLab. Windows, and github.com as a host, have been run and the faults
-> those runs found are fixed - but neither has yet completed a clean run
-> start to finish. gitlab.com is covered by tests rather than by a
-> machine.
+> are implemented and tested. `prodockit.bootstrap` is newer, and now
+> exercised end to end on **macOS, Ubuntu and Windows** against the
+> University of Surrey's GitLab - Windows including Mermaid diagrams and
+> TeX maths rendered into the PDF, which needs the Node toolchain as well
+> as the Python one. github.com has been run and the faults it found are
+> fixed, but it has not completed a clean run start to finish;
+> gitlab.com is covered by tests rather than by a machine.
 
 **[Full documentation](https://buckwem.github.io/prodockit-extensions/)**
 
