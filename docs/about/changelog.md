@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Fixed:** setup stopped on Windows at "Clone pointed at your project",
+  saying prodockit was not found
+  ([#371](https://github.com/buckwem/prodockit-extensions/issues/371)).
+
+    ```text
+    Commands finished, checking the result...
+    failed: prodockit: not found
+    Stopping - later stages depend on this one.
+    ```
+
+    Said of a machine where prodockit was installed and running the
+    bootstrap that reported it. Two stages run prodockit commands of
+    their own - `sync-repo` when the clone is repointed, and the MathJax
+    install - and both named `prodockit` bare, leaving the machine to
+    find it a second time. A virtual environment's scripts are reachable
+    when it launches one; they are not necessarily on the `PATH` a child
+    process inherits.
+
+    Both now run through the interpreter already running them, which also
+    settles *which* prodockit: the one doing the work, rather than a
+    different install earlier on `PATH`. `python -m prodockit` works as a
+    command in its own right.
+
 - **Fixed:** a finished setup was told its project needed a decision
   ([#368](https://github.com/buckwem/prodockit-extensions/issues/368)).
 
