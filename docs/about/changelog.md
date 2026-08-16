@@ -15,8 +15,6 @@
     not mentioned. Both ends of a run had the same gap: after a dry run,
     nothing said how to run what had just been printed either.
 
-## Unreleased
-
 - **Changed:** the run says which prodockit is doing the work
   ([#399](https://github.com/buckwem/prodockit-extensions/issues/399)).
 
@@ -48,8 +46,6 @@
     Git now shares it, and every stage that runs git uses the same
     answer. Fixing only the check would have moved the failure a dozen
     stages down to the clone.
-
-## Unreleased
 
 - **Fixed:** the ssh-agent step asked again after you had answered it
   ([#397](https://github.com/buckwem/prodockit-extensions/issues/397)).
