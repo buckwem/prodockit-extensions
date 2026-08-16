@@ -85,6 +85,6 @@ plain Python API alongside it.
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.32.1"
+__version__ = "0.33.0"
 
 __all__ = ["__version__"]

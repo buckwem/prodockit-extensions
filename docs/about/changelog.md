@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.33.0 (2026-08-16)
 
 - **Fixed:** the VS Code extensions stage said VS Code might not be
   installed, having just installed four extensions through it
