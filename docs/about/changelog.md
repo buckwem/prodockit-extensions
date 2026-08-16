@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.34.0 (2026-08-16)
 
 - **Added: `prodockit.steps`**, numbered steps a reader works through in
   order ([#378](https://github.com/buckwem/prodockit-extensions/issues/378)).
