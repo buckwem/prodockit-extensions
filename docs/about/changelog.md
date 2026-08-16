@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.32.1 (2026-08-16)
 
 - **Fixed:** the Node stage failed with `npm: not found` having just
   installed Node

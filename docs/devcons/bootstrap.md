@@ -798,13 +798,26 @@ A piped or scripted run never prompts - it reports what is missing and
 carries on, rather than blocking on a question nobody is there to
 answer.
 
-The file itself is stored per **user**, not per project - it is needed
-before a project exists:
+The file is stored per **directory**, beside whatever is being set up:
 
-| Platform | Path |
+| Where | Path |
 | --- | --- |
-| macOS / Linux | `~/.config/prodockit/bootstrap.toml` |
-| Windows | `%APPDATA%\prodockit\bootstrap.toml` |
+| This directory | `./.pdk-bootstrap.toml` |
+| Older, per user (macOS / Linux) | `~/.config/prodockit/bootstrap.toml` |
+| Older, per user (Windows) | `%APPDATA%\prodockit\bootstrap.toml` |
+
+One config per directory is one per project. There was a single file per
+user until 0.32.1, so setting up a second project overwrote the answers
+for the first - its namespace, its name, the directory it lives in - and
+the original could not be re-checked without answering everything again.
+
+The per-user file is still read where a directory has none of its own, so
+a setup already answered keeps working and nothing has to be moved. It is
+never written to once a local file is possible.
+
+Where the directory is a git repository, `.pdk-bootstrap.toml` is added
+to `.gitignore`: it holds your name, email and username, and the first
+push commits everything else in the project.
 
 ```toml
 full_name    = "Ada Lovelace"
