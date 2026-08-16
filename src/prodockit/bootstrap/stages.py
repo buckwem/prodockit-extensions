@@ -2668,12 +2668,27 @@ def _check_clone_source(context: Context) -> CheckResult:
         # the same whether the host was searched and found empty or never
         # reachable at all - and that ambiguity is the fault chased
         # through #344 and #351 (prodockit-extensions#356).
+        # Both answers name the address that was asked about. A reader
+        # whose project plainly exists was told there was no repository,
+        # with nothing to show that the question had been put to a
+        # different address than the one they had in mind
+        # (prodockit-extensions#377). The namespace is one field shared
+        # by every host, so a run that changes host carries the previous
+        # host's namespace with it, and the wrong address is the likely
+        # answer rather than an exotic one.
+        probed = context.host.remote_url(
+            context.config.namespace.strip(), context.config.project_name.strip()
+        )
         if project_on_host(context) is None:
             return _ok(
-                f"could not reach {context.host.hostname} to look - the template "
-                "will be cloned"
+                f"could not reach {context.host.hostname} to ask about {probed} - "
+                "the template will be cloned"
             )
-        return _ok("no existing repository found - the template will be cloned")
+        # "Not found" is never only that. Both hosts answer a private
+        # repository the key cannot see with the words they use for one
+        # that does not exist - github.com says `Repository not found.`
+        # either way - so absence is not something this can report.
+        return _ok(f"nothing visible at {probed} - the template will be cloned")
     return _missing(
         f"{context.config.namespace.strip()}/{context.config.project_name.strip()} has "
         "work on the host - choose what to do with it"

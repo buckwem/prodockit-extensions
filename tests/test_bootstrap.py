@@ -5282,10 +5282,18 @@ def test_ok_says_which_reason_it_is(tmp_path: Path) -> None:
     )
 
     assert absent.status is Status.OK and blind.status is Status.OK
-    assert "no existing repository found" in absent.detail
+    assert "nothing visible at" in absent.detail, (
+        "not 'no repository found' - both hosts answer a private repository the "
+        "key cannot see with the words they use for one that is absent (#377)"
+    )
     assert "the template will be cloned" in absent.detail
     assert "could not reach" in blind.detail, "not the same sentence as having looked"
     assert absent.detail != blind.detail
+    # Which address was asked about, in both. A reader whose project
+    # plainly exists needs to see that a different one was probed - the
+    # namespace is shared across hosts, so it travels between them (#377).
+    probed = "git@github.com:comm058-2026/report-al01234.git"
+    assert probed in absent.detail and probed in blind.detail
 
 
 def test_applying_prints_why_a_stage_is_already_ok(
