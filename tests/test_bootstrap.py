@@ -5038,7 +5038,7 @@ def test_no_stage_asks_the_machine_to_find_prodockit_again(tmp_path: Path) -> No
         if stage.plan is not None and stage.id in {"remote", "mathjax"}
     ]
     commands = [command for plan in plans for command in plan.commands]
-    commands += [call for call in runner.calls]
+    commands += runner.calls
 
     with_prodockit = [c for c in commands if "prodockit" in c or "sync-repo" in c]
     assert with_prodockit, "nothing collected - the test would pass on any code"
