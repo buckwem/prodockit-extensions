@@ -976,7 +976,19 @@ def bootstrap(
         return
     click.echo(f"{len(outstanding)} of {len(reports)} stages need work.")
     if check_only:
-        click.echo("Run with --dry-run to see the exact commands that would fix them.")
+        # Both halves, because only one was ever offered. A reader who has
+        # just been told fourteen stages need work is being shown how to
+        # look, and not how to act - and `--apply` is the one they came
+        # for (prodockit-extensions#376).
+        click.echo(
+            "Run with --dry-run to see how the configuration will be applied, "
+            "or with --apply to apply it."
+        )
+    elif dry_run:
+        # The same gap at the other end: a reader who has just read the
+        # commands is the one most ready to run them, and nothing said how
+        # (#376).
+        click.echo("Run with --apply to work through these, asking before each one.")
     # Non-zero so this is usable as a check in a script, matching
     # `sync-repo --check` and `pins --check`.
     sys.exit(1)

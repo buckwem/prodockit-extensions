@@ -1354,6 +1354,28 @@ def test_git_installed_a_moment_ago_is_not_reported_missing(
     assert commands and all(c[0] == str(installed) for c in commands), commands
 
 
+def test_the_closing_line_says_how_to_act_not_only_how_to_look(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path
+) -> None:
+    """prodockit-extensions#376.
+
+        Run with --dry-run to see the exact commands that would fix them.
+
+    was the whole of it. A reader just told that fourteen stages need
+    work is being shown how to look and not how to act - and `--apply` is
+    what they came for. Both ends of the run had the same gap: after a
+    dry run, nothing said how to run what had just been printed.
+    """
+    save(tmp_path / "b.toml", _config())
+
+    checked = cli_bootstrap()
+    assert "--apply" in checked.output, "the one they came for"
+    assert "--dry-run" in checked.output, "and the careful route, as before"
+
+    dry = cli_bootstrap("--dry-run")
+    assert "--apply" in dry.output, "having read the commands, say how to run them"
+
+
 def test_the_run_says_which_prodockit_it_is(  # type: ignore[no-untyped-def]
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
