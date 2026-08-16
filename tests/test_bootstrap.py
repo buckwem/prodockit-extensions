@@ -1478,6 +1478,60 @@ def test_the_run_says_which_prodockit_it_is(  # type: ignore[no-untyped-def]
     assert __version__ in result.output, "and the version, as before"
 
 
+def test_npm_is_found_after_the_command_that_installed_it(tmp_path: Path) -> None:
+    """prodockit-extensions#405, reported from Windows on ARM.
+
+        Successfully installed
+        ...
+        failed: npm: not found
+
+    Two things are true at once. The plan is written before any of it
+    runs, so `npm_command` resolves npm while Node is still absent and
+    falls back to the bare name - and a bare `npm` can never run on
+    Windows, because `CreateProcess` appends `.exe` and npm is a `.cmd`.
+
+    `refresh_windows_path()` cannot help: the problem is the name, not
+    PATH. So the name is resolved when the command is about to run, which
+    is the only point at which the answer can be right.
+    """
+    from prodockit.bootstrap.stages import resolve_for_execution
+
+    npm = tmp_path / "Program Files" / "nodejs" / "npm.cmd"
+    npm.parent.mkdir(parents=True)
+    npm.write_text("", encoding="utf-8")
+    monkey = {"npm": CommandResult(127, stderr="not found")}
+    context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(monkey))
+
+    from prodockit.bootstrap import stages as stage_module
+
+    original = stage_module._NPM_PATHS
+    stage_module._NPM_PATHS = (str(npm.parent),)
+    try:
+        resolved = resolve_for_execution(context, ["npm", "ci", "--prefix", "x"])
+    finally:
+        stage_module._NPM_PATHS = original
+
+    assert resolved == [str(npm), "ci", "--prefix", "x"], "the shim, by its full path"
+    # Everything else is passed through untouched, including the winget
+    # line that precedes it in the very same plan.
+    winget = ["winget", "install", "--id", "OpenJS.NodeJS.LTS"]
+    assert resolve_for_execution(context, winget) == winget
+    assert resolve_for_execution(context, []) == []
+
+
+def test_the_apply_loop_resolves_before_it_runs(tmp_path: Path) -> None:
+    """The resolution has to happen in the loop, not in the plan - a plan
+    is written once, before the install it depends on has run."""
+    import inspect
+
+    from prodockit.bootstrap import apply_stage
+
+    source = inspect.getsource(apply_stage)
+    assert "resolve_for_execution" in source, (
+        "resolved as each command is about to run, not when the plan was written"
+    )
+
+
 def test_a_step_only_a_new_run_can_see_ends_the_run(  # type: ignore[no-untyped-def]
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

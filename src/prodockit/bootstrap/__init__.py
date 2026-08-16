@@ -70,6 +70,7 @@ from prodockit.bootstrap.stages import (
     own_project_exists,
     own_project_has_content,
     project_on_host,
+    resolve_for_execution,
 )
 
 __all__ = [
@@ -229,7 +230,14 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
     """
     plan = stage.plan(context)
     result = ApplyResult(stage=stage)
-    for command in plan.commands:
+    for planned in plan.commands:
+        # Resolved now rather than when the plan was written. A command
+        # installed by an earlier line of the *same* plan cannot be found
+        # at planning time - `winget install` Node, then `npm ci` - and
+        # on Windows a bare `npm` can never work anyway, because
+        # `CreateProcess` appends `.exe` and npm is a `.cmd`
+        # (prodockit-extensions#405).
+        command = resolve_for_execution(context, planned)
         # An install is allowed to be slow in a way a check is not: a
         # 100 MB download and an `apt install` behind it are ordinary
         # here, and killing them at the check's limit reported a failure

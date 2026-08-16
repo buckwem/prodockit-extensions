@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Fixed:** the Node stage failed with `npm: not found` having just
+  installed Node
+  ([#405](https://github.com/buckwem/prodockit-extensions/issues/405)).
+
+    Two things were true at once. A plan is written before any of it
+    runs, so npm was resolved while Node was still absent and fell back
+    to the bare name - and a bare `npm` can never run on Windows, because
+    `CreateProcess` appends `.exe` and npm is a `.cmd`.
+
+    Refreshing `PATH` could not help, because the problem was the name
+    rather than the path. Names are now resolved as each command is about
+    to run, which is the only point at which the answer can be right.
+
 - **Changed:** your answers live beside the project, as
   `.pdk-bootstrap.toml`
   ([#373](https://github.com/buckwem/prodockit-extensions/issues/373)).

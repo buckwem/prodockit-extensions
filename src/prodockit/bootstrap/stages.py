@@ -32,6 +32,7 @@ import json
 import socket
 import sys
 import tempfile
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from prodockit import mathjax
@@ -2166,6 +2167,36 @@ def _plan_project_env(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 # 14. Node and the two toolchains
 # ---------------------------------------------------------------------------
+
+
+#: Commands whose name cannot be run bare on Windows, with the resolver
+#: that finds them. `CreateProcess` appends `.exe` and nothing else, so a
+#: `.cmd` shim - which is what npm and VS Code's CLI are - is "not found"
+#: however right `PATH` is.
+_RESOLVE_BEFORE_RUNNING: dict[str, Callable[[Context], str]] = {
+    "npm": npm_command,
+    "code": lambda context: vscode_command(context) or "code",
+}
+
+
+def resolve_for_execution(context: Context, command: Sequence[str]) -> list[str]:
+    """`command` with its name resolved as late as possible.
+
+    A plan is built before any of it runs, so a command installed by an
+    earlier line of the *same* plan cannot be found when the plan is
+    written. The node stage is exactly that: `winget install` Node, then
+    `npm ci` twice - and `npm` resolved to the bare name, which on
+    Windows can never work (prodockit-extensions#405).
+
+    Resolving here instead costs one lookup per command and is the only
+    point at which the answer can be right.
+    """
+    if not command:
+        return list(command)
+    resolver = _RESOLVE_BEFORE_RUNNING.get(command[0])
+    if resolver is None:
+        return list(command)
+    return [resolver(context), *command[1:]]
 
 
 def _check_node(context: Context) -> CheckResult:
