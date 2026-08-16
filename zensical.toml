@@ -177,6 +177,8 @@ numbering = "continuous"
 [project.markdown_extensions."prodockit.glossary"]
 [project.markdown_extensions."prodockit.bibliography"]
 [project.markdown_extensions."prodockit.tables"]
+[project.markdown_extensions."prodockit.steps"]
+
 [project.markdown_extensions."prodockit.index"]
 # `generic = true` is required, not stylistic: it emits
 # `<div|span class="arithmatex">` wrappers, which is the only form

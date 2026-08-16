@@ -272,3 +272,69 @@
   }
 }
 
+
+
+/* prodockit.steps - numbered steps a reader works through in order.
+   ---------------------------------------------------------------------
+   Two things here are worth keeping, because both fail silently and only
+   in the PDF (prodockit-extensions#378).
+
+   1. The line joining the steps is positioned from the number's own
+      size - half a circle, less half a line - so the two cannot drift
+      apart. Change --step-size to any value in any unit and it stays
+      centred.
+
+   2. ::after carries the same font-size as ::before. The number sets its
+      own size so the digits fit, so an `em` means one thing inside the
+      circle and another in the line's `left` - measured at -8.8pt adrift
+      once the text was scaled. Matching the basis holds every case at
+      zero. */
+.md-typeset ol.prodockit-steps {
+  --step-size: 1.65rem;        /* diameter of the number */
+  --step-gap: 0.75rem;         /* number to text */
+  --step-line: 2px;            /* thickness of the joining line */
+  --step-line-gap: 0.3rem;     /* 0 makes the line touch the numbers */
+  --step-ink: var(--md-primary-fg-color, #1f2937);
+  --step-rule: var(--md-default-fg-color--lighter, #d1d5db);
+  list-style: none;
+  margin: 0 0 1rem;
+  padding-left: 0;
+}
+.md-typeset ol.prodockit-steps > li {
+  position: relative;
+  margin: 0;
+  padding-left: calc(var(--step-size) + var(--step-gap));
+  padding-bottom: 1.15rem;
+  min-height: var(--step-size);
+}
+.md-typeset ol.prodockit-steps > li:last-child { padding-bottom: 0; }
+.md-typeset ol.prodockit-steps > li::before {          /* the number */
+  content: counter(list-item);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--step-size);
+  height: var(--step-size);
+  line-height: var(--step-size);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  border-radius: 50%;
+  background: var(--step-ink);
+  color: var(--md-primary-bg-color, #fff);
+}
+.md-typeset ol.prodockit-steps > li::after {           /* the line between */
+  content: "";
+  position: absolute;
+  font-size: 0.8rem;                                   /* same basis as the number */
+  left: calc(var(--step-size) / 2 - var(--step-line) / 2);
+  top: calc(var(--step-size) + var(--step-line-gap));
+  bottom: var(--step-line-gap);
+  width: var(--step-line);
+  background: var(--step-rule);
+}
+.md-typeset ol.prodockit-steps > li:last-child::after { content: none; }
+.md-typeset ol.prodockit-steps p.prodockit-step-title {
+  font-weight: 700;
+  margin: 0 0 0.35rem;
+}

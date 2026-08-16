@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+- **Added: `prodockit.steps`**, numbered steps a reader works through in
+  order ([#378](https://github.com/buckwem/prodockit-extensions/issues/378)).
+
+    ```markdown
+    /// steps
+        start: 9
+
+    //// step | Load the key into the agent
+    ```bash
+    ssh-add --apple-use-keychain ~/.ssh/id_ed25519_gitlab
+    ```
+    ////
+
+    ///
+    ```
+
+    A procedure is not a list of facts. Each step is a thing to stop and
+    do, so it gets a number to find your place by, room for a command and
+    its explanation, and a line joining one step to the next.
+
+    Built on pymdownx's Blocks API - the machinery Material's own
+    admonitions and tabs use - so `attrs` works as it does everywhere
+    else, and a step's body holds paragraphs, code or a table without
+    indentation arithmetic.
+
+    `start` exists because a long procedure is often split across
+    sections. It is written into the HTML twice, deliberately: a browser
+    reads `start`, and WeasyPrint ignores it entirely and numbers from 1.
+    Emitting both from one setting is the reason this is an extension
+    rather than a documented HTML snippet - a pair maintained by hand
+    drifts, and the failure is silent and PDF-only.
+
+    The bootstrap page now opens with a six-step quick start written in
+    it, which is what exercises it.
+
+    **`pymdown-extensions` is now a dependency.** It was deliberately not
+    one before, on the grounds that prodockit never imported it; this
+    imports it, and python-markdown constructs an extension by importing
+    its module, so there is no lazy route.
+
 - **Fixed:** a push the host refused left the stage unable to try again
   ([#414](https://github.com/buckwem/prodockit-extensions/issues/414)).
 
