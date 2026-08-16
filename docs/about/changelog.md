@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Changed:** the closing line says how to apply the setup, not only how
+  to look at it
+  ([#376](https://github.com/buckwem/prodockit-extensions/issues/376)).
+
+    ```text
+    14 of 23 stages need work.
+    Run with --dry-run to see the exact commands that would fix them.
+    ```
+
+    `--apply` is the one a reader has come for, and it was the one option
+    not mentioned. Both ends of a run had the same gap: after a dry run,
+    nothing said how to run what had just been printed either.
+
+## Unreleased
+
 - **Changed:** the run says which prodockit is doing the work
   ([#399](https://github.com/buckwem/prodockit-extensions/issues/399)).
 
