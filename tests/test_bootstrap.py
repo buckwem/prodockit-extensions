@@ -1288,6 +1288,47 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
     }
 
 
+def test_a_browser_step_cannot_be_answered_with_the_enter_key(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`[Y/n]` is answered by pressing Enter (prodockit-extensions#374).
+
+    A reader twelve stages into twenty-two presses it in rhythm, and for
+    a browser step that means claiming to have done something they have
+    not. The word has to be typed - `y` is not it, and neither is Enter.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    responses = _machine_ready_except_ssh(tmp_path)
+
+    # Enter, then `y`, then the word. The first two are refused.
+    result = cli_bootstrap("--apply", responses=responses, input="\ny\nyes\nn\n")
+
+    assert result.output.count("type 'yes' once it is done") == 2, (
+        "both the bare Enter and the `y` were turned away"
+    )
+    assert "(yes/no)" in result.output, "the prompt says what it wants"
+    assert "[Y/n]" not in result.output.split("What you need to do:")[-1].split(
+        "Try again?"
+    )[0], "no default to press past"
+
+
+def test_saying_no_to_a_browser_step_leaves_it_outstanding(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """"no" is a real answer, not a way of getting past the prompt.
+
+    It has to be, or the only way out of a step a reader cannot do yet is
+    to claim they did it - which is the habit #374 is about.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    responses = _machine_ready_except_ssh(tmp_path)
+
+    result = cli_bootstrap("--apply", responses=responses, input="no\n")
+
+    assert "confirmed" not in result.output
+    assert "Try again?" not in result.output, "declined, not retried"
+
+
 def test_a_key_not_yet_uploaded_is_guided_not_treated_as_a_failed_command(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1311,7 +1352,7 @@ def test_a_key_not_yet_uploaded_is_guided_not_treated_as_a_failed_command(
     responses = _machine_ready_except_ssh(tmp_path)
 
     # "yes, I have done it" - then decline the retry, so the loop ends.
-    result = cli_bootstrap("--apply", responses=responses, input="y\nn\n")
+    result = cli_bootstrap("--apply", responses=responses, input="yes\nn\n")
 
     assert "Stopping - later stages depend on this one." not in result.output
     assert "failed:" not in result.output
@@ -4445,7 +4486,7 @@ def test_the_extra_steps_come_after_the_project_is_created(tmp_path: Path) -> No
     plan = next(s for s in STAGES if s.id == "own-project").plan(
         _context(tmp_path, host="github.com")
     )
-    creating = next(i for i, s in enumerate(plan.instructions) if "Create a blank" in s)
+    creating = next(i for i, s in enumerate(plan.instructions) if "create a blank" in s.lower())
     pages = next(i for i, s in enumerate(plan.instructions) if "Pages" in s)
 
     assert pages > creating
@@ -5247,20 +5288,105 @@ def test_pages_is_read_without_a_token_where_that_is_possible(tmp_path: Path) ->
         assert result.status is expected, has_pages
 
 
-def test_a_private_repository_is_left_to_the_site_check(tmp_path: Path) -> None:
-    """It answers 404 to everything anonymous, so nothing about it is
-    visible until a push has built the site. Saying Pages is off without
-    having looked is this project's recurring mistake in the other
-    direction, so it says what it is instead."""
+def test_a_probe_that_did_not_run_is_not_an_answer(tmp_path: Path) -> None:
+    """curl arrives with the Pandoc stage - three stages below Pages.
+
+    So on a machine part-way through a setup the probe can simply be
+    missing, and `curl: not found` was reaching the reader as though the
+    server had answered: "cannot be seen from outside a private
+    repository" for the Pages stage, "is not answering yet" for the site.
+    Both name a cause that was never established.
+    """
+    machine = _ready_machine(tmp_path)
+    for key in ("curl -sS", "%{http_code}"):
+        machine[key] = CommandResult(127, stderr="curl: not found")
+    context = _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+
+    pages = next(s for s in STAGES if s.id == "pages").check(context)
+    site = next(s for s in STAGES if s.id == "site").check(context)
+
+    for result in (pages, site):
+        assert result.status is Status.MISSING
+        assert "the probe did not run" in result.detail
+        assert "private repository" not in result.detail
+        assert "not answering yet" not in result.detail
+
+
+def test_being_unable_to_see_a_repository_is_not_permission_to_make_one(
+    tmp_path: Path,
+) -> None:
+    """github.com says `Repository not found.` for a repository that is
+    missing *and* for one your key cannot see.
+
+    The stage cannot tell those apart, and the expensive mistake is only
+    in one direction: an issued repository carries the permissions that
+    decide who can read the work, and a second one will not have them
+    (#332). So the report says what was seen, and the steps say to look
+    before creating anything.
+    """
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(128, stderr="ERROR: Repository not found.")
+    stage = next(s for s in STAGES if s.id == "own-project")
+    context = _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+
+    result = stage.check(context)
+    assert result.status is Status.MISSING
+    assert "nothing visible at" in result.detail
+    assert "not reachable" not in result.detail, "the host did not say that"
+
+    steps = stage.plan(context).instructions
+    checking = next(i for i, s in enumerate(steps) if "already there" in s)
+    creating = next(i for i, s in enumerate(steps) if "create a blank" in s.lower())
+    assert checking < creating, "look before making a second one"
+    assert any("do not create another" in s for s in steps)
+
+
+def test_a_private_repository_is_shown_the_steps_and_taken_on_trust(
+    tmp_path: Path,
+) -> None:
+    """Reported from Ubuntu against GitHub (prodockit-extensions#374).
+
+        11  ok    Pages switched on - cannot be seen from outside a
+                  private repository
+
+    Pages had never been switched on. A private repository answers 404 to
+    everything anonymous, and "cannot be seen" was being printed as
+    though it meant "is set up" - so the one stage on the one host that
+    has to be done by hand was skipped in silence.
+
+    It is a finding now, and the steps are shown. What it must not do is
+    claim to have looked: `verifiable` is False, so the run stops asking
+    a question this repository will never answer and leaves the proof to
+    the site check.
+    """
     machine = _ready_machine(tmp_path)
     machine["curl -sS"] = CommandResult(0, '{"message":"Not Found","status":"404"}')
     result = next(s for s in STAGES if s.id == "pages").check(
         _context(tmp_path, host="github.com", runner=FakeRunner(machine))
     )
 
-    assert result.status is Status.OK
+    assert result.status is Status.MISSING
+    assert not result.verifiable, "404 is all it will ever say - do not ask again"
     assert "cannot be seen from outside a private repository" in result.detail
-    assert "after your first push" in result.detail
+    assert "the site check at the end of the run proves it" in result.detail
+
+
+def test_a_private_repository_that_has_published_says_so(tmp_path: Path) -> None:
+    """The site is readable without a token even when its repository is not.
+
+    Without this, a private project that had published carried a finding
+    it could never clear - shown the browser steps on every run, for
+    something already done.
+    """
+    machine = _ready_machine(tmp_path)
+    machine["curl -sS"] = CommandResult(0, '{"message":"Not Found","status":"404"}')
+    machine["%{http_code}"] = CommandResult(0, "200")
+    result = next(s for s in STAGES if s.id == "pages").check(
+        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.OK
+    assert "Pages is enabled" in result.detail
 
 
 def test_nothing_asks_for_a_command_line_tool_any_more(tmp_path: Path) -> None:

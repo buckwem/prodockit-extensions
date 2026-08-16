@@ -1446,7 +1446,12 @@ def _check_own_project(context: Context) -> CheckResult:
     # host is simply refusing to talk (#304).
     if _connection_refused(f"{result.stdout}\n{result.stderr}"):
         return _wrong(_refusal_detail(context))
-    return _missing(f"{url} is not reachable")
+    # Not "does not exist", and not "is not reachable" either. github.com
+    # answers `Repository not found.` for a repository that is missing
+    # *and* for one your key cannot see, and GitLab covers both in a
+    # single sentence - so the honest report is what was seen, and the
+    # plan warns before anything is created (prodockit-extensions#377).
+    return _missing(f"nothing visible at {url}")
 
 
 def _plan_own_project(context: Context) -> Plan:
@@ -1454,8 +1459,16 @@ def _plan_own_project(context: Context) -> Plan:
     return Plan(
         instructions=[
             f"Open {host.new_project_url}",
-            f"Create a blank {host.project_word} named {context.config.project_name!r} "
-            f"in the {host.group_word} {context.config.namespace!r}.",
+            # First, because the check cannot tell these apart and the
+            # wrong answer is expensive: an issued repository carries the
+            # permissions deciding who can read the work, and a second
+            # one will not have them (#332).
+            f"Check whether {context.config.namespace}/{context.config.project_name} is "
+            "already there. Being unable to see it is not proof that it is not - if it "
+            "exists, do not create another; ask for access to that one instead.",
+            f"If it is not there, create a blank {host.project_word} named "
+            f"{context.config.project_name!r} in the {host.group_word} "
+            f"{context.config.namespace!r}.",
             host.project_visibility,
             "Untick every 'initialize with' option - the clone you already have "
             "provides the contents, and an initialised remote would conflict with it.",
@@ -2411,6 +2424,36 @@ def site_url(context: Context) -> str:
     return template.format(namespace=namespace, project=project)
 
 
+def _http_status(context: Context, url: str) -> int | None:
+    """What a stranger gets from `url`, or `None` if the asking failed.
+
+    `None` is not a status and must never be read as one. curl is
+    installed by the Pandoc stage, four stages *after* the first check
+    that wants it, so on a machine part-way through a setup the probe can
+    simply be missing - and "curl: not found" was being reported as
+    though the server had answered (prodockit-extensions#374).
+    """
+    result = context.runner.run(
+        ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20", url]
+    )
+    code = result.stdout.strip()
+    if not result.ok or not code.isdigit():
+        return None
+    return int(code)
+
+
+def _site_answers(context: Context) -> bool:
+    """Whether the published site responds.
+
+    Proof that Pages is switched on, and it needs no token: a Pages site
+    is readable by anyone even when its repository is private, which is
+    what makes any of this checkable from outside. A probe that could not
+    run is not proof of anything, and answers False.
+    """
+    url = site_url(context)
+    return bool(url) and _http_status(context, url) == 200
+
+
 def _check_site_published(context: Context) -> CheckResult:
     """Whether the documentation site actually answers.
 
@@ -2439,16 +2482,19 @@ def _check_site_published(context: Context) -> CheckResult:
         # than the gap it reports - but the detail says it was not
         # checked, rather than implying a site was found.
         return _ok(f"not checked - {context.host.hostname} publishes at no fixed address")
-    result = context.runner.run(
-        ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20", url]
-    )
-    if result.ok and result.stdout.strip() == "200":
+    status = _http_status(context, url)
+    if status == 200:
         # Said plainly, because it is the part readers get wrong: a Pages
         # site is readable by anyone, even when the repository behind it
         # is private. Only an Enterprise plan can restrict who sees it, so
         # on any other plan "private repository" does not mean "private
         # site" - and drafts in docs/ are published as soon as they build.
         return _ok(f"Pages is enabled - {url} (public: anyone with the link can read it)")
+    if status is None:
+        # Nobody said the site is missing - the question was never put.
+        # curl arrives with the Pandoc stage, so a run that has not got
+        # that far has no way to ask (prodockit-extensions#374).
+        return _missing(f"could not check {url} from here - the probe did not run")
     return _missing(f"{url} is not answering yet")
 
 
@@ -2600,18 +2646,38 @@ def _check_pages(context: Context) -> CheckResult:
     project = context.config.project_name.strip()
     api = host.repo_api.format(namespace=namespace, project=project)
     seen = context.runner.run(["curl", "-sS", "--max-time", "20", api])
+    if seen.returncode == 127:
+        # The probe is not installed yet - curl arrives with the Pandoc
+        # stage, three stages below this one. Nothing has been learned
+        # about Pages, and saying "cannot be seen from outside a private
+        # repository" would name a cause that was never established.
+        return _missing(f"could not check {api} from here - the probe did not run")
     described = _json_object(seen.stdout) if seen.ok else None
     if described is not None and "has_pages" in described:
         if described["has_pages"]:
             return _ok("Pages is enabled")
         return _missing("Pages is not switched on for this repository")
-    # Private, or the host does not answer anonymously. Not a finding:
-    # the site stage proves it after the first push, and saying Pages is
-    # off without having looked is this project's recurring mistake in
-    # the other direction.
-    return _ok(
-        "cannot be seen from outside a private repository - the site check at "
-        "the end of the run proves it after your first push"
+    # Private, or the host does not answer anonymously. The site itself
+    # is asked first: it is readable without a token even when its
+    # repository is not, so a project that has already published says so
+    # here rather than carrying a finding it could never clear.
+    if _site_answers(context):
+        return _ok(f"Pages is enabled - {site_url(context)} answers")
+    # Otherwise the reader is shown the steps. Reporting `ok` here meant
+    # a stage that had never been done was skipped in silence, on the one
+    # host where it has to be done by hand (prodockit-extensions#374) -
+    # "cannot be seen" and "is set up" are not the same sentence and were
+    # being printed as one.
+    #
+    # Not verifiable: `404` is all this repository will ever say to an
+    # anonymous caller, so asking again after the reader returns from the
+    # browser cannot confirm it. The site stage at the end of the run is
+    # what settles it.
+    return CheckResult(
+        Status.MISSING,
+        "cannot be seen from outside a private repository - switch it on if you "
+        "have not; the site check at the end of the run proves it",
+        verifiable=False,
     )
 
 
