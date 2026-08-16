@@ -1895,6 +1895,92 @@ def _check_project_env(context: Context) -> CheckResult:
     return _ok(f"{_project_venv(context)} is ready")
 
 
+def _check_venv_support(context: Context) -> CheckResult:
+    """Whether the interpreter running bootstrap can build a virtual environment.
+
+    A prerequisite for the stage below, which creates the project's
+    environment with `sys.executable -m venv`. Debian and Ubuntu ship the
+    standard library's `venv` without `ensurepip`, in a separate
+    `python3-venv` package - so on a system Python the failure arrives
+    several stages later, worded as though something were wrong with the
+    project:
+
+        Error: Command '['.../venv/bin/python', '-m', 'ensurepip', ...
+
+    Asked here, of the interpreter that will do it, before anything has
+    been cloned or installed (prodockit-extensions#381).
+
+    Running inside a virtual environment answers the question by itself -
+    one cannot exist without the machinery that made it - so this reports
+    which case it is rather than only passing or failing.
+    """
+    probe = context.runner.run([sys.executable, "-c", "import ensurepip, venv"])
+    inside = sys.prefix != sys.base_prefix
+    if probe.ok:
+        return _ok(sys.executable if inside else f"{sys.executable} (the system Python)")
+    return _missing(
+        f"{sys.executable} cannot create one"
+        + ("" if inside else " - it is the system Python, which Debian and Ubuntu ship "
+           "without `ensurepip`")
+    )
+
+
+def _venv_recipe(context: Context) -> list[str]:
+    """The exact lines that put prodockit in an environment of its own.
+
+    Written out per platform rather than described, because the reader
+    who needs them is at a shell that has just refused to install
+    something and a paraphrase is one more thing to get right.
+
+    Not runnable here: the last line replaces the process that would be
+    running them, so these are shown and the reader runs them.
+    """
+    if context.platform == WINDOWS:
+        home = r"%USERPROFILE%"
+        return [
+            rf"py -m venv {home}\.venvs\prodockit",
+            rf"{home}\.venvs\prodockit\Scripts\pip install prodockit",
+            rf"{home}\.venvs\prodockit\Scripts\pdk bootstrap",
+        ]
+    return [
+        "python3 -m venv ~/.venvs/prodockit",
+        "~/.venvs/prodockit/bin/pip install prodockit",
+        "~/.venvs/prodockit/bin/pdk bootstrap",
+    ]
+
+
+def _plan_venv_support(context: Context) -> Plan:
+    """Install the missing piece, then say exactly how to use it.
+
+    Ubuntu keeps `ensurepip` in a package of its own, so that one is
+    repaired here. On macOS and Windows the machinery comes with Python
+    itself, so a failure means the interpreter is incomplete - a Store
+    stub, or a broken install - and the fix is a working Python.
+
+    Either way the run ends with prodockit in a virtual environment of
+    its own, which is what #381 asked for: the commands are printed for
+    the platform in hand rather than described.
+    """
+    installers = {
+        UBUNTU: _apt("install", "-y", "python3-venv"),
+        MACOS: ["brew", "install", "python@3.13"],
+        WINDOWS: _winget("Python.Python.3.13"),
+    }
+    return Plan(
+        commands=[installers[context.platform]],
+        describe=(
+            "Install the machinery Python needs to create virtual environments"
+            if context.platform == UBUNTU
+            else "Install a complete Python, since this one cannot create environments"
+        ),
+        follow_up=[
+            "Then put prodockit in an environment of its own and run it from there:",
+            *_venv_recipe(context),
+        ],
+        confirm="Is prodockit running from its own environment now?",
+    )
+
+
 def _plan_project_env(context: Context) -> Plan:
     """Creates the project's venv and installs its requirements into it.
 
@@ -2827,6 +2913,16 @@ STAGES: tuple[Stage, ...] = (
     # that, and WeasyPrint is not installed until the project's own
     # environment exists, one stage below (#248).
     Stage("pandoc", "Pandoc, and the libraries WeasyPrint needs", _check_pandoc, _plan_pandoc),
+    # Before the stage that needs it, and before anything is installed:
+    # `sys.executable -m venv` is how the project's environment is made,
+    # and on a Debian system Python that fails several stages later in
+    # words about the project rather than the interpreter (#381).
+    Stage(
+        "venv-support",
+        "Python can create virtual environments",
+        _check_venv_support,
+        _plan_venv_support,
+    ),
     Stage(
         "project-env",
         "Project environment and its dependencies",

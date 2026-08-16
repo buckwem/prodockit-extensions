@@ -760,7 +760,7 @@ def _typed_yes(question: str) -> bool:
     """A question the Enter key cannot answer.
 
     `[Y/n]` is answered by pressing Enter, and a reader twelve stages
-    into a twenty-two stage setup presses it in rhythm. For a browser
+    into a twenty-three stage setup presses it in rhythm. For a browser
     step that means claiming to have done something they have not, and
     the run continues as though a manual stage was complete
     (prodockit-extensions#374). Typing the word costs three seconds and
@@ -854,7 +854,7 @@ def bootstrap(
 ) -> None:
     """Set up this machine and your project from scratch.
 
-    Checks all 22 stages - editor, git, SSH key/config/agent/upload,
+    Checks all 23 stages - editor, git, SSH key/config/agent/upload,
     clone, history, remote, commit identity, the project's own
     environment, pandoc, Node and the rest - and reports which are
     already done. Rerunnable: a stage that is set up correctly

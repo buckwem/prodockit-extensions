@@ -146,6 +146,9 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     )
     save(tmp_path / "b.toml", _config())
     return {
+        # The interpreter running bootstrap can build virtual
+        # environments - what a Debian system Python cannot (#381).
+        "import ensurepip, venv": CommandResult(0),
         "code --list-extensions": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
         "code": CommandResult(0),
         "git --version": CommandResult(0, "git version 2.43.0"),
@@ -1257,6 +1260,9 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
     (project / "tools").mkdir(exist_ok=True)
     save(tmp_path / "b.toml", _config())
     return {
+        # Satisfied here too: this fixture is about the SSH stage, and a
+        # second finding would change what the run stops at (#381).
+        "import ensurepip, venv": CommandResult(0),
         "code": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
         "git --version": CommandResult(0, "git version 2.43.0"),
         "git config --global user.name": CommandResult(0, "Ada\n"),
@@ -1293,7 +1299,7 @@ def test_a_browser_step_cannot_be_answered_with_the_enter_key(  # type: ignore[n
 ) -> None:
     """`[Y/n]` is answered by pressing Enter (prodockit-extensions#374).
 
-    A reader twelve stages into twenty-two presses it in rhythm, and for
+    A reader twelve stages into twenty-three presses it in rhythm, and for
     a browser step that means claiming to have done something they have
     not. The word has to be typed - `y` is not it, and neither is Enter.
     """
@@ -2621,6 +2627,62 @@ def test_a_project_asking_for_another_style_is_not_given_this_one(tmp_path: Path
 #: `None` means the stage's plan produces nothing a check could observe -
 #: the two browser steps, where a human does the work elsewhere. Stated
 #: rather than omitted, so silence is never the reason a stage escapes.
+def test_a_python_that_cannot_build_environments_is_found_before_it_matters(
+    tmp_path: Path,
+) -> None:
+    """prodockit-extensions#381.
+
+    The project's environment is created with `sys.executable -m venv`,
+    so the interpreter running bootstrap has to be able to make one.
+    Debian and Ubuntu ship `venv` without `ensurepip`, in a package of
+    their own - and the failure used to arrive at stage 16, worded as
+    though something were wrong with the project rather than with the
+    Python that was about to build it.
+    """
+    stage = next(s for s in STAGES if s.id == "venv-support")
+    positions = {s.id: i for i, s in enumerate(STAGES)}
+    assert positions["venv-support"] < positions["project-env"], (
+        "asked before the stage that depends on it"
+    )
+
+    able = _context(tmp_path, runner=FakeRunner({"import ensurepip, venv": CommandResult(0)}))
+    assert stage.check(able).status is Status.OK
+
+    unable = _context(
+        tmp_path,
+        runner=FakeRunner({"import ensurepip, venv": CommandResult(1, stderr="No module")}),
+    )
+    result = stage.check(unable)
+    assert result.status is Status.MISSING
+    assert "cannot create one" in result.detail
+
+
+def test_the_venv_steps_are_the_exact_commands_for_the_platform(tmp_path: Path) -> None:
+    """Written out per platform rather than described.
+
+    The reader who needs them is at a shell that has just refused to
+    install something, and a paraphrase is one more thing to get right.
+    """
+    stage = next(s for s in STAGES if s.id == "venv-support")
+    installers = {
+        UBUNTU: "python3-venv",
+        MACOS: "python@3.13",
+        WINDOWS: "Python.Python.3.13",
+    }
+    for platform, package in installers.items():
+        plan = stage.plan(_context(tmp_path, platform=platform))
+        assert len(plan.commands) == 1
+        assert package in " ".join(plan.commands[0]), platform
+        said = "\n".join(plan.follow_up)
+        assert "pip install prodockit" in said, platform
+        if platform is WINDOWS:
+            assert r"%USERPROFILE%\.venvs\prodockit\Scripts" in said
+            assert "~/.venvs" not in said, "no POSIX paths in a Windows recipe"
+        else:
+            assert "~/.venvs/prodockit/bin" in said
+            assert "%USERPROFILE%" not in said
+
+
 PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "vscode": ("the `code` command",),
     "git": ("git itself", "the global identity"),
@@ -2643,6 +2705,9 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "remote": ("origin", "the synced config"),
     "identity": ("the project's identity",),
     "pandoc": ("pandoc", "the PDF fonts"),
+    # Ubuntu installs the missing package; everywhere else `venv` comes
+    # with Python, so a failure there is guided rather than repaired.
+    "venv-support": ("the venv machinery",),
     "project-env": ("the venv", "its dependencies"),
     "node": ("node", "the toolchains", "chromium and the exports"),
     "extensions": ("the extensions",),

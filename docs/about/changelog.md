@@ -1,5 +1,25 @@
 # Release Notes
 
+## Unreleased
+
+- **Added:** a stage that asks whether Python can build virtual
+  environments at all
+  ([#381](https://github.com/buckwem/prodockit-extensions/issues/381)).
+
+    The project's environment is created with the interpreter running
+    bootstrap, and Debian and Ubuntu ship `venv` without `ensurepip` - in
+    a package of their own. The failure used to arrive at stage 16,
+    worded as though something were wrong with your project rather than
+    with the Python about to build it.
+
+    Asked first now, before anything is cloned or installed, and repaired
+    where a package exists. Where one does not, the exact commands for
+    your platform are printed - including the three that put prodockit in
+    an environment of its own, which is where it is happiest running
+    from.
+
+    Twenty-three stages.
+
 ## 0.31.1 (2026-08-16)
 
 - **Fixed:** the GitHub Pages stage reported itself done without having
