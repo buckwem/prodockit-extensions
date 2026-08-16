@@ -215,6 +215,28 @@ def _origin_url(context: Context) -> str:
     return origin.stdout.strip() if origin.ok else ""
 
 
+def _prodockit_command() -> list[str]:
+    """The prodockit that is running, addressed so PATH cannot lose it.
+
+    Bootstrap is itself a prodockit command, and two stages run further
+    prodockit commands: `sync-repo` when it repoints a clone, and
+    `init-mathjax`. Naming them bare asks the machine to find prodockit a
+    second time - and on Windows that failed outright, stopping a setup
+    at stage 12 with `prodockit: not found` on a machine where prodockit
+    was plainly installed and driving the run
+    (prodockit-extensions#371). A virtual environment's scripts are
+    reachable when it launches one; they are not necessarily on the
+    `PATH` a child process inherits.
+
+    `sys.executable` is that environment's own interpreter, so the module
+    form runs the install already doing the work - never a different
+    prodockit that happens to come earlier on PATH, and never none.
+    """
+    if not sys.executable:  # pragma: no cover - embedded interpreters only
+        return ["prodockit"]
+    return [sys.executable, "-m", "prodockit"]
+
+
 def _needs_config(context: Context, *required: str) -> CheckResult | None:
     """`UNKNOWN` if any of `required` is unanswered, else None.
 
@@ -1487,7 +1509,9 @@ def _check_remote(context: Context) -> CheckResult:
     # advertising the template's repository on every page. Asking
     # sync-repo itself is the honest test, and the one that stays correct
     # as sync-repo grows.
-    synced = context.runner.run(["prodockit", "sync-repo", "--check"], cwd=str(project))
+    synced = context.runner.run(
+        [*_prodockit_command(), "sync-repo", "--check"], cwd=str(project)
+    )
     if not synced.ok:
         return _wrong("origin is right, but the project config still needs syncing")
     return _ok(wanted)
@@ -1517,7 +1541,7 @@ def _plan_remote(context: Context) -> Plan:
             # sync-repo rewrites repo_url/repo_name/edit_uri/site_url and the
             # README badges to match the new remote. Without it the clone
             # keeps advertising the template's own repository.
-            ["prodockit", "sync-repo"],
+            [*_prodockit_command(), "sync-repo"],
         ],
     )
 
@@ -2368,7 +2392,7 @@ def _plan_mathjax(context: Context) -> Plan:
             "tools/mathjax's pinned install, write its configuration, and keep "
             "both out of git"
         ),
-        commands=[["prodockit", "init-mathjax"]],
+        commands=[[*_prodockit_command(), "init-mathjax"]],
     )
 
 
