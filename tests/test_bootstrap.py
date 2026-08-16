@@ -1309,6 +1309,52 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
     }
 
 
+def test_a_step_only_a_new_run_can_see_ends_the_run(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#397, reported from Windows.
+
+        Have you started the ssh-agent service? (yes/no): yes
+        not there yet - no ssh agent is running
+        Try again? [Y/n]:
+
+    The reader had started it, in the Administrator window they were told
+    to use. This process cannot see that - and every stage below needs
+    the agent - so re-checking asks a question that cannot have changed,
+    and asking it again reads as the tool ignoring the answer it just
+    got.
+
+    Ends the run instead, saying what to type next, and exits zero:
+    nothing failed.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    save(tmp_path / "b.toml", _config())
+
+    # Everything else in place, so the run reaches the agent stage.
+    machine = _ready_machine(tmp_path) | {"ssh-add -l": CommandResult(2)}
+    result = cli_bootstrap(
+        "--apply", responses=machine, input="yes\n" + "n\n" * 30, platform=WINDOWS
+    )
+
+    assert "cannot see it" in result.output
+    assert "run `prodockit bootstrap --apply` again" in result.output.lower()
+    assert "not there yet" not in result.output, "it was there - just not visible here"
+    assert "Try again?" not in result.output, "the answer was accepted, not doubted"
+    assert result.exit_code == 0, "the reader did what was asked; nothing failed"
+
+
+def test_only_windows_needs_a_new_run_for_the_agent(tmp_path: Path) -> None:
+    """On macOS and Ubuntu the reader starts an agent in *this* terminal,
+    so the re-check can see it and the run carries on."""
+    stage = next(s for s in STAGES if s.id == "ssh-agent")
+    machine = {"ssh-add -l": CommandResult(2)}
+    for platform in (MACOS, UBUNTU):
+        plan = stage.plan(_context(tmp_path, platform=platform, runner=FakeRunner(machine)))
+        assert not plan.needs_a_new_run, platform
+    windows = stage.plan(_context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine)))
+    assert windows.needs_a_new_run
+
+
 def test_a_browser_step_cannot_be_answered_with_the_enter_key(  # type: ignore[no-untyped-def]
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

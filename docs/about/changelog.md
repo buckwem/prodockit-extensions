@@ -1,5 +1,26 @@
 # Release Notes
 
+## Unreleased
+
+- **Fixed:** the ssh-agent step asked again after you had answered it
+  ([#397](https://github.com/buckwem/prodockit-extensions/issues/397)).
+
+    ```text
+    Have you started the ssh-agent service? (yes/no): yes
+    not there yet - no ssh agent is running
+    Try again? [Y/n]:
+    ```
+
+    On Windows the service is started from a separate Administrator
+    window, and the run in your own window cannot see that happen. So it
+    re-checked something that could not have changed, reported it
+    missing, and asked again - which reads as the tool ignoring the
+    answer it was just given.
+
+    The run now ends there, saying what to type next, and exits zero.
+    Nothing failed: the step was done, and a new run is what it takes to
+    see it.
+
 ## 0.32.0 (2026-08-16)
 
 - **Fixed:** Windows on ARM stopped at the Pandoc stage, having just
