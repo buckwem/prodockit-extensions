@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Changed:** the run says which prodockit is doing the work
+  ([#399](https://github.com/buckwem/prodockit-extensions/issues/399)).
+
+    ```text
+      Running:  pdk from C:\users\buckwem\GitHub\.venv\Lib\site-packages\prodockit
+    ```
+
+    A report arrived headed with one version, showing commands that
+    version had not contained since the release before - an older install
+    doing the work, in a window that had never been reopened. The version
+    alone could not show that. The path can, and it is the first thing to
+    check when a run does something the source says it cannot.
+
 - **Fixed:** git installed a moment ago was reported as not installed
   ([#390](https://github.com/buckwem/prodockit-extensions/issues/390)).
 
