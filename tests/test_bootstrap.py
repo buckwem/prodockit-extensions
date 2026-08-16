@@ -3372,6 +3372,43 @@ def test_the_email_prompt_names_the_host_not_a_university() -> None:
     assert asked == "The email address used for your gitlab.surrey.ac.uk login"
 
 
+def test_no_prompt_names_a_host_of_its_own(tmp_path: Path) -> None:
+    """prodockit-extensions#370, reported from `pdk boot --configure`.
+
+        5/8 The group, organisation or user the project lives under
+            (e.g. comm058-2026, or your own username on github.com) []
+
+    asked of a reader setting up against gitlab.surrey.ac.uk. The host is
+    the first question precisely so the rest can be phrased in terms of
+    the answer, and a question naming a different service reads as being
+    about a different account somewhere else.
+
+    Written against every prompt rather than that one, because the
+    substitution already existed and was simply not used here - so the
+    thing worth holding is that no prompt names a host on its own.
+    """
+    named = ("github.com", "gitlab.com", "gitlab.surrey.ac.uk", "GitHub", "GitLab")
+    offenders = [
+        (key, name) for key, question in PROMPTS for name in named if name in question
+    ]
+
+    assert not offenders, f"say {{host}} instead: {offenders}"
+
+
+def test_the_namespace_prompt_follows_the_host_just_answered() -> None:
+    """The specific question from #370, in both directions."""
+    from prodockit.bootstrap import question_for
+
+    question = dict(PROMPTS)["namespace"]
+
+    surrey = question_for(_config(host="gitlab.surrey.ac.uk"), "namespace", question)
+    assert "your own gitlab.surrey.ac.uk username" in surrey
+    assert "github" not in surrey.lower()
+    assert "your own github.com username" in question_for(
+        _config(host="github.com"), "namespace", question
+    )
+
+
 def test_the_email_prompt_follows_the_host_just_answered() -> None:
     """It reads the answer rather than a constant, so it says whatever
     was typed a moment ago - which is the point of asking the host
