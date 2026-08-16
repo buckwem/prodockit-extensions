@@ -52,7 +52,11 @@ dependencies = [
   # route - the import either works or the extension does not exist.
   # The cost is small in practice, since anything rendering with Material
   # or Zensical already has it.
-  "pymdown-extensions>=10.0",
+  # Kept at the same version as the exact pin in docs.yml, like zensical
+  # and weasyprint above: `prodockit pins --check` reads a floor behind
+  # the exact pin as drift rather than a wider allowance, and it is right
+  # to - the two are one decision written twice.
+  "pymdown-extensions>=11.0.1",
   #
   # Markdown itself is declared at the top of this list, and is a direct
   # import rather than a transitive convenience.
