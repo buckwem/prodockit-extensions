@@ -1,5 +1,32 @@
 # Release Notes
 
+## Unreleased
+
+- **Fixed:** a push the host refused left the stage unable to try again
+  ([#414](https://github.com/buckwem/prodockit-extensions/issues/414)).
+
+    ```text
+    [main (root-commit) 5e98636] Initial commit
+    ...
+    remote: You are not allowed to push code to this project.
+    failed: exit status 128 - see the output above
+    ```
+
+    The commit was made and the push declined, which leaves the project
+    committed here and empty there. On the next run `git status` is
+    clean, so `git commit` exited 1 with nothing to commit and the run
+    stopped *before* the push - failing for a reason that was neither
+    true nor the obstacle. The commit is now run only when there is
+    something to commit.
+
+    The refusal is named, too. Bootstrap runs those commands with the
+    terminal attached, so their output goes to you and not to it, and
+    `exit status 128` was all it could say - after sixty-eight
+    `create mode` lines had scrolled the real sentence off the screen.
+    From that one state, and no other, it asks the host whether a push
+    would be accepted, and says so: the key is fine, the account is not
+    allowed to write there.
+
 ## 0.33.0 (2026-08-16)
 
 - **Fixed:** the VS Code extensions stage said VS Code might not be
