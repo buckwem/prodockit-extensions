@@ -472,8 +472,9 @@ def _announce_apply(context: Context, outstanding: int) -> None:
     click.echo(f"  To do:    {outstanding} of {len(STAGES)} stages")
     click.echo("")
     click.echo(
-        "  Run this from your top-level project directory, with the Python\n"
-        "  virtual environment active. Nothing is changed without asking first."
+        "  Run this from your top-level project directory, from the virtual\n"
+        "  environment prodockit itself is installed in - not the project's own,\n"
+        "  which stage 16 builds. Nothing is changed without asking first."
     )
     click.echo("")
 
@@ -760,7 +761,7 @@ def _typed_yes(question: str) -> bool:
     """A question the Enter key cannot answer.
 
     `[Y/n]` is answered by pressing Enter, and a reader twelve stages
-    into a twenty-two stage setup presses it in rhythm. For a browser
+    into a twenty-three stage setup presses it in rhythm. For a browser
     step that means claiming to have done something they have not, and
     the run continues as though a manual stage was complete
     (prodockit-extensions#374). Typing the word costs three seconds and
@@ -854,7 +855,7 @@ def bootstrap(
 ) -> None:
     """Set up this machine and your project from scratch.
 
-    Checks all 22 stages - editor, git, SSH key/config/agent/upload,
+    Checks all 23 stages - editor, git, SSH key/config/agent/upload,
     clone, history, remote, commit identity, the project's own
     environment, pandoc, Node and the rest - and reports which are
     already done. Rerunnable: a stage that is set up correctly

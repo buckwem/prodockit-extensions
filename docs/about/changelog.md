@@ -1,5 +1,37 @@
 # Release Notes
 
+## Unreleased
+
+- **Added:** the first stage checks that prodockit is running from a
+  virtual environment of its own
+  ([#381](https://github.com/buckwem/prodockit-extensions/issues/381)).
+
+    ```text
+     1  MISS  prodockit runs in an environment of its own - running from
+              /usr/bin/python3, which is not a virtual environment
+    ```
+
+    There are two environments in a finished setup, and they are easy to
+    confuse: **prodockit's own**, which `pdk bootstrap` runs from, and
+    **the project's** `.venv`, which holds Zensical and everything else
+    in `requirements.txt`. The second is built by the first.
+
+    So the first is a prerequisite for the run rather than a step within
+    it, and it is asked first. On a system Python the run used to fail
+    fifteen stages later - Debian and Ubuntu refuse `pip install` outside
+    a virtual environment and ship `venv` without `ensurepip` besides -
+    in words about the project rather than about the interpreter building
+    it.
+
+    Where the missing piece is a package, it is installed. Either way the
+    exact commands for your platform are printed, including the three
+    that put prodockit in an environment of its own. Nothing can repair
+    this in place: a new environment needs a new process, so the steps
+    are shown and the next run confirms them.
+
+    The header said "with the Python virtual environment active" without
+    saying which. It now names it. Twenty-three stages.
+
 ## 0.31.1 (2026-08-16)
 
 - **Fixed:** the GitHub Pages stage reported itself done without having

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -146,6 +147,10 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     )
     save(tmp_path / "b.toml", _config())
     return {
+        # prodockit is running from an environment of its own, and that
+        # environment can build another - stage 1 (#381).
+        "sys.base_prefix": CommandResult(0, "True"),
+        "import ensurepip, venv": CommandResult(0),
         "code --list-extensions": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
         "code": CommandResult(0),
         "git --version": CommandResult(0, "git version 2.43.0"),
@@ -933,7 +938,17 @@ def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "prodockit.cli.build_bootstrap_context",
             lambda config: build_context(
                 config,
-                runner=FakeRunner(responses or {}),
+                # Stage 1 asks whether prodockit is in an environment of
+                # its own, and the suite genuinely is - so it answers
+                # unless a test says otherwise. Without this every sparse
+                # fake would stop at the first stage (#381).
+                runner=FakeRunner(
+                    {
+                        "sys.base_prefix": CommandResult(0, "True"),
+                        "import ensurepip, venv": CommandResult(0),
+                    }
+                    | (responses or {})
+                ),
                 platform=platform,
                 home=tmp_path,
             ),
@@ -1257,6 +1272,10 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
     (project / "tools").mkdir(exist_ok=True)
     save(tmp_path / "b.toml", _config())
     return {
+        # Satisfied here too: this fixture is about the SSH stage, and a
+        # second finding would change what the run stops at (#381).
+        "sys.base_prefix": CommandResult(0, "True"),
+        "import ensurepip, venv": CommandResult(0),
         "code": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
         "git --version": CommandResult(0, "git version 2.43.0"),
         "git config --global user.name": CommandResult(0, "Ada\n"),
@@ -1293,7 +1312,7 @@ def test_a_browser_step_cannot_be_answered_with_the_enter_key(  # type: ignore[n
 ) -> None:
     """`[Y/n]` is answered by pressing Enter (prodockit-extensions#374).
 
-    A reader twelve stages into twenty-two presses it in rhythm, and for
+    A reader twelve stages into twenty-three presses it in rhythm, and for
     a browser step that means claiming to have done something they have
     not. The word has to be typed - `y` is not it, and neither is Enter.
     """
@@ -2621,6 +2640,80 @@ def test_a_project_asking_for_another_style_is_not_given_this_one(tmp_path: Path
 #: `None` means the stage's plan produces nothing a check could observe -
 #: the two browser steps, where a human does the work elsewhere. Stated
 #: rather than omitted, so silence is never the reason a stage escapes.
+def test_a_python_that_cannot_build_environments_is_found_before_it_matters(
+    tmp_path: Path,
+) -> None:
+    """prodockit-extensions#381.
+
+    The project's environment is created with `sys.executable -m venv`,
+    so the interpreter running bootstrap has to be able to make one.
+    Debian and Ubuntu ship `venv` without `ensurepip`, in a package of
+    their own - and the failure used to arrive at stage 16, worded as
+    though something were wrong with the project rather than with the
+    Python that was about to build it.
+    """
+    stage = next(s for s in STAGES if s.id == "own-venv")
+    assert STAGES[0].id == "own-venv", (
+        "first of all - it is the prerequisite for the run, not a step in it"
+    )
+
+    inside = {"sys.base_prefix": CommandResult(0, "True")}
+    able = _context(
+        tmp_path, runner=FakeRunner(inside | {"import ensurepip, venv": CommandResult(0)})
+    )
+    assert stage.check(able).status is Status.OK
+
+    # In an environment, but one that cannot make another.
+    unable = _context(
+        tmp_path,
+        runner=FakeRunner(
+            inside | {"import ensurepip, venv": CommandResult(1, stderr="No module")}
+        ),
+    )
+    result = stage.check(unable)
+    assert result.status is Status.MISSING
+    assert "cannot build the project's environment" in result.detail
+
+    # Not in one at all - the case #381 was raised for. Nothing this run
+    # does can change it, so it says so rather than asking again.
+    outside = _context(tmp_path, runner=FakeRunner({"sys.base_prefix": CommandResult(0, "False")}))
+    system = stage.check(outside)
+    assert system.status is Status.MISSING
+    assert "not a virtual environment" in system.detail
+    assert not system.verifiable, "a new environment needs a new process"
+
+
+def test_the_venv_steps_are_the_exact_commands_for_the_platform(tmp_path: Path) -> None:
+    """Written out per platform rather than described.
+
+    The reader who needs them is at a shell that has just refused to
+    install something, and a paraphrase is one more thing to get right.
+    """
+    stage = next(s for s in STAGES if s.id == "own-venv")
+    installers = {
+        UBUNTU: "python3-venv",
+        MACOS: "python@3.13",
+        WINDOWS: "Python.Python.3.13",
+    }
+    for platform, package in installers.items():
+        plan = stage.plan(_context(tmp_path, platform=platform))
+        assert len(plan.commands) == 1
+        assert package in " ".join(plan.commands[0]), platform
+        said = "\n".join(plan.instructions)
+        assert "pip install prodockit" in said, platform
+        if platform is WINDOWS:
+            assert r"%USERPROFILE%\.venvs\prodockit\Scripts" in said
+            assert "~/.venvs" not in said, "no POSIX paths in a Windows recipe"
+        else:
+            assert "~/.venvs/prodockit/bin" in said
+            assert "%USERPROFILE%" not in said
+        if platform is MACOS:
+            # Homebrew does not relink `python3` for a versioned formula,
+            # so after installing python@3.13 the recipe has to name it -
+            # `python3` would be the interpreter just worked around.
+            assert "python3.13 -m venv" in said
+
+
 PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "vscode": ("the `code` command",),
     "git": ("git itself", "the global identity"),
@@ -2643,6 +2736,9 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "remote": ("origin", "the synced config"),
     "identity": ("the project's identity",),
     "pandoc": ("pandoc", "the PDF fonts"),
+    # Ubuntu installs the missing package; everywhere else `venv` comes
+    # with Python, so a failure there is guided rather than repaired.
+    "own-venv": ("the venv machinery",),
     "project-env": ("the venv", "its dependencies"),
     "node": ("node", "the toolchains", "chromium and the exports"),
     "extensions": ("the extensions",),
@@ -3181,9 +3277,13 @@ def test_apply_says_what_it_is_doing_before_it_starts(
     assert "gitlab.surrey.ac.uk" in result.output, "which host it will use"
     assert "report-al01234" in result.output, "and where the project will land"
     assert f"of {len(STAGES)} stages" in result.output
-    assert "virtual environment active" in result.output
-    # Before the first stage, or it is not an announcement.
-    assert result.output.index("setting up your") < result.output.index("[1/")
+    assert "prodockit itself is installed in" in result.output
+    # Before the first stage that has anything to do, or it is not an
+    # announcement. Not "[1/" - stage 1 is the environment prodockit is
+    # already running in, so on this machine it has nothing to do (#381).
+    first_stage = re.search(rf"\[\d+/{len(STAGES)}\]", result.output)
+    assert first_stage is not None
+    assert result.output.index("setting up your") < first_stage.start()
 
 
 def test_the_heading_is_not_printed_when_there_is_nothing_to_do(

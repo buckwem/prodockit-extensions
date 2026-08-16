@@ -1892,7 +1892,136 @@ def _check_project_env(context: Context) -> CheckResult:
             "WeasyPrint is installed but cannot load its graphics libraries - "
             "the pandoc stage installs them, so re-run that first"
         )
-    return _ok(f"{_project_venv(context)} is ready")
+    # Says whose environment it is. There are two in a finished setup -
+    # prodockit's own and this one - and a reader who has just been asked
+    # about the first should not have to guess which this is (#381).
+    return _ok(f"the project's own environment, {_project_venv(context)}, is ready")
+
+
+#: Asked of the interpreter rather than read from this process. The two
+#: are the same interpreter in a real run, but a test suite is launched
+#: however its runner feels like launching it - CI uses
+#: `actions/setup-python`, which is not a virtual environment - and a
+#: check that reads `sys` directly answers differently there than on a
+#: developer's machine, for reasons that have nothing to do with the code
+#: under test (prodockit-extensions#381).
+_IN_A_VENV = "import sys; print(sys.prefix != sys.base_prefix)"
+
+
+def _running_in_a_venv(context: Context) -> bool:
+    """Whether the interpreter running bootstrap is a virtual environment's."""
+    said = context.runner.run([sys.executable, "-c", _IN_A_VENV])
+    return said.ok and said.stdout.strip() == "True"
+
+
+def _can_build_environments(context: Context) -> bool:
+    """Whether `sys.executable` has the machinery to make a virtual environment.
+
+    Debian and Ubuntu ship the standard library's `venv` without
+    `ensurepip`, in a package of their own.
+    """
+    return context.runner.run([sys.executable, "-c", "import ensurepip, venv"]).ok
+
+
+def _check_own_venv(context: Context) -> CheckResult:
+    """Whether prodockit itself is running inside a virtual environment.
+
+    First, because it is the prerequisite for the run rather than a step
+    within it (prodockit-extensions#381).
+
+    There are two environments in a finished setup and they are easy to
+    confuse:
+
+    1. **prodockit's own** - the one `pdk bootstrap` is running from.
+       This stage.
+    2. **the project's** - `<project>/.venv`, holding Zensical and
+       everything else in `requirements.txt`. Built much later, with
+       `sys.executable -m venv` - which is to say, built *by* the first.
+
+    A system Python is the case that goes wrong. Debian and Ubuntu refuse
+    `pip install` outside a virtual environment, and ship `venv` without
+    `ensurepip` besides, so the run failed at the project environment in
+    words about the project rather than about the interpreter building
+    it.
+
+    Nothing here can be repaired in place: a new environment needs a new
+    process, so the answer cannot change while this one is running.
+    Hence `verifiable=False` - the steps are shown, and the next run is
+    what confirms them.
+    """
+    if not _running_in_a_venv(context):
+        return CheckResult(
+            Status.MISSING,
+            f"running from {sys.executable}, which is not a virtual environment",
+            verifiable=False,
+        )
+    if not _can_build_environments(context):
+        # Inside one, but unable to make another - so the project's
+        # environment cannot be built. Rare, and better said here than
+        # discovered fifteen stages later.
+        return _missing(f"{sys.executable} cannot build the project's environment")
+    return _ok(sys.prefix)  # the environment it is running from
+
+
+def _venv_recipe(context: Context, interpreter: str = "") -> list[str]:
+    """The exact lines that put prodockit in an environment of its own.
+
+    Written out per platform rather than described, because the reader
+    who needs them is at a shell that has just refused to install
+    something and a paraphrase is one more thing to get right.
+
+    Not runnable here: the last line replaces the process that would be
+    running them, so these are shown and the reader runs them.
+    """
+    if context.platform == WINDOWS:
+        home = r"%USERPROFILE%"
+        return [
+            rf"{interpreter or 'py'} -m venv {home}\.venvs\prodockit",
+            rf"{home}\.venvs\prodockit\Scripts\pip install prodockit",
+            rf"{home}\.venvs\prodockit\Scripts\pdk bootstrap",
+        ]
+    return [
+        f"{interpreter or 'python3'} -m venv ~/.venvs/prodockit",
+        "~/.venvs/prodockit/bin/pip install prodockit",
+        "~/.venvs/prodockit/bin/pdk bootstrap",
+    ]
+
+
+def _plan_own_venv(context: Context) -> Plan:
+    """Install whatever is missing, then show exactly how to run from an environment.
+
+    The install is offered only when the machinery is genuinely absent.
+    On a system Python that can already build environments there is
+    nothing to install, and an `apt install` in front of the three lines
+    that matter would be noise.
+    """
+    installers = {
+        UBUNTU: _apt("install", "-y", "python3-venv"),
+        MACOS: ["brew", "install", "python@3.13"],
+        WINDOWS: _winget("Python.Python.3.13"),
+    }
+    missing_machinery = not _can_build_environments(context)
+    return Plan(
+        commands=[installers[context.platform]] if missing_machinery else [],
+        describe=(
+            "Install the machinery Python needs to create virtual environments"
+            if missing_machinery
+            else ""
+        ),
+        instructions=[
+            "Put prodockit in an environment of its own and run it from there. "
+            "This run cannot move itself - a new environment needs a new process:",
+            # Named exactly on macOS when a Python has just been installed
+            # beside the broken one: Homebrew does not relink `python3` for
+            # a versioned formula, so `python3` would still be the
+            # interpreter this stage was working around.
+            *_venv_recipe(
+                context,
+                "python3.13" if missing_machinery and context.platform == MACOS else "",
+            ),
+        ],
+        confirm="Is prodockit running from its own environment now?",
+    )
 
 
 def _plan_project_env(context: Context) -> Plan:
@@ -2786,6 +2915,15 @@ def _plan_clone_source(context: Context) -> Plan:
 
 
 STAGES: tuple[Stage, ...] = (
+    # First of all, because it is the prerequisite for the run rather
+    # than a step within it: everything below is installed or built by
+    # the interpreter this asks about (#381).
+    Stage(
+        "own-venv",
+        "prodockit runs in an environment of its own",
+        _check_own_venv,
+        _plan_own_venv,
+    ),
     Stage("vscode", "Visual Studio Code", _check_vscode, _plan_vscode),
     Stage("git", "Git, installed and configured", _check_git, _plan_git),
     Stage("ssh-key", "SSH keypair", _check_ssh_key, _plan_ssh_key),
