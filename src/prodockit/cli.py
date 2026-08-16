@@ -472,8 +472,9 @@ def _announce_apply(context: Context, outstanding: int) -> None:
     click.echo(f"  To do:    {outstanding} of {len(STAGES)} stages")
     click.echo("")
     click.echo(
-        "  Run this from your top-level project directory, with the Python\n"
-        "  virtual environment active. Nothing is changed without asking first."
+        "  Run this from your top-level project directory, from the virtual\n"
+        "  environment prodockit itself is installed in - not the project's own,\n"
+        "  which stage 16 builds. Nothing is changed without asking first."
     )
     click.echo("")
 

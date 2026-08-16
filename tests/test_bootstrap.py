@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -936,7 +937,13 @@ def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "prodockit.cli.build_bootstrap_context",
             lambda config: build_context(
                 config,
-                runner=FakeRunner(responses or {}),
+                # Stage 1 asks whether prodockit is in an environment of
+                # its own, and the suite genuinely is - so it answers
+                # unless a test says otherwise. Without this every sparse
+                # fake would stop at the first stage (#381).
+                runner=FakeRunner(
+                    {"import ensurepip, venv": CommandResult(0)} | (responses or {})
+                ),
                 platform=platform,
                 home=tmp_path,
             ),
@@ -2639,10 +2646,9 @@ def test_a_python_that_cannot_build_environments_is_found_before_it_matters(
     though something were wrong with the project rather than with the
     Python that was about to build it.
     """
-    stage = next(s for s in STAGES if s.id == "venv-support")
-    positions = {s.id: i for i, s in enumerate(STAGES)}
-    assert positions["venv-support"] < positions["project-env"], (
-        "asked before the stage that depends on it"
+    stage = next(s for s in STAGES if s.id == "own-venv")
+    assert STAGES[0].id == "own-venv", (
+        "first of all - it is the prerequisite for the run, not a step in it"
     )
 
     able = _context(tmp_path, runner=FakeRunner({"import ensurepip, venv": CommandResult(0)}))
@@ -2654,7 +2660,7 @@ def test_a_python_that_cannot_build_environments_is_found_before_it_matters(
     )
     result = stage.check(unable)
     assert result.status is Status.MISSING
-    assert "cannot create one" in result.detail
+    assert "cannot build the project's environment" in result.detail
 
 
 def test_the_venv_steps_are_the_exact_commands_for_the_platform(tmp_path: Path) -> None:
@@ -2663,7 +2669,7 @@ def test_the_venv_steps_are_the_exact_commands_for_the_platform(tmp_path: Path) 
     The reader who needs them is at a shell that has just refused to
     install something, and a paraphrase is one more thing to get right.
     """
-    stage = next(s for s in STAGES if s.id == "venv-support")
+    stage = next(s for s in STAGES if s.id == "own-venv")
     installers = {
         UBUNTU: "python3-venv",
         MACOS: "python@3.13",
@@ -2673,7 +2679,7 @@ def test_the_venv_steps_are_the_exact_commands_for_the_platform(tmp_path: Path) 
         plan = stage.plan(_context(tmp_path, platform=platform))
         assert len(plan.commands) == 1
         assert package in " ".join(plan.commands[0]), platform
-        said = "\n".join(plan.follow_up)
+        said = "\n".join(plan.instructions)
         assert "pip install prodockit" in said, platform
         if platform is WINDOWS:
             assert r"%USERPROFILE%\.venvs\prodockit\Scripts" in said
@@ -2707,7 +2713,7 @@ PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
     "pandoc": ("pandoc", "the PDF fonts"),
     # Ubuntu installs the missing package; everywhere else `venv` comes
     # with Python, so a failure there is guided rather than repaired.
-    "venv-support": ("the venv machinery",),
+    "own-venv": ("the venv machinery",),
     "project-env": ("the venv", "its dependencies"),
     "node": ("node", "the toolchains", "chromium and the exports"),
     "extensions": ("the extensions",),
@@ -3246,9 +3252,13 @@ def test_apply_says_what_it_is_doing_before_it_starts(
     assert "gitlab.surrey.ac.uk" in result.output, "which host it will use"
     assert "report-al01234" in result.output, "and where the project will land"
     assert f"of {len(STAGES)} stages" in result.output
-    assert "virtual environment active" in result.output
-    # Before the first stage, or it is not an announcement.
-    assert result.output.index("setting up your") < result.output.index("[1/")
+    assert "prodockit itself is installed in" in result.output
+    # Before the first stage that has anything to do, or it is not an
+    # announcement. Not "[1/" - stage 1 is the environment prodockit is
+    # already running in, so on this machine it has nothing to do (#381).
+    first_stage = re.search(rf"\[\d+/{len(STAGES)}\]", result.output)
+    assert first_stage is not None
+    assert result.output.index("setting up your") < first_stage.start()
 
 
 def test_the_heading_is_not_printed_when_there_is_nothing_to_do(
