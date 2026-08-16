@@ -102,6 +102,27 @@ MSYS2_ROOT = r"C:\msys64"
 MSYS2_BIN = MSYS2_ROOT + r"\mingw64\bin"
 _MSYS2_BASH = MSYS2_ROOT + r"\usr\bin\bash.exe"
 
+#: Where MSYS2 has been found. `C:\msys64` is its installer's default,
+#: not a promise, and the arm64 installer is a separate build again.
+_MSYS2_ROOTS = (
+    r"$env:SystemDrive\msys64",
+    r"$env:SystemDrive\msys2",
+    r"$env:LOCALAPPDATA\Programs\msys64",
+    r"$env:ProgramFiles\msys64",
+    r"C:\tools\msys64",
+)
+
+#: Pango, per MSYS2 environment. There is no MINGW64 on an arm64 install -
+#: its native environment is CLANGARM64, whose packages are named
+#: differently and whose DLLs live in a different directory
+#: (prodockit-extensions#393). `mingw-w64-clang-aarch64-pango` was
+#: confirmed present in that repository before being named here:
+#: https://packages.msys2.org/packages/?repo=clangarm64&query=pango
+_MSYS2_ENVIRONMENTS = {
+    "arm64": ("clangarm64", "mingw-w64-clang-aarch64-pango"),
+    "other": ("mingw64", "mingw-w64-x86_64-pango"),
+}
+
 
 def _winget(package_id: str) -> list[str]:
     """One `winget install`, wired so it cannot stop for a human.
@@ -1765,34 +1786,52 @@ def _plan_pandoc(context: Context) -> Plan:
     # Windows. The User Guide walks the reader through a MINGW64 shell
     # and the Environment Variables dialog; all three steps run
     # unattended, so they do.
+    # Both of these are facts about the machine rather than about this
+    # project, and neither can be known from here: winget installs MSYS2
+    # where it likes, and an arm64 Windows gets the arm64 build, whose
+    # native environment is CLANGARM64 rather than MINGW64 - different
+    # package name, different DLL directory (#393). So the script settles
+    # them where they can actually be observed, on the machine, at the
+    # moment it runs.
+    arm, other = _MSYS2_ENVIRONMENTS["arm64"], _MSYS2_ENVIRONMENTS["other"]
+    roots = ", ".join(f'"{root}"' for root in _MSYS2_ROOTS)
+    pango = (
+        "$roots = @(" + roots + "); "
+        "$root = $roots | Where-Object { Test-Path \"$_\\usr\\bin\\bash.exe\" } "
+        "| Select-Object -First 1; "
+        "if (-not $root) { "
+        "Write-Host \"MSYS2 was not found. Looked in: $($roots -join ', ')\"; "
+        "Write-Host \"Install it, or run pacman for pango in its own shell yourself.\"; "
+        "exit 1 }; "
+        f"$msysEnv = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {{ '{arm[0]}' }} "
+        f"else {{ '{other[0]}' }}; "
+        f"$pkg = if ($msysEnv -eq '{arm[0]}') {{ '{arm[1]}' }} else {{ '{other[1]}' }}; "
+        "Write-Host \"Using MSYS2 at $root ($msysEnv)\"; "
+        # `--needed` so a rerun is a no-op rather than a reinstall, and
+        # `--noconfirm` because pacman asks otherwise.
+        "& \"$root\\usr\\bin\\bash.exe\" -lc \"pacman -S --noconfirm --needed $pkg\"; "
+        "exit $LASTEXITCODE"
+    )
+    # Appended only when absent: a PATH with the same entry on it four
+    # times is what a tool that assumed one run looks like. The directory
+    # follows the environment found above, for the same reason.
     path_entry = (
+        "$roots = @(" + roots + "); "
+        "$root = $roots | Where-Object { Test-Path \"$_\\usr\\bin\\bash.exe\" } "
+        "| Select-Object -First 1; "
+        "if (-not $root) { exit 1 }; "
+        f"$msysEnv = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {{ '{arm[0]}' }} "
+        f"else {{ '{other[0]}' }}; "
+        "$bin = Join-Path $root \"$msysEnv\\bin\"; "
         "$p=[Environment]::GetEnvironmentVariable('Path','User'); "
-        f"if ($p -notlike '*{MSYS2_BIN}*') {{ "
-        f"[Environment]::SetEnvironmentVariable('Path', $p + ';{MSYS2_BIN}', 'User') }}"
+        "if ($p -notlike \"*$bin*\") { "
+        "[Environment]::SetEnvironmentVariable('Path', $p + \";$bin\", 'User') }"
     )
     return Plan(
         commands=[
             _winget("JohnMacFarlane.Pandoc"),
             _winget("MSYS2.MSYS2"),
-            # `--needed` so a rerun is a no-op rather than a reinstall,
-            # and `--noconfirm` because pacman asks otherwise.
-            # Through cmd, so a machine where winget put MSYS2 somewhere
-            # other than the default says what is wrong instead of
-            # failing on a path bootstrap invented (#295).
-            [
-                "cmd",
-                "/c",
-                f'if exist "{_MSYS2_BASH}" ('
-                f'"{_MSYS2_BASH}" -lc "pacman -S --noconfirm --needed '
-                'mingw-w64-x86_64-pango"'
-                ") else ("
-                f"echo MSYS2 is not at {MSYS2_ROOT} "
-                "- install it there, or run "
-                '"pacman -S mingw-w64-x86_64-pango" in its MINGW64 shell yourself'
-                " & exit /b 1)",
-            ],
-            # Appended only when absent: a PATH with the same entry on it
-            # four times is what a tool that assumed one run looks like.
+            ["powershell", "-NoProfile", "-Command", pango],
             ["powershell", "-NoProfile", "-Command", path_entry],
         ],
         # Independent of the winget install, so either order works - after

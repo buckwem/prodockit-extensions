@@ -44,7 +44,6 @@ from prodockit.bootstrap import (
 from prodockit.bootstrap.model import GITHUB_COM, MACOS, SURREY_GITLAB, UBUNTU, WINDOWS
 from prodockit.bootstrap.stages import (
     DEFAULT_CSL_STYLE,
-    MSYS2_BIN,
     PDF_FONT_CASKS,
     PDF_FONT_PACKAGES,
     PUBLIC_KEY_MARKER,
@@ -2928,10 +2927,14 @@ def test_windows_installs_pango_rather_than_describing_it(tmp_path: Path) -> Non
     flat = " ".join(" ".join(c) for c in plan.commands)
 
     assert "MSYS2.MSYS2" in flat
-    assert "mingw-w64-x86_64-pango" in flat
     assert "--noconfirm" in flat, "pacman asks otherwise"
     assert "--needed" in flat, "a rerun should be a no-op, not a reinstall"
-    assert "SetEnvironmentVariable" in flat and MSYS2_BIN in flat
+    assert "SetEnvironmentVariable" in flat
+    # Both environments, because which one applies is a fact about the
+    # machine and is settled there (#393).
+    assert "mingw-w64-x86_64-pango" in flat
+    assert "mingw-w64-clang-aarch64-pango" in flat
+    assert "PROCESSOR_ARCHITECTURE" in flat
 
 
 def test_the_msys2_path_entry_is_added_only_once(tmp_path: Path) -> None:
@@ -4024,19 +4027,36 @@ def test_npm_is_left_alone_where_it_works(tmp_path: Path) -> None:
 
 
 def test_msys2_says_where_it_looked_rather_than_failing_on_a_guess(tmp_path: Path) -> None:
-    """`C:\\msys64` is winget's default, not a guarantee. A machine with
-    MSYS2 elsewhere got "file not found" from a path bootstrap invented -
-    and Pango is what WeasyPrint draws text through, so what breaks is
-    the PDF build, a long way from this stage."""
-    from prodockit.bootstrap.stages import MSYS2_ROOT
+    """`C:\\msys64` is winget's default, not a guarantee - and on an arm64
+    Windows winget installs a different build again
+    (prodockit-extensions#393).
+
+        MSYS2 is not at C:\\msys64 - install it there, or run ...
+
+    was said of a machine that had just installed MSYS2 successfully. So
+    the script looks in several places, names all of them when it finds
+    none, and picks the environment from the architecture rather than
+    from an assumption: an arm64 install has no MINGW64 at all.
+    """
+    from prodockit.bootstrap.stages import _MSYS2_ROOTS
 
     plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
     pacman = next(c for c in plan.commands if "pacman" in " ".join(c))
     script = " ".join(pacman)
 
-    assert script.startswith("cmd /c if exist")
-    assert MSYS2_ROOT in script
-    assert "install it there" in script, "say what to do, not just that it failed"
+    assert len(_MSYS2_ROOTS) > 1
+    for root in _MSYS2_ROOTS:
+        assert root in script, root
+    assert "was not found" in script
+    assert "Looked in:" in script, "say where, not just that it failed"
+    assert "exit 1" in script, "and fail, rather than carrying on without Pango"
+
+    # The PATH entry follows the same environment, or WeasyPrint is
+    # pointed at a directory that does not exist on this machine.
+    path_command = next(c for c in plan.commands if "SetEnvironmentVariable" in " ".join(c))
+    entry = " ".join(path_command)
+    assert "clangarm64" in entry and "mingw64" in entry
+    assert "Join-Path" in entry
 
 
 def test_the_csl_download_turns_powershells_progress_bar_off(tmp_path: Path) -> None:
