@@ -21,6 +21,22 @@
     site, so a private repository no longer carries a finding it could
     never clear.
 
+- **Fixed:** three checks reported a look they had not taken.
+
+    curl is installed by the Pandoc stage, several stages below the first
+    check that wants it, so on a machine part-way through a setup the
+    probe can simply be missing - and `curl: not found` was reaching you
+    as "cannot be seen from outside a private repository" for Pages, and
+    "is not answering yet" for the site. Both now say the probe did not
+    run.
+
+    The stage that looks for your repository no longer reports "is not
+    reachable" when the host has answered. github.com says `Repository
+    not found.` for a repository that is missing *and* for one your key
+    cannot see, so the steps now tell you to look before creating
+    anything: an issued repository carries the permissions that decide
+    who can read your work, and a second one will not have them.
+
 - **Changed:** the manual steps ask you to type `yes`
   ([#374](https://github.com/buckwem/prodockit-extensions/issues/374)).
 

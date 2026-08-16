@@ -4486,7 +4486,7 @@ def test_the_extra_steps_come_after_the_project_is_created(tmp_path: Path) -> No
     plan = next(s for s in STAGES if s.id == "own-project").plan(
         _context(tmp_path, host="github.com")
     )
-    creating = next(i for i, s in enumerate(plan.instructions) if "Create a blank" in s)
+    creating = next(i for i, s in enumerate(plan.instructions) if "create a blank" in s.lower())
     pages = next(i for i, s in enumerate(plan.instructions) if "Pages" in s)
 
     assert pages > creating
@@ -5286,6 +5286,59 @@ def test_pages_is_read_without_a_token_where_that_is_possible(tmp_path: Path) ->
             _context(tmp_path, host="github.com", runner=FakeRunner(machine))
         )
         assert result.status is expected, has_pages
+
+
+def test_a_probe_that_did_not_run_is_not_an_answer(tmp_path: Path) -> None:
+    """curl arrives with the Pandoc stage - three stages below Pages.
+
+    So on a machine part-way through a setup the probe can simply be
+    missing, and `curl: not found` was reaching the reader as though the
+    server had answered: "cannot be seen from outside a private
+    repository" for the Pages stage, "is not answering yet" for the site.
+    Both name a cause that was never established.
+    """
+    machine = _ready_machine(tmp_path)
+    for key in ("curl -sS", "%{http_code}"):
+        machine[key] = CommandResult(127, stderr="curl: not found")
+    context = _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+
+    pages = next(s for s in STAGES if s.id == "pages").check(context)
+    site = next(s for s in STAGES if s.id == "site").check(context)
+
+    for result in (pages, site):
+        assert result.status is Status.MISSING
+        assert "the probe did not run" in result.detail
+        assert "private repository" not in result.detail
+        assert "not answering yet" not in result.detail
+
+
+def test_being_unable_to_see_a_repository_is_not_permission_to_make_one(
+    tmp_path: Path,
+) -> None:
+    """github.com says `Repository not found.` for a repository that is
+    missing *and* for one your key cannot see.
+
+    The stage cannot tell those apart, and the expensive mistake is only
+    in one direction: an issued repository carries the permissions that
+    decide who can read the work, and a second one will not have them
+    (#332). So the report says what was seen, and the steps say to look
+    before creating anything.
+    """
+    machine = _ready_machine(tmp_path)
+    machine["git ls-remote"] = CommandResult(128, stderr="ERROR: Repository not found.")
+    stage = next(s for s in STAGES if s.id == "own-project")
+    context = _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+
+    result = stage.check(context)
+    assert result.status is Status.MISSING
+    assert "nothing visible at" in result.detail
+    assert "not reachable" not in result.detail, "the host did not say that"
+
+    steps = stage.plan(context).instructions
+    checking = next(i for i, s in enumerate(steps) if "already there" in s)
+    creating = next(i for i, s in enumerate(steps) if "create a blank" in s.lower())
+    assert checking < creating, "look before making a second one"
+    assert any("do not create another" in s for s in steps)
 
 
 def test_a_private_repository_is_shown_the_steps_and_taken_on_trust(
