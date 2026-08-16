@@ -276,3 +276,54 @@ def test_version_appears_in_help() -> None:
 
     assert "--version" in result.output
     assert "Show the version and exit." in result.output
+
+
+def test_the_build_says_which_stage_it_is_on(monkeypatch, tmp_path) -> None:
+    """prodockit-extensions#375.
+
+    A PDF build printed one line at the start and one at the end, with
+    minutes of silence between - and a silent terminal is
+    indistinguishable from a hung one.
+    """
+    _write_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    def fake_build(config_path, *, markdown_file=None, on_stage=None):
+        assert on_stage is not None, "the CLI has to ask for progress to get any"
+        on_stage(1, 4, "Preparing pages")
+        on_stage(4, 4, "Rotating landscape pages")
+        return "docs/site_documentation.pdf"
+
+    monkeypatch.setattr("prodockit.cli.build_pdf_from_zensical_config", fake_build)
+    result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 0, result.output
+    assert "[1/4] Preparing pages" in result.output
+    assert "[4/4] Rotating landscape pages" in result.output
+    # ...and how long the whole thing took, on the line that says it is done.
+    assert re.search(r"Wrote docs/site_documentation\.pdf in \d", result.output), result.output
+
+
+def test_the_stage_list_grows_when_an_index_is_wanted() -> None:
+    """The page numbers an index needs do not exist until the document
+    has been laid out, so an indexed build lays it out twice - two more
+    stages, and a reader watching should see why it is building again."""
+    from prodockit.pdf.build import _stage_titles
+
+    plain = _stage_titles(include_index=False)
+    indexed = _stage_titles(include_index=True)
+
+    assert len(indexed) == len(plain) + 2
+    assert "Collecting index entries" in indexed
+    assert "Rebuilding with page numbers" in indexed
+    assert indexed[-1] == plain[-1], "rotation stays last either way"
+
+
+def test_a_duration_is_readable_out_loud() -> None:
+    """"182.4s" makes a reader do the division themselves."""
+    from prodockit.cli import _took
+
+    assert _took(9.87) == "9.9s"
+    assert _took(59.9) == "59.9s"
+    assert _took(60) == "1m 0s"
+    assert _took(182.4) == "3m 2s"
