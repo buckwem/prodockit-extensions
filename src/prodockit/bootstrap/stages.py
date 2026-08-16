@@ -2337,8 +2337,16 @@ def _plan_node(context: Context) -> Plan:
 
 
 def _absent_extensions(context: Context) -> list[str] | None:
-    """Which wanted extensions are not installed, or None if unaskable."""
-    result = context.runner.run(["code", "--list-extensions"])
+    """Which wanted extensions are not installed, or None if unaskable.
+
+    Asked with the command the plan installs them with. A bare `code`
+    cannot run on Windows at all - `CreateProcess` appends `.exe` and
+    nothing else, and VS Code's CLI is `code.cmd` - so this check could
+    never pass there, whatever was installed. The stage reported "is VS
+    Code installed?" about the VS Code it had just driven successfully,
+    four times, by full path (prodockit-extensions#410).
+    """
+    result = context.runner.run([vscode_command(context) or "code", "--list-extensions"])
     if not result.ok:
         return None
     installed = {line.strip().lower() for line in result.stdout.splitlines() if line.strip()}
