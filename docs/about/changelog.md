@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.32.0 (2026-08-16)
 
 - **Fixed:** Windows on ARM stopped at the Pandoc stage, having just
   installed MSYS2 successfully
