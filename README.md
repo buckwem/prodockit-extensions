@@ -39,7 +39,8 @@ Markdown and Pandoc/WeasyPrint PDF pipeline.
 
 > **Status:** early, but functional - `prodockit.headings`, `prodockit.refs`,
 > `prodockit.citations`, `prodockit.glossary`, `prodockit.tables`,
-> `prodockit.bibliography`, `prodockit.index`, `prodockit.pdf`,
+> `prodockit.bibliography`, `prodockit.index`, `prodockit.steps`,
+> `prodockit.pdf`,
 > `prodockit.sync_repo`, `prodockit.pins` and `prodockit.zensical_macros`
 > are implemented and tested. `prodockit.bootstrap` is newer: exercised
 > end to end on macOS against the University of Surrey's GitLab. Ubuntu
@@ -78,6 +79,7 @@ diagrams and TeX maths in the PDF.
 | [`prodockit.tables`](https://buckwem.github.io/prodockit-extensions/extensions/tables/) | Percentage or fixed column widths on a table, via a `width` attribute already attachable to a header cell with `attr_list`. |
 | [`prodockit.bibliography`](https://buckwem.github.io/prodockit-extensions/extensions/bibliography/) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\cite{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
 | [`prodockit.index`](https://buckwem.github.io/prodockit-extensions/extensions/index-terms/) | Mark a term inline with `\index{Term}` for a traditional, PDF-only back-of-book index - with hierarchical sub-entries and code-styled terms. |
+| [`prodockit.steps`](https://buckwem.github.io/prodockit-extensions/devcons/bootstrap/#bootstrap-quick-start) | Numbered steps a reader works through in order - a number to find your place by, room for a command and its explanation, and a line joining one step to the next. |
 
 ```python
 import markdown

@@ -24,6 +24,11 @@ Zensical doesn't provide out of the box, each usable independently:
   traditional, PDF-only back-of-book index (see ``prodockit.pdf``'s own
   ``pdf_include_index`` below) - with hierarchical sub-entries and
   code-styled terms.
+- ``prodockit.steps`` - numbered steps a reader works through in order,
+  written as ``/// steps`` with a ``//// step | Title`` for each one. A
+  step holds paragraphs, commands or a table, and ``start`` continues a
+  procedure split across sections - written into the HTML in both the
+  spellings a browser and WeasyPrint each read, since they disagree.
 - ``prodockit.pdf`` - build a standalone PDF from your Zensical site via
   Pandoc and WeasyPrint, the kind of downloadable, submittable document
   professional/academic reports typically need alongside the website
@@ -70,7 +75,8 @@ Zensical doesn't provide out of the box, each usable independently:
   ``pip install prodockit[testing]``; nothing else in prodockit imports it.
 
 ``prodockit.headings``/``prodockit.refs``/``prodockit.citations``/``prodockit.glossary``/
-``prodockit.tables``/``prodockit.bibliography``/``prodockit.index`` are Python-Markdown
+``prodockit.tables``/``prodockit.bibliography``/``prodockit.index``/``prodockit.steps``
+are Python-Markdown
 extensions, in the spirit of pymdown-extensions - enable
 one in `zensical.toml` the same way as a built-in or pymdownx extension.
 Zensical's per-page rendering context is detected automatically where it's
@@ -85,6 +91,6 @@ plain Python API alongside it.
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.33.0"
+__version__ = "0.34.0"
 
 __all__ = ["__version__"]
