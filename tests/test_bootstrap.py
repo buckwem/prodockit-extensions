@@ -1522,6 +1522,60 @@ def test_no_plan_installs_a_tool_and_then_runs_it_by_a_bare_name(tmp_path: Path)
     )
 
 
+def test_extensions_are_listed_with_the_command_that_installs_them(tmp_path: Path) -> None:
+    """prodockit-extensions#410, reported from Windows.
+
+        Extension 'ms-python.python' v2026.4.0 was successfully installed.
+        ...
+        ran, but still not right: could not list extensions - is VS Code
+        installed?
+
+    said of the VS Code it had just driven successfully, four times, by
+    full path. The plan resolved `code.cmd`; the check asked for a bare
+    `code`, which on Windows cannot run at all - so the stage could never
+    pass there, and the run stops on it because later stages depend on
+    it.
+    """
+    from prodockit.bootstrap import stages as stage_module
+
+    code = tmp_path / "Programs" / "Microsoft VS Code" / "bin" / "code.cmd"
+    code.parent.mkdir(parents=True)
+    code.write_text("", encoding="utf-8")
+    # PATH cannot see it, which is the whole of the Windows case.
+    machine = {
+        "code --list-extensions": CommandResult(127, stderr="not found"),
+        f"{code} --list-extensions": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
+    }
+    context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine))
+    original = stage_module._VSCODE_APP_PATHS
+    stage_module._VSCODE_APP_PATHS = {WINDOWS: (str(code.parent.parent),)}
+    try:
+        result = next(s for s in STAGES if s.id == "extensions").check(context)
+    finally:
+        stage_module._VSCODE_APP_PATHS = original
+
+    assert result.status is Status.OK, result.detail
+    assert "is VS Code installed?" not in result.detail
+
+
+def test_no_check_asks_for_a_tool_by_a_name_it_knows_how_to_resolve() -> None:
+    """Third instance of one shape: #390 (git), #405 (npm), #410 (code).
+
+    Each time, a check asked the machine a question its own plan already
+    knew the answer to - and on Windows the bare name could not run at
+    all, so the stage was unfinishable rather than merely wrong.
+    """
+    from prodockit.bootstrap import stages as stage_module
+
+    source = Path(stage_module.__file__).read_text(encoding="utf-8")
+    bare = [name for name in ("code", "npm", "git") if f'["{name}",' in source]
+
+    assert not bare, (
+        f"invoked by bare name: {bare} - use the resolver, or the check and its "
+        "plan will disagree about the same machine"
+    )
+
+
 def test_npm_is_found_after_the_command_that_installed_it(tmp_path: Path) -> None:
     """prodockit-extensions#405, reported from Windows on ARM.
 

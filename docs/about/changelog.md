@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Fixed:** the VS Code extensions stage said VS Code might not be
+  installed, having just installed four extensions through it
+  ([#410](https://github.com/buckwem/prodockit-extensions/issues/410)).
+
+    ```text
+    Extension 'ms-python.python' v2026.4.0 was successfully installed.
+    ...
+    ran, but still not right: could not list extensions - is VS Code installed?
+    ```
+
+    The plan found `code.cmd` where the installer puts it; the check
+    asked for a bare `code`, which on Windows cannot run at all -
+    `CreateProcess` appends `.exe` and nothing else. So the stage could
+    never pass there, whatever was installed, and the run stopped on it
+    because later stages depend on it.
+
+    Third instance of one shape - after git (#390) and npm (#405) - so
+    there is now a test that no check asks for a tool by a name it knows
+    how to resolve.
+
 - **Added:** `prodockit pdf` says which stage it is on, and how long the
   build took ([#375](https://github.com/buckwem/prodockit-extensions/issues/375)).
 
