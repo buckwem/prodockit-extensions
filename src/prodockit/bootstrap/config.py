@@ -104,8 +104,33 @@ class BootstrapConfig:
         return path if path.is_absolute() else base / path
 
 
-def config_path(home: Path | None = None) -> Path:
-    """Where the config file lives for this user.
+#: The per-directory config, beside whatever is being set up.
+LOCAL_CONFIG_NAME = ".pdk-bootstrap.toml"
+
+
+def config_path(home: Path | None = None, cwd: Path | None = None) -> Path:
+    """Where this run's config file is.
+
+    `./.pdk-bootstrap.toml` when one is there, and where a new one is
+    written. One config per directory means one config per project, and a
+    reader setting up a second project no longer overwrites the answers
+    for the first (prodockit-extensions#373).
+
+    The user-level file is still read when no local one exists, so a
+    setup already answered keeps working and nothing has to be moved. It
+    is never written to once a local file is possible - a run that
+    started local stays local.
+    """
+    here = Path(cwd) if cwd is not None else Path.cwd()
+    local = here / LOCAL_CONFIG_NAME
+    if local.exists():
+        return local
+    legacy = user_config_path(home)
+    return legacy if legacy.exists() else local
+
+
+def user_config_path(home: Path | None = None) -> Path:
+    """The older, one-per-user location.
 
     `%APPDATA%` on Windows, XDG's `~/.config` elsewhere - each platform's
     own convention rather than a dotfile in the home directory on all
@@ -120,6 +145,38 @@ def config_path(home: Path | None = None) -> Path:
         xdg = os.environ.get("XDG_CONFIG_HOME")
         root = Path(xdg) if xdg else base / ".config"
     return root / "prodockit" / "bootstrap.toml"
+
+
+def keep_out_of_git(path: Path) -> bool:
+    """Adds `path`'s name to the `.gitignore` beside it, if that is a repo.
+
+    The config holds a reader's name, email and username, and it now sits
+    in the directory they are setting up (#373) - which the first-push
+    stage commits with `git add -A`, on the reasoning that everything
+    there was put there by bootstrap. That stopped being true the moment
+    this file joined them, and the repository it would be committed to is
+    one a student submits.
+
+    Only where there is already a `.git`: elsewhere there is nothing to
+    be swept into, and writing a `.gitignore` into somebody's home
+    directory to solve a problem they do not have would be worse than the
+    problem.
+
+    Returns whether the entry had to be added.
+    """
+    directory = path.parent
+    if not (directory / ".git").exists():
+        return False
+    ignore = directory / ".gitignore"
+    existing = ignore.read_text(encoding="utf-8") if ignore.exists() else ""
+    if any(line.strip() == path.name for line in existing.splitlines()):
+        return False
+    separator = "" if not existing or existing.endswith("\n") else "\n"
+    ignore.write_text(
+        f"{existing}{separator}\n# Your own answers to `prodockit bootstrap`.\n{path.name}\n",
+        encoding="utf-8",
+    )
+    return True
 
 
 def load(path: Path) -> BootstrapConfig:

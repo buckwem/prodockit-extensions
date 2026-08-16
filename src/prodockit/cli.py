@@ -60,6 +60,7 @@ from prodockit.bootstrap import build_context as build_bootstrap_context
 from prodockit.bootstrap import config_path as bootstrap_config_path
 from prodockit.bootstrap import load as load_bootstrap_config
 from prodockit.bootstrap import save as save_bootstrap_config
+from prodockit.bootstrap.config import keep_out_of_git
 from prodockit.init_tools import (
     COMPONENT_PURPOSE,
     InitToolsError,
@@ -393,6 +394,7 @@ def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> BootstrapConfig:
         return config
     config = _ask_for_configuration(config, only=blank)
     save_bootstrap_config(path, config)
+    keep_out_of_git(path)
     click.echo(f"\nSaved to {path}\n")
     return config
 
@@ -927,6 +929,8 @@ def bootstrap(
         config = _ask_for_configuration(config)
         save_bootstrap_config(path, config)
         click.echo(f"\nSaved to {path}")
+        if keep_out_of_git(path):
+            click.echo(f"Added {path.name} to .gitignore - it holds your own details.")
         if configure:
             return
 
