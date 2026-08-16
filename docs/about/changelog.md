@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.31.1 (2026-08-16)
 
 - **Fixed:** the GitHub Pages stage reported itself done without having
   looked ([#374](https://github.com/buckwem/prodockit-extensions/issues/374)).

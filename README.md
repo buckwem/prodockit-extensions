@@ -42,8 +42,10 @@ Markdown and Pandoc/WeasyPrint PDF pipeline.
 > `prodockit.bibliography`, `prodockit.index`, `prodockit.pdf`,
 > `prodockit.sync_repo`, `prodockit.pins` and `prodockit.zensical_macros`
 > are implemented and tested. `prodockit.bootstrap` is newer: exercised
-> end to end on macOS against the University of Surrey's GitLab, with
-> Ubuntu and Windows written but not yet run on a real machine.
+> end to end on macOS against the University of Surrey's GitLab. Ubuntu
+> and Windows have now been run against github.com and the faults they
+> found are fixed, but neither has yet completed a clean run start to
+> finish.
 
 **[Full documentation](https://buckwem.github.io/prodockit-extensions/)**
 
@@ -163,7 +165,8 @@ It cannot be the first thing you run - it is a prodockit command, so
 Python and `pip install prodockit` come first. Two steps need a human at
 a browser (uploading an SSH key, creating your own project); those are
 guided and then *verified*, rather than automated with a token. Currently
-implements the University of Surrey's GitLab and github.com.
+implements the University of Surrey's GitLab, gitlab.com and
+github.com.
 
 ## Website macros
 
