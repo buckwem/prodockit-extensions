@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- **Added:** Surrey's GitLab Pages address is derived rather than asked for
+  ([#392](https://github.com/buckwem/prodockit-extensions/issues/392)).
+
+    ```text
+    Note: cannot derive a published URL for GitLab; site_url left unchanged
+    ```
+
+    printed for an instance whose layout was perfectly well known.
+    `https://gitlab.surrey.ac.uk/mb0105/report` publishes at
+    `https://mb0105.pages.surrey.ac.uk/report/`, so `sync-repo` writes
+    that, and the site stage has an address to check.
+
+    Only instances somebody has actually run against are derived, and
+    they are listed. GitLab's default layout is
+    `<namespace>.pages.<instance domain>/<project>`, but the instance
+    domain is an administrator's setting that nothing in a remote URL
+    reveals - a confidently wrong canonical URL is worse than none, so
+    every other instance still declines and uses `pages_base`.
+
+    The site stage now reads a login wall as proof rather than absence. A
+    university instance publishes behind its own sign-in, and "is not
+    answering yet" of a site that is plainly up would leave every Surrey
+    run one stage short for ever.
+
+    ```text
+    Note: could not tell whether GitLab is public; badges left as they are
+    ```
+
+    is gone too, on hosts where it could never be answered. A self-hosted
+    instance shows a stranger a login page, and nothing turned on the
+    answer: the badges that do come from shields.io, which cannot read
+    that host either. Assumed private, and no longer reported.
+
+## Unreleased
+
 - **Added:** the first stage checks that prodockit is running from a
   virtual environment of its own
   ([#381](https://github.com/buckwem/prodockit-extensions/issues/381)).

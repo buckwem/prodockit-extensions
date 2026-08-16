@@ -142,6 +142,11 @@ SURREY_GITLAB = Host(
     template_remote="git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git",
     key_suffix="gitlab",
     hostname="gitlab.surrey.ac.uk",
+    # Confirmed by running against it, not inferred: GitLab's default
+    # layout is `<namespace>.pages.<instance domain>/<project>`, and the
+    # instance domain is an administrator's setting (#392). Behind the
+    # university login, which the site check knows to expect.
+    pages_url="https://{namespace}.pages.surrey.ac.uk/{project}/",
     ssh_success="Welcome to GitLab",
     ssh_keys_url="https://gitlab.surrey.ac.uk/-/user_settings/ssh_keys",
     new_project_url="https://gitlab.surrey.ac.uk/projects/new",

@@ -2624,6 +2624,16 @@ def _check_site_published(context: Context) -> CheckResult:
         # curl arrives with the Pandoc stage, so a run that has not got
         # that far has no way to ask (prodockit-extensions#374).
         return _missing(f"could not check {url} from here - the probe did not run")
+    if status in (401, 403) or 300 <= status < 400:
+        # A login wall is proof the site is there. A university instance
+        # publishes behind its own sign-in, so an anonymous probe is sent
+        # to a login page rather than refused - and reporting "not
+        # answering yet" of a site that is plainly up would leave every
+        # Surrey run one stage short (prodockit-extensions#392).
+        return _ok(
+            f"published at {url} - it asks for a {context.host.hostname} login, "
+            "so only people with one can read it"
+        )
     return _missing(f"{url} is not answering yet")
 
 

@@ -495,12 +495,54 @@ def test_sync_does_not_invent_a_site_url_that_was_never_there(git_project, monke
     assert "site_url" not in (project / "zensical.toml").read_text(encoding="utf-8")
 
 
+def test_a_known_instance_gets_its_pages_url_derived() -> None:
+    """prodockit-extensions#392.
+
+        Note: cannot derive a published URL for GitLab; site_url left
+        unchanged (set pages_base in your config to have it managed)
+
+    printed for an instance whose layout is perfectly well known - it was
+    read off the screen of a run against it. GitLab's default is
+    `<namespace>.pages.<instance domain>/<project>`, and the instance
+    domain is an administrator's setting, so this is a record of what was
+    observed rather than a rule inferred from a hostname.
+    """
+    assert (
+        site_url_for("gitlab", "mb0105", "report-windows-v1", None, "gitlab.surrey.ac.uk")
+        == "https://mb0105.pages.surrey.ac.uk/report-windows-v1/"
+    )
+    # Case follows the namespace, as the hostname must.
+    assert site_url_for("gitlab", "MB0105", "Report", None, "gitlab.surrey.ac.uk").startswith(
+        "https://mb0105.pages.surrey.ac.uk/"
+    )
+    # Every other instance is still declined rather than guessed at.
+    for host in ("gitlab.example.edu", "gitlab.com", "git.acme.com", ""):
+        assert site_url_for("gitlab", "mb0105", "report", None, host) is None, host
+
+
+def test_a_host_shields_cannot_read_is_taken_as_private(
+    git_project, monkeypatch
+) -> None:
+    """"Could not tell whether GitLab is public" was printed on every run
+    against a self-hosted instance - a question with no answer from
+    outside, and none needed: the badges that turn on it come from
+    shields.io, which cannot read that host either (#392)."""
+    project = git_project("git@gitlab.surrey.ac.uk:mb0105/report.git")
+    monkeypatch.chdir(project)
+
+    result = sync_repo_metadata(default_branch="main")
+
+    assert not any("could not tell whether" in note for note in result.notes), result.notes
+
+
 def test_sync_notes_when_it_cannot_derive_a_site_url(git_project, monkeypatch) -> None:
     config = CONFIG.replace(
         'site_name = "Example"',
         'site_name = "Example"\nsite_url = "https://github.com/old/old-repo/"',
     )
-    project = git_project("git@gitlab.surrey.ac.uk:mb0105/report.git", config=config)
+    # An instance nobody has run against. Surrey's layout is known now
+    # (#392), so it is no longer an example of not knowing.
+    project = git_project("git@gitlab.example.edu:mb0105/report.git", config=config)
     monkeypatch.chdir(project)
 
     result = sync_repo_metadata(default_branch="main")
