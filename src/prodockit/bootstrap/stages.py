@@ -1947,7 +1947,7 @@ def _check_own_venv(context: Context) -> CheckResult:
     return _ok(sys.prefix)
 
 
-def _venv_recipe(context: Context) -> list[str]:
+def _venv_recipe(context: Context, interpreter: str = "") -> list[str]:
     """The exact lines that put prodockit in an environment of its own.
 
     Written out per platform rather than described, because the reader
@@ -1960,12 +1960,12 @@ def _venv_recipe(context: Context) -> list[str]:
     if context.platform == WINDOWS:
         home = r"%USERPROFILE%"
         return [
-            rf"py -m venv {home}\.venvs\prodockit",
+            rf"{interpreter or 'py'} -m venv {home}\.venvs\prodockit",
             rf"{home}\.venvs\prodockit\Scripts\pip install prodockit",
             rf"{home}\.venvs\prodockit\Scripts\pdk bootstrap",
         ]
     return [
-        "python3 -m venv ~/.venvs/prodockit",
+        f"{interpreter or 'python3'} -m venv ~/.venvs/prodockit",
         "~/.venvs/prodockit/bin/pip install prodockit",
         "~/.venvs/prodockit/bin/pdk bootstrap",
     ]
@@ -1995,7 +1995,14 @@ def _plan_own_venv(context: Context) -> Plan:
         instructions=[
             "Put prodockit in an environment of its own and run it from there. "
             "This run cannot move itself - a new environment needs a new process:",
-            *_venv_recipe(context),
+            # Named exactly on macOS when a Python has just been installed
+            # beside the broken one: Homebrew does not relink `python3` for
+            # a versioned formula, so `python3` would still be the
+            # interpreter this stage was working around.
+            *_venv_recipe(
+                context,
+                "python3.13" if missing_machinery and context.platform == MACOS else "",
+            ),
         ],
         confirm="Is prodockit running from its own environment now?",
     )

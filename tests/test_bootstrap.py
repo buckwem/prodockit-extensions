@@ -2687,6 +2687,11 @@ def test_the_venv_steps_are_the_exact_commands_for_the_platform(tmp_path: Path) 
         else:
             assert "~/.venvs/prodockit/bin" in said
             assert "%USERPROFILE%" not in said
+        if platform is MACOS:
+            # Homebrew does not relink `python3` for a versioned formula,
+            # so after installing python@3.13 the recipe has to name it -
+            # `python3` would be the interpreter just worked around.
+            assert "python3.13 -m venv" in said
 
 
 PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {
