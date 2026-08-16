@@ -57,8 +57,6 @@
     answer: the badges that do come from shields.io, which cannot read
     that host either. Assumed private, and no longer reported.
 
-## Unreleased
-
 - **Added:** the first stage checks that prodockit is running from a
   virtual environment of its own
   ([#381](https://github.com/buckwem/prodockit-extensions/issues/381)).
