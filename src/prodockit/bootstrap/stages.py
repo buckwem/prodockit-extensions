@@ -232,7 +232,9 @@ def _origin_url(context: Context) -> str:
     project = context.config.resolved_project_dir(context.home)
     if not (project / ".git").exists():
         return ""
-    origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"])
+    origin = context.runner.run(
+        [git_command(context), "-C", str(project), "remote", "get-url", "origin"]
+    )
     return origin.stdout.strip() if origin.ok else ""
 
 
@@ -316,6 +318,47 @@ def _vscode_app_installed(context: Context) -> bool:
         if context.exists(path):
             return True
     return False
+
+
+#: Where the Git for Windows installer puts `git.exe`. Same reasoning as
+#: `_VSCODE_APP_PATHS`: the installer adds it to `PATH`, but `PATH` is
+#: read when a process starts, so a shell that has not been reopened
+#: since cannot see it (prodockit-extensions#390).
+_GIT_APP_PATHS = {
+    WINDOWS: (
+        r"C:\Program Files\Git\cmd\git.exe",
+        r"C:\Program Files (x86)\Git\cmd\git.exe",
+        r"~\AppData\Local\Programs\Git\cmd\git.exe",
+    ),
+}
+
+
+def git_command(context: Context) -> str:
+    """How to invoke git: `git`, or its full path when PATH cannot see it.
+
+    Twenty-odd stages run git. A Windows machine where git was installed
+    a moment ago has it on the *machine's* PATH and not on this process's,
+    so every one of them failed - and the git stage reported "git is not
+    installed" about a machine winget then said was already up to date
+    (prodockit-extensions#390).
+
+    The same answer as `vscode_command` for the same reason (#292): find
+    the executable where the installer puts it and use it by its full
+    path, rather than telling the reader to open a new terminal and start
+    the run again.
+    """
+    if _installed(context, "git"):
+        return "git"
+    for raw in _GIT_APP_PATHS.get(context.platform, ()):
+        path = Path(raw.replace("~", str(context.home), 1)) if raw.startswith("~") else Path(raw)
+        if context.exists(path):
+            return str(path)
+    return "git"
+
+
+def _git_is_available(context: Context) -> bool:
+    """Whether git can be run at all, by either route."""
+    return _installed(context, "git") or git_command(context) != "git"
 
 
 def vscode_command(context: Context) -> str | None:
@@ -479,10 +522,11 @@ def _plan_vscode(context: Context) -> Plan:
 
 
 def _check_git(context: Context) -> CheckResult:
-    if not _installed(context, "git"):
+    if not _git_is_available(context):
         return _missing("git is not installed")
-    name = context.runner.run(["git", "config", "--global", "user.name"])
-    email = context.runner.run(["git", "config", "--global", "user.email"])
+    git = git_command(context)
+    name = context.runner.run([git, "config", "--global", "user.name"])
+    email = context.runner.run([git, "config", "--global", "user.email"])
     unset = [
         label
         for label, result in (("user.name", name), ("user.email", email))
@@ -494,7 +538,8 @@ def _check_git(context: Context) -> CheckResult:
         # reader to install git they already have would send them the wrong
         # way entirely.
         return _wrong(f"git is installed but {' and '.join(unset)} are not set")
-    return _ok(f"{name.stdout.strip()} <{email.stdout.strip()}>")
+    found = "" if git == "git" else f" - {git} (PATH picks it up in a new terminal)"
+    return _ok(f"{name.stdout.strip()} <{email.stdout.strip()}>{found}")
 
 
 def _plan_git(context: Context) -> Plan:
@@ -504,8 +549,8 @@ def _plan_git(context: Context) -> Plan:
         WINDOWS: [_winget("Git.Git")],
     }[context.platform]
     configure = [
-        ["git", "config", "--global", "user.name", context.config.full_name],
-        ["git", "config", "--global", "user.email", context.config.email],
+        [git_command(context), "config", "--global", "user.name", context.config.full_name],
+        [git_command(context), "config", "--global", "user.email", context.config.email],
     ]
     # Only install if it is actually absent - a rerun repairing unset
     # identity should not reinstall git underneath a working one.
@@ -1167,7 +1212,7 @@ def _plan_clone(context: Context) -> Plan:
     # No prompt here. `--configure` put the choice with every path named
     # and recorded it; asking again mid-run would be the same decision in
     # worse words (#332).
-    return Plan(commands=[["git", "clone", clone_source(context), str(project)]])
+    return Plan(commands=[[git_command(context), "clone", clone_source(context), str(project)]])
 
 
 def _ls_remote_own_project(context: Context) -> CommandResult | None:
@@ -1176,7 +1221,9 @@ def _ls_remote_own_project(context: Context) -> CommandResult | None:
     project = context.config.project_name.strip()
     if not (namespace and project):
         return None
-    return context.runner.run(["git", "ls-remote", context.host.remote_url(namespace, project)])
+    return context.runner.run(
+        [git_command(context), "ls-remote", context.host.remote_url(namespace, project)]
+    )
 
 
 #: What a host says when it really means "there is no such repository",
@@ -1248,11 +1295,22 @@ def _remote_holds_a_project(context: Context) -> bool:
     url = context.host.remote_url(namespace, project)
     with tempfile.TemporaryDirectory() as into:
         clone = context.runner.run(
-            ["git", "clone", "--depth", "1", "--filter=blob:none", "--no-checkout", url, into]
+            [
+                git_command(context),
+                "clone",
+                "--depth",
+                "1",
+                "--filter=blob:none",
+                "--no-checkout",
+                url,
+                into,
+            ]
         )
         if not clone.ok:
             return False
-        listed = context.runner.run(["git", "-C", into, "ls-tree", "--name-only", "HEAD"])
+        listed = context.runner.run(
+            [git_command(context), "-C", into, "ls-tree", "--name-only", "HEAD"]
+        )
     if not listed.ok:
         return False
     present = set(listed.stdout.split())
@@ -1351,7 +1409,9 @@ def _check_fresh_history(context: Context) -> CheckResult:
         # `git init` in a directory that does not exist either. Waiting
         # on the clone, like the two stages after this one (#330).
         return _blocked("there is no clone yet - do the 'Project cloned' stage first")
-    origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"])
+    origin = context.runner.run(
+        [git_command(context), "-C", str(project), "remote", "get-url", "origin"]
+    )
     if not origin.ok:
         # No remote at all: `git init` has already been here.
         return _ok("a history of its own")
@@ -1384,7 +1444,9 @@ def _file_mode_ignored(context: Context) -> bool:
     every file as modified without a byte of content having changed.
     """
     project = context.config.resolved_project_dir(context.home)
-    result = context.runner.run(["git", "-C", str(project), "config", "core.fileMode"])
+    result = context.runner.run(
+        [git_command(context), "-C", str(project), "config", "core.fileMode"]
+    )
     return result.ok and result.stdout.strip().lower() == "false"
 
 
@@ -1408,7 +1470,7 @@ def _plan_fresh_history(context: Context) -> Plan:
     if chosen == "keep" or (not chosen and not _origin_is_the_template(context)):
         return Plan(
             cwd=str(project),
-            commands=[["git", "config", "core.fileMode", "false"]],
+            commands=[[git_command(context), "config", "core.fileMode", "false"]],
         )
     git_dir = project / ".git"
     remove = (
@@ -1441,8 +1503,8 @@ def _plan_fresh_history(context: Context) -> Plan:
         ],
         commands=[
             remove,
-            ["git", "init", "-b", "main"],
-            ["git", "config", "core.fileMode", "false"],
+            [git_command(context), "init", "-b", "main"],
+            [git_command(context), "config", "core.fileMode", "false"],
         ],
     )
 
@@ -1464,7 +1526,7 @@ def _check_own_project(context: Context) -> CheckResult:
     # template - a fact about their machine that creating a repository
     # cannot change (prodockit-extensions#336).
     url = context.host.remote_url(context.config.namespace, context.config.project_name)
-    result = context.runner.run(["git", "ls-remote", url])
+    result = context.runner.run([git_command(context), "ls-remote", url])
     if result.ok:
         return _ok(url)
     # "not reachable" would be read as "you have not created it yet",
@@ -1527,7 +1589,9 @@ def _check_remote(context: Context) -> CheckResult:
     if not (project / ".git").exists():
         return _missing("no clone to repoint yet")
     wanted = context.host.remote_url(context.config.namespace, context.config.project_name)
-    result = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"])
+    result = context.runner.run(
+        [git_command(context), "-C", str(project), "remote", "get-url", "origin"]
+    )
     if not result.ok:
         return _missing("no `origin` remote is set")
     actual = result.stdout.strip()
@@ -1567,11 +1631,13 @@ def _plan_remote(context: Context) -> Plan:
     # the history deletes `.git` and starts a new repository, which has
     # no remotes at all - so after that stage `set-url` fails with "No
     # such remote 'origin'" and the repoint never happens (#248).
-    has_origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"]).ok
+    has_origin = context.runner.run(
+        [git_command(context), "-C", str(project), "remote", "get-url", "origin"]
+    ).ok
     repoint = (
-        ["git", "remote", "set-url", "origin", wanted]
+        [git_command(context), "remote", "set-url", "origin", wanted]
         if has_origin
-        else ["git", "remote", "add", "origin", wanted]
+        else [git_command(context), "remote", "add", "origin", wanted]
     )
     return Plan(
         cwd=str(project),
@@ -1623,7 +1689,9 @@ def _check_project_identity(context: Context) -> CheckResult:
     unset: list[str] = []
     mismatched: list[str] = []
     for key, wanted in _identity_wanted(context).items():
-        result = context.runner.run(["git", "-C", str(project), "config", "--local", key])
+        result = context.runner.run(
+            [git_command(context), "-C", str(project), "config", "--local", key]
+        )
         actual = result.stdout.strip() if result.ok else ""
         if not actual:
             unset.append(key)
@@ -1655,7 +1723,7 @@ def _plan_project_identity(context: Context) -> Plan:
     return Plan(
         cwd=str(context.config.resolved_project_dir(context.home)),
         commands=[
-            ["git", "config", "--local", key, value]
+            [git_command(context), "config", "--local", key, value]
             for key, value in _identity_wanted(context).items()
         ],
     )
@@ -2730,13 +2798,19 @@ def _check_first_push(context: Context) -> CheckResult:
     project = context.config.resolved_project_dir(context.home)
     if not (project / ".git").exists():
         return _blocked("there is no clone yet - do the 'Project cloned' stage first")
-    origin = context.runner.run(["git", "-C", str(project), "remote", "get-url", "origin"])
+    origin = context.runner.run(
+        [git_command(context), "-C", str(project), "remote", "get-url", "origin"]
+    )
     if not origin.ok:
         return _blocked("no origin yet - do the 'Clone pointed at your project' stage first")
-    pending = context.runner.run(["git", "-C", str(project), "status", "--porcelain"])
+    pending = context.runner.run(
+        [git_command(context), "-C", str(project), "status", "--porcelain"]
+    )
     if pending.ok and pending.stdout.strip():
         return _missing("there is work here that has never been committed")
-    remote = context.runner.run(["git", "-C", str(project), "ls-remote", "origin", "HEAD"])
+    remote = context.runner.run(
+        [git_command(context), "-C", str(project), "ls-remote", "origin", "HEAD"]
+    )
     if not remote.ok:
         return _wrong("could not reach origin to see what is there")
     if not remote.stdout.strip():
@@ -2770,9 +2844,9 @@ def _plan_first_push(context: Context) -> Plan:
             # finding that out here beats finding it out from a red
             # pipeline minutes later.
             [str(_venv_command(context, "zensical")), "build", "--clean"],
-            ["git", "add", "-A"],
-            ["git", "commit", "-m", "Initial commit"],
-            ["git", "push", "-u", "origin", "main"],
+            [git_command(context), "add", "-A"],
+            [git_command(context), "commit", "-m", "Initial commit"],
+            [git_command(context), "push", "-u", "origin", "main"],
         ],
         instructions=[
             "This builds the site once, commits everything in the project, "

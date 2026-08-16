@@ -1041,7 +1041,9 @@ def test_building_a_plan_makes_no_network_call(tmp_path: Path) -> None:
     runner = FakeRunner()
     context = _context(tmp_path, runner=runner)
     next(s for s in STAGES if s.id == "clone").plan(context)
-    assert runner.calls == []
+    # `git --version` is how git is located when PATH cannot see it yet
+    # (#390) - local, and not what this test is guarding against.
+    assert [c for c in runner.calls if "--version" not in c] == []
 
 
 def test_apply_reruns_the_check_afterwards(tmp_path: Path) -> None:
@@ -1307,6 +1309,48 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
         "node": CommandResult(0, "v22.14.0\n"),
         "npm": CommandResult(0, "10.9.2\n"),
     }
+
+
+def test_git_installed_a_moment_ago_is_not_reported_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#390, reported from Windows.
+
+        [2/22] Git, installed and configured
+                git is not installed
+        ...
+        Found an existing package already installed.
+
+    The installer adds git to the *machine's* PATH, and PATH is read when
+    a process starts - so a shell not reopened since cannot see it. Every
+    stage that runs git was failing for the same reason, not only this
+    one, which is why the resolution is shared rather than local to the
+    check.
+    """
+    from prodockit.bootstrap import stages as stage_module
+
+    installed = tmp_path / "Program Files" / "Git" / "cmd" / "git.exe"
+    installed.parent.mkdir(parents=True)
+    installed.write_text("", encoding="utf-8")
+    monkeypatch.setattr(stage_module, "_GIT_APP_PATHS", {WINDOWS: (str(installed),)})
+
+    # PATH cannot see it: `git --version` fails.
+    machine = _ready_machine(tmp_path) | {
+        "git --version": CommandResult(127, stderr="not found")
+    }
+    context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine))
+
+    assert stage_module.git_command(context) == str(installed), (
+        "found where the installer puts it, and used by its full path"
+    )
+    said = next(s for s in STAGES if s.id == "git").check(context)
+    assert said.status is not Status.MISSING, "it is installed - PATH just cannot see it yet"
+    assert "new terminal" in said.detail, "and says why it looked odd"
+
+    # Not only the git stage: every stage that runs git uses the same
+    # answer, or the run fails a dozen stages further down instead.
+    commands = next(s for s in STAGES if s.id == "identity").plan(context).commands
+    assert commands and all(c[0] == str(installed) for c in commands), commands
 
 
 def test_a_step_only_a_new_run_can_see_ends_the_run(  # type: ignore[no-untyped-def]
