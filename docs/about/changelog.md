@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **Fixed:** git installed a moment ago was reported as not installed
+  ([#390](https://github.com/buckwem/prodockit-extensions/issues/390)).
+
+    ```text
+    [2/22] Git, installed and configured
+            git is not installed
+    ...
+    Found an existing package already installed.
+    ```
+
+    The installer puts git on the *machine's* `PATH`, and `PATH` is read
+    when a process starts - so a window that has not been reopened since
+    cannot see it. VS Code has had this answer since 0.27: find the
+    executable where the installer puts it and use it by its full path.
+
+    Git now shares it, and every stage that runs git uses the same
+    answer. Fixing only the check would have moved the failure a dozen
+    stages down to the clone.
+
+## Unreleased
+
 - **Fixed:** the ssh-agent step asked again after you had answered it
   ([#397](https://github.com/buckwem/prodockit-extensions/issues/397)).
 
