@@ -206,17 +206,38 @@ stage already done is left alone.
 
 //// step | Install Python
 prodockit is a Python program, so this is the one thing that cannot be
-automated - there is nothing to run it with yet.
+automated - there is nothing to run it with yet. Any version from 3.10
+works; 3.13 is what the template's CI uses.
 
-```bash
-python3 --version
-```
+=== "macOS"
 
-Any version from 3.10 works; 3.13 is what the template's CI uses. On
-Windows install it from [python.org](https://www.python.org/downloads/)
-or `winget install Python.Python.3.13`; on Ubuntu
-`sudo apt install python3 python3-venv`; on macOS
-`brew install python@3.13`.
+    Install [Homebrew](https://brew.sh) if you do not have it, then:
+
+    ```bash
+    brew install python@3.13
+    python3 --version
+    ```
+
+=== "Windows"
+
+    ```powershell
+    winget install --id Python.Python.3.13 -e
+    py --version
+    ```
+
+    [python.org](https://www.python.org/downloads/) works equally well.
+    Avoid the Microsoft Store build: it is a stub that cannot always
+    create the virtual environment the next step needs.
+
+=== "Ubuntu"
+
+    `python3-venv` is a separate package on Debian and Ubuntu, and the
+    next step will not work without it.
+
+    ```bash
+    sudo apt install python3 python3-venv
+    python3 --version
+    ```
 ////
 
 //// step | Install prodockit in an environment of its own
