@@ -22,6 +22,7 @@ from pathlib import Path, PurePath
 
 import pytest
 
+import prodockit as prodockit_module
 from prodockit import __version__
 from prodockit.bootstrap import (
     HOSTS,
@@ -1351,6 +1352,29 @@ def test_git_installed_a_moment_ago_is_not_reported_missing(
     # answer, or the run fails a dozen stages further down instead.
     commands = next(s for s in STAGES if s.id == "identity").plan(context).commands
     assert commands and all(c[0] == str(installed) for c in commands), commands
+
+
+def test_the_run_says_which_prodockit_it_is(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#399.
+
+    A report arrived headed 0.32.0 whose "Will run:" lines were ones
+    0.32.0 had not contained since the release before - an older install
+    doing the work, in a window that had never been reopened. The version
+    in the header could not show that. The path can, and it is the first
+    thing to check when a run does something the source says it cannot.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    save(tmp_path / "b.toml", _config())
+
+    result = cli_bootstrap("--apply", input="n\n" * 40)
+
+    assert "Running:" in result.output
+    assert str(Path(prodockit_module.__file__).parent) in result.output, (
+        "where this prodockit actually is, not only what it calls itself"
+    )
+    assert __version__ in result.output, "and the version, as before"
 
 
 def test_a_step_only_a_new_run_can_see_ends_the_run(  # type: ignore[no-untyped-def]

@@ -28,6 +28,7 @@ from pathlib import Path
 
 import click
 
+import prodockit
 from prodockit import __version__
 from prodockit.bootstrap import (
     PROMPTS,
@@ -468,6 +469,13 @@ def _announce_apply(context: Context, outstanding: int) -> None:
         )
     )
     click.echo("")
+    # Which prodockit this is, not only which version it claims to be.
+    # A report arrived showing commands that the version named in its own
+    # header had not contained for a release - an older install, further
+    # up PATH, in a shell that had never been reopened. The version alone
+    # could not have shown that; the path does
+    # (prodockit-extensions#399).
+    click.echo(f"  Running:  {Path(sys.argv[0]).name} from {Path(prodockit.__file__).parent}")
     click.echo(f"  Host:     {context.host.hostname}")
     click.echo(f"  Project:  {context.config.resolved_project_dir(context.home)}")
     click.echo(f"  To do:    {outstanding} of {len(STAGES)} stages")
