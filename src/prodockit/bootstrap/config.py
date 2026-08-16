@@ -197,10 +197,15 @@ PROMPTS: tuple[tuple[str, str], ...] = (
     # reason as the email question above: "Your GitLab username" is
     # simply wrong once the answer was github.com.
     ("username", "Your {host} username"),
+    # Named after the host that was answered, for the same reason as the
+    # two above. It said "your own username on github.com" to a reader
+    # setting up against gitlab.surrey.ac.uk, which reads as a question
+    # about a different account on a different service
+    # (prodockit-extensions#370).
     (
         "namespace",
         "The group, organisation or user the project lives under "
-        "(e.g. comm058-2026, or your own username on github.com)",
+        "(e.g. a module code like comm058-2026, or your own {host} username)",
     ),
     ("project_name", "Your project name (e.g. report-az1234)"),
     ("project_dir", "Where to put the project on this machine"),
@@ -228,10 +233,10 @@ def missing_keys(config: BootstrapConfig) -> list[str]:
 def question_for(config: BootstrapConfig, key: str, question: str) -> str:
     """A prompt's wording, with earlier answers folded in.
 
-    `{host}` is the only placeholder, and the email question is the only
-    user of it - but it reads from the config rather than from a constant
-    so it says whatever the reader actually answered a moment ago, not
-    what the default happened to be (prodockit-extensions#265).
+    `{host}` is the only placeholder, and it reads from the config rather
+    than from a constant so every question says whatever the reader
+    actually answered a moment ago, not what the default happened to be
+    (prodockit-extensions#265, #370).
     """
     return question.replace("{host}", config.host or "your git host")
 

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Fixed:** the configure prompt named github.com whatever host you had
+  answered ([#370](https://github.com/buckwem/prodockit-extensions/issues/370)).
+
+    ```text
+    5/8 The group, organisation or user the project lives under
+        (e.g. comm058-2026, or your own username on github.com) []
+    ```
+
+    asked of a setup against gitlab.surrey.ac.uk. The host is the first
+    question so that the rest can be phrased in terms of the answer, and
+    naming a different service reads as a question about a different
+    account somewhere else. It now says your own gitlab.surrey.ac.uk
+    username, or whichever host you gave.
+
 - **Changed:** the stage that looks for your project now says which
   address it asked about
   ([#377](https://github.com/buckwem/prodockit-extensions/issues/377)).
