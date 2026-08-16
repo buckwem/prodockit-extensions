@@ -829,6 +829,11 @@ def _plan_ssh_agent(context: Context) -> Plan:
                     "Then run bootstrap again in your normal window.",
                 ],
                 confirm="Have you started the ssh-agent service?",
+                # This run cannot see the service start: it is a separate
+                # window, and every stage below this one needs the agent.
+                # So the honest end is to say what to type next, not to
+                # re-check something that cannot have changed (#397).
+                needs_a_new_run=True,
             )
         return Plan(
             instructions=[

@@ -35,6 +35,7 @@ from prodockit.bootstrap import (
     BootstrapConfig,
     BootstrapConfigError,
     Context,
+    Plan,
     Stage,
     StageReport,
     Status,
@@ -497,6 +498,25 @@ def _apply_outstanding(
         return
 
     _announce_apply(context, len(outstanding))
+    try:
+        _work_through(context, reports, config_path)
+    except _StartAgain as done_but_unseen:
+        # Not an error, and not a stage left undone: the reader did what
+        # was asked, and this process simply cannot see it (#397).
+        click.echo("")
+        click.echo(f"  {done_but_unseen} is done, but this run cannot see it.")
+        click.echo("")
+        click.echo("Start a new window and run `prodockit bootstrap --apply` again "
+                   "to carry on from here.")
+        return
+    click.echo("")
+    click.echo("Finished. Run `prodockit bootstrap` to confirm.")
+
+
+def _work_through(
+    context: Context, reports: list[StageReport], config_path: Path | None
+) -> None:
+    """Each stage in turn, asking before it acts on any of them."""
 
     # Every stage, not just the ones needing work. A run that skipped the
     # rest silently jumped from `[1/17] Git` to `[2/17] SSH keypair` while
@@ -593,7 +613,7 @@ def _apply_outstanding(
                 # Guide and verify. The stage's own check is the
                 # verification, and "not finished yet" is the normal
                 # answer to it, not a failure - so it asks again.
-                if not _verify_until_done(context, report.stage, plan.confirm):
+                if not _verify_until_done(context, report.stage, plan):
                     click.echo("  skipped")
                 continue
             # There are commands, and they need the step above done
@@ -679,16 +699,13 @@ def _apply_outstanding(
                 detail = outcome.verified.detail if outcome.verified else "unknown"
                 click.echo(f"  ran, but still not right: {detail}", err=True)
                 sys.exit(1)
-            if not _verify_until_done(context, report.stage, plan.confirm):
+            if not _verify_until_done(context, report.stage, plan):
                 click.echo("  skipped")
             continue
 
         # No commands and no manual steps — nothing to do for this stage.
         # Should not happen, but not worth crashing over.
         click.echo("  nothing to do")  # pragma: no cover
-
-    click.echo("")
-    click.echo("Finished. Run `prodockit bootstrap` to confirm.")
 
 
 def _echo_wrapped_instruction(instruction: str) -> None:
@@ -757,6 +774,15 @@ def _record_clone_source(
         save_bootstrap_config(config_path, config)
 
 
+class _StartAgain(Exception):
+    """A step whose effect only a new run can see has just been done.
+
+    Carries the stage it happened in, so the run can end by saying what
+    to type next rather than by re-checking something that cannot have
+    changed in this process (prodockit-extensions#397).
+    """
+
+
 def _typed_yes(question: str) -> bool:
     """A question the Enter key cannot answer.
 
@@ -781,15 +807,20 @@ def _typed_yes(question: str) -> bool:
         click.echo("  type 'yes' once it is done, or 'no' to leave it for now")
 
 
-def _verify_until_done(context: Context, stage: Stage, question: str) -> bool:
+def _verify_until_done(context: Context, stage: Stage, plan: Plan) -> bool:
     """Waits for a manual step, re-checking until it takes or you stop.
 
     Returns whether it ended up satisfied. A failed check here means "not
     yet", not "broken" - so it says so, and asks again.
     """
     while True:
-        if not _typed_yes(question):
+        if not _typed_yes(plan.confirm):
             return False
+        if plan.needs_a_new_run:
+            # Re-checking here would ask a question this process cannot
+            # answer differently, report "not there yet", and ask again -
+            # which reads as the tool ignoring the answer it just got.
+            raise _StartAgain(stage.summary)
         # The reader has just been to a browser, so anything remembered
         # about the host is older than what they did. Without this the
         # retry loop replayed its first answer and "Try again?" could

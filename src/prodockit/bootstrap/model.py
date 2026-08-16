@@ -781,6 +781,21 @@ class Plan:
     #: captured it would sit unanswered until the timeout, exactly as
     #: `sudo` did (prodockit-extensions#243, #246).
     needs_terminal: bool = False
+    #: Whether the step only takes effect in a *new* run of bootstrap.
+    #:
+    #: Some things a reader does land somewhere this process cannot see.
+    #: Starting Windows' `ssh-agent` service is the case it exists for:
+    #: the service is started from a separate Administrator window, and
+    #: the running process cannot pick it up - so re-checking asks a
+    #: question that cannot have changed, reports "not there yet", and
+    #: asks again, which reads as the tool ignoring an answer it just got
+    #: (prodockit-extensions#397).
+    #:
+    #: Distinct from `CheckResult.verifiable`, which says the answer can
+    #: never be seen from outside and the run should carry on regardless.
+    #: This says the opposite: the answer is real, later stages depend on
+    #: it, and the way to see it is to start again.
+    needs_a_new_run: bool = False
     #: Whether applying this plan destroys something that cannot be got
     #: back.
     #:
