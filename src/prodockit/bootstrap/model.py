@@ -721,6 +721,15 @@ class Status(Enum):
 class CheckResult:
     status: Status
     detail: str = ""
+    #: Whether re-running this check could ever settle it. False says the
+    #: answer is not visible from here at all - GitHub Pages on a private
+    #: repository is the case it exists for: the metadata is `404` to
+    #: anyone without a token, so no amount of looking again will confirm
+    #: what the reader has just done in a browser
+    #: (prodockit-extensions#374). The step is still shown and still has
+    #: to be acknowledged; what changes is that the tool stops asking a
+    #: question it cannot answer, and says the site check will settle it.
+    verifiable: bool = True
 
     @property
     def needs_work(self) -> bool:

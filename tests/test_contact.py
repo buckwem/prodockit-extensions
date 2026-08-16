@@ -323,7 +323,7 @@ def test_trying_again_asks_the_host_again(tmp_path) -> None:  # type: ignore[no-
 
     # First round says no, second says yes - which only works if the
     # second round actually connects.
-    with CliRunner().isolation(input="y\ny\ny\n"):
+    with CliRunner().isolation(input="yes\nyes\nyes\n"):
         done = _verify_until_done(context, stage, "Have you created it?")
 
     assert done, "the second attempt saw the new repository"

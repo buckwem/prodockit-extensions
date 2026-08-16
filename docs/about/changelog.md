@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- **Fixed:** the GitHub Pages stage reported itself done without having
+  looked ([#374](https://github.com/buckwem/prodockit-extensions/issues/374)).
+
+    ```text
+    11  ok    Pages switched on - cannot be seen from outside a private repository
+    ```
+
+    Pages had never been switched on. A private repository answers `404`
+    to every anonymous caller, and "cannot be seen" was being printed as
+    though it meant "is set up" - so the one stage on the one host that
+    has to be done by hand was skipped in silence.
+
+    It is a finding now, and shows the steps. It still does not claim to
+    have looked: a check that cannot settle itself says so, takes your
+    word once, and leaves the proof to the site check at the end of the
+    run. A project that has already published is recognised from its own
+    site, so a private repository no longer carries a finding it could
+    never clear.
+
+- **Changed:** the manual steps ask you to type `yes`
+  ([#374](https://github.com/buckwem/prodockit-extensions/issues/374)).
+
+    `[Y/n]` is answered by pressing Enter, and a reader twelve stages
+    into twenty-two presses it in rhythm - which at a browser step means
+    claiming to have done something they have not. All three now want the
+    word. `no` is a real answer: it leaves the stage outstanding rather
+    than pretending it was done.
+
 - **Fixed:** the configure prompt named github.com whatever host you had
   answered ([#370](https://github.com/buckwem/prodockit-extensions/issues/370)).
 

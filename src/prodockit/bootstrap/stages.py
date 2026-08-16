@@ -2411,6 +2411,22 @@ def site_url(context: Context) -> str:
     return template.format(namespace=namespace, project=project)
 
 
+def _site_answers(context: Context) -> bool:
+    """Whether the published site responds.
+
+    Proof that Pages is switched on, and it needs no token: a Pages site
+    is readable by anyone even when its repository is private, which is
+    what makes any of this checkable from outside.
+    """
+    url = site_url(context)
+    if not url:
+        return False
+    result = context.runner.run(
+        ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20", url]
+    )
+    return result.ok and result.stdout.strip() == "200"
+
+
 def _check_site_published(context: Context) -> CheckResult:
     """Whether the documentation site actually answers.
 
@@ -2439,10 +2455,7 @@ def _check_site_published(context: Context) -> CheckResult:
         # than the gap it reports - but the detail says it was not
         # checked, rather than implying a site was found.
         return _ok(f"not checked - {context.host.hostname} publishes at no fixed address")
-    result = context.runner.run(
-        ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20", url]
-    )
-    if result.ok and result.stdout.strip() == "200":
+    if _site_answers(context):
         # Said plainly, because it is the part readers get wrong: a Pages
         # site is readable by anyone, even when the repository behind it
         # is private. Only an Enterprise plan can restrict who sees it, so
@@ -2605,13 +2618,27 @@ def _check_pages(context: Context) -> CheckResult:
         if described["has_pages"]:
             return _ok("Pages is enabled")
         return _missing("Pages is not switched on for this repository")
-    # Private, or the host does not answer anonymously. Not a finding:
-    # the site stage proves it after the first push, and saying Pages is
-    # off without having looked is this project's recurring mistake in
-    # the other direction.
-    return _ok(
-        "cannot be seen from outside a private repository - the site check at "
-        "the end of the run proves it after your first push"
+    # Private, or the host does not answer anonymously. The site itself
+    # is asked first: it is readable without a token even when its
+    # repository is not, so a project that has already published says so
+    # here rather than carrying a finding it could never clear.
+    if _site_answers(context):
+        return _ok(f"Pages is enabled - {site_url(context)} answers")
+    # Otherwise the reader is shown the steps. Reporting `ok` here meant
+    # a stage that had never been done was skipped in silence, on the one
+    # host where it has to be done by hand (prodockit-extensions#374) -
+    # "cannot be seen" and "is set up" are not the same sentence and were
+    # being printed as one.
+    #
+    # Not verifiable: `404` is all this repository will ever say to an
+    # anonymous caller, so asking again after the reader returns from the
+    # browser cannot confirm it. The site stage at the end of the run is
+    # what settles it.
+    return CheckResult(
+        Status.MISSING,
+        "cannot be seen from outside a private repository - switch it on if you "
+        "have not; the site check at the end of the run proves it",
+        verifiable=False,
     )
 
 

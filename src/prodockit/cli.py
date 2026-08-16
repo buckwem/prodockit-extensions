@@ -756,6 +756,30 @@ def _record_clone_source(
         save_bootstrap_config(config_path, config)
 
 
+def _typed_yes(question: str) -> bool:
+    """A question the Enter key cannot answer.
+
+    `[Y/n]` is answered by pressing Enter, and a reader twelve stages
+    into a twenty-two stage setup presses it in rhythm. For a browser
+    step that means claiming to have done something they have not, and
+    the run continues as though a manual stage was complete
+    (prodockit-extensions#374). Typing the word costs three seconds and
+    buys one moment of attention at the only points where the tool cannot
+    do the work itself.
+
+    "no" is a real answer, not a way of getting past the prompt: it
+    leaves the stage outstanding and says so at the end.
+    """
+    while True:
+        said = click.prompt(f"  {question} (yes/no)", default="", show_default=False)
+        answer = said.strip().lower()
+        if answer == "yes":
+            return True
+        if answer in {"no", "n"}:
+            return False
+        click.echo("  type 'yes' once it is done, or 'no' to leave it for now")
+
+
 def _verify_until_done(context: Context, stage: Stage, question: str) -> bool:
     """Waits for a manual step, re-checking until it takes or you stop.
 
@@ -763,7 +787,8 @@ def _verify_until_done(context: Context, stage: Stage, question: str) -> bool:
     yet", not "broken" - so it says so, and asks again.
     """
     while True:
-        click.confirm(f"  {question}", default=True)
+        if not _typed_yes(question):
+            return False
         # The reader has just been to a browser, so anything remembered
         # about the host is older than what they did. Without this the
         # retry loop replayed its first answer and "Try again?" could
@@ -772,6 +797,13 @@ def _verify_until_done(context: Context, stage: Stage, question: str) -> bool:
         result = stage.check(context)
         if not result.needs_work:
             click.echo("  confirmed")
+            return True
+        if not result.verifiable:
+            # Nothing gained by asking again: this check cannot see the
+            # answer from outside, whatever the reader just did (#374).
+            # Their word is taken, and the stage that can prove it says
+            # so at the end of the run.
+            click.echo(f"  taken on trust - {result.detail}")
             return True
         if result.status is Status.BLOCKED:
             # Waiting on an earlier stage, not on anything the reader can
