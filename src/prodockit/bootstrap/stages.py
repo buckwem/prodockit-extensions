@@ -2820,6 +2820,49 @@ def _plan_site_published(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
+#: What a host says when it accepted the connection and then declined the
+#: push. Authorisation, not authentication - the key is fine, the account
+#: simply may not write here (prodockit-extensions#414).
+_PUSH_REFUSED_SIGNS = (
+    "not allowed to push",
+    "you are not allowed",
+    "protected branch",
+    "insufficient permission",
+    "pre-receive hook declined",
+)
+
+
+def _push_refused(context: Context) -> str:
+    """The host's own words when it will not accept a push, else "".
+
+    Asked with `--dry-run`, and only from the one state that cannot
+    explain itself: everything committed here, and nothing on the host.
+    A first run never reaches this - it has work to commit - so the
+    ordinary path pays nothing for it (#304).
+
+    The commands themselves run with the terminal attached rather than
+    captured, so their output goes to the reader and not to bootstrap.
+    This is how the refusal gets read back at all.
+    """
+    project = context.config.resolved_project_dir(context.home)
+    attempt = context.runner.run(
+        [git_command(context), "-C", str(project), "push", "--dry-run", "-u", "origin", "main"]
+    )
+    if attempt.ok:
+        return ""
+    said = f"{attempt.stdout}\n{attempt.stderr}".lower()
+    return next((sign for sign in _PUSH_REFUSED_SIGNS if sign in said), "")
+
+
+def _has_uncommitted_work(context: Context) -> bool:
+    """Whether the project has changes that are not in a commit yet."""
+    project = context.config.resolved_project_dir(context.home)
+    pending = context.runner.run(
+        [git_command(context), "-C", str(project), "status", "--porcelain"]
+    )
+    return bool(pending.ok and pending.stdout.strip())
+
+
 def _check_first_push(context: Context) -> CheckResult:
     """Whether the project has been committed and pushed to its remote.
 
@@ -2842,10 +2885,7 @@ def _check_first_push(context: Context) -> CheckResult:
     )
     if not origin.ok:
         return _blocked("no origin yet - do the 'Clone pointed at your project' stage first")
-    pending = context.runner.run(
-        [git_command(context), "-C", str(project), "status", "--porcelain"]
-    )
-    if pending.ok and pending.stdout.strip():
+    if _has_uncommitted_work(context):
         return _missing("there is work here that has never been committed")
     remote = context.runner.run(
         [git_command(context), "-C", str(project), "ls-remote", "origin", "HEAD"]
@@ -2853,6 +2893,17 @@ def _check_first_push(context: Context) -> CheckResult:
     if not remote.ok:
         return _wrong("could not reach origin to see what is there")
     if not remote.stdout.strip():
+        # Committed here, empty there. Either the push has not been run
+        # yet, or it was run and the host declined it - and those need
+        # different things from the reader (#414).
+        if _push_refused(context):
+            return _wrong(
+                f"{context.host.hostname} will not accept a push to "
+                f"{context.config.namespace.strip()}/{project.name} - the key is fine, "
+                "the account is not allowed to write here. Check whether the repository "
+                "was issued to somebody else, whether your role on it is more than "
+                "Reporter, and whether `main` is a protected branch"
+            )
         return _missing(f"{project.name} is still empty on {context.host.hostname}")
     return _ok(f"pushed to {context.host.hostname}")
 
@@ -2884,7 +2935,18 @@ def _plan_first_push(context: Context) -> Plan:
             # pipeline minutes later.
             [str(_venv_command(context, "zensical")), "build", "--clean"],
             [git_command(context), "add", "-A"],
-            [git_command(context), "commit", "-m", "Initial commit"],
+            # Only when there is something to commit. A push refused by
+            # the host - permissions, a protected branch - leaves the
+            # commit made and the remote empty, and this stage is then
+            # asked to run again. `git commit` with nothing staged exits
+            # 1, so the retry failed before reaching the push: the one
+            # state the stage could not make progress from was the one it
+            # had just reached (prodockit-extensions#414).
+            *(
+                [[git_command(context), "commit", "-m", "Initial commit"]]
+                if _has_uncommitted_work(context)
+                else []
+            ),
             [git_command(context), "push", "-u", "origin", "main"],
         ],
         instructions=[

@@ -1576,6 +1576,71 @@ def test_no_check_asks_for_a_tool_by_a_name_it_knows_how_to_resolve() -> None:
     )
 
 
+def test_a_retry_after_a_refused_push_pushes(tmp_path: Path) -> None:
+    """prodockit-extensions#414, reported from Windows.
+
+        [main (root-commit) 5e98636] Initial commit
+        ...
+        remote: You are not allowed to push code to this project.
+
+    The commit was made and the push declined, which leaves the project
+    committed here and empty there. On the next run `git status` is clean,
+    so `git commit` would exit 1 with nothing to commit - and the run
+    would stop *before* the push, failing for a reason that is neither
+    true nor the obstacle.
+    """
+    machine = _ready_machine(tmp_path)
+    machine["status --porcelain"] = CommandResult(0, "")      # nothing left to commit
+    stage = next(s for s in STAGES if s.id == "first-push")
+    commands = stage.plan(_context(tmp_path, runner=FakeRunner(machine))).commands
+    names = [" ".join(c) for c in commands]
+
+    assert not any("commit" in n for n in names), f"nothing to commit: {names}"
+    assert any("push" in n for n in names), "the push is the whole point of the retry"
+
+    # ...and a first run, with work to commit, still commits it.
+    fresh = _ready_machine(tmp_path)
+    fresh["status --porcelain"] = CommandResult(0, " M docs/index.md\n")
+    first = stage.plan(_context(tmp_path, runner=FakeRunner(fresh))).commands
+    assert any("commit" in " ".join(c) for c in first)
+
+
+def test_a_push_the_host_refuses_is_named_not_numbered(tmp_path: Path) -> None:
+    """`failed: exit status 128` scrolled past sixty-eight `create mode`
+    lines, and the one sentence that mattered was the hardest to find.
+
+    The commands run with the terminal attached rather than captured, so
+    their output never reaches bootstrap - the check afterwards is where
+    the refusal can be read back (#414).
+    """
+    machine = _ready_machine(tmp_path)
+    machine["status --porcelain"] = CommandResult(0, "")
+    machine["ls-remote origin HEAD"] = CommandResult(0, "")   # empty on the host
+    machine["push --dry-run"] = CommandResult(
+        128, stderr="remote: You are not allowed to push code to this project."
+    )
+    result = next(s for s in STAGES if s.id == "first-push").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.WRONG
+    assert "not allowed to write here" in result.detail
+    assert "the key is fine" in result.detail, "not another key hunt"
+    assert "protected branch" in result.detail, "and what to check"
+
+
+def test_a_first_run_does_not_pay_for_that_question(tmp_path: Path) -> None:
+    """The dry-run push costs a host connection, so it is asked only from
+    the one state that cannot explain itself. A first run has work to
+    commit and never reaches it (#304)."""
+    machine = _ready_machine(tmp_path)
+    machine["status --porcelain"] = CommandResult(0, " M docs/index.md\n")
+    runner = FakeRunner(machine)
+    next(s for s in STAGES if s.id == "first-push").check(_context(tmp_path, runner=runner))
+
+    assert not any("--dry-run" in " ".join(c) for c in runner.calls), runner.calls
+
+
 def test_npm_is_found_after_the_command_that_installed_it(tmp_path: Path) -> None:
     """prodockit-extensions#405, reported from Windows on ARM.
 
