@@ -147,8 +147,9 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     )
     save(tmp_path / "b.toml", _config())
     return {
-        # The interpreter running bootstrap can build virtual
-        # environments - what a Debian system Python cannot (#381).
+        # prodockit is running from an environment of its own, and that
+        # environment can build another - stage 1 (#381).
+        "sys.base_prefix": CommandResult(0, "True"),
         "import ensurepip, venv": CommandResult(0),
         "code --list-extensions": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
         "code": CommandResult(0),
@@ -942,7 +943,11 @@ def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                 # unless a test says otherwise. Without this every sparse
                 # fake would stop at the first stage (#381).
                 runner=FakeRunner(
-                    {"import ensurepip, venv": CommandResult(0)} | (responses or {})
+                    {
+                        "sys.base_prefix": CommandResult(0, "True"),
+                        "import ensurepip, venv": CommandResult(0),
+                    }
+                    | (responses or {})
                 ),
                 platform=platform,
                 home=tmp_path,
@@ -1269,6 +1274,7 @@ def _machine_ready_except_ssh(tmp_path: Path) -> dict[str, CommandResult]:
     return {
         # Satisfied here too: this fixture is about the SSH stage, and a
         # second finding would change what the run stops at (#381).
+        "sys.base_prefix": CommandResult(0, "True"),
         "import ensurepip, venv": CommandResult(0),
         "code": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
         "git --version": CommandResult(0, "git version 2.43.0"),
@@ -2651,16 +2657,30 @@ def test_a_python_that_cannot_build_environments_is_found_before_it_matters(
         "first of all - it is the prerequisite for the run, not a step in it"
     )
 
-    able = _context(tmp_path, runner=FakeRunner({"import ensurepip, venv": CommandResult(0)}))
+    inside = {"sys.base_prefix": CommandResult(0, "True")}
+    able = _context(
+        tmp_path, runner=FakeRunner(inside | {"import ensurepip, venv": CommandResult(0)})
+    )
     assert stage.check(able).status is Status.OK
 
+    # In an environment, but one that cannot make another.
     unable = _context(
         tmp_path,
-        runner=FakeRunner({"import ensurepip, venv": CommandResult(1, stderr="No module")}),
+        runner=FakeRunner(
+            inside | {"import ensurepip, venv": CommandResult(1, stderr="No module")}
+        ),
     )
     result = stage.check(unable)
     assert result.status is Status.MISSING
     assert "cannot build the project's environment" in result.detail
+
+    # Not in one at all - the case #381 was raised for. Nothing this run
+    # does can change it, so it says so rather than asking again.
+    outside = _context(tmp_path, runner=FakeRunner({"sys.base_prefix": CommandResult(0, "False")}))
+    system = stage.check(outside)
+    assert system.status is Status.MISSING
+    assert "not a virtual environment" in system.detail
+    assert not system.verifiable, "a new environment needs a new process"
 
 
 def test_the_venv_steps_are_the_exact_commands_for_the_platform(tmp_path: Path) -> None:

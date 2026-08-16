@@ -1898,6 +1898,22 @@ def _check_project_env(context: Context) -> CheckResult:
     return _ok(f"the project's own environment, {_project_venv(context)}, is ready")
 
 
+#: Asked of the interpreter rather than read from this process. The two
+#: are the same interpreter in a real run, but a test suite is launched
+#: however its runner feels like launching it - CI uses
+#: `actions/setup-python`, which is not a virtual environment - and a
+#: check that reads `sys` directly answers differently there than on a
+#: developer's machine, for reasons that have nothing to do with the code
+#: under test (prodockit-extensions#381).
+_IN_A_VENV = "import sys; print(sys.prefix != sys.base_prefix)"
+
+
+def _running_in_a_venv(context: Context) -> bool:
+    """Whether the interpreter running bootstrap is a virtual environment's."""
+    said = context.runner.run([sys.executable, "-c", _IN_A_VENV])
+    return said.ok and said.stdout.strip() == "True"
+
+
 def _can_build_environments(context: Context) -> bool:
     """Whether `sys.executable` has the machinery to make a virtual environment.
 
@@ -1933,7 +1949,7 @@ def _check_own_venv(context: Context) -> CheckResult:
     Hence `verifiable=False` - the steps are shown, and the next run is
     what confirms them.
     """
-    if sys.prefix == sys.base_prefix:
+    if not _running_in_a_venv(context):
         return CheckResult(
             Status.MISSING,
             f"running from {sys.executable}, which is not a virtual environment",
@@ -1944,7 +1960,7 @@ def _check_own_venv(context: Context) -> CheckResult:
         # environment cannot be built. Rare, and better said here than
         # discovered fifteen stages later.
         return _missing(f"{sys.executable} cannot build the project's environment")
-    return _ok(sys.prefix)
+    return _ok(sys.prefix)  # the environment it is running from
 
 
 def _venv_recipe(context: Context, interpreter: str = "") -> list[str]:
