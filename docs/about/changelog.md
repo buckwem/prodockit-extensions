@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Fixed:** Windows on ARM stopped at the Pandoc stage, having just
+  installed MSYS2 successfully
+  ([#393](https://github.com/buckwem/prodockit-extensions/issues/393)).
+
+    ```text
+    Successfully installed
+    MSYS2 is not at C:\msys64 - install it there, or run ...
+    failed: exit status 1 - see the output above
+    ```
+
+    Two assumptions, both about the machine rather than about this
+    project. `C:\msys64` is the installer's default, not a promise; and
+    an arm64 Windows gets the arm64 build of MSYS2, which has no MINGW64
+    environment at all - its native one is CLANGARM64, with different
+    package names and a different DLL directory.
+
+    Neither can be known from here, so both are settled on the machine
+    when the step runs: several locations are searched and the one found
+    is used, the environment follows the processor architecture, and the
+    directory added to `PATH` follows the environment. When nothing is
+    found it says where it looked.
+
 - **Added:** Surrey's GitLab Pages address is derived rather than asked for
   ([#392](https://github.com/buckwem/prodockit-extensions/issues/392)).
 
@@ -34,8 +56,6 @@
     instance shows a stranger a login page, and nothing turned on the
     answer: the badges that do come from shields.io, which cannot read
     that host either. Assumed private, and no longer reported.
-
-## Unreleased
 
 - **Added:** the first stage checks that prodockit is running from a
   virtual environment of its own
