@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Changed:** the stage that looks for your project now says which
+  address it asked about
+  ([#377](https://github.com/buckwem/prodockit-extensions/issues/377)).
+
+    ```text
+     7  ok    Where the project comes from - nothing visible at
+              git@github.com:mb0105/report-ubuntu-v1.git - the template
+              will be cloned
+    ```
+
+    It used to report "no existing repository found", which gave a reader
+    whose project plainly exists nothing to work with. The namespace is
+    one setting shared by every host, so a setup that changes host
+    carries the previous host's namespace to the new one - and the
+    address on screen is what makes that visible.
+
+    It no longer claims the repository is absent, either. Both hosts
+    answer a private repository your key cannot see with the same words
+    they use for one that does not exist - github.com says `Repository
+    not found.` either way - so "nothing visible at" is as much as the
+    question can establish.
+
 - **Fixed:** setup stopped on Windows at "Clone pointed at your project",
   saying prodockit was not found
   ([#371](https://github.com/buckwem/prodockit-extensions/issues/371)).
