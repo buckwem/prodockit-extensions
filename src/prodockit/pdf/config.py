@@ -22,7 +22,7 @@ import re
 import shutil
 
 from prodockit._zensical import _installed_zensical_version
-from prodockit.pdf.build import Page, build_pdf
+from prodockit.pdf.build import Page, StageReporter, build_pdf
 from prodockit.pdf.icons import build_icon_registry, discover_icon_dirs
 from prodockit.pdf.mermaid import render_mermaid_diagram
 from prodockit.pdf.release import get_latest_release_tag
@@ -218,7 +218,10 @@ def _warn_if_release_sources_disagree(api_release_tag: str) -> str | None:
 
 
 def build_pdf_from_zensical_config(
-    config_path: str = "zensical.toml", *, markdown_file: str | None = None
+    config_path: str = "zensical.toml",
+    *,
+    markdown_file: str | None = None,
+    on_stage: StageReporter | None = None,
 ) -> str:
     """Builds a PDF entirely from `config_path` (a Zensical config file)
     and returns the path it was written to.
@@ -508,6 +511,7 @@ def build_pdf_from_zensical_config(
         table_of_contents_title=extra.get("pdf_table_of_contents_title") or "Table of Contents",
         include_index=bool(extra.get("pdf_include_index", False)),
         index_title=extra.get("pdf_index_title") or "Index",
+        on_stage=on_stage,
     )
 
     return output_path

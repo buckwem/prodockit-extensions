@@ -135,6 +135,23 @@ def _warn_about_unrendered_content(
     return warnings
 
 
+#: Told the stage number, how many there are, and what it is doing.
+StageReporter = Callable[[int, int, str], None]
+
+
+def _stage_titles(include_index: bool) -> list[str]:
+    """What this build will do, in order, so a stage can say "3 of 6".
+
+    The index costs two extra stages: the page numbers an index needs do
+    not exist until the document has been laid out, so the whole thing is
+    built once, read, and built again (prodockit-extensions#375).
+    """
+    titles = ["Preparing pages", "Assembling the document", "Building the PDF"]
+    if include_index:
+        titles += ["Collecting index entries", "Rebuilding with page numbers"]
+    return [*titles, "Rotating landscape pages"]
+
+
 def build_pdf(
     pages: list[Page],
     output_path: str,
@@ -178,6 +195,7 @@ def build_pdf(
     work_dir: str | None = None,
     keep_work_dir: bool = False,
     pandoc_timeout: int | None = 1800,
+    on_stage: StageReporter | None = None,
 ) -> None:
     """Builds a complete PDF from `pages` and writes it to `output_path`
     (e.g. `"dist/report.pdf"`, `"build/output/handbook.pdf"` - any path,
@@ -304,6 +322,16 @@ def build_pdf(
     timeout entirely for an exceptionally large build that genuinely
     needs longer.
     """
+    titles = _stage_titles(include_index)
+    stage_number = 0
+
+    def announce(title: str) -> None:
+        """One line per stage, or silence when nobody asked."""
+        nonlocal stage_number
+        stage_number += 1
+        if on_stage is not None:
+            on_stage(stage_number, len(titles), title)
+
     use_temp_dir = work_dir is None
     resolved_work_dir: str = (
         tempfile.mkdtemp(prefix="prodockit-pdf-") if work_dir is None else work_dir
@@ -317,6 +345,7 @@ def build_pdf(
             pages, render_mermaid=render_mermaid, mathjax_available=mathjax_available
         )
 
+        announce(titles[0])
         page_anchor_map = build_page_anchor_map([page.docs_rel_path for page in pages])
 
         # Every appendix page's letter, assigned here once by position in
@@ -434,6 +463,7 @@ def build_pdf(
                 f.write(body)
                 f.write("\n</body></html>")
 
+        announce(titles[1])
         write_concatenated_html(body_html)
 
         lua_filter_path = os.path.join(resolved_work_dir, "_prodockit_pdf_filter.lua")
@@ -517,8 +547,14 @@ def build_pdf(
                     stderr=result.stderr,
                 )
 
+        announce(titles[2])
         run_pandoc("first pass" if index_terms else "only pass")
 
+        if include_index:
+            # Announced whether or not anything was marked: the stage
+            # count was fixed before the pages were read, and a run that
+            # asked for an index and found nothing is worth saying so.
+            announce(titles[3])
         if index_terms:
             # output_path is this first pass's own finished PDF at this
             # point - exactly what extract_term_pages() needs to inspect.
@@ -530,8 +566,12 @@ def build_pdf(
                 f'<div id="{INDEX_CONTENT_ID}">{index_content_html}</div>',
             )
             write_concatenated_html(body_html)
+            announce(titles[4])
             run_pandoc("second pass")
+        elif include_index:
+            announce(titles[4])
 
+        announce(titles[-1])
         rotate_landscape_pages(output_path, double_sided=double_sided)
     finally:
         if use_temp_dir or not keep_work_dir:

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import sys
 import textwrap
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -185,6 +186,19 @@ def _ask_for_configuration(
     # somewhere else.
     config.project_dir = str(config.resolved_project_dir(Path.home()))
     return config
+
+
+def _took(seconds: float) -> str:
+    """How long that was, in the units a reader would use out loud.
+
+    Seconds up to a minute, then minutes and seconds - a PDF build is
+    usually tens of seconds and occasionally several minutes, and
+    "182.4s" makes a reader do the division themselves.
+    """
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes, remainder = divmod(round(seconds), 60)
+    return f"{minutes}m {remainder}s"
 
 
 def _wrapped(text: str, *, first: str = "  ", rest: str = "  ") -> str:
@@ -1024,13 +1038,24 @@ def pdf(config_file: str, markdown_file: str | None) -> None:
         click.echo(f"Building PDF from {config_file} using {markdown_file}...")
     else:
         click.echo(f"Building PDF from {config_file}...")
+
+    def say(number: int, total: int, title: str) -> None:
+        # A PDF build is minutes of silence otherwise, and a silent
+        # terminal is indistinguishable from a hung one - the same
+        # reasoning as the install output in `bootstrap --apply`
+        # (prodockit-extensions#375).
+        click.echo(f"  [{number}/{total}] {title}")
+
+    started = time.monotonic()
     try:
-        output_path = build_pdf_from_zensical_config(config_file, markdown_file=markdown_file)
+        output_path = build_pdf_from_zensical_config(
+            config_file, markdown_file=markdown_file, on_stage=say
+        )
     except (PdfBuildError, SourceBundleError, ValueError, OSError) as error:
         click.echo(f"Error: {error}", err=True)
         _echo_captured_stderr(error)
         sys.exit(1)
-    click.echo(f"Wrote {output_path}")
+    click.echo(f"Wrote {output_path} in {_took(time.monotonic() - started)}")
 
 
 @main.command("source-bundle")

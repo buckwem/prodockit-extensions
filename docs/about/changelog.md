@@ -1,5 +1,29 @@
 # Release Notes
 
+## Unreleased
+
+- **Added:** `prodockit pdf` says which stage it is on, and how long the
+  build took ([#375](https://github.com/buckwem/prodockit-extensions/issues/375)).
+
+    ```text
+    Building PDF from zensical.toml...
+      [1/6] Preparing pages
+      [2/6] Assembling the document
+      [3/6] Building the PDF
+      [4/6] Collecting index entries
+      [5/6] Rebuilding with page numbers
+      [6/6] Rotating landscape pages
+    Wrote docs/site_documentation.pdf in 1m 35s
+    ```
+
+    One line at the start and one at the end left minutes of silence in
+    between, and a silent terminal is indistinguishable from a hung one.
+
+    A build with an index has two more stages than one without: the page
+    numbers an index needs do not exist until the document has been laid
+    out, so the whole thing is built, read, and built again. That is
+    worth seeing rather than wondering about.
+
 ## 0.32.1 (2026-08-16)
 
 - **Fixed:** the Node stage failed with `npm: not found` having just
