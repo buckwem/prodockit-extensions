@@ -196,6 +196,95 @@ which Python is winning.
     is not the route above, but if you already have it,
     `pipx install prodockit` works and skips this whole section.
 
+## Quick start {: #bootstrap-quick-start }
+
+Six steps from a machine with nothing on it to a published site. Each one
+is safe to repeat: bootstrap checks before it changes anything, and a
+stage already done is left alone.
+
+/// steps
+
+//// step | Install Python
+prodockit is a Python program, so this is the one thing that cannot be
+automated - there is nothing to run it with yet.
+
+```bash
+python3 --version
+```
+
+Any version from 3.10 works; 3.13 is what the template's CI uses. On
+Windows install it from [python.org](https://www.python.org/downloads/)
+or `winget install Python.Python.3.13`; on Ubuntu
+`sudo apt install python3 python3-venv`; on macOS
+`brew install python@3.13`.
+////
+
+//// step | Install prodockit in an environment of its own
+Not alongside your system Python. Debian and Ubuntu refuse `pip install`
+outside a virtual environment, and the first stage checks this before
+anything else - the project's own environment is built by whichever
+Python is running bootstrap.
+
+```bash
+python3 -m venv ~/.venvs/prodockit
+~/.venvs/prodockit/bin/pip install prodockit
+~/.venvs/prodockit/bin/pdk --version
+```
+
+On Windows: `py -m venv %USERPROFILE%\.venvs\prodockit`, then
+`%USERPROFILE%\.venvs\prodockit\Scripts\pip install prodockit`.
+////
+
+//// step | Check what needs doing
+```bash
+pdk boot
+```
+
+The first run has eight questions to ask - your name, your email, the
+host, your username, the group the project lives under, its name, and
+where to put it - and saves the answers beside the project as
+`.pdk-bootstrap.toml`. Then it reports every stage, and changes nothing.
+
+`pdk` is `prodockit` and `boot` is `bootstrap`, so
+`prodockit bootstrap` is the same command typed in full.
+////
+
+//// step | Read the commands first
+```bash
+pdk boot --dry-run
+```
+
+Every command it would run, and every step it would ask you to do
+yourself, without running any of them. Worth one read on a machine you
+care about.
+////
+
+//// step | Apply it
+```bash
+pdk boot --apply
+```
+
+It asks before each stage and shows the commands first. Two steps need a
+browser - uploading your SSH key, and creating the project on the host -
+and those ask you to type `yes` when you have done them, because
+pressing Enter through a browser step is how a run finishes with a stage
+that never happened.
+
+Stop whenever you like. The next run picks up from wherever it got to.
+////
+
+//// step | Confirm
+```bash
+pdk boot
+```
+
+Every stage `ok`, and the last one names the address your site is
+published at. If a stage still reports work to do, its line says what
+and why - and running `--apply` again does only that stage.
+////
+
+///
+
 ## What it covers {: #bootstrap-stages }
 
 | # | Stage | Automated? |
