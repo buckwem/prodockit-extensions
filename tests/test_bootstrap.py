@@ -147,6 +147,9 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     )
     save(tmp_path / "b.toml", _config())
     return {
+        # The published site answers. Surrey's Pages address is derived
+        # now, so the last stage has something to ask about (#392).
+        "%{http_code}": CommandResult(0, "200"),
         # prodockit is running from an environment of its own, and that
         # environment can build another - stage 1 (#381).
         "sys.base_prefix": CommandResult(0, "True"),
@@ -5441,6 +5444,28 @@ def test_being_unable_to_see_a_repository_is_not_permission_to_make_one(
     assert any("do not create another" in s for s in steps)
 
 
+def test_a_site_behind_a_login_is_published(tmp_path: Path) -> None:
+    """A university instance publishes behind its own sign-in (#392).
+
+    An anonymous probe is sent to a login page rather than refused, and
+    "is not answering yet" of a site that is plainly up would leave every
+    Surrey run one stage short of finished, for ever.
+    """
+    stage = next(s for s in STAGES if s.id == "site")
+    for code in ("401", "403", "302"):
+        machine = _ready_machine(tmp_path)
+        machine["%{http_code}"] = CommandResult(0, code)
+        result = stage.check(_context(tmp_path, runner=FakeRunner(machine)))
+
+        assert result.status is Status.OK, code
+        assert "pages.surrey.ac.uk" in result.detail
+        assert "login" in result.detail, "and says who can read it"
+
+    missing = _ready_machine(tmp_path)
+    missing["%{http_code}"] = CommandResult(0, "404")
+    assert stage.check(_context(tmp_path, runner=FakeRunner(missing))).needs_work
+
+
 def test_a_private_repository_is_shown_the_steps_and_taken_on_trust(
     tmp_path: Path,
 ) -> None:
@@ -5461,6 +5486,8 @@ def test_a_private_repository_is_shown_the_steps_and_taken_on_trust(
     """
     machine = _ready_machine(tmp_path)
     machine["curl -sS"] = CommandResult(0, '{"message":"Not Found","status":"404"}')
+    # Nothing published either, or the site would answer for it.
+    machine["%{http_code}"] = CommandResult(0, "404")
     result = next(s for s in STAGES if s.id == "pages").check(
         _context(tmp_path, host="github.com", runner=FakeRunner(machine))
     )

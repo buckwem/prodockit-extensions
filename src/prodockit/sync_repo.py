@@ -163,9 +163,27 @@ _CODE_HOST_NEEDLES = ("github.com", "gitlab", "bitbucket.org")
 #: new one is what they would want.
 _PAGES_HOST_SUFFIXES = (".github.io", ".gitlab.io")
 
+#: The hosts shields.io can actually read. Anywhere else, a badge whose
+#: image comes from shields is a broken image, and "is it public?" is a
+#: question with no bearing on what gets written.
+_SHIELDS_CAN_READ = frozenset({"github.com", "gitlab.com"})
+
+
+#: GitLab instances whose Pages layout has been confirmed by running
+#: against them, keyed by code host.
+#:
+#: GitLab's *default* is `<namespace>.pages.<instance domain>/<project>`,
+#: but the instance domain is `pages_external_url` - an administrator's
+#: setting, and nothing in a remote URL reveals it. So this is a record of
+#: what was observed on a particular instance, never a rule inferred from
+#: a hostname (prodockit-extensions#392).
+KNOWN_PAGES_LAYOUTS = {
+    "gitlab.surrey.ac.uk": "https://{namespace}.pages.surrey.ac.uk/{repo}/",
+}
+
 
 def site_url_for(
-    kind: str, namespace: str, repo_name: str, pages_base: str | None
+    kind: str, namespace: str, repo_name: str, pages_base: str | None, host: str = ""
 ) -> str | None:
     """The published site URL for a remote, or `None` when it cannot be
     known - in which case `site_url` is left alone.
@@ -176,7 +194,7 @@ def site_url_for(
     lowercased, which is what GitHub serves regardless of how the owner
     name is capitalised.
 
-    GitLab is deliberately not guessed at. A self-hosted instance serves
+    GitLab is not guessed at from its kind. A self-hosted instance serves
     Pages from `pages_external_url`, an instance setting nothing in the
     remote URL reveals, and gitlab.com now gives new projects a unique
     domain with a random suffix rather than the old
@@ -184,9 +202,16 @@ def site_url_for(
     is worse than none at all - it tells search engines to index somewhere
     that does not exist - so those projects set `pages_base` instead, and
     the repository name is appended to it.
+
+    An instance in `KNOWN_PAGES_LAYOUTS` is the exception, and not really
+    an exception to that rule: its layout is known because somebody ran
+    against it and read the address off the screen, not because it was
+    inferred (#392).
     """
     if pages_base:
         return f"{pages_base.rstrip('/')}/{repo_name}/"
+    if (layout := KNOWN_PAGES_LAYOUTS.get(host.lower())) is not None:
+        return layout.format(namespace=namespace.lower(), repo=repo_name)
     if kind == "github":
         owner = namespace.lower()
         if repo_name.lower() == f"{owner}.github.io":
@@ -517,6 +542,7 @@ def _site_url_to_write(
     repo_name: str,
     pages_base: str | None,
     result: SyncResult,
+    host: str = "",
 ) -> str | None:
     """The `site_url` to write, or `None` to leave the config's alone -
     recording on `result` why, when the answer is None for a reason worth
@@ -524,7 +550,7 @@ def _site_url_to_write(
     current_match = re.search(r'^site_url = "(.*)"$', config, flags=re.MULTILINE)
     if current_match is None:
         return None
-    desired = site_url_for(kind, namespace, repo_name, pages_base)
+    desired = site_url_for(kind, namespace, repo_name, pages_base, host)
     if desired is None:
         result.notes.append(
             f"cannot derive a published URL for {result.label}; site_url left unchanged "
@@ -573,7 +599,9 @@ def sync_repo_metadata(
 
     pages_base_match = re.search(r'^pages_base\s*=\s*"([^"]*)"', original_config, re.MULTILINE)
     pages_base = pages_base_match.group(1) if pages_base_match else None
-    site_url = _site_url_to_write(original_config, kind, namespace, repo_name, pages_base, result)
+    site_url = _site_url_to_write(
+        original_config, kind, namespace, repo_name, pages_base, result, host
+    )
 
     updated_config, config_changes = update_config(
         original_config,
@@ -599,7 +627,15 @@ def sync_repo_metadata(
         # because their network blinked would be a worse fault than the
         # one this fixes.
         visible = repository_is_public(f"https://{host}/{namespace}/{repo_name}")
-        if visible is None:
+        if visible is None and host.lower() not in _SHIELDS_CAN_READ:
+            # A self-hosted instance answers a stranger with a login page,
+            # so this question has no answer from outside and never will.
+            # Nothing is lost by assuming private: the badges that depend
+            # on it are shields.io's, and shields cannot read this host
+            # either (prodockit-extensions#392). Reporting it every run
+            # was noise about a decision that had already been made.
+            visible = False
+        elif visible is None:
             result.notes.append(
                 f"could not tell whether {label} is public; badges left as they are"
             )
