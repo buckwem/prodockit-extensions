@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from prodockit.bootstrap.config import (
+    LOCAL_CONFIG_NAME,
     PROMPTS,
     BootstrapConfig,
     BootstrapConfigError,
@@ -74,6 +75,7 @@ from prodockit.bootstrap.stages import (
 __all__ = [
     "HOSTS",
     "INSTALL_TIMEOUT_SECONDS",
+    "LOCAL_CONFIG_NAME",
     "PROMPTS",
     "STAGES",
     "SURREY_GITLAB",

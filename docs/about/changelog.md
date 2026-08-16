@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **Changed:** your answers live beside the project, as
+  `.pdk-bootstrap.toml`
+  ([#373](https://github.com/buckwem/prodockit-extensions/issues/373)).
+
+    There was one config per user, so setting up a second project
+    overwrote the answers for the first - its namespace, its name, the
+    directory it lives in - and the original could not be re-checked
+    without answering everything again.
+
+    One file per directory means one per project. The old
+    `~/.config/prodockit/bootstrap.toml` is still read when a directory
+    has no file of its own, so nothing has to be moved and a setup
+    already answered keeps working.
+
+    The file holds your name, email and username, and the first push
+    commits with `git add -A` - so where the directory is a repository,
+    it is added to `.gitignore`.
+
 - **Changed:** the closing line says how to apply the setup, not only how
   to look at it
   ([#376](https://github.com/buckwem/prodockit-extensions/issues/376)).

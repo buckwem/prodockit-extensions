@@ -350,10 +350,89 @@ def test_the_saved_file_warns_against_putting_secrets_in_it(tmp_path: Path) -> N
 def test_config_path_follows_each_platform_convention(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from prodockit.bootstrap.config import user_config_path
+
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-    assert config_path(tmp_path) == tmp_path / ".config" / "prodockit" / "bootstrap.toml"
+    assert user_config_path(tmp_path) == tmp_path / ".config" / "prodockit" / "bootstrap.toml"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-    assert config_path(tmp_path).parent.parent == tmp_path / "xdg"
+    assert user_config_path(tmp_path).parent.parent == tmp_path / "xdg"
+
+
+def test_a_config_belongs_to_the_directory_it_was_answered_in(tmp_path: Path) -> None:
+    """prodockit-extensions#373: one config per user meant one project.
+
+    Setting up a second one overwrote the answers for the first - the
+    namespace, the project name, the directory it lives in - so the
+    original could not be re-checked without answering everything again.
+    """
+    from prodockit.bootstrap import LOCAL_CONFIG_NAME
+
+    first, second = tmp_path / "one", tmp_path / "two"
+    for directory in (first, second):
+        directory.mkdir()
+
+    assert config_path(tmp_path, cwd=first) == first / LOCAL_CONFIG_NAME
+    assert config_path(tmp_path, cwd=second) == second / LOCAL_CONFIG_NAME, (
+        "two directories, two configs - neither reaches into the other"
+    )
+
+
+def test_the_local_config_is_kept_out_of_the_reader_s_repository(tmp_path: Path) -> None:
+    """The first-push stage commits with `git add -A`, on the reasoning
+    that everything in the project was put there by bootstrap.
+
+    #373 puts the reader's own name, email and username in that same
+    directory, so that reasoning stopped holding - and the repository it
+    would be committed to is one a student submits.
+    """
+    from prodockit.bootstrap.config import keep_out_of_git
+
+    project = tmp_path / "report"
+    (project / ".git").mkdir(parents=True)
+    config = project / ".pdk-bootstrap.toml"
+    config.write_text("", encoding="utf-8")
+
+    assert keep_out_of_git(config) is True
+    ignore = (project / ".gitignore").read_text(encoding="utf-8")
+    assert ".pdk-bootstrap.toml" in ignore
+    assert "your own answers" in ignore.lower(), "say why, for whoever reads it later"
+
+    # Idempotent: a second run adds nothing.
+    assert keep_out_of_git(config) is False
+    assert (project / ".gitignore").read_text(encoding="utf-8") == ignore
+
+
+def test_no_gitignore_is_written_where_there_is_no_repository(tmp_path: Path) -> None:
+    """Nothing there can be swept into a commit, and writing a
+    `.gitignore` into somebody's home directory to solve a problem they
+    do not have would be worse than the problem."""
+    from prodockit.bootstrap.config import keep_out_of_git
+
+    config = tmp_path / ".pdk-bootstrap.toml"
+    config.write_text("", encoding="utf-8")
+
+    assert keep_out_of_git(config) is False
+    assert not (tmp_path / ".gitignore").exists()
+
+
+def test_an_existing_user_config_is_still_read(tmp_path: Path) -> None:
+    """Nothing has to be moved. A setup already answered keeps working,
+    and only a directory that has its own file stops consulting it."""
+    from prodockit.bootstrap import LOCAL_CONFIG_NAME
+    from prodockit.bootstrap.config import user_config_path
+
+    legacy = user_config_path(tmp_path)
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("", encoding="utf-8")
+    here = tmp_path / "project"
+    here.mkdir()
+
+    assert config_path(tmp_path, cwd=here) == legacy, "read where it already is"
+
+    # ...until this directory has one of its own, which then wins.
+    local = here / LOCAL_CONFIG_NAME
+    local.write_text("", encoding="utf-8")
+    assert config_path(tmp_path, cwd=here) == local
 
 
 def test_project_dir_expands_a_leading_tilde(tmp_path: Path) -> None:
