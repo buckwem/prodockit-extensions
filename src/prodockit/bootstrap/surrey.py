@@ -124,9 +124,10 @@ def namespace_for(course: str, login: str, assessment: Assessment, year: str = "
     are somewhere else. Unassessed work goes to the student's own
     namespace, where nobody else needs it and no year applies.
 
-    The year is the one the module *starts* in - a semester 2 module
-    belongs to the year after the Christmas break, and a resit belongs to
-    the year the work was set rather than the year it is being marked.
+    The year is the one the module *starts* in: a semester 2 module
+    should be the year after the Christmas break, and for SRA and LSA the
+    year should be the year prior to the year the retake is being
+    assessed.
     """
     if not assessment.assessed:
         return login_id(login)

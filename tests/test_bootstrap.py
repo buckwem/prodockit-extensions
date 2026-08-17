@@ -3794,6 +3794,30 @@ def test_surrey_derives_five_answers_from_four_questions(  # type: ignore[no-unt
     assert "report-comm058-2026-ab1234-sra" in result.output
 
 
+def test_a_first_run_stops_before_the_stage_list(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#433.
+
+    The run has just told the reader the group and repository name to
+    note down - the two things they have to take to a website - and
+    twenty-three stage lines printed after it scrolled both off the
+    screen. `--configure` already stopped there; a first `pdk boot`
+    answered the same questions and then carried on.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    result = cli_bootstrap(
+        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n2026\nn\n"
+    )
+
+    assert "Note these down:" in result.output
+    assert "report-comm058-2026-ab1234" in result.output
+    assert "MISS" not in result.output, "the stage list would scroll the note away"
+    assert "Run `prodockit bootstrap` to see what is set up." in result.output
+
+
 def test_a_first_run_takes_the_surrey_path_too(  # type: ignore[no-untyped-def]
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3850,9 +3874,9 @@ def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[
     """A cohort's work belongs in that cohort's group.
 
     Which year that is takes explaining twice over - a semester 2 module
-    belongs to the year after the Christmas break, and a resit to the year
-    the work was set rather than the year it is being marked - so both
-    sentences are on screen rather than in a handbook.
+    should be the year after the Christmas break, and for SRA and LSA the
+    year should be the year prior to the year the retake is being assessed
+    - so both sentences are in the question rather than in a handbook.
     """
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
@@ -3868,7 +3892,7 @@ def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[
     stored = load(tmp_path / "b.toml")
     assert stored.namespace == f"assessment-comm058-{surrey.default_year()}"
     assert "semester 2" in result.output, "why it is not simply this year"
-    assert "not the year it is being marked" in result.output
+    assert "prior to the year the retake is being assessed" in result.output
 
 
 def test_a_year_that_is_not_a_year_is_asked_again(  # type: ignore[no-untyped-def]
@@ -4656,7 +4680,9 @@ def test_a_stage_waiting_on_configuration_is_named_not_skipped(
     # would consume the input below - the state under test here is the
     # apply loop meeting a stage that cannot be judged yet.
     monkeypatch.setattr("prodockit.cli._ask_for_configuration", lambda config, **kw: config)
-    monkeypatch.setattr("prodockit.cli._offer_to_fill_gaps", lambda config, path: config)
+    monkeypatch.setattr(
+        "prodockit.cli._offer_to_fill_gaps", lambda config, path: (config, False)
+    )
 
     result = cli_bootstrap("--apply", input="n\n" * 40)
 

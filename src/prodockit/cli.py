@@ -139,27 +139,22 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     """
     login = surrey.login_id(
         click.prompt(
-            f"3/{_SURREY_QUESTIONS} The six-character ID you log in to Surrey with, "
-            "e.g. `ab1234`"
+            f"3/{_SURREY_QUESTIONS} Enter the 6 character email ID used for your "
+            "Surrey login. For example, if your login ID is `ab1234@surrey.ac.uk`, "
+            "enter `ab1234`"
         )
     )
     course = surrey.course_code(
         click.prompt(f"4/{_SURREY_QUESTIONS} Your course code, e.g. `comm058`")
     )
-    # The guidance sits above the prompt rather than inside it. Both
-    # sentences matter - a semester 2 module and a resit each belong to a
-    # year that is not the one a reader would first reach for - and a
-    # prompt carrying them would be too long a line to read at all.
     click.echo("")
-    click.echo(_wrapped(
-        "The year the module *starts* in. A semester 2 module belongs to the "
-        "year after the Christmas break. An SRA or LSA belongs to the year the "
-        "work was set, not the year it is being marked."
-    ))
     while True:
         year = surrey.module_year(
             click.prompt(
-                f"{5}/{_SURREY_QUESTIONS} What year does the module start in?",
+                f"5/{_SURREY_QUESTIONS} What year does the module start in? A "
+                "semester 2 module should be the year after the Christmas break. "
+                "For SRA and LSA the year should be the year prior to the year the "
+                "retake is being assessed.",
                 default=surrey.default_year(),
                 show_default=True,
             )
@@ -495,7 +490,7 @@ def _is_interactive() -> bool:
         return False
 
 
-def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> BootstrapConfig:
+def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> tuple[BootstrapConfig, bool]:
     """Offers to ask for whatever is missing, rather than naming a file.
 
     Telling a first-time reader a value is "not set in your bootstrap
@@ -505,8 +500,15 @@ def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> BootstrapConfig:
 
     Skipped when stdin is not a terminal: a scripted or piped run must
     report and exit rather than block on a prompt nobody can answer.
+
+    Returns the config and whether a *whole* configuration was answered
+    here, which the caller stops on: twenty-three stage lines printed
+    after it scroll the namespace and repository name off the screen, and
+    those are the two things a reader has to take to a website
+    (prodockit-extensions#433).
     """
     blank = missing_keys(config)
+    answered_in_full = False
     # `host` has a default, so it is never *empty* and never reported
     # missing - which is right for somebody who has a stored answer, and
     # wrong for somebody who has never been asked. On a first run there is
@@ -516,19 +518,19 @@ def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> BootstrapConfig:
     if blank and not path.exists():
         blank = ["host", *blank]
     if not blank:
-        return config
+        return config, answered_in_full
     if not _is_interactive():
         click.echo(
             f"Not configured yet ({', '.join(blank)}). Run `prodockit bootstrap "
             "--configure` to answer the questions.\n",
             err=True,
         )
-        return config
+        return config, answered_in_full
 
     click.echo(f"Some details are not set yet: {', '.join(blank)}.")
     if not click.confirm("Answer them now?", default=True):
         click.echo("Carrying on - stages needing them will show as unknown.\n")
-        return config
+        return config, answered_in_full
     # Nothing set at all is the configure arriving by a different door,
     # not a repair - so it is asked as one. Passing the fields by name
     # took the general eight questions, which is how the path written for
@@ -536,11 +538,12 @@ def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> BootstrapConfig:
     # took (prodockit-extensions#430).
     everything = {key for key, _ in PROMPTS} - {"source_url"}
     first_run = everything <= set(blank)
+    answered_in_full = first_run
     config = _ask_for_configuration(config, only=None if first_run else blank)
     save_bootstrap_config(path, config)
     keep_out_of_git(path)
     click.echo(f"\nSaved to {path}\n")
-    return config
+    return config, answered_in_full
 
 
 def _first_meaningful_line(text: str) -> str:
@@ -1081,7 +1084,13 @@ def bootstrap(
     # Offer to fill anything still blank before checking, so the run that
     # follows can actually judge the project stages rather than reporting
     # three unknowns and leaving the reader to work out what to do.
-    config = _offer_to_fill_gaps(config, path)
+    config, answered_in_full = _offer_to_fill_gaps(config, path)
+    if answered_in_full:
+        # Stopping where `--configure` stops, and for the same reason: the
+        # run has just told the reader the namespace and repository name
+        # to note down, and a stage report would scroll both away (#433).
+        click.echo("Run `prodockit bootstrap` to see what is set up.")
+        return
 
     try:
         context = build_bootstrap_context(config)
