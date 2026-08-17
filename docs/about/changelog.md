@@ -1,5 +1,56 @@
 # Release Notes
 
+## Unreleased
+
+- **Changed:** the assessment question comes before the year, and
+  unassessed work is asked for its namespace
+  ([#437](https://github.com/buckwem/prodockit-extensions/issues/437)).
+
+    The year question explains itself in terms of SRA and LSA, and
+    nothing before it had said what those are - the question that
+    introduces them, and lists them, came afterwards. They are the other
+    way round now, so the year question refers back to something already
+    on screen.
+
+    The stage question is numbered too. It used to arrive after "is this
+    assessed?" without a number of its own, so a reader counting down
+    from six met a question that was not in the count. Seven either way
+    now, and every one of them numbered.
+
+    Unassessed work is no longer asked for a year it has no use for, nor
+    for a stage it has not got. It is asked for its namespace and its
+    repository name instead, offered as `<your login>` and
+    `report-<your login>` - a project group and a name of your own are
+    perfectly ordinary answers, and a default is only an offer.
+
+- **Changed:** the Surrey questions are worded as they were asked for
+  ([#420](https://github.com/buckwem/prodockit-extensions/issues/420)).
+
+    The login question had lost its example, which was the part that made
+    it answerable - a reader logs in with `ab1234@surrey.ac.uk`, so being
+    asked for "the six-character ID" is a question about something they
+    may never have typed. The year question had lost the rule for a
+    resit, and gained a different one of mine.
+
+    Both now read as specified: the login question shows the address and
+    the six characters to take from it, and the year question says an SRA
+    or LSA should be the year *prior* to the year the retake is being
+    assessed.
+
+- **Fixed:** a first run printed the stage list over the details it had
+  just told you to note down
+  ([#433](https://github.com/buckwem/prodockit-extensions/issues/433)).
+
+    The namespace and repository name are the only two values a reader
+    has to carry from this command to a browser, and twenty-three stage
+    lines printed after them scrolled both away. `--configure` already
+    stopped after saving; a first run answered the same questions by a
+    different route and carried on.
+
+    It stops there too, and says what to run to see the stages. Filling a
+    single missing value still reports, because nothing has been
+    announced that a stage list would bury.
+
 ## 0.35.1 (2026-08-17)
 
 - **Fixed:** a first run did not take Surrey's shorter configure path
@@ -97,10 +148,10 @@
     applies.
 
     The year is the one the module *starts* in, offered as this one. Both
-    the awkward cases are said on screen rather than left to a handbook:
-    a semester 2 module belongs to the year after the Christmas break, and
-    a resit to the year the work was set rather than the year it is being
-    marked.
+    the awkward cases are in the question rather than in a handbook: a
+    semester 2 module should be the year after the Christmas break, and
+    for SRA and LSA the year should be the year prior to the year the
+    retake is being assessed.
 
     The repository, and the folder it lands in, are named
     `report-<course>-<year>-<login>`, with `-sra`/`-lsa` on the end for a

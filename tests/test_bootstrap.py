@@ -3773,7 +3773,7 @@ def test_surrey_derives_five_answers_from_four_questions(  # type: ignore[no-unt
     # host, name, login, course, year, assessed? -> yes, stage 2 (SRA)
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n2026\ny\n2\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n2\n2026\n",
     )
 
     stored = load(tmp_path / "b.toml")
@@ -3792,6 +3792,30 @@ def test_surrey_derives_five_answers_from_four_questions(  # type: ignore[no-unt
     # repository on a website afterwards.
     assert "assessment-comm058-2026-sra" in result.output
     assert "report-comm058-2026-ab1234-sra" in result.output
+
+
+def test_a_first_run_stops_before_the_stage_list(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#433.
+
+    The run has just told the reader the group and repository name to
+    note down - the two things they have to take to a website - and
+    twenty-three stage lines printed after it scrolled both off the
+    screen. `--configure` already stopped there; a first `pdk boot`
+    answered the same questions and then carried on.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    result = cli_bootstrap(
+        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n"
+    )
+
+    assert "Note these down:" in result.output
+    assert "report-ab1234" in result.output
+    assert "MISS" not in result.output, "the stage list would scroll the note away"
+    assert "Run `prodockit bootstrap` to see what is set up." in result.output
 
 
 def test_a_first_run_takes_the_surrey_path_too(  # type: ignore[no-untyped-def]
@@ -3817,13 +3841,13 @@ def test_a_first_run_takes_the_surrey_path_too(  # type: ignore[no-untyped-def]
 
     # "yes, ask me now", then Surrey's own six answers.
     result = cli_bootstrap(
-        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n2026\nn\n"
+        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n"
     )
 
     stored = load(tmp_path / "b.toml")
     assert stored.email == "ab1234@surrey.ac.uk", "derived, not asked for"
-    assert stored.project_name == "report-comm058-2026-ab1234"
-    assert "2/6" in result.output, "the short path, on a first run"
+    assert stored.project_name == "report-ab1234"
+    assert "2/7" in result.output, "the short path, on a first run"
     assert "The email address used for" not in result.output
 
 
@@ -3850,9 +3874,9 @@ def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[
     """A cohort's work belongs in that cohort's group.
 
     Which year that is takes explaining twice over - a semester 2 module
-    belongs to the year after the Christmas break, and a resit to the year
-    the work was set rather than the year it is being marked - so both
-    sentences are on screen rather than in a handbook.
+    should be the year after the Christmas break, and for SRA and LSA the
+    year should be the year prior to the year the retake is being assessed
+    - so both sentences are in the question rather than in a handbook.
     """
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
@@ -3860,7 +3884,7 @@ def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[
     # Enter accepts the offered year, so the year is never typed here.
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n\ny\n1\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n1\n\n",
     )
 
     from prodockit.bootstrap import surrey
@@ -3868,7 +3892,7 @@ def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[
     stored = load(tmp_path / "b.toml")
     assert stored.namespace == f"assessment-comm058-{surrey.default_year()}"
     assert "semester 2" in result.output, "why it is not simply this year"
-    assert "not the year it is being marked" in result.output
+    assert "prior to the year the retake is being assessed" in result.output
 
 
 def test_a_year_that_is_not_a_year_is_asked_again(  # type: ignore[no-untyped-def]
@@ -3881,11 +3905,116 @@ def test_a_year_that_is_not_a_year_is_asked_again(  # type: ignore[no-untyped-de
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n26\n2026\ny\n1\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n1\n26\n2026\n",
     )
 
     assert "Four figures" in result.output
     assert load(tmp_path / "b.toml").namespace == "assessment-comm058-2026"
+
+
+def test_the_stage_menu_comes_before_the_year_that_names_it(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#437.
+
+    The year question says what SRA and LSA should be, and nothing before
+    it had said what they are. Asking whether the work is assessed - and
+    listing the three stages - introduces them first, so the year
+    question refers back to something already on screen.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    result = cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n2\n2026\n",
+    )
+    output = result.output
+
+    assert output.index("2. SRA") < output.index("For SRA and LSA the year"), output
+    assert load(tmp_path / "b.toml").namespace == "assessment-comm058-2026-sra"
+
+
+def test_unassessed_work_is_asked_for_its_namespace_and_nothing_else(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No cohort group to go to and no attempt to record, so neither the
+    year nor the stage is asked for - and the namespace is offered as the
+    reader's own, to be typed over only by somebody who wants another."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    result = cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
+    )
+
+    stored = load(tmp_path / "b.toml")
+    assert stored.namespace == "ab1234", "offered as theirs, taken as offered"
+    assert stored.project_name == "report-ab1234"
+    assert "What year does the module start in" not in result.output
+    assert "2. SRA" not in result.output
+
+
+def test_both_paths_ask_the_same_number_of_questions(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Seven either way, and every one of them numbered.
+
+    The stage question used to arrive unnumbered after "is this
+    assessed?", so a reader counting down from six met a question that
+    was not in the count (#437).
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    assessed = cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n2\n2026\n",
+    ).output
+    (tmp_path / "b.toml").unlink()
+    unassessed = cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
+    ).output
+
+    for output in (assessed, unassessed):
+        for number in range(2, 8):
+            assert f"{number}/7" in output, f"{number}/7 missing from:\n{output}"
+
+
+def test_the_offered_repository_name_can_be_typed_over(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unassessed work is named by its owner, not derived - so the offer
+    is `report-<login>` and anything else they type is kept."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\nnotes\n",
+    )
+
+    stored = load(tmp_path / "b.toml")
+    assert stored.project_name == "notes"
+    assert stored.project_dir.endswith("notes"), "the folder follows the name"
+
+
+def test_a_namespace_typed_over_the_default_is_kept(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unassessed work is not always personal - a project group is a
+    perfectly ordinary answer, and the default is only an offer."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\ndocs-team\n\n",
+    )
+
+    assert load(tmp_path / "b.toml").namespace == "docs-team"
 
 
 def test_unassessed_surrey_work_goes_to_the_students_own_namespace(  # type: ignore[no-untyped-def]
@@ -3898,15 +4027,14 @@ def test_unassessed_surrey_work_goes_to_the_students_own_namespace(  # type: ign
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n2026\nn\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
     )
 
     stored = load(tmp_path / "b.toml")
     assert stored.namespace == "ab1234", "no year, and no group - it is their own"
-    # The *name* still carries the year, even though the namespace does
-    # not: two years of one module would otherwise be two repositories
-    # with one name between them, side by side in a personal namespace.
-    assert stored.project_name == "report-comm058-2026-ab1234"
+    # Neither a year nor a course code was asked for, so the offered name
+    # carries neither.
+    assert stored.project_name == "report-ab1234"
     # The stage *menu*, not the word: the year guidance above mentions
     # SRA and LSA, because which year a resit belongs to is exactly what
     # it is there to explain.
@@ -3925,12 +4053,12 @@ def test_the_short_path_says_why_it_is_shorter(  # type: ignore[no-untyped-def]
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n2026\nn\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
     )
 
     assert "1/8 The git host" in result.output
     assert "fills in the rest" in result.output
-    assert "2/6" in result.output
+    assert "2/7" in result.output
 
 
 def test_answering_the_host_does_not_disturb_the_other_questions(
@@ -4656,7 +4784,9 @@ def test_a_stage_waiting_on_configuration_is_named_not_skipped(
     # would consume the input below - the state under test here is the
     # apply loop meeting a stage that cannot be judged yet.
     monkeypatch.setattr("prodockit.cli._ask_for_configuration", lambda config, **kw: config)
-    monkeypatch.setattr("prodockit.cli._offer_to_fill_gaps", lambda config, path: config)
+    monkeypatch.setattr(
+        "prodockit.cli._offer_to_fill_gaps", lambda config, path: (config, False)
+    )
 
     result = cli_bootstrap("--apply", input="n\n" * 40)
 
