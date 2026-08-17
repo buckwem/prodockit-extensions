@@ -5,15 +5,18 @@
 
 The general configuration asks eight questions because it cannot know
 anything about the host. Surrey's GitLab is not general: a student's
-email, their GitLab username, the group their work belongs in and what
-the repository is called all follow from two facts - their login ID and
-their course code - plus whether the work is assessed
-(prodockit-extensions#420).
+email and GitLab username follow from their login ID, and for *assessed*
+work so do the group it belongs in and what the repository is called -
+from the course code, the year the module starts, and which attempt it
+is (prodockit-extensions#420).
+
+Unassessed work derives neither. There is no cohort group for it to go
+to and no attempt to record, so the group and the name are asked for,
+offered as the reader's own (#437).
 
 Asking for what can be derived is not neutral. Every free-text answer is
 a chance to type a namespace that does not exist, and the reader finds
-out several stages later, from a host that says only "not found". Three
-questions with known shapes replace five with none.
+out several stages later, from a host that says only "not found".
 
 Nothing here is imposed on other hosts: `github.com` and `gitlab.com`
 keep the general path, because for them these rules are simply untrue.
