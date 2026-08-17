@@ -3630,24 +3630,104 @@ def test_a_reachable_host_is_never_asked_about_twice(
     assert tested == ["gitlab.surrey.ac.uk"]
 
 
+def test_surrey_derives_five_answers_from_three_questions(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#420, end to end through the real prompts.
+
+    Login ID, course code and "is it assessed" are enough: the email, the
+    GitLab username, the group and the repository name all follow. Every
+    free-text answer removed is one fewer chance to type a namespace that
+    does not exist and find out six stages later.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    # host, name, login, course, assessed? -> yes, stage 2 (SRA)
+    result = cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n2\n",
+    )
+
+    stored = load(tmp_path / "b.toml")
+    assert stored.host == "gitlab.surrey.ac.uk"
+    assert stored.full_name == "Ada Lovelace"
+    assert stored.email == "ab1234@surrey.ac.uk"
+    assert stored.username == "ab1234"
+    assert stored.namespace == "assessment-comm058-sra"
+    assert stored.project_name == "report-comm058-ab1234"
+    assert stored.project_dir.endswith("report-comm058-ab1234")
+
+    # None of the five derived questions was put to the reader.
+    for never_asked in ("email address used", "username", "group, organisation"):
+        assert never_asked not in result.output, never_asked
+    # ...and what was derived is shown, because a student has to find the
+    # repository on a website afterwards.
+    assert "assessment-comm058-sra" in result.output
+    assert "report-comm058-ab1234" in result.output
+
+
+def test_unassessed_surrey_work_goes_to_the_students_own_namespace(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """And the stage question is not asked at all - there is no attempt
+    to record for work nobody is marking."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    result = cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n",
+    )
+
+    stored = load(tmp_path / "b.toml")
+    assert stored.namespace == "ab1234"
+    assert stored.project_name == "report-comm058-ab1234"
+    assert "SRA" not in result.output, "not asked when nothing is being assessed"
+
+
+def test_the_short_path_says_why_it_is_shorter(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The host question counts against eight, because the shorter list
+    is not known to apply until it is answered. A reader who saw `1/8`
+    and is then asked `2/5` is owed the reason."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    result = cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n",
+    )
+
+    assert "1/8 The git host" in result.output
+    assert "fills in the rest" in result.output
+    assert "2/5" in result.output
+
+
 def test_answering_the_host_does_not_disturb_the_other_questions(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A new first prompt shifts every answer by one, which is exactly
-    the kind of change that silently reassigns a name to an email."""
+    the kind of change that silently reassigns a name to an email.
+
+    Asked of github.com, which takes the general path. Surrey's own is
+    shorter and derives most of these (#420), so it cannot stand in for
+    the ordering this is about.
+    """
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
     cli_bootstrap(
         "--configure",
         input=(
-            "gitlab.surrey.ac.uk\nAda Lovelace\nal01234@surrey.ac.uk\n"
+            "github.com\nAda Lovelace\nal01234@surrey.ac.uk\n"
             "al01234\ncomm058-2026\nreport-x\n\n\n"
         ),
     )
 
     stored = load(tmp_path / "b.toml")
-    assert stored.host == "gitlab.surrey.ac.uk"
+    assert stored.host == "github.com"
     assert stored.full_name == "Ada Lovelace"
     assert stored.email == "al01234@surrey.ac.uk"
     assert stored.username == "al01234"
