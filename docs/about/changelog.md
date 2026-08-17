@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+- **Fixed:** the first push no longer forces, so a protected branch
+  accepts it ([#442](https://github.com/buckwem/prodockit-extensions/issues/442)).
+
+    A repository created with "initialize with a README" holds a commit
+    this project's history does not, so an ordinary push is rejected.
+    That was answered with `--force-with-lease`, which GitLab refuses
+    outright on a protected branch - lease or no lease, the rule is about
+    the operation:
+
+    ```text
+    remote: GitLab: You are not allowed to force push code to a protected
+    branch on this project.
+    ```
+
+    The host's commit is now merged in with `-s ours`, which takes this
+    project's tree entire and leaves the README's behind - the same
+    result the force push had, reached by a fast-forward. On an assessed
+    repository the protection is the point and is rarely the student's to
+    switch off.
+
+    It is also the safer half of the trade: a lease fails only if the
+    remote moved past the commit it names, while an ordinary push fails
+    if the remote moved at all, and cannot destroy anything even in
+    principle.
+
+- **Fixed:** the site probe can run on Windows
+  ([#443](https://github.com/buckwem/prodockit-extensions/issues/443)).
+
+    It discarded the response body into `/dev/null`, which Windows has
+    not got. curl does not read that as a device - it tries to create the
+    file, fails, and exits 23 - so the probe reported "could not check
+    ... the probe did not run" about a site that was serving, on every
+    retry, for as long as anyone kept answering yes. `NUL` is the
+    equivalent there.
+
+    Reporting could-not-establish rather than "missing" is what kept this
+    from being a wrong answer. It is still a state nothing could leave.
+
 - **Changed:** the project stage quotes what the host said
   ([#439](https://github.com/buckwem/prodockit-extensions/issues/439)).
 
