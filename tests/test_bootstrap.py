@@ -3757,23 +3757,23 @@ def test_a_reachable_host_is_never_asked_about_twice(
     assert tested == ["gitlab.surrey.ac.uk"]
 
 
-def test_surrey_derives_five_answers_from_three_questions(  # type: ignore[no-untyped-def]
+def test_surrey_derives_five_answers_from_four_questions(  # type: ignore[no-untyped-def]
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """prodockit-extensions#420, end to end through the real prompts.
 
-    Login ID, course code and "is it assessed" are enough: the email, the
-    GitLab username, the group and the repository name all follow. Every
-    free-text answer removed is one fewer chance to type a namespace that
-    does not exist and find out six stages later.
+    Login ID, course code, module year and "is it assessed" are enough:
+    the email, the GitLab username, the group and the repository name all
+    follow. Every free-text answer removed is one fewer chance to type a
+    namespace that does not exist and find out six stages later.
     """
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
-    # host, name, login, course, assessed? -> yes, stage 2 (SRA)
+    # host, name, login, course, year, assessed? -> yes, stage 2 (SRA)
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n2\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n2026\ny\n2\n",
     )
 
     stored = load(tmp_path / "b.toml")
@@ -3781,7 +3781,7 @@ def test_surrey_derives_five_answers_from_three_questions(  # type: ignore[no-un
     assert stored.full_name == "Ada Lovelace"
     assert stored.email == "ab1234@surrey.ac.uk"
     assert stored.username == "ab1234"
-    assert stored.namespace == "assessment-comm058-sra"
+    assert stored.namespace == "assessment-comm058-2026-sra"
     assert stored.project_name == "report-comm058-ab1234"
     assert stored.project_dir.endswith("report-comm058-ab1234")
 
@@ -3790,8 +3790,52 @@ def test_surrey_derives_five_answers_from_three_questions(  # type: ignore[no-un
         assert never_asked not in result.output, never_asked
     # ...and what was derived is shown, because a student has to find the
     # repository on a website afterwards.
-    assert "assessment-comm058-sra" in result.output
+    assert "assessment-comm058-2026-sra" in result.output
     assert "report-comm058-ab1234" in result.output
+
+
+def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cohort's work belongs in that cohort's group.
+
+    Which year that is takes explaining twice over - a semester 2 module
+    belongs to the year on the far side of the Christmas break, and a
+    resit to the year the work was set rather than the year it is being
+    marked - so both sentences are on screen rather than in a handbook.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    # Enter accepts the offered year, so the year is never typed here.
+    result = cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n\ny\n1\n",
+    )
+
+    from prodockit.bootstrap import surrey
+
+    stored = load(tmp_path / "b.toml")
+    assert stored.namespace == f"assessment-comm058-{surrey.default_year()}"
+    assert "semester 2" in result.output, "why it is not simply this year"
+    assert "not the year it is being marked" in result.output
+
+
+def test_a_year_that_is_not_a_year_is_asked_again(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`26` or `Jan 2026` would make a group nobody can find, and the
+    student would not know until the push failed."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    result = cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n26\n2026\ny\n1\n",
+    )
+
+    assert "Four figures" in result.output
+    assert load(tmp_path / "b.toml").namespace == "assessment-comm058-2026"
 
 
 def test_unassessed_surrey_work_goes_to_the_students_own_namespace(  # type: ignore[no-untyped-def]
@@ -3804,13 +3848,17 @@ def test_unassessed_surrey_work_goes_to_the_students_own_namespace(  # type: ign
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n2026\nn\n",
     )
 
     stored = load(tmp_path / "b.toml")
-    assert stored.namespace == "ab1234"
+    assert stored.namespace == "ab1234", "no year, and no group - it is their own"
     assert stored.project_name == "report-comm058-ab1234"
-    assert "SRA" not in result.output, "not asked when nothing is being assessed"
+    # The stage *menu*, not the word: the year guidance above mentions
+    # SRA and LSA, because which year a resit belongs to is exactly what
+    # it is there to explain.
+    assert "2. SRA" not in result.output, "not offered when nothing is being assessed"
+    assert "Which stage" not in result.output
 
 
 def test_the_short_path_says_why_it_is_shorter(  # type: ignore[no-untyped-def]
@@ -3824,12 +3872,12 @@ def test_the_short_path_says_why_it_is_shorter(  # type: ignore[no-untyped-def]
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n2026\nn\n",
     )
 
     assert "1/8 The git host" in result.output
     assert "fills in the rest" in result.output
-    assert "2/5" in result.output
+    assert "2/6" in result.output
 
 
 def test_answering_the_host_does_not_disturb_the_other_questions(

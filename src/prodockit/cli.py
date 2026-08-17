@@ -124,8 +124,8 @@ def main() -> None:
     academic documentation."""
 
 
-#: Host, name, login ID, course, assessed - and one more when it is.
-_SURREY_QUESTIONS = 5
+#: Host, name, login ID, course, year, assessed - and one more when it is.
+_SURREY_QUESTIONS = 6
 
 
 def _ask_surrey(config: BootstrapConfig) -> None:
@@ -146,8 +146,29 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     course = surrey.course_code(
         click.prompt(f"4/{_SURREY_QUESTIONS} Your course code, e.g. `comm058`")
     )
+    # The guidance sits above the prompt rather than inside it. Both
+    # sentences matter - a semester 2 module and a resit each belong to a
+    # year that is not the one a reader would first reach for - and a
+    # prompt carrying them would be too long a line to read at all.
+    click.echo("")
+    click.echo(_wrapped(
+        "The year the module *starts* in. A semester 2 module belongs to the "
+        "year on the far side of the Christmas break; an SRA or LSA belongs to "
+        "the year the work was set, not the year it is being marked."
+    ))
+    while True:
+        year = surrey.module_year(
+            click.prompt(
+                f"{5}/{_SURREY_QUESTIONS} What year does the module start in?",
+                default=surrey.default_year(),
+                show_default=True,
+            )
+        )
+        if year:
+            break
+        click.echo("  Four figures, e.g. 2026.\n", err=True)
     assessed = click.confirm(
-        f"5/{_SURREY_QUESTIONS} Is this an assessed assignment?", default=True
+        f"6/{_SURREY_QUESTIONS} Is this an assessed assignment?", default=True
     )
     assessment = surrey.Assessment.not_assessed()
     if assessed:
@@ -165,7 +186,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
 
     config.username = login
     config.email = surrey.email_for(login)
-    config.namespace = surrey.namespace_for(course, login, assessment)
+    config.namespace = surrey.namespace_for(course, login, assessment, year)
     config.project_name = surrey.project_name_for(course, login)
     config.project_dir = f"./{config.project_name}"
 

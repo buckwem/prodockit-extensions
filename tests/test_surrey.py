@@ -40,24 +40,45 @@ def test_the_email_follows_the_login_id() -> None:
     )
 
 
-def test_assessed_work_goes_to_a_group_per_course_and_attempt() -> None:
-    """One place per course and attempt, so an examiner finds every
-    submission together rather than in fifty personal namespaces."""
+def test_assessed_work_goes_to_a_group_per_course_year_and_attempt() -> None:
+    """One place per cohort, so an examiner finds this year's submissions
+    together and last year's somewhere else entirely."""
     first = surrey.Assessment.at_stage("1")
     sra = surrey.Assessment.at_stage("2")
     lsa = surrey.Assessment.at_stage("3")
+    named = ("comm058", "ab1234")
 
-    assert surrey.namespace_for("comm058", "ab1234", first) == "assessment-comm058"
-    assert surrey.namespace_for("comm058", "ab1234", sra) == "assessment-comm058-sra"
-    assert surrey.namespace_for("comm058", "ab1234", lsa) == "assessment-comm058-lsa"
+    assert surrey.namespace_for(*named, first, "2026") == "assessment-comm058-2026"
+    assert surrey.namespace_for(*named, sra, "2026") == "assessment-comm058-2026-sra"
+    assert surrey.namespace_for(*named, lsa, "2026") == "assessment-comm058-2026-lsa"
+    # The attempt comes last, after the year, so a group sorts by cohort.
+    assert surrey.namespace_for(*named, sra, "2025") < surrey.namespace_for(*named, sra, "2026")
+
+
+def test_a_year_has_to_look_like_one() -> None:
+    """A namespace built from `26` or `Jan 2026` is one nobody can find,
+    and the student would not know until the push failed."""
+    assert surrey.module_year("2026") == "2026"
+    assert surrey.module_year("  2026 ") == "2026"
+    for wrong in ("26", "Jan 2026", "", "20266", "1999", "2101"):
+        assert surrey.module_year(wrong) == "", wrong
+
+
+def test_the_year_offered_is_the_current_one() -> None:
+    """Taken as an argument rather than read from the clock inside a
+    check, so a test can say what day it is."""
+    from datetime import date
+
+    assert surrey.default_year(date(2026, 8, 17)) == "2026"
+    assert surrey.default_year(date(2027, 1, 3)) == "2027"
 
 
 def test_unassessed_work_stays_in_the_students_own_namespace() -> None:
     """Nobody else needs it, and a coursework group is for coursework."""
     assert (
-        surrey.namespace_for("comm058", "ab1234", surrey.Assessment.not_assessed())
+        surrey.namespace_for("comm058", "ab1234", surrey.Assessment.not_assessed(), "2026")
         == "ab1234"
-    )
+    ), "no group and no year - nobody else needs it"
 
 
 def test_a_stage_that_was_not_offered_is_refused() -> None:

@@ -61,18 +61,26 @@
     1/8 The git host your project lives on [gitlab.surrey.ac.uk]:
 
       gitlab.surrey.ac.uk fills in the rest from your login ID and course
-      code, so this is 5 questions rather than 8.
+      code, so this is 6 questions rather than 8.
 
-    2/5 Your full name, as it should appear on commits:
-    3/5 The six-character ID you log in to Surrey with, e.g. `ab1234`:
-    4/5 Your course code, e.g. `comm058`:
-    5/5 Is this an assessed assignment? [Y/n]:
+    2/6 Your full name, as it should appear on commits:
+    3/6 The six-character ID you log in to Surrey with, e.g. `ab1234`:
+    4/6 Your course code, e.g. `comm058`:
+    5/6 What year does the module start in? [2026]:
+    6/6 Is this an assessed assignment? [Y/n]:
     ```
 
     Your email, GitLab username, group and repository name all follow
     from those, so they are no longer asked for. Assessed work goes to
-    `assessment-<course>`, or `-sra`/`-lsa` for a resit; unassessed work
-    stays in your own namespace. The repository is
+    `assessment-<course>-<year>`, with `-sra`/`-lsa` after the year for a
+    resit; unassessed work stays in your own namespace, where no year
+    applies.
+
+    The year is the one the module *starts* in, offered as this one. Both
+    the awkward cases are said on screen rather than left to a handbook:
+    a semester 2 module belongs to the year on the far side of the
+    Christmas break, and a resit to the year the work was set rather than
+    the year it is being marked. The repository is
     `report-<course>-<login>`, and the run ends by telling you both, since
     you have to find them on a website afterwards.
 
