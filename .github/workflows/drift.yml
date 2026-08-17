@@ -104,7 +104,7 @@ jobs:
       # exists to catch would be the one it could not see.
       - name: Build with the pinned versions
         run: |
-          pip install -e ".[testing]" "zensical==0.0.53" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
+          pip install -e ".[testing]" "zensical==0.0.55" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
           prodockit pdf
           zensical build --clean --strict
           mkdir -p /tmp/pinned

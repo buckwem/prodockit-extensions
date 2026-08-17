@@ -140,7 +140,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
 
     Pandoc **3.1.3** accepted that markup as a code block. Pandoc **3.10**
     does not. Nothing in this repository changed - not Zensical, which
-    emits byte-identical markup from 0.0.50 through 0.0.53, and not
+    emits byte-identical markup from 0.0.50 through 0.0.55, and not
     prodockit, which had never touched the construct.
 
     When the reader gives up, the `<pre>` is absent from what Pandoc hands
