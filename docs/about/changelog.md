@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+- **Fixed:** Pandoc and Node are no longer reported missing when they are
+  installed ([#450](https://github.com/buckwem/prodockit-extensions/issues/450)).
+
+    Both checks ran a bare `pandoc`/`node`, so they saw only this
+    process's PATH. A `winget install` sets the *machine's* PATH and a
+    running process never receives it - so the check failed on precisely
+    the machine that had just installed the software, while git and VS
+    Code, two stages above in the same listing, reported themselves found
+    by full path.
+
+    Not merely cosmetic: the stage then offers to install what is already
+    there, winget answers "already up to date", and the check fails
+    again, so the run cannot move on.
+
+- **Fixed:** `sync-repo` finds git the way the stages do
+  ([#451](https://github.com/buckwem/prodockit-extensions/issues/451)).
+
+    It invoked git by bare name and died on the same stale PATH:
+
+    ```text
+    Error: could not run git: [WinError 2] The system cannot find the file specified
+    ```
+
+    The same applied to the Jinja macros and the source bundle. All of
+    them now resolve through one list of install locations, shared with
+    the bootstrap stages - two lists would be two answers about one
+    machine, which is how these drifted apart in the first place.
+
+- **Fixed:** a sync check that could not run is no longer reported as a
+  difference ([#451](https://github.com/buckwem/prodockit-extensions/issues/451)).
+
+    `sync-repo --check` exits non-zero both for "there is a difference"
+    and for "I could not look", and the stage said *"origin is right, but
+    the project config still needs syncing"* to both - naming a cause
+    nobody had established and sending the reader to run something that
+    would not have fixed it. It now says what actually stopped the check.
+
+
 - **Fixed:** the site stage speaks about the host the reader is actually
   on ([#444](https://github.com/buckwem/prodockit-extensions/issues/444)).
 

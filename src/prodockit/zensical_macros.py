@@ -36,6 +36,7 @@ from urllib.parse import urlparse, urlunparse
 
 from prodockit.headings import prescan
 from prodockit.settings import flatten_nav, reference_style_values
+from prodockit.tools import find
 from prodockit.wordcount import compute_word_count
 
 # Front matter flag excluding a page from the site-wide word count - see
@@ -95,7 +96,7 @@ def _get_repo_url() -> str:
     guaranteed to - match the configured value."""
     try:
         remote_url = subprocess.check_output(
-            ["git", "config", "--get", "remote.origin.url"],
+            [find("git"), "config", "--get", "remote.origin.url"],
             stderr=subprocess.DEVNULL,
         ).decode("utf-8").strip()
     except Exception:
@@ -136,7 +137,7 @@ def _get_release() -> str:
     try:
         return (
             subprocess.check_output(
-                ["git", "describe", "--tags", "--abbrev=0"],
+                [find("git"), "describe", "--tags", "--abbrev=0"],
                 stderr=subprocess.DEVNULL,
             )
             .decode("utf-8")
@@ -156,7 +157,7 @@ def _repository_is_shallow() -> bool:
     try:
         return (
             subprocess.check_output(
-                ["git", "rev-parse", "--is-shallow-repository"],
+                [find("git"), "rev-parse", "--is-shallow-repository"],
                 stderr=subprocess.DEVNULL,
             )
             .decode("utf-8")

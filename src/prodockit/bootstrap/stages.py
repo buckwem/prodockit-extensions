@@ -35,7 +35,7 @@ import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from prodockit import mathjax
+from prodockit import mathjax, tools
 from prodockit.bootstrap.model import (
     MACOS,
     SSH_NO_PROMPT_OPTIONS,
@@ -325,13 +325,12 @@ def _vscode_app_installed(context: Context) -> bool:
 #: `_VSCODE_APP_PATHS`: the installer adds it to `PATH`, but `PATH` is
 #: read when a process starts, so a shell that has not been reopened
 #: since cannot see it (prodockit-extensions#390).
-_GIT_APP_PATHS = {
-    WINDOWS: (
-        r"C:\Program Files\Git\cmd\git.exe",
-        r"C:\Program Files (x86)\Git\cmd\git.exe",
-        r"~\AppData\Local\Programs\Git\cmd\git.exe",
-    ),
-}
+#: Read from `prodockit.tools`, which `sync-repo` and the macros use
+#: too. Two lists would be two answers to the same question about the
+#: same machine, and #451 was exactly that divergence: the stages found
+#: git by full path while `sync-repo`, looking only at PATH, could not
+#: run it at all.
+_GIT_APP_PATHS = {WINDOWS: tools.WINDOWS_PATHS["git"]}
 
 
 def git_command(context: Context) -> str:
@@ -360,6 +359,44 @@ def git_command(context: Context) -> str:
 def _git_is_available(context: Context) -> bool:
     """Whether git can be run at all, by either route."""
     return _installed(context, "git") or git_command(context) != "git"
+
+
+def _found_where_installed(context: Context, name: str) -> str:
+    """`name`, or its full path when this process's PATH cannot see it.
+
+    The same answer as `git_command` and `vscode_command`, for the same
+    reason and by the same list (prodockit-extensions#450). A `winget
+    install` updates the machine's PATH; a process already running does
+    not get it - so `pandoc --version` failed on the machine that had
+    just installed pandoc, and the stage reported "pandoc is not
+    installed" about software that was there.
+
+    That is not merely a cosmetic miss. The stage then offers to install
+    it, winget answers "already up to date", and the check fails again -
+    so the run cannot move on at all (#390 records this happening with
+    git).
+    """
+    if _installed(context, name):
+        return name
+    for path in tools.candidates(name, context.home):
+        if context.exists(path):
+            return str(path)
+    return name
+
+
+def pandoc_command(context: Context) -> str:
+    """How to invoke pandoc: `pandoc`, or where winget put it."""
+    return _found_where_installed(context, "pandoc")
+
+
+def node_command(context: Context) -> str:
+    """How to invoke node: `node`, or where winget put it.
+
+    `npm_command` already exists for node's other Windows problem -
+    `CreateProcess` never applies `PATHEXT`, so a bare `npm` cannot find
+    `npm.cmd` (#371). This is the missing half of that pair.
+    """
+    return _found_where_installed(context, "node")
 
 
 #: Where each platform's install puts the `code` CLI itself, as opposed
@@ -1723,8 +1760,39 @@ def _check_remote(context: Context) -> CheckResult:
         [*_prodockit_command(), "sync-repo", "--check"], cwd=str(project)
     )
     if not synced.ok:
+        # Three results, not two. `--check` exits non-zero both for
+        # "there is a difference" and for "I could not look", and saying
+        # the same sentence to both named a cause nobody had established
+        # (prodockit-extensions#451):
+        #
+        #   Error: could not run git: [WinError 2] The system cannot
+        #   find the file specified
+        #
+        # reached the reader as "the project config still needs
+        # syncing", which is not something running sync-repo would fix.
+        if (broke := _sync_check_broke(synced)) is not None:
+            return _wrong(f"could not check whether the project config is synced - {broke}")
         return _wrong("origin is right, but the project config still needs syncing")
     return _ok(wanted)
+
+
+#: What `sync-repo` says when it could not carry the check out at all,
+#: as opposed to carrying it out and finding a difference. Its own error
+#: prefix, so this does not have to guess from an exit status.
+_SYNC_CHECK_FAILED = "Error:"
+
+
+def _sync_check_broke(result: CommandResult) -> str | None:
+    """What stopped the check, or None if it actually ran.
+
+    Read from what it said rather than from the exit status, because the
+    status is the thing that cannot tell these apart.
+    """
+    for line in f"{result.stderr}\n{result.stdout}".splitlines():
+        said = line.strip()
+        if said.startswith(_SYNC_CHECK_FAILED):
+            return said.removeprefix(_SYNC_CHECK_FAILED).strip() or None
+    return None
 
 
 def _plan_remote(context: Context) -> Plan:
@@ -1856,7 +1924,7 @@ def _pandoc_version(stdout: str) -> str | None:
 
 
 def _check_pandoc(context: Context) -> CheckResult:
-    result = context.runner.run(["pandoc", "--version"])
+    result = context.runner.run([pandoc_command(context), "--version"])
     if not result.ok:
         return _missing("pandoc is not installed")
     version = _pandoc_version(result.stdout)
@@ -2281,6 +2349,8 @@ def _plan_project_env(context: Context) -> Plan:
 #: however right `PATH` is.
 _RESOLVE_BEFORE_RUNNING: dict[str, Callable[[Context], str]] = {
     "npm": npm_command,
+    "pandoc": pandoc_command,
+    "node": node_command,
     "code": lambda context: vscode_command(context) or "code",
 }
 
@@ -2306,7 +2376,7 @@ def resolve_for_execution(context: Context, command: Sequence[str]) -> list[str]
 
 
 def _check_node(context: Context) -> CheckResult:
-    result = context.runner.run(["node", "--version"])
+    result = context.runner.run([node_command(context), "--version"])
     if not result.ok:
         return _missing("node is not installed")
     raw = result.stdout.strip().lstrip("v")

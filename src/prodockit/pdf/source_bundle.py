@@ -33,6 +33,7 @@ import subprocess
 import tempfile
 
 from prodockit.sync_repo import get_remote_url
+from prodockit.tools import find
 
 
 class SourceBundleError(RuntimeError):
@@ -124,7 +125,7 @@ def discover_source_files(root: str = ".") -> list[str]:
     """
     try:
         result = subprocess.run(
-            ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+            [find("git"), "ls-files", "--cached", "--others", "--exclude-standard"],
             cwd=root,
             capture_output=True,
             text=True,
