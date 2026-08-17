@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Fixed:** the ssh-agent step ended the run without looking
+  ([#435](https://github.com/buckwem/prodockit-extensions/issues/435)).
+
+    0.34.0 stopped that step looping, but overshot: the moment you said
+    the service was started, the run ended and asked you to start again.
+
+    A started service usually *is* visible to the next command that
+    looks - `ssh-add` opens the agent's pipe afresh each time it runs -
+    so the check is given its chance, and a run that can carry on carries
+    on. Only where it still cannot be seen does the run end, because
+    asking again would put the same question to the same unchanged
+    answer.
+
+    The message no longer says to open a new window either. There was
+    never anything a new window would do that running it again would not.
+
 - **Changed:** the assessment question comes before the year, and
   unassessed work is asked for its namespace
   ([#437](https://github.com/buckwem/prodockit-extensions/issues/437)).
