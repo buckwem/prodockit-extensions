@@ -1592,6 +1592,33 @@ def _plan_fresh_history(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
+#: Lines git prints around the host's own message, which say nothing a
+#: reader can act on.
+_GIT_NOISE = (
+    "fatal: could not read from remote repository",
+    "please make sure you have the correct access rights",
+    "and the repository exists",
+    "remote:",
+)
+
+
+def host_said(result: CommandResult) -> str:
+    """The host's own words from a failed git command, or "".
+
+    A refusal is worth quoting rather than paraphrasing: "could not be
+    found or you don't have permission to view it" and "Permission
+    denied (publickey)" need different things from the reader, and a
+    summary that covers both chooses neither
+    (prodockit-extensions#439).
+    """
+    for line in f"{result.stderr}\n{result.stdout}".splitlines():
+        said = line.strip().removeprefix("remote:").strip()
+        if not said or said.lower().startswith(_GIT_NOISE):
+            continue
+        return said
+    return ""
+
+
 def _check_own_project(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
         return unknown
@@ -1617,7 +1644,9 @@ def _check_own_project(context: Context) -> CheckResult:
     # *and* for one your key cannot see, and GitLab covers both in a
     # single sentence - so the honest report is what was seen, and the
     # plan warns before anything is created (prodockit-extensions#377).
-    return _missing(f"nothing visible at {url}")
+    said = host_said(result)
+    reply = f" - {context.host.hostname} said: {said}" if said else ""
+    return _missing(f"nothing visible at {url}{reply}")
 
 
 def _plan_own_project(context: Context) -> Plan:

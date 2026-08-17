@@ -6402,6 +6402,54 @@ def test_a_probe_that_did_not_run_is_not_an_answer(tmp_path: Path) -> None:
         assert "not answering yet" not in result.detail
 
 
+def test_the_host_s_own_refusal_is_quoted(tmp_path: Path) -> None:
+    """prodockit-extensions#439, reported from a real run.
+
+        not there yet - nothing visible at git@gitlab.surrey.ac.uk:...
+        Try again? [Y/n]:
+        not there yet - nothing visible at git@gitlab.surrey.ac.uk:...
+
+    Twice, identically, with nothing new either time - because the host
+    had said something specific and it was thrown away. "Could not be
+    found or you don't have permission" and "Permission denied
+    (publickey)" need different things from the reader: check the group,
+    ask for access, or fix the key.
+    """
+    stage = next(s for s in STAGES if s.id == "own-project")
+    refusals = {
+        "could not be found or you don't have permission to view it": (
+            "remote: The project you were looking for could not be found or you "
+            "don't have permission to view it.\nfatal: Could not read from remote "
+            "repository."
+        ),
+        "Permission denied (publickey)": (
+            "git@gitlab.surrey.ac.uk: Permission denied (publickey).\n"
+            "fatal: Could not read from remote repository."
+        ),
+    }
+    for expected, stderr in refusals.items():
+        machine = _ready_machine(tmp_path) | {"git ls-remote": CommandResult(128, stderr=stderr)}
+        result = stage.check(_context(tmp_path, runner=FakeRunner(machine)))
+
+        assert result.status is Status.MISSING
+        assert expected in result.detail, result.detail
+        # Still not claiming to know which it is - that is #377's point.
+        assert "nothing visible at" in result.detail
+        # And not the wrapper lines, which say nothing to act on.
+        assert "Could not read from remote repository" not in result.detail
+
+
+def test_a_silent_refusal_says_only_what_is_known(tmp_path: Path) -> None:
+    """A host that says nothing gets no words put in its mouth."""
+    machine = _ready_machine(tmp_path) | {"git ls-remote": CommandResult(128)}
+    result = next(s for s in STAGES if s.id == "own-project").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.detail.endswith(".git"), result.detail
+    assert "said:" not in result.detail
+
+
 def test_being_unable_to_see_a_repository_is_not_permission_to_make_one(
     tmp_path: Path,
 ) -> None:
