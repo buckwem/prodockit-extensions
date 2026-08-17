@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.35.0 (2026-08-17)
 
 - **Changed:** VS Code is driven from inside the application when `code`
   is not on PATH

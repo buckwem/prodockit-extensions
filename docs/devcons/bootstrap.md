@@ -290,10 +290,15 @@ run the activation script.
 pdk boot
 ```
 
-The first run has eight questions to ask - your name, your email, the
-host, your username, the group the project lives under, its name, and
-where to put it - and saves the answers beside the project as
-`.pdk-bootstrap.toml`. Then it reports every stage, and changes nothing.
+The first run asks what it needs and saves the answers beside the project
+as `.pdk-bootstrap.toml`. Then it reports every stage, and changes
+nothing.
+
+On `gitlab.surrey.ac.uk` that is six questions - your name, the ID you
+log in with, your course code, the year the module starts and whether it
+is assessed - because your email, your GitLab username, the group and
+the repository name all follow from those. On any other host it is
+eight, since none of that can be derived there.
 
 `pdk` is `prodockit` and `boot` is `bootstrap`, so
 `prodockit bootstrap` is the same command typed in full.
