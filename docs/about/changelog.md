@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.36.1 (2026-08-17)
 
 - Zensical pinned to **0.0.55** (from 0.0.53), after building the site
   and the PDF under both and diffing the results.
