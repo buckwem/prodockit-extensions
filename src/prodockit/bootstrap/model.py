@@ -127,6 +127,26 @@ class Host:
     #: numbered steps. GitHub needs Pages switching on by hand; GitLab's
     #: CI job configures its own, so this is empty there.
     after_creating_steps: tuple[str, ...] = ()
+    #: How a reader puts the site's address on the project's front page,
+    #: so something links to it. GitHub has a field for exactly this;
+    #: GitLab has none, and the README is the front page there - a
+    #: difference in the interface, so it belongs here rather than as a
+    #: branch in the stage (prodockit-extensions#444).
+    site_link_steps: tuple[str, ...] = ()
+    #: Who can read the published site, which is *not* the same question
+    #: as who can read the project.
+    #:
+    #: The hosts genuinely disagree, and getting it wrong is worse than
+    #: saying nothing: GitHub publishes a public site from a private
+    #: repository below an Enterprise plan, while GitLab keeps a private
+    #: project's site behind its own sign-in. Telling a Surrey student
+    #: their site is readable by anyone with the link is false, and
+    #: contradicts what the project stage told them (#444).
+    site_visibility_note: str = ""
+    #: Where to look when a build succeeds and nothing is served. The one
+    #: case the workflow cannot fix, and it is a different place on each
+    #: host.
+    site_missing_note: str = ""
     supported: bool = True
 
     @property
@@ -161,6 +181,30 @@ SURREY_GITLAB = Host(
         "key stops `git push` with a permission error that reads like a "
         "misconfigured key rather than an expired one, months after you set it up.",
     ),
+    # GitLab has no field for a project's website - there is no 'About'
+    # panel and no tick-box - so the README is the only thing on the
+    # project's front page that can carry the link.
+    site_link_steps=(
+        "Once it is up, put the link in README.md and push it. That is what "
+        "shows on the project's front page here; nothing else links to your "
+        "site.",
+    ),
+    # Measured rather than assumed: an anonymous request to a published
+    # Surrey Pages site answers 302 to GitLab's own OAuth consent page,
+    # which is what the site check reads as "published, behind a login".
+    site_visibility_note=(
+        "Reaching the site means signing in to gitlab.surrey.ac.uk and "
+        "authorising GitLab Pages against your account, so only people with "
+        "a university login can read it. A private project keeps a private "
+        "site here - unlike GitHub, where the site is public whatever the "
+        "project is."
+    ),
+    site_missing_note=(
+        "If the site is still missing after a successful build, check "
+        "Build > Pipelines for a failed `pages` job, and Deploy > Pages for "
+        "the address the instance actually publishes at - an administrator "
+        "chooses that, and it is the one case the pipeline cannot fix."
+    ),
 )
 
 #: gitlab.com. Supported, though not yet run end to end - Surrey's own
@@ -189,6 +233,28 @@ GITLAB_COM = Host(
         "misconfigured key rather than an expired one, months after you set it up.",
     ),
     pages_url="https://{namespace}.gitlab.io/{project}/",
+    site_link_steps=(
+        "Once it is up, put the link in README.md and push it. That is what "
+        "shows on the project's front page here; nothing else links to your "
+        "site.",
+    ),
+    # Deliberately not "the site will be public". GitLab has Pages access
+    # control, and a private project's site follows it - so the GitHub
+    # sentence would be wrong here in the direction that matters, telling
+    # a reader their drafts are readable when they are not, or the
+    # reverse.
+    site_visibility_note=(
+        "Who can read the site follows the project's own Pages setting, "
+        "under Settings > General > Visibility - not the repository's "
+        "visibility on its own. Check it there rather than assuming either "
+        "way, and treat anything in docs/ as published from the moment it "
+        "builds."
+    ),
+    site_missing_note=(
+        "If the site is still missing after a successful build, check "
+        "Build > Pipelines for a failed `pages` job, and Deploy > Pages for "
+        "the address it publishes at."
+    ),
 )
 
 GITHUB_COM = Host(
@@ -217,6 +283,23 @@ GITHUB_COM = Host(
         "Without this the documentation workflow cannot publish, and every "
         "push fails at 'Get Pages site failed' - which names the site "
         "rather than the setting that is missing.",
+    ),
+    site_link_steps=(
+        "Once it is up, put the link on the repository's front page: open "
+        "the repository, click the gear beside 'About', and tick 'Use your "
+        "GitHub Pages website'. Nothing links to your site from there "
+        "otherwise.",
+    ),
+    site_visibility_note=(
+        "The site will be public. A private repository does not make a "
+        "private site - only a GitHub Enterprise plan can restrict who "
+        "reads one - so anything in docs/ is readable by anyone with the "
+        "link from the moment it builds."
+    ),
+    site_missing_note=(
+        "If the site is still missing after a successful build, check "
+        "Settings > Pages: an organisation policy can forbid Pages "
+        "entirely, and that is the one case the workflow cannot fix."
     ),
     project_visibility=(
         "Set visibility to Private.\n"

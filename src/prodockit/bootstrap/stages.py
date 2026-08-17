@@ -2919,7 +2919,20 @@ def _check_site_published(context: Context) -> CheckResult:
 
 
 def _plan_site_published(context: Context) -> Plan:
-    """Set the front page's link, once there is a site to link to."""
+    """Set the front page's link, once there is a site to link to.
+
+    Every sentence past the first is the host's own, not this stage's.
+    They used to be written here as literals, all of them describing
+    GitHub - so a GitLab reader was sent looking for a gear beside
+    'About' that does not exist, and told their site was readable by
+    anyone with the link when reaching it needs a university login
+    (prodockit-extensions#444).
+
+    That last one is why this is values rather than a branch: it is not
+    merely wrong, it contradicts what the project stage told the same
+    reader about the same project, and both cannot be true.
+    """
+    host = context.host
     url = site_url(context)
     return Plan(
         instructions=[
@@ -2928,18 +2941,10 @@ def _plan_site_published(context: Context) -> Plan:
             # call, and asking a reader to install and sign into a command
             # line for one field was four ways to go wrong for a link they
             # can paste in ten seconds (#357).
-            "Once it is up, put the link on the repository's front page: open "
-            "the repository, click the gear beside 'About', and tick 'Use your "
-            "GitHub Pages website'. Nothing links to your site from there "
-            "otherwise.",
+            *host.site_link_steps,
             "It enables Pages itself, so there is nothing to switch on.",
-            "The site will be public. A private repository does not make a "
-            "private site - only a GitHub Enterprise plan can restrict who "
-            "reads one - so anything in docs/ is readable by anyone with the "
-            "link from the moment it builds.",
-            "If the site is still missing after a successful build, check "
-            "Settings > Pages: an organisation policy can forbid Pages "
-            "entirely, and that is the one case the workflow cannot fix.",
+            *([host.site_visibility_note] if host.site_visibility_note else []),
+            *([host.site_missing_note] if host.site_missing_note else []),
         ],
         confirm="Has your first build published the site?",
     )
