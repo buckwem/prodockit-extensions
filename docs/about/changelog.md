@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- Zensical pinned to **0.0.55** (from 0.0.53), after building the site
+  and the PDF under both and diffing the results.
+
+    The PDF is **byte-identical** - 1,469,185 bytes either side. The site
+    changes 23 HTML files, each by exactly two lines: the `generator`
+    meta tag and the JavaScript bundle's hashed filename. No page differs
+    by more than that, and the stylesheets, workers and licence files are
+    byte-identical - so unlike 0.0.52, which redrew the GitHub brand icon
+    across every page, nothing rendered changes here at all.
+
+    The bundle grew 624 bytes (165,840 -> 166,464), which is the `ui`
+    v0.0.25 bump in 0.0.54.
+
+    Upstream between the two: peak memory cut 8-10x, a `webbrowser` CVE
+    dependency bump, `mike` defaults corrected, an autorefs
+    false-positive fixed, code-span detection fixed in the reference
+    extractor, and surrounding whitespace now ignored in inline link
+    targets. Three of those touch Markdown and reference handling and so
+    could have changed the output; measurably they did not.
+
+    The coupling pass in
+    [Zensical coupling](../devcons/zensical-coupling.md#coupling-regression-testing)
+    was run rather than assumed: full suite green (1157), the integration
+    tests that exercise the per-page render context green (70), the
+    `zensical/__init__.py` export surface unchanged, and the count of
+    unresolved `??` cross-references identical either side.
+
 - **Fixed:** the first push no longer forces, so a protected branch
   accepts it ([#442](https://github.com/buckwem/prodockit-extensions/issues/442)).
 
