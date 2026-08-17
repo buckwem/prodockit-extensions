@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **Changed:** `prodockit pins` watches `prodockit` itself
+  ([prodockit-template#173](https://github.com/buckwem/prodockit-template/issues/173)).
+
+    Its absence from the managed set had exactly the consequence the set
+    exists to prevent: `prodockit-template` pinned `prodockit==0.35.0`
+    and drifted two releases behind with nothing noticing, because the
+    one command that looks at pins was not looking at this one. Moving it
+    needed `-p prodockit` typed by hand, which is the step nobody
+    remembers to take.
+
+    Adding it found a second case immediately: `prodockit-userguide`
+    pins `prodockit[index]==0.21.0`, fifteen releases behind.
+
+    Safe in prodockit's own repository, where the name is the project's
+    identity rather than a dependency: the pattern requires a version
+    operator after the name, so `name = "prodockit"` and the adjacent
+    `version` are not declarations. Without that, the command would offer
+    to rewrite the release number of the package being built - which is
+    why there is now a test saying so.
+
+
 - **Changed:** pandoc is pinned on Windows, and a local pandoc that
   differs from the builds' is named
   ([#454](https://github.com/buckwem/prodockit-extensions/issues/454)).

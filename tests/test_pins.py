@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
+from prodockit import pins
 from prodockit.cli import main
 from prodockit.pins import (
     PackageState,
@@ -693,3 +694,68 @@ def test_set_still_rejects_a_package_that_is_not_managed(tmp_path: Path) -> None
 
     assert result.exit_code == 1
     assert "not being managed" in result.output
+
+
+def test_prodockit_is_watched_like_every_other_build_input() -> None:
+    """prodockit-template#173.
+
+    Its absence from the managed set had exactly the consequence the set
+    exists to prevent: the template pinned `prodockit==0.35.0` and
+    drifted two releases behind with nothing noticing, because the one
+    command that looks at pins was not looking at this one. Moving it
+    needed `-p prodockit` typed by hand, which is the step nobody
+    remembers.
+
+    On the merits too: prodockit renders the PDF and generates the
+    back-of-book index, so its version changes published output as
+    directly as Zensical's does.
+    """
+    assert "prodockit" in pins.DEFAULT_PACKAGES
+
+
+def test_this_projects_own_metadata_is_not_a_pin(tmp_path: Path) -> None:
+    """The risk of adding prodockit to the default set.
+
+    In prodockit's *own* repository the name appears in `pyproject.toml`
+    as the project's identity, not as a dependency. Matching `name =
+    "prodockit"` or the adjacent `version = "0.36.2"` would have
+    `prodockit pins` offer to rewrite the release number of the package
+    being built.
+
+    The specifier pattern requires an operator after the name, so
+    neither is a declaration - asserted here because nothing else would
+    catch it until a release was quietly renumbered.
+    """
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "prodockit"\nversion = "0.36.2"\n'
+        'dependencies = ["zensical>=0.0.55"]\n',
+        encoding="utf-8",
+    )
+
+    found = pins.discover(str(tmp_path))
+
+    assert found["prodockit"].sites == [], found["prodockit"].sites
+    assert [s.version for s in found["zensical"].sites] == ["0.0.55"]
+
+
+def test_an_extra_survives_being_repinned(tmp_path: Path) -> None:
+    """`prodockit[index]` is how the User Guide declares it, and the
+    extra is what pulls in pymupdf for the back-of-book index. Dropping
+    it on rewrite would stop the index being generated, with no error
+    anywhere - so this matters more now that prodockit is repinned
+    automatically rather than by hand.
+    """
+    (tmp_path / "requirements.txt").write_text(
+        "prodockit[index]==0.21.0\n", encoding="utf-8"
+    )
+
+    result = CliRunner().invoke(
+        main,
+        ["pins", "--root", str(tmp_path), "--offline", "--set", "prodockit=0.36.2"],
+        input="",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "requirements.txt").read_text(encoding="utf-8") == (
+        "prodockit[index]==0.36.2\n"
+    )

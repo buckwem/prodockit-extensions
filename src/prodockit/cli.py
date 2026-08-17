@@ -1472,7 +1472,7 @@ def init_tools_command(tools_dir: str, mermaid: bool, mathjax: bool, force: bool
     multiple=True,
     help=(
         "Package to manage, repeatable. Defaults to zensical, weasyprint, "
-        "markdown, pymdown-extensions and pandoc - the build inputs whose "
+        "prodockit, markdown, pymdown-extensions and pandoc - the build inputs whose "
         "version changes this project's own published output."
     ),
 )
