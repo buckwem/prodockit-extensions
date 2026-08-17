@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.35.1 (2026-08-17)
 
 - **Fixed:** a first run did not take Surrey's shorter configure path
   ([#430](https://github.com/buckwem/prodockit-extensions/issues/430)).
