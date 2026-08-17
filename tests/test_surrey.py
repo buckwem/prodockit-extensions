@@ -89,10 +89,27 @@ def test_a_stage_that_was_not_offered_is_refused() -> None:
             surrey.Assessment.at_stage(typed)
 
 
-def test_the_project_is_named_for_its_course_and_its_owner() -> None:
-    """Course first so a group of submissions sorts together; the ID last
-    so a marker reading a list finds a name where they expect one."""
-    assert surrey.project_name_for("comm058", "ab1234") == "report-comm058-ab1234"
-    assert surrey.project_name_for("COMM058", "AB1234@surrey.ac.uk") == (
-        "report-comm058-ab1234"
+def test_the_project_is_named_for_its_course_cohort_and_owner() -> None:
+    """Course first so a listing groups by module, the year next so one
+    cohort sorts together within it, and the ID last so a marker reading
+    down a column finds a name where they expect one."""
+    assert (
+        surrey.project_name_for("comm058", "ab1234", "2026")
+        == "report-comm058-2026-ab1234"
+    )
+    assert surrey.project_name_for("COMM058", "AB1234@surrey.ac.uk", "2026") == (
+        "report-comm058-2026-ab1234"
     ), "one course however it is capitalised"
+
+
+def test_the_name_carries_the_year_where_the_namespace_does_not() -> None:
+    """Unassessed work lives in the student's own namespace, so the year
+    has nowhere else to go - and two years of one module would be two
+    repositories with one name between them."""
+    unassessed = surrey.Assessment.not_assessed()
+
+    assert surrey.namespace_for("comm058", "ab1234", unassessed, "2026") == "ab1234"
+    assert (
+        surrey.project_name_for("comm058", "ab1234", "2026")
+        == "report-comm058-2026-ab1234"
+    )

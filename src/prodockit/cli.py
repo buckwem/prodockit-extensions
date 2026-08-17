@@ -187,7 +187,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     config.username = login
     config.email = surrey.email_for(login)
     config.namespace = surrey.namespace_for(course, login, assessment, year)
-    config.project_name = surrey.project_name_for(course, login)
+    config.project_name = surrey.project_name_for(course, login, year)
     config.project_dir = f"./{config.project_name}"
 
     # Bulleted rather than numbered: these are three facts to note, not

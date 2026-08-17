@@ -137,10 +137,20 @@ def namespace_for(course: str, login: str, assessment: Assessment, year: str = "
     return "-".join(parts) + assessment.stage_suffix
 
 
-def project_name_for(course: str, login: str) -> str:
-    """`report-comm058-ab1234` - the course and whose it is, in that order.
+def project_name_for(course: str, login: str, year: str = "") -> str:
+    """`report-comm058-2026-ab1234` - course, cohort, and whose it is.
 
-    The course first so a group of submissions sorts together, and the ID
-    last so a marker reading a list finds a name where they expect one.
+    In that order for the same reason the namespace is: the course first
+    so a listing groups by module, the year next so one cohort sorts
+    together within it, and the ID last so a marker reading down a column
+    finds a name where they expect one.
+
+    The name carries the year even for unassessed work, where the
+    namespace does not. A student keeps their own repositories side by
+    side in one namespace, and two years of the same module would
+    otherwise be two repositories with one name between them.
     """
-    return f"report-{course_code(course)}-{login_id(login)}"
+    parts = ["report", course_code(course)]
+    if year.strip():
+        parts.append(year.strip())
+    return "-".join([*parts, login_id(login)])

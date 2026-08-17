@@ -80,7 +80,14 @@
     the awkward cases are said on screen rather than left to a handbook:
     a semester 2 module belongs to the year on the far side of the
     Christmas break, and a resit to the year the work was set rather than
-    the year it is being marked. The repository is
+    the year it is being marked.
+
+    The repository, and the folder it lands in, are named
+    `report-<course>-<year>-<login>`. The name carries the year even for
+    unassessed work, where the namespace does not: those repositories sit
+    side by side in one personal namespace, and two years of the same
+    module would otherwise be two repositories with one name between
+    them. The repository is
     `report-<course>-<login>`, and the run ends by telling you both, since
     you have to find them on a website afterwards.
 
