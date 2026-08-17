@@ -1,5 +1,27 @@
 # Release Notes
 
+## Unreleased
+
+- **Fixed:** unassessed work is no longer asked for a course code
+  ([#458](https://github.com/buckwem/prodockit-extensions/issues/458)).
+
+    The Surrey questions asked for the course code one question *before*
+    learning whether the work was assessed at all - so an unassessed run
+    answered it and the answer was thrown away. Neither `namespace_for()`
+    nor `project_name_for()` runs on that path; it asks for the namespace
+    and the repository name directly instead.
+
+    "Is this an assessed assignment?" now comes first, and the course
+    code is asked only where it is used.
+
+    The two paths necessarily total different numbers once they diverge:
+    assessed asks three more (course, stage, year) and stays at seven,
+    unassessed asks two more (namespace, repository) and drops to six. The
+    change of total is announced where it happens, the same way the host
+    question already announces the eight-to-seven switch when Surrey's
+    GitLab is chosen - a reader who has just seen `4/7` is owed the reason
+    the next line reads `5/6`.
+
 ## 0.36.3 (2026-08-17)
 
 - **Changed:** `prodockit pins` watches `prodockit` itself
