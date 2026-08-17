@@ -3794,6 +3794,56 @@ def test_surrey_derives_five_answers_from_four_questions(  # type: ignore[no-unt
     assert "report-comm058-2026-ab1234-sra" in result.output
 
 
+def test_a_first_run_takes_the_surrey_path_too(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prodockit-extensions#430, reported from Windows on 0.35.0.
+
+        Some details are not set yet: host, full_name, email, ...
+        1/8 The git host your project lives on [gitlab.surrey.ac.uk]:
+        3/8 The email address used for your gitlab.surrey.ac.uk login []:
+
+    The shorter path was chosen only when `--configure` asked for
+    everything. A first run does not arrive that way: nothing is set, so
+    bootstrap offers to fill the gaps and names the fields - which took
+    the general eight questions, and asked for the email #420 exists to
+    derive.
+
+    Nothing set at all is the configure arriving by a different door, not
+    a repair.
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    # "yes, ask me now", then Surrey's own six answers.
+    result = cli_bootstrap(
+        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\n2026\nn\n"
+    )
+
+    stored = load(tmp_path / "b.toml")
+    assert stored.email == "ab1234@surrey.ac.uk", "derived, not asked for"
+    assert stored.project_name == "report-comm058-2026-ab1234"
+    assert "2/6" in result.output, "the short path, on a first run"
+    assert "The email address used for" not in result.output
+
+
+def test_filling_one_later_gap_still_asks_for_that_field(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Somebody coming back to correct one value wants that value asked
+    for, not a derivation walked through again - which is why the two
+    cases are told apart rather than merged."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+    save(tmp_path / "b.toml", _config(project_name=""))
+
+    result = cli_bootstrap(input="y\nreport-x\n\n")
+
+    assert "project name" in result.output.lower()
+    assert "course code" not in result.output.lower(), "not the whole derivation again"
+    assert load(tmp_path / "b.toml").project_name == "report-x"
+
+
 def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[no-untyped-def]
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
