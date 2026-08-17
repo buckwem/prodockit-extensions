@@ -35,6 +35,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from urllib.parse import quote, urlparse
 
+from prodockit.tools import find
+
 #: Host substring -> (kind, FontAwesome brand icon, display label).
 HOST_ICON_MAP: list[tuple[str, str, str, str]] = [
     ("github.com", "github", "fontawesome/brands/github", "GitHub"),
@@ -79,7 +81,7 @@ def get_remote_url(remote: str = "origin", *, cwd: str | None = None) -> str:
     """The configured URL for `remote`."""
     try:
         result = subprocess.run(
-            ["git", "remote", "get-url", remote],
+            [find("git"), "remote", "get-url", remote],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -104,7 +106,7 @@ def detect_default_branch(remote: str = "origin", *, cwd: str | None = None) -> 
     """
     try:
         result = subprocess.run(
-            ["git", "symbolic-ref", "--short", f"refs/remotes/{remote}/HEAD"],
+            [find("git"), "symbolic-ref", "--short", f"refs/remotes/{remote}/HEAD"],
             capture_output=True,
             text=True,
             encoding="utf-8",

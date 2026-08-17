@@ -6823,6 +6823,120 @@ def test_every_host_says_something_about_its_own_site(tmp_path: Path) -> None:
         assert host.site_missing_note, key
 
 
+def test_pandoc_and_node_are_not_reported_missing_when_PATH_is_stale(
+    tmp_path: Path,
+) -> None:
+    """prodockit-extensions#450.
+
+    A `winget install` sets the machine's PATH; a process already
+    running never receives it. So `pandoc --version` failed on the
+    machine that had just installed pandoc, and the stage said "pandoc
+    is not installed" about software that was there - while git and VS
+    Code, in the same listing, reported themselves found by full path.
+
+    Driven through the stage's own check rather than the resolver:
+    a resolver nothing calls would pass a test written against the
+    resolver, and that is precisely the bug - the helper existed for
+    git and these two checks did not use one.
+    """
+    pandoc_exe = r"C:\Program Files\Pandoc\pandoc.exe"
+    node_exe = r"C:\Program Files\nodejs\node.exe"
+    installed = {Path(pandoc_exe), Path(node_exe)}
+
+    machine = _ready_machine(tmp_path)
+    # Bare names answer as they do on a machine whose PATH is stale:
+    # not found. Only the full paths work.
+    machine["pandoc --version"] = CommandResult(127, stderr="not found")
+    machine["node --version"] = CommandResult(127, stderr="not found")
+    machine[pandoc_exe] = CommandResult(0, "pandoc 3.10.1\n")
+    machine[node_exe] = CommandResult(0, "v22.0.0\n")
+
+    context = build_context(
+        _config(project_name="p", namespace="ns"),
+        runner=FakeRunner(machine),
+        platform=WINDOWS,
+        home=tmp_path,
+        exists=lambda path: path in installed or path.exists(),
+    )
+
+    pandoc = next(s for s in STAGES if s.id == "pandoc").check(context)
+    assert "not installed" not in pandoc.detail, pandoc.detail
+    assert "3.10.1" in pandoc.detail, pandoc.detail
+
+
+def test_a_program_on_PATH_is_used_by_its_bare_name(tmp_path: Path) -> None:
+    """The resolver must not prefer a guessed location over the copy
+    PATH already resolves - that would pin a machine to whichever
+    install this list happened to name."""
+    machine = _ready_machine(tmp_path)
+    machine["pandoc"] = CommandResult(0, "pandoc 3.10.1\n")
+    machine["node"] = CommandResult(0, "v22.0.0\n")
+    from prodockit.bootstrap import stages as stage_module
+
+    context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine))
+
+    assert stage_module.pandoc_command(context) == "pandoc"
+    assert stage_module.node_command(context) == "node"
+
+
+def test_the_names_are_resolved_when_the_plan_runs_not_when_it_is_built(
+    tmp_path: Path,
+) -> None:
+    """The pandoc and node stages install the program and then use it,
+    in one plan. Resolved at build time the answer is always "not there
+    yet" - which is #405, and the reason this table exists."""
+    from prodockit.bootstrap import stages as stage_module
+
+    for name in ("pandoc", "node", "npm"):
+        assert name in stage_module._RESOLVE_BEFORE_RUNNING, name
+
+
+def test_a_sync_check_that_could_not_run_is_not_called_a_difference(
+    tmp_path: Path,
+) -> None:
+    """prodockit-extensions#451.
+
+    `sync-repo --check` exits non-zero both for "there is a difference"
+    and for "I could not look". Saying "the project config still needs
+    syncing" to both named a cause nobody had established, and sent the
+    reader to run something that would not have fixed it.
+
+    The real one, from a Windows machine where PATH could not see git:
+
+        Error: could not run git: [WinError 2] The system cannot find
+        the file specified
+    """
+    stage = next(s for s in STAGES if s.id == "remote")
+    wanted = "git@gitlab.surrey.ac.uk:ns/p.git"
+
+    def machine_saying(check: CommandResult) -> FakeRunner:
+        table = _ready_machine(tmp_path)
+        table["remote get-url origin"] = CommandResult(0, f"{wanted}\n")
+        table["prodockit sync-repo --check"] = check
+        return FakeRunner(table)
+
+    broke = stage.check(
+        _context(
+            tmp_path, namespace="ns", project_name="p",
+            runner=machine_saying(
+                CommandResult(1, stderr="Error: could not run git: [WinError 2] ...")
+            ),
+        )
+    )
+    assert "could not check" in broke.detail, broke.detail
+    assert "could not run git" in broke.detail, "say what actually stopped it"
+    assert "still needs syncing" not in broke.detail
+
+    # A check that ran and found a real difference is unchanged.
+    differs = stage.check(
+        _context(
+            tmp_path, namespace="ns", project_name="p",
+            runner=machine_saying(CommandResult(1, "repo_url differs\n")),
+        )
+    )
+    assert "still needs syncing" in differs.detail, differs.detail
+
+
 def test_the_metadata_url_comes_from_the_host(tmp_path: Path) -> None:
     """It was `api.github.com` written into the stage, so a gitlab.com
     project would have been asked about against GitHub's API."""
