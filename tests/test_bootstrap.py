@@ -6004,9 +6004,18 @@ def test_each_stage_is_checked_when_the_loop_reaches_it(tmp_path: Path) -> None:
     forget_contacts(context)
     later = stage.check(context)
 
-    assert not first.needs_work, "unreachable host, so nothing to decide - yet"
-    assert later.needs_work, "reachable now, so the question is live"
-    assert "choose what to do with it" in later.detail
+    # Said with what was actually seen: this failed once in CI and
+    # nowhere else, and "assert False" gave nothing to work from.
+    context_note = f"ls-remote calls: {len(seen)}"
+    assert not first.needs_work, (
+        f"unreachable host, so nothing to decide - yet; got "
+        f"{first.status.value}: {first.detail!r} ({context_note})"
+    )
+    assert later.needs_work, (
+        f"reachable now, so the question is live; got "
+        f"{later.status.value}: {later.detail!r} ({context_note})"
+    )
+    assert "choose what to do with it" in later.detail, later.detail
 
 
 def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
