@@ -1,5 +1,36 @@
 # Release Notes
 
+## Unreleased
+
+- **Added:** a shorter `--configure` for Surrey's GitLab
+  ([#420](https://github.com/buckwem/prodockit-extensions/issues/420)).
+
+    ```text
+    1/8 The git host your project lives on [gitlab.surrey.ac.uk]:
+
+      gitlab.surrey.ac.uk fills in the rest from your login ID and course
+      code, so this is 5 questions rather than 8.
+
+    2/5 Your full name, as it should appear on commits:
+    3/5 The six-character ID you log in to Surrey with, e.g. `ab1234`:
+    4/5 Your course code, e.g. `comm058`:
+    5/5 Is this an assessed assignment? [Y/n]:
+    ```
+
+    Your email, GitLab username, group and repository name all follow
+    from those, so they are no longer asked for. Assessed work goes to
+    `assessment-<course>`, or `-sra`/`-lsa` for a resit; unassessed work
+    stays in your own namespace. The repository is
+    `report-<course>-<login>`, and the run ends by telling you both, since
+    you have to find them on a website afterwards.
+
+    Every free-text answer removed is one fewer chance to type a
+    namespace that does not exist and hear about it six stages later,
+    from a host that says only "not found".
+
+    Nothing here applies to github.com or gitlab.com, where these rules
+    are simply untrue - those keep the eight questions.
+
 ## 0.34.0 (2026-08-16)
 
 - **Added: `prodockit.steps`**, numbered steps a reader works through in

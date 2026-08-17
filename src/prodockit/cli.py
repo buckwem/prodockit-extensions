@@ -56,6 +56,7 @@ from prodockit.bootstrap import (
     plan_all,
     project_on_host,
     question_for,
+    surrey,
 )
 from prodockit.bootstrap import build_context as build_bootstrap_context
 from prodockit.bootstrap import config_path as bootstrap_config_path
@@ -123,32 +124,80 @@ def main() -> None:
     academic documentation."""
 
 
-def _ask_for_configuration(
-    config: BootstrapConfig, *, only: list[str] | None = None
-) -> BootstrapConfig:
-    """Asks the configuration questions, storing each answer as it comes.
+#: Host, name, login ID, course, assessed - and one more when it is.
+_SURREY_QUESTIONS = 5
 
-    `only` narrows it to particular fields - used when a run finds a
-    couple of answers missing and asks just for those, rather than making
-    someone walk the whole list again to fill one gap.
 
-    With `only` unset every field is re-asked, as #217 requires: pressing
-    Enter through keeps what is already there, so confirming an unchanged
-    setup costs a few keystrokes rather than an edit.
+def _ask_surrey(config: BootstrapConfig) -> None:
+    """The short path for Surrey's GitLab (prodockit-extensions#420).
+
+    Three questions, or four when the work is assessed, in place of five
+    - because a student's email, GitLab username, group and repository
+    name all follow from their login ID and course code. Every answer
+    that can be derived is one fewer chance to type a namespace that does
+    not exist and find out six stages later.
     """
-    wanted = [(k, q) for k, q in PROMPTS if only is None or k in only]
-    # `source_url` is never reported missing - blank is a valid answer -
-    # so a run filling in a few gaps skipped the question about an
-    # existing project entirely, and ended without the summary that goes
-    # with it. Included whenever it has no answer yet (#344).
-    if only is not None and not config.source_url.strip():
-        wanted += [(k, q) for k, q in PROMPTS if k == "source_url"]
-    click.echo("\nPress Enter to keep the value in brackets.\n")
-    # Numbered so the list has a visible end. Eight unnumbered questions
-    # read as an open-ended interrogation; "3/8" says how much is left,
-    # and matches how the stages themselves are reported.
-    total = len(wanted)
-    for number, (key, question) in enumerate(wanted, start=1):
+    login = surrey.login_id(
+        click.prompt(
+            f"3/{_SURREY_QUESTIONS} The six-character ID you log in to Surrey with, "
+            "e.g. `ab1234`"
+        )
+    )
+    course = surrey.course_code(
+        click.prompt(f"4/{_SURREY_QUESTIONS} Your course code, e.g. `comm058`")
+    )
+    assessed = click.confirm(
+        f"5/{_SURREY_QUESTIONS} Is this an assessed assignment?", default=True
+    )
+    assessment = surrey.Assessment.not_assessed()
+    if assessed:
+        click.echo("")
+        for number, name, _suffix in surrey.STAGES:
+            click.echo(f"    {number}. {name}")
+        while True:
+            try:
+                assessment = surrey.Assessment.at_stage(
+                    click.prompt("  Which stage is it being assessed at? [1, 2 or 3]")
+                )
+                break
+            except ValueError:
+                click.echo("  Type 1, 2 or 3.\n", err=True)
+
+    config.username = login
+    config.email = surrey.email_for(login)
+    config.namespace = surrey.namespace_for(course, login, assessment)
+    config.project_name = surrey.project_name_for(course, login)
+    config.project_dir = f"./{config.project_name}"
+
+    # Bulleted rather than numbered: these are three facts to note, not
+    # three things to do, and numbering them invites someone to look for
+    # a step 4.
+    click.echo("")
+    click.echo(click.style("Note these down:", bold=True))
+    for fact in (
+        f"Your GitLab repository will be in the group or namespace {config.namespace}.",
+        f"Your repository, and the folder it lands in here, will be "
+        f"{config.project_name}.",
+        f"Commits will be signed {config.full_name} <{config.email}>.",
+    ):
+        click.echo(_wrapped(f"* {fact}", first="  ", rest="    "))
+
+
+def _ask_each(
+    config: BootstrapConfig,
+    questions: list[tuple[str, str]],
+    *,
+    offset: int,
+    total: int,
+) -> None:
+    """Asks `questions` in order, storing each answer as it comes.
+
+    Numbered against `total` rather than against its own length, so two
+    passes over one list still count up to the same end. Eight unnumbered
+    questions read as an open-ended interrogation; "3/8" says how much is
+    left, and matches how the stages themselves are reported.
+    """
+    for position, (key, question) in enumerate(questions, start=offset + 1):
         # Asked here rather than mid-run. A prompt during `--apply` is
         # answered once and forgotten, so a rerun asks again, and
         # declining leaves a stage undone with nowhere to go. Recorded as
@@ -156,6 +205,7 @@ def _ask_for_configuration(
         # setting rather than an inference, and leaves nothing surprising
         # to decide while commands are running
         # (prodockit-extensions#332).
+        #
         # Asked in its own shape, with every path named - so the
         # free-text prompt below is skipped rather than asked a second
         # time in worse words.
@@ -166,7 +216,7 @@ def _ask_for_configuration(
             # `default_for` fills a blank answer from one already given, so
             # a first run still has something sensible to press Enter on.
             answer = click.prompt(
-                f"{number}/{total} {question_for(config, key, question)}",
+                f"{position}/{total} {question_for(config, key, question)}",
                 default=default_for(config, key),
                 show_default=True,
             ).strip()
@@ -180,6 +230,58 @@ def _ask_for_configuration(
         # Fed back in as it is given, so a later question can default off
         # an earlier answer.
         setattr(config, key, answer)
+
+
+def _ask_for_configuration(
+    config: BootstrapConfig, *, only: list[str] | None = None
+) -> BootstrapConfig:
+    """Asks the configuration questions, storing each answer as it comes.
+
+    `only` narrows it to particular fields - used when a run finds a
+    couple of answers missing and asks just for those, rather than making
+    someone walk the whole list again to fill one gap.
+
+    With `only` unset every field is re-asked, as #217 requires: pressing
+    Enter through keeps what is already there, so confirming an unchanged
+    setup costs a few keystrokes rather than an edit.
+
+    The host decides what follows it. Surrey's GitLab derives five of
+    these answers from three questions of its own, so the list is chosen
+    *after* the host is known rather than before
+    (prodockit-extensions#420).
+    """
+    click.echo("\nPress Enter to keep the value in brackets.\n")
+    if only is not None:
+        wanted = [(k, q) for k, q in PROMPTS if k in only]
+        # `source_url` is never reported missing - blank is a valid answer
+        # - so a run filling in a few gaps skipped the question about an
+        # existing project entirely, and ended without the summary that
+        # goes with it. Included whenever it has no answer yet (#344).
+        if not config.source_url.strip():
+            wanted += [(k, q) for k, q in PROMPTS if k == "source_url"]
+        _ask_each(config, wanted, offset=0, total=len(wanted))
+        config.project_dir = str(config.resolved_project_dir(Path.home()))
+        return config
+
+    asked = dict(PROMPTS)
+    # Numbered against the general list, because the shorter one is not
+    # known to apply until this is answered.
+    _ask_each(config, [("host", asked["host"])], offset=0, total=len(PROMPTS))
+    if surrey.applies_to(config.host):
+        # Said rather than left to be noticed: the count changes here, and
+        # a reader who saw "1/8" is owed the reason it is now "2/5".
+        click.echo(
+            f"\n  {config.host} fills in the rest from your login ID and course "
+            f"code, so this is {_SURREY_QUESTIONS} questions rather than "
+            f"{len(PROMPTS)}.\n"
+        )
+        _ask_each(
+            config, [("full_name", asked["full_name"])], offset=1, total=_SURREY_QUESTIONS
+        )
+        _ask_surrey(config)
+    else:
+        rest = [(k, q) for k, q in PROMPTS if k != "host"]
+        _ask_each(config, rest, offset=1, total=len(PROMPTS))
     # Stored absolute, though offered relative: `./report` is the clearest
     # thing to *read* at the prompt, and the worst thing to *keep* - it
     # would mean something different the next time bootstrap ran from
