@@ -125,7 +125,7 @@ _MSYS2_ENVIRONMENTS = {
 }
 
 
-def _winget(package_id: str) -> list[str]:
+def _winget(package_id: str, version: str = "") -> list[str]:
     """One `winget install`, wired so it cannot stop for a human.
 
     The two `--accept-*` flags are the point. winget asks for agreement
@@ -138,12 +138,21 @@ def _winget(package_id: str) -> list[str]:
 
     `-e` matches the id exactly. Without it an ambiguous name is another
     question winget stops to ask.
+
+    `version` pins the install where the version is one this project
+    cares about rather than one it merely needs - pandoc decides how the
+    PDF renders, so a machine bootstrap just set up should agree with
+    what CI publishes (#454). Ubuntu has always pinned pandoc by
+    downloading an exact release; this is the same commitment, and it
+    fails the same way if the version is not in the repository, which is
+    visible rather than silent.
     """
     return [
         "winget",
         "install",
         "--id",
         package_id,
+        *(["--version", version] if version else []),
         "-e",
         "--accept-source-agreements",
         "--accept-package-agreements",
@@ -1945,6 +1954,23 @@ def _check_pandoc(context: Context) -> CheckResult:
         # them (#224). WeasyPrint substitutes silently when they are
         # absent, so nothing else will notice until a test does.
         return _wrong(f"pandoc {version}, but the PDF fonts are missing: {missing_fonts}")
+    if version != PANDOC_VERSION:
+        # Said, not failed. Pandoc decides how the PDF renders - #207 was
+        # code blocks coming out as justified prose on an older major,
+        # and limitations.md records 3.1.3 accepting markup 3.10 does
+        # not - so a local pandoc that differs from the builds' is worth
+        # knowing about: both builds succeed, and only the output
+        # disagrees (#454).
+        #
+        # Deliberately not `_wrong`. Homebrew cannot install an old
+        # pandoc, so on macOS a failing status would be one no reader
+        # could ever clear - a stage stuck for good, which is the failure
+        # this project keeps having to undo (#443, #451). A note they can
+        # act on beats a red mark they cannot.
+        return _ok(
+            f"pandoc {version} - the builds pin {PANDOC_VERSION}, so a PDF built "
+            "here can differ from the published one"
+        )
     return _ok(f"pandoc {version}")
 
 
@@ -2077,7 +2103,7 @@ def _plan_pandoc(context: Context) -> Plan:
     )
     return Plan(
         commands=[
-            _winget("JohnMacFarlane.Pandoc"),
+            _winget("JohnMacFarlane.Pandoc", PANDOC_VERSION),
             _winget("MSYS2.MSYS2"),
             ["powershell", "-NoProfile", "-Command", pango],
             ["powershell", "-NoProfile", "-Command", path_entry],

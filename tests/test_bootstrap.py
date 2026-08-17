@@ -30,6 +30,7 @@ from prodockit.bootstrap import (
     STAGES,
     BootstrapConfig,
     BootstrapConfigError,
+    CheckResult,
     CommandResult,
     Plan,
     Status,
@@ -46,6 +47,7 @@ from prodockit.bootstrap import (
 from prodockit.bootstrap.model import GITHUB_COM, MACOS, SURREY_GITLAB, UBUNTU, WINDOWS
 from prodockit.bootstrap.stages import (
     DEFAULT_CSL_STYLE,
+    PANDOC_VERSION,
     PDF_FONT_CASKS,
     PDF_FONT_PACKAGES,
     PUBLIC_KEY_MARKER,
@@ -6935,6 +6937,72 @@ def test_a_sync_check_that_could_not_run_is_not_called_a_difference(
         )
     )
     assert "still needs syncing" in differs.detail, differs.detail
+
+
+def _pandoc_saying(tmp_path: Path, version: str, **kw) -> CheckResult:
+    """The pandoc stage's verdict on a machine running `version`."""
+    machine = _ready_machine(tmp_path)
+    machine["pandoc --version"] = CommandResult(0, f"pandoc {version}\n")
+    return next(s for s in STAGES if s.id == "pandoc").check(
+        _context(tmp_path, runner=FakeRunner(machine), **kw)
+    )
+
+
+def test_a_pandoc_that_differs_from_the_pin_is_named(tmp_path: Path) -> None:
+    """prodockit-extensions#454.
+
+    Pandoc decides how the PDF renders - #207 was code blocks coming out
+    as justified prose on an older major, and limitations.md records
+    3.1.3 accepting markup that 3.10 does not. So a student writing on
+    one pandoc while CI publishes on another gets a PDF they never
+    checked, and nothing says so: both builds succeed.
+    """
+    exact = _pandoc_saying(tmp_path, PANDOC_VERSION)
+    assert exact.status is Status.OK
+    assert "the builds pin" not in exact.detail, "nothing to say when it matches"
+
+    differs = _pandoc_saying(tmp_path, "3.10.2")
+    assert "3.10.2" in differs.detail
+    assert f"the builds pin {PANDOC_VERSION}" in differs.detail, differs.detail
+
+
+def test_a_pandoc_that_differs_is_told_not_failed(tmp_path: Path) -> None:
+    """The deviation from #454's own suggestion, and the reason for it.
+
+    Homebrew cannot install an old pandoc, so a failing status would be
+    one no macOS reader could ever clear - a stage stuck for good, which
+    is precisely the failure this project has had to undo twice already
+    (#443, #451). A note they can act on beats a red mark they cannot.
+
+    A pandoc too old to render correctly is still a failure: that one is
+    fixable, and #207 is what happens when it is ignored.
+    """
+    assert _pandoc_saying(tmp_path, "3.10.2").status is Status.OK
+    assert _pandoc_saying(tmp_path, "2.9.2").status is Status.WRONG
+
+
+def test_windows_installs_the_pandoc_the_builds_pin(tmp_path: Path) -> None:
+    """Ubuntu has always downloaded an exact release; Windows took
+    whatever winget was serving, which is how a machine bootstrap had
+    just set up came to run 3.10.2 against builds pinning 3.10.1."""
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=WINDOWS)
+    )
+    pandoc = next(c for c in plan.commands if "JohnMacFarlane.Pandoc" in c)
+
+    assert pandoc[pandoc.index("--version") + 1] == PANDOC_VERSION, pandoc
+
+
+def test_only_pandoc_is_pinned_at_the_winget_line(tmp_path: Path) -> None:
+    """MSYS2 and the rest are machine plumbing - pinning them would buy
+    nothing and break whenever winget pruned an old build. The version
+    argument exists for inputs that change this project's *output*."""
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=WINDOWS)
+    )
+    msys2 = next(c for c in plan.commands if "MSYS2.MSYS2" in c)
+
+    assert "--version" not in msys2, msys2
 
 
 def test_the_metadata_url_comes_from_the_host(tmp_path: Path) -> None:
