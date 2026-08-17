@@ -693,8 +693,7 @@ def _apply_outstanding(
         click.echo("")
         click.echo(f"  {done_but_unseen} is done, but this run cannot see it.")
         click.echo("")
-        click.echo("Start a new window and run `prodockit bootstrap --apply` again "
-                   "to carry on from here.")
+        click.echo("Run `prodockit bootstrap --apply` again to carry on from here.")
         return
     click.echo("")
     click.echo("Finished. Run `prodockit bootstrap` to confirm.")
@@ -1003,11 +1002,6 @@ def _verify_until_done(context: Context, stage: Stage, plan: Plan) -> bool:
     while True:
         if not _typed_yes(plan.confirm):
             return False
-        if plan.needs_a_new_run:
-            # Re-checking here would ask a question this process cannot
-            # answer differently, report "not there yet", and ask again -
-            # which reads as the tool ignoring the answer it just got.
-            raise _StartAgain(stage.summary)
         # The reader has just been to a browser, so anything remembered
         # about the host is older than what they did. Without this the
         # retry loop replayed its first answer and "Try again?" could
@@ -1024,6 +1018,17 @@ def _verify_until_done(context: Context, stage: Stage, plan: Plan) -> bool:
             # so at the end of the run.
             click.echo(f"  taken on trust - {result.detail}")
             return True
+        if plan.needs_a_new_run:
+            # Asked first, answered second. A started service *is* usually
+            # visible to the next command that looks - `ssh-add` opens the
+            # agent's pipe afresh each time - so the check above is given
+            # its chance, and a run that can carry on carries on
+            # (prodockit-extensions#435).
+            #
+            # Only when it still cannot be seen does the run end, because
+            # asking again would put the same question to the same
+            # unchanged answer.
+            raise _StartAgain(stage.summary)
         if result.status is Status.BLOCKED:
             # Waiting on an earlier stage, not on anything the reader can
             # do in a browser. Asking again would loop for ever on a

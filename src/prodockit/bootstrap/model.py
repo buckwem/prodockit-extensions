@@ -781,15 +781,19 @@ class Plan:
     #: captured it would sit unanswered until the timeout, exactly as
     #: `sudo` did (prodockit-extensions#243, #246).
     needs_terminal: bool = False
-    #: Whether the step only takes effect in a *new* run of bootstrap.
+    #: What to do when a manual step still cannot be seen after it was
+    #: done: end the run rather than ask again.
     #:
-    #: Some things a reader does land somewhere this process cannot see.
-    #: Starting Windows' `ssh-agent` service is the case it exists for:
-    #: the service is started from a separate Administrator window, and
-    #: the running process cannot pick it up - so re-checking asks a
-    #: question that cannot have changed, reports "not there yet", and
-    #: asks again, which reads as the tool ignoring an answer it just got
-    #: (prodockit-extensions#397).
+    #: The check is always given its chance first. Starting Windows'
+    #: `ssh-agent` service is the case this exists for, and a started
+    #: service usually *is* visible to the next command that looks -
+    #: `ssh-add` opens the agent's pipe afresh each time - so a run that
+    #: can carry on carries on (prodockit-extensions#435).
+    #:
+    #: Where it genuinely cannot be seen, asking again would put the same
+    #: question to the same unchanged answer, which reads as the tool
+    #: ignoring what it was just told (#397). So the run ends, saying
+    #: what to type next.
     #:
     #: Distinct from `CheckResult.verifiable`, which says the answer can
     #: never be seen from outside and the run should carry on regardless.
