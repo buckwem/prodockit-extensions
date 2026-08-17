@@ -125,9 +125,8 @@ def namespace_for(course: str, login: str, assessment: Assessment, year: str = "
     namespace, where nobody else needs it and no year applies.
 
     The year is the one the module *starts* in - a semester 2 module
-    belongs to the year on the far side of the Christmas break, and a
-    resit belongs to the year the work was set rather than the year it is
-    being marked.
+    belongs to the year after the Christmas break, and a resit belongs to
+    the year the work was set rather than the year it is being marked.
     """
     if not assessment.assessed:
         return login_id(login)

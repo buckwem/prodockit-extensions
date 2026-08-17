@@ -78,9 +78,9 @@
 
     The year is the one the module *starts* in, offered as this one. Both
     the awkward cases are said on screen rather than left to a handbook:
-    a semester 2 module belongs to the year on the far side of the
-    Christmas break, and a resit to the year the work was set rather than
-    the year it is being marked.
+    a semester 2 module belongs to the year after the Christmas break, and
+    a resit to the year the work was set rather than the year it is being
+    marked.
 
     The repository, and the folder it lands in, are named
     `report-<course>-<year>-<login>`. The name carries the year even for

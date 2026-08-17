@@ -3800,9 +3800,9 @@ def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[
     """A cohort's work belongs in that cohort's group.
 
     Which year that is takes explaining twice over - a semester 2 module
-    belongs to the year on the far side of the Christmas break, and a
-    resit to the year the work was set rather than the year it is being
-    marked - so both sentences are on screen rather than in a handbook.
+    belongs to the year after the Christmas break, and a resit to the year
+    the work was set rather than the year it is being marked - so both
+    sentences are on screen rather than in a handbook.
     """
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)

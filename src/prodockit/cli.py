@@ -153,8 +153,8 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     click.echo("")
     click.echo(_wrapped(
         "The year the module *starts* in. A semester 2 module belongs to the "
-        "year on the far side of the Christmas break; an SRA or LSA belongs to "
-        "the year the work was set, not the year it is being marked."
+        "year after the Christmas break. An SRA or LSA belongs to the year the "
+        "work was set, not the year it is being marked."
     ))
     while True:
         year = surrey.module_year(
