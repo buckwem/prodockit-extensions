@@ -2810,6 +2810,20 @@ def site_url(context: Context) -> str:
     return template.format(namespace=namespace, project=project)
 
 
+#: Where to throw a response body away, per platform.
+#:
+#: Windows has no `/dev/null`. curl asked to write there does not treat
+#: it as a device: it tries to *create* the file, fails, and exits 23 -
+#: so a site that was serving perfectly well came back as "the probe did
+#: not run", on every retry, for as long as anyone was willing to keep
+#: answering yes (prodockit-extensions#443).
+#:
+#: The honest could-not-establish reporting is what made this survivable
+#: rather than a wrong answer - but a third state nothing can ever leave
+#: is its own kind of stuck.
+_NULL_DEVICE = {WINDOWS: "NUL", MACOS: "/dev/null", UBUNTU: "/dev/null"}
+
+
 def _http_status(context: Context, url: str) -> int | None:
     """What a stranger gets from `url`, or `None` if the asking failed.
 
@@ -2820,7 +2834,17 @@ def _http_status(context: Context, url: str) -> int | None:
     though the server had answered (prodockit-extensions#374).
     """
     result = context.runner.run(
-        ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20", url]
+        [
+            "curl",
+            "-sS",
+            "-o",
+            _NULL_DEVICE[context.platform],
+            "-w",
+            "%{http_code}",
+            "--max-time",
+            "20",
+            url,
+        ]
     )
     code = result.stdout.strip()
     if not result.ok or not code.isdigit():
@@ -3035,36 +3059,62 @@ def _check_first_push(context: Context) -> CheckResult:
     )
 
 
-def _push_command(context: Context) -> list[str]:
-    """The push, forced only over a README the host itself wrote.
+#: The merge that takes the project's tree over the README's, written
+#: where a reader will read it: `git log` shows this line and nothing
+#: else about how the two histories met.
+_ADOPT_MESSAGE = "Add the project to the repository created for it"
+
+
+def _adopt_commands(context: Context) -> list[list[str]]:
+    """Take the host's first commit into this history, or nothing.
 
     A repository created with "initialize with a README" has a commit
-    that this project's history does not contain, so an ordinary push is
-    refused - and the reader is left with a rejected push and a stage
-    that had told them everything was fine (#423).
+    this project's history does not contain, so an ordinary push is
+    rejected as non-fast-forward - and the reader is left with a rejected
+    push and a stage that had told them everything was fine (#423).
 
-    `--force-with-lease=main:<sha>` names the exact commit that was
-    looked at. If anything reached the repository between the check and
-    the push, the push fails rather than destroying it, which is the only
-    basis on which forcing one is reasonable at all.
+    That used to be answered with `--force-with-lease`, which a protected
+    branch refuses outright: GitLab protects the default branch on
+    creation and declines *any* force push to it, lease or no lease, so
+    the one case this exists for was also the case most likely to be
+    blocked (#442). On an assessed repository the protection is the
+    point, and it is usually not the student's to switch off.
+
+    Merging reaches the same end without forcing anything. `-s ours`
+    takes this project's tree entire and discards the README's - the
+    same outcome the force push had - while keeping the host's commit in
+    the history, which is what makes the push a fast-forward.
+
+    Nothing local is rewritten, so a run that already made the commit
+    before a push was refused can merge and push on the retry rather
+    than needing the commit remade (#414).
     """
-    project = context.config.resolved_project_dir(context.home)
-    ordinary = [git_command(context), "push", "-u", "origin", "main"]
     if not remote_is_only_its_first_readme(context):
-        return ordinary
-    seen = context.runner.run(
-        [git_command(context), "-C", str(project), "ls-remote", "origin", "HEAD"]
-    )
-    if not (seen.ok and seen.stdout.split()):
-        return ordinary
+        return []
     return [
-        git_command(context),
-        "push",
-        f"--force-with-lease=main:{seen.stdout.split()[0]}",
-        "-u",
-        "origin",
-        "main",
+        [git_command(context), "fetch", "origin", "main"],
+        [
+            git_command(context),
+            "merge",
+            "--allow-unrelated-histories",
+            "-s",
+            "ours",
+            "FETCH_HEAD",
+            "-m",
+            _ADOPT_MESSAGE,
+        ],
     ]
+
+
+def _push_command(context: Context) -> list[str]:
+    """An ordinary push, always.
+
+    Never forced. Where the remote has a commit of its own,
+    `_adopt_commands` has already taken it into this history, so there
+    is nothing left to force over - and a push that cannot force cannot
+    destroy what it was mistaken about.
+    """
+    return [git_command(context), "push", "-u", "origin", "main"]
 
 
 def _plan_first_push(context: Context) -> Plan:
@@ -3106,6 +3156,7 @@ def _plan_first_push(context: Context) -> Plan:
                 if _has_uncommitted_work(context)
                 else []
             ),
+            *_adopt_commands(context),
             _push_command(context),
         ],
         instructions=[
@@ -3114,10 +3165,11 @@ def _plan_first_push(context: Context) -> Plan:
             *(
                 [
                     "The repository was created with a README, which nothing here "
-                    "wrote and nothing here needs. It will be replaced by the "
-                    "project's own - the push is pinned to exactly that commit, so "
-                    "if anything else has been added since, it fails rather than "
-                    "overwrites."
+                    "wrote and nothing here needs. That commit is taken into this "
+                    "project's history and the project's own files replace its "
+                    "contents, so nothing is forced and nothing is overwritten - "
+                    "if anything else has reached the repository since, the push "
+                    "is refused rather than destroying it."
                 ]
                 if remote_is_only_its_first_readme(context)
                 else []

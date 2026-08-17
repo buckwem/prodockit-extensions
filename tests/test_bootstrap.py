@@ -31,6 +31,7 @@ from prodockit.bootstrap import (
     BootstrapConfig,
     BootstrapConfigError,
     CommandResult,
+    Plan,
     Status,
     UnsupportedHostError,
     build_context,
@@ -1620,24 +1621,81 @@ def test_a_repository_created_with_a_readme_is_not_reported_as_pushed(
     assert "not pushed yet" in result.detail
 
 
-def test_the_readme_is_replaced_only_over_the_commit_that_was_looked_at(
-    tmp_path: Path,
-) -> None:
-    """Forcing a push is not recoverable, so it is pinned to the exact
-    commit the check inspected. Anything arriving in between makes the
-    push fail rather than destroy it."""
+def _first_push_plan(tmp_path: Path) -> Plan:
+    """The stage 22 plan against a repository holding only its README."""
     machine = _ready_machine(tmp_path)
     machine["rev-parse HEAD"] = CommandResult(0, "ffffff\n")
     machine["ls-remote origin HEAD"] = CommandResult(0, "aaaaaa\tHEAD\n")
     machine["ls-tree"] = CommandResult(0, "README.md\n")
     machine["rev-list"] = CommandResult(0, "1\n")
-    plan = next(s for s in STAGES if s.id == "first-push").plan(
+    return next(s for s in STAGES if s.id == "first-push").plan(
         _context(tmp_path, runner=FakeRunner(machine))
     )
-    push = next(c for c in plan.commands if "push" in c)
 
-    assert "--force-with-lease=main:aaaaaa" in push, push
-    assert any("replaced by the project" in step for step in plan.instructions)
+
+def test_the_hosts_readme_commit_is_merged_rather_than_forced_over(
+    tmp_path: Path,
+) -> None:
+    """prodockit-extensions#442.
+
+    The README commit has to be dealt with somehow - an ordinary push is
+    rejected as non-fast-forward while it is not in this history (#423).
+    Forcing was the first answer and it does not survive contact with a
+    protected branch:
+
+        remote: GitLab: You are not allowed to force push code to a
+        protected branch on this project.
+
+    Taking the commit into the history instead makes the push a
+    fast-forward, and `-s ours` keeps this project's tree entire - the
+    same end, reached by an operation nobody has a rule against.
+    """
+    plan = _first_push_plan(tmp_path)
+    merge = next((c for c in plan.commands if "merge" in c), None)
+
+    assert merge is not None, plan.commands
+    assert "--allow-unrelated-histories" in merge
+    assert merge[merge.index("-s") : merge.index("-s") + 2] == ["-s", "ours"]
+    # Fetched first, or FETCH_HEAD is whatever some earlier command left.
+    fetched = next(c for c in plan.commands if "fetch" in c)
+    assert plan.commands.index(fetched) < plan.commands.index(merge)
+    assert any("nothing is forced" in step for step in plan.instructions)
+
+
+def test_the_push_is_never_forced(tmp_path: Path) -> None:
+    """Whatever the remote turns out to hold.
+
+    A forced push is the one command here that can destroy work that was
+    never this project's, and the case it was reached for is now handled
+    by merging. Nothing is left that needs it - so any reappearance is a
+    regression, not a decision.
+    """
+    for plan in (_first_push_plan(tmp_path), _plan_for_an_empty_remote(tmp_path)):
+        for command in plan.commands:
+            flags = " ".join(command)
+            assert "--force" not in flags, flags
+            assert "-f" not in command, command
+
+
+def _plan_for_an_empty_remote(tmp_path: Path) -> Plan:
+    """The ordinary case: a repository created with nothing in it."""
+    machine = _ready_machine(tmp_path)
+    machine["rev-parse HEAD"] = CommandResult(0, "ffffff\n")
+    machine["ls-remote origin HEAD"] = CommandResult(0, "")
+    return next(s for s in STAGES if s.id == "first-push").plan(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+
+def test_an_empty_remote_is_pushed_to_without_merging_anything(
+    tmp_path: Path,
+) -> None:
+    """There is no commit to adopt, and a merge against nothing would
+    fail - so the fetch and merge appear only where they are needed."""
+    plan = _plan_for_an_empty_remote(tmp_path)
+
+    assert not [c for c in plan.commands if "merge" in c], plan.commands
+    assert any("push" in c for c in plan.commands)
 
 
 def test_work_that_is_not_a_readme_is_never_pushed_over(tmp_path: Path) -> None:
@@ -6400,6 +6458,43 @@ def test_a_probe_that_did_not_run_is_not_an_answer(tmp_path: Path) -> None:
         assert "the probe did not run" in result.detail
         assert "private repository" not in result.detail
         assert "not answering yet" not in result.detail
+
+
+def test_the_response_body_is_thrown_away_somewhere_the_platform_has(
+    tmp_path: Path,
+) -> None:
+    """prodockit-extensions#443.
+
+    `/dev/null` does not exist on Windows, and curl does not treat the
+    name as a device - it tries to create the file, fails, and exits 23.
+    The probe then reports "could not establish" about a site that was
+    serving perfectly well, on every retry, for as long as the reader was
+    willing to keep answering yes.
+
+    Asserted on the command rather than the outcome: a fake runner
+    answers whatever it is asked, so only the argument itself shows the
+    difference between a probe that can run on Windows and one that
+    cannot.
+    """
+    asked: list[list[str]] = []
+
+    class Recorder(FakeRunner):
+        def run(self, command, *args, **kwargs):  # type: ignore[no-untyped-def]
+            asked.append(list(command))
+            return super().run(command, *args, **kwargs)
+
+    for platform, device in ((WINDOWS, "NUL"), (MACOS, "/dev/null"), (UBUNTU, "/dev/null")):
+        asked.clear()
+        machine = _ready_machine(tmp_path)
+        machine["%{http_code}"] = CommandResult(0, "200")
+        next(s for s in STAGES if s.id == "site").check(
+            _context(tmp_path, platform=platform, runner=Recorder(machine))
+        )
+        probes = [c for c in asked if "%{http_code}" in c]
+
+        assert probes, f"{platform}: nothing probed"
+        for probe in probes:
+            assert probe[probe.index("-o") + 1] == device, (platform, probe)
 
 
 def test_the_host_s_own_refusal_is_quoted(tmp_path: Path) -> None:
