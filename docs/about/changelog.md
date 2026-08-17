@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.36.2 (2026-08-17)
 
 - **Fixed:** Pandoc and Node are no longer reported missing when they are
   installed ([#450](https://github.com/buckwem/prodockit-extensions/issues/450)).
