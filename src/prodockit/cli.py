@@ -147,25 +147,16 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     course = surrey.course_code(
         click.prompt(f"4/{_SURREY_QUESTIONS} Your course code, e.g. `comm058`")
     )
-    click.echo("")
-    while True:
-        year = surrey.module_year(
-            click.prompt(
-                f"5/{_SURREY_QUESTIONS} What year does the module start in? A "
-                "semester 2 module should be the year after the Christmas break. "
-                "For SRA and LSA the year should be the year prior to the year the "
-                "retake is being assessed.",
-                default=surrey.default_year(),
-                show_default=True,
-            )
-        )
-        if year:
-            break
-        click.echo("  Four figures, e.g. 2026.\n", err=True)
+    # Asked before the year, because the year question names SRA and LSA
+    # and nothing before it had said what those are. The stage menu
+    # introduces them; the year question then refers back to it
+    # (prodockit-extensions#437).
     assessed = click.confirm(
-        f"6/{_SURREY_QUESTIONS} Is this an assessed assignment?", default=True
+        f"5/{_SURREY_QUESTIONS} Is this an assessed assignment?", default=True
     )
     assessment = surrey.Assessment.not_assessed()
+    year = ""
+    namespace = ""
     if assessed:
         click.echo("")
         for number, name, _suffix in surrey.STAGES:
@@ -178,10 +169,35 @@ def _ask_surrey(config: BootstrapConfig) -> None:
                 break
             except ValueError:
                 click.echo("  Type 1, 2 or 3.\n", err=True)
+        click.echo("")
+        while True:
+            year = surrey.module_year(
+                click.prompt(
+                    f"6/{_SURREY_QUESTIONS} What year does the module start in? A "
+                    "semester 2 module should be the year after the Christmas break. "
+                    "For SRA and LSA the year should be the year prior to the year the "
+                    "retake is being assessed.",
+                    default=surrey.default_year(),
+                    show_default=True,
+                )
+            )
+            if year:
+                break
+            click.echo("  Four figures, e.g. 2026.\n", err=True)
+    else:
+        # Unassessed work has no cohort group to go to and no attempt to
+        # record, so neither is asked for. The namespace is theirs, and
+        # offered as such - typed over only by somebody who knows they
+        # want a different one.
+        namespace = click.prompt(
+            f"6/{_SURREY_QUESTIONS} The group or namespace the project lives under",
+            default=login,
+            show_default=True,
+        ).strip()
 
     config.username = login
     config.email = surrey.email_for(login)
-    config.namespace = surrey.namespace_for(course, login, assessment, year)
+    config.namespace = namespace or surrey.namespace_for(course, login, assessment, year)
     config.project_name = surrey.project_name_for(course, login, year, assessment)
     config.project_dir = f"./{config.project_name}"
 

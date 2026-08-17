@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Changed:** the assessment question comes before the year, and
+  unassessed work is asked for its namespace
+  ([#437](https://github.com/buckwem/prodockit-extensions/issues/437)).
+
+    The year question explains itself in terms of SRA and LSA, and
+    nothing before it had said what those are - the question that
+    introduces them, and lists them, came afterwards. They are the other
+    way round now, so the year question refers back to something already
+    on screen.
+
+    Unassessed work is no longer asked for a year it has no use for, nor
+    for a stage it has not got. It is asked for its namespace instead,
+    offered as your own user ID - a project group is a perfectly ordinary
+    answer, and the default is only an offer. Its repository is
+    `report-<course>-<login>`, with no year, because none was given.
+
 - **Changed:** the Surrey questions are worded as they were asked for
   ([#420](https://github.com/buckwem/prodockit-extensions/issues/420)).
 
