@@ -1,5 +1,28 @@
 # Release Notes
 
+## Unreleased
+
+- **Changed:** the project stage quotes what the host said
+  ([#439](https://github.com/buckwem/prodockit-extensions/issues/439)).
+
+    ```text
+    11  MISS  Your own project on the host - nothing visible at
+              git@gitlab.surrey.ac.uk:assessment-commtest-2026/report-... -
+              gitlab.surrey.ac.uk said: The project you were looking for could
+              not be found or you don't have permission to view it.
+    ```
+
+    It used to say "nothing visible at ..." and stop there, so a reader
+    who had just created the project saw the same eleven words on every
+    retry, with nothing new to work from.
+
+    The host's own reply distinguishes what the stage cannot: a project
+    at another path, a group you cannot see into, and a key the host will
+    not accept need three different things from you. Git's own wrapper
+    lines are left out - "Could not read from remote repository" is not
+    something anyone can act on - and a host that says nothing gets no
+    words put in its mouth.
+
 ## 0.36.0 (2026-08-17)
 
 - **Fixed:** the ssh-agent step ended the run without looking
