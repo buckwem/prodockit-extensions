@@ -124,10 +124,11 @@ def main() -> None:
     academic documentation."""
 
 
-#: Host, name, login ID, course, assessed - then two more either way: the
-#: stage and the year when it is assessed, the namespace and the
-#: repository name when it is not.
-_SURREY_QUESTIONS = 7
+#: Host, name, login ID, assessed - then three more when it is assessed
+#: (course, stage, year), or two when it is not (namespace, repository
+#: name).
+_SURREY_QUESTIONS_ASSESSED = 7
+_SURREY_QUESTIONS_UNASSESSED = 6
 
 
 def _ask_surrey(config: BootstrapConfig) -> None:
@@ -139,28 +140,35 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     that can be derived is one fewer chance to type a namespace that does
     not exist and find out six stages later.
     """
+    # Numbered against the assessed total until the answer to "assessed"
+    # is known - that path asks one more question than the other, and it
+    # reads as the default the same way `click.confirm`'s own default
+    # does.
     login = surrey.login_id(
         click.prompt(
-            f"3/{_SURREY_QUESTIONS} Enter the 6 character email ID used for your "
-            "Surrey login. For example, if your login ID is `ab1234@surrey.ac.uk`, "
-            "enter `ab1234`"
+            f"3/{_SURREY_QUESTIONS_ASSESSED} Enter the 6 character email ID used "
+            "for your Surrey login. For example, if your login ID is "
+            "`ab1234@surrey.ac.uk`, enter `ab1234`"
         )
     )
-    course = surrey.course_code(
-        click.prompt(f"4/{_SURREY_QUESTIONS} Your course code, e.g. `comm058`")
-    )
-    # Asked before the year, because the year question names SRA and LSA
-    # and nothing before it had said what those are. The stage menu
-    # introduces them; the year question then refers back to it
-    # (prodockit-extensions#437).
+    # Asked before the course code, not after: unassessed work never uses
+    # a course code, so asking it first meant answering a question whose
+    # answer was then thrown away (#458).
     assessed = click.confirm(
-        f"5/{_SURREY_QUESTIONS} Is this an assessed assignment?", default=True
+        f"4/{_SURREY_QUESTIONS_ASSESSED} Is this an assessed assignment?",
+        default=True,
     )
     assessment = surrey.Assessment.not_assessed()
+    course = ""
     year = ""
     namespace = ""
     project = ""
     if assessed:
+        course = surrey.course_code(
+            click.prompt(
+                f"5/{_SURREY_QUESTIONS_ASSESSED} Your course code, e.g. `comm058`"
+            )
+        )
         click.echo("")
         for number, name, _suffix in surrey.STAGES:
             click.echo(f"    {number}. {name}")
@@ -168,8 +176,8 @@ def _ask_surrey(config: BootstrapConfig) -> None:
             try:
                 assessment = surrey.Assessment.at_stage(
                     click.prompt(
-                        f"6/{_SURREY_QUESTIONS} Which stage is it being assessed at?"
-                        " [1, 2 or 3]"
+                        f"6/{_SURREY_QUESTIONS_ASSESSED} Which stage is it being "
+                        "assessed at? [1, 2 or 3]"
                     )
                 )
                 break
@@ -177,12 +185,16 @@ def _ask_surrey(config: BootstrapConfig) -> None:
                 click.echo("  Type 1, 2 or 3.\n", err=True)
         click.echo("")
         while True:
+            # Named here rather than above: the year question names SRA
+            # and LSA, and nothing before it had said what those are. The
+            # stage menu just shown introduces them, so this refers back
+            # to it rather than repeating it (prodockit-extensions#437).
             year = surrey.module_year(
                 click.prompt(
-                    f"7/{_SURREY_QUESTIONS} What year does the module start in? A "
-                    "semester 2 module should be the year after the Christmas break. "
-                    "For SRA and LSA the year should be the year prior to the year the "
-                    "retake is being assessed.",
+                    f"7/{_SURREY_QUESTIONS_ASSESSED} What year does the module "
+                    "start in? A semester 2 module should be the year after the "
+                    "Christmas break. For SRA and LSA the year should be the year "
+                    "prior to the year the retake is being assessed.",
                     default=surrey.default_year(),
                     show_default=True,
                 )
@@ -191,18 +203,28 @@ def _ask_surrey(config: BootstrapConfig) -> None:
                 break
             click.echo("  Four figures, e.g. 2026.\n", err=True)
     else:
+        # Said rather than left to be noticed: the count changes here,
+        # the same way it does when the host turns out to be Surrey's
+        # GitLab above - a reader who saw "4/7" is owed the reason the
+        # next question reads "5/6".
+        click.echo(
+            f"\n  Unassessed work has no course-derived group or attempt, so "
+            f"this is {_SURREY_QUESTIONS_UNASSESSED} questions rather than "
+            f"{_SURREY_QUESTIONS_ASSESSED}.\n"
+        )
         # Unassessed work has no cohort group to go to and no attempt to
         # record, so neither is asked for. Both of these are offered as
         # the ordinary answer and typed over only by somebody who wants
         # something else.
         namespace = click.prompt(
-            f"6/{_SURREY_QUESTIONS} The group or namespace the project lives under",
+            f"5/{_SURREY_QUESTIONS_UNASSESSED} The group or namespace the "
+            "project lives under",
             default=login,
             show_default=True,
         ).strip()
         project = click.prompt(
-            f"7/{_SURREY_QUESTIONS} The name of the repository, and of the folder it "
-            "lands in here",
+            f"6/{_SURREY_QUESTIONS_UNASSESSED} The name of the repository, and "
+            "of the folder it lands in here",
             default=f"report-{login}",
             show_default=True,
         ).strip()
@@ -318,11 +340,14 @@ def _ask_for_configuration(
         # a reader who saw "1/8" is owed the reason it is now "2/5".
         click.echo(
             f"\n  {config.host} fills in the rest from your login ID and course "
-            f"code, so this is {_SURREY_QUESTIONS} questions rather than "
-            f"{len(PROMPTS)}.\n"
+            f"code, so this is {_SURREY_QUESTIONS_ASSESSED} questions rather "
+            f"than {len(PROMPTS)}.\n"
         )
         _ask_each(
-            config, [("full_name", asked["full_name"])], offset=1, total=_SURREY_QUESTIONS
+            config,
+            [("full_name", asked["full_name"])],
+            offset=1,
+            total=_SURREY_QUESTIONS_ASSESSED,
         )
         _ask_surrey(config)
     else:

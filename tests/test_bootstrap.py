@@ -3824,8 +3824,8 @@ def test_an_unreachable_host_is_re_asked_with_the_vpn_named(
     result = cli_bootstrap(
         "--configure",
         input=(
-            "gitlab.surrey.ac.uk\ngitlab.surrey.ac.uk\nAda\na@b.c\n"
-            "al01234\ncomm058\nreport-x\n\n\n"
+            "gitlab.surrey.ac.uk\ngitlab.surrey.ac.uk\nAda Lovelace\n"
+            "al01234\nn\n\n\n"
         ),
     )
 
@@ -3847,8 +3847,8 @@ def test_an_unusable_host_is_re_asked_rather_than_stored(
     result = cli_bootstrap(
         "--configure",
         input=(
-            "gitlab.example.edu\ngitlab.surrey.ac.uk\nAda\na@b.c\n"
-            "al01234\ncomm058\nreport-x\n\n\n"
+            "gitlab.example.edu\ngitlab.surrey.ac.uk\nAda Lovelace\n"
+            "al01234\nn\n\n\n"
         ),
     )
 
@@ -3869,10 +3869,7 @@ def test_a_reachable_host_is_never_asked_about_twice(
 
     cli_bootstrap(
         "--configure",
-        input=(
-            "gitlab.surrey.ac.uk\nAda Lovelace\nal01234@surrey.ac.uk\n"
-            "al01234\ncomm058-2026\nreport-x\n\n\n"
-        ),
+        input=("gitlab.surrey.ac.uk\nAda Lovelace\nal01234\nn\n\n\n"),
     )
 
     assert tested == ["gitlab.surrey.ac.uk"]
@@ -3891,10 +3888,10 @@ def test_surrey_derives_five_answers_from_four_questions(  # type: ignore[no-unt
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
-    # host, name, login, course, year, assessed? -> yes, stage 2 (SRA)
+    # host, name, login, assessed? -> yes, course, stage 2 (SRA), year
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n2\n2026\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ny\ncomm058\n2\n2026\n",
     )
 
     stored = load(tmp_path / "b.toml")
@@ -3930,7 +3927,7 @@ def test_a_first_run_stops_before_the_stage_list(  # type: ignore[no-untyped-def
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
     result = cli_bootstrap(
-        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n"
+        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n"
     )
 
     assert "Note these down:" in result.output
@@ -3960,9 +3957,9 @@ def test_a_first_run_takes_the_surrey_path_too(  # type: ignore[no-untyped-def]
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
-    # "yes, ask me now", then Surrey's own six answers.
+    # "yes, ask me now", then Surrey's own five answers.
     result = cli_bootstrap(
-        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n"
+        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n"
     )
 
     stored = load(tmp_path / "b.toml")
@@ -4005,7 +4002,7 @@ def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[
     # Enter accepts the offered year, so the year is never typed here.
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n1\n\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ny\ncomm058\n1\n\n",
     )
 
     from prodockit.bootstrap import surrey
@@ -4026,7 +4023,7 @@ def test_a_year_that_is_not_a_year_is_asked_again(  # type: ignore[no-untyped-de
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n1\n26\n2026\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ny\ncomm058\n1\n26\n2026\n",
     )
 
     assert "Four figures" in result.output
@@ -4048,7 +4045,7 @@ def test_the_stage_menu_comes_before_the_year_that_names_it(  # type: ignore[no-
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n2\n2026\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ny\ncomm058\n2\n2026\n",
     )
     output = result.output
 
@@ -4067,7 +4064,7 @@ def test_unassessed_work_is_asked_for_its_namespace_and_nothing_else(  # type: i
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n",
     )
 
     stored = load(tmp_path / "b.toml")
@@ -4080,28 +4077,43 @@ def test_unassessed_work_is_asked_for_its_namespace_and_nothing_else(  # type: i
 def test_both_paths_ask_the_same_number_of_questions(  # type: ignore[no-untyped-def]
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Seven either way, and every one of them numbered.
+    """Every question numbered, and against the right total.
 
     The stage question used to arrive unnumbered after "is this
     assessed?", so a reader counting down from six met a question that
     was not in the count (#437).
+
+    The two paths agree up to and including "is this assessed?" - both
+    numbered against seven, since which path applies is not known until
+    it is answered. After that they diverge: assessed work asks three
+    more questions (course, stage, year) and stays on seven; unassessed
+    work never asks for a course code (#458), so its two remaining
+    questions (namespace, repository name) count against six instead.
     """
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
     assessed = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n2\n2026\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ny\ncomm058\n2\n2026\n",
     ).output
     (tmp_path / "b.toml").unlink()
     unassessed = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n",
     ).output
 
-    for output in (assessed, unassessed):
-        for number in range(2, 8):
-            assert f"{number}/7" in output, f"{number}/7 missing from:\n{output}"
+    for number in range(2, 8):
+        assert f"{number}/7" in assessed, f"{number}/7 missing from the assessed path:\n{assessed}"
+    for number in range(2, 5):
+        assert f"{number}/7" in unassessed, (
+            f"{number}/7 missing before the split:\n{unassessed}"
+        )
+    for number in range(5, 7):
+        assert f"{number}/6" in unassessed, (
+            f"{number}/6 missing after the split:\n{unassessed}"
+        )
+    assert "questions rather than 7" in unassessed, "the drop from 7 to 6 is announced"
 
 
 def test_the_offered_repository_name_can_be_typed_over(  # type: ignore[no-untyped-def]
@@ -4114,7 +4126,7 @@ def test_the_offered_repository_name_can_be_typed_over(  # type: ignore[no-untyp
 
     cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\nnotes\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\nnotes\n",
     )
 
     stored = load(tmp_path / "b.toml")
@@ -4132,7 +4144,7 @@ def test_a_namespace_typed_over_the_default_is_kept(  # type: ignore[no-untyped-
 
     cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\ndocs-team\n\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\ndocs-team\n\n",
     )
 
     assert load(tmp_path / "b.toml").namespace == "docs-team"
@@ -4148,7 +4160,7 @@ def test_unassessed_surrey_work_goes_to_the_students_own_namespace(  # type: ign
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n",
     )
 
     stored = load(tmp_path / "b.toml")
@@ -4174,7 +4186,7 @@ def test_the_short_path_says_why_it_is_shorter(  # type: ignore[no-untyped-def]
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n",
     )
 
     assert "1/8 The git host" in result.output
@@ -4682,7 +4694,7 @@ def test_a_first_run_asks_the_host_even_without_configure(
     assert not (tmp_path / "b.toml").exists()
 
     result = cli_bootstrap(
-        input="y\ngitlab.surrey.ac.uk\nAda\na@b.c\nal01234\ncomm058\nreport-x\n\n\n",
+        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nal01234\nn\n\n\n",
     )
 
     assert "The git host your project lives on" in result.output
@@ -7084,3 +7096,58 @@ def test_the_build_uses_the_projects_own_zensical(tmp_path: Path) -> None:
         built = PurePath(plan.commands[0][0])
         assert built.parts[-2:] == parts, platform
         assert ".venv" in built.parts
+
+
+def test_unassessed_work_is_never_asked_for_a_course_code() -> None:
+    """#458: the course code was asked before "is this assessed", so an
+    unassessed run answered it and the answer was then thrown away -
+    neither `namespace_for` nor `project_name_for` runs on this path,
+    because the namespace/project questions below are answered directly.
+    Asking it only inside the assessed branch means an unassessed run is
+    never asked it at all, and the running total drops from 7 to 6 to
+    match."""
+    from click.testing import CliRunner
+
+    from prodockit.cli import _ask_surrey
+
+    config = BootstrapConfig()
+    runner = CliRunner()
+    # login, "is this assessed?" (no), then Enter through both defaults.
+    responses = "ab1234\nn\n\n\n"
+    with runner.isolation(input=responses) as (out, _err, _):
+        _ask_surrey(config)
+    rendered = out.getvalue().decode()
+
+    assert "course code" not in rendered.lower()
+    assert "4/7 Is this an assessed assignment?" in rendered
+    assert "5/6 The group or namespace" in rendered
+    assert "6/6 The name of the repository" in rendered
+    assert config.username == "ab1234"
+    assert config.namespace == "ab1234", "offered as the default, and accepted"
+    assert config.project_name == "report-ab1234"
+
+
+def test_assessed_work_is_still_asked_for_a_course_code() -> None:
+    """The other side of #458's fix: an assessed run still asks for the
+    course code - just after "is this assessed" rather than before - and
+    the total stays at 7 throughout, since this path is the longer one."""
+    from click.testing import CliRunner
+
+    from prodockit.cli import _ask_surrey
+
+    config = BootstrapConfig()
+    runner = CliRunner()
+    # login, "is this assessed?" (yes), course code, stage, year.
+    responses = "ab1234\ny\ncomm058\n1\n2026\n"
+    with runner.isolation(input=responses) as (out, _err, _):
+        _ask_surrey(config)
+    rendered = out.getvalue().decode()
+
+    assert "5/7 Your course code" in rendered
+    assert "6/7 Which stage" in rendered
+    assert "7/7 What year" in rendered
+    assert "questions rather than" not in rendered, (
+        "no count-drop notice on the path that matches the initial count"
+    )
+    assert config.namespace == "assessment-comm058-2026"
+    assert config.project_name == "report-comm058-2026-ab1234"
