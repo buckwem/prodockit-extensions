@@ -291,14 +291,17 @@ pdk boot
 ```
 
 The first run asks what it needs and saves the answers beside the project
-as `.pdk-bootstrap.toml`. Then it reports every stage, and changes
-nothing.
+as `.pdk-bootstrap.toml`. Then it stops, so what it tells you to note
+down stays on the screen - run it again to see the stages.
 
-On `gitlab.surrey.ac.uk` that is six questions - your name, the ID you
-log in with, your course code, the year the module starts and whether it
-is assessed - because your email, your GitLab username, the group and
-the repository name all follow from those. On any other host it is
-eight, since none of that can be derived there.
+On `gitlab.surrey.ac.uk` that is seven questions: your name, the ID you
+log in with, your course code, and whether the work is assessed. Assessed
+work is then asked which stage - first attempt, SRA or LSA - and which
+year the module starts in, and its group and repository name follow from
+those. Unassessed work is asked for its group and its repository name
+instead, each offered as your own.
+
+On any other host it is eight, since none of that can be derived there.
 
 `pdk` is `prodockit` and `boot` is `bootstrap`, so
 `prodockit bootstrap` is the same command typed in full.

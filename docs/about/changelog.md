@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.36.0 (2026-08-17)
 
 - **Fixed:** the ssh-agent step ended the run without looking
   ([#435](https://github.com/buckwem/prodockit-extensions/issues/435)).
