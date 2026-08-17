@@ -71,3 +71,4 @@ def test_released_entries_are_newest_first() -> None:
     ]
 
     assert dates == sorted(dates, reverse=True), "an entry is out of order by date"
+

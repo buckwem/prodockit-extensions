@@ -1,8 +1,9 @@
 # Machine bootstrap {: #bootstrap-machine-bootstrap }
 
 \index{`prodockit bootstrap`} turns the User Guide's install sequence into
-eighteen stages that can be checked individually and repaired one at a time,
-rather than followed top to bottom and hoped over.
+a list of stages that can be checked individually and repaired one at a
+time, rather than followed top to bottom and hoped over. `prodockit
+bootstrap` reports how many there are; the table below names them.
 
 The install is long, sequential, and easy to get half-right in ways that
 only surface much later - a missing Pango that looks fine until the first
@@ -338,27 +339,33 @@ and why - and running `--apply` again does only that stage.
 
 | # | Stage | Automated? |
 | --- | --- | --- |
-| 1 | Visual Studio Code | yes |
-| 2 | Git, installed **and** configured | yes |
-| 3 | SSH keypair | yes |
-| 4 | `~/.ssh/config` points this host at that key | yes |
-| 5 | Key loaded into the ssh agent | yes |
-| 6 | Public key on the host | **guide and verify** |
-| 7 | Template cloned | yes |
-| 8 | A history of your own | **asks first** |
-| 9 | Your own project on the host | **guide and verify** |
-| 10 | Clone pointed at your project | yes |
-| 11 | Commit identity in the project | yes |
-| 12 | Pandoc, and the libraries WeasyPrint needs | yes |
-| 13 | Project environment and its dependencies | yes |
-| 14 | Node.js and the render toolchains | yes |
-| 15 | VS Code extensions | yes |
-| 16 | VS Code settings for the project | yes |
-| 17 | Citation style for the first build | yes |
-| 18 | MathJax for the website | yes |
+| 1 | prodockit runs in an environment of its own | yes, after a step of your own |
+| 2 | Visual Studio Code | yes, after a step of your own |
+| 3 | Git, installed **and** configured | yes |
+| 4 | SSH keypair | yes, after a step of your own |
+| 5 | SSH config points at the key | yes |
+| 6 | Key loaded into the ssh agent | yes, after a step of your own |
+| 7 | SSH key on the host | **guide and verify** |
+| 8 | Where the project comes from | **a choice** |
+| 9 | Project cloned | yes |
+| 10 | A history of your own | yes |
+| 11 | Your own project on the host | **guide and verify** |
+| 12 | Pages switched on | **guide and verify** |
+| 13 | Clone pointed at your project | yes |
+| 14 | Commit identity in the project | yes |
+| 15 | Pandoc, and the libraries WeasyPrint needs | yes |
+| 16 | Project environment and its dependencies | yes |
+| 17 | Node.js and the render toolchains | yes |
+| 18 | VS Code extensions | yes |
+| 19 | VS Code settings for the project | yes |
+| 20 | Citation style for the first build | yes |
+| 21 | MathJax for the website | yes |
+| 22 | First commit pushed | yes, after a step of your own |
+| 23 | Documentation site published | **guide and verify** |
 
-Stages 3, 4, 5, 7, 8, 10, 11, 13, 15, 16 and 17 are platform-independent
-- most of the work is the same on every operating system.
+Stages 8 to 14, 18, 19, 21 and 23 do the same thing on every operating
+system - they are about your project and your host rather than about the
+machine. The rest differ, because installing software does.
 
 The list is longer than it was because it was wrong. Comparing it
 against the User Guide step by step found six things it did not do at
