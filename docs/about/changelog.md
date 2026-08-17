@@ -1,5 +1,29 @@
 # Release Notes
 
+## Unreleased
+
+- **Fixed:** the site stage speaks about the host the reader is actually
+  on ([#444](https://github.com/buckwem/prodockit-extensions/issues/444)).
+
+    Every instruction on that stage was a literal describing GitHub, so a
+    GitLab reader was sent looking for a gear beside 'About', a
+    'Use your GitHub Pages website' tick-box and a Settings > Pages -
+    none of which exist there.
+
+    One of them was worse than merely wrong. It said the site "will be
+    public" and that "a private repository does not make a private site",
+    which is true of GitHub and false of GitLab: a private project's site
+    stays behind the instance's own sign-in. An anonymous request to a
+    published Surrey site answers `302` to GitLab's OAuth consent page.
+    So a student was told their drafts were readable by anyone with the
+    link, contradicting what the project stage had told them about the
+    same project.
+
+    Carried as per-host values rather than a branch in the stage, which
+    is how `ssh_keys_steps` and `project_visibility` already work - the
+    model's own note is that a difference by host belongs as "a value
+    rather than a branch in the stage".
+
 ## 0.36.1 (2026-08-17)
 
 - Zensical pinned to **0.0.55** (from 0.0.53), after building the site

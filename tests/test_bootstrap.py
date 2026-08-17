@@ -6749,6 +6749,80 @@ def test_only_github_is_asked_to_switch_pages_on(tmp_path: Path) -> None:
     assert "Build and deployment" in said
 
 
+def _site_words(tmp_path: Path, host: str) -> str:
+    """Everything stage 23 says, for one host."""
+    return " ".join(
+        next(s for s in STAGES if s.id == "site")
+        .plan(_context(tmp_path, host=host, namespace="ns", project_name="p"))
+        .instructions
+    )
+
+
+def test_no_reader_is_shown_another_hosts_interface(tmp_path: Path) -> None:
+    """prodockit-extensions#444.
+
+    Every instruction on this stage was a literal describing GitHub, so a
+    GitLab reader was sent looking for a gear beside 'About', a
+    'Use your GitHub Pages website' tick-box and a Settings > Pages, none
+    of which exist there.
+
+    Written against the names rather than the whole sentences: the
+    wording will be edited, and what must not come back is one host's
+    interface appearing in another's instructions.
+    """
+    github_only = ("GitHub Pages website", "beside 'About'", "GitHub Enterprise")
+    gitlab_only = ("Build > Pipelines", "Deploy > Pages", "README.md")
+
+    for host in ("gitlab.surrey.ac.uk", "gitlab.com"):
+        said = _site_words(tmp_path, host)
+        for phrase in github_only:
+            assert phrase not in said, f"{host} was shown GitHub's {phrase!r}"
+
+    said = _site_words(tmp_path, "github.com")
+    for phrase in gitlab_only:
+        assert phrase not in said, f"github.com was shown GitLab's {phrase!r}"
+
+
+def test_the_site_is_not_called_public_where_it_is_not(tmp_path: Path) -> None:
+    """The half of #444 that was worse than merely wrong.
+
+    GitLab keeps a private project's site behind its own sign-in - an
+    anonymous request to a published Surrey site answers 302 to GitLab's
+    OAuth consent page, which is exactly what the check reads as
+    "published, behind a login". Telling that reader the site "will be
+    public" contradicts what the project stage told them about the same
+    project, and both cannot be true.
+
+    So this asserts the *claim*, not the phrasing: nowhere on a GitLab
+    host may the stage promise a publicly readable site.
+    """
+    for host in ("gitlab.surrey.ac.uk", "gitlab.com"):
+        said = _site_words(tmp_path, host)
+        assert "site will be public" not in said, host
+        assert "readable by anyone with the link" not in said, host
+
+    surrey = _site_words(tmp_path, "gitlab.surrey.ac.uk")
+    assert "university login" in surrey, "say who can actually read it"
+
+    # And GitHub, where it *is* true, must go on saying so - the fix is
+    # per-host wording, not the removal of a warning that matters.
+    assert "site will be public" in _site_words(tmp_path, "github.com")
+
+
+def test_every_host_says_something_about_its_own_site(tmp_path: Path) -> None:
+    """A host declaring none of these would silently drop the guidance
+    rather than show the wrong host's, which is the failure this fix
+    could plausibly introduce."""
+    from prodockit.bootstrap import HOSTS
+
+    for key, host in HOSTS.items():
+        if not host.pages_url:
+            continue  # no address to publish at - the stage does not apply
+        assert host.site_link_steps, key
+        assert host.site_visibility_note, key
+        assert host.site_missing_note, key
+
+
 def test_the_metadata_url_comes_from_the_host(tmp_path: Path) -> None:
     """It was `api.github.com` written into the stage, so a gitlab.com
     project would have been asked about against GitHub's API."""
