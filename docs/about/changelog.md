@@ -83,11 +83,12 @@
     marked.
 
     The repository, and the folder it lands in, are named
-    `report-<course>-<year>-<login>`. The name carries the year even for
-    unassessed work, where the namespace does not: those repositories sit
-    side by side in one personal namespace, and two years of the same
-    module would otherwise be two repositories with one name between
-    them. The repository is
+    `report-<course>-<year>-<login>`, with `-sra`/`-lsa` on the end for a
+    resit. The name carries the year even for unassessed work, where the
+    namespace does not: those repositories sit side by side in one
+    personal namespace, and two years of the same module - or a first
+    attempt and its resit - would otherwise be two repositories with one
+    name between them. The repository is
     `report-<course>-<login>`, and the run ends by telling you both, since
     you have to find them on a website afterwards.
 

@@ -136,20 +136,28 @@ def namespace_for(course: str, login: str, assessment: Assessment, year: str = "
     return "-".join(parts) + assessment.stage_suffix
 
 
-def project_name_for(course: str, login: str, year: str = "") -> str:
-    """`report-comm058-2026-ab1234` - course, cohort, and whose it is.
+def project_name_for(
+    course: str, login: str, year: str = "", assessment: Assessment | None = None
+) -> str:
+    """`report-comm058-2026-ab1234-sra` - course, cohort, owner, attempt.
 
     In that order for the same reason the namespace is: the course first
     so a listing groups by module, the year next so one cohort sorts
-    together within it, and the ID last so a marker reading down a column
-    finds a name where they expect one.
+    together within it, the ID where a marker reading down a column
+    expects a name, and the attempt last because it is the exception.
 
     The name carries the year even for unassessed work, where the
     namespace does not. A student keeps their own repositories side by
     side in one namespace, and two years of the same module would
     otherwise be two repositories with one name between them.
+
+    A resit needs the same distinction for the same reason: one student's
+    first attempt and their SRA are two repositories, and without the
+    suffix they are two repositories with one name.
     """
     parts = ["report", course_code(course)]
     if year.strip():
         parts.append(year.strip())
-    return "-".join([*parts, login_id(login)])
+    parts.append(login_id(login))
+    suffix = assessment.stage_suffix if assessment is not None else ""
+    return "-".join(parts) + suffix

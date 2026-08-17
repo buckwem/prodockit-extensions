@@ -102,6 +102,32 @@ def test_the_project_is_named_for_its_course_cohort_and_owner() -> None:
     ), "one course however it is capitalised"
 
 
+def test_a_resit_is_a_repository_of_its_own() -> None:
+    """A student's first attempt and their SRA are two repositories, in
+    two groups. Without the suffix they would be two repositories with
+    one name between them."""
+    named = ("comm058", "ab1234", "2026")
+
+    assert (
+        surrey.project_name_for(*named, surrey.Assessment.at_stage("2"))
+        == "report-comm058-2026-ab1234-sra"
+    )
+    assert (
+        surrey.project_name_for(*named, surrey.Assessment.at_stage("3"))
+        == "report-comm058-2026-ab1234-lsa"
+    )
+    # A first attempt is the ordinary case and carries no suffix, in the
+    # name or the namespace.
+    assert (
+        surrey.project_name_for(*named, surrey.Assessment.at_stage("1"))
+        == "report-comm058-2026-ab1234"
+    )
+    assert (
+        surrey.project_name_for(*named, surrey.Assessment.not_assessed())
+        == "report-comm058-2026-ab1234"
+    )
+
+
 def test_the_name_carries_the_year_where_the_namespace_does_not() -> None:
     """Unassessed work lives in the student's own namespace, so the year
     has nowhere else to go - and two years of one module would be two

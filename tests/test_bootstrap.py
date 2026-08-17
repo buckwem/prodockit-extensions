@@ -3782,8 +3782,8 @@ def test_surrey_derives_five_answers_from_four_questions(  # type: ignore[no-unt
     assert stored.email == "ab1234@surrey.ac.uk"
     assert stored.username == "ab1234"
     assert stored.namespace == "assessment-comm058-2026-sra"
-    assert stored.project_name == "report-comm058-2026-ab1234"
-    assert stored.project_dir.endswith("report-comm058-2026-ab1234")
+    assert stored.project_name == "report-comm058-2026-ab1234-sra"
+    assert stored.project_dir.endswith("report-comm058-2026-ab1234-sra")
 
     # None of the five derived questions was put to the reader.
     for never_asked in ("email address used", "username", "group, organisation"):
@@ -3791,7 +3791,7 @@ def test_surrey_derives_five_answers_from_four_questions(  # type: ignore[no-unt
     # ...and what was derived is shown, because a student has to find the
     # repository on a website afterwards.
     assert "assessment-comm058-2026-sra" in result.output
-    assert "report-comm058-2026-ab1234" in result.output
+    assert "report-comm058-2026-ab1234-sra" in result.output
 
 
 def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[no-untyped-def]
