@@ -21,8 +21,6 @@
     here: an app bundle is not on `PATH`, and a new terminal will not
     change that.
 
-## Unreleased
-
 - **Fixed:** a repository created with a README was reported as pushed
   when nothing had been pushed
   ([#423](https://github.com/buckwem/prodockit-extensions/issues/423)).
