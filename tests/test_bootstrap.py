@@ -1034,6 +1034,14 @@ def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                     }
                     | (responses or {})
                 ),
+                # VS Code is absent unless a test says otherwise. Since
+                # #424 the CLI is looked for inside the application, and
+                # without this the answer would come from whether the
+                # developer running the suite happens to have VS Code -
+                # passing here and failing in CI, or the reverse.
+                exists=lambda path: (
+                    False if _looks_like_vscode_app(path) else path.exists()
+                ),
                 platform=platform,
                 home=tmp_path,
             ),
@@ -1239,11 +1247,16 @@ def test_vscode_installed_without_the_shell_command_is_wrong(
     stage = next(s for s in STAGES if s.id == "vscode")
 
     result = stage.check(context)
-    assert result.status is Status.WRONG
+    # Satisfied since #424: the CLI lives inside the application on macOS,
+    # so bootstrap can drive VS Code without `code` being on PATH at all.
+    # The reader is still told how to get it for their own terminal.
+    assert result.status is Status.OK
     assert "not on PATH" in result.detail
+    assert "Command Palette" in result.detail
 
     plan = stage.plan(context)
-    # The fix is the Command Palette action, not an install that would fail.
+    # The thing this was reported for: never an install that would fail
+    # against an app already sitting in /Applications.
     assert plan.commands == []
     assert any("Shell Command" in i for i in plan.instructions)
 
@@ -1550,12 +1563,12 @@ def test_extensions_are_listed_with_the_command_that_installs_them(tmp_path: Pat
         f"{code} --list-extensions": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
     }
     context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine))
-    original = stage_module._VSCODE_APP_PATHS
-    stage_module._VSCODE_APP_PATHS = {WINDOWS: (str(code.parent.parent),)}
+    original = stage_module._VSCODE_CLI_PATHS
+    stage_module._VSCODE_CLI_PATHS = {WINDOWS: (str(code),)}
     try:
         result = next(s for s in STAGES if s.id == "extensions").check(context)
     finally:
-        stage_module._VSCODE_APP_PATHS = original
+        stage_module._VSCODE_CLI_PATHS = original
 
     assert result.status is Status.OK, result.detail
     assert "is VS Code installed?" not in result.detail
@@ -4609,15 +4622,42 @@ def test_a_machine_without_vs_code_is_still_reported_missing(tmp_path: Path) -> 
     assert next(s for s in STAGES if s.id == "vscode").check(app_only).status is Status.WRONG
 
 
-def test_other_platforms_still_rely_on_path(tmp_path: Path) -> None:
-    """macOS really does install the application without the command,
-    and the Command Palette action really is how it is added there - so
-    that path is untouched."""
+def test_macos_finds_the_cli_inside_the_application(tmp_path: Path) -> None:
+    """prodockit-extensions#424.
+
+    macOS installs the application without the command: `code` arrives
+    only when somebody runs the Command Palette action, which readers
+    routinely have not - and the binary was inside the app bundle the
+    whole time. Every later stage that drives VS Code can use it.
+
+    This replaces a test asserting the opposite. That was a deliberate
+    decision, and #424 reverses it: doing the work is better than asking
+    for permission to be able to.
+    """
     from prodockit.bootstrap.stages import vscode_command
 
     context = _context(tmp_path, platform=MACOS, vscode_app=True)
+    found = vscode_command(context)
+
+    assert found is not None
+    assert found.endswith("Contents/Resources/app/bin/code"), found
+    result = next(s for s in STAGES if s.id == "vscode").check(context)
+    assert result.status is Status.OK
+    # ...and it does not borrow the Windows wording, which would be a lie
+    # here: an app bundle is not on PATH and a new terminal will not help.
+    assert "new terminal" not in result.detail
+    assert "not on PATH" in result.detail
+
+
+def test_a_machine_without_vs_code_still_reports_it_missing(tmp_path: Path) -> None:
+    """The point of #424 is finding an install that is there, not
+    inventing one that is not."""
+    from prodockit.bootstrap.stages import vscode_command
+
+    context = _context(tmp_path, platform=MACOS, vscode_app=False)
+
     assert vscode_command(context) is None
-    assert next(s for s in STAGES if s.id == "vscode").check(context).status is Status.WRONG
+    assert next(s for s in STAGES if s.id == "vscode").check(context).status is Status.MISSING
 
 
 def test_windows_finds_npm_by_path_when_the_bare_name_will_not_run(tmp_path: Path) -> None:
@@ -5964,9 +6004,18 @@ def test_each_stage_is_checked_when_the_loop_reaches_it(tmp_path: Path) -> None:
     forget_contacts(context)
     later = stage.check(context)
 
-    assert not first.needs_work, "unreachable host, so nothing to decide - yet"
-    assert later.needs_work, "reachable now, so the question is live"
-    assert "choose what to do with it" in later.detail
+    # Said with what was actually seen: this failed once in CI and
+    # nowhere else, and "assert False" gave nothing to work from.
+    context_note = f"ls-remote calls: {len(seen)}"
+    assert not first.needs_work, (
+        f"unreachable host, so nothing to decide - yet; got "
+        f"{first.status.value}: {first.detail!r} ({context_note})"
+    )
+    assert later.needs_work, (
+        f"reachable now, so the question is live; got "
+        f"{later.status.value}: {later.detail!r} ({context_note})"
+    )
+    assert "choose what to do with it" in later.detail, later.detail
 
 
 def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(

@@ -362,31 +362,61 @@ def _git_is_available(context: Context) -> bool:
     return _installed(context, "git") or git_command(context) != "git"
 
 
+#: Where each platform's install puts the `code` CLI itself, as opposed
+#: to the application. On macOS these are two different things and only
+#: one of them is on `PATH`: the app is installed by dragging it to
+#: Applications, and the command arrives only when somebody runs "Shell
+#: Command: Install 'code' command in PATH" from inside it
+#: (prodockit-extensions#424). The binary is there the whole time.
+_VSCODE_CLI_PATHS: dict[str, tuple[str, ...]] = {
+    MACOS: (
+        "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+        "~/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+    ),
+    UBUNTU: (
+        "/usr/share/code/bin/code",
+        "/snap/bin/code",
+    ),
+    WINDOWS: (
+        r"C:\Program Files\Microsoft VS Code\bin\code.cmd",
+        r"~\AppData\Local\Programs\Microsoft VS Code\bin\code.cmd",
+    ),
+}
+
+
 def vscode_command(context: Context) -> str | None:
     """How to invoke VS Code's CLI, or None if it cannot be found.
 
     `code` when it is on `PATH`, which is the ordinary answer everywhere.
 
-    On Windows there is a second answer, and it matters. The installer
-    adds `code` to `PATH` itself - but `PATH` is read when a process
-    starts, so the shell that just ran `winget install` cannot see it.
-    The check therefore failed on a machine where VS Code was installed
-    perfectly well, and offered a Command Palette action that does not
-    exist on Windows (prodockit-extensions#292).
+    There is a second answer on every platform, and it matters.
 
-    Rather than tell the reader to open a new terminal and start again,
-    the executable is looked for where the installer puts it, and used by
-    its full path. The extensions stage then works in this session too.
+    On Windows the installer adds `code` to `PATH` itself - but `PATH` is
+    read when a process starts, so the shell that just ran `winget
+    install` cannot see it. The check therefore failed on a machine where
+    VS Code was installed perfectly well, and offered a Command Palette
+    action that does not exist there (prodockit-extensions#292).
+
+    On macOS the application and the command are two different things.
+    The app is installed by dragging it to Applications; `code` arrives
+    only when somebody runs "Shell Command: Install 'code' command in
+    PATH" from inside it, which is a step readers routinely have not
+    taken - and the binary was sitting in the app bundle the whole time
+    (#424).
+
+    Rather than tell the reader to open a new terminal, or to go and do
+    something the machine can do without them, the executable is looked
+    for where the install puts it and used by its full path. The
+    extensions stage then works in this session too. `None` means it
+    genuinely is not there, and the Command Palette step is then the
+    right advice rather than a guess.
     """
     if _installed(context, "code"):
         return "code"
-    if context.platform != WINDOWS:
-        return None
-    for raw in _VSCODE_APP_PATHS[WINDOWS]:
+    for raw in _VSCODE_CLI_PATHS.get(context.platform, ()):
         expanded = raw.replace("~", str(context.home), 1) if raw.startswith("~") else raw
-        candidate = Path(expanded) / "bin" / "code.cmd"
-        if context.exists(candidate):
-            return str(candidate)
+        if context.exists(Path(expanded)):
+            return str(Path(expanded))
     return None
 
 
@@ -437,11 +467,23 @@ def _check_vscode(context: Context) -> CheckResult:
     command = vscode_command(context)
     if command == "code":
         return _ok()
-    if command is not None:
+    if command is not None and context.platform == WINDOWS:
         # Found where the installer puts it, just not visible to this
         # process yet - which is not a fault to report, and not something
         # to send the reader to a Command Palette over (#292).
         return _ok(f"{command} (PATH picks it up in a new terminal)")
+    if command is not None:
+        # Found *inside the application*, which is not on `PATH` and will
+        # not be - so the Windows wording would be untrue here. Bootstrap
+        # can drive VS Code perfectly well by this path, so nothing is
+        # blocked; the reader is told how to get `code` in their own
+        # terminal, which is a convenience rather than a prerequisite
+        # (prodockit-extensions#424).
+        return _ok(
+            f"{command} - `code` itself is not on PATH. For your own terminal, run "
+            "'Shell Command: Install \'code\' command in PATH' from VS Code's "
+            "Command Palette"
+        )
     if _vscode_app_installed(context):
         return _wrong("VS Code is installed, but the `code` command is not on PATH")
     return _missing("VS Code is not installed")
