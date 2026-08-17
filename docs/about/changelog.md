@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **Changed:** VS Code is driven from inside the application when `code`
+  is not on PATH
+  ([#424](https://github.com/buckwem/prodockit-extensions/issues/424)).
+
+    On macOS the application and the command are two different installs.
+    The app is dragged to Applications; `code` arrives only when somebody
+    runs "Shell Command: Install `code` command in PATH" from inside it -
+    which readers routinely have not, while the binary sat in the app
+    bundle the whole time.
+
+    It is found there now, so the stages that drive VS Code work without
+    it. The stage still says `code` is not on PATH, and how to add it,
+    because that is a convenience worth having in your own terminal - it
+    is no longer a thing that stops the run.
+
+    Windows keeps its own wording, which is true there and would be false
+    here: an app bundle is not on `PATH`, and a new terminal will not
+    change that.
+
+## Unreleased
+
 - **Fixed:** a repository created with a README was reported as pushed
   when nothing had been pushed
   ([#423](https://github.com/buckwem/prodockit-extensions/issues/423)).
