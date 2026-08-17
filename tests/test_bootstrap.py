@@ -1822,6 +1822,67 @@ def test_the_bootstrap_page_does_not_hard_code_a_stage_count() -> None:
         assert stale not in page, stale
 
 
+def test_a_service_that_is_running_by_the_time_we_look_carries_on(
+    tmp_path: Path,
+) -> None:
+    """prodockit-extensions#435.
+
+    The run used to end the moment the reader said they had started the
+    ssh-agent service, on the reasoning that this process could not see
+    it. Usually it can: `ssh-add` opens the agent's pipe afresh every
+    time it runs, so the next check is a new process asking a question
+    whose answer has just changed.
+
+    Ending a run that could have carried on is a worse outcome than the
+    loop it was fixing.
+    """
+    from click.testing import CliRunner
+
+    from prodockit.bootstrap import Plan
+    from prodockit.cli import _verify_until_done
+
+    started: list[bool] = []
+
+    class ServiceStarts(FakeRunner):
+        """No agent until the reader says they started one."""
+
+        def run(self, command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
+            if " ".join(command).startswith("ssh-add -l"):
+                if started:
+                    return CommandResult(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)")
+                return CommandResult(2, stderr="Error connecting to agent")
+            return super().run(command, cwd, timeout, capture)
+
+    machine = _ready_machine(tmp_path)
+    context = _context(tmp_path, platform=WINDOWS, runner=ServiceStarts(machine))
+    stage = next(s for s in STAGES if s.id == "ssh-agent")
+    plan = Plan(confirm="Have you started the ssh-agent service?", needs_a_new_run=True)
+
+    assert stage.check(context).needs_work, "no agent yet - the state under test"
+    with CliRunner().isolation(input="yes\n"):
+        started.append(True)          # they go and start it, then answer
+        done = _verify_until_done(context, stage, plan)
+
+    assert done, "the check could see it - the run should carry on"
+
+
+def test_a_step_still_unseen_after_answering_ends_the_run(tmp_path: Path) -> None:
+    """And when it genuinely cannot be seen, the run ends rather than
+    putting the same question to the same unchanged answer (#397)."""
+    from click.testing import CliRunner
+
+    from prodockit.bootstrap import Plan
+    from prodockit.cli import _StartAgain, _verify_until_done
+
+    machine = _ready_machine(tmp_path) | {"ssh-add -l": CommandResult(2)}
+    context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine))
+    stage = next(s for s in STAGES if s.id == "ssh-agent")
+    plan = Plan(confirm="Have you started the ssh-agent service?", needs_a_new_run=True)
+
+    with CliRunner().isolation(input="yes\n"), pytest.raises(_StartAgain):
+        _verify_until_done(context, stage, plan)
+
+
 def test_a_step_only_a_new_run_can_see_ends_the_run(  # type: ignore[no-untyped-def]
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
