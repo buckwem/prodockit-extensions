@@ -170,6 +170,26 @@ always a pip package:
 | image tag | `image: python:3.13` | GitLab CI, or any container |
 | CI variable | `PANDOC_VERSION: "3.10.1"` | a GitHub `env:` block, a GitLab `variables:` block |
 
+!!! info "Why prodockit is managed by default"
+    It was not, for a long time, and the omission had exactly the
+    consequence the managed set exists to prevent. `prodockit-template`
+    pinned `prodockit==0.35.0` and drifted two releases behind with
+    nothing noticing, because the one command that looks at pins was not
+    looking at this one - moving it needed `-p prodockit` typed by hand,
+    which is the step nobody remembers
+    ([prodockit-template#173](https://github.com/buckwem/prodockit-template/issues/173)).
+
+    It belongs there on the merits too: prodockit renders the PDF and
+    generates the back-of-book index, so its version changes a project's
+    published output as directly as Zensical's does.
+
+    Including it is safe even in prodockit's own repository, where the
+    name appears in `pyproject.toml` as the project's identity rather
+    than as a dependency. The specifier pattern requires a version
+    operator after the name, so `name = "prodockit"` and the adjacent
+    `version = "..."` are not declarations - without that, the command
+    would offer to rewrite the release number of the package being built.
+
 !!! info "Why pandoc is managed by default"
     Pandoc is not a Python package, so it never appears as a pip specifier
     - it is a build-provided binary, pinned as a `<PACKAGE>_VERSION`

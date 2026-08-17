@@ -72,7 +72,30 @@ from dataclasses import dataclass, field
 #: :mod:`prodockit.pdf.css` and :mod:`prodockit.pdf.lua` both match on the
 #: specific class shapes pymdownx emits, so the renderer is an input to the
 #: PDF's own correctness rather than only to the website's appearance.
-DEFAULT_PACKAGES = ("zensical", "weasyprint", "markdown", "pymdown-extensions", "pandoc")
+#: `prodockit` is watched for the same reason as the rest, and its
+#: absence here had the consequence the rest were added to prevent: the
+#: template pinned `prodockit==0.35.0` and drifted two releases behind
+#: without anything noticing, because the one command that looks at pins
+#: was not looking at this one (prodockit-template#173). Moving it needed
+#: `-p prodockit` typed by hand, which is precisely the step nobody
+#: remembers to take.
+#:
+#: It belongs on the list on the merits, too: prodockit renders the PDF
+#: and generates the back-of-book index, so its version changes a
+#: project's published output as directly as Zensical's does.
+#:
+#: Safe to include even in this repository, where prodockit is the
+#: project rather than a dependency: the pattern requires a version
+#: operator after the name, so `name = "prodockit"` and `version =
+#: "0.36.2"` in `pyproject.toml` are not declarations and are left alone.
+DEFAULT_PACKAGES = (
+    "zensical",
+    "weasyprint",
+    "prodockit",
+    "markdown",
+    "pymdown-extensions",
+    "pandoc",
+)
 
 #: Directories never worth scanning - build output, virtualenvs, caches.
 #: A stale copy of a workflow inside one of these would otherwise be
