@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.36.3 (2026-08-17)
 
 - **Changed:** `prodockit pins` watches `prodockit` itself
   ([prodockit-template#173](https://github.com/buckwem/prodockit-template/issues/173)).
