@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Fixed:** a repository created with a README was reported as pushed
+  when nothing had been pushed
+  ([#423](https://github.com/buckwem/prodockit-extensions/issues/423)).
+
+    Ticking "initialize this repository with a README" makes a commit
+    your project's history does not contain. The stage asked only whether
+    the remote had *anything* on it, so it answered `ok` about a project
+    that had never been pushed - and the site stage then found nothing
+    published, with nothing on screen to connect the two.
+
+    It now compares the commit here with the commit there. Where the only
+    thing on the host is that README, the push replaces it, pinned to
+    exactly the commit that was inspected - so anything arriving in
+    between fails the push rather than being overwritten. Where the host
+    has anything else at all, nothing is pushed over it and the stage
+    says to go and look.
+
 - **Fixed:** the bootstrap page described eighteen stages when there were
   twenty-three
   ([#413](https://github.com/buckwem/prodockit-extensions/issues/413)).

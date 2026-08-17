@@ -1318,6 +1318,41 @@ def _remote_holds_a_project(context: Context) -> bool:
     return all(wanted in present for wanted in PROJECT_FILES)
 
 
+#: What a repository holds when its only commit is the one the host made
+#: from "initialize this repository with a README". GitLab and GitHub
+#: both offer that tick-box next to the Create button, and a student who
+#: ticks it has made a repository that cannot be pushed to from a history
+#: that does not contain it (prodockit-extensions#423).
+_JUST_A_README = frozenset({"README.md"})
+
+
+def remote_is_only_its_first_readme(context: Context) -> bool:
+    """Whether `origin` holds nothing but the README the host created.
+
+    Deliberately exact. Anything else at all - a second file, a stray
+    commit, somebody else's work - and this is False, because the answer
+    decides whether a force push is offered and overwriting a repository
+    that has something in it is not recoverable.
+    """
+    project = context.config.resolved_project_dir(context.home)
+    with tempfile.TemporaryDirectory() as into:
+        clone = context.runner.run(
+            [git_command(context), "clone", "--depth", "1", "--no-checkout",
+             _origin_url(context) or str(project), into]
+        )
+        if not clone.ok:
+            return False
+        listed = context.runner.run(
+            [git_command(context), "-C", into, "ls-tree", "--name-only", "HEAD"]
+        )
+        counted = context.runner.run(
+            [git_command(context), "-C", into, "rev-list", "--count", "HEAD"]
+        )
+    if not (listed.ok and counted.ok):
+        return False
+    return set(listed.stdout.split()) == _JUST_A_README and counted.stdout.strip() == "1"
+
+
 def own_project_has_content(context: Context) -> bool:
     """Whether the reader's own project exists on the host *and* has commits.
 
@@ -2905,7 +2940,60 @@ def _check_first_push(context: Context) -> CheckResult:
                 "Reporter, and whether `main` is a protected branch"
             )
         return _missing(f"{project.name} is still empty on {context.host.hostname}")
-    return _ok(f"pushed to {context.host.hostname}")
+
+    # Something is there - but "something" was read as "your work", so a
+    # repository created with the host's own README reported this stage
+    # `ok` and the project was never pushed at all
+    # (prodockit-extensions#423). The site stage then found nothing
+    # published and nobody could see why.
+    here = context.runner.run([git_command(context), "-C", str(project), "rev-parse", "HEAD"])
+    if not here.ok:
+        return _missing("nothing committed here yet")
+    if remote.stdout.split()[0] == here.stdout.strip():
+        return _ok(f"pushed to {context.host.hostname}")
+    if remote_is_only_its_first_readme(context):
+        return _missing(
+            f"{context.host.hostname} has only the README it made when the "
+            "repository was created - your project is not pushed yet"
+        )
+    # Not a README, and not this project's history either. Somebody's
+    # work, and not something to push over on a guess.
+    return _wrong(
+        f"{context.host.hostname} has commits this project does not - nothing here "
+        "will push over them. Look at the repository before going further"
+    )
+
+
+def _push_command(context: Context) -> list[str]:
+    """The push, forced only over a README the host itself wrote.
+
+    A repository created with "initialize with a README" has a commit
+    that this project's history does not contain, so an ordinary push is
+    refused - and the reader is left with a rejected push and a stage
+    that had told them everything was fine (#423).
+
+    `--force-with-lease=main:<sha>` names the exact commit that was
+    looked at. If anything reached the repository between the check and
+    the push, the push fails rather than destroying it, which is the only
+    basis on which forcing one is reasonable at all.
+    """
+    project = context.config.resolved_project_dir(context.home)
+    ordinary = [git_command(context), "push", "-u", "origin", "main"]
+    if not remote_is_only_its_first_readme(context):
+        return ordinary
+    seen = context.runner.run(
+        [git_command(context), "-C", str(project), "ls-remote", "origin", "HEAD"]
+    )
+    if not (seen.ok and seen.stdout.split()):
+        return ordinary
+    return [
+        git_command(context),
+        "push",
+        f"--force-with-lease=main:{seen.stdout.split()[0]}",
+        "-u",
+        "origin",
+        "main",
+    ]
 
 
 def _plan_first_push(context: Context) -> Plan:
@@ -2947,11 +3035,22 @@ def _plan_first_push(context: Context) -> Plan:
                 if _has_uncommitted_work(context)
                 else []
             ),
-            [git_command(context), "push", "-u", "origin", "main"],
+            _push_command(context),
         ],
         instructions=[
             "This builds the site once, commits everything in the project, "
             "and pushes it - which is what publishes it.",
+            *(
+                [
+                    "The repository was created with a README, which nothing here "
+                    "wrote and nothing here needs. It will be replaced by the "
+                    "project's own - the push is pinned to exactly that commit, so "
+                    "if anything else has been added since, it fails rather than "
+                    "overwrites."
+                ]
+                if remote_is_only_its_first_readme(context)
+                else []
+            ),
         ],
         confirm="Commit and push the project?",
     )

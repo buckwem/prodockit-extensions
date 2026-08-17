@@ -147,6 +147,9 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     )
     save(tmp_path / "b.toml", _config())
     return {
+        # Pushed means the commit here is the commit there - the same
+        # sha from both sides, which is what the stage compares (#423).
+        "rev-parse HEAD": CommandResult(0, "abc123\n"),
         # The published site answers. Surrey's Pages address is derived
         # now, so the last stage has something to ask about (#392).
         "%{http_code}": CommandResult(0, "200"),
@@ -1574,6 +1577,76 @@ def test_no_check_asks_for_a_tool_by_a_name_it_knows_how_to_resolve() -> None:
         f"invoked by bare name: {bare} - use the resolver, or the check and its "
         "plan will disagree about the same machine"
     )
+
+
+def test_a_repository_created_with_a_readme_is_not_reported_as_pushed(
+    tmp_path: Path,
+) -> None:
+    """prodockit-extensions#423.
+
+    A student who ticks "initialize this repository with a README" gets a
+    commit their project's history does not contain. The check asked only
+    whether the remote had *anything* on it - so it answered `ok, pushed`
+    about a project that had never been pushed, and the site stage then
+    found nothing published with no way to see why.
+
+    Silent success on a broken setup is worse than the failed push it was
+    hiding.
+    """
+    machine = _ready_machine(tmp_path)
+    machine["rev-parse HEAD"] = CommandResult(0, "ffffff\n")   # ours
+    machine["ls-remote origin HEAD"] = CommandResult(0, "aaaaaa\tHEAD\n")  # theirs
+    machine["ls-tree"] = CommandResult(0, "README.md\n")
+    machine["rev-list"] = CommandResult(0, "1\n")
+    result = next(s for s in STAGES if s.id == "first-push").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.MISSING
+    assert "only the README" in result.detail
+    assert "not pushed yet" in result.detail
+
+
+def test_the_readme_is_replaced_only_over_the_commit_that_was_looked_at(
+    tmp_path: Path,
+) -> None:
+    """Forcing a push is not recoverable, so it is pinned to the exact
+    commit the check inspected. Anything arriving in between makes the
+    push fail rather than destroy it."""
+    machine = _ready_machine(tmp_path)
+    machine["rev-parse HEAD"] = CommandResult(0, "ffffff\n")
+    machine["ls-remote origin HEAD"] = CommandResult(0, "aaaaaa\tHEAD\n")
+    machine["ls-tree"] = CommandResult(0, "README.md\n")
+    machine["rev-list"] = CommandResult(0, "1\n")
+    plan = next(s for s in STAGES if s.id == "first-push").plan(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+    push = next(c for c in plan.commands if "push" in c)
+
+    assert "--force-with-lease=main:aaaaaa" in push, push
+    assert any("replaced by the project" in step for step in plan.instructions)
+
+
+def test_work_that_is_not_a_readme_is_never_pushed_over(tmp_path: Path) -> None:
+    """The exactness is the safety. Two files, or two commits, and this
+    is somebody's work rather than a tick-box - so the stage says to go
+    and look rather than offering to overwrite it."""
+    machine = _ready_machine(tmp_path)
+    machine["rev-parse HEAD"] = CommandResult(0, "ffffff\n")
+    machine["ls-remote origin HEAD"] = CommandResult(0, "aaaaaa\tHEAD\n")
+    machine["ls-tree"] = CommandResult(0, "README.md\nnotes.md\n")
+    machine["rev-list"] = CommandResult(0, "1\n")
+    context = _context(tmp_path, runner=FakeRunner(machine))
+
+    result = next(s for s in STAGES if s.id == "first-push").check(context)
+    assert result.status is Status.WRONG
+    assert "commits this project does not" in result.detail
+
+    push = next(
+        c for c in next(s for s in STAGES if s.id == "first-push").plan(context).commands
+        if "push" in c
+    )
+    assert not any(part.startswith("--force") for part in push), push
 
 
 def test_a_retry_after_a_refused_push_pushes(tmp_path: Path) -> None:
