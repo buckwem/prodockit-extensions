@@ -206,33 +206,82 @@ stage already done is left alone.
 
 //// step | Install Python
 prodockit is a Python program, so this is the one thing that cannot be
-automated - there is nothing to run it with yet.
+automated - there is nothing to run it with yet. Any version from 3.10
+works; 3.13 is what the template's CI uses.
 
-```bash
-python3 --version
-```
+=== "macOS"
 
-Any version from 3.10 works; 3.13 is what the template's CI uses. On
-Windows install it from [python.org](https://www.python.org/downloads/)
-or `winget install Python.Python.3.13`; on Ubuntu
-`sudo apt install python3 python3-venv`; on macOS
-`brew install python@3.13`.
+    Install [Homebrew](https://brew.sh) if you do not have it, then:
+
+    ```bash
+    brew install python@3.13
+    python3 --version
+    ```
+
+=== "Windows"
+
+    ```powershell
+    winget install --id Python.Python.3.13 -e
+    py --version
+    ```
+
+    [python.org](https://www.python.org/downloads/) works equally well.
+    Avoid the Microsoft Store build: it is a stub that cannot always
+    create the virtual environment the next step needs.
+
+=== "Ubuntu"
+
+    `python3-venv` is a separate package on Debian and Ubuntu, and the
+    next step will not work without it.
+
+    ```bash
+    sudo apt install python3 python3-venv
+    python3 --version
+    ```
 ////
 
 //// step | Install prodockit in an environment of its own
-Not alongside your system Python. Debian and Ubuntu refuse `pip install`
-outside a virtual environment, and the first stage checks this before
-anything else - the project's own environment is built by whichever
-Python is running bootstrap.
+In the directory you want to keep your projects in - the one you will
+later point bootstrap's `project_dir` at - creating it if it is not there
+yet. Not alongside your system Python: Debian and Ubuntu refuse
+`pip install` outside a virtual environment, and the first stage checks
+this before anything else, because the project's own environment is
+built by whichever Python is running bootstrap.
 
-```bash
-python3 -m venv ~/.venvs/prodockit
-~/.venvs/prodockit/bin/pip install prodockit
-~/.venvs/prodockit/bin/pdk --version
-```
+=== "macOS"
 
-On Windows: `py -m venv %USERPROFILE%\.venvs\prodockit`, then
-`%USERPROFILE%\.venvs\prodockit\Scripts\pip install prodockit`.
+    ```bash
+    mkdir -p ~/GitLab
+    cd ~/GitLab
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install prodockit
+    ```
+
+=== "Windows"
+
+    ```powershell
+    New-Item -ItemType Directory -Force ~\GitLab | Out-Null
+    cd ~\GitLab
+    python -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    pip install prodockit
+    ```
+
+=== "Ubuntu"
+
+    ```bash
+    mkdir -p ~/GitLab
+    cd ~/GitLab
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install prodockit
+    ```
+
+`(.venv)` in your prompt means it is active. Every command below is run
+from here, with it active - see [Before you start](#bootstrap-prerequisites)
+for the longer version, including what to do when PowerShell refuses to
+run the activation script.
 ////
 
 //// step | Check what needs doing

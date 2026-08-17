@@ -97,6 +97,28 @@ def test_a_style_of_your_own_joins_the_counter_rather_than_replacing_it() -> Non
     assert "font-size: 1.2em" in html
 
 
+def test_a_step_can_hold_content_tabs() -> None:
+    """One platform's instructions per tab, inside the step they belong to.
+
+    Worth a test rather than an assumption: the step's body is parsed as
+    blocks, and a tab set is a block construct nested inside another - a
+    combination that could plausibly have been eaten by either.
+    """
+    text = (
+        "/// steps\n\n//// step | Install Python\nPick your platform.\n\n"
+        '=== "macOS"\n\n    ```bash\n    brew install python@3.13\n    ```\n\n'
+        '=== "Windows"\n\n    ```powershell\n    winget install Python.Python.3.13\n    ```\n'
+        "////\n\n///\n"
+    )
+    html = markdown.markdown(
+        text, extensions=["prodockit.steps", "pymdownx.tabbed", "pymdownx.superfences"]
+    )
+
+    assert "tabbed-set" in html
+    assert html.count("<label for=") == 2
+    assert html.index("prodockit-step-title") < html.index("tabbed-set"), "inside the step"
+
+
 def test_the_bootstrap_quick_start_uses_it() -> None:
     """The demonstration is a real page rather than a fixture: six steps
     with commands in them, which is what the layout is for."""
@@ -105,6 +127,9 @@ def test_the_bootstrap_quick_start_uses_it() -> None:
 
     assert "/// steps" in quick
     assert quick.count("//// step | ") == 6, "six steps, as the workflow it mirrors"
+    # Installing Python differs per platform, and the page already uses
+    # tabs for exactly that above the quick start.
+    assert '=== "macOS"' in quick and '=== "Windows"' in quick and '=== "Ubuntu"' in quick
 
 
 # ---------------------------------------------------------------------------
