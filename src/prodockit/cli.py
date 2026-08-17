@@ -529,7 +529,14 @@ def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> BootstrapConfig:
     if not click.confirm("Answer them now?", default=True):
         click.echo("Carrying on - stages needing them will show as unknown.\n")
         return config
-    config = _ask_for_configuration(config, only=blank)
+    # Nothing set at all is the configure arriving by a different door,
+    # not a repair - so it is asked as one. Passing the fields by name
+    # took the general eight questions, which is how the path written for
+    # Surrey students became the one path a student's first run never
+    # took (prodockit-extensions#430).
+    everything = {key for key, _ in PROMPTS} - {"source_url"}
+    first_run = everything <= set(blank)
+    config = _ask_for_configuration(config, only=None if first_run else blank)
     save_bootstrap_config(path, config)
     keep_out_of_git(path)
     click.echo(f"\nSaved to {path}\n")

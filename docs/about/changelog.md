@@ -1,5 +1,25 @@
 # Release Notes
 
+## Unreleased
+
+- **Fixed:** a first run did not take Surrey's shorter configure path
+  ([#430](https://github.com/buckwem/prodockit-extensions/issues/430)).
+
+    ```text
+    Some details are not set yet: host, full_name, email, ...
+    1/8 The git host your project lives on [gitlab.surrey.ac.uk]:
+    3/8 The email address used for your gitlab.surrey.ac.uk login []:
+    ```
+
+    Eight questions, asking for the email 0.35.0 exists to derive. The
+    shorter path was chosen only when `--configure` asked for everything,
+    and a first run does not arrive that way: nothing is set, so bootstrap
+    offers to fill the gaps and asks for the fields by name.
+
+    Nothing set at all is the configure arriving by a different door, not
+    a repair, and is treated as one. Coming back later to correct a single
+    value still asks for that value.
+
 ## 0.35.0 (2026-08-17)
 
 - **Changed:** VS Code is driven from inside the application when `code`
