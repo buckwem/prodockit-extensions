@@ -22,6 +22,7 @@ keep the general path, because for them these rules are simply untrue.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 #: The hosts this applies to. A list rather than a constant because a
 #: university runs more than one name at its own instance over time, and
@@ -62,6 +63,34 @@ def email_for(login: str) -> str:
     return f"{login_id(login)}@{EMAIL_DOMAIN}"
 
 
+#: A module year, sanity-bounded. Not a guess at what is reasonable so
+#: much as a guard against a typed month or a two-digit year becoming a
+#: namespace nobody can find.
+_EARLIEST_YEAR, _LATEST_YEAR = 2000, 2100
+
+
+def default_year(today: date | None = None) -> str:
+    """The year to offer, which is this one.
+
+    Taken as an argument rather than read from the clock inside a check,
+    so a test can say what day it is.
+    """
+    return str((today or date.today()).year)
+
+
+def module_year(typed: str) -> str:
+    """A four-figure year, or "" when that is not what was typed.
+
+    The empty string is the caller's cue to ask again. Guessing at `26`
+    or `Jan 2026` would put the work in a group nobody can find, and the
+    student would not know until the push failed.
+    """
+    year = typed.strip()
+    if not (year.isdigit() and len(year) == 4):
+        return ""
+    return year if _EARLIEST_YEAR <= int(year) <= _LATEST_YEAR else ""
+
+
 def course_code(typed: str) -> str:
     """The module code, lowercased - `COMM058` and `comm058` are one course."""
     return typed.strip().lower()
@@ -87,22 +116,48 @@ class Assessment:
         raise ValueError(f"not one of the offered stages: {choice!r}")
 
 
-def namespace_for(course: str, login: str, assessment: Assessment) -> str:
+def namespace_for(course: str, login: str, assessment: Assessment, year: str = "") -> str:
     """The group or user the repository lives under.
 
-    Assessed work goes to a group per course and attempt, so an examiner
-    finds every submission in one place. Unassessed work goes to the
-    student's own namespace, where nobody else needs it.
+    Assessed work goes to a group per course, *year* and attempt, so an
+    examiner finds one cohort's submissions in one place and last year's
+    are somewhere else. Unassessed work goes to the student's own
+    namespace, where nobody else needs it and no year applies.
+
+    The year is the one the module *starts* in - a semester 2 module
+    belongs to the year after the Christmas break, and a resit belongs to
+    the year the work was set rather than the year it is being marked.
     """
     if not assessment.assessed:
         return login_id(login)
-    return f"assessment-{course_code(course)}{assessment.stage_suffix}"
+    parts = ["assessment", course_code(course)]
+    if year.strip():
+        parts.append(year.strip())
+    return "-".join(parts) + assessment.stage_suffix
 
 
-def project_name_for(course: str, login: str) -> str:
-    """`report-comm058-ab1234` - the course and whose it is, in that order.
+def project_name_for(
+    course: str, login: str, year: str = "", assessment: Assessment | None = None
+) -> str:
+    """`report-comm058-2026-ab1234-sra` - course, cohort, owner, attempt.
 
-    The course first so a group of submissions sorts together, and the ID
-    last so a marker reading a list finds a name where they expect one.
+    In that order for the same reason the namespace is: the course first
+    so a listing groups by module, the year next so one cohort sorts
+    together within it, the ID where a marker reading down a column
+    expects a name, and the attempt last because it is the exception.
+
+    The name carries the year even for unassessed work, where the
+    namespace does not. A student keeps their own repositories side by
+    side in one namespace, and two years of the same module would
+    otherwise be two repositories with one name between them.
+
+    A resit needs the same distinction for the same reason: one student's
+    first attempt and their SRA are two repositories, and without the
+    suffix they are two repositories with one name.
     """
-    return f"report-{course_code(course)}-{login_id(login)}"
+    parts = ["report", course_code(course)]
+    if year.strip():
+        parts.append(year.strip())
+    parts.append(login_id(login))
+    suffix = assessment.stage_suffix if assessment is not None else ""
+    return "-".join(parts) + suffix
