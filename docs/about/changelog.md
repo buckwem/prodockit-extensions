@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Fixed:** the bootstrap page described eighteen stages when there were
+  twenty-three
+  ([#413](https://github.com/buckwem/prodockit-extensions/issues/413)).
+
+    Five stages missing from the table, the numbering shifted under the
+    ones that remained, and a sentence about which stages are
+    platform-independent naming numbers that had moved. A reader on a
+    finished setup was told `All 23 stages are set up.` by a page listing
+    eighteen, with no way to tell which was wrong.
+
+    The table now names every stage, and a test holds it against the
+    stage list itself - count, order and wording - so it cannot drift
+    again. The count is no longer written into the prose: a number in a
+    sentence goes stale in silence, which is how this lasted five
+    releases.
+
 - **Added:** a shorter `--configure` for Surrey's GitLab
   ([#420](https://github.com/buckwem/prodockit-extensions/issues/420)).
 

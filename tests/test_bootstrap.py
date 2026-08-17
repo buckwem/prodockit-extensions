@@ -1695,6 +1695,47 @@ def test_the_apply_loop_resolves_before_it_runs(tmp_path: Path) -> None:
     )
 
 
+#: `| 7 | SSH key on the host | **guide and verify** |`
+_STAGE_ROW = re.compile(r"^\| (\d+) \| (.+?) \| (.+?) \|$", flags=re.MULTILINE)
+BOOTSTRAP_PAGE = Path(__file__).resolve().parents[1] / "docs" / "devcons" / "bootstrap.md"
+
+
+def test_the_documented_stages_are_the_stages() -> None:
+    """The page described eighteen stages for five releases after there
+    were twenty-three (prodockit-extensions#413).
+
+    Nothing failed, because prose cannot fail. A reader on a finished
+    setup was told "All 23 stages are set up" by a page listing eighteen,
+    and had no way to tell which of the two was wrong.
+    """
+    page = BOOTSTRAP_PAGE.read_text(encoding="utf-8")
+    table = page[page.index("| # | Stage | Automated? |") :]
+    rows = _STAGE_ROW.findall(table[: table.index("\n\n")])
+
+    assert len(rows) == len(STAGES), (
+        f"the table lists {len(rows)} stages, the tool has {len(STAGES)}"
+    )
+    for (number, described, _automated), (position, stage) in zip(
+        rows, enumerate(STAGES, start=1), strict=True
+    ):
+        assert int(number) == position, f"row {number} is in position {position}"
+        # Bold and code markers are the page's own emphasis rather than
+        # part of the name: "Git, installed **and** configured" is one
+        # stage, however it is set.
+        plain = described.replace("**", "").replace("`", "")
+        assert plain == stage.summary, f"row {number}: {plain!r} != {stage.summary!r}"
+
+
+def test_the_bootstrap_page_does_not_hard_code_a_stage_count() -> None:
+    """A number written in prose goes stale silently, which is how #413
+    happened - five releases of it. The tool reports the count at the end
+    of a run; the page names the stages instead of counting them."""
+    page = BOOTSTRAP_PAGE.read_text(encoding="utf-8").lower()
+
+    for stale in ("eighteen stages", "nineteen stages", "twenty stages", "22 stages"):
+        assert stale not in page, stale
+
+
 def test_a_step_only_a_new_run_can_see_ends_the_run(  # type: ignore[no-untyped-def]
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
