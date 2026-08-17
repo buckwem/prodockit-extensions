@@ -12,11 +12,16 @@
     way round now, so the year question refers back to something already
     on screen.
 
+    The stage question is numbered too. It used to arrive after "is this
+    assessed?" without a number of its own, so a reader counting down
+    from six met a question that was not in the count. Seven either way
+    now, and every one of them numbered.
+
     Unassessed work is no longer asked for a year it has no use for, nor
-    for a stage it has not got. It is asked for its namespace instead,
-    offered as your own user ID - a project group is a perfectly ordinary
-    answer, and the default is only an offer. Its repository is
-    `report-<course>-<login>`, with no year, because none was given.
+    for a stage it has not got. It is asked for its namespace and its
+    repository name instead, offered as `<your login>` and
+    `report-<your login>` - a project group and a name of your own are
+    perfectly ordinary answers, and a default is only an offer.
 
 - **Changed:** the Surrey questions are worded as they were asked for
   ([#420](https://github.com/buckwem/prodockit-extensions/issues/420)).

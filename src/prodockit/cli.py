@@ -124,8 +124,10 @@ def main() -> None:
     academic documentation."""
 
 
-#: Host, name, login ID, course, year, assessed - and one more when it is.
-_SURREY_QUESTIONS = 6
+#: Host, name, login ID, course, assessed - then two more either way: the
+#: stage and the year when it is assessed, the namespace and the
+#: repository name when it is not.
+_SURREY_QUESTIONS = 7
 
 
 def _ask_surrey(config: BootstrapConfig) -> None:
@@ -157,6 +159,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     assessment = surrey.Assessment.not_assessed()
     year = ""
     namespace = ""
+    project = ""
     if assessed:
         click.echo("")
         for number, name, _suffix in surrey.STAGES:
@@ -164,7 +167,10 @@ def _ask_surrey(config: BootstrapConfig) -> None:
         while True:
             try:
                 assessment = surrey.Assessment.at_stage(
-                    click.prompt("  Which stage is it being assessed at? [1, 2 or 3]")
+                    click.prompt(
+                        f"6/{_SURREY_QUESTIONS} Which stage is it being assessed at?"
+                        " [1, 2 or 3]"
+                    )
                 )
                 break
             except ValueError:
@@ -173,7 +179,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
         while True:
             year = surrey.module_year(
                 click.prompt(
-                    f"6/{_SURREY_QUESTIONS} What year does the module start in? A "
+                    f"7/{_SURREY_QUESTIONS} What year does the module start in? A "
                     "semester 2 module should be the year after the Christmas break. "
                     "For SRA and LSA the year should be the year prior to the year the "
                     "retake is being assessed.",
@@ -186,19 +192,27 @@ def _ask_surrey(config: BootstrapConfig) -> None:
             click.echo("  Four figures, e.g. 2026.\n", err=True)
     else:
         # Unassessed work has no cohort group to go to and no attempt to
-        # record, so neither is asked for. The namespace is theirs, and
-        # offered as such - typed over only by somebody who knows they
-        # want a different one.
+        # record, so neither is asked for. Both of these are offered as
+        # the ordinary answer and typed over only by somebody who wants
+        # something else.
         namespace = click.prompt(
             f"6/{_SURREY_QUESTIONS} The group or namespace the project lives under",
             default=login,
+            show_default=True,
+        ).strip()
+        project = click.prompt(
+            f"7/{_SURREY_QUESTIONS} The name of the repository, and of the folder it "
+            "lands in here",
+            default=f"report-{login}",
             show_default=True,
         ).strip()
 
     config.username = login
     config.email = surrey.email_for(login)
     config.namespace = namespace or surrey.namespace_for(course, login, assessment, year)
-    config.project_name = surrey.project_name_for(course, login, year, assessment)
+    config.project_name = project or surrey.project_name_for(
+        course, login, year, assessment
+    )
     config.project_dir = f"./{config.project_name}"
 
     # Bulleted rather than numbered: these are three facts to note, not

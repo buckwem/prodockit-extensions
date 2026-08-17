@@ -3809,11 +3809,11 @@ def test_a_first_run_stops_before_the_stage_list(  # type: ignore[no-untyped-def
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
     result = cli_bootstrap(
-        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n"
+        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n"
     )
 
     assert "Note these down:" in result.output
-    assert "report-comm058-ab1234" in result.output
+    assert "report-ab1234" in result.output
     assert "MISS" not in result.output, "the stage list would scroll the note away"
     assert "Run `prodockit bootstrap` to see what is set up." in result.output
 
@@ -3841,13 +3841,13 @@ def test_a_first_run_takes_the_surrey_path_too(  # type: ignore[no-untyped-def]
 
     # "yes, ask me now", then Surrey's own six answers.
     result = cli_bootstrap(
-        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n"
+        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n"
     )
 
     stored = load(tmp_path / "b.toml")
     assert stored.email == "ab1234@surrey.ac.uk", "derived, not asked for"
-    assert stored.project_name == "report-comm058-ab1234"
-    assert "2/6" in result.output, "the short path, on a first run"
+    assert stored.project_name == "report-ab1234"
+    assert "2/7" in result.output, "the short path, on a first run"
     assert "The email address used for" not in result.output
 
 
@@ -3946,14 +3946,59 @@ def test_unassessed_work_is_asked_for_its_namespace_and_nothing_else(  # type: i
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
     )
 
     stored = load(tmp_path / "b.toml")
     assert stored.namespace == "ab1234", "offered as theirs, taken as offered"
-    assert stored.project_name == "report-comm058-ab1234"
+    assert stored.project_name == "report-ab1234"
     assert "What year does the module start in" not in result.output
     assert "2. SRA" not in result.output
+
+
+def test_both_paths_ask_the_same_number_of_questions(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Seven either way, and every one of them numbered.
+
+    The stage question used to arrive unnumbered after "is this
+    assessed?", so a reader counting down from six met a question that
+    was not in the count (#437).
+    """
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    assessed = cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\ny\n2\n2026\n",
+    ).output
+    (tmp_path / "b.toml").unlink()
+    unassessed = cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
+    ).output
+
+    for output in (assessed, unassessed):
+        for number in range(2, 8):
+            assert f"{number}/7" in output, f"{number}/7 missing from:\n{output}"
+
+
+def test_the_offered_repository_name_can_be_typed_over(  # type: ignore[no-untyped-def]
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unassessed work is named by its owner, not derived - so the offer
+    is `report-<login>` and anything else they type is kept."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    cli_bootstrap(
+        "--configure",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\nnotes\n",
+    )
+
+    stored = load(tmp_path / "b.toml")
+    assert stored.project_name == "notes"
+    assert stored.project_dir.endswith("notes"), "the folder follows the name"
 
 
 def test_a_namespace_typed_over_the_default_is_kept(  # type: ignore[no-untyped-def]
@@ -3966,7 +4011,7 @@ def test_a_namespace_typed_over_the_default_is_kept(  # type: ignore[no-untyped-
 
     cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\ndocs-team\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\ndocs-team\n\n",
     )
 
     assert load(tmp_path / "b.toml").namespace == "docs-team"
@@ -3982,13 +4027,14 @@ def test_unassessed_surrey_work_goes_to_the_students_own_namespace(  # type: ign
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
     )
 
     stored = load(tmp_path / "b.toml")
     assert stored.namespace == "ab1234", "no year, and no group - it is their own"
-    # No year was asked for, so the name carries none either.
-    assert stored.project_name == "report-comm058-ab1234"
+    # Neither a year nor a course code was asked for, so the offered name
+    # carries neither.
+    assert stored.project_name == "report-ab1234"
     # The stage *menu*, not the word: the year guidance above mentions
     # SRA and LSA, because which year a resit belongs to is exactly what
     # it is there to explain.
@@ -4007,12 +4053,12 @@ def test_the_short_path_says_why_it_is_shorter(  # type: ignore[no-untyped-def]
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n",
+        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ncomm058\nn\n\n\n",
     )
 
     assert "1/8 The git host" in result.output
     assert "fills in the rest" in result.output
-    assert "2/6" in result.output
+    assert "2/7" in result.output
 
 
 def test_answering_the_host_does_not_disturb_the_other_questions(
