@@ -1,5 +1,31 @@
 # Release Notes
 
+## Unreleased
+
+- **Changed:** pandoc is pinned on Windows, and a local pandoc that
+  differs from the builds' is named
+  ([#454](https://github.com/buckwem/prodockit-extensions/issues/454)).
+
+    Only Ubuntu pinned it. macOS took `brew install pandoc` and Windows
+    took whatever winget was serving - so a machine bootstrap had just
+    set up ran 3.10.2 while every build in this family pins 3.10.1, and
+    nothing said so.
+
+    That matters because pandoc is a *rendering* input. #207 was code
+    blocks coming out as justified prose on an older major, and
+    `limitations.md` records 3.1.3 accepting markup 3.10 does not. A
+    student writes on one pandoc, CI publishes on another, and the PDF
+    they checked is not the one that gets marked - silently, because both
+    builds succeed.
+
+    Windows now installs `--version {PANDOC_VERSION}`, matching what
+    Ubuntu has always done. macOS cannot: Homebrew has no way to install
+    an old pandoc. So the check *says* when the local version differs
+    rather than failing - a failing status there would be one no reader
+    could ever clear, which is the stuck-stage failure #443 and #451 were
+    both about. A pandoc too old to render correctly still fails, because
+    that one is fixable.
+
 ## 0.36.2 (2026-08-17)
 
 - **Fixed:** Pandoc and Node are no longer reported missing when they are
