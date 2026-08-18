@@ -50,6 +50,10 @@
     (`#steps-writing-one`, `#tree-writing-one`), so two pages can share a
     heading name without one silently losing its anchor.
 
+    The tree page now ends with prodockit's own layout as a worked
+    example - 44 entries, each checked to exist - so the extension is
+    demonstrated on something real rather than on a fixture.
+
 ## 0.37.0 (2026-08-18)
 
 - **Added:** `prodockit.tree` - a directory listing that looks like one
