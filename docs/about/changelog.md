@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+- **Added:** `{: .compact }` for a table with many short columns
+  ([#489](https://github.com/buckwem/prodockit-extensions/issues/489)).
+
+    A wide table is held wider still by the theme itself: every header
+    cell carries `min-width: 5rem`, and every cell 1.25em of padding
+    either side. A column holding `H` is then as wide as one holding a
+    sentence, so the table overflows whatever it contains. Measured on a
+    real 14-column table against 1009px of A4 landscape:
+
+    ```text
+    as written                   1586.7px   (57% over)
+    minimum dropped              1190.7px
+    and the padding tightened     993.1px   (fits)
+    ```
+
+    Neither is enough alone, so one marker turns off both:
+
+    ```md
+    | Threat {: .compact } | Likelihood | Impact | Risk |
+    ```
+
+    It applies to the PDF as well, where there is no minimum and only the
+    padding is at stake - a marker that changed one output and not the
+    other would be the silent half-failure this project keeps meeting.
+
+    Written on a header cell because that is the only thing `attr_list`
+    can reach in a Markdown table, then moved onto the table and removed
+    from the cell, so it styles the table rather than that one column.
+    Any header cell will do, and it combines with `width`.
+
+    Opt-in on purpose: a table that reads well at its default keeps it,
+    and a table changing shape because a column was added is the kind of
+    surprise worth avoiding.
+
 - **Fixed:** setting a column width no longer changes how the whole table
   looks
   ([#490](https://github.com/buckwem/prodockit-extensions/issues/490)).
