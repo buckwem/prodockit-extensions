@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from prodockit.bootstrap.config import BootstrapConfig
+from prodockit.bootstrap.fetch import fetch as _fetch_url
 
 #: Platform identifiers. Deliberately not `sys.platform` values - these
 #: name the *install recipe* rather than the kernel, and "ubuntu" is a
@@ -950,6 +951,14 @@ class Context:
     #: running them happened to have VS Code installed. This closes that,
     #: so "tests describe a machine, never read one" is true of all of it.
     exists: Callable[[Path], bool] = Path.exists
+    #: How a stage asks a URL what it says.
+    #:
+    #: A seam for the same reason `exists` is one: the two stages that
+    #: probe the host must be describable by a test rather than left to
+    #: reach the network. It replaces a `curl` subprocess, which tests
+    #: faked through `runner` - and which cost three fixes of its own
+    #: before it went (prodockit-extensions#449).
+    fetch: Callable[..., Any] = _fetch_url
     #: How many times this run has reached the host, and how many repeats
     #: it answered without connecting again.
     #:

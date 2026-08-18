@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- **Changed:** the site and Pages probes ask the URL directly instead of
+  running `curl` ([#449](https://github.com/buckwem/prodockit-extensions/issues/449)).
+
+    Both stages made an HTTP request by starting another program, and
+    that cost three fixes which were never really about curl: it arrived
+    four stages after the first check that wanted it
+    ([#374](https://github.com/buckwem/prodockit-extensions/issues/374)),
+    it was told to write to `/dev/null` on a platform without one
+    ([#443](https://github.com/buckwem/prodockit-extensions/issues/443)),
+    and a `curl` typed at a PowerShell prompt resolved to
+    `Invoke-WebRequest` and looked like an absent program, which sent a
+    diagnosis the wrong way for an afternoon.
+
+    `urllib` needs nothing installed, on any platform, at any point in
+    the run - which also dissolves the ordering problem #374 documented,
+    since there is no longer anything to install first. The `/dev/null`
+    class of bug is gone by construction: nothing writes a response body
+    anywhere.
+
+    Two behaviours were kept deliberately and are covered against a real
+    server rather than a mock. Redirects are **not** followed, because a
+    `302` is how a login-walled site is recognised as published - a
+    Surrey Pages URL answers `302` to GitLab's own OAuth consent page,
+    and following it would report the consent page's `200` and call that
+    site publicly readable. And "could not establish" stays
+    distinguishable from "not there": a refused connection, a DNS failure
+    or a timeout returns `None`, which is not a status.
+
+    Tests describe a host through a `fetch` seam on `Context`, the same
+    way they already describe a filesystem through `exists`.
+
 - **Fixed:** the Ubuntu VS Code install no longer stops for a dialog
   ([#428](https://github.com/buckwem/prodockit-extensions/issues/428)).
 
