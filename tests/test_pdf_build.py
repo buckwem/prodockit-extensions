@@ -1352,3 +1352,105 @@ def test_landscape_content_carries_on_across_pages(tmp_path: Path) -> None:
     # A diagram gets a landscape page of its own, and it is not the table's.
     assert set(landscape) - set(table_pages), f"the diagram got no landscape page: {shapes}"
     assert shapes[0] == "portrait" and shapes[-1] == "portrait"
+
+
+def _png_data_uri(width: int, height: int) -> str:
+    """A real raster image of a given size, as a data: URI.
+
+    Raster rather than SVG: WeasyPrint draws a data-URI SVG as vectors,
+    which `get_images()` does not report, so an SVG would measure
+    nothing at all.
+    """
+    import base64
+
+    import pymupdf as fitz
+
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, width, height))
+    pix.set_rect(pix.irect, (60, 110, 200))
+    return "data:image/png;base64," + base64.b64encode(pix.tobytes("png")).decode()
+
+
+def _drawn_width(pdf_path: str) -> float:
+    """How wide the first image is actually drawn, in points."""
+    import pymupdf as fitz
+
+    with fitz.open(pdf_path) as pdf:
+        for page in pdf:
+            for xref in page.get_images(full=True):
+                for rect in page.get_image_rects(xref[0]):
+                    return rect.width
+    raise AssertionError("no image found in the PDF")
+
+
+@real_pandoc_and_weasyprint_required
+def test_an_image_wider_than_the_text_column_is_held_to_the_page(
+    tmp_path: Path,
+) -> None:
+    """A screenshot must not be drawn off the edge of the paper.
+
+    The website gets this from its theme's own `img { max-width: 100% }`.
+    The PDF stylesheet had no equivalent - the comment in
+    prodockit.pdf.html that reasons about "a generic img { max-width:
+    100% } rule elsewhere in the same stylesheet" was describing a rule
+    that was not there. So a 1600px screenshot was drawn 1200pt wide on a
+    595pt page, most of it past the trim edge
+    (prodockit-extensions#480).
+
+    Measured against the *text column*, not the paper: an image is held
+    to the width of the content it sits in, which is what a reader means
+    by "fits".
+    """
+    output_path = tmp_path / "wide-image.pdf"
+    html = f'<h1>Report</h1><p>Before.</p><img src="{_png_data_uri(1600, 600)}"><p>After.</p>'
+    build_pdf([Page(docs_rel_path="page.md", html=html, is_index=False)], str(output_path))
+
+    import pymupdf as fitz
+
+    with fitz.open(str(output_path)) as pdf:
+        page_width = pdf[0].rect.width
+
+    drawn = _drawn_width(str(output_path))
+    # The A4 page is 595pt and the margins take 2cm a side, leaving about
+    # 470pt of column. Asserting against the page is the weaker check and
+    # the one that still catches running off the paper.
+    assert drawn <= page_width, (
+        f"image drawn {drawn:.0f}pt wide on a {page_width:.0f}pt page - off the paper"
+    )
+    assert drawn <= 480, f"image drawn {drawn:.0f}pt, wider than the ~470pt text column"
+
+
+@real_pandoc_and_weasyprint_required
+def test_a_percentage_width_scales_the_image(tmp_path: Path) -> None:
+    """`{ width="50%" }` on an image is honoured in the PDF.
+
+    HTML's `width` attribute is defined in pixels, and a percentage in it
+    is a legacy browser behaviour rather than a specified one - so it is
+    worth holding, since the same markdown works on the website and a
+    silent difference between the two outputs is the failure this project
+    keeps meeting (prodockit-extensions#480).
+
+    Both spellings are checked together: the attribute the markdown
+    produces, and the inline style it is equivalent to. They must agree,
+    which a single-case test could not show.
+    """
+    src = _png_data_uri(1600, 600)
+    widths = {}
+    for label, tag in (
+        ("attribute", f'<img src="{src}" width="50%" class="screenshot pdf-only">'),
+        ("inline style", f'<img src="{src}" style="width:50%">'),
+        ("no width", f'<img src="{src}">'),
+    ):
+        out = tmp_path / f"{label.replace(' ', '-')}.pdf"
+        build_pdf(
+            [Page(docs_rel_path="page.md", html=f"<h1>H</h1><p>x</p>{tag}<p>y</p>", is_index=False)],
+            str(out),
+        )
+        widths[label] = _drawn_width(str(out))
+
+    # Half the text column, not half the paper - and the two spellings
+    # land in the same place.
+    assert abs(widths["attribute"] - widths["inline style"]) < 2, widths
+    assert 200 <= widths["attribute"] <= 260, widths
+    # And it is a real reduction from the unconstrained image, so the
+    # assertion cannot pass on an image that was never scaled at all.
+    assert widths["attribute"] < widths["no width"] - 100, widths

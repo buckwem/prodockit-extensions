@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **Fixed:** an image is no longer drawn off the edge of the paper
+  ([#480](https://github.com/buckwem/prodockit-extensions/issues/480)).
+
+    The website holds an image to its column with the theme's own
+    `img { max-width: 100% }`. The PDF stylesheet had no equivalent and
+    nothing else clamped one, so a 1600px screenshot came out 1200pt wide
+    on a 595pt page - most of it past the trim edge. Anything wider than
+    about 627px overflowed, which is most screenshots taken on a modern
+    display.
+
+    The reported case, `{ width="50%" }` on an image, turned out to work:
+    measured end to end through `prodockit pdf`, it renders at 235pt -
+    half the 470pt text column - at every intrinsic size tried, with and
+    without the `.screenshot`/`.pdf-only` classes. Both that and the
+    overflow are now held by tests, since the two look alike from a
+    reader's chair: an image that ignores a width and one that runs off
+    the page are both "the picture is the wrong size".
+
 - **Fixed:** a hung CI job now fails in minutes rather than hours
   ([#478](https://github.com/buckwem/prodockit-extensions/issues/478)).
 
