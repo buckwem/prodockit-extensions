@@ -61,12 +61,22 @@ jobs:
       # (it is a real native dependency, not a pure-Python package) - see
       # the weasyprint install below for why this job needs it at all.
       # A mirror that stalls must fail fast, not hold the runner: this
-      # step takes seconds, and once sat 35 minutes (#478). Retries
-      # cover the ordinary flaky-mirror case without a rerun.
+      # step takes seconds, and once sat 35 minutes (#478).
+      #
+      # The image lists `azure.archive.ubuntu.com` first and
+      # `https://archive.ubuntu.com` as a fallback. When the first is
+      # dead the fallback works - but apt waits out a 120-second connect
+      # timeout per source before trying it, four sources deep. Ten
+      # seconds is far above a healthy mirror's response and reaches the
+      # fallback in a fraction of the time.
+      #
+      # Retries are deliberately not raised: they re-ask the dead mirror
+      # rather than moving on, which is what exhausted the budget when
+      # this was first tried.
       - run: >
-          sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 install -y
+          sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install -y
           curl libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
-        timeout-minutes: 5
+        timeout-minutes: 8
       # Upstream release rather than the image's package - see PANDOC_VERSION.
       #
       # Cached because the release CDN is the single most fragile thing in

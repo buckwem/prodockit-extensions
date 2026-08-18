@@ -74,10 +74,20 @@ jobs:
         with:
           node-version: "22"
       # A mirror that stalls must fail fast, not hold the runner: this
-      # step takes seconds, and once sat 35 minutes (#478). Retries
-      # cover the ordinary flaky-mirror case without a rerun.
-      - run: sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 install -y curl fonts-inter fonts-jetbrains-mono
-        timeout-minutes: 5
+      # step takes seconds, and once sat 35 minutes (#478).
+      #
+      # The image lists `azure.archive.ubuntu.com` first and
+      # `https://archive.ubuntu.com` as a fallback. When the first is
+      # dead the fallback works - but apt waits out a 120-second connect
+      # timeout per source before trying it, four sources deep. Ten
+      # seconds is far above a healthy mirror's response and reaches the
+      # fallback in a fraction of the time.
+      #
+      # Retries are deliberately not raised: they re-ask the dead mirror
+      # rather than moving on, which is what exhausted the budget when
+      # this was first tried.
+      - run: sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install -y curl fonts-inter fonts-jetbrains-mono
+        timeout-minutes: 8
       # Upstream release rather than the image's package - see PANDOC_VERSION.
       #
       # Cached because the release CDN is the single most fragile thing in
@@ -99,10 +109,20 @@ jobs:
       - run: curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg > /dev/null
       - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
       # A mirror that stalls must fail fast, not hold the runner: this
-      # step takes seconds, and once sat 35 minutes (#478). Retries
-      # cover the ordinary flaky-mirror case without a rerun.
-      - run: sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 install -y google-chrome-stable
-        timeout-minutes: 5
+      # step takes seconds, and once sat 35 minutes (#478).
+      #
+      # The image lists `azure.archive.ubuntu.com` first and
+      # `https://archive.ubuntu.com` as a fallback. When the first is
+      # dead the fallback works - but apt waits out a 120-second connect
+      # timeout per source before trying it, four sources deep. Ten
+      # seconds is far above a healthy mirror's response and reaches the
+      # fallback in a fraction of the time.
+      #
+      # Retries are deliberately not raised: they re-ask the dead mirror
+      # rather than moving on, which is what exhausted the budget when
+      # this was first tried.
+      - run: sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install -y google-chrome-stable
+        timeout-minutes: 8
       - run: npm ci --prefix tools/mermaid
       - run: npm ci --prefix tools/mathjax
 

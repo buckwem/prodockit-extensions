@@ -15,10 +15,16 @@
     runner, a required check and a pull request for a working day - and
     to stay silent doing it, because a job that is running has not
     failed. Every job now carries a limit sized above its measured
-    slowest run, and the `apt-get` steps carry a five-minute one of their
-    own so the failure names the stall rather than the job. They also
-    retry, which covers a flaky mirror without anyone re-running
-    anything.
+    slowest run, and the `apt-get` steps carry one of their own so the
+    failure names the stall rather than the job.
+
+    The stall itself has a cause worth naming. The runner image lists
+    `azure.archive.ubuntu.com` first and `https://archive.ubuntu.com` as
+    a fallback; when the first is dead the fallback works, but apt waits
+    out a 120-second connect timeout per source before reaching it. The
+    steps now set ten seconds, well above a healthy mirror's response.
+    Raising the retry count instead - tried first - made it worse: it
+    re-asks the dead mirror rather than moving on.
 
     The scheduled drift check gets the widest margin relative to its
     work: it runs unattended, and the run nobody is watching is the one
