@@ -93,6 +93,7 @@ Issues = "https://github.com/buckwem/prodockit-extensions/issues"
 "prodockit.bibliography" = "prodockit.bibliography:BibliographyExtension"
 "prodockit.index" = "prodockit.index:IndexExtension"
 "prodockit.steps" = "prodockit.steps:StepsExtension"
+"prodockit.tree" = "prodockit.tree:TreeExtension"
 
 [project.scripts]
 prodockit = "prodockit.cli:main"

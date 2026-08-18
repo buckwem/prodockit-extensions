@@ -125,6 +125,27 @@ def to_base64_data_uri(img_src: str, base_dir: str) -> str:
     return img_src
 
 
+#: SVG attribute names an HTML parser lowercases and SVG then stops
+#: recognising. Only the ones this project's icons actually carry: a
+#: general "restore camelCase" pass would be guesswork about attributes
+#: nothing here emits.
+_SVG_CAMEL_CASE = ("viewBox", "preserveAspectRatio")
+
+
+def _svg_source(svg: Tag) -> str:
+    """One inline `<svg>` as text, with its attribute names put back.
+
+    BeautifulSoup parsed the page as HTML, where attribute names are
+    case-insensitive, so `viewBox` arrives here as `viewbox`. SVG cares,
+    and an icon without a usable `viewBox` is drawn at native size and
+    clipped by its own box.
+    """
+    source = str(svg)
+    for name in _SVG_CAMEL_CASE:
+        source = source.replace(f"{name.lower()}=", f"{name}=")
+    return source
+
+
 def fix_up_page_html(
     html: str,
     *,
@@ -317,7 +338,7 @@ def fix_up_page_html(
     # <svg> anywhere on the page to a base64 data: URI <img>, reusing the
     # same img.twemoji sizing rule.
     for svg in soup.find_all("svg"):
-        b64 = base64.b64encode(str(svg).encode("utf-8")).decode("utf-8")
+        b64 = base64.b64encode(_svg_source(svg).encode("utf-8")).decode("utf-8")
         icon_img = soup.new_tag(
             "img",
             src=f"data:image/svg+xml;base64,{b64}",
@@ -432,6 +453,10 @@ def fix_up_page_html(
             continue
         if src and not src.startswith("data:"):
             img["src"] = to_base64_data_uri(src, virtual_base_dir)
+
+    # Inline <svg> - every Material/Lucide/Octicons icon on the page -
+    # encoded to a data: URI *before* Pandoc sees it.
+    #
 
     # Cross-page links: a multi-page PDF concatenates every page into one
     # document, so a link like installtooling.md (fine on the website, a

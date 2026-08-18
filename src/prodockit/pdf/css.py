@@ -752,8 +752,16 @@ img.twemoji, i.fa-solid, i.fa-regular, i.fa-brands, i.material-icons, i[class*="
     margin-right: auto !important;
 }
 
-/* Inline vector mappings */
-.twemoji svg {
+/* Inline vector mappings.
+ *
+ * Two selectors for one icon, because pandoc rewrites the first into the
+ * second: an inline <svg> comes back as <img src="data:image/svg+xml;
+ * base64,...">, carrying no class of its own. Nothing then matched it,
+ * and an icon that was 1.1em on the website rendered at its intrinsic
+ * size in the PDF - a folder icon the height of three lines, pushed out
+ * of the text flow (prodockit-extensions#379). */
+.twemoji svg,
+.twemoji img {
     width: 1.1em;
     height: 1.1em;
     vertical-align: -0.2em;

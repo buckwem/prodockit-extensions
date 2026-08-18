@@ -73,6 +73,7 @@ nav = [
     {"Citations or References" = "extensions/citations.md"},
     {"Acronyms and Glossary" = "extensions/glossary.md"},
     {"Tables" = "extensions/tables.md"},
+    {"Directory Trees" = "extensions/tree.md"},
     {"Bibliography" = "extensions/bibliography.md"},
     {"Index (pdf-only)" = "extensions/index-terms.md"},
   ]},
@@ -178,6 +179,7 @@ numbering = "continuous"
 [project.markdown_extensions."prodockit.bibliography"]
 [project.markdown_extensions."prodockit.tables"]
 [project.markdown_extensions."prodockit.steps"]
+[project.markdown_extensions."prodockit.tree"]
 
 [project.markdown_extensions."prodockit.index"]
 # `generic = true` is required, not stylistic: it emits
