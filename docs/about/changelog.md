@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+- **Added:** `prodockit.tree` - a directory listing that looks like one
+  ([#379](https://github.com/buckwem/prodockit-extensions/issues/379)).
+
+    ```md
+    /// tree
+    docs/ - the documentation source tree
+      index.md - the cover page
+      stylesheets/ - CSS for both outputs
+    zensical.toml - project configuration
+    ///
+    ```
+
+    Indentation is the structure, a trailing `/` marks a directory, and
+    ` - ` starts an optional description. Nothing else is typed, so the
+    icon and the emphasis cannot disagree with what an entry actually is -
+    which the hand-written list this replaces had no way to prevent.
+
+    Icons come from the project's own set: the block emits a shortcode and
+    whatever icon extension the project already uses renders it, Lucide's
+    folder and file by default. `directory_icon`/`file_icon` name others.
+    Emitting SVG directly would have baked one project's icons into every
+    document.
+
+    Ragged indentation is refused rather than guessed at. A listing is read
+    for its shape, so an entry attached to the wrong parent is a diagram
+    that is wrong and looks right.
+
+- **Fixed:** an inline SVG icon is no longer clipped in the PDF.
+
+    `prodockit.pdf.html` encodes every inline `<svg>` to a data URI for
+    Pandoc, and serialised it straight from BeautifulSoup - which parsed
+    the page as HTML and lowercased `viewBox` to `viewbox`. SVG attribute
+    names are case-sensitive, so the icon lost the coordinate system it
+    scales into and WeasyPrint drew it at native size, clipped by its own
+    box: a folder icon with its right-hand side sliced off.
+
+    This affects every icon in every prodockit PDF, not only trees.
+
 - **Changed:** `prodockit-table-rotated` is now `landscape-page`, and it
   works for any content
   ([#469](https://github.com/buckwem/prodockit-extensions/issues/469)).

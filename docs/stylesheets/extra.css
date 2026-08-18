@@ -338,3 +338,104 @@
   font-weight: 700;
   margin: 0 0 0.35rem;
 }
+
+/* prodockit.tree - a directory listing that looks like one.
+   ---------------------------------------------------------------------
+   The icons are chosen by the class the extension set from a trailing
+   "/", so an author never types one and two rows cannot disagree about
+   which to use. The extension emits a shortcode and the project's own
+   icon extension renders it, so a tree uses whatever set that project
+   already has - Material's here, or anything under a configured
+   custom_icons directory. Only the size and spacing are set here.
+
+   The rail and its stub are positioned from one measurement, so changing
+   the indentation cannot leave them disagreeing about where a level
+   begins - the same discipline prodockit.steps needed, and for the same
+   reason: the drift is invisible at one size and obvious at another.
+
+   The last child's rail stops at its own stub, so a rail never runs past
+   the last entry pointing at nothing (prodockit-extensions#379). */
+.prodockit-tree {
+  /* The same size as a table's cells: a listing is a dense grid of short
+     entries and reads the same way, and the two sit next to each other on
+     a page often enough that a difference shows. Relative rather than
+     10pt, so the website follows its own table size and the PDF follows
+     its own - measured: the PDF body is 12pt and `table th, table td` in
+     prodockit.pdf.css is 10pt, which is this ratio. */
+  font-size: 0.833em;
+  --tree-indent: 1.5rem;       /* one level */
+  --tree-stub: 0.9rem;         /* horizontal run into an entry */
+  --tree-line: 1.2px;
+  --tree-line-color: var(--md-default-fg-color--light, #9b9b9b);
+  --tree-icon-gap: 0.45em;
+  --tree-row: 1.9em;           /* line box the rails are measured against */
+}
+.prodockit-tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: var(--tree-indent);
+}
+.prodockit-tree > ul {
+  padding-left: 0;
+}
+/* A hanging indent, so a description that wraps continues under the name
+   rather than back at the margin. Without it a long entry's second line
+   starts to the left of its own icon and runs under the rails, which the
+   User Guide's real listing - 29 entries, several of them a sentence
+   long - showed immediately.
+   --tree-hang is the icon's own width plus its gap, so the two cannot
+   drift apart: change the gap and the wrap follows it. */
+.prodockit-tree {
+  --tree-hang: calc(1.1em + var(--tree-icon-gap));
+}
+.prodockit-tree li {
+  position: relative;
+  margin: 0;
+  padding-left: calc(var(--tree-stub) + 0.35rem + var(--tree-hang));
+  text-indent: calc(-1 * var(--tree-hang));
+  line-height: var(--tree-row);
+}
+/* Top level sits flush: there is no parent to hang a rail from, but the
+   hanging indent still applies. */
+.prodockit-tree > ul > li {
+  padding-left: var(--tree-hang);
+}
+/* The rail down from this entry's parent. */
+.prodockit-tree ul ul li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-left: var(--tree-line) solid var(--tree-line-color);
+}
+.prodockit-tree ul ul li:last-child::before {
+  bottom: auto;
+  height: calc(var(--tree-row) / 2);
+}
+/* The stub into the entry, meeting the rail at its midpoint. */
+.prodockit-tree ul ul li::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(var(--tree-row) / 2);
+  width: var(--tree-stub);
+  border-top: var(--tree-line) solid var(--tree-line-color);
+}
+/* The icon is whatever the project's icon extension rendered from the
+   shortcode - Material's here, or a custom set. Its *size* is already
+   settled by the rule that sizes every inline icon in the document, on
+   the website and in prodockit.pdf.css alike, so only the gap after it
+   belongs here. Setting a width on this wrapper instead made the SVG
+   size itself against a span with no dimensions, and it rendered as a
+   tall blob on its own line. */
+.prodockit-tree .tree-icon {
+  margin-right: var(--tree-icon-gap);
+}
+.prodockit-tree .tree-note {
+  color: var(--md-default-fg-color--light, #666);
+}
+.prodockit-tree .tree-note::before {
+  content: " — ";
+  color: var(--md-default-fg-color--lighter, #999);
+}
