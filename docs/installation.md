@@ -10,21 +10,62 @@ except where noted:
 
 | Requirement | Needed for |
 | --- | --- |
-| [`Markdown`](https://python-markdown.github.io/) (>= 3.4) | every extension |
-| [`zensical`](https://zensical.org/) | Zensical integration and `prodockit.zensical_macros` |
+| [`Markdown`](https://python-markdown.github.io/) (>= 3.10.3) | every extension |
+| [`zensical`](https://zensical.org/) (>= 0.0.55) | Zensical integration and `prodockit.zensical_macros` |
+| \index{dependencies!`pymdown-extensions`} (>= 11.0.1) | `prodockit.pdf` matches the class shapes it emits |
 | [`beautifulsoup4`](https://www.crummy.com/software/BeautifulSoup/) (>= 4.12) | `prodockit.pdf` |
 | \index{dependencies!`click`} (>= 8.0) | the `prodockit` command-line tool |
 | \index{dependencies!`pypdf`} (>= 4.0) | `prodockit.pdf` |
-| \index{dependencies!`pandoc`} **(external binary)** | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build |
-| \index{dependencies!`weasyprint`} **(external binary)** | `prodockit.pdf` |
-| \index{dependencies!`pymupdf`} | only the back-of-book index - `pip install prodockit[index]` |
-| \index{dependencies!`mermaid-cli`}, `mathjax-full` **(external, Node)** | only Mermaid diagrams and TeX maths in the PDF |
+| \index{dependencies!`pymupdf`} (>= 1.24) | only the back-of-book index - `pip install prodockit[index]` |
 
-The external tools aren't Python packages and aren't installed by `pip` -
-see [PDF generation](pdf.md) for how `prodockit.pdf` locates them, and
-[Limitations and workarounds](devcons/limitations.md) for why the Node ones are
-needed at all. A build with neither Mermaid diagrams nor maths needs
-neither of them.
+The floors above are the ones declared in `pyproject.toml`, and a test
+keeps this table in step with them - the two had drifted apart, with
+`Markdown` recorded here as >= 3.4 long after the real floor moved to
+3.10.3 (prodockit-extensions#372).
+
+### Not installed by pip {: #installation-external }
+
+These are the ones `pip install prodockit` does **not** bring, and they
+differ in kind:
+
+| Requirement | Needed for |
+| --- | --- |
+| \index{dependencies!`weasyprint`} (>= 69) | `prodockit.pdf`. A Python package, but not a dependency of prodockit - install it yourself. `prodockit.pdf` runs its command-line rather than importing it |
+| \index{dependencies!`pandoc`} (>= 3, builds pin 3.10.1) | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build. Genuinely not a Python package - there is nothing for `pip` to install |
+| \index{dependencies!`mermaid-cli`}, `mathjax-full` (Node >= 22) | only Mermaid diagrams and TeX maths in the PDF |
+| Chrome or Chromium | only Mermaid diagrams - `mermaid-cli` renders them through a headless browser |
+| A citation style (`.csl`) | only `prodockit.bibliography`. Fetched per build, not vendored - see below |
+
+The citation style is a download rather than an install. Pandoc
+resolves `harvard-cite-them-right.csl` from the directory it runs in, and
+every CI script here fetches it immediately before building:
+
+```bash
+curl -fsSL -o harvard-cite-them-right.csl "https://www.zotero.org/styles/harvard-cite-them-right"
+```
+
+It is deliberately **not** committed: it is third-party content with its
+own licence and its own release cadence, and a vendored copy would go
+stale silently while every build kept succeeding. `prodockit bootstrap`
+fetches it for you, and `.gitignore` keeps a local copy out of commits.
+
+`weasyprint` is worth separating from `pandoc` rather than filing both as
+"external binaries": one is a `pip install` away and the other is not,
+and a reader who treats them alike goes looking for a package that does
+not exist, or misses one that does.
+
+Pandoc is version-sensitive in a way that changes output rather than
+breaking the build: a major version below 3 renders code blocks as
+justified prose, and the builds pin an exact release because two 3.x
+versions have already disagreed about the same source. `prodockit
+bootstrap` installs the pinned version where a package manager allows it
+and tells you when your local pandoc differs - see
+[Pinning build inputs](devcons/pinning-drift.md).
+
+See [PDF generation](pdf.md) for how `prodockit.pdf` locates these, and
+[Limitations and workarounds](devcons/limitations.md) for why the Node
+ones are needed at all. A build with neither Mermaid diagrams nor maths
+needs neither of them, and no browser.
 
 ## From PyPI
 
