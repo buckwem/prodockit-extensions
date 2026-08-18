@@ -32,6 +32,27 @@
 
     Verified by running the suite with off-machine sockets refused:
     1200 pass, the same as with them open.
+- **Docs:** `prodockit.steps` has a page of its own
+  ([#471](https://github.com/buckwem/prodockit-extensions/issues/471)).
+
+    It was the only user-facing extension without one - used once, in the
+    bootstrap quick start, and otherwise documented only in its own
+    docstring. That docstring also pointed at `docs/devcons/steps.md`,
+    which has never existed, so the one signpost to the stylesheet a
+    project is meant to copy led nowhere.
+
+    The new page covers the syntax, the `start` option, `attrs`, and the
+    two traps the stylesheet exists to avoid - WeasyPrint ignoring
+    `<ol start>`, and `em` resolving differently inside the number than
+    in the connector.
+
+    Heading ids on both extension pages are now qualified
+    (`#steps-writing-one`, `#tree-writing-one`), so two pages can share a
+    heading name without one silently losing its anchor.
+
+    The tree page now ends with prodockit's own layout as a worked
+    example - 44 entries, each checked to exist - so the extension is
+    demonstrated on something real rather than on a fixture.
 
 ## 0.37.0 (2026-08-18)
 
