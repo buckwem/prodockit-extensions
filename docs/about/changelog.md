@@ -1,5 +1,49 @@
 # Release Notes
 
+## Unreleased
+
+- **Changed:** `prodockit-table-rotated` is now `landscape-page`, and it
+  works for any content
+  ([#469](https://github.com/buckwem/prodockit-extensions/issues/469)).
+
+    The old name described a table and a rotation, and it is neither. The
+    block gets its own landscape *page*, and what goes in it can be a
+    table, a diagram, an image or anything else too wide for portrait.
+
+    ```md
+    <div class="landscape-page" markdown="1">
+    ```
+
+- **Fixed:** that page is displayed landscape
+  ([#469](https://github.com/buckwem/prodockit-extensions/issues/469)).
+
+    The block has always been laid out on a landscape *page box* - that is
+    what makes its pagination and repeating header rows work, where a CSS
+    transform did not. The finished page was then given the PDF's own
+    per-page rotation flag, and a reader honours that by displaying a
+    landscape page as **portrait**, with the content sideways. So the page
+    a reader saw was portrait.
+
+    Measured on the finished file, before and after:
+
+    ```text
+    before   page 2: displayed 595x842 (portrait)   /Rotate=270  box=842x595
+    after    page 2: displayed 842x595 (landscape)  /Rotate=0    box=842x595
+    ```
+
+    The box was landscape the whole time; only the display flag disagreed.
+    The flag is gone, along with `prodockit.pdf.rotate` and the
+    alternating recto/verso rotation `pdf_double_sided` applied to these
+    pages - so the class carries the behaviour on its own, with nothing to
+    configure. A document mixing orientations prints without special
+    handling: a reader rotates each page to fit the paper by itself.
+
+    Content longer than one page carries on across further landscape
+    pages. Confirmed by building one: a 90-row table produced five
+    landscape pages, each repeating its header row, with a diagram taking
+    a landscape page of its own and the portrait document either side
+    untouched.
+
 ## 0.36.4 (2026-08-18)
 
 - **Changed:** the project stage says which address it is using, and where

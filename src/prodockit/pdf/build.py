@@ -35,7 +35,6 @@ from prodockit.pdf.index import (
     render_index_content,
 )
 from prodockit.pdf.lua import build_lua_filter
-from prodockit.pdf.rotate import rotate_landscape_pages
 
 
 @dataclass
@@ -248,13 +247,8 @@ def build_pdf(
     (swapping which physical side each applies to depending on verso/
     recto), every new numbered heading starts on its own recto page (a
     blank page is inserted if needed - see `prodockit.pdf.css`'s own module
-    docstring for why this is plain CSS, not something computed here), and
-    a `prodockit-table-rotated` landscape page's own rotation direction
-    alternates by its final odd/even page position instead of always being
-    the same direction (see `prodockit.pdf.rotate`) - the physical spine is
-    on the opposite side for a verso vs. a recto page, so the rotation has
-    to compensate to keep landscape content facing the same way regardless
-    of which side of the spread it lands on. Off by default: everything
+    docstring for why this is plain CSS, not something computed here).
+    Off by default: everything
     above is unchanged from a single-sided build.
 
     **Numbering and math**
@@ -295,14 +289,12 @@ def build_pdf(
 
     **Sideways tables**
 
-    Wrap a table (plus its own caption) in `<div class="prodockit-table-rotated">`
-    to print it sideways, on its own landscape-sized page(s), spanning
-    multiple pages with a repeated heading row exactly like any other
-    table - see `prodockit.pdf.css`'s own module docstring for why this
-    isn't a CSS `transform`, and `prodockit.pdf.rotate` for the `/Rotate`
-    post-processing step (always run, a no-op if no page needs it) that
-    applies the actual anticlockwise rotation once WeasyPrint has finished
-    laying the page out.
+    Wrap anything in `<div class="landscape-page">` to give it its own
+    landscape page(s) - a wide table, a diagram, a chart. Content longer
+    than one page carries on across further landscape pages, a table
+    repeating its heading row exactly as it would anywhere else. See
+    `prodockit.pdf.css`'s own module docstring for why this isn't a CSS
+    `transform`.
 
     **Working files**
 
@@ -572,7 +564,6 @@ def build_pdf(
             announce(titles[4])
 
         announce(titles[-1])
-        rotate_landscape_pages(output_path, double_sided=double_sided)
     finally:
         if use_temp_dir or not keep_work_dir:
             shutil.rmtree(resolved_work_dir, ignore_errors=True)

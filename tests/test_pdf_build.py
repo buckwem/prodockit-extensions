@@ -88,48 +88,6 @@ def test_raises_pdf_build_error_when_pandoc_hangs_past_the_timeout(
         )
 
 
-def test_rotates_landscape_pages_after_a_successful_build(
-    tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """build_pdf() must always run the prodockit-table-rotated /Rotate
-    post-process once pandoc/WeasyPrint succeeds - it's a no-op on a
-    document with no rotated table, so there's no reason it should ever be
-    skipped."""
-    import prodockit.pdf.build as build_module
-
-    output_path = tmp_path / "out.pdf"
-    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
-    captured = {}
-    monkeypatch.setattr(
-        build_module,
-        "rotate_landscape_pages",
-        lambda path, **kwargs: captured.setdefault("path", path),
-    )
-    build_pdf(
-        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
-        str(output_path),
-    )
-    assert captured["path"] == str(output_path)
-
-
-def test_does_not_rotate_pages_when_pandoc_fails(
-    tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import prodockit.pdf.build as build_module
-
-    fake_pandoc_on_path('echo "boom" >&2; exit 1')
-    called = []
-    monkeypatch.setattr(
-        build_module, "rotate_landscape_pages", lambda path, **kwargs: called.append(path)
-    )
-    with pytest.raises(PdfBuildError):
-        build_pdf(
-            [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
-            str(tmp_path / "out.pdf"),
-        )
-    assert called == []
-
-
 def test_work_dir_is_cleaned_up_by_default(tmp_path: Path, fake_pandoc_on_path) -> None:
     work_dir = tmp_path / "work"
     fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
@@ -316,31 +274,6 @@ def test_recto_title_is_passed_through_to_the_fixed_up_page_html(
     compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
     assert 'class="prodockit-recto-title"' in compiled
     assert "Short Title" in compiled
-
-
-def test_double_sided_flag_is_passed_through_to_rotate_landscape_pages(
-    tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """build_pdf() must pass its own double_sided flag through to
-    rotate_landscape_pages() - confirmed at the rotate.py unit-test level
-    that this alternates 270/90 by final page position; here just confirm
-    build_pdf() actually wires the flag through rather than dropping it."""
-    import prodockit.pdf.build as build_module
-
-    output_path = tmp_path / "out.pdf"
-    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
-    captured = {}
-    monkeypatch.setattr(
-        build_module,
-        "rotate_landscape_pages",
-        lambda path, **kwargs: captured.update(path=path, **kwargs),
-    )
-    build_pdf(
-        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
-        str(output_path),
-        double_sided=True,
-    )
-    assert captured == {"path": str(output_path), "double_sided": True}
 
 
 # ---------------------------------------------------------------------------
@@ -1321,3 +1254,101 @@ def test_a_reference_to_a_page_title_heading_resolves_in_the_pdf(tmp_path: Path)
         )
     finally:
         doc.close()
+
+
+@real_pandoc_and_weasyprint_required
+def test_a_rotated_table_page_is_displayed_landscape(tmp_path: Path) -> None:
+    """prodockit-extensions#469, measured on the finished PDF.
+
+    The stub-level tests above only prove which post-process ran. This
+    one asks what a reader would actually show, because that is the
+    thing that was wrong: the page box was landscape all along, and the
+    `/Rotate` flag turned it back to portrait on screen.
+
+    `page.rect` is the displayed rectangle - pymupdf applies `/Rotate`
+    for us - so this compares what a reader draws, not what the file
+    stores.
+    """
+    import pymupdf
+
+    rows = "".join(f"<tr><td>Row {i}</td><td>{'wide ' * 12}</td></tr>" for i in range(6))
+    html = (
+        "<h1>Report</h1><p>Portrait text.</p>"
+        '<div class="landscape-page"><table>'
+        "<thead><tr><th>Name</th><th>Detail</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table></div>"
+        "<p>More portrait text.</p>"
+    )
+
+    out = tmp_path / "rotated.pdf"
+    build_pdf([Page(docs_rel_path="index.md", html=html, is_index=True)], str(out))
+    with pymupdf.open(str(out)) as pdf:
+        shapes = [
+            "landscape" if page.rect.width > page.rect.height else "portrait"
+            for page in pdf
+        ]
+
+    assert "landscape" in shapes, f"the table page should display landscape: {shapes}"
+    # And only that page - the document either side of it is untouched.
+    assert shapes[0] == "portrait" and shapes[-1] == "portrait"
+
+
+@real_pandoc_and_weasyprint_required
+def test_landscape_content_carries_on_across_pages(tmp_path: Path) -> None:
+    """A `landscape-page` block is not limited to one page, and is not
+    limited to tables.
+
+    This is what a CSS `transform: rotate()` could not do, and the reason
+    the block is diverted onto a landscape *page* instead: a rotated box
+    clipped to a single page and pushed its own heading row off-page.
+    Here a long table should simply paginate, repeating its header the
+    way any table does, and a diagram should get a landscape page of its
+    own - with the portrait document either side untouched.
+    """
+    import pymupdf as fitz
+
+    rows = "".join(
+        f"<tr><td>Row {i}</td><td>{'detail ' * 14}</td></tr>" for i in range(1, 90)
+    )
+    diagram = (
+        "<svg xmlns='http://www.w3.org/2000/svg' width='900' height='1400'>"
+        "<rect width='900' height='1400' fill='%23cccccc'/></svg>"
+    )
+    html = (
+        "<h1>Report</h1><p>Portrait before.</p>"
+        '<div class="landscape-page"><table>'
+        "<thead><tr><th>Name</th><th>Detail</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table></div>"
+        "<p>Portrait between.</p>"
+        f'<div class="landscape-page"><img src="data:image/svg+xml;utf8,{diagram}"'
+        ' style="width:100%"></div>'
+        "<p>Portrait after.</p>"
+    )
+
+    output_path = tmp_path / "wide.pdf"
+    build_pdf([Page(docs_rel_path="index.md", html=html, is_index=True)], str(output_path))
+
+    with fitz.open(str(output_path)) as pdf:
+        shapes = [
+            ("landscape" if page.rect.width > page.rect.height else "portrait")
+            for page in pdf
+        ]
+        text = [page.get_text() for page in pdf]
+
+    landscape = [i for i, shape in enumerate(shapes) if shape == "landscape"]
+    # Pages the table's *body* reached, found from its rows rather than
+    # from its header - using the header to find the pages and then
+    # checking the header is on them would pass however few there were.
+    table_pages = [i for i, page in enumerate(text) if "Row " in page]
+
+    assert len(table_pages) >= 3, f"the table should span several pages: {shapes}"
+    assert all(shapes[i] == "landscape" for i in table_pages), shapes
+    # Consecutive - the table's pages are not interleaved with others.
+    assert table_pages == list(range(table_pages[0], table_pages[-1] + 1))
+    # The heading row repeats on *every* one of them: the likely case for
+    # this class, and the thing a rotated box lost.
+    missing = [i for i in table_pages if "Name" not in text[i]]
+    assert not missing, f"heading row missing from pages {missing} of {table_pages}"
+    # A diagram gets a landscape page of its own, and it is not the table's.
+    assert set(landscape) - set(table_pages), f"the diagram got no landscape page: {shapes}"
+    assert shapes[0] == "portrait" and shapes[-1] == "portrait"
