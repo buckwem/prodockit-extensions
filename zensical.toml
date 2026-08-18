@@ -74,6 +74,7 @@ nav = [
     {"Acronyms and Glossary" = "extensions/glossary.md"},
     {"Tables" = "extensions/tables.md"},
     {"Directory Trees" = "extensions/tree.md"},
+    {"Numbered Steps" = "extensions/steps.md"},
     {"Bibliography" = "extensions/bibliography.md"},
     {"Index (pdf-only)" = "extensions/index-terms.md"},
   ]},

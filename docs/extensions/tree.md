@@ -8,7 +8,7 @@ A listing written as a bullet list is three decisions on every row: which
 icon, whether to embolden the folder, and where the description starts.
 Each can be made differently on the next row, and none of them is checked.
 
-## Writing one
+## Writing one {: #tree-writing-one }
 
 ```md
 /// tree
@@ -56,7 +56,7 @@ TreeError: indent of 3 is not a multiple of 2: 'index.md'
 TreeError: indented 2 levels at once: 'index.md'
 ```
 
-## What it produces
+## What it produces {: #tree-what-it-produces }
 
 Structure only - `prodockit` ships the markup, your project ships the
 look, the same arrangement [prodockit.tables](tables.md) has:
@@ -76,7 +76,7 @@ positioned from one measurement, so changing the indentation cannot leave
 them disagreeing about where a level begins; and the last child's rail
 stops at its own stub rather than running past the last entry at nothing.
 
-## Enabling it
+## Enabling it {: #tree-enabling-it }
 
 ```toml
 [project.markdown_extensions."prodockit.tree"]

@@ -42,9 +42,9 @@ maintains the pair by hand will one day change one of them, and the
 failure is silent and PDF-only.
 
 The stylesheet is the project's own - the same arrangement
-``prodockit.tables`` has - and `docs/devcons/steps.md` carries a copy to
-start from, including the two traps that make it worth copying rather
-than writing from scratch.
+``prodockit.tables`` has - and `docs/extensions/steps.md` describes the
+two traps that make it worth copying from this repository's own
+`docs/stylesheets/extra.css` rather than writing from scratch.
 """
 
 from __future__ import annotations
