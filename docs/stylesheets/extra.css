@@ -25,25 +25,56 @@
    presentation) is scoped ".md-typeset table:not([class])" - confirmed
    directly in Zensical's bundled CSS - so a table carrying
    prodockit-table-sized (or any other class) gets none of it at all, not
-   just no width control. Rebuilt here rather than left bare: a full grey
-   grid line (matching prodockit.pdf's own PDF table borders) on both the
-   outer table and every internal row/column division, and width: 100% so
-   a percentage column resolves against the same full-width table
-   prodockit.pdf itself always builds. */
+   just no width control. It has to be rebuilt here rather than left
+   bare.
+
+   What is rebuilt is the theme's own appearance, copied from those
+   rules. It used to be the PDF's instead - a full grey grid at body text
+   size - which meant a table changed how it looked because somebody set
+   a column width, and sat beside an ordinary table looking like a
+   different component (prodockit-extensions#490).
+
+   The colour matters as much as the shape: the theme's
+   --md-typeset-table-color follows the colour scheme, and the #555555
+   this used to hard-code did not, so a sized table was wrong in dark
+   mode by construction.
+
+   Only two declarations are the class's own - table-layout: fixed, and
+   width: 100% so a percentage column resolves against a full-width
+   table. Everything else here exists to leave the table looking exactly
+   as it would have without a width on it.
+
+   The PDF keeps its full grid, in prodockit.pdf.css: a grid suits print,
+   where there is no hover and nothing scrolls. */
 .md-typeset table.prodockit-table-sized {
+  /* The class's own reason to exist. */
   table-layout: fixed;
   width: 100%;
-  border-collapse: collapse;
-  border: 1px solid #555555;
+  /* The theme's appearance, from `table:not([class])`. */
+  background-color: var(--md-default-bg-color);
+  border: 0.05rem solid var(--md-typeset-table-color);
+  border-radius: 0.1rem;
+  font-size: 0.64rem;
 }
 .md-typeset table.prodockit-table-sized th,
 .md-typeset table.prodockit-table-sized td {
-  border: 1px solid #555555;
   padding: 0.9375em 1.25em;
   vertical-align: top;
 }
 .md-typeset table.prodockit-table-sized th {
   font-weight: 700;
+}
+/* Row rules, not a grid: the theme divides rows and leaves columns to
+   the whitespace, and a header cell carries no rule of its own. */
+.md-typeset table.prodockit-table-sized td {
+  border-top: 0.05rem solid var(--md-typeset-table-color);
+}
+.md-typeset table.prodockit-table-sized tbody tr {
+  transition: background-color 125ms;
+}
+.md-typeset table.prodockit-table-sized tbody tr:hover {
+  background-color: var(--md-typeset-table-color--light);
+  box-shadow: 0 0.05rem 0 var(--md-default-bg-color) inset;
 }
 
 /* ============================================================= */
