@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.37.0 (2026-08-18)
 
 - **Added:** `prodockit.tree` - a directory listing that looks like one
   ([#379](https://github.com/buckwem/prodockit-extensions/issues/379)).
