@@ -1274,7 +1274,7 @@ def test_a_rotated_table_page_is_displayed_landscape(tmp_path: Path) -> None:
     rows = "".join(f"<tr><td>Row {i}</td><td>{'wide ' * 12}</td></tr>" for i in range(6))
     html = (
         "<h1>Report</h1><p>Portrait text.</p>"
-        '<div class="prodockit-table-rotated"><table>'
+        '<div class="landscape-page"><table>'
         "<thead><tr><th>Name</th><th>Detail</th></tr></thead>"
         f"<tbody>{rows}</tbody></table></div>"
         "<p>More portrait text.</p>"
@@ -1290,4 +1290,65 @@ def test_a_rotated_table_page_is_displayed_landscape(tmp_path: Path) -> None:
 
     assert "landscape" in shapes, f"the table page should display landscape: {shapes}"
     # And only that page - the document either side of it is untouched.
+    assert shapes[0] == "portrait" and shapes[-1] == "portrait"
+
+
+@real_pandoc_and_weasyprint_required
+def test_landscape_content_carries_on_across_pages(tmp_path: Path) -> None:
+    """A `landscape-page` block is not limited to one page, and is not
+    limited to tables.
+
+    This is what a CSS `transform: rotate()` could not do, and the reason
+    the block is diverted onto a landscape *page* instead: a rotated box
+    clipped to a single page and pushed its own heading row off-page.
+    Here a long table should simply paginate, repeating its header the
+    way any table does, and a diagram should get a landscape page of its
+    own - with the portrait document either side untouched.
+    """
+    import pymupdf as fitz
+
+    rows = "".join(
+        f"<tr><td>Row {i}</td><td>{'detail ' * 14}</td></tr>" for i in range(1, 90)
+    )
+    diagram = (
+        "<svg xmlns='http://www.w3.org/2000/svg' width='900' height='1400'>"
+        "<rect width='900' height='1400' fill='%23cccccc'/></svg>"
+    )
+    html = (
+        "<h1>Report</h1><p>Portrait before.</p>"
+        '<div class="landscape-page"><table>'
+        "<thead><tr><th>Name</th><th>Detail</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table></div>"
+        "<p>Portrait between.</p>"
+        f'<div class="landscape-page"><img src="data:image/svg+xml;utf8,{diagram}"'
+        ' style="width:100%"></div>'
+        "<p>Portrait after.</p>"
+    )
+
+    output_path = tmp_path / "wide.pdf"
+    build_pdf([Page(docs_rel_path="index.md", html=html, is_index=True)], str(output_path))
+
+    with fitz.open(str(output_path)) as pdf:
+        shapes = [
+            ("landscape" if page.rect.width > page.rect.height else "portrait")
+            for page in pdf
+        ]
+        text = [page.get_text() for page in pdf]
+
+    landscape = [i for i, shape in enumerate(shapes) if shape == "landscape"]
+    # Pages the table's *body* reached, found from its rows rather than
+    # from its header - using the header to find the pages and then
+    # checking the header is on them would pass however few there were.
+    table_pages = [i for i, page in enumerate(text) if "Row " in page]
+
+    assert len(table_pages) >= 3, f"the table should span several pages: {shapes}"
+    assert all(shapes[i] == "landscape" for i in table_pages), shapes
+    # Consecutive - the table's pages are not interleaved with others.
+    assert table_pages == list(range(table_pages[0], table_pages[-1] + 1))
+    # The heading row repeats on *every* one of them: the likely case for
+    # this class, and the thing a rotated box lost.
+    missing = [i for i in table_pages if "Name" not in text[i]]
+    assert not missing, f"heading row missing from pages {missing} of {table_pages}"
+    # A diagram gets a landscape page of its own, and it is not the table's.
+    assert set(landscape) - set(table_pages), f"the diagram got no landscape page: {shapes}"
     assert shapes[0] == "portrait" and shapes[-1] == "portrait"

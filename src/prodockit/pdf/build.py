@@ -289,12 +289,12 @@ def build_pdf(
 
     **Sideways tables**
 
-    Wrap a table (plus its own caption) in `<div class="prodockit-table-rotated">`
-    to print it sideways, on its own landscape-sized page(s), spanning
-    multiple pages with a repeated heading row exactly like any other
-    table - see `prodockit.pdf.css`'s own module docstring for why this
-    isn't a CSS `transform`. The page is left landscape, so a reader
-    shows it as a wide page with the table upright.
+    Wrap anything in `<div class="landscape-page">` to give it its own
+    landscape page(s) - a wide table, a diagram, a chart. Content longer
+    than one page carries on across further landscape pages, a table
+    repeating its heading row exactly as it would anywhere else. See
+    `prodockit.pdf.css`'s own module docstring for why this isn't a CSS
+    `transform`.
 
     **Working files**
 

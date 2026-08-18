@@ -271,9 +271,9 @@ __PDF_DOUBLE_SIDED_PAGE_RULES__
     @bottom-right { content: none !important; border-top: none !important; }
 }
 
-/* Wrap a table (plus its own caption) in <div class="prodockit-table-rotated">
-   to print it sideways on its own page(s) - e.g. a wide reference table that
-   doesn't fit a portrait page. This does NOT use a CSS transform: rotating a
+/* Wrap anything in <div class="landscape-page"> to give it its own
+   landscape page(s) - a wide table, a diagram, a chart, whatever does not
+   fit across a portrait page. This does NOT use a CSS transform: rotating a
    large/paginating box was confirmed directly to make WeasyPrint clip it to a
    single page instead of splitting across pages, and to push its own heading
    row and first few rows off-page entirely. Instead, the block is diverted
@@ -285,15 +285,18 @@ __PDF_DOUBLE_SIDED_PAGE_RULES__
    That landscape page is then left alone. It used to be given the PDF's
    own per-page /Rotate flag, which a reader honours by displaying a
    landscape page as *portrait* with the table running sideways - so the
-   page a reader actually saw was portrait, which is not what wrapping a
-   table in this class is asking for (prodockit-extensions#469). The box
-   was landscape the whole time; only the display flag disagreed. */
-@page prodockit-rotated {
+   page a reader actually saw was portrait, which is not what wrapping
+   content in this class is asking for (prodockit-extensions#469). The
+   box was landscape the whole time; only the display flag disagreed.
+
+   Mixed orientations are fine to print: a reader rotates each page to
+   fit the paper by itself. */
+@page landscape-page {
     size: __PDF_PAGE_SIZE__ landscape;
     margin: __PDF_MARGIN_TOP__ __PDF_MARGIN_RIGHT__ __PDF_MARGIN_BOTTOM__ __PDF_MARGIN_LEFT__ !important;
 }
-.prodockit-table-rotated {
-    page: prodockit-rotated;
+.landscape-page {
+    page: landscape-page;
     break-before: page !important;
     break-after: page !important;
 }

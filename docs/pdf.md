@@ -320,42 +320,55 @@ Skipped entirely for a `--markdown-file`-scoped build, or if your `nav`
 has only one page - there's no separate "cover" vs "content" to compute a
 word count from either way.
 
-### Sideways tables
+### Landscape pages
 
-A table too wide for a portrait page - a wide reference table, say - can be
-printed sideways instead: wrap it (and its own caption) in
-`<div class="prodockit-table-rotated" markdown="1">`, using
+Anything too wide for a portrait page - a reference table, a diagram, a
+chart - can be given landscape page(s) of its own instead: wrap it (and
+its own caption) in `<div class="landscape-page" markdown="1">`, using
 [`md_in_html`](https://python-markdown.github.io/extensions/md_in_html/)
-(the `markdown="1"` is required - without it, the table inside is left as
-literal, unconverted text):
+(the `markdown="1"` is required - without it, the content inside is left
+as literal, unconverted text):
 
 ```md
-<div class="prodockit-table-rotated" markdown="1">
+<div class="landscape-page" markdown="1">
 
 **A wide reference table**
 
 | ID {: width="15%" } | Description {: width="70%" } | Due {: width="15%" } |
 |---|---|---|
 | 1 | ... | Q1 |
+
+</div>
 ```
 
-The table prints on its own landscape-sized page(s) - same configured page
-size, width/height swapped - spanning multiple pages with its header row
-repeated exactly like any other table (see [prodockit.tables](extensions/tables.md)
-for the `width` syntax above, which works exactly the same way here). A
-page break is always forced immediately before and after the block, so it
-never shares a page with anything else.
+It is not limited to tables. A Mermaid diagram, an image, a wide code
+block - whatever is in the block gets the page:
 
-This isn't a CSS `transform: rotate()` - confirmed directly, that clips a
-table to a single page instead of splitting it, and pushes its heading row
-and first few rows off-page entirely, before any of this was written.
-Instead, WeasyPrint lays the table out normally, unrotated, on its own
-landscape page, so pagination and repeating headers behave as they would
-anywhere else - and that page is then left landscape, so a PDF reader
-shows a wide page with the table upright and nothing to turn.
+```md
+<div class="landscape-page" markdown="1">
 
-This is PDF-only - the same wrapped table renders as a completely normal,
-unrotated table on the live website, the same way `.web-only` content
+![Architecture overview](assets/images/architecture.png)
+
+</div>
+```
+
+The content prints on its own landscape-sized page(s) - the same
+configured page size, width and height swapped. A page break is always
+forced immediately before and after the block, so it never shares a page
+with anything else.
+
+**Content longer than one page simply carries on.** A table spanning
+several landscape pages repeats its header row on every one of them,
+exactly as it would on a portrait page - measured directly: a 90-row
+table produced five landscape pages, each carrying the header (see
+[prodockit.tables](extensions/tables.md) for the `width` syntax above,
+which works the same way here).
+
+A document mixing portrait and landscape pages prints without any special
+handling - a PDF reader rotates each page to fit the paper on its own.
+
+This is PDF-only - the same wrapped content renders completely normally
+on the live website, the same way `.web-only` content
 elsewhere in this project only ever affects one of the two outputs.
 
 ### Double-sided (duplex) printing
