@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- **Fixed:** setting a column width no longer changes how the whole table
+  looks
+  ([#490](https://github.com/buckwem/prodockit-extensions/issues/490)).
+
+    Two tables on a page looked like different components, and the only
+    difference in the markup was that one asked for a column width:
+
+    ```md
+    | **RAID** {: width="10%" } | **Description** | **Action** |
+    ```
+
+    `prodockit.tables` adds `prodockit-table-sized` to a table with a
+    width, and Zensical scopes its entire table style to
+    `table:not([class])` - so the class took the table out of all of it,
+    not just the width control. The stylesheet rebuilt the gap with the
+    *PDF's* look: a full grey grid at body text size, against the
+    website's outer border, row rules and `.64rem`.
+
+    It rebuilds the theme's own appearance now, so a sized table is
+    indistinguishable from an ordinary one - confirmed by comparing the
+    computed style of both on the same page. The border colour was the
+    part that would not have fixed itself: `--md-typeset-table-color`
+    follows the colour scheme and the hard-coded `#555555` did not, so a
+    sized table was wrong in dark mode by construction.
+
+    The PDF keeps its full grid, which suits print.
+
 - **Fixed:** a directory tree is indented by one number, and set tighter
   ([#486](https://github.com/buckwem/prodockit-extensions/issues/486)).
 
