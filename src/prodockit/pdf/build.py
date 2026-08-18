@@ -175,6 +175,7 @@ def build_pdf(
     margin_bottom: str = "2.5cm",
     margin_left: str = "2cm",
     double_sided: bool = False,
+    rotate_landscape: bool = False,
     margin_inner: str = "2cm",
     margin_outer: str = "2cm",
     header_footer_font_size: str = "10pt",
@@ -239,6 +240,17 @@ def build_pdf(
     sits. `reference_style_global` and its `reference_*` spacing values
     control `.reference`/`.acronym`/`.glossary` paragraph spacing - see
     `prodockit.pdf.css.build_css` for what each style looks like.
+
+    `rotate_landscape` (default off) decides how a
+    `prodockit-table-rotated` block is *displayed*, not how it is laid
+    out. The block always lands on its own landscape-sized page so that
+    pagination and repeating table headers behave normally. Off, that
+    page stays landscape, and a PDF reader shows a wide page with the
+    table upright. On, the finished page gets a `/Rotate` flag, which a
+    reader honours by displaying it as a portrait page with the content
+    sideways - what you want when the whole document will be printed on
+    portrait paper and the sheet turned by hand
+    (prodockit-extensions#469).
 
     `double_sided` (default off) switches the whole document to a duplex-
     printing layout: header/footer content mirrors between left-hand
@@ -572,7 +584,17 @@ def build_pdf(
             announce(titles[4])
 
         announce(titles[-1])
-        rotate_landscape_pages(output_path, double_sided=double_sided)
+        if rotate_landscape:
+            # Off by default: a `prodockit-table-rotated` block already
+            # lands on a landscape *page box*, so leaving it alone is
+            # what makes a PDF reader show it as a landscape page with
+            # the table upright (prodockit-extensions#469).
+            #
+            # Setting /Rotate on that page turns it back to portrait on
+            # screen, with the content sideways - the right answer only
+            # when the document is to be printed on uniformly portrait
+            # paper and the sheet turned by hand.
+            rotate_landscape_pages(output_path, double_sided=double_sided)
     finally:
         if use_temp_dir or not keep_work_dir:
             shutil.rmtree(resolved_work_dir, ignore_errors=True)

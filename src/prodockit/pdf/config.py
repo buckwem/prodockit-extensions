@@ -259,8 +259,11 @@ def build_pdf_from_zensical_config(
       one can't: a second line crediting the PDF pipeline specifically,
       without also adding that same markup to the website's copyright
       text), `pdf_page_size`,
-      `pdf_margin_{top,right,bottom,left}`, `pdf_double_sided` (default
-      `false`) and its own `pdf_margin_{inner,outer}` (replace
+      `pdf_margin_{top,right,bottom,left}`, `pdf_rotate_landscape`
+      (default `false` - a `prodockit-table-rotated` page is displayed
+      landscape; `true` displays it as portrait with the content
+      sideways, for printing on portrait paper), `pdf_double_sided`
+      (default `false`) and its own `pdf_margin_{inner,outer}` (replace
       `pdf_margin_{left,right}` when set - see `build_pdf()`'s own
       `double_sided` docs), `pdf_header_footer_{font_size,color,divider_color}`,
       `heading_numbering` (default `true`), `reference_style` (`"european"`
@@ -494,6 +497,7 @@ def build_pdf_from_zensical_config(
         margin_bottom=extra.get("pdf_margin_bottom") or "2.5cm",
         margin_left=extra.get("pdf_margin_left") or "2cm",
         double_sided=bool(extra.get("pdf_double_sided", False)),
+        rotate_landscape=bool(extra.get("pdf_rotate_landscape", False)),
         margin_inner=extra.get("pdf_margin_inner") or "2cm",
         margin_outer=extra.get("pdf_margin_outer") or "2cm",
         header_footer_font_size=extra.get("pdf_header_footer_font_size") or "10pt",

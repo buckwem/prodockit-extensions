@@ -350,10 +350,24 @@ This isn't a CSS `transform: rotate()` - confirmed directly, that clips a
 table to a single page instead of splitting it, and pushes its heading row
 and first few rows off-page entirely, before any of this was written.
 Instead, WeasyPrint lays the table out normally, unrotated, on its own
-landscape page; a rotation is applied afterwards, directly on the
-finished PDF's own per-page display flag, once WeasyPrint is done - see
-`prodockit.pdf.rotate` for that step, always run automatically as the last
-part of a build (a no-op if nothing used `prodockit-table-rotated`).
+landscape page, so pagination and repeating headers behave as they would
+anywhere else.
+
+### On screen, or on paper {: #pdf-rotated-display }
+
+That landscape page is left landscape by default, so a PDF reader shows a
+wide page with the table upright and nothing to turn.
+
+`pdf_rotate_landscape = true` changes only how it is *displayed*: the
+finished page gets the PDF's own per-page rotation flag, and a reader then
+shows it as a portrait page with the table running sideways. That is what
+you want when the whole document will be printed on uniformly portrait
+paper and the sheet turned by hand; it is the wrong default for a document
+most readers meet on a screen (prodockit-extensions#469). The layout is
+identical either way - the flag moves nothing.
+
+See `prodockit.pdf.rotate` for that step, which runs only when the setting
+asks for it (and is a no-op if nothing used `prodockit-table-rotated`).
 
 This is PDF-only - the same wrapped table renders as a completely normal,
 unrotated table on the live website, the same way `.web-only` content

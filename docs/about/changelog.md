@@ -1,5 +1,34 @@
 # Release Notes
 
+## Unreleased
+
+- **Changed:** a rotated table's page is displayed landscape
+  ([#469](https://github.com/buckwem/prodockit-extensions/issues/469)).
+
+    A `prodockit-table-rotated` block has always been laid out on a
+    landscape *page box* - that is what makes its pagination and
+    repeating header rows work. The finished page was then given the
+    PDF's own rotation flag, and a reader honours that by displaying a
+    landscape page as portrait, with the table running sideways. So the
+    page a reader saw was portrait, which is what #469 reported.
+
+    Measured on the finished file either way:
+
+    ```text
+    left alone   page 2: displayed 842x595 (landscape)  /Rotate=0
+    flagged      page 2: displayed 595x842 (portrait)   /Rotate=270
+    ```
+
+    The flag is now opt-in, through `pdf_rotate_landscape` (default
+    `false`). Off, a reader shows a wide page with the table upright. On,
+    the old behaviour returns - which is the right answer for a document
+    destined for uniformly portrait paper, where the sheet is turned by
+    hand, and only wrong as an unconditional default now most readers
+    meet the PDF on a screen.
+
+    The layout is untouched either way: the flag moves nothing, and the
+    pages either side of the insert stay portrait.
+
 ## 0.36.4 (2026-08-18)
 
 - **Changed:** the project stage says which address it is using, and where
