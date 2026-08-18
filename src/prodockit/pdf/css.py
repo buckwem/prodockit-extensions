@@ -721,6 +721,33 @@ figure.prodockit-table-caption, div.prodockit-table-caption {
     break-inside: auto !important;
     text-align: center !important;
 }
+/* An image must not be drawn past the edge of the paper.
+
+   The website gets this from the theme's own "img { max-width: 100% }".
+   The PDF had no equivalent, and nothing else clamps an image: a 1600px
+   screenshot came out 1200pt wide on a 595pt page, most of it off the
+   trim edge (prodockit-extensions#480). Anything wider than about 627px
+   overflowed, which is most screenshots taken on a modern display.
+
+   The comment in prodockit.pdf.html about "a generic img { max-width:
+   100% } rule elsewhere in the same stylesheet" was reasoning about this
+   rule - it described the intended behaviour, and the rule itself was
+   missing. That reasoning holds again now, so the icon encoder's use of
+   a class rather than a bare width/height attribute stays correct.
+
+   Held to the containing block rather than the page, which is what a
+   reader means by "fits": an image in a figure, a table cell or an
+   admonition follows that box, not the paper.
+
+   The two rules that deliberately size an image themselves are both more
+   specific and keep winning regardless of order - "img.twemoji" (an
+   inline icon, max-width: none) and ".cover-page img" (65%). An explicit
+   width, whether from a "{ width="50%" }" attribute or an inline style,
+   is also unaffected: max-width only ever narrows, and a percentage
+   width resolves against the same containing block. */
+img {
+    max-width: 100% !important;
+}
 img.screenshot {
     border: 1px solid #d0d0d0 !important;
     border-radius: 4px !important;
