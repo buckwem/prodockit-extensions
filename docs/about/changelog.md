@@ -1,5 +1,38 @@
 # Release Notes
 
+## Unreleased
+
+- **Fixed:** the test suite no longer asks the real internet
+  ([#476](https://github.com/buckwem/prodockit-extensions/issues/476)).
+
+    CI failed twice on a documentation-only branch and passed on a
+    re-run with nothing changed. The bootstrap fixture replaces the
+    command runner so stages answer from a table, and its docstring says
+    that is so a test never goes to the network. That stopped being true
+    when the site and Pages probes moved from launching `curl` to asking
+    a URL through `fetch`: the fixture does not replace `fetch`, so two
+    stages per test went to `github.io`, `api.github.com` or
+    `pages.surrey.ac.uk` for real. Whether they answered decided whether
+    "all 23 stages are set up" held.
+
+    The fixture describes both seams now, `fetch` defaulting to a host
+    that cannot be reached - the same choice `FakeRunner` makes in
+    answering `127 not found`, so a test that has not said what a host
+    does is not quietly given a working one.
+
+    Three tests were passing for the wrong reason and are rewritten: they
+    set `curl` runner keys nothing has read since the probes changed, so
+    they no longer measured what their names claim. A fourth helper was
+    dead code.
+
+    The `sync-repo` tests made a live request each to decide badge
+    visibility. Nothing turned on the answer - stubbing it two ways gives
+    the same passes - but it is a request per test that fails where there
+    is no egress, so it is stubbed too.
+
+    Verified by running the suite with off-machine sockets refused:
+    1200 pass, the same as with them open.
+
 ## 0.37.0 (2026-08-18)
 
 - **Added:** `prodockit.tree` - a directory listing that looks like one

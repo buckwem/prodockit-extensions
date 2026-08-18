@@ -26,6 +26,32 @@ from prodockit.sync_repo import (
     update_readme,
 )
 
+
+@pytest.fixture(autouse=True)
+def no_live_probing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test asks the real internet whether a repository is public.
+
+    `sync_repo_metadata` reads visibility to decide which badges a README
+    can carry, and nine tests that drive it end to end were going to
+    github.com and gitlab.eps.surrey.ac.uk for the answer.
+
+    Not a flake, as far as it goes: stubbing this to `None` and to `200`
+    gives the same 69 passes, so nothing here turns on what comes back.
+    It is a live HTTP request per test all the same - it fails where
+    there is no egress, and waits out a five-second timeout when a host
+    is slow rather than absent.
+
+    `None` is the default for the same reason `_unreachable` is one in
+    the bootstrap tests: it means the question was never put, which is
+    what an unstubbed probe has genuinely done. A test that cares about
+    visibility says so with `fetch=`, which `repository_is_public` has
+    always taken (#476).
+    """
+    import prodockit.sync_repo as sync_repo
+
+    monkeypatch.setattr(sync_repo, "_status_of", lambda url, timeout=5.0: None)
+
+
 CONFIG = """\
 [project]
 site_name = "Example"

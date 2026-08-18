@@ -153,9 +153,6 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         # Pushed means the commit here is the commit there - the same
         # sha from both sides, which is what the stage compares (#423).
         "rev-parse HEAD": CommandResult(0, "abc123\n"),
-        # The published site answers. Surrey's Pages address is derived
-        # now, so the last stage has something to ask about (#392).
-        "%{http_code}": CommandResult(0, "200"),
         # prodockit is running from an environment of its own, and that
         # environment can build another - stage 1 (#381).
         "sys.base_prefix": CommandResult(0, "True"),
@@ -262,6 +259,17 @@ def _answers_by_url(**routes):
         return None
 
     return answer
+
+
+def _ready_fetch():
+    """The network half of `_ready_machine`: everything answers.
+
+    A machine on which every stage is satisfied includes a site that is
+    published, and since #449 that is not something a runner can say -
+    the probe asks a URL. Kept beside `_ready_machine` so the two halves
+    of "ready" are changed together (#476).
+    """
+    return _answers(200, '{"has_pages": true}')
 
 
 def _unreachable(url, timeout=20.0):
@@ -1053,6 +1061,15 @@ def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     genuine stage code runs - just against a runner that answers from a
     table instead of the network. A real check would `ssh -T` Surrey's
     GitLab, which a test suite has no business doing.
+
+    Both seams are described, not only the runner. Since #449 the site
+    and Pages probes ask a URL through `fetch` rather than launching
+    `curl`, so stubbing the runner alone stopped covering them: two
+    stages per test went to the live internet, and CI failed at random
+    when they answered differently there (#476). `fetch` defaults to
+    `_unreachable` for the same reason `FakeRunner` answers `127 not
+    found` - a test that has not said what a host does should not be
+    quietly given a working one.
     """
     from click.testing import CliRunner
 
@@ -1063,6 +1080,7 @@ def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         responses: dict[str, CommandResult] | None = None,
         input: str | None = None,
         platform: str = MACOS,
+        fetch=None,
     ):
         monkeypatch.setattr(
             "prodockit.cli.build_bootstrap_context",
@@ -1089,6 +1107,7 @@ def cli_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                 ),
                 platform=platform,
                 home=tmp_path,
+                fetch=fetch or _unreachable,
             ),
         )
         return CliRunner().invoke(
@@ -1132,7 +1151,7 @@ def test_bootstrap_exits_zero_when_everything_is_set_up(
     cli_bootstrap, tmp_path: Path
 ) -> None:
     """Usable as a script check, matching `sync-repo --check`."""
-    result = cli_bootstrap(responses=_ready_machine(tmp_path))
+    result = cli_bootstrap(responses=_ready_machine(tmp_path), fetch=_ready_fetch())
 
     # Against the list, not a number typed in: a count in prose drifts
     # the moment a stage is added, which is how "ten stages" shipped.
@@ -4341,7 +4360,9 @@ def test_the_heading_is_not_printed_when_there_is_nothing_to_do(
     """Announcing a setup and then doing nothing reads as a failure."""
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
 
-    result = cli_bootstrap("--apply", responses=_ready_machine(tmp_path))
+    result = cli_bootstrap(
+        "--apply", responses=_ready_machine(tmp_path), fetch=_ready_fetch()
+    )
 
     assert "setting up your development environment" not in result.output
     assert "Nothing to do" in result.output
@@ -6166,20 +6187,6 @@ def test_pages_is_its_own_stage_right_after_the_project(tmp_path: Path) -> None:
 
 
 
-def _published(tmp_path: Path, homepage: str, gh: bool = True) -> dict[str, CommandResult]:
-    machine = _ready_machine(tmp_path)
-    # Keyed on "curl -sS", not "curl": the probe carries `%{http_code}`,
-    # which contains "code" - a key of the same length that answers for
-    # VS Code and wins the tie, returning empty output and a green exit.
-    machine["curl -sS"] = CommandResult(0, "200")
-    machine["gh --version"] = CommandResult(0 if gh else 127, "gh version 2.0.0")
-    machine["gh repo view"] = CommandResult(0, f"{homepage}\n")
-    return machine
-
-
-
-
-
 def test_a_host_it_cannot_reach_is_not_called_missing(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -6492,18 +6499,26 @@ def test_pages_is_read_without_a_token_where_that_is_possible(tmp_path: Path) ->
 
 
 def test_a_probe_that_did_not_run_is_not_an_answer(tmp_path: Path) -> None:
-    """curl arrives with the Pandoc stage - three stages below Pages.
+    """A question that was never put must not be reported as an answer.
 
-    So on a machine part-way through a setup the probe can simply be
-    missing, and `curl: not found` was reaching the reader as though the
-    server had answered: "cannot be seen from outside a private
-    repository" for the Pages stage, "is not answering yet" for the site.
-    Both name a cause that was never established.
+    Originally `curl: not found` - curl arrived with the Pandoc stage,
+    three stages below Pages, so on a machine part-way through a setup
+    the probe was simply missing. What reached the reader was "cannot be
+    seen from outside a private repository" for the Pages stage and "is
+    not answering yet" for the site. Both name a cause nobody
+    established.
+
+    The probe asks a URL now rather than launching curl (#449), so the
+    unreachable host is described through `fetch`. Setting a runner key
+    would assert nothing: the stage stopped reading one, which is how
+    this test went quiet without failing (#476).
     """
-    machine = _ready_machine(tmp_path)
-    for key in ("curl -sS", "%{http_code}"):
-        machine[key] = CommandResult(127, stderr="curl: not found")
-    context = _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+    context = _context(
+        tmp_path,
+        host="github.com",
+        runner=FakeRunner(_ready_machine(tmp_path)),
+        fetch=_unreachable,
+    )
 
     pages = next(s for s in STAGES if s.id == "pages").check(context)
     site = next(s for s in STAGES if s.id == "site").check(context)
@@ -6607,9 +6622,11 @@ def test_a_site_behind_a_login_is_published(tmp_path: Path) -> None:
         assert "pages.surrey.ac.uk" in result.detail
         assert "login" in result.detail, "and says who can read it"
 
-    missing = _ready_machine(tmp_path)
-    missing["%{http_code}"] = CommandResult(0, "404")
-    assert stage.check(_context(tmp_path, runner=FakeRunner(missing))).needs_work
+    # 404 is the server answering, and answering "no such page" - which
+    # is a finding, unlike a probe that never ran. Said through `fetch`:
+    # the runner key this used to set has not been read since #449, so
+    # the assertion was passing on an unreachable host instead (#476).
+    assert stage.check(_context(tmp_path, fetch=_answers(404))).needs_work
 
 
 def test_a_private_repository_is_shown_the_steps_and_taken_on_trust(
