@@ -7017,6 +7017,48 @@ def test_only_pandoc_is_pinned_at_the_winget_line(tmp_path: Path) -> None:
     assert "--version" not in msys2, msys2
 
 
+def _ubuntu_vscode_commands(tmp_path: Path) -> list[list[str]]:
+    """What a clean Ubuntu run would be asked to approve for VS Code."""
+    machine = _ready_machine(tmp_path)
+    machine["dpkg --print-architecture"] = CommandResult(0, "amd64\n")
+    machine["code"] = CommandResult(127, stderr="not found")
+    return next(s for s in STAGES if s.id == "vscode").plan(
+        _context(tmp_path, platform=UBUNTU, runner=FakeRunner(machine))
+    ).commands
+
+
+def test_the_vs_code_package_is_answered_before_it_asks(tmp_path: Path) -> None:
+    """prodockit-extensions#428.
+
+    The VS Code `.deb` stops mid-install for a debconf question:
+
+        Add Microsoft apt repository for Visual Studio Code?  <Yes> <No>
+
+    `apt install -y` does not answer it - `-y` agrees to apt's own
+    questions, not a package's debconf ones. Bootstrap captures its
+    subprocesses, so the dialog was invisible: the run simply stopped,
+    looking no different from slow work, until somebody thought to look.
+
+    Preseeded rather than suppressed, and preseeded *before* the install,
+    so the answer is part of what the reader approves.
+    """
+    commands = _ubuntu_vscode_commands(tmp_path)
+    flat = [" ".join(c) for c in commands]
+
+    preseed = next((i for i, c in enumerate(flat) if "debconf-set-selections" in c), None)
+    install = next(i for i, c in enumerate(flat) if "/tmp/code.deb" in c and "install" in c)
+
+    assert preseed is not None, f"nothing answers the debconf question: {flat}"
+    assert "code/add-microsoft-repo boolean true" in " ".join(flat)
+    assert preseed < install, "the answer has to be set before the package asks"
+    # And not by piping into sudo: that puts `sudo` inside a shell, which
+    # is the arrangement #244/#287 removed - a timestamp expiring there
+    # prompts where nobody is watching, which is the same invisible wait
+    # this fix exists to end.
+    assert commands[preseed][0] == "sudo", commands[preseed]
+    assert not any(c[0] == "bash" for c in commands), "no shell wrapper"
+
+
 def test_the_metadata_url_comes_from_the_host(tmp_path: Path) -> None:
     """It was `api.github.com` written into the stage, so a gitlab.com
     project would have been asked about against GitHub's API."""

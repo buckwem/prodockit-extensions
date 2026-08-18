@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- **Fixed:** the Ubuntu VS Code install no longer stops for a dialog
+  ([#428](https://github.com/buckwem/prodockit-extensions/issues/428)).
+
+    The `.deb` asks a debconf question part-way through installing:
+
+    ```text
+    Add Microsoft apt repository for Visual Studio Code?  <Yes>  <No>
+    ```
+
+    `apt install -y` does not answer it - `-y` agrees to apt's own
+    questions, not to a package's debconf ones. And bootstrap captures
+    its subprocesses, so the dialog was invisible: the run simply
+    stopped, looking no different from slow work.
+
+    The answer is now preseeded *before* the install, so it is part of
+    what the reader approves rather than something they meet alone.
+    Answered "yes" deliberately: that repository is how VS Code then
+    updates through apt, and declining would pin them to whichever build
+    the `.deb` happened to be.
+
+    The answer is written to a file by Python and read by
+    `debconf-set-selections`, rather than piped into it. The pipe is the
+    problem, not the echo: `echo ... | sudo debconf-set-selections` puts
+    `sudo` inside a shell, and a sudo timestamp expiring there prompts
+    where nobody is watching - the same invisible wait this fix exists to
+    end, reintroduced by the fix itself.
+
 - **Fixed:** a `.pdf-only` image is centred in the PDF
   ([#462](https://github.com/buckwem/prodockit-extensions/issues/462)).
 
