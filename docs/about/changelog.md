@@ -2,32 +2,34 @@
 
 ## Unreleased
 
-- **Changed:** a rotated table's page is displayed landscape
+- **Fixed:** a rotated table's page is displayed landscape
   ([#469](https://github.com/buckwem/prodockit-extensions/issues/469)).
 
     A `prodockit-table-rotated` block has always been laid out on a
     landscape *page box* - that is what makes its pagination and
-    repeating header rows work. The finished page was then given the
-    PDF's own rotation flag, and a reader honours that by displaying a
-    landscape page as portrait, with the table running sideways. So the
-    page a reader saw was portrait, which is what #469 reported.
+    repeating header rows work, where a CSS transform did not. The
+    finished page was then given the PDF's own per-page rotation flag,
+    and a reader honours that by displaying a landscape page as
+    **portrait**, with the table running sideways. So the page a reader
+    saw was portrait, which is not what wrapping a table in this class is
+    asking for.
 
-    Measured on the finished file either way:
+    Measured on the finished file, before and after:
 
     ```text
-    left alone   page 2: displayed 842x595 (landscape)  /Rotate=0
-    flagged      page 2: displayed 595x842 (portrait)   /Rotate=270
+    before   page 2: displayed 595x842 (portrait)   /Rotate=270  box=842x595
+    after    page 2: displayed 842x595 (landscape)  /Rotate=0    box=842x595
     ```
 
-    The flag is now opt-in, through `pdf_rotate_landscape` (default
-    `false`). Off, a reader shows a wide page with the table upright. On,
-    the old behaviour returns - which is the right answer for a document
-    destined for uniformly portrait paper, where the sheet is turned by
-    hand, and only wrong as an unconditional default now most readers
-    meet the PDF on a screen.
+    The box was landscape the whole time; only the display flag
+    disagreed. The flag is gone, along with `prodockit.pdf.rotate` and
+    the alternating recto/verso rotation `pdf_double_sided` used to apply
+    to these pages - nothing else asked for them, and the class now
+    carries the behaviour on its own rather than through a second
+    mechanism.
 
-    The layout is untouched either way: the flag moves nothing, and the
-    pages either side of the insert stay portrait.
+    No new setting: wrapping a table in `prodockit-table-rotated` means
+    one thing, and there is nothing to configure.
 
 ## 0.36.4 (2026-08-18)
 

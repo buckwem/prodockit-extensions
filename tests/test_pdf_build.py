@@ -88,82 +88,6 @@ def test_raises_pdf_build_error_when_pandoc_hangs_past_the_timeout(
         )
 
 
-def test_a_landscape_insert_is_left_landscape_by_default(
-    tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """prodockit-extensions#469.
-
-    A `prodockit-table-rotated` block already lands on a landscape *page
-    box* - that is what makes its pagination and repeating headers work.
-    Setting `/Rotate` on that page then turns it back to portrait on
-    screen, with the table running sideways, which is what a reader
-    actually saw.
-
-    So the default is to leave the page alone: landscape box, no flag,
-    and a reader shows a wide page with the table upright.
-    """
-    import prodockit.pdf.build as build_module
-
-    called = []
-    monkeypatch.setattr(
-        build_module, "rotate_landscape_pages", lambda path, **kw: called.append(path)
-    )
-    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
-    build_pdf(
-        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
-        str(tmp_path / "out.pdf"),
-    )
-
-    assert called == [], "the finished PDF should not be re-flagged"
-
-
-def test_rotation_is_available_for_printing_on_portrait_paper(
-    tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The old behaviour, kept and made a choice.
-
-    It is the right answer for a document destined for uniformly
-    portrait paper, where the sheet is turned by hand - it is only wrong
-    as the unconditional default, because most readers meet the PDF on a
-    screen first.
-    """
-    import prodockit.pdf.build as build_module
-
-    captured = {}
-    monkeypatch.setattr(
-        build_module,
-        "rotate_landscape_pages",
-        lambda path, **kwargs: captured.setdefault("path", path),
-    )
-    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
-    output_path = tmp_path / "out.pdf"
-    build_pdf(
-        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
-        str(output_path),
-        rotate_landscape=True,
-    )
-
-    assert captured["path"] == str(output_path)
-
-
-def test_does_not_rotate_pages_when_pandoc_fails(
-    tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import prodockit.pdf.build as build_module
-
-    fake_pandoc_on_path('echo "boom" >&2; exit 1')
-    called = []
-    monkeypatch.setattr(
-        build_module, "rotate_landscape_pages", lambda path, **kwargs: called.append(path)
-    )
-    with pytest.raises(PdfBuildError):
-        build_pdf(
-            [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
-            str(tmp_path / "out.pdf"),
-        )
-    assert called == []
-
-
 def test_work_dir_is_cleaned_up_by_default(tmp_path: Path, fake_pandoc_on_path) -> None:
     work_dir = tmp_path / "work"
     fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
@@ -350,34 +274,6 @@ def test_recto_title_is_passed_through_to_the_fixed_up_page_html(
     compiled = (work_dir / "_prodockit_pdf_compiled.html").read_text(encoding="utf-8")
     assert 'class="prodockit-recto-title"' in compiled
     assert "Short Title" in compiled
-
-
-def test_double_sided_flag_is_passed_through_to_rotate_landscape_pages(
-    tmp_path: Path, fake_pandoc_on_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """build_pdf() must pass its own double_sided flag through to
-    rotate_landscape_pages() - confirmed at the rotate.py unit-test level
-    that this alternates 270/90 by final page position; here just confirm
-    build_pdf() actually wires the flag through rather than dropping it."""
-    import prodockit.pdf.build as build_module
-
-    output_path = tmp_path / "out.pdf"
-    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
-    captured = {}
-    monkeypatch.setattr(
-        build_module,
-        "rotate_landscape_pages",
-        lambda path, **kwargs: captured.update(path=path, **kwargs),
-    )
-    build_pdf(
-        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
-        str(output_path),
-        double_sided=True,
-        # Rotation is opt-in since #469, so the flag it carries can only
-        # be checked on a build that asks for rotation at all.
-        rotate_landscape=True,
-    )
-    assert captured == {"path": str(output_path), "double_sided": True}
 
 
 # ---------------------------------------------------------------------------
@@ -1384,27 +1280,14 @@ def test_a_rotated_table_page_is_displayed_landscape(tmp_path: Path) -> None:
         "<p>More portrait text.</p>"
     )
 
-    def shapes(rotate_landscape: bool) -> list[str]:
-        out = tmp_path / f"{rotate_landscape}.pdf"
-        build_pdf(
-            [Page(docs_rel_path="index.md", html=html, is_index=True)],
-            str(out),
-            rotate_landscape=rotate_landscape,
-        )
-        with pymupdf.open(str(out)) as pdf:
-            return [
-                "landscape" if page.rect.width > page.rect.height else "portrait"
-                for page in pdf
-            ]
+    out = tmp_path / "rotated.pdf"
+    build_pdf([Page(docs_rel_path="index.md", html=html, is_index=True)], str(out))
+    with pymupdf.open(str(out)) as pdf:
+        shapes = [
+            "landscape" if page.rect.width > page.rect.height else "portrait"
+            for page in pdf
+        ]
 
-    left_alone = shapes(False)
-    flagged = shapes(True)
-
-    assert "landscape" in left_alone, (
-        f"the table page should display landscape, got {left_alone}"
-    )
-    assert "landscape" not in flagged, (
-        f"with rotation on, every page displays portrait, got {flagged}"
-    )
-    # The document either side of it is untouched.
-    assert left_alone[0] == "portrait" and left_alone[-1] == "portrait"
+    assert "landscape" in shapes, f"the table page should display landscape: {shapes}"
+    # And only that page - the document either side of it is untouched.
+    assert shapes[0] == "portrait" and shapes[-1] == "portrait"

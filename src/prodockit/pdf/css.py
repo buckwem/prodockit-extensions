@@ -280,11 +280,14 @@ __PDF_DOUBLE_SIDED_PAGE_RULES__
    onto its own landscape-sized page (same configured page size, width/height
    swapped) via the standard CSS Paged Media "page" property, so normal
    pagination/page-break rules - including thead's own repeat-on-every-page
-   behaviour - apply exactly as they would on any other table. The actual
-   90-degree anticlockwise rotation is applied afterwards, directly on the
-   finished PDF's own per-page /Rotate flag (see prodockit.pdf.rotate) -
-   /Rotate only changes how a page is displayed/printed, not its own content
-   layout, so it can't undo the correct pagination already computed above. */
+   behaviour - apply exactly as they would on any other table.
+
+   That landscape page is then left alone. It used to be given the PDF's
+   own per-page /Rotate flag, which a reader honours by displaying a
+   landscape page as *portrait* with the table running sideways - so the
+   page a reader actually saw was portrait, which is not what wrapping a
+   table in this class is asking for (prodockit-extensions#469). The box
+   was landscape the whole time; only the display flag disagreed. */
 @page prodockit-rotated {
     size: __PDF_PAGE_SIZE__ landscape;
     margin: __PDF_MARGIN_TOP__ __PDF_MARGIN_RIGHT__ __PDF_MARGIN_BOTTOM__ __PDF_MARGIN_LEFT__ !important;

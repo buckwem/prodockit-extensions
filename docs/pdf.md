@@ -351,23 +351,8 @@ table to a single page instead of splitting it, and pushes its heading row
 and first few rows off-page entirely, before any of this was written.
 Instead, WeasyPrint lays the table out normally, unrotated, on its own
 landscape page, so pagination and repeating headers behave as they would
-anywhere else.
-
-### On screen, or on paper {: #pdf-rotated-display }
-
-That landscape page is left landscape by default, so a PDF reader shows a
-wide page with the table upright and nothing to turn.
-
-`pdf_rotate_landscape = true` changes only how it is *displayed*: the
-finished page gets the PDF's own per-page rotation flag, and a reader then
-shows it as a portrait page with the table running sideways. That is what
-you want when the whole document will be printed on uniformly portrait
-paper and the sheet turned by hand; it is the wrong default for a document
-most readers meet on a screen (prodockit-extensions#469). The layout is
-identical either way - the flag moves nothing.
-
-See `prodockit.pdf.rotate` for that step, which runs only when the setting
-asks for it (and is a no-op if nothing used `prodockit-table-rotated`).
+anywhere else - and that page is then left landscape, so a PDF reader
+shows a wide page with the table upright and nothing to turn.
 
 This is PDF-only - the same wrapped table renders as a completely normal,
 unrotated table on the live website, the same way `.web-only` content
@@ -408,14 +393,6 @@ chapter ended on an odd page, exactly like the blank pages you'd expect at
 the start of each chapter in a real printed book. This needs no
 configuration; it's part of what `pdf_double_sided` turns on.
 
-A `prodockit-table-rotated` landscape page's own rotation direction also
-alternates by its own final page position once `pdf_double_sided` is on -
-270 degrees (anticlockwise) on a recto page, 90 (clockwise) on a verso
-page - since the spine sits on the opposite physical side either way, and
-the rotation has to compensate to keep the landscape content's own top
-edge facing the fore-edge rather than the spine. With `pdf_double_sided`
-off, every rotated page always rotates 270 degrees, as before this option
-existed.
 
 A page's own front matter `recto_title: "Short Title"` overrides that
 page's own running header text with a shorter title, from the *next* page
