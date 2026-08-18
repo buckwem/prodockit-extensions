@@ -23,7 +23,8 @@ from prodockit.bootstrap.fetch import fetch
 class _Handler(http.server.BaseHTTPRequestHandler):
     """Three answers, chosen by path."""
 
-    def do_GET(self) -> None:  # noqa: N802 - the name http.server requires
+    # Named as http.server requires, not as this project would name it.
+    def do_GET(self) -> None:
         if self.path == "/moved":
             # What a login-walled Pages site does: 302 to a consent page.
             self.send_response(302)
