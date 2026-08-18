@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Fixed:** a `.pdf-only` image is centred in the PDF
+  ([#462](https://github.com/buckwem/prodockit-extensions/issues/462)).
+
+    Sizing an image differently for each medium - `.web-only` at one
+    width, `.pdf-only` at another - left the PDF copy hard against the
+    left edge, under its own centred caption.
+
+    `.pdf-only` sets `display: block` so that a website's `display: none`
+    is undone. That also took the image out of the one mechanism that
+    positions it: `figure { text-align: center }` moves inline content,
+    and a block box is placed by its margins instead. Measured inside the
+    figure at 0.00pt left against 163.96pt right, where the same image
+    without the class sits at 80.98/82.98.
+
+    Images are exempted from that `display: block` rather than centred
+    with `margin: auto`, which reads like the obvious answer and does
+    nothing: WeasyPrint leaves a block-level replaced element at the left
+    edge even with auto margins on both sides. Inline also keeps one
+    centring mechanism for every image instead of two that have to agree.
+
 - **Fixed:** the installation requirements say what the project actually
   declares ([#372](https://github.com/buckwem/prodockit-extensions/issues/372)).
 

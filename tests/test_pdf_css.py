@@ -303,3 +303,99 @@ def test_autoref_page_number_is_scoped_to_in_document_links() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
 
     assert "a.prodockit-autoref::after" not in css
+
+
+# ---------------------------------------------------------------------------
+# Where an image actually lands (prodockit-extensions#462)
+# ---------------------------------------------------------------------------
+
+#: A 2:1 placeholder, inline so the test needs no asset on disk.
+_IMAGE = (
+    "data:image/svg+xml;utf8,"
+    "<svg xmlns='http://www.w3.org/2000/svg' width='400' height='200'>"
+    "<rect width='400' height='200' fill='%23888'/></svg>"
+)
+
+
+def _image_offsets(classes: str) -> tuple[float, float]:
+    """The gap either side of the image, inside its own figure.
+
+    Measured from the laid-out box tree rather than asserted on the CSS
+    text: the rule under test is about *position*, and a stylesheet can
+    contain exactly the right declaration and still lose to another one.
+    """
+    import pytest
+
+    weasyprint = pytest.importorskip("weasyprint")
+
+    css = build_css("Inter", "Fira Code", "My Site")
+    html = (
+        f'<!DOCTYPE html><html><head><meta charset="utf-8"><style>{css}</style>'
+        f'</head><body><figure>'
+        f'<img src="{_IMAGE}" style="width:70%" class="{classes}">'
+        f"<figcaption>Architecture Overview</figcaption>"
+        f"</figure></body></html>"
+    )
+    page = weasyprint.HTML(string=html).render().pages[0]
+
+    found: dict[str, object] = {}
+
+    def walk(box: object) -> None:
+        tag = getattr(box, "element_tag", "")
+        if tag in ("figure", "img") and tag not in found:
+            found[tag] = box
+        for child in getattr(box, "children", []):
+            walk(child)
+
+    walk(page._page_box)
+    figure, image = found["figure"], found["img"]
+    left = image.position_x - figure.content_box_x()          # type: ignore[attr-defined]
+    right = (figure.content_box_x() + figure.width) - (       # type: ignore[attr-defined]
+        image.position_x + image.width                        # type: ignore[attr-defined]
+    )
+    return left, right
+
+
+def test_a_pdf_only_image_sits_where_any_other_image_sits() -> None:
+    """prodockit-extensions#462.
+
+    `.pdf-only` sets `display: block` so a website's `display: none` is
+    undone. That also stopped `figure { text-align: center }` from
+    positioning the image - text-align only moves inline content - so a
+    `.pdf-only` image with a width sat flush left under its own centred
+    caption, while the same image without the class was centred.
+
+    Asserted as parity with an ordinary image rather than as perfect
+    centring: every image here carries a ~2pt bias from the whitespace
+    after the `<img>` in the source, and a test demanding exact symmetry
+    would fail on correct output.
+    """
+    plain = _image_offsets("screenshot")
+    pdf_only = _image_offsets("screenshot pdf-only")
+
+    assert pdf_only == pytest_approx(plain), (
+        f"a .pdf-only image lands at {pdf_only}, an ordinary one at {plain}"
+    )
+
+
+def test_a_pdf_only_image_is_not_flush_against_one_edge() -> None:
+    """The symptom as reported, stated directly.
+
+    Parity above would also hold if both images regressed together; this
+    says the image is somewhere near the middle of its figure rather than
+    hard against a side.
+    """
+    left, right = _image_offsets("screenshot pdf-only")
+
+    assert left > 1, f"flush against the left edge: {left}pt"
+    assert right > 1, f"flush against the right edge: {right}pt"
+    # Within a couple of points of each other, which is the whitespace
+    # bias and nothing more.
+    assert abs(left - right) < 5, f"lopsided: {left}pt vs {right}pt"
+
+
+def pytest_approx(value: tuple[float, float]) -> object:
+    """`pytest.approx` for a pair, imported lazily like the renderer."""
+    import pytest
+
+    return pytest.approx(value, abs=0.01)

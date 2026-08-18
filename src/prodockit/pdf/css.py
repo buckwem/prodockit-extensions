@@ -509,6 +509,25 @@ blockquote {
 .pdf-only + .pdf-only {
     margin-top: 0 !important;
 }
+/* An image is *not* one of the things ".pdf-only" should turn into a block.
+   The "figure {}" rule above centres its image with text-align, which only
+   positions inline content - so display: block above left a ".pdf-only"
+   image flush against the left edge of its own centred caption. Measured
+   inside the figure at 0.00pt left / 163.96pt right, against 80.98/82.98
+   for the same image without the class (prodockit-extensions#462).
+
+   Restoring inline is the fix rather than "margin-left/right: auto",
+   which reads like the textbook answer and does nothing here: WeasyPrint
+   leaves a block-level replaced element at the left edge even with auto
+   margins on both sides (confirmed directly, with and without this
+   project's own CSS). Inline also keeps one centring mechanism for every
+   image rather than two that must agree.
+
+   Still display, not visibility: the point of the rule above is to undo a
+   website's "display: none", and inline does that just as well. */
+img.pdf-only {
+    display: inline !important;
+}
 /* Renders TeX math ($...$/$$...$$, see https://zensical.org/docs/authoring/math/)
    as pre-rendered SVGs, since WeasyPrint has no JS engine to run MathJax
    client-side like the live Zensical site does. The Lua filter's Math()
