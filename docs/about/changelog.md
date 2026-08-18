@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Fixed:** a hung CI job now fails in minutes rather than hours
+  ([#478](https://github.com/buckwem/prodockit-extensions/issues/478)).
+
+    Three runs sat 35 minutes on `apt-get`, a step that takes nine to
+    thirty-eight seconds. It was not the command: three other jobs in the
+    same run ran the same step and finished, and GitHub reported all
+    systems operational. Cancelling and re-dispatching cleared it.
+
+    No job set `timeout-minutes`, so each inherited the six-hour default.
+    A stall that costs seconds in the good case was free to hold a
+    runner, a required check and a pull request for a working day - and
+    to stay silent doing it, because a job that is running has not
+    failed. Every job now carries a limit sized above its measured
+    slowest run, and the `apt-get` steps carry a five-minute one of their
+    own so the failure names the stall rather than the job. They also
+    retry, which covers a flaky mirror without anyone re-running
+    anything.
+
+    The scheduled drift check gets the widest margin relative to its
+    work: it runs unattended, and the run nobody is watching is the one
+    that must not hang.
+
 - **Fixed:** the test suite no longer asks the real internet
   ([#476](https://github.com/buckwem/prodockit-extensions/issues/476)).
 

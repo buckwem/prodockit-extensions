@@ -29,6 +29,10 @@ env:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    # Finishes in about two minutes; 3.6 was the slowest of 132.
+    # The margin is for a slow runner, not for a stall - a job that
+    # hangs must fail while somebody is still watching (#478).
+    timeout-minutes: 15
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
@@ -56,9 +60,13 @@ jobs:
       # The Pango/HarfBuzz libraries are WeasyPrint's own rendering stack
       # (it is a real native dependency, not a pure-Python package) - see
       # the weasyprint install below for why this job needs it at all.
+      # A mirror that stalls must fail fast, not hold the runner: this
+      # step takes seconds, and once sat 35 minutes (#478). Retries
+      # cover the ordinary flaky-mirror case without a rerun.
       - run: >
-          sudo apt-get update && sudo apt-get install -y
+          sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 install -y
           curl libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
+        timeout-minutes: 5
       # Upstream release rather than the image's package - see PANDOC_VERSION.
       #
       # Cached because the release CDN is the single most fragile thing in
@@ -117,6 +125,8 @@ jobs:
 
   docs:
     runs-on: ubuntu-24.04
+    # Under a minute in every run measured.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
         with:

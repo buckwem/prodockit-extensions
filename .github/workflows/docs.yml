@@ -83,6 +83,11 @@ jobs:
     # LTS, and the job then fails outright instead of drifting. That is the
     # right failure - loud, and at a time of your choosing.
     runs-on: ubuntu-24.04
+    # Builds the site and both PDFs: about four minutes, twelve at
+    # its slowest. The margin is for a slow build, not for a stall -
+    # this job sat 35 minutes on `apt-get` once, and would have held
+    # the runner for six hours (#478).
+    timeout-minutes: 30
     # Consumed by the verify job below.
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
@@ -117,7 +122,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: sudo apt-get update && sudo apt-get install -y curl fonts-inter fonts-jetbrains-mono
+      # A mirror that stalls must fail fast, not hold the runner: this
+      # step takes seconds, and once sat 35 minutes (#478). Retries
+      # cover the ordinary flaky-mirror case without a rerun.
+      - run: sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 install -y curl fonts-inter fonts-jetbrains-mono
+        timeout-minutes: 5
       # Upstream release rather than the image's package - see PANDOC_VERSION.
       #
       # Cached because the release CDN is the single most fragile thing in
@@ -142,7 +151,11 @@ jobs:
       # this the PDF shows raw `flowchart LR ...` source instead.
       - run: curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg > /dev/null
       - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-      - run: sudo apt-get update && sudo apt-get install -y google-chrome-stable
+      # A mirror that stalls must fail fast, not hold the runner: this
+      # step takes seconds, and once sat 35 minutes (#478). Retries
+      # cover the ordinary flaky-mirror case without a rerun.
+      - run: sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 install -y google-chrome-stable
+        timeout-minutes: 5
       - run: npm ci --prefix tools/mermaid
       # MathJax, the same arrangement for TeX maths. These docs carry no
       # formulas today, so this renders nothing yet - it is here so that the
@@ -256,6 +269,10 @@ jobs:
   verify:
     needs: deploy
     runs-on: ubuntu-24.04
+    # Deliberately above the polling window below: this job waits
+    # out Pages' 10-minute cache for up to 15 minutes, so a timeout
+    # under that would cut short a wait that is working (#478).
+    timeout-minutes: 25
     steps:
       # Pages serves `cache-control: max-age=600`, so up to ~10 minutes of
       # staleness is normal and expected rather than a fault. 15 minutes of
