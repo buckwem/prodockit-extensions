@@ -7062,6 +7062,67 @@ def test_the_vs_code_package_is_answered_before_it_asks(tmp_path: Path) -> None:
     assert not any(c[0] == "bash" for c in commands), "no shell wrapper"
 
 
+def _own_project_steps(tmp_path: Path, host: str, namespace: str) -> str:
+    """Everything stage 11 tells a reader, as one string."""
+    return "\n".join(
+        next(s for s in STAGES if s.id == "own-project")
+        .plan(_context(tmp_path, host=host, namespace=namespace, project_name="p"))
+        .instructions
+    )
+
+
+def test_the_address_the_url_was_built_from_is_named(tmp_path: Path) -> None:
+    """prodockit-extensions#441.
+
+    A GitLab group renamed after creation keeps its old URL, so a group
+    reading `assessment-commtest-2026` in the breadcrumb went on serving
+    git at `comm058-2026`. Every derived URL missed, and the host said
+    only "could not be found or you don't have permission to view it" -
+    the same sentence it uses for a project that does not exist and for
+    one you cannot see.
+
+    Reported, not repaired: the real path cannot be read from here
+    without credentials, and guessing a second address would replace a
+    visible failure with a silent wrong answer. So the stage names the
+    address it is using and says where the true one is shown.
+    """
+    said = _own_project_steps(tmp_path, "gitlab.surrey.ac.uk", "assessment-commtest-2026")
+
+    assert "assessment-commtest-2026" in said, "name the address being used"
+    assert "address bar" in said, "say where the real one is visible"
+    assert "breadcrumb" in said, "and which one not to trust"
+    # A worked example of the two disagreeing, not just an assertion that
+    # they can - the difference is the thing that is hard to believe.
+    assert "comm058-2026" in said
+
+
+def test_the_namespace_note_is_the_hosts_own(tmp_path: Path) -> None:
+    """GitHub has the same split under different names - an organisation's
+    display name against its URL - so a GitLab reader must not be told
+    about breadcrumbs on github.com, or the reverse."""
+    gitlab = _own_project_steps(tmp_path, "gitlab.surrey.ac.uk", "ns")
+    github = _own_project_steps(tmp_path, "github.com", "ns")
+
+    assert "breadcrumb" in gitlab and "organisation" not in gitlab
+    assert "organisation" in github and "breadcrumb" not in github
+    assert "personal account has no such split" in github
+
+
+def test_nothing_is_said_about_the_address_where_it_cannot_differ(
+    tmp_path: Path,
+) -> None:
+    """A host that declares no note says nothing - the guidance is a
+    per-host value, so a host added later starts silent rather than
+    inheriting somebody else's interface."""
+    from prodockit.bootstrap.model import Host
+
+    quiet = Host(
+        key="q", template_remote="git@q:t.git", key_suffix="q", hostname="q",
+        ssh_success="ok", ssh_keys_url="https://q/keys", new_project_url="https://q/new",
+    )
+    assert quiet.namespace_note == ""
+
+
 def test_the_metadata_url_comes_from_the_host(tmp_path: Path) -> None:
     """It was `api.github.com` written into the stage, so a gitlab.com
     project would have been asked about against GitHub's API."""

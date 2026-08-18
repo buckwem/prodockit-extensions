@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- **Changed:** the project stage says which address it is using, and where
+  the real one is shown
+  ([#441](https://github.com/buckwem/prodockit-extensions/issues/441)).
+
+    A GitLab group keeps its Name and its URL as separate fields, and
+    renaming it changes only the Name. A group reading
+    `assessment-commtest-2026` in the breadcrumb went on serving git at
+    `comm058-2026`, so every derived URL missed - while the host said
+    only `could not be found or you don't have permission to view it`,
+    the same sentence it uses for a project that does not exist and for
+    one you cannot see.
+
+    Detected and reported rather than worked around. The group's real
+    path cannot be read from here without credentials, so guessing a
+    second address would replace a visible failure with a silent wrong
+    answer. Instead the stage names the address it is using, says to read
+    the browser's address bar rather than the breadcrumb, and shows a
+    worked example of the two disagreeing.
+
+    Per host, because both have the split under different names: GitLab's
+    Name against its URL, GitHub's organisation display name against the
+    part after `github.com/` - and a personal account, where there is no
+    split at all.
+
 - **Changed:** the site and Pages probes ask the URL directly instead of
   running `curl` ([#449](https://github.com/buckwem/prodockit-extensions/issues/449)).
 
