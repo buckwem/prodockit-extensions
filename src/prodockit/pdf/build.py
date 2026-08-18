@@ -144,11 +144,16 @@ def _stage_titles(include_index: bool) -> list[str]:
     The index costs two extra stages: the page numbers an index needs do
     not exist until the document has been laid out, so the whole thing is
     built once, read, and built again (prodockit-extensions#375).
+
+    Every title here must name work that follows it. A trailing stage for
+    the rotation #469 removed outlived it, announced immediately before
+    the cleanup with nothing in between, so every build reported one
+    stage more than it ran (prodockit-extensions#482).
     """
     titles = ["Preparing pages", "Assembling the document", "Building the PDF"]
     if include_index:
         titles += ["Collecting index entries", "Rebuilding with page numbers"]
-    return [*titles, "Rotating landscape pages"]
+    return titles
 
 
 def build_pdf(
@@ -562,8 +567,6 @@ def build_pdf(
             run_pandoc("second pass")
         elif include_index:
             announce(titles[4])
-
-        announce(titles[-1])
     finally:
         if use_temp_dir or not keep_work_dir:
             shutil.rmtree(resolved_work_dir, ignore_errors=True)

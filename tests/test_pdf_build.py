@@ -1454,3 +1454,43 @@ def test_a_percentage_width_scales_the_image(tmp_path: Path) -> None:
     # And it is a real reduction from the unconstrained image, so the
     # assertion cannot pass on an image that was never scaled at all.
     assert widths["attribute"] < widths["no width"] - 100, widths
+
+
+@real_pandoc_and_weasyprint_required
+def test_every_announced_stage_still_has_work_left_to_do(tmp_path: Path) -> None:
+    """A stage must not be announced once the PDF is already written.
+
+    The regression this guards is not a wrong count but a false one:
+    #469 removed the landscape-page rotation and left its stage title
+    behind, announced as the last statement before cleanup with nothing
+    between. Every build reported "[4/4] Rotating landscape pages" and
+    then rotated nothing, so a three-stage build called itself four
+    (prodockit-extensions#482).
+
+    Asserting the titles alone would not have caught it - the list was
+    self-consistent, and the count matched the number announced. What
+    separates a real stage from a leftover is whether anything happens
+    afterwards, so that is what is measured: at the moment each stage is
+    announced, the output file must not exist yet.
+    """
+    output_path = tmp_path / "staged.pdf"
+    seen: list[tuple[str, bool]] = []
+
+    def record(number: int, total: int, title: str) -> None:
+        # Whether the finished PDF is already on disk when this stage
+        # claims to be starting.
+        seen.append((title, output_path.exists()))
+
+    build_pdf(
+        [Page(docs_rel_path="page.md", html="<h1>H</h1><p>Body.</p>", is_index=False)],
+        str(output_path),
+        on_stage=record,
+    )
+
+    assert seen, "the build announced no stages at all"
+    finished = [title for title, done in seen if done]
+    assert not finished, f"announced after the PDF was already written: {finished}"
+    # And the announcements match what the build said it would do.
+    from prodockit.pdf.build import _stage_titles
+
+    assert [title for title, _ in seen] == _stage_titles(include_index=False)

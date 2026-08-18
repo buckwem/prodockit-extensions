@@ -290,16 +290,16 @@ def test_the_build_says_which_stage_it_is_on(monkeypatch, tmp_path) -> None:
 
     def fake_build(config_path, *, markdown_file=None, on_stage=None):
         assert on_stage is not None, "the CLI has to ask for progress to get any"
-        on_stage(1, 4, "Preparing pages")
-        on_stage(4, 4, "Rotating landscape pages")
+        on_stage(1, 3, "Preparing pages")
+        on_stage(3, 3, "Building the PDF")
         return "docs/site_documentation.pdf"
 
     monkeypatch.setattr("prodockit.cli.build_pdf_from_zensical_config", fake_build)
     result = CliRunner().invoke(main, ["pdf"])
 
     assert result.exit_code == 0, result.output
-    assert "[1/4] Preparing pages" in result.output
-    assert "[4/4] Rotating landscape pages" in result.output
+    assert "[1/3] Preparing pages" in result.output
+    assert "[3/3] Building the PDF" in result.output
     # ...and how long the whole thing took, on the line that says it is done.
     assert re.search(r"Wrote docs/site_documentation\.pdf in \d", result.output), result.output
 
@@ -316,7 +316,11 @@ def test_the_stage_list_grows_when_an_index_is_wanted() -> None:
     assert len(indexed) == len(plain) + 2
     assert "Collecting index entries" in indexed
     assert "Rebuilding with page numbers" in indexed
-    assert indexed[-1] == plain[-1], "rotation stays last either way"
+    # Laying the document out is what an indexed build ends on, having
+    # done it twice. Nothing follows it: a stage that named work already
+    # finished was reported for every build until #482.
+    assert plain[-1] == "Building the PDF"
+    assert indexed[-1] == "Rebuilding with page numbers"
 
 
 def test_a_duration_is_readable_out_loud() -> None:
