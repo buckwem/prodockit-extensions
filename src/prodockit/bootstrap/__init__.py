@@ -26,6 +26,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from prodockit.bootstrap.config import (
     LOCAL_CONFIG_NAME,
@@ -40,6 +41,7 @@ from prodockit.bootstrap.config import (
     save,
 )
 from prodockit.bootstrap.contact import CountingRunner, HostContacts, contacts_host
+from prodockit.bootstrap.fetch import fetch as default_fetch
 from prodockit.bootstrap.model import (
     HOSTS,
     INSTALL_TIMEOUT_SECONDS,
@@ -168,6 +170,7 @@ def build_context(
     platform: str | None = None,
     home: Path | None = None,
     exists: Callable[[Path], bool] | None = None,
+    fetch: Callable[..., Any] | None = None,
 ) -> Context:
     """Assembles what the stages need, resolving the configured host.
 
@@ -191,6 +194,7 @@ def build_context(
         runner=CountingRunner(runner or SubprocessRunner(), contacts),
         home=home or Path.home(),
         exists=exists or Path.exists,
+        fetch=fetch or default_fetch,
         contacts=contacts,
     )
 

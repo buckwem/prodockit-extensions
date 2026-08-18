@@ -234,12 +234,53 @@ def _looks_like_vscode_app(path: Path) -> bool:
     return "Visual Studio Code" in text or text.endswith(("/usr/share/code", "/snap/code"))
 
 
+def _answers(status: int, body: str = ""):
+    """A `fetch` that answers every URL the same way.
+
+    The probes ask a URL rather than run `curl` (prodockit-extensions#449),
+    so this is the seam a test describes a host through - the same role
+    `FakeRunner` plays for commands.
+    """
+    from prodockit.bootstrap.fetch import Fetched
+
+    return lambda url, timeout=20.0: Fetched(status, body)
+
+
+def _answers_by_url(**routes):
+    """A `fetch` keyed on a fragment of the URL.
+
+    The Pages stage asks two different things - the repository's metadata
+    and the published site - and they answer differently on a private
+    repository, which is the whole of #374.
+    """
+    from prodockit.bootstrap.fetch import Fetched
+
+    def answer(url, timeout=20.0):
+        for fragment, (status, body) in routes.items():
+            if fragment.replace("_", ".") in url or fragment in url:
+                return Fetched(status, body)
+        return None
+
+    return answer
+
+
+def _unreachable(url, timeout=20.0):
+    """A `fetch` that could not ask at all - no route, no name, no listener.
+
+    `None` is not a status. It is the default here for the same reason
+    `FakeRunner` answers `127 not found`: a test that has not said what a
+    host does should not be quietly given a working one.
+    """
+    return None
+
+
 def _context(
     tmp_path: Path,
     *,
     platform: str = MACOS,
     runner: FakeRunner | None = None,
     vscode_app: bool = False,
+    fetch=None,
     **cfg,
 ):
     """A context describing a machine, never reading this one.
@@ -258,6 +299,7 @@ def _context(
         exists=lambda path: (
             vscode_app if _looks_like_vscode_app(path) else path.exists()
         ),
+        fetch=fetch or _unreachable,
     )
 
 
@@ -6442,10 +6484,9 @@ def test_pages_is_read_without_a_token_where_that_is_possible(tmp_path: Path) ->
     """A public repository says so in its own API object, to any
     anonymous caller - no tool to install, nothing to sign in to (#357)."""
     for has_pages, expected in ((True, Status.OK), (False, Status.MISSING)):
-        machine = _ready_machine(tmp_path)
-        machine["curl -sS"] = CommandResult(0, f'{{"name":"r","has_pages":{str(has_pages).lower()}}}')
+        body = f'{{"name":"r","has_pages":{str(has_pages).lower()}}}'
         result = next(s for s in STAGES if s.id == "pages").check(
-            _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+            _context(tmp_path, host="github.com", fetch=_answers(200, body))
         )
         assert result.status is expected, has_pages
 
@@ -6472,43 +6513,6 @@ def test_a_probe_that_did_not_run_is_not_an_answer(tmp_path: Path) -> None:
         assert "the probe did not run" in result.detail
         assert "private repository" not in result.detail
         assert "not answering yet" not in result.detail
-
-
-def test_the_response_body_is_thrown_away_somewhere_the_platform_has(
-    tmp_path: Path,
-) -> None:
-    """prodockit-extensions#443.
-
-    `/dev/null` does not exist on Windows, and curl does not treat the
-    name as a device - it tries to create the file, fails, and exits 23.
-    The probe then reports "could not establish" about a site that was
-    serving perfectly well, on every retry, for as long as the reader was
-    willing to keep answering yes.
-
-    Asserted on the command rather than the outcome: a fake runner
-    answers whatever it is asked, so only the argument itself shows the
-    difference between a probe that can run on Windows and one that
-    cannot.
-    """
-    asked: list[list[str]] = []
-
-    class Recorder(FakeRunner):
-        def run(self, command, *args, **kwargs):  # type: ignore[no-untyped-def]
-            asked.append(list(command))
-            return super().run(command, *args, **kwargs)
-
-    for platform, device in ((WINDOWS, "NUL"), (MACOS, "/dev/null"), (UBUNTU, "/dev/null")):
-        asked.clear()
-        machine = _ready_machine(tmp_path)
-        machine["%{http_code}"] = CommandResult(0, "200")
-        next(s for s in STAGES if s.id == "site").check(
-            _context(tmp_path, platform=platform, runner=Recorder(machine))
-        )
-        probes = [c for c in asked if "%{http_code}" in c]
-
-        assert probes, f"{platform}: nothing probed"
-        for probe in probes:
-            assert probe[probe.index("-o") + 1] == device, (platform, probe)
 
 
 def test_the_host_s_own_refusal_is_quoted(tmp_path: Path) -> None:
@@ -6597,9 +6601,7 @@ def test_a_site_behind_a_login_is_published(tmp_path: Path) -> None:
     """
     stage = next(s for s in STAGES if s.id == "site")
     for code in ("401", "403", "302"):
-        machine = _ready_machine(tmp_path)
-        machine["%{http_code}"] = CommandResult(0, code)
-        result = stage.check(_context(tmp_path, runner=FakeRunner(machine)))
+        result = stage.check(_context(tmp_path, fetch=_answers(int(code))))
 
         assert result.status is Status.OK, code
         assert "pages.surrey.ac.uk" in result.detail
@@ -6628,12 +6630,14 @@ def test_a_private_repository_is_shown_the_steps_and_taken_on_trust(
     a question this repository will never answer and leaves the proof to
     the site check.
     """
-    machine = _ready_machine(tmp_path)
-    machine["curl -sS"] = CommandResult(0, '{"message":"Not Found","status":"404"}')
-    # Nothing published either, or the site would answer for it.
-    machine["%{http_code}"] = CommandResult(0, "404")
+    # The API says 404 to an anonymous caller, and nothing is published
+    # either - or the site would answer for it.
+    not_found = '{"message":"Not Found","status":"404"}'
+    probe = _answers_by_url(
+        **{"api_github_com": (404, not_found), "github_io": (404, "")}
+    )
     result = next(s for s in STAGES if s.id == "pages").check(
-        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+        _context(tmp_path, host="github.com", fetch=probe)
     )
 
     assert result.status is Status.MISSING
@@ -6649,11 +6653,12 @@ def test_a_private_repository_that_has_published_says_so(tmp_path: Path) -> None
     it could never clear - shown the browser steps on every run, for
     something already done.
     """
-    machine = _ready_machine(tmp_path)
-    machine["curl -sS"] = CommandResult(0, '{"message":"Not Found","status":"404"}')
-    machine["%{http_code}"] = CommandResult(0, "200")
+    not_found = '{"message":"Not Found","status":"404"}'
+    probe = _answers_by_url(
+        **{"api_github_com": (404, not_found), "github_io": (200, "")}
+    )
     result = next(s for s in STAGES if s.id == "pages").check(
-        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+        _context(tmp_path, host="github.com", fetch=probe)
     )
 
     assert result.status is Status.OK
@@ -6689,10 +6694,8 @@ def test_the_front_page_link_is_told_not_done(tmp_path: Path) -> None:
 def test_a_site_that_answers_is_finished(tmp_path: Path) -> None:
     """The published site is the whole test now - no token, no tool, and
     it works for a private repository because the site is public."""
-    machine = _ready_machine(tmp_path)
-    machine["curl -sS"] = CommandResult(0, "200")
     result = next(s for s in STAGES if s.id == "site").check(
-        _context(tmp_path, host="github.com", runner=FakeRunner(machine))
+        _context(tmp_path, host="github.com", fetch=_answers(200))
     )
 
     assert result.status is Status.OK

@@ -2947,46 +2947,24 @@ def site_url(context: Context) -> str:
     return template.format(namespace=namespace, project=project)
 
 
-#: Where to throw a response body away, per platform.
-#:
-#: Windows has no `/dev/null`. curl asked to write there does not treat
-#: it as a device: it tries to *create* the file, fails, and exits 23 -
-#: so a site that was serving perfectly well came back as "the probe did
-#: not run", on every retry, for as long as anyone was willing to keep
-#: answering yes (prodockit-extensions#443).
-#:
-#: The honest could-not-establish reporting is what made this survivable
-#: rather than a wrong answer - but a third state nothing can ever leave
-#: is its own kind of stuck.
-_NULL_DEVICE = {WINDOWS: "NUL", MACOS: "/dev/null", UBUNTU: "/dev/null"}
-
-
 def _http_status(context: Context, url: str) -> int | None:
     """What a stranger gets from `url`, or `None` if the asking failed.
 
-    `None` is not a status and must never be read as one. curl is
-    installed by the Pandoc stage, four stages *after* the first check
-    that wants it, so on a machine part-way through a setup the probe can
-    simply be missing - and "curl: not found" was being reported as
-    though the server had answered (prodockit-extensions#374).
+    `None` is not a status and must never be read as one - a refused
+    connection, a DNS failure and a timeout all mean the question was
+    never put (prodockit-extensions#374).
+
+    Asked with Python rather than by launching `curl`. That subprocess
+    cost three fixes of its own - curl arriving four stages later than
+    the first check that wanted it, `-o /dev/null` on a platform without
+    one, and a misdiagnosis where PowerShell's `curl` alias looked like
+    an absent program - none of which were really about curl (#449).
+
+    Redirects are deliberately not followed: a `302` is how a
+    login-walled site is recognised as published.
     """
-    result = context.runner.run(
-        [
-            "curl",
-            "-sS",
-            "-o",
-            _NULL_DEVICE[context.platform],
-            "-w",
-            "%{http_code}",
-            "--max-time",
-            "20",
-            url,
-        ]
-    )
-    code = result.stdout.strip()
-    if not result.ok or not code.isdigit():
-        return None
-    return int(code)
+    answer = context.fetch(url)
+    return answer.status if answer is not None else None
 
 
 def _site_answers(context: Context) -> bool:
@@ -3367,14 +3345,13 @@ def _check_pages(context: Context) -> CheckResult:
     namespace = context.config.namespace.strip()
     project = context.config.project_name.strip()
     api = host.repo_api.format(namespace=namespace, project=project)
-    seen = context.runner.run(["curl", "-sS", "--max-time", "20", api])
-    if seen.returncode == 127:
-        # The probe is not installed yet - curl arrives with the Pandoc
-        # stage, three stages below this one. Nothing has been learned
-        # about Pages, and saying "cannot be seen from outside a private
-        # repository" would name a cause that was never established.
+    seen = context.fetch(api)
+    if seen is None:
+        # The question was never put - no route, no name, no listener.
+        # Saying "cannot be seen from outside a private repository" would
+        # name a cause nobody established (#374).
         return _missing(f"could not check {api} from here - the probe did not run")
-    described = _json_object(seen.stdout) if seen.ok else None
+    described = _json_object(seen.body) if seen.status == 200 else None
     if described is not None and "has_pages" in described:
         if described["has_pages"]:
             return _ok("Pages is enabled")
