@@ -12,6 +12,7 @@ and obvious at another, and the PDF is where it shows up last
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 from pathlib import Path
 
 import markdown
@@ -237,3 +238,123 @@ def test_the_icons_can_be_replaced() -> None:
 
     assert ":octicons-file-directory-16:" in html
     assert ":material-folder:" not in html
+
+
+def _entry_positions(extra: str = "") -> list[tuple[int, float, float]]:
+    """Every entry as (depth, left edge of its row, left edge of its icon).
+
+    The row's left edge is where the rail below it is drawn; the icon's
+    is what a reader actually sees a level by. Both are needed, because
+    the indentation is only right when they agree.
+    """
+    weasyprint = pytest.importorskip("weasyprint")
+
+    listing = (
+        "/// tree\n"
+        "src/ - one\n"
+        "  prodockit/ - two\n"
+        "    pdf/ - three\n"
+        "      build.py - four\n"
+        "///\n"
+    )
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    @page {{ size: A4; margin: 2cm; }} body {{ font-size: 11pt; }}
+    {_tree_css()}
+    .prodockit-tree {{ {extra} }}</style></head><body>
+    {render(listing)}</body></html>"""
+    page = weasyprint.HTML(string=html).render().pages[0]
+
+    found: list[tuple[int, float, float]] = []
+
+    def walk(box: object, depth: int = 0) -> None:
+        tag = getattr(box, "element_tag", "")
+        next_depth = depth + 1 if tag == "ul" else depth
+        if tag == "li":
+            icon = _first_icon(box)
+            if icon is not None:
+                # The outermost `li` at each depth is the row; the ones
+                # nested inside it are WeasyPrint's own anonymous boxes.
+                found.append((depth, box.position_x, icon))  # type: ignore[attr-defined]
+        for child in getattr(box, "children", []):
+            walk(child, next_depth)
+
+    def _first_icon(box: object) -> float | None:
+        """This row's own icon.
+
+        Descends through `li` because WeasyPrint wraps a row in anonymous
+        `li` boxes of its own - measuring the innermost gives a position
+        a whole indent to the right, which is what the first draft of
+        this helper did. Sub-entries are inside a `ul`, so that is what
+        must not be entered.
+        """
+        for child in getattr(box, "children", []):
+            tag = getattr(child, "element_tag", "")
+            if tag == "ul":
+                continue  # a nested listing, not this row's icon
+            if tag in ("span", "img", "svg"):
+                return float(child.position_x)  # type: ignore[attr-defined]
+            found_deeper = _first_icon(child)
+            if found_deeper is not None:
+                return found_deeper
+        return None
+
+    walk(page._page_box)
+    return found
+
+
+def test_each_level_steps_in_by_one_indent_and_no_more() -> None:
+    """The indentation is `--tree-indent`, and nothing else adds to it.
+
+    It was 98px a level on the published page against the 30px asked
+    for. Two thirds of that was accidental: the theme's list margins were
+    never reset, and a row's own inset - the stub, and the hanging indent
+    that keeps a wrapped description clear of its icon - accumulated into
+    every level below it, because a child list lives inside its parent's
+    <li> and starts from that <li>'s text rather than from its name
+    (prodockit-extensions#486).
+
+    Measured icon to icon, which is what a reader sees a level by, and
+    across three steps rather than one - the first level was inset
+    differently from the rest, and a single step could not have shown it.
+    """
+    positions = _entry_positions()
+
+    assert positions, "nothing was laid out - the stylesheet did not apply"
+    by_depth: dict[int, float] = {}
+    for depth, _row, icon in positions:
+        by_depth.setdefault(depth, icon)
+    depths = sorted(by_depth)
+    assert len(depths) >= 4, f"expected four levels, got {depths}"
+
+    steps = [by_depth[b] - by_depth[a] for a, b in pairwise(depths)]
+    # Every step the same: the first level used to differ from the rest.
+    assert max(steps) - min(steps) < 0.5, f"levels step unevenly: {steps}"
+    # And each is one indent - 1.5rem against this document's 11pt body,
+    # not the 3.5 indents' worth that the accumulated insets produced.
+    assert all(20 < step < 30 for step in steps), f"steps are {steps}"
+
+
+def test_a_rail_drops_from_under_the_icon_above_it() -> None:
+    """A child's rail hangs off its parent's icon, not off its text.
+
+    The two are positioned from the same measurement, so an entry cannot
+    end up with its rail somewhere its parent's icon is not - which the
+    first level did, stepping in a full indent further than the levels
+    below it (prodockit-extensions#486).
+    """
+    positions = _entry_positions()
+    by_depth: dict[int, tuple[float, float]] = {}
+    for depth, row, icon in positions:
+        by_depth.setdefault(depth, (row, icon))
+
+    depths = sorted(by_depth)
+    for parent, child in pairwise(depths):
+        parent_icon = by_depth[parent][1]
+        child_row = by_depth[child][0]
+        # The icon is 1.1em wide, so "under it" is within that of its left
+        # edge. Stated as a range rather than an equality because the rail
+        # sits deliberately near the icon's middle.
+        assert parent_icon - 1 <= child_row <= parent_icon + 14, (
+            f"depth {child}'s rail at {child_row:.1f} is not under "
+            f"depth {parent}'s icon at {parent_icon:.1f}"
+        )

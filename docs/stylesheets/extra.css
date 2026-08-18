@@ -368,7 +368,13 @@
   --tree-line: 1.2px;
   --tree-line-color: var(--md-default-fg-color--light, #9b9b9b);
   --tree-icon-gap: 0.45em;
-  --tree-row: 1.9em;           /* line box the rails are measured against */
+  /* The line box the rails are measured against, and so the row's own
+     height. 1.9em left the listing looking airier than the prose beside
+     it - a tree is a dense index, not body copy, and reads better set
+     tighter. At 1.45em the same 44-entry listing is a fifth shorter and
+     a wrapped description still separates clearly from the next entry
+     (prodockit-extensions#486). */
+  --tree-row: 1.45em;
 }
 .prodockit-tree ul {
   list-style: none;
@@ -377,6 +383,40 @@
 }
 .prodockit-tree > ul {
   padding-left: 0;
+}
+/* One level in is `--tree-indent`, measured icon to icon - and nothing
+   else contributes to it.
+
+   It was 98px a level on the published page against the 30px this sets.
+   Two thirds of that was accidental: the theme's own list margins were
+   never reset (23px), and a row's inset - the stub, and the hanging
+   indent that keeps a wrapped description clear of its icon -
+   accumulated into every level below it (44px), because a child list
+   lives inside its parent's <li> and so starts from that <li>'s text
+   rather than from its name.
+
+   Subtracting a row's whole inset puts the child's rail a fixed
+   distance from its parent's *icon* instead, which is the second thing
+   this fixes: the rail now drops from under the icon above it at every
+   depth. It did not before - a top-level row carries only the hang,
+   having no rail to its left, while every row below it also carries the
+   stub, so a rule written for one was wrong for the other and the first
+   level stepped differently from the rest.
+
+   One rule covers both depths because the difference cancels: the same
+   inset that is subtracted here is the one the child adds back, so the
+   step is `--tree-indent` wherever it is measured. A project that wants
+   a wider or narrower tree sets that one number and gets exactly what it
+   asked for (prodockit-extensions#486). */
+.prodockit-tree ul,
+.prodockit-tree li {
+  margin-left: 0;
+}
+.prodockit-tree li > ul {
+  padding-left: 0;
+  margin-left: calc(
+    var(--tree-indent) - var(--tree-stub) - 0.35rem - var(--tree-hang)
+  );
 }
 /* A hanging indent, so a description that wraps continues under the name
    rather than back at the margin. Without it a long entry's second line
