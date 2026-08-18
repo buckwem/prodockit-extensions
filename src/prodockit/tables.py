@@ -44,6 +44,35 @@ COMPACT_TABLE_CLASS = "prodockit-table-compact"
 #: The class an author writes, before it is moved to the table.
 COMPACT_MARKER = "compact"
 
+#: Written ``{: .header }`` on a cell of a body row, to say that the row
+#: belongs in the header. A Markdown table has exactly one header row and
+#: no syntax for a second, so a table whose heading needs two lines has
+#: to fake one - and a faked header does not repeat when the table breaks
+#: across pages, because only what is inside ``<thead>`` repeats. Moving
+#: the row into ``<thead>`` is the whole fix: WeasyPrint already repeats
+#: a multi-row header, spans and all (prodockit-extensions#474).
+HEADER_MARKER = "header"
+
+#: Set on a header cell whose text is turned on its side, and on the span
+#: that turns it. Rotation is the only way a wide table's headings stop
+#: deciding its width - but `transform` does not affect layout, so the
+#: column has to be given a width as well, which is why `rotate` without
+#: `width` is refused rather than rendered.
+ROTATE_CLASS = "prodockit-rotate"
+
+#: The angles worth having. Anything else gives a heading nobody can read
+#: and a row height nobody can predict.
+ROTATE_ANGLES = (90, 270)
+
+
+class TableError(ValueError):
+    """A table that cannot be built as asked.
+
+    Raised rather than rendered approximately: a heading rotated inside a
+    full-width column looks like the feature worked, and a silent wrong
+    answer is the failure this project keeps meeting.
+    """
+
 
 class TableWidthTreeprocessor(Treeprocessor):
     """Turns a header cell's ``width`` attribute (set via ``attr_list``, e.g.
@@ -61,12 +90,19 @@ class TableWidthTreeprocessor(Treeprocessor):
             header_row = table.find("./thead/tr")
             if header_row is None:
                 continue
-            headers = header_row.findall("th")
+            # Before anything reads the header: a promoted row is part of
+            # it, and may carry the width or the compact marker itself.
+            _promote_header_rows(table)
+            _apply_spans(table)
+            headers = [c for row in table.findall("./thead/tr") for c in row]
             _apply_compact(table, headers)
-            widths = [th.get("width") for th in headers]
+            _apply_rotation(headers)
+            # Widths come from the first header row only - it is the one
+            # with a cell per column, which is what a <colgroup> needs.
+            widths = [th.get("width") for th in header_row.findall("th")]
             if not any(widths):
                 continue
-            for th in headers:
+            for th in header_row.findall("th"):
                 if "width" in th.attrib:
                     del th.attrib["width"]
             colgroup = etree.Element("colgroup")
@@ -76,6 +112,181 @@ class TableWidthTreeprocessor(Treeprocessor):
                     col.set("style", f"width: {width};")
             table.insert(0, colgroup)
             _add_class(table, SIZED_TABLE_CLASS)
+
+
+def _promote_header_rows(table: etree.Element) -> None:
+    """Moves rows marked ``{: .header }`` out of the body and into the head.
+
+    Only the leading run of them: a header is the top of a table, and a
+    marked row further down is a mistake worth leaving visible rather
+    than quietly re-ordering the table around.
+
+    The cells become ``<th>``. That is what makes the row repeat - a
+    browser and WeasyPrint alike repeat everything in ``<thead>`` when a
+    table breaks across pages, which is the whole point of the marker
+    (prodockit-extensions#474).
+    """
+    head, body = table.find("thead"), table.find("tbody")
+    if head is None or body is None:
+        return
+    for row in list(body):
+        cells = list(row)
+        marked = [c for c in cells if HEADER_MARKER in (c.get("class") or "").split()]
+        if not marked:
+            break  # the leading run has ended
+        for cell in marked:
+            rest = [c for c in (cell.get("class") or "").split() if c != HEADER_MARKER]
+            if rest:
+                cell.set("class", " ".join(rest))
+            else:
+                del cell.attrib["class"]
+        for cell in cells:
+            cell.tag = "th"
+        body.remove(row)
+        head.append(row)
+
+
+def _span(cell: etree.Element, name: str) -> int:
+    """A cell's colspan/rowspan as a number, defaulting to one."""
+    try:
+        value = int(cell.get(name, "1"))
+    except ValueError as error:
+        raise TableError(
+            f"{name} must be a whole number, not {cell.get(name)!r}"
+        ) from error
+    if value < 1:
+        raise TableError(f"{name} must be at least 1, not {value}")
+    return value
+
+
+def _is_placeholder(cell: etree.Element) -> bool:
+    """Whether a cell is the empty filler a merged cell leaves behind.
+
+    Only an empty one. A placeholder with text in it is somebody's
+    content, and dropping it silently would be worse than the ragged row
+    it causes - so it is left alone, where it shows up immediately.
+    """
+    return not (cell.text or "").strip() and len(cell) == 0
+
+
+def _apply_spans(table: etree.Element) -> None:
+    """Removes the placeholder cells a merged cell leaves behind.
+
+    `attr_list` already turns ``{: colspan=2 }`` into a real attribute -
+    nothing here translates it. What it cannot do is drop the cells the
+    span now covers, and a pipe table has to keep its columns even to
+    parse at all, so the author writes them empty:
+
+        | Item {: rowspan=2 } | Measured {: colspan=2 } | | Note |
+
+    Left in place they push the row wider than the header, and the table
+    comes out ragged (prodockit-extensions#474).
+    """
+    rows = [row for section in table for row in section if row.tag == "tr"]
+
+    # A colspan swallows the cells written after it, on its own row.
+    for row in rows:
+        for cell in list(row):
+            extra = _span(cell, "colspan") - 1
+            while extra > 0:
+                cells = list(row)
+                index = cells.index(cell) + 1
+                if index >= len(cells) or not _is_placeholder(cells[index]):
+                    break
+                row.remove(cells[index])
+                extra -= 1
+
+    # A rowspan swallows one cell in each row below, at its own column.
+    # Column positions have to account for spans already reaching into
+    # the row from above, which is what `covered` tracks.
+    covered: dict[int, set[int]] = {}
+    for r, row in enumerate(rows):
+        column = 0
+        for cell in list(row):
+            while column in covered.get(r, set()):
+                column += 1
+            across, down = _span(cell, "colspan"), _span(cell, "rowspan")
+            for dr in range(1, down):
+                covered.setdefault(r + dr, set()).update(
+                    range(column, column + across)
+                )
+                below = rows[r + dr] if r + dr < len(rows) else None
+                if below is None:
+                    continue
+                # The cell sitting where this span lands, if it is filler.
+                position = 0
+                for other in list(below):
+                    while position in covered.get(r + dr, set()) and position < column:
+                        position += 1
+                    if position == column and _is_placeholder(other):
+                        below.remove(other)
+                        break
+                    position += _span(other, "colspan")
+            column += across
+
+
+def _apply_rotation(cells: list[etree.Element]) -> None:
+    """Turns a header cell's text on its side.
+
+    `transform` is the only thing that rotates text in both outputs -
+    WeasyPrint ignores `writing-mode` entirely, silently, and the column
+    still narrows if a width is set, so the heading looks merely wrapped
+    rather than broken.
+
+    But `transform` never affects layout: a rotated box occupies its
+    unrotated space. So rotation alone cannot narrow a column, and
+    `rotate` without `width` is refused - that combination renders a
+    rotated heading in a full-width column, which looks like it worked
+    (prodockit-extensions#474).
+    """
+    for cell in cells:
+        raw = cell.get("rotate")
+        if raw is None:
+            continue
+        try:
+            angle = int(raw)
+        except ValueError as error:
+            raise TableError(f"rotate must be a whole number, not {raw!r}") from error
+        if angle not in ROTATE_ANGLES:
+            raise TableError(
+                f"rotate must be one of {', '.join(map(str, ROTATE_ANGLES))}, not {angle} - "
+                "270 reads bottom-to-top and 90 top-to-bottom, and any other angle "
+                "gives a heading nobody can read and a row height nobody can predict"
+            )
+        if not cell.get("width"):
+            raise TableError(
+                f'rotate={angle} needs a width on the same cell, e.g. '
+                f'{{: rotate={angle} width="1.6em" }} - rotating the text does not '
+                "narrow the column on its own, because a rotated box still takes up "
+                "the space it would have taken unrotated"
+            )
+        height = cell.get("height")
+        del cell.attrib["rotate"]
+        if height is not None:
+            del cell.attrib["height"]
+
+        # The text moves into a span: the cell keeps its place in the
+        # table's grid, and only its content turns.
+        span = etree.Element("span")
+        span.set("class", ROTATE_CLASS)
+        style = f"transform: rotate({angle}deg);"
+        if height:
+            # Pre-rotation width is post-rotation height, so this is what
+            # a long heading wraps against.
+            style += f" width: {height};"
+        span.set("style", style)
+        span.text = cell.text
+        cell.text = None
+        for child in list(cell):
+            cell.remove(child)
+            span.append(child)
+        cell.append(span)
+
+        _add_class(cell, ROTATE_CLASS)
+        cell_style = cell.get("style", "")
+        if height:
+            cell_style += f" height: {height};"
+        cell.set("style", cell_style.strip())
 
 
 def _add_class(element: etree.Element, name: str) -> None:

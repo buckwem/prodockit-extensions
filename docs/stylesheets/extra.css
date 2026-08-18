@@ -113,6 +113,30 @@
   padding: 0.4em 0.5em;
 }
 
+/* A header turned on its side, from `{: rotate=270 width="..." }`.
+
+   `transform` rather than `writing-mode`, and deliberately the same
+   mechanism the PDF uses: WeasyPrint ignores `writing-mode` entirely and
+   silently, so a heading set that way is horizontal in the PDF while the
+   column still narrows - it looks merely wrapped rather than broken. One
+   mechanism that behaves the same in both outputs is worth more than two
+   that have to agree (prodockit-extensions#474).
+
+   `transform` never affects layout, which is why the column has to carry
+   a width of its own: a rotated box still occupies the space it would
+   have occupied unrotated. The extension refuses `rotate` without
+   `width` for that reason. */
+.md-typeset th.prodockit-rotate {
+  vertical-align: bottom;
+  text-align: center;
+  padding: 0.4em 0.2em;
+}
+.md-typeset span.prodockit-rotate {
+  display: inline-block;
+  transform-origin: center center;
+  white-space: normal;
+}
+
 /* ============================================================= */
 /* ================ Style for slate theme logo ================ */
 /* ============================================================= */

@@ -190,6 +190,70 @@ Any header cell will do. It combines with `width`, which answers a
 different question - how wide one column is, rather than how tightly every
 cell is set.
 
+## A header of more than one row {: #tables-multi-row-header }
+
+A Markdown table has exactly one header row and no syntax for a second, so
+a heading that needs two lines has to be written as a body row. That row
+then stops repeating when the table breaks across pages, because only what
+is inside `<thead>` repeats - which is precisely when a second heading line
+is needed.
+
+Mark it `{: .header }`:
+
+```md
+| Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |
+|---|---|---|---|
+| | Before {: .header } | After | |
+| Widget | 1 | 2 | ok |
+```
+
+The row moves into `<thead>` and its cells become `th`, so both lines
+repeat on every page the table reaches.
+
+The marker has to go on a cell that **has text** - `attr_list` has nothing
+to attach to in an empty one. Any cell in the row will do. Only the leading
+run of marked rows is promoted: a header is the top of a table, and a
+marked row further down stays where it is rather than the table being
+quietly re-ordered around it.
+
+## Merged cells {: #tables-merged-cells }
+
+`colspan` and `rowspan` are `attr_list`'s own attributes and need nothing
+new. What `prodockit.tables` adds is removing the empty cells they leave
+behind - a pipe table has to keep its columns even to parse, so a merged
+cell is written with blank ones after it, and left in place they push the
+row wider than the header.
+
+A placeholder with text in it is kept. It is somebody's content, and
+dropping it silently would be worse than the ragged row it causes.
+
+## Rotated headings {: #tables-rotated-headings }
+
+A wide table is often wide because of its headings, not its data. Turn them
+on their side:
+
+```md
+| Availability requirement {: rotate=270 width="1.8em" height="105pt" } |
+```
+
+`270` reads bottom-to-top, `90` top-to-bottom, and nothing else is allowed:
+another angle gives a heading nobody can read and a row height nobody can
+predict.
+
+All three parts are needed, and `rotate` without `width` is refused rather
+than rendered. The reason is worth knowing: `transform` does not affect
+layout, so a rotated box still occupies the space it would have occupied
+unrotated. **The width is what buys the space; the rotation is what keeps
+the heading readable once the column is narrow.** A rotated heading in a
+full-width column looks like the feature worked.
+
+`height` sizes the header row, since the rotated text reserves none of its
+own, and is what a long heading wraps against.
+
+Rotation uses `transform` in both outputs rather than `writing-mode`, which
+WeasyPrint ignores silently - the text stays horizontal in the PDF while
+the column still narrows, so it looks merely wrapped rather than broken.
+
 ## Reference {: #tables-reference }
 
 ### Syntax {: #tables-syntax }
