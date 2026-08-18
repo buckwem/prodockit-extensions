@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.38.0 (2026-08-18)
 
 - **Added:** multi-row table headers, merged cells and rotated headings
   ([#474](https://github.com/buckwem/prodockit-extensions/issues/474)).
