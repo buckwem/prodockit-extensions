@@ -144,6 +144,52 @@ for the full syntax. This isn't a `prodockit.tables` feature; it's
 documented here because it's the natural companion to `width` when
 sizing a column, not something `prodockit.tables` needs to reimplement.
 
+## Dense tables {: #tables-compact }
+
+A table with many short columns is held wide by the theme itself: every
+header cell carries a `min-width` of `5rem`, and every cell 1.25em of
+padding either side. A column holding `H` is then as wide as one holding a
+sentence, and the table overflows whatever it contains.
+
+Mark it `{: .compact }` on any header cell:
+
+=== "Markdown"
+
+    ```md
+    | Threat {: .compact } | Likelihood | Impact | Risk |
+    |---|---|---|---|
+    | Credential theft | H | H | H |
+    ```
+
+=== "Result"
+
+    | Threat {: .compact } | Likelihood | Impact | Risk |
+    |---|---|---|---|
+    | Credential theft | H | H | H |
+
+The minimum goes and the padding tightens, in the PDF as well as on the
+website. Measured on a 14-column table against 1009px of A4 landscape:
+
+| | table width |
+|---|---|
+| as written | 1586.7px |
+| minimum dropped | 1190.7px |
+| and the padding tightened | 993.1px |
+
+Both are needed - neither is enough alone, which is why it is one marker
+rather than two.
+
+It is opt-in on purpose. A table that reads well at its default should
+keep it, and a table quietly changing shape because a column was added is
+the kind of surprise worth avoiding.
+
+The marker is written on a header cell because that is the only place
+`attr_list` can reach in a Markdown table; it is moved onto the table and
+removed from the cell, so it styles the table rather than that one column.
+Any header cell will do. It combines with `width`, which answers a
+different question - how wide one column is, rather than how tightly every
+cell is set.
+
 ## Reference {: #tables-reference }
 
 ### Syntax {: #tables-syntax }
@@ -192,22 +238,23 @@ bundled CSS - so a table carrying `prodockit-table-sized` (or any other
 class) gets **none** of it, not just no width control:
 
 ```css
-.md-typeset table.prodockit-table-sized {
+.md-typeset table.prodockit-table-sized,
+.md-typeset table.prodockit-table-compact {
   table-layout: fixed;
   width: 100%;
-  border-collapse: collapse;
-  border: 1px solid #555555;
-}
-.md-typeset table.prodockit-table-sized th,
-.md-typeset table.prodockit-table-sized td {
-  border: 1px solid #555555;
-  padding: 0.9375em 1.25em;
-  vertical-align: top;
-}
-.md-typeset table.prodockit-table-sized th {
-  font-weight: 700;
+  background-color: var(--md-default-bg-color);
+  border: 0.05rem solid var(--md-typeset-table-color);
+  border-radius: 0.1rem;
+  font-size: 0.64rem;
 }
 ```
+
+The rules rebuild the theme's *own* table appearance rather than inventing
+one: a table that asks for a column width has to keep looking like the
+table beside it that didn't. Using the theme's `--md-typeset-table-color`
+rather than a literal matters for the same reason - the variable follows
+the colour scheme, so the table is right in dark mode too. The full set is
+in this project's own `docs/stylesheets/extra.css`.
 
 [prodockit.pdf](../pdf.md) already includes the equivalent rule in its own
 generated CSS (as well as its own table border/padding, unaffected by this

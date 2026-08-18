@@ -46,7 +46,8 @@
 
    The PDF keeps its full grid, in prodockit.pdf.css: a grid suits print,
    where there is no hover and nothing scrolls. */
-.md-typeset table.prodockit-table-sized {
+.md-typeset table.prodockit-table-sized,
+.md-typeset table.prodockit-table-compact {
   /* The class's own reason to exist. */
   table-layout: fixed;
   width: 100%;
@@ -57,24 +58,59 @@
   font-size: 0.64rem;
 }
 .md-typeset table.prodockit-table-sized th,
-.md-typeset table.prodockit-table-sized td {
+.md-typeset table.prodockit-table-sized td,
+.md-typeset table.prodockit-table-compact th,
+.md-typeset table.prodockit-table-compact td {
   padding: 0.9375em 1.25em;
   vertical-align: top;
 }
-.md-typeset table.prodockit-table-sized th {
+.md-typeset table.prodockit-table-sized th,
+.md-typeset table.prodockit-table-compact th {
   font-weight: 700;
 }
 /* Row rules, not a grid: the theme divides rows and leaves columns to
    the whitespace, and a header cell carries no rule of its own. */
-.md-typeset table.prodockit-table-sized td {
+.md-typeset table.prodockit-table-sized td,
+.md-typeset table.prodockit-table-compact td {
   border-top: 0.05rem solid var(--md-typeset-table-color);
 }
-.md-typeset table.prodockit-table-sized tbody tr {
+.md-typeset table.prodockit-table-sized tbody tr,
+.md-typeset table.prodockit-table-compact tbody tr {
   transition: background-color 125ms;
 }
-.md-typeset table.prodockit-table-sized tbody tr:hover {
+.md-typeset table.prodockit-table-sized tbody tr:hover,
+.md-typeset table.prodockit-table-compact tbody tr:hover {
   background-color: var(--md-typeset-table-color--light);
   box-shadow: 0 0.05rem 0 var(--md-default-bg-color) inset;
+}
+
+/* A dense table: many columns, most of them short.
+
+   The theme holds every header cell to `min-width: 5rem` and pads each
+   cell 1.25em either side. On a wide table that is most of the width,
+   and it is spent on the columns that need it least - a column holding
+   `H` is held as wide as one holding a sentence, so the table overflows
+   whatever its content is.
+
+   Measured on a real 14-column table, against 1009px of A4 landscape:
+
+       as shipped                     1586.7px   (57% over)
+       min-width dropped              1190.7px
+       and the padding tightened       993.1px   (fits)
+
+   So the two go together: neither is enough on its own, which is why
+   this is one class rather than two (prodockit-extensions#489).
+
+   Opt-in, written as `{: .compact }` on any header cell, because a table
+   that is comfortable at its default should stay that way - and because
+   a table changing shape on its own, as a column is added, is the kind
+   of surprise this project tries not to spring. */
+.md-typeset table.prodockit-table-compact th {
+  min-width: 0;
+}
+.md-typeset table.prodockit-table-compact th,
+.md-typeset table.prodockit-table-compact td {
+  padding: 0.4em 0.5em;
 }
 
 /* ============================================================= */

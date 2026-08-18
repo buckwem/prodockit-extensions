@@ -466,6 +466,20 @@ table th, table td {
     font-size: 10pt !important;
 }
 table td { text-align: left !important; }
+/* A dense table, marked `{: .compact }` on a header cell.
+
+   The website's problem is the theme's `min-width: 5rem` on every header
+   cell; the PDF has no such minimum, so only the padding is at stake
+   here. It is tightened by the same proportion for the same reason: a
+   14-column table spends most of its width on padding, and on the
+   columns that need it least (prodockit-extensions#489).
+
+   Set here as well as in the website stylesheet so a table marked
+   compact is compact in both outputs. A difference between the two is
+   the failure this project keeps meeting. */
+table.prodockit-table-compact th, table.prodockit-table-compact td {
+    padding: 3px 5px !important;
+}
 table tr:first-child th, table tr:first-child td { border-top: none !important; }
 table tr:last-child td { border-bottom: none !important; }
 

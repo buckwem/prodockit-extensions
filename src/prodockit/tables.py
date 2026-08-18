@@ -31,6 +31,19 @@ from markdown.treeprocessors import Treeprocessor
 
 SIZED_TABLE_CLASS = "prodockit-table-sized"
 
+#: Set by ``{: .compact }`` on any header cell. A dense table - many
+#: columns, most of them short - is held wide by the theme's own
+#: ``min-width: 5rem`` on every header cell and by a generous 1.25em of
+#: horizontal padding, and overflows whatever its content is. Measured on
+#: a real 14-column table against 1009px of A4 landscape: 1586.7px as
+#: shipped, 1190.7px with the minimum dropped, 993.1px with the padding
+#: tightened as well - so neither is enough on its own, and this turns off
+#: both together (prodockit-extensions#489).
+COMPACT_TABLE_CLASS = "prodockit-table-compact"
+
+#: The class an author writes, before it is moved to the table.
+COMPACT_MARKER = "compact"
+
 
 class TableWidthTreeprocessor(Treeprocessor):
     """Turns a header cell's ``width`` attribute (set via ``attr_list``, e.g.
@@ -49,6 +62,7 @@ class TableWidthTreeprocessor(Treeprocessor):
             if header_row is None:
                 continue
             headers = header_row.findall("th")
+            _apply_compact(table, headers)
             widths = [th.get("width") for th in headers]
             if not any(widths):
                 continue
@@ -61,9 +75,38 @@ class TableWidthTreeprocessor(Treeprocessor):
                 if width:
                     col.set("style", f"width: {width};")
             table.insert(0, colgroup)
-            existing_classes = (table.get("class") or "").split()
-            if SIZED_TABLE_CLASS not in existing_classes:
-                table.set("class", " ".join([*existing_classes, SIZED_TABLE_CLASS]))
+            _add_class(table, SIZED_TABLE_CLASS)
+
+
+def _add_class(element: etree.Element, name: str) -> None:
+    """Adds a class without disturbing any already there."""
+    classes = (element.get("class") or "").split()
+    if name not in classes:
+        element.set("class", " ".join([*classes, name]))
+
+
+def _apply_compact(table: etree.Element, headers: list[etree.Element]) -> None:
+    """Moves ``{: .compact }`` from a header cell onto the table.
+
+    Written on a cell because that is where `attr_list` can reach in a
+    Markdown table - there is no syntax for attaching a class to the
+    table itself - and read from any cell rather than only the first, so
+    an author who marks the column they were looking at gets what they
+    meant.
+
+    The marker is removed from the cell: it describes the table, and
+    leaving it behind would style one cell as well.
+    """
+    marked = [th for th in headers if COMPACT_MARKER in (th.get("class") or "").split()]
+    if not marked:
+        return
+    for th in marked:
+        rest = [c for c in (th.get("class") or "").split() if c != COMPACT_MARKER]
+        if rest:
+            th.set("class", " ".join(rest))
+        else:
+            del th.attrib["class"]
+    _add_class(table, COMPACT_TABLE_CLASS)
 
 
 class TablesExtension(Extension):
