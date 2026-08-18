@@ -696,6 +696,23 @@ figure {
     page-break-inside: avoid !important;
     break-inside: avoid-page !important;
     text-align: center !important;
+    /* HTML's own default for <figure> is "margin: 1em 40px" - an inset of
+       40px on each side, which no website ever shows because every theme
+       resets it. Nothing reset it here, so a captioned figure was 60pt
+       narrower than the text around it: an image asking for width: 100%
+       came out at 410pt in a 470pt column, short of the margin on both
+       sides while the paragraph above it ran the full width.
+
+       The horizontal margin goes; the vertical stays, because the space
+       above and below a figure is wanted. Written as left/right rather
+       than a margin shorthand so it cannot silently take the vertical
+       spacing with it.
+
+       This reaches captioned tables too - "figure.prodockit-table-caption"
+       is a <figure> - which is the same bug wearing different content
+       (prodockit-extensions#485). */
+    margin-left: 0 !important;
+    margin-right: 0 !important;
 }
 /* A prepend-position figure-caption is retagged from <figure> to <div> in
    prodockit.pdf.html (so its caption keeps original document order through
