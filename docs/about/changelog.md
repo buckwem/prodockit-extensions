@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- **Fixed:** the installation requirements say what the project actually
+  declares ([#372](https://github.com/buckwem/prodockit-extensions/issues/372)).
+
+    The table had drifted from `pyproject.toml`: `Markdown` was recorded
+    at `>= 3.4` long after the real floor moved to **3.10.3**, `zensical`
+    carried no version at all, and `pymdown-extensions` was missing
+    entirely - a dependency `prodockit.pdf` matches class shapes from.
+    None of that breaks a build; all of it sends a reader to install the
+    wrong thing.
+
+    `weasyprint` and `pandoc` were also filed together as "external
+    binaries". They are not the same kind of thing: weasyprint is a
+    `pip install` away and simply is not a dependency of prodockit, while
+    pandoc genuinely has no Python package. A reader treating them alike
+    goes looking for one that does not exist, or misses one that does.
+    They now sit in a table of their own that says which is which,
+    alongside the Node major version, the browser Mermaid renders
+    through, and pandoc's floor and pinned release.
+
+    The citation style is documented too, as a download rather than an
+    install: pandoc resolves it from the working directory and every CI
+    script fetches it before building. It is deliberately not vendored -
+    third-party content with its own licence and release cadence, which a
+    committed copy would let go stale while every build kept succeeding -
+    and `.gitignore` now keeps a local copy out of commits.
+
+    A test now holds the table to `pyproject.toml` - every declared
+    dependency documented, every floor matching, and the versions
+    `prodockit bootstrap` enforces stated - because this drift was
+    invisible for months and nothing else would have caught it.
+
 - **Fixed:** unassessed work is no longer asked for a course code
   ([#458](https://github.com/buckwem/prodockit-extensions/issues/458)).
 

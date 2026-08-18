@@ -25,3 +25,11 @@ tools/mermaid/node_modules/
 # `npm ci --prefix tools/mathjax`. Both manifests and lockfiles are
 # committed; only the installs are ignored.
 tools/mathjax/node_modules/
+
+# prodockit.bibliography's citation style, fetched per build rather than
+# vendored - it is third-party content with its own licence and its own
+# release cadence, and every CI script here downloads it before building
+# (see "Not installed by pip" in docs/installation.md). Ignored because a
+# `git add -A` after a local build otherwise commits it, which is how 316
+# lines of somebody else's CSL nearly reached `main`.
+harvard-cite-them-right.csl
