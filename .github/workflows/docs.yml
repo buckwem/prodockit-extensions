@@ -83,6 +83,11 @@ jobs:
     # LTS, and the job then fails outright instead of drifting. That is the
     # right failure - loud, and at a time of your choosing.
     runs-on: ubuntu-24.04
+    # Builds the site and both PDFs: about four minutes, twelve at
+    # its slowest. The margin is for a slow build, not for a stall -
+    # this job sat 35 minutes on `apt-get` once, and would have held
+    # the runner for six hours (#478).
+    timeout-minutes: 30
     # Consumed by the verify job below.
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
@@ -117,7 +122,44 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: sudo apt-get update && sudo apt-get install -y curl fonts-inter fonts-jetbrains-mono
+      # The image's mirrorlist puts `azure.archive.ubuntu.com` first. When
+      # that host is down - it was, repeatedly, on 2026-08-18 - apt spends
+      # minutes on it before reaching the `archive.ubuntu.com` fallback,
+      # which answers in milliseconds throughout. Neither a shorter
+      # connect timeout nor fewer retries reached it in reasonable time,
+      # so the dead host is taken out of the list instead (#478).
+      #
+      # Reported rather than assumed: if the image stops shipping a
+      # mirrorlist, or stops using Azure, the run says so and carries on
+      # unchanged - a substitution that quietly matched nothing would be
+      # worse than either.
+      - name: Point apt at a mirror that answers
+        timeout-minutes: 2
+        run: |
+          list=/etc/apt/apt-mirrors.txt
+          if [ ! -f "$list" ]; then
+            echo "::notice::no $list in this image - apt left as it is"
+          elif ! grep -q 'azure.archive.ubuntu.com' "$list"; then
+            echo "::notice::$list no longer names Azure - apt left as it is"
+          else
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$list"
+            echo "mirrorlist now:"; cat "$list"
+          fi
+      # A mirror that stalls must fail fast, not hold the runner: this
+      # step takes seconds, and once sat 35 minutes (#478).
+      #
+      # The image lists `azure.archive.ubuntu.com` first and
+      # `https://archive.ubuntu.com` as a fallback. When the first is
+      # dead the fallback works - but apt waits out a 120-second connect
+      # timeout per source before trying it, four sources deep. Ten
+      # seconds is far above a healthy mirror's response and reaches the
+      # fallback in a fraction of the time.
+      #
+      # Retries are deliberately not raised: they re-ask the dead mirror
+      # rather than moving on, which is what exhausted the budget when
+      # this was first tried.
+      - run: sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install -y curl fonts-inter fonts-jetbrains-mono
+        timeout-minutes: 8
       # Upstream release rather than the image's package - see PANDOC_VERSION.
       #
       # Cached because the release CDN is the single most fragile thing in
@@ -142,7 +184,21 @@ jobs:
       # this the PDF shows raw `flowchart LR ...` source instead.
       - run: curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg > /dev/null
       - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-      - run: sudo apt-get update && sudo apt-get install -y google-chrome-stable
+      # A mirror that stalls must fail fast, not hold the runner: this
+      # step takes seconds, and once sat 35 minutes (#478).
+      #
+      # The image lists `azure.archive.ubuntu.com` first and
+      # `https://archive.ubuntu.com` as a fallback. When the first is
+      # dead the fallback works - but apt waits out a 120-second connect
+      # timeout per source before trying it, four sources deep. Ten
+      # seconds is far above a healthy mirror's response and reaches the
+      # fallback in a fraction of the time.
+      #
+      # Retries are deliberately not raised: they re-ask the dead mirror
+      # rather than moving on, which is what exhausted the budget when
+      # this was first tried.
+      - run: sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install -y google-chrome-stable
+        timeout-minutes: 8
       - run: npm ci --prefix tools/mermaid
       # MathJax, the same arrangement for TeX maths. These docs carry no
       # formulas today, so this renders nothing yet - it is here so that the
@@ -256,6 +312,10 @@ jobs:
   verify:
     needs: deploy
     runs-on: ubuntu-24.04
+    # Deliberately above the polling window below: this job waits
+    # out Pages' 10-minute cache for up to 15 minutes, so a timeout
+    # under that would cut short a wait that is working (#478).
+    timeout-minutes: 25
     steps:
       # Pages serves `cache-control: max-age=600`, so up to ~10 minutes of
       # staleness is normal and expected rather than a fault. 15 minutes of

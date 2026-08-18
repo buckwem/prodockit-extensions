@@ -54,6 +54,9 @@ env:
 jobs:
   drift:
     runs-on: ubuntu-24.04
+    # Around two and a half minutes, and unattended on a schedule -
+    # the run nobody is watching is the one that must not hang (#478).
+    timeout-minutes: 20
     env:
       PUPPETEER_SKIP_DOWNLOAD: "true"
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome-stable
@@ -70,7 +73,44 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: sudo apt-get update && sudo apt-get install -y curl fonts-inter fonts-jetbrains-mono
+      # The image's mirrorlist puts `azure.archive.ubuntu.com` first. When
+      # that host is down - it was, repeatedly, on 2026-08-18 - apt spends
+      # minutes on it before reaching the `archive.ubuntu.com` fallback,
+      # which answers in milliseconds throughout. Neither a shorter
+      # connect timeout nor fewer retries reached it in reasonable time,
+      # so the dead host is taken out of the list instead (#478).
+      #
+      # Reported rather than assumed: if the image stops shipping a
+      # mirrorlist, or stops using Azure, the run says so and carries on
+      # unchanged - a substitution that quietly matched nothing would be
+      # worse than either.
+      - name: Point apt at a mirror that answers
+        timeout-minutes: 2
+        run: |
+          list=/etc/apt/apt-mirrors.txt
+          if [ ! -f "$list" ]; then
+            echo "::notice::no $list in this image - apt left as it is"
+          elif ! grep -q 'azure.archive.ubuntu.com' "$list"; then
+            echo "::notice::$list no longer names Azure - apt left as it is"
+          else
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$list"
+            echo "mirrorlist now:"; cat "$list"
+          fi
+      # A mirror that stalls must fail fast, not hold the runner: this
+      # step takes seconds, and once sat 35 minutes (#478).
+      #
+      # The image lists `azure.archive.ubuntu.com` first and
+      # `https://archive.ubuntu.com` as a fallback. When the first is
+      # dead the fallback works - but apt waits out a 120-second connect
+      # timeout per source before trying it, four sources deep. Ten
+      # seconds is far above a healthy mirror's response and reaches the
+      # fallback in a fraction of the time.
+      #
+      # Retries are deliberately not raised: they re-ask the dead mirror
+      # rather than moving on, which is what exhausted the budget when
+      # this was first tried.
+      - run: sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install -y curl fonts-inter fonts-jetbrains-mono
+        timeout-minutes: 8
       # Upstream release rather than the image's package - see PANDOC_VERSION.
       #
       # Cached because the release CDN is the single most fragile thing in
@@ -91,7 +131,21 @@ jobs:
       - run: sudo apt install -y /tmp/pandoc.deb
       - run: curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg > /dev/null
       - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-      - run: sudo apt-get update && sudo apt-get install -y google-chrome-stable
+      # A mirror that stalls must fail fast, not hold the runner: this
+      # step takes seconds, and once sat 35 minutes (#478).
+      #
+      # The image lists `azure.archive.ubuntu.com` first and
+      # `https://archive.ubuntu.com` as a fallback. When the first is
+      # dead the fallback works - but apt waits out a 120-second connect
+      # timeout per source before trying it, four sources deep. Ten
+      # seconds is far above a healthy mirror's response and reaches the
+      # fallback in a fraction of the time.
+      #
+      # Retries are deliberately not raised: they re-ask the dead mirror
+      # rather than moving on, which is what exhausted the budget when
+      # this was first tried.
+      - run: sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install -y google-chrome-stable
+        timeout-minutes: 8
       - run: npm ci --prefix tools/mermaid
       - run: npm ci --prefix tools/mathjax
 

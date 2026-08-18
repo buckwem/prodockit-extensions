@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
@@ -23,6 +24,8 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     environment: pypi
+    # Waits on PyPI, so a wider margin than the rest.
+    timeout-minutes: 20
     permissions:
       id-token: write # required for PyPI trusted publishing
     steps:
