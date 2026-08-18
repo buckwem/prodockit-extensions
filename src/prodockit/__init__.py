@@ -13,8 +13,9 @@ Zensical doesn't provide out of the box, each usable independently:
   ``\\citeref{id}``.
 - ``prodockit.glossary`` - define a term once, insert it by id anywhere with
   ``\\gls{id}``.
-- ``prodockit.tables`` - percentage or fixed column widths on a table, via a
-  ``width`` attribute already attachable to a header cell with ``attr_list``.
+- ``prodockit.tables`` - column widths, dense tables, headers of more than one
+  row, merged cells and rotated headings, all through an attribute already
+  attachable to a cell with ``attr_list``.
 - ``prodockit.bibliography`` - an alternative to ``prodockit.citations``: define
   sources in a BibTeX/BibLaTeX ``.bib`` file instead of by hand, and format
   ``\\cite{id}``/the reference list in any Citation Style Language (CSL)
@@ -29,6 +30,8 @@ Zensical doesn't provide out of the box, each usable independently:
   step holds paragraphs, commands or a table, and ``start`` continues a
   procedure split across sections - written into the HTML in both the
   spellings a browser and WeasyPrint each read, since they disagree.
+- ``prodockit.tree`` - a directory listing that looks like one: indentation is
+  the structure, and the icons come from the project's own set.
 - ``prodockit.pdf`` - build a standalone PDF from your Zensical site via
   Pandoc and WeasyPrint, the kind of downloadable, submittable document
   professional/academic reports typically need alongside the website
@@ -91,6 +94,6 @@ plain Python API alongside it.
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.37.0"
+__version__ = "0.38.0"
 
 __all__ = ["__version__"]

@@ -40,6 +40,7 @@ Markdown and Pandoc/WeasyPrint PDF pipeline.
 > **Status:** early, but functional - `prodockit.headings`, `prodockit.refs`,
 > `prodockit.citations`, `prodockit.glossary`, `prodockit.tables`,
 > `prodockit.bibliography`, `prodockit.index`, `prodockit.steps`,
+> `prodockit.tree`,
 > `prodockit.pdf`,
 > `prodockit.sync_repo`, `prodockit.pins` and `prodockit.zensical_macros`
 > are implemented and tested. `prodockit.bootstrap` is newer, and now
@@ -78,10 +79,11 @@ diagrams and TeX maths in the PDF.
 | [`prodockit.refs`](https://buckwem.github.io/prodockit-extensions/extensions/refs/) | `\ref{id}` section cross-references, resolving to the target's current number and name - and `\autoref{id}`, which additionally carries the target's page number in the PDF. |
 | [`prodockit.citations`](https://buckwem.github.io/prodockit-extensions/extensions/citations/) | Define a source once, cite it by key anywhere with `\citeref{id}` - auto-generates the bracketed, linked citation text. |
 | [`prodockit.glossary`](https://buckwem.github.io/prodockit-extensions/extensions/glossary/) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
-| [`prodockit.tables`](https://buckwem.github.io/prodockit-extensions/extensions/tables/) | Percentage or fixed column widths on a table, via a `width` attribute already attachable to a header cell with `attr_list`. |
+| [`prodockit.tables`](https://buckwem.github.io/prodockit-extensions/extensions/tables/) | Column widths, dense tables, headers of more than one row, merged cells and rotated headings - all through a `width`, `.compact`, `.header`, `colspan`/`rowspan` or `rotate` attribute already attachable to a cell with `attr_list`. |
 | [`prodockit.bibliography`](https://buckwem.github.io/prodockit-extensions/extensions/bibliography/) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\cite{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
 | [`prodockit.index`](https://buckwem.github.io/prodockit-extensions/extensions/index-terms/) | Mark a term inline with `\index{Term}` for a traditional, PDF-only back-of-book index - with hierarchical sub-entries and code-styled terms. |
 | [`prodockit.steps`](https://buckwem.github.io/prodockit-extensions/devcons/bootstrap/#bootstrap-quick-start) | Numbered steps a reader works through in order - a number to find your place by, room for a command and its explanation, and a line joining one step to the next. |
+| [`prodockit.tree`](https://buckwem.github.io/prodockit-extensions/extensions/tree/) | A directory listing that looks like one - indentation is the structure, a trailing `/` marks a directory, and the icons come from the project's own set. |
 
 ```python
 import markdown
