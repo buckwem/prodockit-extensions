@@ -148,6 +148,21 @@ class Host:
     #: case the workflow cannot fix, and it is a different place on each
     #: host.
     site_missing_note: str = ""
+    #: How this host's group/organisation address differs from its
+    #: displayed name, as plain English with a worked example.
+    #:
+    #: Both hosts keep two separate fields and show the friendly one.
+    #: git uses the other. Renaming a GitLab group changes the Name and
+    #: leaves the URL untouched, so a group reading
+    #: `assessment-commtest-2026` in the breadcrumb went on serving git
+    #: at `comm058-2026` - and every URL derived from the name missed,
+    #: while the host said only "could not be found or you don't have
+    #: permission to view it" (prodockit-extensions#441).
+    #:
+    #: Reported rather than worked around: nothing here can see a group's
+    #: real path without credentials, and guessing would replace a
+    #: visible problem with an invisible one.
+    namespace_note: str = ""
     supported: bool = True
 
     @property
@@ -170,6 +185,18 @@ SURREY_GITLAB = Host(
     pages_url="https://{namespace}.pages.surrey.ac.uk/{project}/",
     ssh_success="Welcome to GitLab",
     ssh_keys_url="https://gitlab.surrey.ac.uk/-/user_settings/ssh_keys",
+    namespace_note=(
+        "A GitLab group has two separate fields, and git uses the one you do "
+        "not see first:\n"
+        "    Name  - shown in the breadcrumb at the top of the page\n"
+        "    URL   - the part of the web address after the hostname\n"
+        "Renaming a group changes its Name and leaves its URL alone, so the two "
+        "can disagree. A group whose breadcrumb reads 'assessment-comm058-2026' "
+        "can still live at gitlab.example/comm058-2026, and git only ever finds "
+        "it at comm058-2026.\n"
+        "Open the group in your browser and read the address bar, not the "
+        "breadcrumb. The part after the hostname is what belongs here."
+    ),
     new_project_url="https://gitlab.surrey.ac.uk/projects/new",
     login_note="Choose the Surrey Login button and use your university credentials.",
     ssh_keys_steps=(
@@ -222,6 +249,18 @@ GITLAB_COM = Host(
     hostname="gitlab.com",
     ssh_success="Welcome to GitLab",
     ssh_keys_url="https://gitlab.com/-/user_settings/ssh_keys",
+    namespace_note=(
+        "A GitLab group has two separate fields, and git uses the one you do "
+        "not see first:\n"
+        "    Name  - shown in the breadcrumb at the top of the page\n"
+        "    URL   - the part of the web address after the hostname\n"
+        "Renaming a group changes its Name and leaves its URL alone, so the two "
+        "can disagree. A group whose breadcrumb reads 'assessment-comm058-2026' "
+        "can still live at gitlab.example/comm058-2026, and git only ever finds "
+        "it at comm058-2026.\n"
+        "Open the group in your browser and read the address bar, not the "
+        "breadcrumb. The part after the hostname is what belongs here."
+    ),
     new_project_url="https://gitlab.com/projects/new",
     ssh_keys_steps=(
         "In the top-right corner, click your profile avatar and select 'Edit profile'.",
@@ -265,6 +304,17 @@ GITHUB_COM = Host(
     hostname="github.com",
     ssh_success="successfully authenticated",
     ssh_keys_url="https://github.com/settings/keys",
+    namespace_note=(
+        "A GitHub organisation has a display name and a URL, and they need not "
+        "match:\n"
+        "    Display name - shown at the top of the organisation's page\n"
+        "    URL          - the part of the web address after github.com/\n"
+        "An organisation shown as 'Comm058 Assessment' can live at "
+        "github.com/comm058-2026, and git only ever finds it at comm058-2026.\n"
+        "Open the organisation in your browser and read the address bar, not the "
+        "heading. The part after github.com/ is what belongs here.\n"
+        "A personal account has no such split - the URL is your username."
+    ),
     new_project_url="https://github.com/new",
     ssh_keys_steps=(
         "In the top-right corner, click your profile avatar and select 'Settings'.",

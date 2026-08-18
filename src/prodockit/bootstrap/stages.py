@@ -1736,6 +1736,33 @@ def _check_own_project(context: Context) -> CheckResult:
     return _missing(f"nothing visible at {url}{reply}")
 
 
+def _namespace_report(context: Context) -> list[str]:
+    """What to say about the address the URL was built from.
+
+    Detection and reporting, not repair (prodockit-extensions#441). A
+    group's real path cannot be read from here without credentials, so
+    the honest move is to name the value being used, say where the
+    reader can see the true one, and let them compare - rather than
+    guess a second address and turn a visible failure into a silent
+    wrong answer.
+
+    Shown only when the project is not visible: on a run that finds it,
+    the address was right and this is noise.
+    """
+    if not context.host.namespace_note:
+        return []
+    namespace = context.config.namespace
+    url = context.host.remote_url(namespace, context.config.project_name)
+    return [
+        f"If it is there and this still cannot see it, check the address rather "
+        f"than the name. This is looking for:\n"
+        f"    {url}\n"
+        f"so it is using {namespace!r} as the "
+        f"{context.host.group_word}'s address.\n"
+        f"{context.host.namespace_note}",
+    ]
+
+
 def _plan_own_project(context: Context) -> Plan:
     host = context.host
     return Plan(
@@ -1754,6 +1781,10 @@ def _plan_own_project(context: Context) -> Plan:
             host.project_visibility,
             "Untick every 'initialize with' option - the clone you already have "
             "provides the contents, and an initialised remote would conflict with it.",
+            # Said here because this is where a reader stands when the
+            # address is wrong: they can see the project in the browser
+            # and bootstrap cannot (#441).
+            *_namespace_report(context),
             # Whatever else this host needs doing in the browser. Said here,
             # while the reader is already in the right place, rather than
             # left for them to discover from a failed build afterwards
