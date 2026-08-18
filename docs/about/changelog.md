@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Fixed:** the PDF build no longer announces a stage it does not run
+  ([#482](https://github.com/buckwem/prodockit-extensions/issues/482)).
+
+    Every build ended with `[4/4] Rotating landscape pages` and rotated
+    nothing. #469 replaced that post-processing step with a real
+    landscape page box and deleted its module, but the stage title and
+    its announcement stayed - and the announcement was the last statement
+    before cleanup, so a three-stage build called itself four:
+
+    ```text
+      [1/3] Preparing pages
+      [2/3] Assembling the document
+      [3/3] Building the PDF
+    ```
+
+    The count was self-consistent, which is why nothing caught it: the
+    list of titles and the number announced agreed with each other, and
+    only disagreed with what the build did. What separates a real stage
+    from a leftover is whether anything happens afterwards, so that is
+    what the new test measures - at the moment each stage is announced,
+    the finished PDF must not already be on disk.
+
 - **Fixed:** an image is no longer drawn off the edge of the paper
   ([#480](https://github.com/buckwem/prodockit-extensions/issues/480)).
 
