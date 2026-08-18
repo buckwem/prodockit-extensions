@@ -98,6 +98,36 @@ def _apt(*args: str) -> list[str]:
 #: The same, for the two places apt is run inside a shell string.
 APT_SH = "sudo apt " + " ".join(APT_LOCK_OPTION)
 
+#: The debconf answer the VS Code package stops to ask for:
+#:
+#:     Add Microsoft apt repository for Visual Studio Code?  <Yes> <No>
+#:
+#: `apt install -y` does not answer it - `-y` agrees to apt's own
+#: questions, not to a package's debconf ones - so a clean Ubuntu run sat
+#: waiting on a dialog nobody could see, because bootstrap captures its
+#: subprocesses (prodockit-extensions#428).
+#:
+#: Answered `true` deliberately rather than suppressed: that repository is
+#: how VS Code then updates through apt, and declining would pin a reader
+#: to whichever build the `.deb` happened to be.
+VSCODE_MICROSOFT_REPO = "code code/add-microsoft-repo boolean true"
+
+#: Where the answer is written for `debconf-set-selections` to read.
+VSCODE_DEBCONF_FILE = "/tmp/code.debconf"
+
+#: Written by Python rather than by `echo ... | sudo debconf-set-selections`.
+#:
+#: The pipe is the problem, not the echo: it puts `sudo` inside a shell,
+#: which is the arrangement #244 and #287 took apart - a sudo timestamp
+#: expiring there prompts where nobody is watching, and this stage exists
+#: to stop exactly that kind of invisible wait. The same one-liner shape
+#: as the settings stage, so `sudo` stays the first word of its own
+#: command.
+_WRITE_DEBCONF = (
+    "import pathlib, sys; "
+    "pathlib.Path(sys.argv[1]).write_text(sys.argv[2] + chr(10), encoding='utf-8')"
+)
+
 #: Where MSYS2 puts the MinGW64 libraries WeasyPrint draws text through.
 MSYS2_ROOT = r"C:\msys64"
 MSYS2_BIN = MSYS2_ROOT + r"\mingw64\bin"
@@ -599,6 +629,17 @@ def _plan_vscode(context: Context) -> Plan:
                 # prompts visibly rather than inside a shell nobody is
                 # watching (#287, #244).
                 ["curl", "-fsSL", "-o", "/tmp/code.deb", url],
+                # Answered before the install rather than during it, so
+                # the reader approves the choice with everything else
+                # instead of meeting it alone in a dialog (#428).
+                [
+                    sys.executable,
+                    "-c",
+                    _WRITE_DEBCONF,
+                    VSCODE_DEBCONF_FILE,
+                    VSCODE_MICROSOFT_REPO,
+                ],
+                ["sudo", "debconf-set-selections", VSCODE_DEBCONF_FILE],
                 _apt("install", "-y", "/tmp/code.deb"),
             ]
         )
