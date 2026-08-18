@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- **Fixed:** a directory tree is indented by one number, and set tighter
+  ([#486](https://github.com/buckwem/prodockit-extensions/issues/486)).
+
+    Each level stepped in 98px on the published page, against the 30px
+    `--tree-indent` asks for. Two thirds of that was accidental: the
+    theme's own list margins were never reset, and a row's inset - the
+    stub, and the hanging indent that keeps a wrapped description clear
+    of its icon - accumulated into every level below it, because a child
+    listing lives inside its parent's `<li>` and so starts from that
+    `<li>`'s text rather than from its name.
+
+    Subtracting a row's inset also settles where a rail hangs from. It
+    now drops from under the icon above it at every depth; before, the
+    top level stepped differently from the rest, because a top-level row
+    carries only the hanging indent while every row below it also carries
+    the stub, so a rule written for one was wrong for the other.
+
+    `--tree-row` goes from 1.9em to 1.45em in the same pass: a tree is a
+    dense index rather than body copy, and 1.9em left it looking airier
+    than the prose beside it. The same 44-entry listing is a fifth
+    shorter, and a wrapped description still separates clearly from the
+    next entry.
+
+    Both are now measured rather than reviewed - one test that every
+    level steps by exactly one indent, another that a rail lands under
+    the icon above it. The old stylesheet fails both.
+
 - **Fixed:** a captioned figure is no longer narrower than the text
   around it
   ([#485](https://github.com/buckwem/prodockit-extensions/issues/485)).
