@@ -480,6 +480,24 @@ table td { text-align: left !important; }
 table.prodockit-table-compact th, table.prodockit-table-compact td {
     padding: 3px 5px !important;
 }
+/* A header turned on its side, from `{: rotate=270 width="..." }`.
+
+   `transform` rather than `writing-mode`: WeasyPrint ignores the latter
+   entirely and silently - measured, the text comes out horizontal while
+   the column still narrows, so the heading looks merely wrapped rather
+   than broken. The website uses the same mechanism, because one that
+   behaves the same in both outputs is worth more than two that have to
+   agree (prodockit-extensions#474). */
+th.prodockit-rotate {
+    vertical-align: bottom !important;
+    text-align: center !important;
+    padding: 4px 2px !important;
+}
+span.prodockit-rotate {
+    display: inline-block !important;
+    transform-origin: center center !important;
+    white-space: normal !important;
+}
 table tr:first-child th, table tr:first-child td { border-top: none !important; }
 table tr:last-child td { border-bottom: none !important; }
 

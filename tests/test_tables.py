@@ -1,15 +1,48 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-import markdown
+import os
 
-from prodockit.tables import TablesExtension
+import markdown
+import pytest
+
+from prodockit.tables import TableError, TablesExtension
 
 PLAIN_TABLE = "| Name | Description |\n|---|---|\n| a | b |\n"
 
 PERCENT_TABLE = '| Name {: width="30%" } | Description | Date {: width="15%" } |\n|---|---|---|\n| a | b | c |\n'
 
 FIXED_TABLE = '| Name {: width="120px" } | Description |\n|---|---|\n| a | b |\n'
+
+
+def _css_defaults() -> dict[str, object]:
+    """Whatever `build_css` needs, so a test can ask for a stylesheet
+    without restating every typography option."""
+    import inspect
+
+    from prodockit.pdf.css import build_css
+
+    out: dict[str, object] = {}
+    for name, param in inspect.signature(build_css).parameters.items():
+        if param.default is not inspect.Parameter.empty:
+            out[name] = param.default
+        elif name == "main_font":
+            out[name] = "Inter"
+        elif name == "mono_font":
+            out[name] = "JetBrains Mono"
+        elif name == "site_name":
+            out[name] = "Doc"
+        elif name == "page_size":
+            out[name] = "A4"
+        elif "margin" in name:
+            out[name] = "2cm"
+        elif "size" in name:
+            out[name] = "9pt"
+        elif "color" in name:
+            out[name] = "#666"
+        else:
+            out[name] = False
+    return out
 
 
 def _convert(text: str) -> str:
@@ -228,3 +261,170 @@ def test_compact_narrows_a_wide_table_in_the_pdf() -> None:
 
     plain, compact = width(""), width("{: .compact }")
     assert compact < plain - 50, f"compact saved only {plain - compact:.0f}px: {plain}, {compact}"
+
+
+# ---------------------------------------------------------------------------
+# Headers of more than one row, merged cells, rotated headings (#474)
+# ---------------------------------------------------------------------------
+
+TWO_ROW_HEADER = (
+    "| Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |\n"
+    "|---|---|---|---|\n"
+    "| | Before {: .header } | After | |\n"
+    "| Widget | 1 | 2 | ok |\n"
+)
+
+
+def test_a_marked_row_joins_the_header() -> None:
+    """`{: .header }` moves a row out of the body and into `<thead>`.
+
+    That is the whole fix: only what is inside `<thead>` repeats when a
+    table breaks across pages, so a second heading line written as a body
+    row - the only way a Markdown table can express one - stops repeating
+    exactly when it is needed (prodockit-extensions#474).
+    """
+    html = _convert(TWO_ROW_HEADER)
+    head = html.split("<tbody>")[0]
+
+    assert head.count("<tr>") == 2, f"expected two header rows: {head}"
+    assert "<th>Before</th>" in head and "<th>After</th>" in head
+    # Promoted cells are `th`, not `td`, and the marker does not survive.
+    assert "<td" not in head
+    assert "header" not in head
+
+
+def test_only_the_leading_run_of_rows_is_promoted() -> None:
+    """A header is the top of a table. A marked row further down is a
+    mistake worth leaving visible rather than silently re-ordering the
+    table around."""
+    html = _convert(
+        "| A | B |\n|---|---|\n| x | y |\n| p {: .header } | q |\n"
+    )
+
+    assert html.split("<tbody>")[0].count("<tr>") == 1
+    # Still a body cell, and still carrying its marker: unpromoted, and
+    # visibly so, rather than quietly tidied away.
+    assert '<td class="header">p</td>' in html
+
+
+def test_the_placeholder_cells_a_span_covers_are_removed() -> None:
+    """A pipe table needs its columns to parse, so a merged cell is
+    written with empty cells after it. Left in place they push the row
+    wider than the header and the table comes out ragged."""
+    head = _convert(TWO_ROW_HEADER).split("<tbody>")[0]
+
+    # Four columns of markup, five header cells: three in the first row
+    # (`Measured` covering two of them) and two in the second. Counted on
+    # the closing tag, since "<th" also matches "<thead".
+    assert head.count("</th>") == 5, head
+    assert 'colspan="2"' in head and 'rowspan="2"' in head
+    assert "<th></th>" not in head, "an empty placeholder survived"
+
+
+def test_a_placeholder_with_content_is_left_alone() -> None:
+    """Only an empty cell is filler. One with text in it is somebody's
+    content, and dropping it silently would be worse than the ragged row
+    it causes."""
+    html = _convert("| A {: colspan=2 } | kept | C |\n|---|---|---|\n| 1 | 2 | 3 |\n")
+
+    assert "kept" in html
+
+
+def test_rotate_turns_the_heading_and_keeps_the_cell_in_place() -> None:
+    """The text moves into a span; the cell keeps its place in the grid."""
+    html = _convert('| Availability {: rotate=270 width="1.6em" height="110pt" } | V |\n|---|---|\n| a | b |\n')
+
+    assert 'class="prodockit-rotate"' in html
+    assert "rotate(270deg)" in html
+    assert "height: 110pt" in html
+    # The width became a column width, as any `width` does.
+    assert "width: 1.6em" in html
+    # And the attributes themselves are gone from the markup.
+    assert "rotate=" not in html
+
+
+def test_rotate_without_a_width_is_refused() -> None:
+    """`transform` never affects layout, so rotation alone cannot narrow
+    a column - the heading turns and the column stays exactly as wide.
+    That renders as though the feature worked, which is the failure this
+    project keeps meeting, so it is refused instead."""
+    with pytest.raises(TableError, match="needs a width"):
+        _convert("| A {: rotate=270 } | B |\n|---|---|\n| a | b |\n")
+
+
+@pytest.mark.parametrize("angle", ["45", "180", "up"])
+def test_only_the_two_readable_angles_are_allowed(angle: str) -> None:
+    """270 reads bottom-to-top and 90 top-to-bottom. Anything else gives a
+    heading nobody can read and a row height nobody can predict."""
+    with pytest.raises(TableError):
+        _convert(f'| A {{: rotate={angle} width="2em" }} | B |\n|---|---|\n| a | b |\n')
+
+
+def test_a_rotated_heading_really_is_rotated_in_the_pdf() -> None:
+    """Measured out of the PDF, not asserted from the CSS.
+
+    WeasyPrint ignores `writing-mode` silently - the text stays
+    horizontal while the column still narrows, so it looks merely wrapped
+    rather than broken. `transform` is used precisely because it does
+    not, and that is worth checking rather than trusting.
+    """
+    import os
+    import tempfile
+
+    weasyprint = pytest.importorskip("weasyprint")
+    fitz = pytest.importorskip("pymupdf")
+
+    from prodockit.pdf.css import build_css
+
+    css = build_css(**_css_defaults())
+    html = _convert(
+        '| Availability requirement {: rotate=270 width="1.8em" height="105pt" } | V |\n'
+        "|---|---|\n| a | b |\n"
+    )
+    out = os.path.join(tempfile.mkdtemp(), "rotated.pdf")
+    weasyprint.HTML(
+        string=f"<!DOCTYPE html><html><head><meta charset=utf-8>"
+        f"<style>{css}</style></head><body>{html}</body></html>"
+    ).write_pdf(out)
+
+    directions = set()
+    with fitz.open(out) as pdf:
+        for block in pdf[0].get_text("dict")["blocks"]:
+            for line in block.get("lines", []):
+                for span in line.get("spans", []):
+                    if "Availability" in span["text"]:
+                        directions.add(tuple(round(v, 2) for v in line["dir"]))
+
+    assert directions, "the heading is missing from the PDF - clipped, not rotated"
+    # (0, -1) is bottom-to-top. (1, 0) would be the silent `writing-mode`
+    # failure: present, readable, and not turned at all.
+    assert directions == {(0.0, -1.0)}, directions
+
+
+def test_both_header_rows_repeat_when_the_table_breaks() -> None:
+    """The reason the marker exists, measured on a table that paginates."""
+    fitz = pytest.importorskip("pymupdf")
+    pytest.importorskip("weasyprint")
+
+    from prodockit.pdf.build import Page, build_pdf
+
+    rows = "\n".join(f"| Item {i} | {'text ' * 6} | 1 | 2 | ok |" for i in range(1, 80))
+    html = _convert(
+        "| Target {: rowspan=2 } | Detail {: rowspan=2 } | Measured {: colspan=2 } | "
+        "| Note {: rowspan=2 } |\n|---|---|---|---|---|\n"
+        "| | | Before {: .header } | After | |\n" + rows + "\n"
+    )
+    import tempfile
+
+    out = os.path.join(tempfile.mkdtemp(), "paginated.pdf")
+    build_pdf([Page(docs_rel_path="p.md", html=f"<h1>T</h1>{html}", is_index=False)], out)
+
+    with fitz.open(out) as pdf:
+        pages = [page.get_text() for page in pdf]
+
+    body = [i for i, t in enumerate(pages) if "Item 5" in t or "Item 40" in t]
+    assert len(body) >= 2, f"the table should span pages: {len(pages)}"
+    missing_first = [i for i in body if "Measured" not in pages[i]]
+    missing_second = [i for i in body if "Before" not in pages[i]]
+    assert not missing_first, f"first header row missing from {missing_first}"
+    assert not missing_second, f"second header row missing from {missing_second}"

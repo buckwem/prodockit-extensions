@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- **Added:** multi-row table headers, merged cells and rotated headings
+  ([#474](https://github.com/buckwem/prodockit-extensions/issues/474)).
+
+    A Markdown table has one header row and no syntax for a second, so a
+    heading needing two lines is written as a body row - and then stops
+    repeating when the table breaks across pages, because only `<thead>`
+    repeats. `{: .header }` moves the row where it belongs:
+
+    ```md
+    | Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |
+    |---|---|---|---|
+    | | Before {: .header } | After | |
+    ```
+
+    Both lines repeat on every page now, verified on a five-page table.
+    WeasyPrint always could repeat a multi-row header, spans and all;
+    nothing had ever put the second row in the header for it to repeat.
+
+    `colspan`/`rowspan` are `attr_list`'s own attributes - what is new is
+    that the empty placeholder cells they need are removed, so the row is
+    not left wider than the header. One with text in it is kept.
+
+    Headings turn with `{: rotate=270 width="1.8em" height="105pt" }`,
+    at 90 or 270 and nothing else. `rotate` without `width` is refused:
+    `transform` does not affect layout, so the width is what buys the
+    space and the rotation is what keeps the heading readable once the
+    column is narrow. Rotating alone renders a heading in a full-width
+    column and looks like it worked.
+
+    `transform` in both outputs rather than `writing-mode`, which
+    WeasyPrint ignores silently - measured, the text stays horizontal
+    while the column still narrows.
+
 - **Added:** `{: .compact }` for a table with many short columns
   ([#489](https://github.com/buckwem/prodockit-extensions/issues/489)).
 
