@@ -73,6 +73,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      # The image's mirrorlist puts `azure.archive.ubuntu.com` first. When
+      # that host is down - it was, repeatedly, on 2026-08-18 - apt spends
+      # minutes on it before reaching the `archive.ubuntu.com` fallback,
+      # which answers in milliseconds throughout. Neither a shorter
+      # connect timeout nor fewer retries reached it in reasonable time,
+      # so the dead host is taken out of the list instead (#478).
+      #
+      # Reported rather than assumed: if the image stops shipping a
+      # mirrorlist, or stops using Azure, the run says so and carries on
+      # unchanged - a substitution that quietly matched nothing would be
+      # worse than either.
+      - name: Point apt at a mirror that answers
+        timeout-minutes: 2
+        run: |
+          list=/etc/apt/apt-mirrors.txt
+          if [ ! -f "$list" ]; then
+            echo "::notice::no $list in this image - apt left as it is"
+          elif ! grep -q 'azure.archive.ubuntu.com' "$list"; then
+            echo "::notice::$list no longer names Azure - apt left as it is"
+          else
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$list"
+            echo "mirrorlist now:"; cat "$list"
+          fi
       # A mirror that stalls must fail fast, not hold the runner: this
       # step takes seconds, and once sat 35 minutes (#478).
       #
