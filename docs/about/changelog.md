@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 0.36.4 (2026-08-18)
 
 - **Changed:** the project stage says which address it is using, and where
   the real one is shown
