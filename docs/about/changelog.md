@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- **Fixed:** a captioned figure is no longer narrower than the text
+  around it
+  ([#485](https://github.com/buckwem/prodockit-extensions/issues/485)).
+
+    An image asking for `width="100%"` came out 410pt in a 470pt column -
+    short of the margin on both sides, while the paragraph directly above
+    it ran the full width. On the page it read as a picture floating
+    inside a frame that never reaches the edges.
+
+    HTML's own default for `<figure>` is `margin: 1em 40px`. No website
+    shows it, because every theme resets it; nothing here did, so the
+    same markdown filled the column on the site and was inset in the PDF.
+    40px a side is 30pt a side, and 470 − 60 = 410. Measured in one
+    document, captioned against uncaptioned:
+
+    ```text
+    with a caption      409.9pt
+    without a caption   469.9pt
+    ```
+
+    The horizontal margin goes and the vertical stays, since the space
+    above and below a figure is wanted. This reaches captioned tables
+    too - a table caption is a `<figure>` - which is the same bug wearing
+    different content, so both are tested.
+
 - **Fixed:** the PDF build no longer announces a stage it does not run
   ([#482](https://github.com/buckwem/prodockit-extensions/issues/482)).
 

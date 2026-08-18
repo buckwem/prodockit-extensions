@@ -1494,3 +1494,89 @@ def test_every_announced_stage_still_has_work_left_to_do(tmp_path: Path) -> None
     from prodockit.pdf.build import _stage_titles
 
     assert [title for title, _ in seen] == _stage_titles(include_index=False)
+
+
+@real_pandoc_and_weasyprint_required
+def test_a_caption_does_not_narrow_the_figure_it_labels(tmp_path: Path) -> None:
+    """Adding a caption must not shrink the picture.
+
+    HTML's own default for <figure> is "margin: 1em 40px", which no
+    website shows because every theme resets it. Nothing reset it here,
+    so the same markdown filled the column on the site and came out 60pt
+    narrower in the PDF - an image asking for width: 100% drawn at 410pt
+    in a 470pt column, short of the margin on both sides while the
+    paragraph above it ran the full width
+    (prodockit-extensions#485).
+
+    The comparison is the assertion: the two documents differ by a
+    caption and nothing else, so any difference in width is the caption's
+    doing. Asserting a figure's width on its own would have passed
+    throughout, since 410pt looks perfectly reasonable until something
+    beside it is 470.
+    """
+    src = _png_data_uri(1400, 900)
+    widths = {}
+    for label, frag in (
+        ("captioned", f'<figure><p><img src="{src}" width="100%"></p>'
+                      f"<figcaption><p>Figure 1. A diagram</p></figcaption></figure>"),
+        ("uncaptioned", f'<p><img src="{src}" width="100%"></p>'),
+    ):
+        out = tmp_path / f"{label}.pdf"
+        build_pdf(
+            [Page(docs_rel_path="p.md", html=f"<h1>H</h1><p>text</p>{frag}<p>after</p>",
+                  is_index=False)],
+            str(out),
+        )
+        widths[label] = _drawn_width(str(out))
+
+    assert abs(widths["captioned"] - widths["uncaptioned"]) < 2, (
+        f"the caption cost the figure {widths['uncaptioned'] - widths['captioned']:.0f}pt "
+        f"of width: {widths}"
+    )
+    # And it really is the full column, not two equally narrow figures -
+    # which is what the comparison alone would allow.
+    assert widths["captioned"] > 460, widths
+
+
+@real_pandoc_and_weasyprint_required
+def test_a_caption_does_not_narrow_the_table_it_labels(tmp_path: Path) -> None:
+    """The same default margin reaches a captioned table.
+
+    `figure.prodockit-table-caption` is a <figure>, so a table with a
+    caption was inset by the same 60pt while a table without one was not
+    (prodockit-extensions#485) - the same bug wearing different content,
+    which is why it is checked separately rather than assumed to follow.
+    """
+    # Long enough that the table genuinely wants the whole column: with
+    # short cells both versions fit comfortably and measure the same,
+    # which is how the first draft of this test passed with the bug
+    # still in place.
+    rows = "".join(f"<tr><td>Row {i}</td><td>{'detail ' * 30}</td></tr>" for i in range(1, 4))
+    table = (
+        "<table><thead><tr><th>Name</th><th>Detail</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table>"
+    )
+    import pymupdf as fitz
+
+    spans = {}
+    for label, frag in (
+        ("captioned",
+         f'<figure class="prodockit-table-caption">{table}'
+         "<figcaption><p>Table 1. Rows</p></figcaption></figure>"),
+        ("uncaptioned", table),
+    ):
+        out = tmp_path / f"table-{label}.pdf"
+        build_pdf(
+            [Page(docs_rel_path="p.md", html=f"<h1>H</h1><p>text</p>{frag}", is_index=False)],
+            str(out),
+        )
+        with fitz.open(str(out)) as pdf:
+            # The row text, which spans the table's own width. Every page,
+            # since a long table paginates.
+            hits = [r for page in pdf for r in page.search_for("detail")]
+            assert hits, f"no table rows found in the {label} PDF"
+            spans[label] = max(r.x1 for r in hits) - min(r.x0 for r in hits)
+
+    assert abs(spans["captioned"] - spans["uncaptioned"]) < 4, (
+        f"the caption narrowed the table: {spans}"
+    )
