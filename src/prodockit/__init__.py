@@ -72,6 +72,10 @@ Zensical doesn't provide out of the box, each usable independently:
   can be rendered client-side there, since WeasyPrint has no JS engine).
   Run ``prodockit init-tools`` from your project root; a project using
   neither feature needs none of it.
+- ``prodockit.template_sync`` - bring a project back into step with the
+  template it came from, updating the template's own files and leaving the
+  writing alone. Run ``prodockit template-sync`` from your project root;
+  it reports by default and only writes with ``--apply``.
 - ``prodockit.testing`` - pytest fixtures pointing at your project's own
   built site and PDF, plus checks for the failure modes every prodockit
   project shares (chiefly diagrams and maths reaching the PDF unrendered).
@@ -88,12 +92,13 @@ command-line tool instead (there's no ``markdown.extensions`` entry point
 for it - a PDF build pipeline isn't a Markdown syntax extension).
 ``prodockit.zensical_macros`` is a plain ``define_env()`` module for Zensical's
 macros plugin's own ``modules`` config, not a Markdown extension either, and
-``prodockit.sync_repo`` is a command-line tool (``prodockit sync-repo``) with a
-plain Python API alongside it.
+``prodockit.sync_repo`` and ``prodockit.template_sync`` are command-line tools
+(``prodockit sync-repo``, ``prodockit template-sync``) with a plain Python API
+alongside them.
 
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.38.0"
+__version__ = "0.39.0"
 
 __all__ = ["__version__"]

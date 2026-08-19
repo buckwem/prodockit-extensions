@@ -1,5 +1,47 @@
 # Release Notes
 
+## 0.39.0 (2026-08-19)
+
+- **Added:** `prodockit template-sync`, which brings a project back into
+  step with the template it came from
+  ([#495](https://github.com/buckwem/prodockit-extensions/pull/495),
+  [#498](https://github.com/buckwem/prodockit-extensions/pull/498)).
+
+    A project generated from a template is a copy, not a link. It starts
+    ageing immediately - the template gains a CI fix, a stylesheet rule, a
+    newer pin - and nothing says so, because nothing breaks. The site
+    still builds and the document simply looks slightly unlike everyone
+    else's.
+
+    ```bash
+    prodockit template-sync           # report; writes no project file
+    prodockit template-sync --apply   # branch, write, stage, do not commit
+    ```
+
+    What is written is decided by a manifest in the template, not by the
+    command. The report, its figures and its bibliography are never
+    written and never even read, so a sync cannot lose your writing. A
+    template-owned file you have edited is kept, with the template's
+    version written beside it as `.new` to compare; `--force` takes the
+    template's copy for a named file.
+
+    The template is fetched into a per-user cache, so no checkout of it is
+    needed. A project on Surrey's GitLab tracks the Surrey mirror and
+    everything else the GitHub copy, unless `--github`, `--surrey` or
+    `--template-path` says otherwise. A host that cannot be reached is a
+    third answer rather than a failure - the run continues on the cached
+    copy and says that it may be behind.
+
+    Built for repeated use through a project rather than once at the
+    start. A run with nothing to do says so and creates no branch; a
+    `.new` sidecar already holding the template's bytes is not rewritten;
+    and the recorded baseline moves forward even when a template release
+    changes only how files are classified.
+
+    Every run appends its full account - always the `--verbose` form, and
+    including runs that failed - to `.prodockit-template.log`, which the
+    command adds to `.gitignore` itself.
+
 ## 0.38.0 (2026-08-18)
 
 - **Added:** multi-row table headers, merged cells and rotated headings
