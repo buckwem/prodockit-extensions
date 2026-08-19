@@ -2096,7 +2096,8 @@ def _template_checkout(project: pathlib.Path, remote: str) -> pathlib.Path:
     "--apply",
     "do_apply",
     is_flag=True,
-    help="Write the changes. Without this, nothing is written and the run only reports.",
+    help="Write the changes. Without this the run only reports, and touches "
+    "nothing but its own log.",
 )
 @click.option("--verbose", is_flag=True, help="List every file, not just the counts.")
 @click.option(
@@ -2153,9 +2154,13 @@ def template_sync(
     and leaves everything else alone. The report, its figures and its
     bibliography are never written, and never even read for comparison.
 
-    Reports by default and writes nothing. `--apply` performs the same
-    run, on a branch of its own, and stages the result without committing
-    it.
+    Reports by default, writing no project file. `--apply` performs the
+    same run, on a branch of its own, and stages the result without
+    committing it.
+
+    Every run, either way, appends its full account to
+    `.prodockit-template.log` - and adds that file to `.gitignore` if it
+    is not there already. Send that log when reporting a problem.
     """
     from prodockit.template_sync import TemplateSyncError
 
