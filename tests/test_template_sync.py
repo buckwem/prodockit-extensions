@@ -1301,3 +1301,75 @@ def test_the_log_ignores_itself_where_there_is_no_gitignore_yet(
     """A project need not already have one for the log to be covered."""
     assert ignore_the_log(tmp_path) is True
     assert LOG_FILE in (tmp_path / ".gitignore").read_text(encoding="utf-8")
+
+
+def test_a_branch_that_predates_your_work_is_refused_not_switched_to(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The branch name comes from the template version, so any project
+    that has run this before has one lying around. If work has been
+    committed since, switching to it runs the sync against older files
+    and reports success - which is what happened in a test clone before
+    this check existed.
+    """
+    import subprocess
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "--quiet")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "T")
+    (tmp_path / "macros.py").write_text("first", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "first")
+
+    name = branch_name("1.5.0")
+    git("branch", name)  # the leftover branch, at the first commit
+
+    # Work committed since, on the branch the reader is actually on.
+    (tmp_path / "chapter.md").write_text("my writing", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "my work")
+
+    run = git_runner(tmp_path)
+    with pytest.raises(TemplateSyncError, match=re.escape(name)) as caught:
+        start_branch(run, name)
+
+    assert "older work" in str(caught.value)
+    on = subprocess.run(
+        ["git", "branch", "--show-current"], cwd=tmp_path, capture_output=True, text=True
+    ).stdout.strip()
+    assert on != name, "the refusal must leave the reader where they were"
+    assert (tmp_path / "chapter.md").exists()
+
+
+def test_a_branch_that_already_contains_your_work_is_continued_on(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The case the refusal above must not break: a second run against
+    the same template version belongs on the branch the first one made.
+    """
+    import subprocess
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "--quiet")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "T")
+    (tmp_path / "macros.py").write_text("first", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "first")
+
+    run = git_runner(tmp_path)
+    name = branch_name("1.5.0")
+
+    assert start_branch(run, name) is True
+    git("checkout", "--quiet", "-")  # back to where the reader was
+    assert start_branch(run, name) is True
+
+    on = subprocess.run(
+        ["git", "branch", "--show-current"], cwd=tmp_path, capture_output=True, text=True
+    ).stdout.strip()
+    assert on == name

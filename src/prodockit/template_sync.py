@@ -910,13 +910,37 @@ def start_branch(run: GitRunner, name: str) -> bool:
     abandon.
 
     Returns whether the branch was created. An existing branch of that
-    name is switched to rather than replaced: a second run against the
-    same template version belongs on the same branch, and deleting it
-    would throw away whatever the first run left.
+    name is resumed rather than replaced - a second run against the same
+    template version belongs on the same branch, and deleting it would
+    throw away whatever the first run left - but only if it already
+    contains the commit you are on.
+
+    That condition is the whole point. The name is derived from the
+    template version, so any project that has run this before has a
+    branch of this name lying around; if work has been committed since,
+    checking it out silently moves the run, and the reader, onto older
+    work. Found doing exactly that in a test clone: the run reported
+    success on a branch two commits behind the one it started from.
     """
-    if run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{name}"]):
+    if not run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{name}"]):
+        return run(["git", "checkout", "-b", name])
+
+    if run(["git", "merge-base", "--is-ancestor", "HEAD", name]):
         return run(["git", "checkout", name])
-    return run(["git", "checkout", "-b", name])
+
+    # False so far means either "not an ancestor" or "the question could
+    # not be put at all". Told apart here, so a repository that cannot be
+    # read does not report as a stale branch.
+    if not run(["git", "rev-parse", "--verify", "--quiet", "HEAD"]):
+        raise TemplateSyncError(
+            f"cannot tell whether the branch {name} is safe to continue on, "
+            "because this repository's HEAD could not be read"
+        )
+    raise TemplateSyncError(
+        f"the branch {name} already exists and does not contain the commit you "
+        "are on, so continuing would run this against older work. Merge it, or "
+        f"delete it with `git branch -D {name}`, and run this again"
+    )
 
 
 def now() -> str:

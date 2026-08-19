@@ -49,6 +49,26 @@ prodockit template-sync --apply
 committing**. The commit is yours to write, so nothing lands in your
 history that you have not read first.
 
+### The branch it works on {: #tsync-the-branch }
+
+The branch is named after the template version you are moving from, so a
+second run against the same version continues on the branch the first one
+made rather than starting again.
+
+That name outlives the run, though, and a branch left over from months ago
+will not contain anything you have committed since. Continuing on it would
+sync your project against older files and report success, so a leftover
+branch that does not contain the commit you are on is refused:
+
+```text
+Error: the branch template-update-6fbbbbeb8 already exists and does not
+contain the commit you are on, so continuing would run this against older
+work. Merge it, or delete it with `git branch -D template-update-6fbbbbeb8`,
+and run this again
+```
+
+You are left on the branch you were already on, with nothing written.
+
 ### A file you have edited {: #tsync-edited-files }
 
 A template-owned file you have changed is *kept*, and the template's
