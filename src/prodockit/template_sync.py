@@ -250,9 +250,15 @@ def _host_of(remote: str) -> str:
     the full job including GitLab's nested groups, and is used where the
     namespace matters. Here only the host decides anything.
     """
-    from prodockit.sync_repo import parse_remote
+    from prodockit.sync_repo import SyncRepoError, parse_remote
 
-    host, _namespace, _repo = parse_remote(remote)
+    try:
+        host, _namespace, _repo = parse_remote(remote)
+    except SyncRepoError as error:
+        raise TemplateSyncError(
+            f"the `origin` remote is not one this can read a host from ({remote!r}) "
+            "- name the template with --github or --surrey"
+        ) from error
     return host
 
 
@@ -549,6 +555,19 @@ def _taken(key: str, patterns: Sequence[str]) -> bool:
     return any(
         _matches(".".join(rebuilt[: i + 1]), patterns) for i in range(len(rebuilt))
     )
+
+
+def read_config(text: str) -> dict[str, Any]:
+    """Parses a project's or template's `zensical.toml`.
+
+    Here rather than in the caller so the 3.10 shim above is the only one
+    - `tomllib` arrived in 3.11, and a second conditional import is a
+    second place to get it wrong.
+    """
+    try:
+        return tomllib.loads(text)
+    except tomllib.TOMLDecodeError as error:
+        raise TemplateSyncError(f"zensical.toml is not valid TOML: {error}") from error
 
 
 def config_changes(

@@ -208,6 +208,16 @@ def test_an_unknown_host_is_told_rather_than_guessed_at() -> None:
         resolve_template("git@git.example.com:someone/report.git")
 
 
+def test_an_origin_no_host_can_be_read_from_asks_for_a_flag() -> None:
+    """A local-path remote asks for a flag rather than raising through.
+
+    `parse_remote`'s `SyncRepoError` travelled all the way out as a
+    traceback, which is what a student with an odd `origin` would see.
+    """
+    with pytest.raises(TemplateSyncError, match=re.escape("--surrey")):
+        resolve_template("/Users/someone/GitLab/my-project")
+
+
 def test_a_bare_override_means_that_host_s_usual_template() -> None:
     assert resolve_template(None, github="") == TEMPLATE_REMOTES["github.com"]
     assert resolve_template(None, surrey="") == TEMPLATE_REMOTES["gitlab.surrey.ac.uk"]
