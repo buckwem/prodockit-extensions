@@ -1143,6 +1143,81 @@ def read_stamp(project_root: pathlib.Path) -> str | None:
     return path.read_text(encoding="utf-8").strip() or None
 
 
+def publish(
+    run: GitRunner,
+    branch: str,
+    target: str,
+    message: str,
+    *,
+    remote: str = "origin",
+) -> str:
+    """Commits the staged sync, merges it into `target`, and pushes.
+
+    Each step is checked before the next: a merge that failed must not be
+    followed by a push, or the host is handed whatever the working tree
+    happened to be left in. The reader is left on `target`, because that
+    is where the merge put their history and pretending otherwise makes
+    the next `git status` confusing.
+
+    `--no-ff` deliberately. The sync is one thing to read afterwards, and
+    one thing to revert, rather than a run of commits fanned out into the
+    branch it came from.
+
+    Assumes the reader merges their own work: no merge request, no
+    review, no approval step. That is how someone writing their own
+    report works, and it is a stated assumption rather than an oversight
+    - a project that gates its default branch should use `--apply` alone
+    and raise a merge request from the update branch.
+    """
+    if not run(["git", "commit", "--quiet", "--message", message]):
+        raise TemplateSyncError(
+            "the staged sync could not be committed - `git status` will say why"
+        )
+    if not run(["git", "checkout", "--quiet", target]):
+        raise TemplateSyncError(
+            f"could not switch to {target}; the sync is committed on {branch} and "
+            "can be merged by hand"
+        )
+    if not run(["git", "merge", "--no-ff", "--no-edit", branch]):
+        raise TemplateSyncError(
+            f"merging {branch} into {target} failed - resolve it by hand; nothing "
+            "has been pushed"
+        )
+    if not run(["git", "push", remote, target]):
+        raise TemplateSyncError(
+            f"the merge into {target} succeeded but the push to {remote} failed - "
+            f"nothing is lost; `git push {remote} {target}` when the host is reachable"
+        )
+    return target
+
+
+def git_reader(project_root: pathlib.Path) -> GitReader:
+    """A `GitReader` that runs git in a project and returns its output.
+
+    None on failure, so a command that could not run is never mistaken
+    for one that printed nothing - which is the difference between "this
+    branch does not exist" and "this branch is up to date".
+    """
+    from prodockit.tools import find
+
+    def read(command: Sequence[str]) -> str | None:
+        binary = find("git") if command and command[0] == "git" else command[0]
+        try:
+            completed = subprocess.run(
+                [binary, *command[1:]],
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+        except OSError:
+            return None
+        return completed.stdout.strip() if completed.returncode == 0 else None
+
+    return read
+
+
 def stage_changes(run: GitRunner, paths: Sequence[str]) -> bool:
     """Stages what the run wrote, and stops there.
 
@@ -1154,6 +1229,84 @@ def stage_changes(run: GitRunner, paths: Sequence[str]) -> bool:
     if not paths:
         return True
     return run(["git", "add", "--", *paths])
+
+
+#: Reads a git command's output, or None if it failed. Separate from
+#: `GitRunner` because most of this module only needs to know whether a
+#: command worked, and a runner that returns text makes "it failed" and
+#: "it printed nothing" the same answer.
+GitReader = Callable[[Sequence[str]], "str | None"]
+
+
+def default_branch(read: GitReader) -> str | None:
+    """The branch the host builds and publishes from.
+
+    Asked of the remote itself, because that is what actually decides it:
+    a pipeline guarded on `$CI_DEFAULT_BRANCH`, or a workflow on
+    `branches: [main]`, follows the host's idea of default rather than
+    whatever the reader happens to have checked out.
+
+    `refs/remotes/origin/HEAD` is consulted only as a fallback, and
+    deliberately second. It is a local cache written when the repository
+    was cloned, and it goes stale: on a test host it was found pointing
+    at a `template-update-...` branch, which would have had this merge a
+    branch into itself and push the result. Anything derived from it is a
+    guess about a remote that has not been asked.
+    """
+    symref = read(["git", "ls-remote", "--symref", "origin", "HEAD"])
+    if symref:
+        for line in symref.splitlines():
+            if line.startswith("ref:") and line.rstrip().endswith("HEAD"):
+                return line.split()[1].rsplit("/", 1)[-1]
+
+    head = read(["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"])
+    if head:
+        return head.rsplit("/", 1)[-1]
+    for name in ("main", "master"):
+        if read(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{name}"]):
+            return name
+    return None
+
+
+def publish_blockers(read: GitReader, target: str, branch: str | None = None) -> list[str]:
+    """Reasons a merge-and-push would fail or do harm, before any of it runs.
+
+    Checked up front rather than discovered halfway through: this is the
+    one part of the command that writes to a branch the reader did not
+    ask it to touch and puts work on a host, so stopping before the
+    first step is worth more than a tidy recovery from the third.
+
+    What counts as a blocker is narrow on purpose - see the comment
+    below about uncommitted writing, which an earlier version refused and
+    should not have.
+    """
+    problems = []
+
+    if branch is not None and branch == target:
+        problems.append(
+            f"the branch this wrote to and the branch it would merge into are both "
+            f"{target} - refusing to merge a branch into itself"
+        )
+        return problems
+
+    # Deliberately *not* a check for a dirty tree. What this runs on is a
+    # project being written, so uncommitted chapters are the normal state,
+    # and they travel across the checkout harmlessly - they are not files
+    # the merge touches. Template-owned dirt is already refused by
+    # `blocking_changes` before anything is written, and a checkout that
+    # genuinely cannot proceed is reported by `publish`. Blocking here on
+    # any modified file would refuse almost every real run.
+    if not read(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{target}"]):
+        problems.append(f"there is no {target} branch here to merge into")
+        return problems
+
+    behind = read(["git", "rev-list", "--count", f"{target}..origin/{target}"])
+    if behind and behind.strip() not in {"0", ""}:
+        problems.append(
+            f"{target} is {behind.strip()} commit(s) behind origin/{target} - pull first, "
+            "or the push will be rejected"
+        )
+    return problems
 
 
 def git_runner(project_root: pathlib.Path) -> GitRunner:

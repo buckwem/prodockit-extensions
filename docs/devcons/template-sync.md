@@ -69,6 +69,57 @@ and run this again
 
 You are left on the branch you were already on, with nothing written.
 
+### Finishing where the pipeline can see it {: #tsync-push }
+
+`--apply` stops at staged, on its own branch. That is deliberate - the
+commit is yours - but it also means **nothing is published**. Both hosts
+build only from the default branch, so a sync sitting on a
+`template-update-...` branch produces no pipeline and no rebuilt site,
+even after you commit and push it.
+
+`--push` finishes the job:
+
+```bash
+prodockit template-sync --apply --push
+```
+
+It commits the staged sync, merges it into the branch your host builds
+from, and pushes - which is what starts the pipeline. It always shows
+what it is about to do and waits:
+
+```text
+--push would now, on your confirmation:
+  commit  9 file(s) on template-update-6fbbbbeb8
+  merge   template-update-6fbbbbeb8 into main
+  push    main to origin - which is what starts the pipeline
+
+Go ahead? [y/N]:
+```
+
+Answer anything but yes and the run stops with everything still staged
+and nothing merged or pushed.
+
+!!! note "Uncommitted writing is fine"
+    You do not have to commit your chapters first. A project being
+    written always has work in progress, and it travels across the branch
+    switch untouched. Only uncommitted changes to *template-owned* files
+    stop a run, and those are refused earlier, before anything is written.
+
+Which branch it merges into comes from the remote itself, not from your
+local `origin/HEAD` - that is a cache written when you cloned, and it goes
+stale. A merge into the branch the sync was written on is refused
+outright.
+
+!!! warning "This merges straight into your default branch"
+    `--push` assumes you merge your own work directly - no merge request,
+    no review, no approval step. That is the assumption this is built on,
+    and it matches how a student works on their own report.
+
+    If your project *does* gate the default branch behind merge requests,
+    do not use `--push`: it would either bypass that gate or be rejected
+    by a protected branch. Use `--apply` on its own and open a merge
+    request from the `template-update-...` branch instead.
+
 ### A file you have edited {: #tsync-edited-files }
 
 A template-owned file you have changed is *kept*, and the template's

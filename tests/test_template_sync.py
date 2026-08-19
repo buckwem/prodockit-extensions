@@ -39,6 +39,7 @@ from prodockit.template_sync import (
     cache_root,
     classification_report,
     config_changes,
+    default_branch,
     derive_baseline,
     ensure_template,
     git_runner,
@@ -50,6 +51,8 @@ from prodockit.template_sync import (
     now,
     pending_writes,
     plan_template_files,
+    publish,
+    publish_blockers,
     read_config,
     read_stamp,
     resolve_template,
@@ -1592,3 +1595,148 @@ def test_a_cache_that_cannot_be_moved_forward_is_refused(tmp_path: pathlib.Path)
 
     with pytest.raises(TemplateSyncError, match="delete that directory"):
         ensure_template("git@github.com:someone/report-template.git", path, run)
+
+
+# ---------------------------------------------------------------------------
+# Finishing a sync: merge into the branch the host builds from, and push
+# ---------------------------------------------------------------------------
+
+
+def test_the_default_branch_comes_from_the_remote_first() -> None:
+    """What the host builds from is what the host says, not what happens
+    to be checked out - a pipeline guarded on `$CI_DEFAULT_BRANCH` follows
+    the remote's idea of default."""
+    answers = {("git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"): "refs/remotes/origin/trunk"}
+
+    assert default_branch(lambda c: answers.get(tuple(c))) == "trunk"
+
+
+def test_the_default_branch_falls_back_to_the_usual_names() -> None:
+    def read(command: Sequence[str]) -> str | None:
+        if "symbolic-ref" in command:
+            return None
+        return "ok" if "refs/heads/master" in command else None
+
+    assert default_branch(read) == "master"
+
+
+def test_no_default_branch_at_all_is_answered_with_none() -> None:
+    """So the caller can say --push has nowhere to go, rather than
+    guessing a branch and merging into it."""
+    assert default_branch(lambda _c: None) is None
+
+
+def test_uncommitted_writing_does_not_block_the_merge() -> None:
+    """A project being written always has uncommitted work in it.
+
+    An earlier version refused any modified file and so refused almost
+    every real run - including its own staged changes, which are exactly
+    what it was about to commit. Template-owned dirt is refused earlier,
+    by `blocking_changes`; a half-written chapter is not a reason to stop.
+    """
+    def read(command: Sequence[str]) -> str | None:
+        if "status" in command or "diff" in command:
+            return " M docs/section2.md"
+        if "rev-list" in command:
+            return "0"
+        return "ok"
+
+    assert publish_blockers(read, "main") == []
+
+
+def test_a_target_behind_its_remote_blocks_the_merge() -> None:
+    """Or the push is rejected after the merge has already happened."""
+    def read(command: Sequence[str]) -> str | None:
+        if "status" in command:
+            return ""
+        if "rev-list" in command:
+            return "3"
+        return "ok"
+
+    problems = publish_blockers(read, "main")
+
+    assert any("behind origin/main" in p for p in problems)
+
+
+def test_a_clean_repository_in_step_has_no_blockers() -> None:
+    def read(command: Sequence[str]) -> str | None:
+        if "status" in command:
+            return ""
+        if "rev-list" in command:
+            return "0"
+        return "ok"
+
+    assert publish_blockers(read, "main") == []
+
+
+def test_a_failed_merge_is_never_followed_by_a_push() -> None:
+    """Or the host is handed whatever the working tree was left in."""
+    done: list[list[str]] = []
+
+    def run(command: Sequence[str]) -> bool:
+        done.append(list(command))
+        return "merge" not in command
+
+    with pytest.raises(TemplateSyncError, match="resolve it by hand"):
+        publish(run, "template-update-1", "main", "Sync")
+
+    assert not any("push" in c for c in done)
+
+
+def test_a_failed_push_says_the_merge_is_safe() -> None:
+    """The work is committed and merged; only the host is behind."""
+    def run(command: Sequence[str]) -> bool:
+        return "push" not in command
+
+    with pytest.raises(TemplateSyncError, match=re.escape("nothing is lost")):
+        publish(run, "template-update-1", "main", "Sync")
+
+
+def test_a_successful_publish_commits_merges_and_pushes_in_order() -> None:
+    done: list[list[str]] = []
+
+    def run(command: Sequence[str]) -> bool:
+        done.append(list(command))
+        return True
+
+    assert publish(run, "template-update-1", "main", "Sync with the template") == "main"
+
+    verbs = [c[1] for c in done]
+
+    assert verbs == ["commit", "checkout", "merge", "push"]
+    assert "--no-ff" in done[2], "the sync should be one thing to read, and to revert"
+
+
+def test_the_remote_is_asked_before_the_local_cache() -> None:
+    """`refs/remotes/origin/HEAD` is a cache written at clone time and it
+    goes stale. On a test host it pointed at a `template-update-...`
+    branch, which would have merged a branch into itself and pushed it.
+    """
+    def read(command: Sequence[str]) -> str | None:
+        if "ls-remote" in command:
+            return "ref: refs/heads/main\tHEAD\n0123456789abcdef\tHEAD"
+        if "symbolic-ref" in command:
+            return "refs/remotes/origin/template-update-6fbbbbeb8"
+        return None
+
+    assert default_branch(read) == "main"
+
+
+def test_the_local_cache_is_used_when_the_remote_cannot_be_asked() -> None:
+    """Offline, a stale answer beats no answer - the blockers below still
+    refuse the case where it points somewhere absurd."""
+    def read(command: Sequence[str]) -> str | None:
+        if "ls-remote" in command:
+            return None
+        if "symbolic-ref" in command:
+            return "refs/remotes/origin/trunk"
+        return None
+
+    assert default_branch(read) == "trunk"
+
+
+def test_merging_a_branch_into_itself_is_refused() -> None:
+    """Whatever produced that answer, it is never the right one."""
+    problems = publish_blockers(lambda _c: "ok", "template-update-1", "template-update-1")
+
+    assert any("into itself" in p for p in problems)
