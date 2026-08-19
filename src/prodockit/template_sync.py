@@ -29,8 +29,8 @@ from __future__ import annotations
 import fnmatch
 import sys
 from collections.abc import Callable, Iterable, Sequence
-from typing import Any
 from dataclasses import dataclass, field
+from typing import Any
 
 if sys.version_info >= (3, 11):  # pragma: no cover - one branch per interpreter
     import tomllib
