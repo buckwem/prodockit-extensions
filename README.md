@@ -76,7 +76,7 @@ diagrams and TeX maths in the PDF.
 | Extension | Description |
 |---|---|
 | [`prodockit.headings`](https://buckwem.github.io/prodockit-extensions/extensions/headings/) | Gives every heading an id and a hierarchical section number ("1", "1.1", "1.2", "2", ...). |
-| [`prodockit.refs`](https://buckwem.github.io/prodockit-extensions/extensions/refs/) | `\ref{id}` section cross-references, resolving to the target's current number and name - and `\autoref{id}`, which additionally carries the target's page number in the PDF. |
+| [`prodockit.refs`](https://buckwem.github.io/prodockit-extensions/extensions/refs/) | `\ref{id}` cross-references, resolving to a section's current number and name or a captioned figure or table's label - and `\autoref{id}`, which additionally carries the target's page number in the PDF. |
 | [`prodockit.citations`](https://buckwem.github.io/prodockit-extensions/extensions/citations/) | Define a source once, cite it by key anywhere with `\citeref{id}` - auto-generates the bracketed, linked citation text. |
 | [`prodockit.glossary`](https://buckwem.github.io/prodockit-extensions/extensions/glossary/) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
 | [`prodockit.tables`](https://buckwem.github.io/prodockit-extensions/extensions/tables/) | Column widths, dense tables, headers of more than one row, merged cells and rotated headings - all through a `width`, `.compact`, `.header`, `colspan`/`rowspan` or `rotate` attribute already attachable to a cell with `attr_list`. |
@@ -220,8 +220,9 @@ everyone else's.
 updates the template's own files and leaves your writing alone:
 
 ```bash
-prodockit template-sync          # report; writes no project file
-prodockit template-sync --apply  # branch, write, stage - the commit is yours
+prodockit template-sync                 # report; writes no project file
+prodockit template-sync --apply         # branch, write, stage - the commit is yours
+prodockit template-sync --apply --push  # ...and merge and push it, so the site rebuilds
 ```
 
 What it will and will not write is decided by a manifest in the template.
