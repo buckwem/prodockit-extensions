@@ -86,7 +86,7 @@ import markdown
 
 html = markdown.markdown(
     text,
-    extensions=["prodockit.headings", "prodockit.refs", "prodockit.citations", "prodockit.glossary"],
+    extensions=["prodockit.headings", "prodockit.refs", "prodockit.tables"],
 )
 ```
 
@@ -101,20 +101,46 @@ a quoted key instead:
 [project.markdown_extensions."prodockit.refs"]
 [project.markdown_extensions."prodockit.citations"]
 [project.markdown_extensions."prodockit.glossary"]
+[project.markdown_extensions."prodockit.tables"]
+[project.markdown_extensions."prodockit.tree"]
+[project.markdown_extensions."prodockit.steps"]
+[project.markdown_extensions."prodockit.bibliography"]
+[project.markdown_extensions."prodockit.index"]
 ```
 
-See each extension's own page for its options and for how to share a
-registry across multiple pages of a site build:
+Enable only the ones you use - each is independent, and none of them
+requires another.
 
-- [prodockit.headings](extensions/headings.md)
-- [prodockit.refs](extensions/refs.md)
-- [prodockit.citations](extensions/citations.md)
-- [prodockit.glossary](extensions/glossary.md)
+### The nine extensions {: #installation-the-extensions }
 
-`prodockit.pdf` is different: it isn't a Python-Markdown extension (no
-`markdown.extensions` entry point, nothing to add to `zensical.toml`) - it's
-a plain function library for a separate PDF-generation build step. See
-[PDF generation](pdf.md) for how it's used.
+See each one's own page for its options, and for how to share a registry
+across multiple pages of a site build:
+
+| Extension | What it adds |
+| --- | --- |
+| [`prodockit.headings`](extensions/headings.md) | Numbered headings, and a number a cross-reference can point at |
+| [`prodockit.refs`](extensions/refs.md) | Cross-references that resolve to a number *and* a name |
+| [`prodockit.citations`](extensions/citations.md) | Citation handling |
+| [`prodockit.glossary`](extensions/glossary.md) | Acronyms and a glossary |
+| [`prodockit.tables`](extensions/tables.md) | Column widths, dense tables, multi-row headers, merged cells, rotated headings |
+| [`prodockit.tree`](extensions/tree.md) | A directory listing that looks like one |
+| [`prodockit.steps`](extensions/steps.md) | Numbered steps a reader works through in order |
+| [`prodockit.bibliography`](extensions/bibliography.md) | A bibliography built from your `.bib` files |
+| [`prodockit.index`](extensions/index-terms.md) | A back-of-book index (PDF only) |
+
+### What is *not* an extension {: #installation-not-extensions }
+
+Several parts of prodockit have no `markdown.extensions` entry point and
+nothing to add to `zensical.toml`, because they are not Markdown syntax:
+
+| | |
+| --- | --- |
+| [`prodockit pdf`](pdf.md) | A separate PDF-generation build step |
+| [`prodockit.zensical_macros`](macros.md) | A `define_env()` module for Zensical's macros plugin, named under its `modules` config rather than as an extension |
+| [`prodockit bootstrap`](devcons/bootstrap.md) | Sets up a machine to build the docs |
+| [`prodockit sync-repo`](devcons/repo-metadata.md) | Keeps repository metadata and README badges matching the git remote |
+| [`prodockit pins`](devcons/pinning-drift.md) | Moves build-input version pins together |
+| [`prodockit template-sync`](devcons/template-sync.md) | Brings a project back into step with the template it came from |
 
 ## Development install
 
