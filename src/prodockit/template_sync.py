@@ -492,14 +492,21 @@ def update_report(
 
 
 def missing_seeds(manifest: Manifest, exists: Callable[[str], bool]) -> list[str]:
-    """Seeded files the project does not have.
+    """Seeded files the project does not have, under either name.
 
     Only absence matters. A seed is written once and then belongs to the
     project - `LICENSE.md` being the case that makes it obvious, since a
     project may rightly change its licence and an update that restored
     the template's would be wrong rather than helpful.
+
+    Both spellings are checked. A project generated before `LICENSE`
+    became `LICENSE.md` has the old one, and a newer project has the new
+    one; looking for only one of them seeds a second licence beside the
+    first.
     """
-    return [s for s in manifest.seed if not exists(manifest.rename(s))]
+    return [
+        s for s in manifest.seed if not exists(s) and not exists(manifest.rename(s))
+    ]
 
 
 def _dotted(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -755,3 +762,89 @@ def written_report(written: Sequence[Written]) -> list[str]:
         lines.append(f"{action:8} {len(paths):3}  ({FILE_ACTIONS[action]})")
         lines.extend(f"    {path}" for path in sorted(paths))
     return lines
+
+
+def _render(value: object) -> str:
+    """A TOML literal for a value taken from the template.
+
+    Only the shapes a settings file actually holds. Anything else raises
+    rather than being guessed at: a wrongly quoted value produces a
+    config that parses and means something different, which is worse
+    than a refusal.
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        return "[" + ", ".join(_render(v) for v in value) + "]"
+    raise TemplateSyncError(
+        f"cannot write {type(value).__name__} into TOML - "
+        "this setting has to be copied by hand"
+    )
+
+
+def apply_config_changes(
+    text: str,
+    template_config: dict[str, Any],
+    added: Sequence[str],
+    updated: Sequence[str],
+) -> str:
+    """Puts the template's own settings into a project's config.
+
+    Tables first, then values: a key cannot be written into a table that
+    is not there yet, and a project that has never had an extension has
+    neither.
+    """
+    values = _dotted(template_config)
+    for key in added:
+        if _table_header(key) is None:
+            text = add_config_table(text, key)
+    for key in [*added, *updated]:
+        split = _table_header(key)
+        if split is None:
+            continue  # a bare table, already added above
+        table, _name = split
+        if not any(line.strip() == f"[{table}]" for line in text.splitlines()):
+            text = add_config_table(text, table)
+        text = set_config_value(text, key, _render(values[key]))
+    return text
+
+
+def apply_seeds(
+    manifest: Manifest,
+    project_root: pathlib.Path,
+    read_template: Callable[[str], bytes],
+) -> list[Written]:
+    """Writes seeded files the project does not have.
+
+    Absence is the whole test. A seed that is present is never touched,
+    however far it has diverged - `LICENSE.md` being the case that makes
+    it obvious, since a project may rightly change its licence.
+    """
+    written: list[Written] = []
+    for seed in missing_seeds(manifest, lambda p: (project_root / p).exists()):
+        # Under the template's own name. The rename table says what an
+        # *existing* file may be called here, which is a different
+        # question from what a new one should be called - writing
+        # `LICENSE` into a project that has neither would seed the name
+        # the template has already moved away from.
+        target = project_root / seed
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(read_template(seed))
+        written.append(Written(str(target.relative_to(project_root)), "add"))
+    return written
+
+
+#: What stage 8 hands to another command rather than writing itself.
+#: `prodockit pins` owns every version declaration in a project and knows
+#: each site's own operator; `prodockit sync-repo` owns the README badge
+#: block. Two tools writing the same lines would fight, and the loser
+#: would be whichever ran last.
+DELEGATED = {
+    "requirements.txt": ["prodockit", "pins", "--check"],
+    "README.md": ["prodockit", "sync-repo"],
+}

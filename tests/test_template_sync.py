@@ -25,7 +25,9 @@ from prodockit.template_sync import (
     TemplateSyncError,
     add_config_table,
     append_ignores,
+    apply_config_changes,
     apply_file_actions,
+    apply_seeds,
     baseline_report,
     blocking_changes,
     classification_report,
@@ -914,3 +916,116 @@ def test_the_report_is_built_from_what_was_written(tmp_path) -> None:
 
 def test_a_project_already_in_step_says_so(tmp_path) -> None:
     assert written_report([]) == ["nothing to write - this project is already in step"]
+
+
+# ---------------------------------------------------------------------------
+# Stage 7 applied: seeds
+# ---------------------------------------------------------------------------
+
+
+def test_a_missing_seed_is_written(tmp_path) -> None:
+    written = apply_seeds(load_manifest(MANIFEST), tmp_path, lambda p: b"MIT ...")
+
+    assert [w.path for w in written] == ["LICENSE.md"]
+    assert (tmp_path / "LICENSE.md").read_bytes() == b"MIT ..."
+
+
+def test_a_seed_already_there_is_never_touched(tmp_path) -> None:
+    """However far it has diverged. A project may rightly change its
+    licence, and restoring the template's would be wrong."""
+    (tmp_path / "LICENSE.md").write_text("my own licence")
+
+    written = apply_seeds(load_manifest(MANIFEST), tmp_path, lambda p: b"MIT ...")
+
+    assert written == []
+    assert (tmp_path / "LICENSE.md").read_text() == "my own licence"
+
+
+def test_a_seed_is_not_written_twice_under_two_names(tmp_path) -> None:
+    """A project generated before `LICENSE` became `LICENSE.md` has the
+    old name, and seeding again would leave it with two licences."""
+    (tmp_path / "LICENSE").write_text("the older name")
+
+    assert apply_seeds(load_manifest(MANIFEST), tmp_path, lambda p: b"x") == []
+    assert not (tmp_path / "LICENSE.md").exists()
+
+
+# ---------------------------------------------------------------------------
+# Stage 8 applied: the shared config
+# ---------------------------------------------------------------------------
+
+
+def test_a_new_extension_table_and_its_settings_are_written() -> None:
+    """Tables first, then values: a key cannot be written into a table
+    that is not there yet, and a project that never had the extension has
+    neither."""
+    template = {"project": {"markdown_extensions": {"prodockit.tree": {"indent": 2}}}}
+    added = ['project.markdown_extensions."prodockit.tree".indent']
+
+    after = apply_config_changes(CONFIG, template, added, [])
+
+    assert '[project.markdown_extensions."prodockit.tree"]' in after
+    assert "indent = 2" in after
+
+
+def test_an_updated_value_replaces_only_itself() -> None:
+    template = {"project": {"extra": {"pdf_page_size": "A5"}}}
+
+    after = apply_config_changes(CONFIG, template, [], ["project.extra.pdf_page_size"])
+
+    assert 'pdf_page_size = "A5"' in after
+    assert 'pdf_margin_top = "2cm"' in after, "its neighbour is untouched"
+    assert "# Margins are in the PDF's own units" in after, "and so are the comments"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(True, "true"), (False, "false"), (3, "3"), ("A4", '"A4"'), (["a", "b"], '["a", "b"]')],
+)
+def test_values_are_written_as_toml_literals(value, expected) -> None:
+    template = {"project": {"extra": {"pdf_thing": value}}}
+
+    after = apply_config_changes(CONFIG, template, [], [])
+    after = apply_config_changes(CONFIG, template, ["project.extra.pdf_thing"], [])
+
+    assert f"pdf_thing = {expected}" in after
+
+
+def test_a_value_shape_that_cannot_be_written_is_refused() -> None:
+    """A wrongly quoted value produces a config that parses and means
+    something different, which is worse than a refusal."""
+    template = {"project": {"extra": {"pdf_thing": [1, 2, 3]}}}
+
+    with pytest.raises(TemplateSyncError, match="copied by hand"):
+        apply_config_changes(CONFIG, template, ["project.extra.pdf_thing"], [])
+
+
+def test_a_quoted_string_survives_the_round_trip() -> None:
+    """`pdf_copyright` holds HTML with quotes in it - which this must
+    never take anyway, but the escaping has to be right for anything
+    else that does."""
+    template = {"project": {"extra": {"pdf_x": 'a "quoted" thing'}}}
+
+    after = apply_config_changes(CONFIG, template, ["project.extra.pdf_x"], [])
+
+    import tomllib
+
+    assert tomllib.loads(after)["project"]["extra"]["pdf_x"] == 'a "quoted" thing'
+
+
+def test_an_extension_with_no_settings_still_gets_its_table() -> None:
+    """`[project.markdown_extensions."prodockit.tree"]` with nothing
+    under it is how most extensions are enabled - the table's presence is
+    the setting. A project that never had it needs the header written,
+    and there is no key to hang that off.
+    """
+    template: dict = {"project": {"markdown_extensions": {"prodockit.tree": {}}}}
+    added, updated = config_changes(load_manifest(MANIFEST), template, {})
+    assert added == ['project.markdown_extensions."prodockit.tree"'], added
+
+    after = apply_config_changes(CONFIG, template, added, updated)
+
+    assert '[project.markdown_extensions."prodockit.tree"]' in after
+    import tomllib
+
+    assert "prodockit.tree" in tomllib.loads(after)["project"]["markdown_extensions"]
