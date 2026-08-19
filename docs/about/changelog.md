@@ -1,6 +1,47 @@
 # Release Notes
 
-## Unreleased
+## 0.40.0 (2026-08-19)
+
+- **Added:** `prodockit template-sync --push` finishes a sync where the
+  pipeline can see it ([#502](https://github.com/buckwem/prodockit-extensions/pull/502)).
+
+    `--apply` stops at staged, on its own branch, and that publishes
+    nothing: both hosts build only from the default branch, so a sync
+    sitting on a `template-update-...` branch produces no pipeline and no
+    rebuilt site even after you commit and push it. `--push` commits,
+    merges into the branch your host builds from, and pushes - showing
+    what it will do and waiting for a yes first.
+
+    It assumes you merge your own work, with no merge request in the way.
+    A project that gates its default branch should use `--apply` alone and
+    raise a merge request from the update branch.
+
+- **Fixed:** a stale checkout beside a project no longer stops
+  `template-sync` ([#500](https://github.com/buckwem/prodockit-extensions/pull/500)).
+
+    A checkout beside the project wins over fetching, which is right for
+    somebody editing the template and their project together - but it won
+    unconditionally, so an old clone taken before the template carried a
+    manifest stopped the command outright, with a usable copy one fetch
+    away. A sibling now has to carry a manifest to be preferred, and the
+    run says which checkout it passed over.
+
+- **Fixed:** the installation page lists every extension ([#504](https://github.com/buckwem/prodockit-extensions/pull/504)).
+
+    It explained how to enable an extension and then named four of the
+    nine. `prodockit.tables`, `.tree`, `.steps`, `.bibliography` and
+    `.index` had each arrived with an entry point and a documentation page
+    without reaching the one page a new reader goes to first. A test now
+    treats the entry points as the authority, so a registered extension
+    cannot go undocumented again.
+
+- **Changed:** the `template-sync` manual covers a finished sync, not just
+  `--apply` ([#503](https://github.com/buckwem/prodockit-extensions/pull/503)).
+
+    What to do with a `.new` sidecar and how to tell "you edited this"
+    from "you never received this update"; that `--force` takes exact
+    paths one flag at a time; that a second run branches again; and that
+    committing alone changes nothing on the host.
 
 - **Added:** `\ref{id}` resolves a captioned figure or table, not only a
   heading ([#506](https://github.com/buckwem/prodockit-extensions/issues/506)).

@@ -6,9 +6,10 @@ the pieces professional and academic documentation commonly needs that
 Zensical doesn't provide out of the box, each usable independently:
 
 - ``prodockit.headings`` - heading ids and hierarchical section numbers.
-- ``prodockit.refs`` - ``\\ref{id}`` section cross-references, resolving to
-  the target's number and name, and ``\\autoref{id}``, which additionally
-  carries the target's page number in the PDF.
+- ``prodockit.refs`` - ``\\ref{id}`` cross-references, resolving to a
+  section's number and name or a captioned figure or table's label, and
+  ``\\autoref{id}``, which additionally carries the target's page number in
+  the PDF.
 - ``prodockit.citations`` - define a source once, cite it by key anywhere with
   ``\\citeref{id}``.
 - ``prodockit.glossary`` - define a term once, insert it by id anywhere with
@@ -82,7 +83,8 @@ Zensical doesn't provide out of the box, each usable independently:
   ``pip install prodockit[testing]``; nothing else in prodockit imports it.
 
 ``prodockit.headings``/``prodockit.refs``/``prodockit.citations``/``prodockit.glossary``/
-``prodockit.tables``/``prodockit.bibliography``/``prodockit.index``/``prodockit.steps``
+``prodockit.tables``/``prodockit.bibliography``/``prodockit.index``/``prodockit.steps``/
+``prodockit.tree``
 are Python-Markdown
 extensions, in the spirit of pymdown-extensions - enable
 one in `zensical.toml` the same way as a built-in or pymdownx extension.
@@ -99,6 +101,6 @@ alongside them.
 See https://buckwem.github.io/prodockit-extensions/ for documentation.
 """
 
-__version__ = "0.39.0"
+__version__ = "0.40.0"
 
 __all__ = ["__version__"]

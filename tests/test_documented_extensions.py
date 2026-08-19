@@ -24,6 +24,7 @@ from prodockit.template_sync import read_config
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PAGE = ROOT / "docs" / "installation.md"
+DOCSTRING = ROOT / "src" / "prodockit" / "__init__.py"
 
 
 def registered_extensions() -> list[str]:
@@ -58,3 +59,16 @@ def test_every_registered_extension_has_a_page_to_link_to() -> None:
     ]
 
     assert not missing, f"registered with no page under docs/extensions/: {missing}"
+
+
+def test_every_registered_extension_is_in_the_package_docstring() -> None:
+    """`prodockit/__init__.py` is what `help(prodockit)` and PyPI show.
+
+    It listed eight of the nine - `prodockit.tree` was missing - which is
+    the same drift as the installation page, in the other place a reader
+    looks.
+    """
+    text = DOCSTRING.read_text(encoding="utf-8")
+    missing = [name for name in registered_extensions() if name not in text]
+
+    assert not missing, f"registered but absent from the package docstring: {missing}"
