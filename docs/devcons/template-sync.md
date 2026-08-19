@@ -69,13 +69,25 @@ and run this again
 
 You are left on the branch you were already on, with nothing written.
 
+A follow-up run can also make a *second* branch, and that surprises
+people. The name comes from the baseline you are moving from, so once a
+run has recorded a stamp, the next one is moving from a different place
+and branches accordingly - a `--force` run straight after an ordinary one
+lands on `template-update-<new baseline>` rather than back on the first
+branch.
+
+Nothing is lost or duplicated: the second branch is made *from* the first,
+so it contains it, and one merge picks up both. Merging them separately
+just makes the first look like it did nothing.
+
 ### Finishing where the pipeline can see it {: #tsync-push }
 
 `--apply` stops at staged, on its own branch. That is deliberate - the
 commit is yours - but it also means **nothing is published**. Both hosts
 build only from the default branch, so a sync sitting on a
 `template-update-...` branch produces no pipeline and no rebuilt site,
-even after you commit and push it.
+even after you commit and push it. The steps are spelled out
+[below](#tsync-finish-by-hand) if you would rather not use this flag.
 
 `--push` finishes the job:
 
@@ -110,6 +122,34 @@ local `origin/HEAD` - that is a cache written when you cloned, and it goes
 stale. A merge into the branch the sync was written on is refused
 outright.
 
+#### Or finish it by hand {: #tsync-finish-by-hand }
+
+If you would rather do it yourself, the steps are the ones `--push`
+performs — and the middle one is the one people miss:
+
+```bash
+git commit -m "Sync with the template"
+```
+
+```bash
+git checkout main && git merge --no-ff template-update-6fbbbbeb8
+```
+
+```bash
+git push
+```
+
+**Committing alone does nothing**, and neither does pushing the update
+branch. A commit is local, so the host never sees it - and neither host
+builds from a branch like this one. GitLab's `pages` job is guarded by
+`if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'`; GitHub's docs workflow
+lists `branches: [master, main]`. Different mechanisms, same answer: a
+pushed `template-update-...` branch produces no pipeline at all.
+
+It is the merge into the default branch, and the push of *that*, which
+rebuilds the site. A run that appears to have had no effect has almost
+always stopped at one of those two steps.
+
 !!! warning "This merges straight into your default branch"
     `--push` assumes you merge your own work directly - no merge request,
     no review, no approval step. That is the assumption this is built on,
@@ -126,14 +166,61 @@ A template-owned file you have changed is *kept*, and the template's
 version is written beside it as `<name>.new` for you to compare. Nothing
 is overwritten silently.
 
-If you want the template's version after all, name the file:
+**"Edited" does not always mean you changed it.** A file counts as edited
+when it does not match the baseline the run settled on - which is equally
+true of a file you customised and one you simply never received an update
+for. The tool cannot tell those apart, and you usually can, at a glance:
 
 ```bash
-prodockit template-sync --apply --force .gitlab-ci.yml
+diff .gitlab-ci.yml .gitlab-ci.yml.new
 ```
 
-`--force` reaches only files the report lists as kept. Anything else is
-unaffected, however you spell it.
+If the differences are all yours - your module code, your group, your
+wording - keep what you have. If they are all *the template's own
+history* - newer pins, a step you have never seen, a comment referring to
+an issue you did not raise - then you are simply behind, and taking the
+template's version is right.
+
+!!! example "What that looks like in practice"
+    Syncing a real assignment repository, both files reported as edited
+    turned out to contain nothing project-specific whatsoever. One was a
+    `.gitlab-ci.yml` still pinning `prodockit==0.21.0` against the
+    template's `0.39.0`, missing a `prodockit init-mathjax` step added
+    months earlier - so every page that pipeline had built showed raw TeX
+    instead of maths. Neither file had been edited at all; both had just
+    never been updated.
+
+#### Taking the template's version {: #tsync-force }
+
+```bash
+prodockit template-sync --apply --force .gitlab-ci.yml --force .github/workflows/docs.yml
+```
+
+Three things to know about `--force`:
+
+- **Exact paths, one flag each.** No globs, and no bare `--force` meaning
+  "everything". That friction is the point: this is the only option that
+  can overwrite your own work, so each file is named deliberately.
+- **Paths are as the report prints them**, relative to the project root. A
+  leading `./` is tolerated; anything else will not match.
+- **A `--force` that matches nothing is ignored**, not warned about. So
+  the check is the report itself - it should say `forced 2` where it
+  previously said `keep 2`.
+
+#### Then delete the sidecars {: #tsync-sidecars }
+
+Once you have taken the template's version, the `.new` file beside it is
+byte-identical to the real one and has no further use. **The tool will not
+remove it** - it never deletes anything from your project - so it lingers,
+and gets committed:
+
+```bash
+git rm .gitlab-ci.yml.new .github/workflows/docs.yml.new
+```
+
+If you decided to keep *your* version instead, delete the sidecar just the
+same once you have read it. Leaving it behind means the next reader cannot
+tell whether it is a decision you made or one you have not got to yet.
 
 ### Where the template comes from {: #tsync-template-source }
 
@@ -202,6 +289,20 @@ A template release that only reclassifies files leaves every file
 identical, so nothing is written - but the recorded baseline still moves
 forward, because leaving it stale would make the next run compare against
 the wrong version and report unedited files as edited.
+
+### After a long gap {: #tsync-long-gap }
+
+A project that has not synced for months takes every upstream release at
+once. That is the point, but it is worth knowing before you look at the
+result: in one real catch-up the CI pin moved from `prodockit==0.21.0` to
+`0.39.0` and `zensical==0.0.53` to `0.0.55` in a single commit - eighteen
+prodockit releases and two Zensical ones.
+
+So after a large catch-up, **look at the built output**, not just at the
+diff. If something in the site or the PDF renders differently, the
+upstream jump is a far more likely cause than the sync itself, and
+[version pinning and drift](pinning-drift.md) is the page that covers
+comparing before and after.
 
 ## The log {: #tsync-the-log }
 
