@@ -1,0 +1,310 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+"""prodockit.template_sync: bringing a project back into step with the
+template it was generated from, without touching the work in it.
+
+A project generated from `prodockit-template` diverges the moment
+somebody starts writing. Most of that divergence is theirs and must be
+left alone; a smaller part is the template's - stylesheets, CI, the
+Node tooling - and goes stale silently. This finds the second kind and
+nothing else (prodockit-template#188).
+
+The rules live in a manifest shipped *with the template*, not here, so a
+file added to the template arrives with the commit that adds it rather
+than waiting for a prodockit release. This module reads that manifest,
+works out which template version a project came from, and says what
+would change.
+
+Nothing in here writes. The stages that do come later; these are the
+three that decide whether writing is safe at all:
+
+1. resolve the template a project should track, from its own remote
+2. read and validate the manifest
+3. work out the baseline version, and with it which files were edited
+"""
+
+from __future__ import annotations
+
+import fnmatch
+import sys
+from collections.abc import Callable, Iterable, Sequence
+from dataclasses import dataclass, field
+
+if sys.version_info >= (3, 11):  # pragma: no cover - one branch per interpreter
+    import tomllib
+else:  # pragma: no cover - `tomllib` is 3.11+, and this package supports 3.10
+    import tomli as tomllib
+
+#: Where each host's template lives. A project on Surrey's GitLab tracks
+#: Surrey's mirror, because a student there may have no GitHub access at
+#: all; everyone else tracks the canonical copy. So this is a lookup with
+#: a default, not "the same host as the project".
+TEMPLATE_REMOTES = {
+    "gitlab.surrey.ac.uk": "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git",
+    "gitlab.com": "git@github.com:buckwem/prodockit-template.git",
+    "github.com": "git@github.com:buckwem/prodockit-template.git",
+}
+
+#: The host each override flag names, and how a slug becomes a remote.
+OVERRIDE_HOSTS = {
+    "github": ("github.com", "git@github.com:{slug}.git"),
+    "surrey": ("gitlab.surrey.ac.uk", "git@gitlab.surrey.ac.uk:{slug}.git"),
+}
+
+#: The file a project records its baseline in, once one is established.
+STAMP_FILE = ".prodockit-template"
+
+#: The manifest, in the template.
+MANIFEST_FILE = ".prodockit-template.toml"
+
+
+class TemplateSyncError(ValueError):
+    """A sync that cannot be run as asked.
+
+    Raised rather than worked around. Every failure here is one where
+    guessing produces a plausible wrong answer - the wrong template, an
+    unclassified file, a baseline nobody confirmed - and a plausible
+    wrong answer is what this tool exists to avoid.
+    """
+
+
+@dataclass(frozen=True)
+class Manifest:
+    """Who owns what, read from the template it applies to.
+
+    Read from the *new* version, at a tag: a working copy carries
+    untracked local artefacts, and delivering those as though they were
+    part of a release is how a spike directory ends up in somebody's
+    report.
+    """
+
+    template_owns: tuple[str, ...] = ()
+    project_owns: tuple[str, ...] = ()
+    seed: tuple[str, ...] = ()
+    ignore: tuple[str, ...] = ()
+    shared: tuple[str, ...] = ()
+    excluded: tuple[str, ...] = ()
+    renames: dict[str, str] = field(default_factory=dict)
+
+    def rename(self, path: str) -> str:
+        """The template's path, as the project spells it.
+
+        A project generated before a directory was renamed still has the
+        old name. Comparing before renaming gives it a second copy of
+        every file in that directory rather than an update to the one it
+        has.
+
+        For locating the project's copy only. Ownership is decided on the
+        template's own spelling, because that is how the manifest is
+        written - classifying the renamed path asks whether
+        `docs/javascript/extra.js` matches `docs/javascripts/**`, which
+        it does not, and reports a file the manifest plainly claims as
+        unclassified.
+        """
+        for old, new in self.renames.items():
+            if path == new:
+                return old
+            if path.startswith(new + "/"):
+                return old + path[len(new) :]
+        return path
+
+    def owner(self, path: str) -> str:
+        """Which rule claims this path: template, project, shared,
+        excluded - or `unclassified`, which is an error rather than a
+        default."""
+        for name, globs in (
+            ("template", self.template_owns),
+            ("project", self.project_owns),
+            ("shared", self.shared),
+            ("excluded", self.excluded),
+        ):
+            if _matches(path, globs):
+                return name
+        return "unclassified"
+
+
+def _matches(path: str, globs: Iterable[str]) -> bool:
+    """Whether a path matches any of these globs.
+
+    `dir/**` needs no special case: `fnmatch`'s `*` crosses `/`, so the
+    pattern already matches every depth below `dir`. A branch for it was
+    written here first and removed - it only ever answered for the bare
+    directory entry, which nothing classifies, and code that looks
+    load-bearing and is not costs more than the line it saves.
+    """
+    return any(fnmatch.fnmatch(path, glob) for glob in globs)
+
+
+def load_manifest(text: str) -> Manifest:
+    """Reads a manifest, or says why it cannot."""
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as error:
+        raise TemplateSyncError(f"{MANIFEST_FILE} is not valid TOML: {error}") from error
+
+    def strings(section: str, key: str) -> tuple[str, ...]:
+        value = data.get(section, {}).get(key, [])
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise TemplateSyncError(f"{section}.{key} must be a list of strings")
+        return tuple(value)
+
+    renames = data.get("renames", {})
+    if not isinstance(renames, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in renames.items()
+    ):
+        raise TemplateSyncError("renames must be a table of old = new strings")
+
+    manifest = Manifest(
+        template_owns=strings("template", "owns"),
+        project_owns=strings("project", "owns"),
+        seed=strings("project", "seed"),
+        ignore=strings("project", "ignore"),
+        shared=strings("shared", "files"),
+        excluded=strings("excluded", "paths"),
+        renames=dict(renames),
+    )
+
+    # A seed is a project-owned file the template writes once. One that
+    # is not project-owned would be updated by the very rule it exists to
+    # be exempt from.
+    stray = [s for s in manifest.seed if not _matches(s, manifest.project_owns)]
+    if stray:
+        raise TemplateSyncError(
+            f"seeded but not project-owned: {', '.join(stray)} - a seed is written "
+            "once and then belongs to the project, so it has to be project-owned"
+        )
+    return manifest
+
+
+def unclassified(manifest: Manifest, paths: Sequence[str]) -> list[str]:
+    """Files in the template that no rule claims.
+
+    Checked rather than defaulted, because both defaults are wrong:
+    treating an unknown file as the template's overwrites somebody's
+    work, and treating it as the project's silently stops delivering it.
+    A manifest that does not classify its own tree is a bug in the
+    manifest, and this is how it is found.
+    """
+    return [p for p in paths if manifest.owner(p) == "unclassified"]
+
+
+def resolve_template(
+    origin: str | None,
+    *,
+    github: str | None = None,
+    surrey: str | None = None,
+    explicit: bool = False,
+) -> str:
+    """Which template a project should be brought into step with.
+
+    Derived from the project's own remote, so neither a student nor a
+    maintainer has to know the answer. `--github`/`--surrey` override it,
+    bare for that host's usual template or with `group/repo` for another.
+
+    `explicit` says a flag was given at all, which is what separates
+    `--github` (that host's default) from no flag (derive).
+    """
+    if github is not None and surrey is not None:
+        raise TemplateSyncError(
+            "--github and --surrey name two different templates; give one"
+        )
+    for flag, slug in (("github", github), ("surrey", surrey)):
+        if slug is None:
+            continue
+        host, shape = OVERRIDE_HOSTS[flag]
+        if not slug:  # bare flag: that host's usual template
+            return TEMPLATE_REMOTES[host]
+        if slug.count("/") < 1:
+            raise TemplateSyncError(
+                f"--{flag} takes group-or-name/repo, e.g. --{flag} buckwem/prodockit-template"
+            )
+        return shape.format(slug=slug.removesuffix(".git"))
+    if explicit:  # a flag was given with no value and no host matched
+        raise TemplateSyncError("no template named")
+
+    if not origin:
+        raise TemplateSyncError(
+            "this project has no `origin` remote, so the template it came from "
+            "cannot be derived - name one with --github or --surrey"
+        )
+    host = _host_of(origin)
+    if host not in TEMPLATE_REMOTES:
+        raise TemplateSyncError(
+            f"no template is known for {host} - name one with --github or --surrey"
+        )
+    return TEMPLATE_REMOTES[host]
+
+
+def _host_of(remote: str) -> str:
+    """The hostname in a git remote, SSH or HTTPS.
+
+    Deliberately small: `prodockit.sync_repo.parse_remote` already does
+    the full job including GitLab's nested groups, and is used where the
+    namespace matters. Here only the host decides anything.
+    """
+    from prodockit.sync_repo import parse_remote
+
+    host, _namespace, _repo = parse_remote(remote)
+    return host
+
+
+@dataclass(frozen=True)
+class Baseline:
+    """Which template version a project matches, and what it has edited.
+
+    The two answers come from one calculation, which is why they are one
+    result: a file that matches no version of the template is exactly a
+    file somebody has changed.
+    """
+
+    version: str | None
+    matched: int
+    total: int
+    edited: tuple[str, ...] = ()
+
+    @property
+    def derived(self) -> bool:
+        """Whether this came from scanning rather than from a stamp."""
+        return self.version is not None and self.matched < self.total
+
+
+def derive_baseline(
+    template_owned: Sequence[str],
+    project_blob: Callable[[str], str | None],
+    versions: Sequence[str],
+    template_blob: Callable[[str, str], str | None],
+) -> Baseline:
+    """The newest template version the project's files agree with.
+
+    Content, not dates: a project records nothing about where it came
+    from until this tool writes a stamp, and asking the reader to
+    remember is asking for a guess. Every template-owned file is compared
+    by blob hash against each version, newest first, and the best
+    agreement wins.
+
+    The files that still disagree at that version are the edited ones -
+    the same scan answers both questions, and neither answer is
+    trustworthy without the other. Being behind and having edited a file
+    look identical until the baseline is known.
+    """
+    present = {path: blob for path in template_owned if (blob := project_blob(path))}
+    if not present:
+        return Baseline(version=None, matched=0, total=0)
+
+    best = Baseline(version=None, matched=-1, total=len(present))
+    for version in versions:
+        disagree = tuple(
+            path for path, blob in present.items() if template_blob(version, path) != blob
+        )
+        agreed = len(present) - len(disagree)
+        if agreed > best.matched:
+            best = Baseline(
+                version=version,
+                matched=agreed,
+                total=len(present),
+                edited=disagree,
+            )
+        if agreed == len(present):
+            break  # nothing will beat a complete match
+    return best
