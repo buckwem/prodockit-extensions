@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import fnmatch
 import pathlib
+import subprocess
 import sys
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
@@ -848,3 +849,113 @@ DELEGATED = {
     "requirements.txt": ["prodockit", "pins", "--check"],
     "README.md": ["prodockit", "sync-repo"],
 }
+
+
+#: What a run does to git, as a command it could have typed. Injected so
+#: the tests never touch a real repository, and so the report can show a
+#: reader exactly what was run on their behalf.
+GitRunner = Callable[[Sequence[str]], bool]
+
+
+def branch_name(version: str) -> str:
+    """The branch a run puts its work on.
+
+    Short and legible: `git describe` on a template whose tags belong to
+    something else produces `0.0.26-12-g2ae6640`, which names a branch
+    nobody can read or type. A tag is used as it stands; anything else is
+    cut to a short hash.
+    """
+    label = version.strip()
+    if not label:
+        raise TemplateSyncError("no template version to name a branch after")
+    if len(label) == 40 and all(c in "0123456789abcdef" for c in label):
+        label = label[:9]
+    safe = "".join(c if c.isalnum() or c in "._-" else "-" for c in label)
+    return f"template-update-{safe.strip('-')}"
+
+
+def start_branch(run: GitRunner, name: str) -> bool:
+    """Puts the working tree on its own branch, *before* anything is
+    written.
+
+    Deliberately first rather than last. An update adds files as well as
+    changing them, and `git checkout .` does not remove what it never
+    tracked - so a reader who wants to undo a run cannot simply revert
+    the tracked half. Branching first makes the whole run one thing to
+    abandon.
+
+    Returns whether the branch was created. An existing branch of that
+    name is switched to rather than replaced: a second run against the
+    same template version belongs on the same branch, and deleting it
+    would throw away whatever the first run left.
+    """
+    if run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{name}"]):
+        return run(["git", "checkout", name])
+    return run(["git", "checkout", "-b", name])
+
+
+def write_stamp(project_root: pathlib.Path, version: str) -> pathlib.Path:
+    """Records which template version this project now matches.
+
+    Written last, so it describes a state that exists. Written at all so
+    the next run reads it instead of deriving the answer again - the
+    derivation is sound, but it is a scan of every version in the
+    template's history, and it cannot tell a file somebody edited from
+    one the template never had.
+    """
+    path = project_root / STAMP_FILE
+    path.write_text(f"{version.strip()}\n", encoding="utf-8")
+    return path
+
+
+def read_stamp(project_root: pathlib.Path) -> str | None:
+    """The recorded version, or None when there is none to read."""
+    path = project_root / STAMP_FILE
+    if not path.exists():
+        return None
+    return path.read_text(encoding="utf-8").strip() or None
+
+
+def stage_changes(run: GitRunner, paths: Sequence[str]) -> bool:
+    """Stages what the run wrote, and stops there.
+
+    The commit is the reader's. It is their history, and a message
+    written by a tool about somebody else's project is worth less than
+    the thirty seconds it saves - they are the ones who will read it in
+    six months.
+    """
+    if not paths:
+        return True
+    return run(["git", "add", "--", *paths])
+
+
+def git_runner(project_root: pathlib.Path) -> GitRunner:
+    """A `GitRunner` that runs git in a project, quietly.
+
+    Success or failure only. Every call this module makes is one whose
+    output nobody needs and whose failure is handled by the caller -
+    asking for a branch that is not there is how `start_branch` decides
+    to create it, so a non-zero exit is an answer rather than an error.
+
+    `git` is found the way the rest of prodockit finds it, so a Windows
+    reader whose PATH has not caught up still gets a working command
+    (prodockit-extensions#451).
+    """
+    from prodockit.tools import find
+
+    def run(command: Sequence[str]) -> bool:
+        binary = find("git") if command and command[0] == "git" else command[0]
+        try:
+            completed = subprocess.run(
+                [binary, *command[1:]],
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+        except OSError:  # git missing entirely
+            return False
+        return completed.returncode == 0
+
+    return run

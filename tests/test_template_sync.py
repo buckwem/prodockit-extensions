@@ -30,18 +30,24 @@ from prodockit.template_sync import (
     apply_seeds,
     baseline_report,
     blocking_changes,
+    branch_name,
     classification_report,
     config_changes,
     derive_baseline,
+    git_runner,
     leftovers,
     load_manifest,
     missing_ignores,
     missing_seeds,
     plan_template_files,
+    read_stamp,
     resolve_template,
     set_config_value,
+    stage_changes,
+    start_branch,
     unclassified,
     update_report,
+    write_stamp,
     written_report,
 )
 
@@ -1029,3 +1035,170 @@ def test_an_extension_with_no_settings_still_gets_its_table() -> None:
     import tomllib
 
     assert "prodockit.tree" in tomllib.loads(after)["project"]["markdown_extensions"]
+
+
+# ---------------------------------------------------------------------------
+# Stage 10: the branch, the stamp, and staging
+# ---------------------------------------------------------------------------
+
+
+class FakeGit:
+    """Records what would have been run, and answers as told.
+
+    A fake rather than a real repository for the decisions - whether a
+    branch is created or switched to is a choice this module makes, and
+    it should be readable from the commands rather than inferred from
+    the state afterwards.
+    """
+
+    def __init__(self, *, has_branch: bool = False, fails: bool = False) -> None:
+        self.commands: list[list[str]] = []
+        self.has_branch = has_branch
+        self.fails = fails
+
+    def __call__(self, command):  # type: ignore[no-untyped-def]
+        self.commands.append(list(command))
+        if command[1:3] == ["rev-parse", "--verify"]:
+            return self.has_branch
+        return not self.fails
+
+
+def test_a_branch_is_named_after_the_template_version() -> None:
+    assert branch_name("1.5.0") == "template-update-1.5.0"
+
+
+def test_a_bare_sha_is_cut_to_something_typeable() -> None:
+    """`git describe` on a template whose tags belong to something else
+    produced `0.0.26-12-g2ae6640`, which names a branch nobody can read."""
+    assert branch_name("6fbbbbeb87b8925623a7012e0f1e328bde71558c") == (
+        "template-update-6fbbbbeb8"
+    )
+
+
+def test_a_version_that_names_nothing_is_refused() -> None:
+    with pytest.raises(TemplateSyncError, match="no template version"):
+        branch_name("   ")
+
+
+def test_a_new_branch_is_created() -> None:
+    git = FakeGit(has_branch=False)
+
+    start_branch(git, "template-update-1.5.0")
+
+    assert git.commands[-1] == ["git", "checkout", "-b", "template-update-1.5.0"]
+
+
+def test_an_existing_branch_is_switched_to_not_replaced() -> None:
+    """A second run against the same template version belongs on the same
+    branch; deleting it would throw away whatever the first run left."""
+    git = FakeGit(has_branch=True)
+
+    start_branch(git, "template-update-1.5.0")
+
+    assert git.commands[-1] == ["git", "checkout", "template-update-1.5.0"]
+    assert not any("-b" in command for command in git.commands)
+
+
+def test_the_stamp_records_the_version(tmp_path) -> None:
+    write_stamp(tmp_path, "1.5.0")
+
+    assert (tmp_path / ".prodockit-template").read_text() == "1.5.0\n"
+    assert read_stamp(tmp_path) == "1.5.0"
+
+
+def test_a_project_with_no_stamp_reads_as_none(tmp_path) -> None:
+    """Which is what sends the next run to derive the baseline instead."""
+    assert read_stamp(tmp_path) is None
+
+
+def test_an_empty_stamp_is_not_mistaken_for_a_version(tmp_path) -> None:
+    """A truncated write would otherwise be read as a version named ''
+    and compared against every tag, matching nothing, silently."""
+    (tmp_path / ".prodockit-template").write_text("\n")
+
+    assert read_stamp(tmp_path) is None
+
+
+def test_only_what_was_written_is_staged() -> None:
+    git = FakeGit()
+
+    stage_changes(git, ["macros.py", ".python-version"])
+
+    assert git.commands[-1] == ["git", "add", "--", "macros.py", ".python-version"]
+
+
+def test_staging_nothing_runs_no_command() -> None:
+    """A run that changed nothing should leave no trace in the index."""
+    git = FakeGit()
+
+    assert stage_changes(git, []) is True
+    assert git.commands == []
+
+
+def test_the_commit_is_never_made() -> None:
+    """The reader's history is theirs. A message written by a tool about
+    somebody else's project is worth less than the time it saves."""
+    git = FakeGit()
+
+    start_branch(git, "template-update-1.5.0")
+    stage_changes(git, ["macros.py"])
+
+    assert not any("commit" in command for command in git.commands)
+
+
+def test_the_real_runner_drives_a_real_repository(tmp_path) -> None:
+    """The fake above says what this module *decides*; this says the
+    decisions work against git itself.
+
+    Worth having separately: a fake that answers however it is told
+    cannot notice a command that git would reject, and every one of
+    these is typed out by hand somewhere above.
+    """
+    import subprocess
+
+    subprocess.run(["git", "init", "--quiet"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=tmp_path, check=True)
+    (tmp_path / "seed.txt").write_text("x")
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "first"], cwd=tmp_path, check=True)
+
+    run = git_runner(tmp_path)
+    name = branch_name("1.5.0")
+
+    assert start_branch(run, name) is True
+    on = subprocess.run(
+        ["git", "branch", "--show-current"], cwd=tmp_path, capture_output=True, text=True
+    ).stdout.strip()
+    assert on == name
+
+    # A second run finds the branch and switches rather than failing to
+    # create it again - the case the fake can only assert about.
+    assert start_branch(run, name) is True
+
+    write_stamp(tmp_path, "1.5.0")
+    (tmp_path / "macros.py").write_text("updated")
+    assert stage_changes(run, [".prodockit-template", "macros.py"]) is True
+
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"], cwd=tmp_path, capture_output=True, text=True
+    ).stdout.split()
+    assert sorted(staged) == [".prodockit-template", "macros.py"]
+
+    # And nothing was committed: the reader's history is untouched.
+    log = subprocess.run(
+        ["git", "log", "--oneline"], cwd=tmp_path, capture_output=True, text=True
+    ).stdout.strip()
+    assert log.count("\n") == 0, "only the fixture's own commit should exist"
+
+
+def test_the_runner_answers_false_rather_than_raising(tmp_path) -> None:
+    """`start_branch` asks whether a branch exists by running a command
+    that fails when it does not - so a non-zero exit has to be an answer,
+    not an exception."""
+    import subprocess
+
+    subprocess.run(["git", "init", "--quiet"], cwd=tmp_path, check=True)
+    run = git_runner(tmp_path)
+
+    assert run(["git", "rev-parse", "--verify", "--quiet", "refs/heads/nope"]) is False
