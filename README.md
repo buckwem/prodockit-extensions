@@ -209,6 +209,33 @@ It also sets `edit_uri` explicitly, which fixes the "edit this page"
 button on a self-hosted GitLab and stops it pointing at a `master` branch
 that may not exist.
 
+## Staying in step with the template
+
+A project generated from a template is a copy, not a link. It starts
+ageing the moment it is created - the template gains a CI fix, a
+stylesheet rule, a newer pin - and nothing tells you, because nothing
+breaks. The site still builds; the document just looks slightly unlike
+everyone else's.
+[`prodockit template-sync`](https://buckwem.github.io/prodockit-extensions/devcons/template-sync/)
+updates the template's own files and leaves your writing alone:
+
+```bash
+prodockit template-sync          # report; writes no project file
+prodockit template-sync --apply  # branch, write, stage - the commit is yours
+```
+
+What it will and will not write is decided by a manifest in the template.
+The report, its figures and its bibliography are never written and never
+even read, so a sync cannot lose your work. A template-owned file you have
+edited is kept, with the template's version written beside it as `.new` to
+compare.
+
+The template is fetched into a per-user cache, so you need no checkout of
+it - and a host that cannot be reached is answered with the cached copy
+and a warning that it may be behind, rather than a failure. Built to be
+run repeatedly through a project: a run with nothing to do says so and
+creates no branch.
+
 ## Version pinning and drift
 
 A documentation build has more inputs than its own source: `zensical`
