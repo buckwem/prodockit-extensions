@@ -27,10 +27,11 @@ three that decide whether writing is safe at all:
 from __future__ import annotations
 
 import fnmatch
+import os
 import pathlib
 import subprocess
 import sys
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -246,6 +247,86 @@ def resolve_template(
             f"no template is known for {host} - name one with --github or --surrey"
         )
     return TEMPLATE_REMOTES[host]
+
+
+def cache_root(
+    env: Mapping[str, str] | None = None,
+    platform: str | None = None,
+) -> pathlib.Path:
+    """Where fetched templates are kept, per platform convention.
+
+    `env` and `platform` are arguments rather than reads of the live
+    process so a test can ask about a platform it is not running on. A
+    check that reads `os.environ` or `sys.platform` directly passes or
+    fails for reasons that have nothing to do with the code.
+    """
+    env = os.environ if env is None else env
+    platform = sys.platform if platform is None else platform
+
+    if override := env.get("PRODOCKIT_CACHE"):
+        return pathlib.Path(override)
+    if platform == "win32":
+        if local := env.get("LOCALAPPDATA"):
+            return pathlib.Path(local) / "prodockit" / "cache"
+    elif platform == "darwin":
+        return pathlib.Path(env.get("HOME", "~")).expanduser() / "Library" / "Caches" / "prodockit"
+    if xdg := env.get("XDG_CACHE_HOME"):
+        return pathlib.Path(xdg) / "prodockit"
+    return pathlib.Path(env.get("HOME", "~")).expanduser() / ".cache" / "prodockit"
+
+
+def cache_path_for(remote: str, root: pathlib.Path) -> pathlib.Path:
+    """Where one template's checkout belongs under the cache root.
+
+    Keyed by host *and* namespace, because a project on Surrey's GitLab
+    and one on GitHub track different templates that share a repository
+    name - caching them at the same path would hand a project the other
+    one's files.
+    """
+    from prodockit.sync_repo import SyncRepoError, parse_remote
+
+    try:
+        host, namespace, repo = parse_remote(remote)
+    except SyncRepoError as error:
+        raise TemplateSyncError(
+            f"cannot work out where to cache the template for {remote!r}"
+        ) from error
+    parts = [host, *namespace.split("/"), repo]
+    safe = ["".join(c if c.isalnum() or c in "._-" else "-" for c in part) for part in parts]
+    return root.joinpath("templates", *safe)
+
+
+def ensure_template(remote: str, path: pathlib.Path, run: GitRunner) -> str:
+    """Makes sure a checkout of the template is at `path`, and returns
+    which of three things happened: `cloned`, `updated` or `offline`.
+
+    Three, not two. A fetch that cannot reach the host is not the same
+    answer as one that found nothing new, and it is not a failure either
+    - a student on a train should still be able to see what their project
+    would do. It has to be *said*, though, because the alternative is
+    syncing against a template that is quietly months old.
+
+    The hard reset is safe only because this path is the tool's own cache,
+    never a checkout anybody works in; `--template-path` exists for that.
+    """
+    if (path / ".git").exists():
+        if not run(["git", "-C", str(path), "fetch", "--quiet", "origin"]):
+            return "offline"
+        if not run(["git", "-C", str(path), "reset", "--hard", "--quiet", "FETCH_HEAD"]):
+            raise TemplateSyncError(
+                f"the cached template at {path} could not be moved to the fetched "
+                "version - delete that directory and run this again"
+            )
+        return "updated"
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not run(["git", "clone", "--quiet", remote, str(path)]):
+        raise TemplateSyncError(
+            f"could not fetch the template from {remote} - check the network, and "
+            "that you can reach that host (a Surrey template needs your GitLab "
+            "access), or point this at a checkout with --template-path"
+        )
+    return "cloned"
 
 
 def _host_of(remote: str) -> str:

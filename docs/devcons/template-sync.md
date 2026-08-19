@@ -92,6 +92,31 @@ all. Everything else tracks the canonical GitHub copy. Override it with
 `--github` or `--surrey`, bare for that host's usual template or with a
 `group/repo` to name another.
 
+You do not need a copy of the template yourself. The first run clones it
+into a cache - `~/Library/Caches/prodockit` on macOS, `~/.cache/prodockit`
+on Linux, `%LOCALAPPDATA%\prodockit\cache` on Windows, or wherever
+`PRODOCKIT_CACHE` points - and later runs bring that copy up to date. Each
+host and namespace gets its own entry, so the Surrey and GitHub templates
+never stand in for one another.
+
+The line under the remote says which of three things happened:
+
+| | |
+| --- | --- |
+| `fetched just now` | first run - the template was cloned |
+| `fetched, up to date` | the cached copy was brought current |
+| `cached copy - could not reach the host…` | the host was unreachable; the run continued on what was already cached |
+
+The third is a real answer, not a failure. A run on a train still shows
+you what your project would do - it just says plainly that the template
+it compared against may be behind.
+
+!!! note "A checkout beside your project wins"
+    If a `prodockit-template` checkout sits next to the project, that is
+    used instead of the cache. This is how the repositories are laid out
+    during development, so a maintainer working across them gets the copy
+    they are editing. `--template-path` names one outright.
+
 ## Running it through a project {: #tsync-repeatedly }
 
 This is meant to be run repeatedly - every few weeks through a report's

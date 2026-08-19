@@ -1873,12 +1873,9 @@ def _run_template_sync(
             ).stdout.strip()
             template_remote = resolve_template(remote or None, github=github, surrey=surrey)
             say(f"template  {template_remote}")
-            template = _template_checkout(project, template_remote)
-            say(f"checkout  {template}")
+            template, how = _template_checkout(project, template_remote)
+            say(f"checkout  {template}  ({how})")
 
-        # The template has to be somewhere on disk to be read. Cloning it is
-        # the next piece of work; for now a sibling checkout is used, which is
-        # what a maintainer has and what the tests point at.
         say()
 
         # 2. What the manifest says.
@@ -2095,25 +2092,34 @@ def _run_template_sync(
 
 
 
-def _template_checkout(project: pathlib.Path, remote: str) -> pathlib.Path:
-    """Where the template can be read from, on this machine.
+def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path, str]:
+    """Where the template can be read from, and how it got there.
 
-    A sibling checkout beside the project, matching how the three
-    repositories are laid out during development. Cloning the resolved
-    remote into a cache is the next piece of work - until then this fails
-    loudly rather than pretending to have fetched anything.
+    A sibling checkout wins if there is one: that is how the three
+    repositories are laid out during development, and a maintainer
+    working across them means the copy beside the project. Nobody else
+    has one, so everyone else gets the remote fetched into a cache.
+
+    The whole history is cloned rather than a shallow copy. Deriving a
+    baseline by content walks the template's versions and reads the tree
+    at each of them, so a shallow clone would answer "no version matches"
+    for any project more than a commit or two behind - which is every
+    project this is for.
     """
+    from prodockit.template_sync import cache_path_for, cache_root, ensure_template, git_runner
+
     name = remote.rstrip("/").rsplit("/", 1)[-1].removesuffix(".git")
     for candidate in (project.parent / name, project.parent.parent / "GitHub" / name):
         if (candidate / ".git").exists():
-            return candidate
-    from prodockit.template_sync import TemplateSyncError
+            return candidate, "beside this project"
 
-    raise TemplateSyncError(
-        f"no checkout of {name} found beside this project - "
-        "fetching it is not implemented yet, so point the command at a machine "
-        "that has one"
-    )
+    path = cache_path_for(remote, cache_root())
+    what = ensure_template(remote, path, git_runner(project))
+    return path, {
+        "cloned": "fetched just now",
+        "updated": "fetched, up to date",
+        "offline": "cached copy - could not reach the host, so this may be behind",
+    }[what]
 
 
 @main.command("template-sync")

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+from collections.abc import Sequence
 
 import pytest
 
@@ -34,9 +35,12 @@ from prodockit.template_sync import (
     baseline_report,
     blocking_changes,
     branch_name,
+    cache_path_for,
+    cache_root,
     classification_report,
     config_changes,
     derive_baseline,
+    ensure_template,
     git_runner,
     ignore_the_log,
     leftovers,
@@ -1474,3 +1478,117 @@ def test_same_is_never_pending(tmp_path: pathlib.Path) -> None:
         raise AssertionError("a `same` action must not be read at all")
 
     assert pending_writes(plan, tmp_path, explode) == []
+
+
+# ---------------------------------------------------------------------------
+# Fetching the template
+# ---------------------------------------------------------------------------
+
+
+class RecordingGit:
+    """A git runner that records commands and answers as told.
+
+    Every test below drives `ensure_template` through this rather than a
+    real git, so nothing here can reach the network however the suite is
+    run.
+    """
+
+    def __init__(self, **answers: bool) -> None:
+        self.commands: list[list[str]] = []
+        self.answers = answers
+
+    def __call__(self, command: Sequence[str]) -> bool:
+        self.commands.append(list(command))
+        for verb, answer in self.answers.items():
+            if verb in command:
+                return answer
+        return True
+
+
+def test_the_cache_follows_each_platform_s_convention() -> None:
+    """Asked about platforms this is not running on, so the answer does
+    not depend on the machine the suite happens to be on."""
+    mac = cache_root({"HOME": "/Users/someone"}, "darwin")
+    windows = cache_root({"LOCALAPPDATA": r"C:\\Users\\someone\\AppData\\Local"}, "win32")
+    linux = cache_root({"HOME": "/home/someone"}, "linux")
+    xdg = cache_root({"HOME": "/home/someone", "XDG_CACHE_HOME": "/elsewhere"}, "linux")
+
+    assert mac.parts[-3:] == ("Library", "Caches", "prodockit")
+    assert windows.parts[-2:] == ("prodockit", "cache")
+    assert linux.parts[-2:] == (".cache", "prodockit")
+    assert xdg.parts[-2:] == ("elsewhere", "prodockit")
+
+
+def test_the_cache_can_be_pointed_somewhere_else() -> None:
+    """So a test, or a locked-down machine, need not write to $HOME."""
+    root = cache_root({"HOME": "/home/someone", "PRODOCKIT_CACHE": "/tmp/somewhere"}, "linux")
+
+    assert root.parts[-1:] == ("somewhere",)
+
+
+def test_two_hosts_templates_do_not_share_a_cache_entry() -> None:
+    """A project on Surrey's GitLab and one on GitHub track different
+    templates that share a repository name. Caching both at the same path
+    would hand a project the other one's files."""
+    root = pathlib.Path("/cache")
+    github = cache_path_for("git@github.com:buckwem/prodockit-template.git", root)
+    surrey = cache_path_for("git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git", root)
+
+    assert github != surrey
+    assert "github.com" in github.parts
+    assert "gitlab.surrey.ac.uk" in surrey.parts
+
+
+def test_a_template_that_is_not_there_yet_is_cloned(tmp_path: pathlib.Path) -> None:
+    run = RecordingGit()
+    path = tmp_path / "templates" / "github.com" / "someone" / "report-template"
+
+    assert ensure_template("git@github.com:someone/report-template.git", path, run) == "cloned"
+    assert run.commands[-1][:2] == ["git", "clone"]
+    assert path.parent.exists(), "the parent has to be made before git can clone into it"
+
+
+def test_a_clone_that_fails_says_what_to_try(tmp_path: pathlib.Path) -> None:
+    run = RecordingGit(clone=False)
+
+    with pytest.raises(TemplateSyncError, match="--template-path"):
+        ensure_template("git@github.com:someone/report-template.git", tmp_path / "t", run)
+
+
+def test_a_cached_template_is_brought_up_to_date(tmp_path: pathlib.Path) -> None:
+    path = tmp_path / "cached"
+    (path / ".git").mkdir(parents=True)
+    run = RecordingGit()
+
+    assert ensure_template("git@github.com:someone/report-template.git", path, run) == "updated"
+
+    verbs = [c[3] for c in run.commands if len(c) > 3]
+
+    assert "fetch" in verbs
+    assert "reset" in verbs, "fetching alone leaves the working tree on the old version"
+    assert not any(c[:2] == ["git", "clone"] for c in run.commands)
+
+
+def test_a_host_that_cannot_be_reached_uses_what_is_cached(tmp_path: pathlib.Path) -> None:
+    """Three answers, not two. A fetch that cannot reach the host is not
+    the same as one that found nothing new, and it is not a failure - a
+    student on a train should still see what their project would do.
+    """
+    path = tmp_path / "cached"
+    (path / ".git").mkdir(parents=True)
+    run = RecordingGit(fetch=False)
+
+    assert ensure_template("git@github.com:someone/report-template.git", path, run) == "offline"
+    assert not any("reset" in c for c in run.commands), (
+        "a failed fetch must not be followed by a reset onto whatever FETCH_HEAD was"
+    )
+
+
+def test_a_cache_that_cannot_be_moved_forward_is_refused(tmp_path: pathlib.Path) -> None:
+    """Rather than syncing against a half-updated checkout."""
+    path = tmp_path / "cached"
+    (path / ".git").mkdir(parents=True)
+    run = RecordingGit(reset=False)
+
+    with pytest.raises(TemplateSyncError, match="delete that directory"):
+        ensure_template("git@github.com:someone/report-template.git", path, run)
