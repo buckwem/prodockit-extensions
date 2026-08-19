@@ -262,6 +262,7 @@ class Baseline:
     matched: int
     total: int
     edited: tuple[str, ...] = ()
+    agreeing: tuple[str, ...] = ()
 
     @property
     def derived(self) -> bool:
@@ -304,7 +305,76 @@ def derive_baseline(
                 matched=agreed,
                 total=len(present),
                 edited=disagree,
+                agreeing=tuple(p for p in present if p not in set(disagree)),
             )
         if agreed == len(present):
             break  # nothing will beat a complete match
     return best
+
+
+#: Groups in the order a report reads best: what will be touched, what
+#: will not, what needs deciding, what is not delivered at all.
+REPORT_ORDER = ("template", "project", "shared", "excluded", "unclassified")
+
+#: What each group means an update will *do*, said in the report rather
+#: than left to be inferred from the group's name. "project" and
+#: "excluded" both mean untouched, for entirely different reasons, and a
+#: reader should not have to know the manifest to tell them apart.
+GROUP_ACTIONS = {
+    "template": "replace where unedited",
+    "project": "never written",
+    "shared": "merge",
+    "excluded": "not delivered",
+    "unclassified": "error - the manifest must classify every file",
+}
+
+
+def classification_report(
+    manifest: Manifest, paths: Sequence[str], *, verbose: bool = False
+) -> list[str]:
+    """What the manifest makes of a template's files.
+
+    Counts by default, because the point of the summary is that the
+    numbers add up to the whole tree - a reader can see nothing has been
+    missed without reading 69 lines.
+
+    `verbose` lists every file under its group. That is the form worth
+    having when the question is "why is *this* file being replaced",
+    which a count cannot answer.
+    """
+    groups: dict[str, list[str]] = {name: [] for name in REPORT_ORDER}
+    for path in paths:
+        groups[manifest.owner(path)].append(path)
+
+    lines: list[str] = []
+    for name in REPORT_ORDER:
+        members = groups[name]
+        if name == "unclassified" and not members:
+            continue  # nothing to say, and saying it invites a shrug
+        lines.append(f"{name:12} {len(members):3} files  ({GROUP_ACTIONS[name]})")
+        if verbose:
+            lines.extend(f"    {path}" for path in sorted(members))
+    return lines
+
+
+def baseline_report(baseline: Baseline, *, verbose: bool = False) -> list[str]:
+    """What was concluded about where a project came from.
+
+    The edited files are always listed, however long the list: they are
+    the reason the tool will leave something alone, and a count of them
+    is not actionable. `verbose` adds the files that agreed, which is how
+    somebody checks the conclusion rather than taking it.
+    """
+    if baseline.version is None:
+        return ["no template-owned files found - nothing to compare"]
+
+    lines = [
+        f"baseline     {baseline.version}",
+        f"agreeing     {baseline.matched} of {baseline.total}",
+        f"edited       {len(baseline.edited)}",
+    ]
+    lines.extend(f"    {path}" for path in baseline.edited)
+    if verbose:
+        lines.append("agreeing files")
+        lines.extend(f"    {path}" for path in sorted(baseline.agreeing))
+    return lines

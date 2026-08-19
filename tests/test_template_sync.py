@@ -21,6 +21,8 @@ from prodockit.template_sync import (
     TEMPLATE_REMOTES,
     Baseline,
     TemplateSyncError,
+    baseline_report,
+    classification_report,
     derive_baseline,
     load_manifest,
     resolve_template,
@@ -332,3 +334,119 @@ def test_ownership_is_decided_on_the_template_s_own_spelling() -> None:
 
     assert manifest.owner("docs/javascripts/extra.js") == "template"
     assert unclassified(manifest, ["docs/javascripts/extra.js"]) == []
+
+
+# ---------------------------------------------------------------------------
+# Reporting, and --verbose
+# ---------------------------------------------------------------------------
+
+FILES = [
+    "macros.py",
+    "docs/stylesheets/extra.css",
+    "docs/index.md",
+    "docs/section1.md",
+    "zensical.toml",
+    "CHANGELOG.md",
+]
+
+
+def test_the_summary_counts_every_file_exactly_once() -> None:
+    """The point of the summary is that the numbers add up to the whole
+    tree - a reader sees nothing was missed without reading every line."""
+    lines = classification_report(load_manifest(MANIFEST), FILES)
+
+    counts = {line.split()[0]: int(line.split()[1]) for line in lines}
+    assert counts == {"template": 2, "project": 2, "shared": 1, "excluded": 1}
+    assert sum(counts.values()) == len(FILES)
+
+
+def test_the_summary_stays_a_summary() -> None:
+    """Without `verbose` no filename appears - otherwise the count is
+    decoration on a list somebody has to read anyway."""
+    lines = classification_report(load_manifest(MANIFEST), FILES)
+
+    assert not any(line.startswith("    ") for line in lines)
+
+
+def test_verbose_lists_every_file_under_its_group() -> None:
+    """The form worth having when the question is "why is *this* file
+    being replaced", which a count cannot answer."""
+    lines = classification_report(load_manifest(MANIFEST), FILES, verbose=True)
+
+    listed = [line.strip() for line in lines if line.startswith("    ")]
+    assert sorted(listed) == sorted(FILES), "every file should appear exactly once"
+    # Under the right heading, in the order the report declares.
+    text = "\n".join(lines)
+    assert text.index("macros.py") < text.index("project")
+    assert text.index("docs/index.md") > text.index("project")
+
+
+def test_an_unclassified_file_is_reported_even_though_the_group_is_usually_absent() -> None:
+    """A silent zero invites a shrug; a named file does not."""
+    manifest = load_manifest(MANIFEST)
+
+    quiet = classification_report(manifest, ["macros.py"])
+    noisy = classification_report(manifest, ["macros.py", "tools/x.json"], verbose=True)
+
+    assert not any("unclassified" in line for line in quiet)
+    assert any("unclassified" in line for line in noisy)
+    assert any("tools/x.json" in line for line in noisy)
+
+
+def test_the_edited_files_are_always_listed() -> None:
+    """They are the reason the tool will leave something alone, so a
+    count of them is not actionable."""
+    baseline = Baseline(version="v2", matched=1, total=2, edited=("macros.py",))
+
+    lines = baseline_report(baseline)
+
+    assert any("macros.py" in line for line in lines)
+    assert any(line.startswith("edited") for line in lines)
+
+
+def test_verbose_adds_the_files_that_agreed() -> None:
+    """How somebody checks the conclusion rather than taking it."""
+    baseline = Baseline(
+        version="v2", matched=1, total=2, edited=("macros.py",), agreeing=("test/a.py",)
+    )
+
+    quiet = baseline_report(baseline)
+    noisy = baseline_report(baseline, verbose=True)
+
+    assert not any("test/a.py" in line for line in quiet)
+    assert any("test/a.py" in line for line in noisy)
+
+
+def test_a_project_with_nothing_to_compare_says_so_rather_than_reporting_a_version() -> None:
+    lines = baseline_report(Baseline(version=None, matched=0, total=0))
+
+    assert lines == ["no template-owned files found - nothing to compare"]
+
+
+def test_each_group_says_what_will_happen_to_it() -> None:
+    """A group's name is not its behaviour. `project` and `excluded` both
+    mean untouched, for entirely different reasons, and a reader should
+    not have to know the manifest to tell them apart."""
+    lines = classification_report(load_manifest(MANIFEST), FILES)
+
+    text = "\n".join(lines)
+    assert "template" in text and "replace where unedited" in text
+    assert "project" in text and "never written" in text
+    assert "shared" in text and "merge" in text
+    assert "excluded" in text and "not delivered" in text
+
+
+def test_every_group_has_an_action_including_the_error_one() -> None:
+    """A group added to the report without an action would render as a
+    bare count, or raise - neither is discovered by reading."""
+    from prodockit.template_sync import GROUP_ACTIONS, REPORT_ORDER
+
+    assert set(REPORT_ORDER) == set(GROUP_ACTIONS)
+
+
+def test_the_counts_survive_the_actions_being_added() -> None:
+    """The count is still parseable, and still adds up to the tree."""
+    lines = classification_report(load_manifest(MANIFEST), FILES)
+
+    counts = {line.split()[0]: int(line.split()[1]) for line in lines}
+    assert sum(counts.values()) == len(FILES)
