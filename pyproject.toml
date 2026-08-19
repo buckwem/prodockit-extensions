@@ -60,6 +60,11 @@ dependencies = [
   #
   # Markdown itself is declared at the top of this list, and is a direct
   # import rather than a transitive convenience.
+  # `prodockit.template_sync` reads the template's manifest, which is TOML.
+  # `tomllib` is 3.11+ and this package supports 3.10 (see requires-python),
+  # so the backport is needed there and only there. Pure Python and small;
+  # the `testing` extra already declares the same line for the same reason.
+  "tomli>=2.0; python_version < '3.11'",
   "beautifulsoup4>=4.12",
   "click>=8.0",
   "pypdf>=4.0",
