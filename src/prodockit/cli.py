@@ -21,6 +21,7 @@ This module is the CLI for the whole package, not just the PDF build -
 
 from __future__ import annotations
 
+import pathlib
 import sys
 import textwrap
 import time
@@ -1729,6 +1730,478 @@ def pins(
 #:
 #: The long names all stay. They are what the User Guide, the changelog
 #: and anything anyone has scripted use.
+def _wrong_directory(here: pathlib.Path) -> str:
+    """Why this is the wrong place, and where to go instead.
+
+    Written for the terminal it will actually be run in. VS Code opens
+    its integrated terminal at the workspace root, and a workspace is
+    frequently the folder *holding* the projects rather than one of them -
+    so "not a git repository" on its own would be true, unhelpful, and
+    exactly the case a reader hits first.
+    """
+
+    def is_repo(path: pathlib.Path) -> bool:
+        # A directory nobody can read is not a repository as far as this
+        # is concerned. `/tmp` holds mounted images whose entries raise
+        # on stat, and crashing while explaining a wrong directory is a
+        # poor way to explain anything.
+        try:
+            return (path / ".git").exists()
+        except OSError:
+            return False
+
+    inside = next((p for p in here.parents if is_repo(p)), None)
+    if inside is not None:
+        return (
+            f"{here} is inside {inside.name}, but not at its top. "
+            f"Run this from the project root: cd {inside}"
+        )
+    try:
+        children = sorted(here.iterdir())
+    except OSError:
+        children = []
+    projects = sorted(child.name for child in children if child.is_dir() and is_repo(child))
+    if projects:
+        listed = ", ".join(projects[:4]) + (", ..." if len(projects) > 4 else "")
+        return (
+            f"{here} holds projects rather than being one ({listed}). "
+            "Open a terminal in the project you want brought into step, "
+            "or cd into it."
+        )
+    return (
+        f"{here} is not a git repository. Run this from the top of the project "
+        "you want brought into step."
+    )
+
+
+def _run_template_sync(
+    do_apply: bool,
+    verbose: bool,
+    force: tuple[str, ...],
+    github: str | None,
+    surrey: str | None,
+    template_path: str | None = None,
+) -> None:
+    """Drives the ten stages, and prints what each one found.
+
+    Separate from the click function so the whole run is reachable from a
+    test without going through the command line, and so the ordering the
+    stages depend on lives somewhere it can be read in one piece.
+    """
+    import subprocess
+    from collections.abc import Callable, Iterable
+    from typing import Any
+
+    from prodockit.template_sync import (
+        MANIFEST_FILE,
+        STAMP_FILE,
+        TemplateSyncError,
+        append_ignores,
+        append_log,
+        apply_config_changes,
+        apply_file_actions,
+        apply_seeds,
+        baseline_report,
+        blocking_changes,
+        branch_name,
+        classification_report,
+        config_changes,
+        derive_baseline,
+        git_runner,
+        ignore_the_log,
+        leftovers,
+        load_manifest,
+        missing_ignores,
+        missing_seeds,
+        now,
+        pending_writes,
+        plan_template_files,
+        read_config,
+        read_stamp,
+        resolve_template,
+        stage_changes,
+        start_branch,
+        update_report,
+        write_stamp,
+        written_report,
+    )
+
+    project = pathlib.Path.cwd()
+    # Run from the project, and only from its root. A subdirectory would
+    # half-work: git resolves upwards so the branch and the staging would
+    # land correctly, while every path this writes is relative to here and
+    # would be created in the wrong place. Failing outright is the only
+    # honest answer to being in the wrong directory.
+    if not (project / ".git").exists():
+        raise TemplateSyncError(_wrong_directory(project))
+    git = git_runner(project)
+
+    started = now()
+    logged: list[str] = []
+
+    def say(text: str = "") -> None:
+        """Prints, and keeps the line for the log."""
+        click.echo(text)
+        logged.append(text)
+
+    def say_report(render: Callable[..., Iterable[str]], *args: Any) -> None:
+        """A block the terminal may want in summary and the log always in full.
+
+        Rendered twice rather than once: the reports are pure functions
+        over data already computed, and a log that only holds what the
+        terminal was asked for is no use for diagnosing the run that did
+        not ask for --verbose.
+        """
+        for line in render(*args, verbose=verbose):
+            click.echo(f"  {line}")
+        logged.extend(f"  {line}" for line in render(*args, verbose=True))
+
+    try:
+
+        # 1. Which template this project tracks.
+        if template_path:
+            # Named outright, so nothing is derived and nothing is fetched.
+            template = pathlib.Path(template_path).resolve()
+            say(f"template  {template}  (--template-path)")
+        else:
+            remote = subprocess.run(
+                ["git", "-C", str(project), "remote", "get-url", "origin"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            ).stdout.strip()
+            template_remote = resolve_template(remote or None, github=github, surrey=surrey)
+            say(f"template  {template_remote}")
+            template, how = _template_checkout(project, template_remote)
+            say(f"checkout  {template}  ({how})")
+
+        say()
+
+        # 2. What the manifest says.
+        manifest_path = template / MANIFEST_FILE
+        if not manifest_path.exists():
+            raise TemplateSyncError(
+                f"{template} has no {MANIFEST_FILE} - it is not a prodockit template, "
+                "or predates the manifest"
+            )
+        manifest = load_manifest(manifest_path.read_text(encoding="utf-8"))
+        files = subprocess.run(
+            ["git", "-C", str(template), "ls-files"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        ).stdout.split()
+        say_report(classification_report, manifest, files)
+        say()
+
+        # 3. Where this project came from.
+        stamp = read_stamp(project)
+        owned = [f for f in files if manifest.owner(f) == "template"]
+
+        def blob_of(path: pathlib.Path) -> str | None:
+            if not path.exists():
+                return None
+            return subprocess.run(
+                ["git", "-C", str(template), "hash-object", str(path)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            ).stdout.strip()
+
+        versions = subprocess.run(
+            ["git", "-C", str(template), "rev-list", "--first-parent", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        ).stdout.split()
+        trees: dict[str, dict[str, str]] = {}
+
+        def blob_at(version: str, path: str) -> str | None:
+            if version not in trees:
+                listing = subprocess.run(
+                    ["git", "-C", str(template), "ls-tree", "-r", version],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    check=False,
+                ).stdout.splitlines()
+                trees[version] = {
+                    name: meta.split()[2]
+                    for meta, name in (line.split("\t", 1) for line in listing)
+                }
+            return trees[version].get(path)
+
+        baseline = derive_baseline(
+            owned,
+            lambda p: blob_of(project / manifest.rename(p)),
+            [stamp] if stamp else versions,
+            blob_at,
+        )
+        say(f"baseline  {'recorded' if stamp else 'derived by content'}")
+        say_report(baseline_report, baseline)
+        say()
+
+        # 4. Whether it is safe to write.
+        dirty = [
+            line[3:]
+            for line in subprocess.run(
+                ["git", "-C", str(project), "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            ).stdout.splitlines()
+        ]
+        blocked = blocking_changes(manifest, dirty)
+        if blocked:
+            raise TemplateSyncError(
+                "commit or revert these first - they are the template's files and an "
+                f"update would write over them: {', '.join(blocked)}"
+            )
+
+        # 5 and 6. What would change.
+        plan = plan_template_files(
+            manifest,
+            files,
+            lambda p: blob_of(project / manifest.rename(p)),
+            lambda p: blob_at(versions[0], p) if versions else None,
+            baseline,
+            force=force,
+        )
+        say_report(update_report, plan)
+        say()
+
+        # 8 and 9, reported whether or not anything is written.
+        ignores_path = project / ".gitignore"
+        ignores = missing_ignores(
+            manifest,
+            ignores_path.read_text(encoding="utf-8").splitlines() if ignores_path.exists() else [],
+        )
+        stale = leftovers(
+            manifest,
+            subprocess.run(
+                ["git", "-C", str(project), "ls-files"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            ).stdout.split(),
+        )
+        if stale:
+            say(f"  {len(stale)} file(s) here are no longer delivered, and are left alone:")
+            for path in stale if verbose else stale[:3]:
+                click.echo(f"      {path}")
+            if not verbose and len(stale) > 3:
+                click.echo(f"      ... and {len(stale) - 3} more")
+            logged.extend(f"      {path}" for path in stale)
+            say()
+
+        if not do_apply:
+            say(
+                "No project files written - only the log below. "
+                "Re-run with --apply to make these changes."
+            )
+            return
+
+        config_path = project / "zensical.toml"
+        template_config: dict[str, Any] = {}
+        added: list[str] = []
+        updated: list[str] = []
+        if config_path.exists():
+            template_config = read_config((template / "zensical.toml").read_text(encoding="utf-8"))
+            project_config = read_config(config_path.read_text(encoding="utf-8"))
+            added, updated = config_changes(manifest, template_config, project_config)
+
+        pending = pending_writes(plan, project, lambda p: (template / p).read_bytes())
+        seeds = missing_seeds(manifest, lambda name: (project / name).exists())
+        # The stamp counts as work of its own. A template release that
+        # only reclassifies files leaves every file identical, so nothing
+        # else is pending - but the project now matches a newer version
+        # than the stamp records, and leaving it stale makes the *next*
+        # run derive its baseline from the wrong place and report
+        # unedited files as edited.
+        wanted_stamp = versions[0] if versions else (baseline.version or "")
+        stamp_is_stale = bool(baseline.version) and read_stamp(project) != wanted_stamp
+
+        if not (pending or seeds or added or updated or ignores or stamp_is_stale):
+            # Nothing to do, so no branch. A run that branched anyway left
+            # an empty branch behind, which then blocked the next run - the
+            # ordinary way to use this is to run it repeatedly, and most of
+            # those runs find nothing.
+            say("Already in step with the template - nothing to write.")
+            return
+
+        # 10, first: the branch, before anything is written.
+        name = branch_name(baseline.version or "unknown")
+        if not start_branch(git, name):
+            raise TemplateSyncError(f"could not switch to {name} - is this a git repository?")
+        say(f"on branch {name}")
+
+        written = apply_file_actions(plan, project, lambda p: (template / p).read_bytes())
+        written += apply_seeds(manifest, project, lambda p: (template / p).read_bytes())
+        # Everything else a run writes: the shared files it merges, and the
+        # stamp. Staged alongside, or a reader is handed a half-staged change
+        # and has to work out for themselves which parts belong to it.
+        also_written: list[str] = []
+
+        if config_path.exists() and (added or updated):
+                config_path.write_text(
+                    apply_config_changes(
+                        config_path.read_text(encoding="utf-8"), template_config, added, updated
+                    ),
+                    encoding="utf-8",
+                )
+                say(f"zensical.toml  {len(added)} added, {len(updated)} updated")
+                also_written.append("zensical.toml")
+
+        if ignores:
+            ignores_path.write_text(
+                append_ignores(
+                    ignores_path.read_text(encoding="utf-8") if ignores_path.exists() else "",
+                    ignores,
+                ),
+                encoding="utf-8",
+            )
+            say(f".gitignore     {len(ignores)} line(s) appended")
+            also_written.append(".gitignore")
+
+        say()
+        for line in written_report(written):
+            say(f"  {line}")
+
+        # 10, last: the stamp describes a state that now exists.
+        if baseline.version:
+            write_stamp(project, wanted_stamp)
+            also_written.append(STAMP_FILE)
+        stage_changes(git, [w.path for w in written] + also_written)
+        say()
+        say("Staged, not committed - the commit is yours to write.")
+    finally:
+        # Written however the run ended. A run that raised is the one
+        # most worth reading afterwards, so the log is not conditional
+        # on reaching the end.
+        log_path = append_log(project, logged, started)
+        newly_ignored = ignore_the_log(project)
+        note = "  (added to .gitignore)" if newly_ignored else ""
+        click.echo(f"log       {log_path.name}{note}")
+
+
+
+
+def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path, str]:
+    """Where the template can be read from, and how it got there.
+
+    A sibling checkout wins if there is one: that is how the three
+    repositories are laid out during development, and a maintainer
+    working across them means the copy beside the project. Nobody else
+    has one, so everyone else gets the remote fetched into a cache.
+
+    The whole history is cloned rather than a shallow copy. Deriving a
+    baseline by content walks the template's versions and reads the tree
+    at each of them, so a shallow clone would answer "no version matches"
+    for any project more than a commit or two behind - which is every
+    project this is for.
+    """
+    from prodockit.template_sync import cache_path_for, cache_root, ensure_template, git_runner
+
+    name = remote.rstrip("/").rsplit("/", 1)[-1].removesuffix(".git")
+    for candidate in (project.parent / name, project.parent.parent / "GitHub" / name):
+        if (candidate / ".git").exists():
+            return candidate, "beside this project"
+
+    path = cache_path_for(remote, cache_root())
+    what = ensure_template(remote, path, git_runner(project))
+    return path, {
+        "cloned": "fetched just now",
+        "updated": "fetched, up to date",
+        "offline": "cached copy - could not reach the host, so this may be behind",
+    }[what]
+
+
+@main.command("template-sync")
+@click.option(
+    "--apply",
+    "do_apply",
+    is_flag=True,
+    help="Write the changes. Without this the run only reports, and touches "
+    "nothing but its own log.",
+)
+@click.option("--verbose", is_flag=True, help="List every file, not just the counts.")
+@click.option(
+    "--force",
+    "force",
+    multiple=True,
+    metavar="PATH",
+    help=(
+        "Overwrite a file you have edited, by name. Repeatable. Only reaches "
+        "files this reports as kept; anything else is unaffected."
+    ),
+)
+@click.option(
+    "--github",
+    "github",
+    is_flag=False,
+    flag_value="",
+    default=None,
+    metavar="[OWNER/REPO]",
+    help="Take the template from github.com - bare for the usual one.",
+)
+@click.option(
+    "--surrey",
+    "surrey",
+    is_flag=False,
+    flag_value="",
+    default=None,
+    metavar="[GROUP/REPO]",
+    help="Take the template from gitlab.surrey.ac.uk - bare for the usual one.",
+)
+@click.option(
+    "--template-path",
+    "template_path",
+    default=None,
+    metavar="PATH",
+    type=click.Path(exists=True, file_okay=False),
+    help=(
+        "Read the template from a checkout already on this machine, rather "
+        "than working out where it lives. For developing this command, and "
+        "for a machine that cannot reach the template's host."
+    ),
+)
+def template_sync(
+    do_apply: bool,
+    verbose: bool,
+    force: tuple[str, ...],
+    github: str | None,
+    surrey: str | None,
+    template_path: str | None,
+) -> None:
+    """Bring a project back into step with the template it came from.
+
+    Updates the template's own files - stylesheets, CI, the Node tooling -
+    and leaves everything else alone. The report, its figures and its
+    bibliography are never written, and never even read for comparison.
+
+    Reports by default, writing no project file. `--apply` performs the
+    same run, on a branch of its own, and stages the result without
+    committing it.
+
+    Every run, either way, appends its full account to
+    `.prodockit-template.log` - and adds that file to `.gitignore` if it
+    is not there already. Send that log when reporting a problem.
+    """
+    from prodockit.template_sync import TemplateSyncError
+
+    try:
+        _run_template_sync(do_apply, verbose, force, github, surrey, template_path)
+    except TemplateSyncError as error:
+        click.echo(f"Error: {error}", err=True)
+        sys.exit(1)
+
+
 COMMAND_ALIASES = {
     "boot": "bootstrap",
     "source": "source-bundle",

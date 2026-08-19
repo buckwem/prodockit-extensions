@@ -86,6 +86,7 @@ nav = [
     {"Continuous integration" = "devcons/continuous-integration.md"},
     {"Repository metadata" = "devcons/repo-metadata.md"},
     {"Version pinning and drift" = "devcons/pinning-drift.md"},
+    {"Staying in step with the template" = "devcons/template-sync.md"},
     {"Testing your built site" = "devcons/testing.md"},
     {"Zensical coupling" = "devcons/zensical-coupling.md"},
     {"Limitations and workarounds" = "devcons/limitations.md"},
