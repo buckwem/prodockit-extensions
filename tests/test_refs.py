@@ -155,3 +155,127 @@ def test_ref_and_autoref_can_target_the_same_heading() -> None:
 
     assert '<a class="prodockit-ref" href="#introduction">1 Introduction</a>' in html
     assert '<a class="prodockit-autoref" href="#introduction">1 Introduction</a>' in html
+
+
+# ---------------------------------------------------------------------------
+# Referencing a captioned figure or table
+# ---------------------------------------------------------------------------
+
+
+CAPTION_CONFIG = {
+    "pymdownx.blocks.caption": {
+        "types": [
+            {"name": "figure-caption", "prefix": "{}.", "classes": "prodockit-figure-caption"},
+            {"name": "table-caption", "prefix": "{}.", "classes": "prodockit-table-caption"},
+        ]
+    }
+}
+
+
+def _render(source: str, configs: dict | None = None) -> str:
+    import markdown
+
+    md = markdown.Markdown(
+        extensions=[
+            "attr_list",
+            "md_in_html",
+            "tables",
+            "pymdownx.blocks.caption",
+            "prodockit.headings",
+            "prodockit.refs",
+        ],
+        extension_configs=configs if configs is not None else CAPTION_CONFIG,
+    )
+    return md.convert(source)
+
+
+def _refs(html: str) -> list[str]:
+    import re
+
+    return re.findall(r'<a [^>]*prodockit-ref[^>]*>([^<]*)</a>', html)
+
+
+FIGURES = """# Section {: #s3 }
+
+![One](a.png)
+/// figure-caption
+    attrs: {id: fig-one}
+
+The first
+///
+
+![Two](b.png)
+/// figure-caption
+    attrs: {id: fig-two}
+
+The second
+///
+
+Referring to \\ref{fig-one} and \\ref{fig-two}.
+"""
+
+
+def test_a_figure_can_be_referenced_by_number() -> None:
+    """The sentence this exists for: "the components in Figure 3.1"."""
+    assert _refs(_render(FIGURES)) == ["Figure 1.1", "Figure 1.2"]
+
+
+def test_a_reference_to_a_figure_links_to_it() -> None:
+    import re
+
+    html = _render(FIGURES)
+
+    assert re.search(r'<a [^>]*href="#fig-one"[^>]*prodockit-ref', html) or re.search(
+        r'<a [^>]*prodockit-ref[^>]*href="#fig-one"', html
+    ), html
+
+
+def test_a_figure_reference_is_the_label_alone() -> None:
+    """Not "Figure 1.1 The first".
+
+    A caption is referred to by its label mid-sentence, where repeating
+    the caption's own words reads as a stutter. A heading is the other
+    way round - its number alone says nothing about where the reader is
+    being sent - so that behaviour is unchanged.
+    """
+    html = _render(FIGURES + "\n\nAnd \\ref{s3}.\n")
+
+    assert _refs(html)[-1] == "1 Section", "a heading still renders number and name"
+    assert "The first" not in _refs(html)[0]
+
+
+def test_figures_and_tables_are_numbered_apart() -> None:
+    source = """# Section {: #s }
+
+![One](a.png)
+/// figure-caption
+    attrs: {id: fig-one}
+
+A figure
+///
+
+| a | b |
+| --- | --- |
+| 1 | 2 |
+/// table-caption
+    attrs: {id: tab-one}
+
+A table
+///
+
+\\ref{fig-one} and \\ref{tab-one}.
+"""
+
+    assert _refs(_render(source)) == ["Figure 1.1", "Table 1.1"]
+
+
+def test_a_caption_is_found_without_the_project_s_own_classes() -> None:
+    """The classes come from a project's `pymdownx.blocks.caption` config -
+    the template sets them, a bare build does not - so a reference must
+    not depend on how somebody named them."""
+    assert _refs(_render(FIGURES, configs={})) == ["Figure 1.1", "Figure 1.2"]
+
+
+def test_an_uncaptioned_reference_is_still_unresolved() -> None:
+    """Numbering captions must not make every unknown id resolve."""
+    assert _refs(_render("# S {: #s }\n\nSee \\ref{nothing-here}.\n")) == ["??"]

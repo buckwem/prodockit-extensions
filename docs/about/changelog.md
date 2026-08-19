@@ -1,5 +1,27 @@
 # Release Notes
 
+## Unreleased
+
+- **Added:** `\ref{id}` resolves a captioned figure or table, not only a
+  heading ([#506](https://github.com/buckwem/prodockit-extensions/issues/506)).
+
+    A reference to a figure renders its label - **Figure 3.1** - linked to
+    the figure, and updates itself when figures are added or moved. Until
+    now the number had to be typed by hand beside a `\ref` that could not
+    resolve it, so a document said "Figure 3.1" in prose while the figure
+    itself was numbered by the stylesheet, with nothing keeping the two in
+    step.
+
+    Figures and tables count separately, and both take the page's chapter
+    number - the same numbering the caption shows, so a reference and its
+    target always agree. Numbered in the same pass that numbers headings,
+    which is where the chapter number already exists.
+
+    A caption reference is its label alone, where a heading reference
+    keeps its name: "the components in Figure 3.1" reads badly as "Figure
+    3.1 Component Model", while a bare "1.1" says nothing about where a
+    reader is being sent.
+
 ## 0.39.0 (2026-08-19)
 
 - **Added:** `prodockit template-sync`, which brings a project back into

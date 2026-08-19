@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as etree
+from collections.abc import Iterator
 
 from markdown import Markdown
 from markdown.extensions import Extension
@@ -24,6 +25,18 @@ from prodockit._zensical import (
     share,
 )
 from prodockit.util import IdRegistry
+
+#: The caption blocks this numbers, and the word each is labelled with.
+#: Keyed by the class `pymdownx.blocks.caption` is configured to add - see
+#: the template's `zensical.toml`, which names the same two.
+CAPTION_KINDS = {
+    "prodockit-figure-caption": "Figure",
+    "prodockit-table-caption": "Table",
+}
+
+#: Captions are registered at a level no heading uses, so a reference can
+#: tell one from a section without a second lookup.
+CAPTION_LEVEL = 0
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 
@@ -65,6 +78,18 @@ _ZENSICAL_SHARED_REGISTRY = IdRegistry()
 _ZENSICAL_PRESEED_STATE: tuple[tuple[bool, str], tuple[tuple[str, int, int], ...] | None] | None = (
     None
 )
+
+
+def _caption_text(el: etree.Element) -> Iterator[str]:
+    """A caption's own words, without its auto-number prefix."""
+    for node in el.iter():
+        classes = (node.get("class") or "").split()
+        if "caption-prefix" in classes:
+            if node.tail:
+                yield node.tail
+            continue
+        if node.text:
+            yield node.text
 
 
 class HeadingsTreeprocessor(Treeprocessor):
@@ -114,10 +139,72 @@ class HeadingsTreeprocessor(Treeprocessor):
         self.start_count = start_count
         self.appendix_letter = appendix_letter
 
+    def _register_caption(
+        self,
+        el: etree.Element,
+        counters: list[int],
+        captions: dict[str, int],
+    ) -> None:
+        """Numbers a captioned figure or table, and registers its id.
+
+        Numbered here rather than anywhere else because this is where the
+        chapter number already exists: `counters[0]` is the same value the
+        stylesheet reaches for as `counter(h1-count)`, and an appendix's
+        letter is already substituted for it. Numbering captions in a
+        second pass would mean deriving that a second time.
+
+        Only a caption carrying an id is registered. An unreferenced
+        figure still gets its visible number from the stylesheet, exactly
+        as before; this adds nothing to a document that never points at
+        one.
+        """
+        classes = (el.get("class") or "").split()
+        kind = next((k for k in CAPTION_KINDS if k in classes), None)
+        if kind is None:
+            # No class to go on, so read the figure itself. The classes are
+            # a project's own `pymdownx.blocks.caption` configuration - the
+            # template sets them, a bare Markdown build does not - and a
+            # reference must not depend on how somebody named them.
+            kind = "prodockit-table-caption" if el.find(".//table") is not None else (
+                "prodockit-figure-caption"
+            )
+        captions[kind] += 1
+        caption_id = el.get("id")
+        if not caption_id:
+            return
+        chapter = (
+            self.appendix_letter
+            if self.appendix_letter is not None
+            else str(counters[0] or 1)
+        )
+        label = CAPTION_KINDS[kind]
+        # The caption's own auto-number is skipped. It lives in a
+        # `caption-prefix` span, holds whatever the project's prefix
+        # template produced ("1." here, "Figure 1." in a bare build), and
+        # would be repeated inside a reference already rendering a number.
+        text = " ".join(
+            part
+            for child in el
+            if child.tag in {"figcaption", "div"}
+            for part in _caption_text(child)
+        ).strip()
+        self.registry.register(
+            source=self.source,
+            id=caption_id,
+            level=CAPTION_LEVEL,
+            text=text,
+            number=f"{label} {chapter}.{captions[kind]}",
+            strict=self.strict,
+        )
+
     def run(self, root: etree.Element) -> None:
         self.registry.clear_source(self.source)
         counters = [self.start_count, 0, 0, 0, 0, 0]
+        captions = dict.fromkeys(CAPTION_KINDS, 0)
         for el in root.iter():
+            if el.tag == "figure":
+                self._register_caption(el, counters, captions)
+                continue
             if el.tag not in HEADING_TAGS:
                 continue
             text = "".join(el.itertext())
