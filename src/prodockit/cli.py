@@ -2106,20 +2106,39 @@ def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path
     for any project more than a commit or two behind - which is every
     project this is for.
     """
-    from prodockit.template_sync import cache_path_for, cache_root, ensure_template, git_runner
+    from prodockit.template_sync import (
+        MANIFEST_FILE,
+        cache_path_for,
+        cache_root,
+        ensure_template,
+        git_runner,
+    )
 
     name = remote.rstrip("/").rsplit("/", 1)[-1].removesuffix(".git")
+    skipped = None
     for candidate in (project.parent / name, project.parent.parent / "GitHub" / name):
-        if (candidate / ".git").exists():
+        if not (candidate / ".git").exists():
+            continue
+        if (candidate / MANIFEST_FILE).exists():
             return candidate, "beside this project"
+        # A checkout with no manifest cannot answer anything this asks, so
+        # it is passed over rather than preferred into a dead end. An old
+        # clone left beside a project - one taken before the manifest
+        # existed - stopped the command outright, with a perfectly good
+        # copy a fetch away.
+        skipped = candidate
+        break
 
     path = cache_path_for(remote, cache_root())
     what = ensure_template(remote, path, git_runner(project))
-    return path, {
+    how = {
         "cloned": "fetched just now",
         "updated": "fetched, up to date",
         "offline": "cached copy - could not reach the host, so this may be behind",
     }[what]
+    if skipped is not None:
+        how += f"; passed over {skipped}, which predates the manifest"
+    return path, how
 
 
 @main.command("template-sync")

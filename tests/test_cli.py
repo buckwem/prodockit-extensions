@@ -141,3 +141,67 @@ def test_template_sync_logs_the_full_detail_even_without_verbose(tmp_path, monke
 
     assert "verbose=True" in source, "the log must take the verbose form whatever the terminal got"
     assert "logged.extend" in source
+
+
+def test_a_sibling_checkout_without_a_manifest_is_passed_over(tmp_path, monkeypatch) -> None:
+    """An old clone beside a project must not stop the command.
+
+    A checkout taken before the manifest existed answers nothing this
+    asks, and preferring it produced a hard failure with a perfectly good
+    copy one fetch away - which is what happened to the first person to
+    run this against a real Surrey project.
+    """
+    import subprocess
+
+    from prodockit.cli import _template_checkout
+
+    workspace = tmp_path / "GitLab"
+    project = workspace / "my-report"
+    stale = workspace / "prodockit-template"
+    for path in (project, stale):
+        path.mkdir(parents=True)
+        subprocess.run(["git", "-C", str(path), "init", "-q"], check=True)
+    # The stale sibling has a checkout but no manifest.
+    assert not (stale / ".prodockit-template.toml").exists()
+
+    fetched: dict[str, object] = {}
+
+    def fake_ensure(remote: str, path, run) -> str:
+        fetched["path"] = path
+        path.mkdir(parents=True, exist_ok=True)
+        return "cloned"
+
+    monkeypatch.setattr("prodockit.template_sync.ensure_template", fake_ensure)
+    monkeypatch.setattr("prodockit.template_sync.cache_root", lambda *a, **k: tmp_path / "cache")
+
+    where, how = _template_checkout(project, "git@gitlab.example.com:someone/prodockit-template.git")
+
+    assert where != stale, "the stale sibling must not be used"
+    assert where == fetched["path"], "it should have fetched instead"
+    assert "passed over" in how and str(stale) in how, f"the run must say why: {how}"
+
+
+def test_a_sibling_checkout_with_a_manifest_is_still_preferred(tmp_path, monkeypatch) -> None:
+    """The case the skip must not break: a maintainer editing all three
+    repositories means the copy beside the project."""
+    import subprocess
+
+    from prodockit.cli import _template_checkout
+
+    workspace = tmp_path / "GitHub"
+    project = workspace / "my-report"
+    sibling = workspace / "prodockit-template"
+    for path in (project, sibling):
+        path.mkdir(parents=True)
+        subprocess.run(["git", "-C", str(path), "init", "-q"], check=True)
+    (sibling / ".prodockit-template.toml").write_text("[template]\n", encoding="utf-8")
+
+    def explode(*args, **kwargs):
+        raise AssertionError("must not fetch when a usable sibling is there")
+
+    monkeypatch.setattr("prodockit.template_sync.ensure_template", explode)
+
+    where, how = _template_checkout(project, "git@github.com:someone/prodockit-template.git")
+
+    assert where == sibling
+    assert how == "beside this project"
