@@ -1162,6 +1162,12 @@ def publish(
     `--no-ff` deliberately. The sync is one thing to read afterwards, and
     one thing to revert, rather than a run of commits fanned out into the
     branch it came from.
+
+    Assumes the reader merges their own work: no merge request, no
+    review, no approval step. That is how someone writing their own
+    report works, and it is a stated assumption rather than an oversight
+    - a project that gates its default branch should use `--apply` alone
+    and raise a merge request from the update branch.
     """
     if not run(["git", "commit", "--quiet", "--message", message]):
         raise TemplateSyncError(

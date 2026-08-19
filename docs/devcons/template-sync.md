@@ -110,6 +110,16 @@ local `origin/HEAD` - that is a cache written when you cloned, and it goes
 stale. A merge into the branch the sync was written on is refused
 outright.
 
+!!! warning "This merges straight into your default branch"
+    `--push` assumes you merge your own work directly - no merge request,
+    no review, no approval step. That is the assumption this is built on,
+    and it matches how a student works on their own report.
+
+    If your project *does* gate the default branch behind merge requests,
+    do not use `--push`: it would either bypass that gate or be rejected
+    by a protected branch. Use `--apply` on its own and open a merge
+    request from the `template-update-...` branch instead.
+
 ### A file you have edited {: #tsync-edited-files }
 
 A template-owned file you have changed is *kept*, and the template's
