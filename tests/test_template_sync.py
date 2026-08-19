@@ -17,21 +17,21 @@ import re
 import pytest
 
 from prodockit.template_sync import (
+    FILE_ACTIONS,
     MANIFEST_FILE,
     TEMPLATE_REMOTES,
     Baseline,
-    FILE_ACTIONS,
     FileAction,
     TemplateSyncError,
     baseline_report,
+    blocking_changes,
     classification_report,
     derive_baseline,
-    blocking_changes,
     load_manifest,
     plan_template_files,
     resolve_template,
-    update_report,
     unclassified,
+    update_report,
 )
 
 MANIFEST = """
