@@ -1777,6 +1777,7 @@ def _wrong_directory(here: pathlib.Path) -> str:
 def _run_template_sync(
     do_apply: bool,
     verbose: bool,
+    push: bool,
     force: tuple[str, ...],
     github: str | None,
     surrey: str | None,
@@ -1806,7 +1807,9 @@ def _run_template_sync(
         branch_name,
         classification_report,
         config_changes,
+        default_branch,
         derive_baseline,
+        git_reader,
         git_runner,
         ignore_the_log,
         leftovers,
@@ -1816,6 +1819,8 @@ def _run_template_sync(
         now,
         pending_writes,
         plan_template_files,
+        publish,
+        publish_blockers,
         read_config,
         read_stamp,
         resolve_template,
@@ -1834,6 +1839,11 @@ def _run_template_sync(
     # honest answer to being in the wrong directory.
     if not (project / ".git").exists():
         raise TemplateSyncError(_wrong_directory(project))
+    if push and not do_apply:
+        raise TemplateSyncError(
+            "--push finishes a run that wrote something, so it needs --apply too. "
+            "Without --apply this only reports, and there is nothing to push"
+        )
     git = git_runner(project)
 
     started = now()
@@ -2079,7 +2089,42 @@ def _run_template_sync(
             also_written.append(STAMP_FILE)
         stage_changes(git, [w.path for w in written] + also_written)
         say()
-        say("Staged, not committed - the commit is yours to write.")
+        if not push:
+            say("Staged, not committed - the commit is yours to write.")
+            return
+
+        # 11: onto the branch the host actually builds from. A sync sitting
+        # on an update branch publishes nothing - a pipeline guarded on the
+        # default branch never sees it - so a reader who wanted their site
+        # rebuilt is not finished until this happens.
+        read = git_reader(project)
+        target = default_branch(read)
+        if target is None:
+            raise TemplateSyncError(
+                "cannot tell which branch this host builds from, so --push has "
+                "nowhere to merge to - merge and push by hand"
+            )
+        blockers = publish_blockers(read, target, name)
+        if blockers:
+            say("Staged, not committed. --push cannot finish here:")
+            for problem in blockers:
+                say(f"  - {problem}")
+            return
+
+        version = wanted_stamp[:9] if wanted_stamp else "the template"
+        message = f"Sync with the template at {version}"
+        say("--push would now, on your confirmation:")
+        say(f"  commit  {len(written) + len(also_written)} file(s) on {name}")
+        say(f"  merge   {name} into {target}")
+        say(f"  push    {target} to origin - which is what starts the pipeline")
+        say()
+        if not click.confirm("Go ahead?", default=False):
+            say("Left staged and uncommitted. Nothing was merged or pushed.")
+            return
+
+        publish(git, name, target, message)
+        say()
+        say(f"Merged into {target} and pushed. The pipeline builds from here.")
     finally:
         # Written however the run ended. A run that raised is the one
         # most worth reading afterwards, so the log is not conditional
@@ -2132,6 +2177,12 @@ def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path
 )
 @click.option("--verbose", is_flag=True, help="List every file, not just the counts.")
 @click.option(
+    "--push",
+    is_flag=True,
+    help="After writing, commit the sync, merge it into the branch your host "
+    "builds from, and push - so the site rebuilds. Asks first, and needs --apply.",
+)
+@click.option(
     "--force",
     "force",
     multiple=True,
@@ -2174,6 +2225,7 @@ def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path
 def template_sync(
     do_apply: bool,
     verbose: bool,
+    push: bool,
     force: tuple[str, ...],
     github: str | None,
     surrey: str | None,
@@ -2196,7 +2248,7 @@ def template_sync(
     from prodockit.template_sync import TemplateSyncError
 
     try:
-        _run_template_sync(do_apply, verbose, force, github, surrey, template_path)
+        _run_template_sync(do_apply, verbose, push, force, github, surrey, template_path)
     except TemplateSyncError as error:
         click.echo(f"Error: {error}", err=True)
         sys.exit(1)
