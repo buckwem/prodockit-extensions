@@ -44,6 +44,7 @@ from prodockit.template_sync import (
     missing_ignores,
     missing_seeds,
     now,
+    pending_writes,
     plan_template_files,
     read_config,
     read_stamp,
@@ -1303,14 +1304,13 @@ def test_the_log_ignores_itself_where_there_is_no_gitignore_yet(
     assert LOG_FILE in (tmp_path / ".gitignore").read_text(encoding="utf-8")
 
 
-def test_a_branch_that_predates_your_work_is_refused_not_switched_to(
+def test_a_branch_holding_diverged_commits_is_refused_not_switched_to(
     tmp_path: pathlib.Path,
 ) -> None:
-    """The branch name comes from the template version, so any project
-    that has run this before has one lying around. If work has been
-    committed since, switching to it runs the sync against older files
-    and reports success - which is what happened in a test clone before
-    this check existed.
+    """Only real divergence is refused: commits on the branch that the
+    project does not have, and commits on the project the branch does
+    not. Switching to it would run the sync against work that has parted
+    company with where the reader is - and report success.
     """
     import subprocess
 
@@ -1325,9 +1325,12 @@ def test_a_branch_that_predates_your_work_is_refused_not_switched_to(
     git("commit", "-qm", "first")
 
     name = branch_name("1.5.0")
-    git("branch", name)  # the leftover branch, at the first commit
+    git("checkout", "--quiet", "-b", name)
+    (tmp_path / "half-done.txt").write_text("an abandoned run", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "left on the branch")
+    git("checkout", "--quiet", "-")
 
-    # Work committed since, on the branch the reader is actually on.
     (tmp_path / "chapter.md").write_text("my writing", encoding="utf-8")
     git("add", "-A")
     git("commit", "-qm", "my work")
@@ -1336,11 +1339,59 @@ def test_a_branch_that_predates_your_work_is_refused_not_switched_to(
     with pytest.raises(TemplateSyncError, match=re.escape(name)) as caught:
         start_branch(run, name)
 
-    assert "older work" in str(caught.value)
+    assert "diverged" in str(caught.value)
     on = subprocess.run(
         ["git", "branch", "--show-current"], cwd=tmp_path, capture_output=True, text=True
     ).stdout.strip()
     assert on != name, "the refusal must leave the reader where they were"
+    assert (tmp_path / "chapter.md").exists()
+
+
+def test_a_branch_left_behind_by_an_earlier_run_is_moved_forward(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The ordinary case over a term, and one that used to block a run.
+
+    A branch a previous run created and left with nothing in it, or one
+    whose work has since been merged, holds nothing the project does not
+    already have. Refusing it stopped students who had done nothing
+    wrong, on every run, until they deleted a branch by hand.
+    """
+    import subprocess
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "--quiet")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "T")
+    (tmp_path / "macros.py").write_text("first", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "first")
+
+    name = branch_name("1.5.0")
+    git("branch", name)  # an earlier run's branch, with nothing on it
+
+    (tmp_path / "chapter.md").write_text("my writing", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "my work")
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True
+    ).stdout.strip()
+
+    run = git_runner(tmp_path)
+
+    assert start_branch(run, name) is True
+
+    on = subprocess.run(
+        ["git", "branch", "--show-current"], cwd=tmp_path, capture_output=True, text=True
+    ).stdout.strip()
+    tip = subprocess.run(
+        ["git", "rev-parse", name], cwd=tmp_path, capture_output=True, text=True
+    ).stdout.strip()
+
+    assert on == name
+    assert tip == head, "the branch must be moved to the work, not the work to the branch"
     assert (tmp_path / "chapter.md").exists()
 
 
@@ -1373,3 +1424,53 @@ def test_a_branch_that_already_contains_your_work_is_continued_on(
         ["git", "branch", "--show-current"], cwd=tmp_path, capture_output=True, text=True
     ).stdout.strip()
     assert on == name
+
+
+# ---------------------------------------------------------------------------
+# Running it repeatedly, over a term
+# ---------------------------------------------------------------------------
+
+
+def test_a_sidecar_that_is_already_there_is_not_written_again(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The second run against the same template version has nothing to do.
+
+    A `keep` writes the template's copy to a `.new` sidecar. Run it again
+    and that sidecar is already there with exactly those bytes - so the
+    run must not count it as work, or every run for the rest of a term
+    branches and announces a change that does not exist.
+    """
+    (tmp_path / "macros.py").write_text("mine", encoding="utf-8")
+    (tmp_path / "macros.py.new").write_text("theirs", encoding="utf-8")
+    plan = [FileAction("macros.py", "macros.py", "keep", "edited here")]
+
+    assert pending_writes(plan, tmp_path, lambda _p: b"theirs") == []
+
+
+def test_a_sidecar_whose_template_has_moved_on_is_written_again(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The case the skip above must not swallow."""
+    (tmp_path / "macros.py").write_text("mine", encoding="utf-8")
+    (tmp_path / "macros.py.new").write_text("theirs, last term", encoding="utf-8")
+    plan = [FileAction("macros.py", "macros.py", "keep", "edited here")]
+
+    assert pending_writes(plan, tmp_path, lambda _p: b"theirs, revised") == plan
+
+
+def test_a_file_the_project_lacks_is_pending(tmp_path: pathlib.Path) -> None:
+    plan = [FileAction(".python-version", ".python-version", "add", "absent here")]
+
+    assert pending_writes(plan, tmp_path, lambda _p: b"3.13\n") == plan
+
+
+def test_same_is_never_pending(tmp_path: pathlib.Path) -> None:
+    """`same` is most of the tree, and reading every file to confirm it
+    would be the slowest part of a run that has nothing to do."""
+    plan = [FileAction("macros.py", "macros.py", "same", "matches")]
+
+    def explode(_path: str) -> bytes:
+        raise AssertionError("a `same` action must not be read at all")
+
+    assert pending_writes(plan, tmp_path, explode) == []

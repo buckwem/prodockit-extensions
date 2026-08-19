@@ -92,6 +92,41 @@ all. Everything else tracks the canonical GitHub copy. Override it with
 `--github` or `--surrey`, bare for that host's usual template or with a
 `group/repo` to name another.
 
+## Running it through a project {: #tsync-repeatedly }
+
+This is meant to be run repeatedly - every few weeks through a report's
+development, not once at the start. Most of those runs find nothing, and
+that case is the one built for.
+
+A run with nothing to do says so and stops:
+
+```text
+Already in step with the template - nothing to write.
+```
+
+No branch, no staged change, nothing to commit. That matters more than it
+sounds: a run that branched regardless left an empty branch behind, and
+the branch name comes from the template version, so the *next* run found
+it in the way.
+
+When the template has moved on, the run branches, writes and stages as
+usual. A file you have edited keeps its `.new` sidecar from the previous
+run rather than being rewritten with identical bytes, so `git status` only
+ever shows what genuinely changed.
+
+!!! note "Simulated over six weeks"
+    Six syncs across two template versions, with writing committed
+    between each: two produced real updates and branched, four reported
+    "already in step" and left the working tree clean. Two `.new`
+    sidecars at the end - one per edited file, not one per run - all six
+    chapters intact, and the recorded baseline moved forward with the
+    template.
+
+A template release that only reclassifies files leaves every file
+identical, so nothing is written - but the recorded baseline still moves
+forward, because leaving it stale would make the next run compare against
+the wrong version and report unedited files as edited.
+
 ## The log {: #tsync-the-log }
 
 Every run - reporting or applying, succeeding or failing - appends a full

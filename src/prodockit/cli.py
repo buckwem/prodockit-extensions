@@ -1812,7 +1812,9 @@ def _run_template_sync(
         leftovers,
         load_manifest,
         missing_ignores,
+        missing_seeds,
         now,
+        pending_writes,
         plan_template_files,
         read_config,
         read_stamp,
@@ -2003,9 +2005,37 @@ def _run_template_sync(
 
         if not do_apply:
             say(
-            "No project files written - only the log below. "
-            "Re-run with --apply to make these changes."
-        )
+                "No project files written - only the log below. "
+                "Re-run with --apply to make these changes."
+            )
+            return
+
+        config_path = project / "zensical.toml"
+        template_config: dict[str, Any] = {}
+        added: list[str] = []
+        updated: list[str] = []
+        if config_path.exists():
+            template_config = read_config((template / "zensical.toml").read_text(encoding="utf-8"))
+            project_config = read_config(config_path.read_text(encoding="utf-8"))
+            added, updated = config_changes(manifest, template_config, project_config)
+
+        pending = pending_writes(plan, project, lambda p: (template / p).read_bytes())
+        seeds = missing_seeds(manifest, lambda name: (project / name).exists())
+        # The stamp counts as work of its own. A template release that
+        # only reclassifies files leaves every file identical, so nothing
+        # else is pending - but the project now matches a newer version
+        # than the stamp records, and leaving it stale makes the *next*
+        # run derive its baseline from the wrong place and report
+        # unedited files as edited.
+        wanted_stamp = versions[0] if versions else (baseline.version or "")
+        stamp_is_stale = bool(baseline.version) and read_stamp(project) != wanted_stamp
+
+        if not (pending or seeds or added or updated or ignores or stamp_is_stale):
+            # Nothing to do, so no branch. A run that branched anyway left
+            # an empty branch behind, which then blocked the next run - the
+            # ordinary way to use this is to run it repeatedly, and most of
+            # those runs find nothing.
+            say("Already in step with the template - nothing to write.")
             return
 
         # 10, first: the branch, before anything is written.
@@ -2021,12 +2051,7 @@ def _run_template_sync(
         # and has to work out for themselves which parts belong to it.
         also_written: list[str] = []
 
-        config_path = project / "zensical.toml"
-        if config_path.exists():
-            template_config = read_config((template / "zensical.toml").read_text(encoding="utf-8"))
-            project_config = read_config(config_path.read_text(encoding="utf-8"))
-            added, updated = config_changes(manifest, template_config, project_config)
-            if added or updated:
+        if config_path.exists() and (added or updated):
                 config_path.write_text(
                     apply_config_changes(
                         config_path.read_text(encoding="utf-8"), template_config, added, updated
@@ -2053,7 +2078,7 @@ def _run_template_sync(
 
         # 10, last: the stamp describes a state that now exists.
         if baseline.version:
-            write_stamp(project, versions[0] if versions else baseline.version)
+            write_stamp(project, wanted_stamp)
             also_written.append(STAMP_FILE)
         stage_changes(git, [w.path for w in written] + also_written)
         say()

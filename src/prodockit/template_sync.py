@@ -741,6 +741,39 @@ class Written:
     action: str
 
 
+def pending_writes(
+    actions: Sequence[FileAction],
+    project_root: pathlib.Path,
+    read_template: Callable[[str], bytes],
+    *,
+    sidecar: str = SIDECAR_SUFFIX,
+) -> list[FileAction]:
+    """The actions in a plan that would actually change something.
+
+    `same` is not the only action that can amount to nothing. A `keep`
+    writes the template's copy to a `.new` sidecar, and on the second run
+    against the same template version that sidecar is already there with
+    exactly those bytes - so the run has nothing to do and should not say
+    otherwise.
+
+    That mattered more than it sounds. A run with nothing to write still
+    branched, still announced "staged, not committed", and left a student
+    looking for a change that did not exist - and the empty branch it left
+    behind then blocked the *next* run.
+    """
+    pending = []
+    for action in actions:
+        if action.action == "same":
+            continue
+        target = project_root / action.project_path
+        if action.action == "keep":
+            target = target.with_name(target.name + sidecar)
+        if target.exists() and target.read_bytes() == read_template(action.path):
+            continue
+        pending.append(action)
+    return pending
+
+
 def apply_file_actions(
     actions: Sequence[FileAction],
     project_root: pathlib.Path,
@@ -760,9 +793,7 @@ def apply_file_actions(
     anyone reading `git status` afterwards.
     """
     written: list[Written] = []
-    for action in actions:
-        if action.action == "same":
-            continue
+    for action in pending_writes(actions, project_root, read_template, sidecar=sidecar):
         target = project_root / action.project_path
         if action.action == "keep":
             target = target.with_name(target.name + sidecar)
@@ -913,14 +944,22 @@ def start_branch(run: GitRunner, name: str) -> bool:
     name is resumed rather than replaced - a second run against the same
     template version belongs on the same branch, and deleting it would
     throw away whatever the first run left - but only if it already
-    contains the commit you are on.
+    contains the commit you are on, or holds nothing that is not already
+    in it.
 
     That condition is the whole point. The name is derived from the
-    template version, so any project that has run this before has a
-    branch of this name lying around; if work has been committed since,
-    checking it out silently moves the run, and the reader, onto older
+    template version, so a project that syncs from the same baseline
+    twice wants the same branch name both times; checking it out
+    unconditionally silently moves the run, and the reader, onto older
     work. Found doing exactly that in a test clone: the run reported
     success on a branch two commits behind the one it started from.
+
+    Refusing outright is too blunt, though. A branch left behind by an
+    earlier run is usually either merged or empty, and over a term that
+    is the ordinary case - a student who had done nothing wrong was
+    blocked on every run by a branch a previous run had created and left
+    with nothing in it. So a branch that is merely *behind* is moved
+    forward, and only one holding commits of its own is refused.
     """
     if not run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{name}"]):
         return run(["git", "checkout", "-b", name])
@@ -928,18 +967,25 @@ def start_branch(run: GitRunner, name: str) -> bool:
     if run(["git", "merge-base", "--is-ancestor", "HEAD", name]):
         return run(["git", "checkout", name])
 
-    # False so far means either "not an ancestor" or "the question could
-    # not be put at all". Told apart here, so a repository that cannot be
-    # read does not report as a stale branch.
+    # The other safe case, and the common one over a term: the branch is
+    # *behind*, holding nothing the project does not already have. Either
+    # its run was merged, or it was created by a run that turned out to
+    # have nothing to write. Moving it forward loses nothing.
+    if run(["git", "merge-base", "--is-ancestor", name, "HEAD"]):
+        return run(["git", "checkout", "-B", name])
+
+    # False in both directions means either genuine divergence or a
+    # question that could not be put at all. Told apart here, so a
+    # repository that cannot be read does not report as a stale branch.
     if not run(["git", "rev-parse", "--verify", "--quiet", "HEAD"]):
         raise TemplateSyncError(
             f"cannot tell whether the branch {name} is safe to continue on, "
             "because this repository's HEAD could not be read"
         )
     raise TemplateSyncError(
-        f"the branch {name} already exists and does not contain the commit you "
-        "are on, so continuing would run this against older work. Merge it, or "
-        f"delete it with `git branch -D {name}`, and run this again"
+        f"the branch {name} already exists and holds commits this project does "
+        "not, so continuing would run this against work that has diverged. Merge "
+        f"it, or delete it with `git branch -D {name}`, and run this again"
     )
 
 
