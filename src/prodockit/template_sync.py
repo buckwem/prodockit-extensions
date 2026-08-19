@@ -27,6 +27,7 @@ three that decide whether writing is safe at all:
 from __future__ import annotations
 
 import fnmatch
+import pathlib
 import sys
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
@@ -688,3 +689,69 @@ def append_ignores(text: str, lines: Sequence[str]) -> str:
         return text
     prefix = text if text.endswith("\n") or not text else text + "\n"
     return prefix + "\n".join(missing) + "\n"
+
+
+#: Written beside a file the project has edited, rather than over it.
+SIDECAR_SUFFIX = ".new"
+
+
+@dataclass(frozen=True)
+class Written:
+    """One file an apply actually touched, and what it did.
+
+    Reported from what was written rather than from what was planned:
+    the two agreeing is the thing worth checking, and a report generated
+    from the plan cannot notice them disagreeing.
+    """
+
+    path: str
+    action: str
+
+
+def apply_file_actions(
+    actions: Sequence[FileAction],
+    project_root: pathlib.Path,
+    read_template: Callable[[str], bytes],
+    *,
+    sidecar: str = SIDECAR_SUFFIX,
+) -> list[Written]:
+    """Carries out a plan, and writes nothing it was not asked to.
+
+    Only `add`, `update` and `forced` replace a file the project has.
+    `keep` writes the template's copy *beside* the project's, under
+    `sidecar`, so the two can be compared without either being lost -
+    which is the whole reason an edited file is not simply skipped.
+
+    `same` writes nothing at all. It is most of the tree, and a tool that
+    rewrites identical bytes makes every update look like a change to
+    anyone reading `git status` afterwards.
+    """
+    written: list[Written] = []
+    for action in actions:
+        if action.action == "same":
+            continue
+        target = project_root / action.project_path
+        if action.action == "keep":
+            target = target.with_name(target.name + sidecar)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(read_template(action.path))
+        written.append(Written(str(target.relative_to(project_root)), action.action))
+    return written
+
+
+def written_report(written: Sequence[Written]) -> list[str]:
+    """What an apply did, grouped the way the plan was reported.
+
+    Deliberately built from `Written` rather than from the plan: if the
+    two ever disagree, this is where it shows.
+    """
+    if not written:
+        return ["nothing to write - this project is already in step"]
+    grouped: dict[str, list[str]] = {}
+    for item in written:
+        grouped.setdefault(item.action, []).append(item.path)
+    lines = []
+    for action, paths in grouped.items():
+        lines.append(f"{action:8} {len(paths):3}  ({FILE_ACTIONS[action]})")
+        lines.extend(f"    {path}" for path in sorted(paths))
+    return lines

@@ -25,6 +25,7 @@ from prodockit.template_sync import (
     TemplateSyncError,
     add_config_table,
     append_ignores,
+    apply_file_actions,
     baseline_report,
     blocking_changes,
     classification_report,
@@ -39,6 +40,7 @@ from prodockit.template_sync import (
     set_config_value,
     unclassified,
     update_report,
+    written_report,
 )
 
 MANIFEST = """
@@ -824,3 +826,91 @@ def test_appending_nothing_changes_nothing() -> None:
 
     assert append_ignores(text, []) == text
     assert append_ignores(text, ["build/"]) == text
+
+
+# ---------------------------------------------------------------------------
+# Applying: writing the files
+# ---------------------------------------------------------------------------
+
+
+def _actions(*pairs: tuple[str, str]) -> list[FileAction]:
+    return [FileAction(p, p, a, FILE_ACTIONS[a]) for p, a in pairs]
+
+
+def test_an_unchanged_file_is_not_rewritten(tmp_path) -> None:
+    """A tool that rewrites identical bytes makes every update look like
+    a change to anyone reading `git status` afterwards."""
+    (tmp_path / "macros.py").write_text("original")
+
+    written = apply_file_actions(
+        _actions(("macros.py", "same")), tmp_path, lambda p: b"from the template"
+    )
+
+    assert written == []
+    assert (tmp_path / "macros.py").read_text() == "original"
+
+
+def test_an_update_replaces_the_file(tmp_path) -> None:
+    (tmp_path / "macros.py").write_text("old")
+
+    apply_file_actions(_actions(("macros.py", "update")), tmp_path, lambda p: b"new")
+
+    assert (tmp_path / "macros.py").read_bytes() == b"new"
+
+
+def test_an_added_file_gets_its_directory_made(tmp_path) -> None:
+    """The template can gain a whole directory, and a project that never
+    had it has nowhere to put the file."""
+    apply_file_actions(
+        _actions(("tools/mermaid/package.json", "add")), tmp_path, lambda p: b"{}"
+    )
+
+    assert (tmp_path / "tools/mermaid/package.json").read_bytes() == b"{}"
+
+
+def test_an_edited_file_is_left_alone_and_the_template_s_written_beside_it(tmp_path) -> None:
+    """The whole reason an edited file is not simply skipped: both
+    versions survive and can be compared."""
+    (tmp_path / ".gitlab-ci.yml").write_text("mine")
+
+    apply_file_actions(_actions((".gitlab-ci.yml", "keep")), tmp_path, lambda p: b"theirs")
+
+    assert (tmp_path / ".gitlab-ci.yml").read_text() == "mine"
+    assert (tmp_path / ".gitlab-ci.yml.new").read_bytes() == b"theirs"
+
+
+def test_a_forced_file_is_overwritten_and_no_sidecar_is_left(tmp_path) -> None:
+    """Forcing is the instruction to take the template's copy; leaving a
+    `.new` beside it as well would be clutter nobody asked for."""
+    (tmp_path / ".gitlab-ci.yml").write_text("mine")
+
+    apply_file_actions(_actions((".gitlab-ci.yml", "forced")), tmp_path, lambda p: b"theirs")
+
+    assert (tmp_path / ".gitlab-ci.yml").read_bytes() == b"theirs"
+    assert not (tmp_path / ".gitlab-ci.yml.new").exists()
+
+
+def test_nothing_outside_the_plan_is_touched(tmp_path) -> None:
+    """The report is not in the plan, and must not be reachable from it."""
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "section1.md").write_text("my report")
+
+    apply_file_actions(_actions(("macros.py", "update")), tmp_path, lambda p: b"x")
+
+    assert (tmp_path / "docs" / "section1.md").read_text() == "my report"
+
+
+def test_the_report_is_built_from_what_was_written(tmp_path) -> None:
+    """Not from the plan: if the two ever disagree, this is where it
+    shows."""
+    written = apply_file_actions(
+        _actions(("a.py", "update"), ("b.py", "same")), tmp_path, lambda p: b"x"
+    )
+
+    text = "\n".join(written_report(written))
+    assert "a.py" in text
+    assert "b.py" not in text, "a file that was not written must not be reported"
+
+
+def test_a_project_already_in_step_says_so(tmp_path) -> None:
+    assert written_report([]) == ["nothing to write - this project is already in step"]
