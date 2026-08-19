@@ -122,6 +122,45 @@ The page-number suffix is attached with `target-counter()` on
 unresolved reference carries no `href` at all, and any other link would
 resolve to nothing and print a stray "on page" with no number after it.
 
+## Referencing a figure or table {: #refs-captions }
+
+`\ref{id}` also resolves a captioned figure or table, rendering its label:
+
+```md
+![Component Model](assets/images/component-model.png){ width="100%" }
+/// figure-caption
+    attrs: {id: fig-component-model}
+
+Component Model
+///
+
+The components inside the System Context boundary are shown in
+\ref{fig-component-model}.
+```
+
+which renders as a link reading **Figure 3.1**.
+
+Figures and tables are counted separately, and both restart per page and
+carry the page's chapter number - the same numbering the caption itself
+shows, so a reference and the thing it points at always agree.
+
+!!! warning "The id goes in an `attrs:` option, not `{: #id }`"
+    Caption blocks take attributes the [Blocks
+    API](https://facelessuser.github.io/pymdown-extensions/extensions/blocks/)
+    way - an indented `attrs:` line, then a blank line, then the caption
+    text. The `{: #id }` form used on headings, images and table cells
+    **does not work here**: it produces no figure at all, silently, and
+    the `///` lines appear as literal text.
+
+    An id containing a colon (`fig:component-model`) also produces no
+    figure, quoted or not. Use a hyphen.
+
+Unlike a heading, a caption reference is **its label alone** - "Figure
+3.1", not "Figure 3.1 Component Model". A caption is referred to
+mid-sentence, where repeating its own words reads as a stutter; a
+heading's number alone would say nothing about where the reader is being
+sent, so that keeps its name.
+
 ## Reference {: #refs-reference }
 
 ### Syntax {: #refs-syntax }
