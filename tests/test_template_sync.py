@@ -20,12 +20,17 @@ from prodockit.template_sync import (
     MANIFEST_FILE,
     TEMPLATE_REMOTES,
     Baseline,
+    FILE_ACTIONS,
+    FileAction,
     TemplateSyncError,
     baseline_report,
     classification_report,
     derive_baseline,
+    blocking_changes,
     load_manifest,
+    plan_template_files,
     resolve_template,
+    update_report,
     unclassified,
 )
 
@@ -450,3 +455,168 @@ def test_the_counts_survive_the_actions_being_added() -> None:
 
     counts = {line.split()[0]: int(line.split()[1]) for line in lines}
     assert sum(counts.values()) == len(FILES)
+
+
+# ---------------------------------------------------------------------------
+# Stage 4: what blocks an update
+# ---------------------------------------------------------------------------
+
+
+def test_only_template_owned_changes_block_an_update() -> None:
+    """A project being written always has a dirty tree - the report, its
+    figures, its bibliography. Refusing on any of that refuses always,
+    which is the same as not having the tool."""
+    manifest = load_manifest(MANIFEST)
+    dirty = ["docs/section1.md", "docs/assets/figure.png", "zensical.toml", "macros.py"]
+
+    assert blocking_changes(manifest, dirty) == ["macros.py"]
+
+
+def test_a_clean_enough_tree_blocks_nothing() -> None:
+    manifest = load_manifest(MANIFEST)
+
+    assert blocking_changes(manifest, ["docs/index.md", "docs/section4.md"]) == []
+
+
+def test_blocking_is_what_makes_force_safe() -> None:
+    """Anything an update can overwrite is committed, so `git checkout`
+    gets it back. This is the check that guarantees it, so it is asserted
+    directly rather than left as a comment: a template-owned file with
+    uncommitted changes must always block."""
+    manifest = load_manifest(MANIFEST)
+
+    for path in ("macros.py", "docs/stylesheets/extra.css", ".github/workflows/docs.yml"):
+        assert blocking_changes(manifest, [path]) == [path], path
+
+
+# ---------------------------------------------------------------------------
+# Stage 6: what an update would do to each file
+# ---------------------------------------------------------------------------
+
+
+def _plan(project: dict[str, str], template: dict[str, str], edited=(), force=()):
+    manifest = load_manifest(MANIFEST)
+    baseline = Baseline(version="v1", matched=0, total=0, edited=tuple(edited))
+    return {
+        a.path: a.action
+        for a in plan_template_files(
+            manifest, list(template), project.get, template.get, baseline, force=force
+        )
+    }
+
+
+def test_a_file_that_already_matches_is_left_alone() -> None:
+    assert _plan({"macros.py": "a"}, {"macros.py": "a"}) == {"macros.py": "same"}
+
+
+def test_a_file_the_project_lacks_is_added() -> None:
+    """The template has gained it since this project was generated."""
+    assert _plan({}, {"macros.py": "a"}) == {"macros.py": "add"}
+
+
+def test_a_file_that_differs_and_was_not_edited_is_an_update() -> None:
+    assert _plan({"macros.py": "old"}, {"macros.py": "new"}) == {"macros.py": "update"}
+
+
+def test_a_file_the_project_edited_is_kept() -> None:
+    """Theirs stands; the template's copy is written alongside as `.new`
+    so the two can be compared without either being lost."""
+    plan = _plan({"macros.py": "mine"}, {"macros.py": "new"}, edited=["macros.py"])
+
+    assert plan == {"macros.py": "keep"}
+
+
+def test_an_edited_file_can_be_overwritten_on_request() -> None:
+    """`--force` names the file, so the instruction carries the knowledge
+    that the file was edited."""
+    plan = _plan(
+        {"macros.py": "mine"}, {"macros.py": "new"}, edited=["macros.py"], force=["macros.py"]
+    )
+
+    assert plan == {"macros.py": "forced"}
+
+
+def test_force_does_not_reach_a_file_it_was_not_given() -> None:
+    """Forcing one file must not quietly force its neighbours."""
+    plan = _plan(
+        {"macros.py": "mine", "docs/stylesheets/extra.css": "mine"},
+        {"macros.py": "new", "docs/stylesheets/extra.css": "new"},
+        edited=["macros.py", "docs/stylesheets/extra.css"],
+        force=["macros.py"],
+    )
+
+    assert plan == {"macros.py": "forced", "docs/stylesheets/extra.css": "keep"}
+
+
+def test_a_renamed_file_is_matched_against_what_the_project_calls_it() -> None:
+    """The project predates `docs/javascript` -> `docs/javascripts`. Its
+    copy is the same content under the older name, so this is `same` and
+    not a file the template has gained."""
+    manifest = load_manifest(MANIFEST)
+    baseline = Baseline(version="v1", matched=1, total=1)
+
+    actions = plan_template_files(
+        manifest,
+        ["docs/javascripts/extra.js"],
+        {"docs/javascript/extra.js": "a"}.get,
+        {"docs/javascripts/extra.js": "a"}.get,
+        baseline,
+    )
+
+    assert [(a.action, a.project_path) for a in actions] == [
+        ("same", "docs/javascript/extra.js")
+    ]
+
+
+def test_files_the_manifest_does_not_own_are_not_planned() -> None:
+    """The report is the project's, and no stage reads it."""
+    manifest = load_manifest(MANIFEST)
+    baseline = Baseline(version="v1", matched=0, total=0)
+
+    actions = plan_template_files(
+        manifest, ["docs/index.md", "zensical.toml", "CHANGELOG.md"],
+        lambda p: "x", lambda p: "y", baseline,
+    )
+
+    assert actions == []
+
+
+# ---------------------------------------------------------------------------
+# The update report
+# ---------------------------------------------------------------------------
+
+
+def test_the_update_report_never_lists_the_unchanged_files() -> None:
+    """`same` is almost every file, and burying the five that matter
+    under sixty that do not is how a report stops being read."""
+    actions = [
+        FileAction("macros.py", "macros.py", "same", "x"),
+        FileAction("a.py", "a.py", "update", "y"),
+    ]
+
+    for verbose in (False, True):
+        lines = update_report(actions, verbose=verbose)
+        assert any("same" in line for line in lines), "still counted"
+        assert not any("macros.py" in line for line in lines), verbose
+        assert any("a.py" in line for line in lines)
+
+
+def test_the_update_report_says_why_for_each_group() -> None:
+    actions = [FileAction("a.py", "a.py", "keep", FILE_ACTIONS["keep"])]
+
+    text = "\n".join(update_report(actions))
+
+    assert "yours kept" in text and ".new" in text
+
+
+def test_a_renamed_file_shows_both_names() -> None:
+    """Otherwise a reader cannot tell why the template's path is not the
+    one being written."""
+    actions = [
+        FileAction("docs/javascripts/extra.js", "docs/javascript/extra.js", "update", "x")
+    ]
+
+    text = "\n".join(update_report(actions))
+
+    assert "docs/javascript/extra.js" in text
+    assert "<- docs/javascripts/extra.js" in text

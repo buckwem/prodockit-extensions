@@ -378,3 +378,108 @@ def baseline_report(baseline: Baseline, *, verbose: bool = False) -> list[str]:
         lines.append("agreeing files")
         lines.extend(f"    {path}" for path in sorted(baseline.agreeing))
     return lines
+
+
+#: What an update would do to one file, and why. The reason is carried
+#: rather than re-derived for the report: "differs" is not a reason, and
+#: a reader deciding whether to pass `--force` needs to know whether the
+#: difference is theirs or the template's.
+@dataclass(frozen=True)
+class FileAction:
+    path: str
+    project_path: str
+    action: str
+    reason: str
+
+
+#: Every action a file can be given, and what it means for the project.
+FILE_ACTIONS = {
+    "same": "already matches the template",
+    "add": "absent here - the template has gained it",
+    "update": "behind - not edited here",
+    "keep": "edited here - yours kept, template's written alongside as .new",
+    "forced": "edited here - overwritten on request",
+}
+
+
+def blocking_changes(manifest: Manifest, dirty: Iterable[str]) -> list[str]:
+    """Uncommitted changes that must be dealt with before an update runs.
+
+    Only template-owned paths block. A project being written always has
+    a dirty tree - the report itself, its figures, its bibliography - and
+    refusing on any of that refuses always, which is the same as not
+    having the tool (prodockit-template#188).
+
+    The point is narrower than tidiness: this is what makes `--force`
+    safe. Anything an update can overwrite is committed, so `git
+    checkout` gets it back. Widen this and that guarantee goes with it.
+    """
+    return sorted(p for p in dirty if manifest.owner(p) == "template")
+
+
+def plan_template_files(
+    manifest: Manifest,
+    template_files: Sequence[str],
+    project_blob: Callable[[str], str | None],
+    template_blob: Callable[[str], str | None],
+    baseline: Baseline,
+    *,
+    force: Iterable[str] = (),
+) -> list[FileAction]:
+    """What an update would do to each template-owned file.
+
+    Three inputs decide it, and all three are needed: what the project
+    has, what the template has now, and which files the project edited.
+    Without the last, "differs" cannot tell being behind from having
+    changed something, and the tool would either overwrite work or never
+    update anything.
+    """
+    forced = {f.removeprefix("./") for f in force}
+    edited = set(baseline.edited)
+    actions: list[FileAction] = []
+
+    for path in template_files:
+        if manifest.owner(path) != "template":
+            continue
+        here = manifest.rename(path)
+        mine, theirs = project_blob(here), template_blob(path)
+        if mine is None:
+            actions.append(FileAction(path, here, "add", FILE_ACTIONS["add"]))
+        elif mine == theirs:
+            actions.append(FileAction(path, here, "same", FILE_ACTIONS["same"]))
+        elif path in edited or here in edited:
+            forced_here = path in forced or here in forced
+            name = "forced" if forced_here else "keep"
+            actions.append(FileAction(path, here, name, FILE_ACTIONS[name]))
+        else:
+            actions.append(FileAction(path, here, "update", FILE_ACTIONS["update"]))
+    return actions
+
+
+def update_report(
+    actions: Sequence[FileAction], *, verbose: bool = False
+) -> list[str]:
+    """What the update would do, grouped by action.
+
+    `same` is counted and never listed even in verbose: it is almost
+    every file, it is the uninteresting case, and burying the five that
+    matter under sixty that do not is how a report stops being read.
+    """
+    grouped: dict[str, list[FileAction]] = {name: [] for name in FILE_ACTIONS}
+    for action in actions:
+        grouped[action.action].append(action)
+
+    lines: list[str] = []
+    for name, description in FILE_ACTIONS.items():
+        members = grouped[name]
+        if not members:
+            continue
+        lines.append(f"{name:8} {len(members):3}  ({description})")
+        if name == "same" and not verbose:
+            continue
+        if name == "same":
+            continue
+        for action in sorted(members, key=lambda a: a.project_path):
+            suffix = "" if action.project_path == action.path else f"   <- {action.path}"
+            lines.append(f"    {action.project_path}{suffix}")
+    return lines
