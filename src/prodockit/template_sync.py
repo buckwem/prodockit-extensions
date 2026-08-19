@@ -32,6 +32,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 if sys.version_info >= (3, 11):  # pragma: no cover - one branch per interpreter
@@ -60,6 +61,10 @@ STAMP_FILE = ".prodockit-template"
 
 #: The manifest, in the template.
 MANIFEST_FILE = ".prodockit-template.toml"
+
+#: Where every run appends its full account of itself. Kept out of git by
+#: `missing_ignores` below: it is a diagnostic, not part of the project.
+LOG_FILE = ".prodockit-template.log"
 
 
 class TemplateSyncError(ValueError):
@@ -607,7 +612,8 @@ def missing_ignores(manifest: Manifest, current: Sequence[str]) -> list[str]:
     to tell a stale template line from a deliberate local one.
     """
     have = {line.strip() for line in current}
-    return [line for line in manifest.ignore if line.strip() not in have]
+    wanted = [*manifest.ignore, LOG_FILE]
+    return [line for line in wanted if line.strip() not in have]
 
 
 def leftovers(manifest: Manifest, project_files: Iterable[str]) -> list[str]:
@@ -911,6 +917,57 @@ def start_branch(run: GitRunner, name: str) -> bool:
     if run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{name}"]):
         return run(["git", "checkout", name])
     return run(["git", "checkout", "-b", name])
+
+
+def now() -> str:
+    """The current local time, ISO 8601, with the offset kept.
+
+    Local because whoever reads the log is usually the person who ran it;
+    with the offset because the person diagnosing it often is not.
+    """
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def ignore_the_log(project_root: pathlib.Path) -> bool:
+    """Makes sure `.gitignore` covers the log. True if a line was added.
+
+    Done whenever the log is written, rather than left to the `.gitignore`
+    stage, because that stage only runs under `--apply` - and a dry run
+    would otherwise leave an untracked diagnostic file for the next
+    `git add -A` to sweep into the project.
+    """
+    path = project_root / ".gitignore"
+    current = path.read_text(encoding="utf-8") if path.exists() else ""
+    if LOG_FILE in {line.strip() for line in current.splitlines()}:
+        return False
+    path.write_text(append_ignores(current, [LOG_FILE]), encoding="utf-8")
+    return True
+
+
+def append_log(
+    project_root: pathlib.Path,
+    lines: Sequence[str],
+    started: str,
+    command: Sequence[str] | None = None,
+) -> pathlib.Path:
+    """Appends one run's full account to the project's log.
+
+    Appended, never truncated: the run worth diagnosing is usually not
+    the last one. Written whether or not `--apply` was passed and whether
+    or not the terminal asked for `--verbose`, because the run a student
+    reports is the one they ran without either.
+    """
+    path = project_root / LOG_FILE
+    argv = list(command if command is not None else sys.argv)
+    body = "\n".join(lines)
+    entry = (
+        f"=== {started}  started  {' '.join(argv)}\n"
+        f"{body}\n"
+        f"=== {now()}  finished\n\n"
+    )
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(entry)
+    return path
 
 
 def write_stamp(project_root: pathlib.Path, version: str) -> pathlib.Path:

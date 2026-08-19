@@ -12,12 +12,14 @@ invented to suit the code.
 
 from __future__ import annotations
 
+import pathlib
 import re
 
 import pytest
 
 from prodockit.template_sync import (
     FILE_ACTIONS,
+    LOG_FILE,
     MANIFEST_FILE,
     TEMPLATE_REMOTES,
     Baseline,
@@ -25,6 +27,7 @@ from prodockit.template_sync import (
     TemplateSyncError,
     add_config_table,
     append_ignores,
+    append_log,
     apply_config_changes,
     apply_file_actions,
     apply_seeds,
@@ -35,11 +38,14 @@ from prodockit.template_sync import (
     config_changes,
     derive_baseline,
     git_runner,
+    ignore_the_log,
     leftovers,
     load_manifest,
     missing_ignores,
     missing_seeds,
+    now,
     plan_template_files,
+    read_config,
     read_stamp,
     resolve_template,
     set_config_value,
@@ -734,8 +740,9 @@ def test_a_dotted_extension_name_is_one_key_not_two() -> None:
 def test_only_the_ignore_lines_the_project_lacks_are_offered() -> None:
     manifest = load_manifest(MANIFEST)
 
-    assert missing_ignores(manifest, ["build/", "*.pyc"]) == [".vscode/"]
-    assert missing_ignores(manifest, ["build/", ".vscode/"]) == []
+    # The log is always offered - see the LOG_FILE test below.
+    assert missing_ignores(manifest, ["build/", "*.pyc"]) == [".vscode/", LOG_FILE]
+    assert missing_ignores(manifest, ["build/", ".vscode/", LOG_FILE]) == []
 
 
 def test_files_no_longer_delivered_are_reported_not_removed() -> None:
@@ -1024,9 +1031,7 @@ def test_a_quoted_string_survives_the_round_trip() -> None:
 
     after = apply_config_changes(CONFIG, template, ["project.extra.pdf_x"], [])
 
-    import tomllib
-
-    assert tomllib.loads(after)["project"]["extra"]["pdf_x"] == 'a "quoted" thing'
+    assert read_config(after)["project"]["extra"]["pdf_x"] == 'a "quoted" thing'
 
 
 def test_an_extension_with_no_settings_still_gets_its_table() -> None:
@@ -1042,9 +1047,7 @@ def test_an_extension_with_no_settings_still_gets_its_table() -> None:
     after = apply_config_changes(CONFIG, template, added, updated)
 
     assert '[project.markdown_extensions."prodockit.tree"]' in after
-    import tomllib
-
-    assert "prodockit.tree" in tomllib.loads(after)["project"]["markdown_extensions"]
+    assert "prodockit.tree" in read_config(after)["project"]["markdown_extensions"]
 
 
 # ---------------------------------------------------------------------------
@@ -1212,3 +1215,89 @@ def test_the_runner_answers_false_rather_than_raising(tmp_path) -> None:
     run = git_runner(tmp_path)
 
     assert run(["git", "rev-parse", "--verify", "--quiet", "refs/heads/nope"]) is False
+
+
+# ---------------------------------------------------------------------------
+# The log
+# ---------------------------------------------------------------------------
+
+
+def test_a_run_is_appended_to_the_log_not_written_over(tmp_path: pathlib.Path) -> None:
+    """The run worth diagnosing is usually not the last one."""
+    append_log(tmp_path, ["first run"], now(), ["prodockit", "template-sync"])
+    append_log(tmp_path, ["second run"], now(), ["prodockit", "template-sync", "--apply"])
+
+    text = (tmp_path / LOG_FILE).read_text(encoding="utf-8")
+
+    assert "first run" in text
+    assert "second run" in text
+    assert text.index("first run") < text.index("second run")
+
+
+def test_the_log_records_when_a_run_started_and_when_it_finished(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Both ends, so a run that hung can be told from one that was slow."""
+    started = now()
+    append_log(tmp_path, ["  4 files"], started, ["prodockit", "template-sync"])
+
+    lines = (tmp_path / LOG_FILE).read_text(encoding="utf-8").splitlines()
+
+    assert lines[0].startswith(f"=== {started}  started")
+    assert "  4 files" in lines
+    last = [line for line in lines if line.strip()][-1]
+
+    assert last.startswith("=== ")
+    assert "finished" in last
+
+
+def test_the_log_records_the_command_that_was_run(tmp_path: pathlib.Path) -> None:
+    """Which flags were passed is the first thing anyone asks."""
+    append_log(tmp_path, [], now(), ["prodockit", "template-sync", "--apply", "--force", "x"])
+
+    assert "template-sync --apply --force x" in (tmp_path / LOG_FILE).read_text(encoding="utf-8")
+
+
+def test_a_timestamp_keeps_its_utc_offset() -> None:
+    """Local time reads naturally; the offset is what makes it comparable."""
+    stamp = now()
+
+    assert re.match(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2}|Z)$", stamp), stamp
+
+
+def test_the_log_is_kept_out_of_git_whatever_the_manifest_says() -> None:
+    """The log is the tool's own artefact, so the tool ignores it.
+
+    Not left to the manifest: a project on an older template would
+    otherwise commit a diagnostic file it never asked for.
+    """
+    manifest = load_manifest(MANIFEST)
+
+    assert LOG_FILE in missing_ignores(manifest, [])
+    assert LOG_FILE not in missing_ignores(manifest, [LOG_FILE])
+
+
+def test_the_log_adds_its_own_ignore_line_once(tmp_path: pathlib.Path) -> None:
+    """A dry run writes the log, so a dry run must also ignore it.
+
+    The `.gitignore` stage only runs under `--apply`, which would leave
+    the first (dry) run's log untracked and one `git add -A` away from
+    being committed.
+    """
+    (tmp_path / ".gitignore").write_text("build/\n", encoding="utf-8")
+
+    assert ignore_the_log(tmp_path) is True
+    assert ignore_the_log(tmp_path) is False
+
+    text = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+
+    assert text.count(LOG_FILE) == 1
+    assert "build/" in text
+
+
+def test_the_log_ignores_itself_where_there_is_no_gitignore_yet(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A project need not already have one for the log to be covered."""
+    assert ignore_the_log(tmp_path) is True
+    assert LOG_FILE in (tmp_path / ".gitignore").read_text(encoding="utf-8")

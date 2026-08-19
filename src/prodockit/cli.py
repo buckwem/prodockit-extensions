@@ -1789,12 +1789,15 @@ def _run_template_sync(
     stages depend on lives somewhere it can be read in one piece.
     """
     import subprocess
+    from collections.abc import Callable, Iterable
+    from typing import Any
 
     from prodockit.template_sync import (
         MANIFEST_FILE,
         STAMP_FILE,
         TemplateSyncError,
         append_ignores,
+        append_log,
         apply_config_changes,
         apply_file_actions,
         apply_seeds,
@@ -1805,9 +1808,11 @@ def _run_template_sync(
         config_changes,
         derive_baseline,
         git_runner,
+        ignore_the_log,
         leftovers,
         load_manifest,
         missing_ignores,
+        now,
         plan_template_files,
         read_config,
         read_stamp,
@@ -1829,209 +1834,240 @@ def _run_template_sync(
         raise TemplateSyncError(_wrong_directory(project))
     git = git_runner(project)
 
+    started = now()
+    logged: list[str] = []
+
     def say(text: str = "") -> None:
+        """Prints, and keeps the line for the log."""
         click.echo(text)
+        logged.append(text)
 
-    # 1. Which template this project tracks.
-    if template_path:
-        # Named outright, so nothing is derived and nothing is fetched.
-        template = pathlib.Path(template_path).resolve()
-        say(f"template  {template}  (--template-path)")
-    else:
-        remote = subprocess.run(
-            ["git", "-C", str(project), "remote", "get-url", "origin"],
+    def say_report(render: Callable[..., Iterable[str]], *args: Any) -> None:
+        """A block the terminal may want in summary and the log always in full.
+
+        Rendered twice rather than once: the reports are pure functions
+        over data already computed, and a log that only holds what the
+        terminal was asked for is no use for diagnosing the run that did
+        not ask for --verbose.
+        """
+        for line in render(*args, verbose=verbose):
+            click.echo(f"  {line}")
+        logged.extend(f"  {line}" for line in render(*args, verbose=True))
+
+    try:
+
+        # 1. Which template this project tracks.
+        if template_path:
+            # Named outright, so nothing is derived and nothing is fetched.
+            template = pathlib.Path(template_path).resolve()
+            say(f"template  {template}  (--template-path)")
+        else:
+            remote = subprocess.run(
+                ["git", "-C", str(project), "remote", "get-url", "origin"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            ).stdout.strip()
+            template_remote = resolve_template(remote or None, github=github, surrey=surrey)
+            say(f"template  {template_remote}")
+            template = _template_checkout(project, template_remote)
+            say(f"checkout  {template}")
+
+        # The template has to be somewhere on disk to be read. Cloning it is
+        # the next piece of work; for now a sibling checkout is used, which is
+        # what a maintainer has and what the tests point at.
+        say()
+
+        # 2. What the manifest says.
+        manifest_path = template / MANIFEST_FILE
+        if not manifest_path.exists():
+            raise TemplateSyncError(
+                f"{template} has no {MANIFEST_FILE} - it is not a prodockit template, "
+                "or predates the manifest"
+            )
+        manifest = load_manifest(manifest_path.read_text(encoding="utf-8"))
+        files = subprocess.run(
+            ["git", "-C", str(template), "ls-files"],
             capture_output=True,
             text=True,
             encoding="utf-8",
             check=False,
-        ).stdout.strip()
-        template_remote = resolve_template(remote or None, github=github, surrey=surrey)
-        say(f"template  {template_remote}")
-        template = _template_checkout(project, template_remote)
-        say(f"checkout  {template}")
+        ).stdout.split()
+        say_report(classification_report, manifest, files)
+        say()
 
-    # The template has to be somewhere on disk to be read. Cloning it is
-    # the next piece of work; for now a sibling checkout is used, which is
-    # what a maintainer has and what the tests point at.
-    say()
+        # 3. Where this project came from.
+        stamp = read_stamp(project)
+        owned = [f for f in files if manifest.owner(f) == "template"]
 
-    # 2. What the manifest says.
-    manifest_path = template / MANIFEST_FILE
-    if not manifest_path.exists():
-        raise TemplateSyncError(
-            f"{template} has no {MANIFEST_FILE} - it is not a prodockit template, "
-            "or predates the manifest"
+        def blob_of(path: pathlib.Path) -> str | None:
+            if not path.exists():
+                return None
+            return subprocess.run(
+                ["git", "-C", str(template), "hash-object", str(path)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            ).stdout.strip()
+
+        versions = subprocess.run(
+            ["git", "-C", str(template), "rev-list", "--first-parent", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        ).stdout.split()
+        trees: dict[str, dict[str, str]] = {}
+
+        def blob_at(version: str, path: str) -> str | None:
+            if version not in trees:
+                listing = subprocess.run(
+                    ["git", "-C", str(template), "ls-tree", "-r", version],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    check=False,
+                ).stdout.splitlines()
+                trees[version] = {
+                    name: meta.split()[2]
+                    for meta, name in (line.split("\t", 1) for line in listing)
+                }
+            return trees[version].get(path)
+
+        baseline = derive_baseline(
+            owned,
+            lambda p: blob_of(project / manifest.rename(p)),
+            [stamp] if stamp else versions,
+            blob_at,
         )
-    manifest = load_manifest(manifest_path.read_text(encoding="utf-8"))
-    files = subprocess.run(
-        ["git", "-C", str(template), "ls-files"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    ).stdout.split()
-    for line in classification_report(manifest, files, verbose=verbose):
-        say(f"  {line}")
-    say()
+        say(f"baseline  {'recorded' if stamp else 'derived by content'}")
+        say_report(baseline_report, baseline)
+        say()
 
-    # 3. Where this project came from.
-    stamp = read_stamp(project)
-    owned = [f for f in files if manifest.owner(f) == "template"]
-
-    def blob_of(path: pathlib.Path) -> str | None:
-        if not path.exists():
-            return None
-        return subprocess.run(
-            ["git", "-C", str(template), "hash-object", str(path)],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=False,
-        ).stdout.strip()
-
-    versions = subprocess.run(
-        ["git", "-C", str(template), "rev-list", "--first-parent", "HEAD"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    ).stdout.split()
-    trees: dict[str, dict[str, str]] = {}
-
-    def blob_at(version: str, path: str) -> str | None:
-        if version not in trees:
-            listing = subprocess.run(
-                ["git", "-C", str(template), "ls-tree", "-r", version],
+        # 4. Whether it is safe to write.
+        dirty = [
+            line[3:]
+            for line in subprocess.run(
+                ["git", "-C", str(project), "status", "--porcelain"],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
                 check=False,
             ).stdout.splitlines()
-            trees[version] = {
-                name: meta.split()[2] for meta, name in (line.split("\t", 1) for line in listing)
-            }
-        return trees[version].get(path)
+        ]
+        blocked = blocking_changes(manifest, dirty)
+        if blocked:
+            raise TemplateSyncError(
+                "commit or revert these first - they are the template's files and an "
+                f"update would write over them: {', '.join(blocked)}"
+            )
 
-    baseline = derive_baseline(
-        owned,
-        lambda p: blob_of(project / manifest.rename(p)),
-        [stamp] if stamp else versions,
-        blob_at,
-    )
-    say(f"baseline  {'recorded' if stamp else 'derived by content'}")
-    for line in baseline_report(baseline, verbose=verbose):
-        say(f"  {line}")
-    say()
-
-    # 4. Whether it is safe to write.
-    dirty = [
-        line[3:]
-        for line in subprocess.run(
-            ["git", "-C", str(project), "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=False,
-        ).stdout.splitlines()
-    ]
-    blocked = blocking_changes(manifest, dirty)
-    if blocked:
-        raise TemplateSyncError(
-            "commit or revert these first - they are the template's files and an "
-            f"update would write over them: {', '.join(blocked)}"
+        # 5 and 6. What would change.
+        plan = plan_template_files(
+            manifest,
+            files,
+            lambda p: blob_of(project / manifest.rename(p)),
+            lambda p: blob_at(versions[0], p) if versions else None,
+            baseline,
+            force=force,
         )
-
-    # 5 and 6. What would change.
-    plan = plan_template_files(
-        manifest,
-        files,
-        lambda p: blob_of(project / manifest.rename(p)),
-        lambda p: blob_at(versions[0], p) if versions else None,
-        baseline,
-        force=force,
-    )
-    for line in update_report(plan, verbose=verbose):
-        say(f"  {line}")
-    say()
-
-    # 8 and 9, reported whether or not anything is written.
-    ignores_path = project / ".gitignore"
-    ignores = missing_ignores(
-        manifest,
-        ignores_path.read_text(encoding="utf-8").splitlines() if ignores_path.exists() else [],
-    )
-    stale = leftovers(
-        manifest,
-        subprocess.run(
-            ["git", "-C", str(project), "ls-files"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=False,
-        ).stdout.split(),
-    )
-    if stale:
-        say(f"  {len(stale)} file(s) here are no longer delivered, and are left alone:")
-        for path in stale if verbose else stale[:3]:
-            say(f"      {path}")
-        if not verbose and len(stale) > 3:
-            say(f"      ... and {len(stale) - 3} more")
+        say_report(update_report, plan)
         say()
 
-    if not do_apply:
-        say("Nothing written. Re-run with --apply to make these changes.")
-        return
+        # 8 and 9, reported whether or not anything is written.
+        ignores_path = project / ".gitignore"
+        ignores = missing_ignores(
+            manifest,
+            ignores_path.read_text(encoding="utf-8").splitlines() if ignores_path.exists() else [],
+        )
+        stale = leftovers(
+            manifest,
+            subprocess.run(
+                ["git", "-C", str(project), "ls-files"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            ).stdout.split(),
+        )
+        if stale:
+            say(f"  {len(stale)} file(s) here are no longer delivered, and are left alone:")
+            for path in stale if verbose else stale[:3]:
+                click.echo(f"      {path}")
+            if not verbose and len(stale) > 3:
+                click.echo(f"      ... and {len(stale) - 3} more")
+            logged.extend(f"      {path}" for path in stale)
+            say()
 
-    # 10, first: the branch, before anything is written.
-    name = branch_name(baseline.version or "unknown")
-    if not start_branch(git, name):
-        raise TemplateSyncError(f"could not switch to {name} - is this a git repository?")
-    say(f"on branch {name}")
+        if not do_apply:
+            say(
+            "No project files written - only the log below. "
+            "Re-run with --apply to make these changes."
+        )
+            return
 
-    written = apply_file_actions(plan, project, lambda p: (template / p).read_bytes())
-    written += apply_seeds(manifest, project, lambda p: (template / p).read_bytes())
-    # Everything else a run writes: the shared files it merges, and the
-    # stamp. Staged alongside, or a reader is handed a half-staged change
-    # and has to work out for themselves which parts belong to it.
-    also_written: list[str] = []
+        # 10, first: the branch, before anything is written.
+        name = branch_name(baseline.version or "unknown")
+        if not start_branch(git, name):
+            raise TemplateSyncError(f"could not switch to {name} - is this a git repository?")
+        say(f"on branch {name}")
 
-    config_path = project / "zensical.toml"
-    if config_path.exists():
-        template_config = read_config((template / "zensical.toml").read_text(encoding="utf-8"))
-        project_config = read_config(config_path.read_text(encoding="utf-8"))
-        added, updated = config_changes(manifest, template_config, project_config)
-        if added or updated:
-            config_path.write_text(
-                apply_config_changes(
-                    config_path.read_text(encoding="utf-8"), template_config, added, updated
+        written = apply_file_actions(plan, project, lambda p: (template / p).read_bytes())
+        written += apply_seeds(manifest, project, lambda p: (template / p).read_bytes())
+        # Everything else a run writes: the shared files it merges, and the
+        # stamp. Staged alongside, or a reader is handed a half-staged change
+        # and has to work out for themselves which parts belong to it.
+        also_written: list[str] = []
+
+        config_path = project / "zensical.toml"
+        if config_path.exists():
+            template_config = read_config((template / "zensical.toml").read_text(encoding="utf-8"))
+            project_config = read_config(config_path.read_text(encoding="utf-8"))
+            added, updated = config_changes(manifest, template_config, project_config)
+            if added or updated:
+                config_path.write_text(
+                    apply_config_changes(
+                        config_path.read_text(encoding="utf-8"), template_config, added, updated
+                    ),
+                    encoding="utf-8",
+                )
+                say(f"zensical.toml  {len(added)} added, {len(updated)} updated")
+                also_written.append("zensical.toml")
+
+        if ignores:
+            ignores_path.write_text(
+                append_ignores(
+                    ignores_path.read_text(encoding="utf-8") if ignores_path.exists() else "",
+                    ignores,
                 ),
                 encoding="utf-8",
             )
-            say(f"zensical.toml  {len(added)} added, {len(updated)} updated")
-            also_written.append("zensical.toml")
+            say(f".gitignore     {len(ignores)} line(s) appended")
+            also_written.append(".gitignore")
 
-    if ignores:
-        ignores_path.write_text(
-            append_ignores(
-                ignores_path.read_text(encoding="utf-8") if ignores_path.exists() else "",
-                ignores,
-            ),
-            encoding="utf-8",
-        )
-        say(f".gitignore     {len(ignores)} line(s) appended")
-        also_written.append(".gitignore")
+        say()
+        for line in written_report(written):
+            say(f"  {line}")
 
-    say()
-    for line in written_report(written):
-        say(f"  {line}")
+        # 10, last: the stamp describes a state that now exists.
+        if baseline.version:
+            write_stamp(project, versions[0] if versions else baseline.version)
+            also_written.append(STAMP_FILE)
+        stage_changes(git, [w.path for w in written] + also_written)
+        say()
+        say("Staged, not committed - the commit is yours to write.")
+    finally:
+        # Written however the run ended. A run that raised is the one
+        # most worth reading afterwards, so the log is not conditional
+        # on reaching the end.
+        log_path = append_log(project, logged, started)
+        newly_ignored = ignore_the_log(project)
+        note = "  (added to .gitignore)" if newly_ignored else ""
+        click.echo(f"log       {log_path.name}{note}")
 
-    # 10, last: the stamp describes a state that now exists.
-    if baseline.version:
-        write_stamp(project, versions[0] if versions else baseline.version)
-        also_written.append(STAMP_FILE)
-    stage_changes(git, [w.path for w in written] + also_written)
-    say()
-    say("Staged, not committed - the commit is yours to write.")
+
 
 
 def _template_checkout(project: pathlib.Path, remote: str) -> pathlib.Path:

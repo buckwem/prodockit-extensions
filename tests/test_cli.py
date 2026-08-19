@@ -96,3 +96,48 @@ def test_template_sync_survives_a_directory_it_cannot_read(tmp_path, monkeypatch
     assert result.exit_code == 1
     assert "not a git repository" in result.output
     assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
+def test_template_sync_logs_a_run_that_failed(tmp_path, monkeypatch) -> None:
+    """A run that raised is the one most worth reading afterwards.
+
+    So the log is written from a `finally`, not from the end of the happy
+    path - a student reporting "it did not work" has, by definition, not
+    reached the end.
+    """
+    import subprocess
+
+    from click.testing import CliRunner
+
+    from prodockit.cli import main
+    from prodockit.template_sync import LOG_FILE
+
+    project = tmp_path / "report"
+    project.mkdir()
+    subprocess.run(["git", "-C", str(project), "init", "-q"], check=True)
+
+    monkeypatch.chdir(project)
+    # No origin, so stage 1 raises - and the log should exist regardless.
+    result = CliRunner().invoke(main, ["template-sync"])
+
+    assert result.exit_code == 1
+    assert (project / LOG_FILE).exists()
+    assert "started" in (project / LOG_FILE).read_text(encoding="utf-8")
+    assert "finished" in (project / LOG_FILE).read_text(encoding="utf-8")
+
+
+def test_template_sync_logs_the_full_detail_even_without_verbose(tmp_path, monkeypatch) -> None:
+    """The run a student reports is the one they ran with no flags.
+
+    A log holding only what the terminal was asked for would be no use
+    for diagnosing it, so the reports are rendered twice - summary to the
+    terminal, full detail to the log.
+    """
+    import inspect
+
+    from prodockit import cli
+
+    source = inspect.getsource(cli._run_template_sync)
+
+    assert "verbose=True" in source, "the log must take the verbose form whatever the terminal got"
+    assert "logged.extend" in source
