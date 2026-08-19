@@ -590,3 +590,101 @@ def leftovers(manifest: Manifest, project_files: Iterable[str]) -> list[str]:
     operation than updating a file the template owns.
     """
     return sorted(p for p in project_files if manifest.owner(p) == "excluded")
+
+
+# ---------------------------------------------------------------------------
+# Applying: the writing half
+# ---------------------------------------------------------------------------
+
+
+def _table_header(dotted: str) -> tuple[str, str] | None:
+    """Split a dotted key into `(table, key)`, or None if it names a table.
+
+    `project.extra.pdf_page_size` is a key in `[project.extra]`;
+    `project.markdown_extensions."prodockit.tree"` is a table with no key
+    of its own. The difference decides whether a value is edited or a
+    header inserted.
+    """
+    parts: list[str] = []
+    for part in dotted.split("."):
+        if parts and parts[-1].startswith('"') and not parts[-1].endswith('"'):
+            parts[-1] += "." + part
+        else:
+            parts.append(part)
+    if parts[-1].startswith('"'):
+        return None  # a quoted name is a table, not a key
+    return ".".join(parts[:-1]), parts[-1]
+
+
+def set_config_value(text: str, dotted: str, rendered: str) -> str:
+    """Sets one key in a TOML document, leaving every other line alone.
+
+    Surgical rather than a parse-and-dump round trip. This project's
+    `zensical.toml` is 604 lines of which 367 are comments explaining why
+    each setting is what it is; re-emitting the document would discard
+    all of them and reorder the rest, turning a one-line change into a
+    diff nobody can review (prodockit-template#188).
+
+    Raises rather than guessing when the table is not found. Appending a
+    key to the end of a file lands it in whatever table happens to be
+    last, which is a wrong answer that looks like a right one.
+    """
+    split = _table_header(dotted)
+    if split is None:
+        raise TemplateSyncError(f"{dotted} names a table, not a key")
+    table, key = split
+
+    lines = text.splitlines(keepends=True)
+    start = None
+    for index, line in enumerate(lines):
+        if line.strip() == f"[{table}]":
+            start = index
+            break
+    if start is None:
+        raise TemplateSyncError(f"no [{table}] table in this file")
+
+    for index in range(start + 1, len(lines)):
+        stripped = lines[index].lstrip()
+        if stripped.startswith("["):
+            break  # the next table began; the key is absent
+        name = stripped.split("=", 1)[0].strip() if "=" in stripped else ""
+        if name == key:
+            lines[index] = f"{key} = {rendered}\n"
+            return "".join(lines)
+
+    # Absent: insert directly under the header, before the table's own
+    # comments so the new line is not attributed to the wrong setting.
+    lines.insert(start + 1, f"{key} = {rendered}\n")
+    return "".join(lines)
+
+
+def add_config_table(text: str, dotted: str) -> str:
+    """Adds an empty table, if the document does not already have it.
+
+    Appended at the end of the document rather than beside its siblings:
+    TOML has no requirement that tables be grouped, and inserting into
+    the middle of a heavily commented file risks attaching the new header
+    to a comment written about the setting above it.
+    """
+    header = f"[{dotted}]"
+    if any(line.strip() == header for line in text.splitlines()):
+        return text
+    separator = "" if text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n")
+    return f"{text}{separator}{header}\n"
+
+
+def append_ignores(text: str, lines: Sequence[str]) -> str:
+    """Adds ignore lines the file does not have, at the end.
+
+    Append-only, and never reordered: a `.gitignore` is read top to
+    bottom by people as well as by git, and shuffling somebody's own
+    entries to make room is not an update.
+    """
+    if not lines:
+        return text
+    have = {line.strip() for line in text.splitlines()}
+    missing = [line for line in lines if line.strip() not in have]
+    if not missing:
+        return text
+    prefix = text if text.endswith("\n") or not text else text + "\n"
+    return prefix + "\n".join(missing) + "\n"

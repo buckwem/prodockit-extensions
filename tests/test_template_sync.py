@@ -23,6 +23,8 @@ from prodockit.template_sync import (
     Baseline,
     FileAction,
     TemplateSyncError,
+    add_config_table,
+    append_ignores,
     baseline_report,
     blocking_changes,
     classification_report,
@@ -34,6 +36,7 @@ from prodockit.template_sync import (
     missing_seeds,
     plan_template_files,
     resolve_template,
+    set_config_value,
     unclassified,
     update_report,
 )
@@ -739,3 +742,85 @@ def test_a_key_that_holds_the_project_s_content_is_never_taken() -> None:
 
     assert updated == ["project.extra.pdf_page_size"]
     assert not any("copyright" in key for key in added + updated)
+
+
+# ---------------------------------------------------------------------------
+# Applying: editing config without destroying it
+# ---------------------------------------------------------------------------
+
+CONFIG = '''# The project's own settings. Every line here was written on purpose.
+[project]
+site_name = "My Report"
+
+# Margins are in the PDF's own units - see customisebuild.md for why
+# these are not the browser defaults.
+[project.extra]
+pdf_page_size = "A4"
+pdf_margin_top = "2cm"
+
+[project.markdown_extensions."prodockit.tables"]
+'''
+
+
+def test_a_changed_value_leaves_every_other_line_byte_identical() -> None:
+    """The reason this is surgical rather than a parse-and-dump: 367 of
+    this file's 604 lines are comments explaining the settings, and
+    re-emitting the document would discard all of them."""
+    after = set_config_value(CONFIG, "project.extra.pdf_page_size", '"A5"')
+
+    before_lines = CONFIG.splitlines()
+    after_lines = after.splitlines()
+    assert len(before_lines) == len(after_lines)
+    changed = [i for i, (a, b) in enumerate(zip(before_lines, after_lines, strict=True)) if a != b]
+    assert len(changed) == 1, "exactly one line should differ"
+    assert after_lines[changed[0]] == 'pdf_page_size = "A5"'
+    # And the comments survive, which is the whole point.
+    assert "# Margins are in the PDF's own units" in after
+
+
+def test_a_missing_key_is_inserted_into_its_own_table() -> None:
+    after = set_config_value(CONFIG, "project.extra.pdf_double_sided", "true")
+
+    assert "pdf_double_sided = true" in after
+    # In [project.extra], not appended to the end of the document where
+    # it would land in whatever table happens to be last.
+    extra = after.split("[project.extra]")[1].split("[project.markdown")[0]
+    assert "pdf_double_sided" in extra
+
+
+def test_a_key_in_a_table_that_does_not_exist_is_refused() -> None:
+    """Appending it to the end would put it in whatever table is last -
+    a wrong answer that looks like a right one."""
+    with pytest.raises(TemplateSyncError, match=re.escape("no [project.nope] table")):
+        set_config_value(CONFIG, "project.nope.thing", "1")
+
+
+def test_a_table_name_is_not_mistaken_for_a_key() -> None:
+    with pytest.raises(TemplateSyncError, match="names a table, not a key"):
+        set_config_value(CONFIG, 'project.markdown_extensions."prodockit.tree"', "")
+
+
+def test_a_new_extension_table_is_added_once() -> None:
+    once = add_config_table(CONFIG, 'project.markdown_extensions."prodockit.tree"')
+    twice = add_config_table(once, 'project.markdown_extensions."prodockit.tree"')
+
+    assert once.count('[project.markdown_extensions."prodockit.tree"]') == 1
+    assert twice == once, "adding it again must change nothing"
+    # Everything that was there before is still there, unchanged.
+    assert once.startswith(CONFIG.rstrip("\n"))
+
+
+def test_ignores_are_appended_and_never_reordered() -> None:
+    """A .gitignore is read top to bottom by people as well as by git."""
+    text = "build/\n*.pyc\n"
+
+    after = append_ignores(text, [".vscode/", "*.pyc"])
+
+    assert after == "build/\n*.pyc\n.vscode/\n"
+
+
+def test_appending_nothing_changes_nothing() -> None:
+    text = "build/\n"
+
+    assert append_ignores(text, []) == text
+    assert append_ignores(text, ["build/"]) == text
