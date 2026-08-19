@@ -29,6 +29,7 @@ from __future__ import annotations
 import fnmatch
 import sys
 from collections.abc import Callable, Iterable, Sequence
+from typing import Any
 from dataclasses import dataclass, field
 
 if sys.version_info >= (3, 11):  # pragma: no cover - one branch per interpreter
@@ -84,6 +85,8 @@ class Manifest:
     seed: tuple[str, ...] = ()
     ignore: tuple[str, ...] = ()
     shared: tuple[str, ...] = ()
+    take: tuple[str, ...] = ()
+    never: tuple[str, ...] = ()
     excluded: tuple[str, ...] = ()
     renames: dict[str, str] = field(default_factory=dict)
 
@@ -161,6 +164,8 @@ def load_manifest(text: str) -> Manifest:
         seed=strings("project", "seed"),
         ignore=strings("project", "ignore"),
         shared=strings("shared", "files"),
+        take=tuple(data.get("shared", {}).get("zensical_toml", {}).get("take", [])),
+        never=tuple(data.get("shared", {}).get("zensical_toml", {}).get("never", [])),
         excluded=strings("excluded", "paths"),
         renames=dict(renames),
     )
@@ -483,3 +488,105 @@ def update_report(
             suffix = "" if action.project_path == action.path else f"   <- {action.path}"
             lines.append(f"    {action.project_path}{suffix}")
     return lines
+
+
+def missing_seeds(manifest: Manifest, exists: Callable[[str], bool]) -> list[str]:
+    """Seeded files the project does not have.
+
+    Only absence matters. A seed is written once and then belongs to the
+    project - `LICENSE.md` being the case that makes it obvious, since a
+    project may rightly change its licence and an update that restored
+    the template's would be wrong rather than helpful.
+    """
+    return [s for s in manifest.seed if not exists(manifest.rename(s))]
+
+
+def _dotted(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
+    """Every leaf in a parsed TOML document, by dotted path.
+
+    Tables are walked; anything else is a value. `prodockit.tables` is a
+    table *name* containing a dot, which is exactly why the manifest
+    quotes it - the quoting is preserved here so a pattern can match the
+    whole name rather than treating it as two levels.
+    """
+    out: dict[str, Any] = {}
+    for key, value in data.items():
+        name = f'"{key}"' if "." in key else key
+        path = f"{prefix}.{name}" if prefix else name
+        if isinstance(value, dict):
+            nested = _dotted(value, path)
+            out.update(nested or {path: value})
+        else:
+            out[path] = value
+    return out
+
+
+def _taken(key: str, patterns: Sequence[str]) -> bool:
+    """Whether a dotted key is one the template may set.
+
+    A pattern naming a *table* claims what is inside it:
+    `project.markdown_extensions."prodockit.*"` has to reach
+    `...tables".x`, or every extension's settings would be missed while
+    the bare, empty tables matched. So each ancestor is tested too.
+    """
+    parts = key.split(".")
+    # Quoted names contain dots; rebuild them before walking prefixes.
+    rebuilt: list[str] = []
+    for part in parts:
+        if rebuilt and rebuilt[-1].startswith('"') and not rebuilt[-1].endswith('"'):
+            rebuilt[-1] += "." + part
+        else:
+            rebuilt.append(part)
+    return any(
+        _matches(".".join(rebuilt[: i + 1]), patterns) for i in range(len(rebuilt))
+    )
+
+
+def config_changes(
+    manifest: Manifest, template_config: dict[str, Any], project_config: dict[str, Any]
+) -> tuple[list[str], list[str]]:
+    """Which of the template's own config keys a project is missing or
+    has differently: `(added, updated)`.
+
+    Nothing is ever removed. A reader who switched `prodockit.bibliography`
+    off has made a choice, and a tool that turns it back on because the
+    template has it is not updating anything - it is reverting them.
+
+    `never` is the other half of that. A pattern broad enough to be
+    useful catches keys that hold the project's *content* rather than its
+    settings: `project.extra.pdf_*` covers the margins and the page size,
+    and also `pdf_copyright`, which on a real assignment reads
+    `Author: 123456` against the template's own name. Overwriting that
+    would put the template author's name on somebody else's report, which
+    is precisely what this tool exists not to do.
+    """
+    take, never = manifest.take, manifest.never
+    theirs = {
+        k: v
+        for k, v in _dotted(template_config).items()
+        if _taken(k, take) and not _matches(k, never)
+    }
+    mine = _dotted(project_config)
+    added = sorted(k for k in theirs if k not in mine)
+    updated = sorted(k for k in theirs if k in mine and mine[k] != theirs[k])
+    return added, updated
+
+
+def missing_ignores(manifest: Manifest, current: Sequence[str]) -> list[str]:
+    """Ignore lines the template has and the project lacks.
+
+    Append-only: a project's own ignores are its own, and there is no way
+    to tell a stale template line from a deliberate local one.
+    """
+    have = {line.strip() for line in current}
+    return [line for line in manifest.ignore if line.strip() not in have]
+
+
+def leftovers(manifest: Manifest, project_files: Iterable[str]) -> list[str]:
+    """Files the project has that are no longer delivered.
+
+    Reported, never deleted. Removing files from somebody's repository
+    because a manifest changed its mind is a different and more dangerous
+    operation than updating a file the template owns.
+    """
+    return sorted(p for p in project_files if manifest.owner(p) == "excluded")

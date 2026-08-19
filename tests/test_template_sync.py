@@ -26,8 +26,12 @@ from prodockit.template_sync import (
     baseline_report,
     blocking_changes,
     classification_report,
+    config_changes,
     derive_baseline,
+    leftovers,
     load_manifest,
+    missing_ignores,
+    missing_seeds,
     plan_template_files,
     resolve_template,
     unclassified,
@@ -48,6 +52,10 @@ ignore = [".vscode/"]
 
 [shared]
 files = ["zensical.toml", ".gitignore"]
+
+[shared.zensical_toml]
+take = ['project.markdown_extensions."prodockit.*"', "project.extra.pdf_*"]
+never = ["project.extra.pdf_copyright"]
 
 [excluded]
 paths = ["CHANGELOG.md", ".github/CODEOWNERS"]
@@ -620,3 +628,114 @@ def test_a_renamed_file_shows_both_names() -> None:
 
     assert "docs/javascript/extra.js" in text
     assert "<- docs/javascripts/extra.js" in text
+
+
+# ---------------------------------------------------------------------------
+# Stages 7 to 9: seeds, shared config, leftovers
+# ---------------------------------------------------------------------------
+
+
+def test_a_seed_is_written_only_when_it_is_missing() -> None:
+    """Written once and then the project's. A project may rightly change
+    its licence, and an update that restored the template's would be
+    wrong rather than helpful."""
+    manifest = load_manifest(MANIFEST)
+
+    assert missing_seeds(manifest, lambda p: False) == ["LICENSE.md"]
+    assert missing_seeds(manifest, lambda p: True) == []
+
+
+def test_a_seed_is_looked_for_under_the_name_the_project_uses() -> None:
+    """A project generated before `LICENSE` became `LICENSE.md` has the
+    old name, and seeding it again would leave two licences."""
+    manifest = load_manifest(MANIFEST)
+
+    assert missing_seeds(manifest, lambda p: p == "LICENSE") == []
+
+
+def test_the_template_s_own_config_keys_are_offered() -> None:
+    template = {"project": {"markdown_extensions": {"prodockit.tree": {}}}}
+    project: dict = {"project": {"markdown_extensions": {}}}
+
+    added, updated = config_changes(load_manifest(MANIFEST), template, project)
+
+    assert added == ['project.markdown_extensions."prodockit.tree"']
+    assert updated == []
+
+
+def test_a_changed_setting_is_an_update_not_an_addition() -> None:
+    template = {"project": {"extra": {"pdf_double_sided": True}}}
+    project = {"project": {"extra": {"pdf_double_sided": False}}}
+
+    added, updated = config_changes(load_manifest(MANIFEST), template, project)
+
+    assert (added, updated) == ([], ["project.extra.pdf_double_sided"])
+
+
+def test_the_project_s_own_settings_are_never_touched() -> None:
+    """`site_name` is the reader's, and nothing outside the patterns the
+    manifest names may be offered at all."""
+    template = {"project": {"site_name": "Document Template", "extra": {"pdf_x": 1}}}
+    project = {"project": {"site_name": "My Report", "extra": {}}}
+
+    added, updated = config_changes(load_manifest(MANIFEST), template, project)
+
+    assert added == ["project.extra.pdf_x"]
+    assert not any("site_name" in key for key in added + updated)
+
+
+def test_an_extension_switched_off_is_not_switched_back_on() -> None:
+    """Nothing is ever removed, and a key the project lacks is offered as
+    an addition - but a reader who deleted it has made a choice, which is
+    why this is reported rather than applied silently."""
+    template: dict = {"project": {"markdown_extensions": {"prodockit.bibliography": {}}}}
+    project: dict = {"project": {"markdown_extensions": {"prodockit.tree": {}}}}
+
+    added, updated = config_changes(load_manifest(MANIFEST), template, project)
+
+    assert added == ['project.markdown_extensions."prodockit.bibliography"']
+    # The project's own extension is left entirely alone.
+    assert not any("tree" in key for key in added + updated)
+
+
+def test_a_dotted_extension_name_is_one_key_not_two() -> None:
+    """`prodockit.tables` is a table *name* containing a dot. Split, it
+    would match nothing and every extension setting would be missed."""
+    template = {"project": {"markdown_extensions": {"prodockit.tables": {"x": 1}}}}
+
+    added, _ = config_changes(load_manifest(MANIFEST), template, {})
+
+    assert added == ['project.markdown_extensions."prodockit.tables".x']
+
+
+def test_only_the_ignore_lines_the_project_lacks_are_offered() -> None:
+    manifest = load_manifest(MANIFEST)
+
+    assert missing_ignores(manifest, ["build/", "*.pyc"]) == [".vscode/"]
+    assert missing_ignores(manifest, ["build/", ".vscode/"]) == []
+
+
+def test_files_no_longer_delivered_are_reported_not_removed() -> None:
+    """Removing files from somebody's repository because a manifest
+    changed its mind is a different and more dangerous operation."""
+    manifest = load_manifest(MANIFEST)
+
+    assert leftovers(manifest, ["docs/index.md", "CHANGELOG.md", ".github/CODEOWNERS"]) == [
+        ".github/CODEOWNERS",
+        "CHANGELOG.md",
+    ]
+
+
+def test_a_key_that_holds_the_project_s_content_is_never_taken() -> None:
+    """`project.extra.pdf_*` covers margins and page size - and also
+    `pdf_copyright`, which on a real assignment reads `Author: 123456`
+    against the template's own name. Overwriting that would put the
+    template author's name on somebody else's report."""
+    manifest = load_manifest(MANIFEST)
+    template = {"project": {"extra": {"pdf_copyright": "Mark", "pdf_page_size": "A4"}}}
+    project = {"project": {"extra": {"pdf_copyright": "123456", "pdf_page_size": "A5"}}}
+
+    added, updated = config_changes(manifest, template, project)
+
+    assert updated == ["project.extra.pdf_page_size"]
+    assert not any("copyright" in key for key in added + updated)
