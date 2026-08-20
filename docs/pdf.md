@@ -57,7 +57,7 @@ for your platform (e.g. `brew install pandoc` on macOS).
 [Back-of-book indexes](extensions/index-terms.md#index-terms-requirements)
 additionally need [`pymupdf`](https://pymupdf.readthedocs.io/) - `pip
 install prodockit[index]` (or plain `pip install pymupdf`) - but only if
-you actually turn `pdf_include_index` on.
+you set `include = true` for `prodockit.index`.
 
 Mermaid diagrams and TeX maths need a little Node tooling on top - see
 [below](#mermaid-diagrams-and-tex-maths). Every other feature on this page
@@ -192,8 +192,6 @@ lives under `[project.extra]`, all optional:
 | \index{PDF settings!`reference_style`} | `"european"` | `"european"` (tight, single-line citation entries) or `"global"` (double-spaced, hanging indent - the common APA/MLA/Chicago style). |
 | \index{PDF settings!`pdf_include_table_of_contents`} | `true` | Whether to generate and insert a table of contents. |
 | \index{PDF settings!`pdf_table_of_contents_title`} | `"Table of Contents"` | That page's own heading text. |
-| \index{PDF settings!`pdf_include_index`} | `false` | A back-of-book index from every `\index{Term}` marker - see [Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index). Requires the optional `pymupdf` dependency. |
-| \index{PDF settings!`pdf_index_title`} | `"Index"` | That page's own heading text. |
 | \index{PDF settings!`pdf_mmdc_bin`} | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
 | \index{PDF settings!`pdf_tex2svg_script`} / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
 | \index{PDF settings!`pdf_extra_css`} | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF - e.g. a rule that would look wrong on the live website, or one overriding something `extra_css` itself sets (concatenated after it, so it wins the cascade). |
@@ -521,9 +519,9 @@ than a code sample (see this project's own
 ### Back-of-book index
 
 A traditional, two-column \index{back-of-book index}, generated from every
-`\index{Term}` marker (the `prodockit.index` extension) via
-`pdf_include_index`/`pdf_index_title` - PDF-only, there's no equivalent
-on the live website. Marking terms, turning the setting on, and what the
+`\index{Term}` marker when `include = true` in the `prodockit.index`
+extension's settings. It is PDF-only; there is no equivalent on the live
+website. Marking terms, turning the setting on, and what the
 generated page itself looks like are all covered together in
 [Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index),
 since (unlike every other feature on this page) marking and generation

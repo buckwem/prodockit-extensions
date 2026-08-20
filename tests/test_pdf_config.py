@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from zensical.config import parse_config as parse_zensical_config
 
 from prodockit.pdf import config
 from prodockit.pdf.config import (
@@ -677,15 +678,44 @@ def test_include_index_defaults_off(project, monkeypatch: pytest.MonkeyPatch) ->
     assert captured["index_title"] == "Index"
 
 
-def test_include_index_reads_from_extra_and_a_custom_title(
+def test_old_extra_index_names_are_not_read(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = project(
         extra=(
             "\n[project.extra]\npdf_include_index = true\n"
-            'pdf_index_title = "Glossary of Terms"\n'
+            'pdf_index_title = "Old title"\n'
         )
     )
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["include_index"] = kwargs["include_index"]
+        captured["index_title"] = kwargs["index_title"]
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    assert captured == {"include_index": False, "index_title": "Index"}
+
+
+def test_include_index_reads_from_the_extension_and_a_custom_title(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project(
+        extra=(
+            '\n[project.markdown_extensions."prodockit.index"]\ninclude = true\n'
+            'title = "Glossary of Terms"\n'
+        )
+    )
+
+    config = parse_zensical_config(root / "zensical.toml")
+    assert config["mdx_configs"]["prodockit.index"] == {
+        "include": True,
+        "title": "Glossary of Terms",
+    }
 
     captured = {}
     import prodockit.pdf.config as config_module

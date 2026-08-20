@@ -51,6 +51,11 @@ three rules:
 
 ## Configure indentation and icons
 
+There are no additional `prodockit.tree` settings in `zensical.toml`.
+Configure each tree inside its Markdown block. Put the options directly below
+`/// tree`, indent them by at least four spaces, and leave a blank line before
+the listing:
+
 | Option | Default | What it does |
 |---|---|---|
 | `indent` | `2` | How many spaces one level costs. Set `4` for a listing written that way. |
@@ -66,8 +71,7 @@ docs/
 ///
 ```
 
-Put options directly below `/// tree`. Indent each option by at least four
-spaces, then leave a blank line before the listing. For example:
+For example, you can choose different icons:
 
 ```md
 /// tree

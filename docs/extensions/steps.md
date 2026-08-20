@@ -101,6 +101,9 @@ Windows, and Linux commands in tabs inside its first two steps.
 
 ## Configure numbered steps
 
+There are no additional `prodockit.steps` settings in `zensical.toml`.
+Configure each procedure inside its `/// steps` Markdown block.
+
 ### Continue numbering after a break {: #steps-continuing }
 
 A long procedure can be split across sections or pages. Set `start` on the

@@ -199,6 +199,20 @@ class IndexExtension(Extension):
     """Python-Markdown extension providing the ``\\index{Term}`` syntax -
     see this module's own docstring."""
 
+    def __init__(self, **kwargs: object) -> None:
+        self.config = {
+            "include": [
+                False,
+                "Generate a back-of-book index when prodockit.pdf builds "
+                "the complete document.",
+            ],
+            "title": [
+                "Index",
+                "Heading shown on the generated back-of-book index page.",
+            ],
+        }
+        super().__init__(**kwargs)
+
     def extendMarkdown(self, md: Markdown) -> None:
         md.registerExtension(self)
         md.inlinePatterns.register(

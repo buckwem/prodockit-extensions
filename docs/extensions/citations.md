@@ -52,6 +52,19 @@ The extension replaces `\citeref{skou-example}` with the linked citation
 
 ## Configure citations
 
+### Choose the missing-citation text
+
+An unresolved citation displays `?` by default. Set `unresolved` if your
+project uses a different marker:
+
+```toml
+[project.markdown_extensions."prodockit.citations"]
+unresolved = "MISSING"
+```
+
+`source` is the only other TOML setting. It identifies the current page, but
+Zensical detects it automatically; leave it unset in `zensical.toml`.
+
 Multiple comma-separated keys join into one bracket:
 `\citeref{skou2023,chacon2014}` → `[Skoulikari, 2023; Chacon and Straub,
 2014]`.
@@ -124,13 +137,16 @@ Type `\citeref{skou2023}` to cite a source.
 
 Neither of the two shown above is resolved; both render the literal text.
 
-### Options {: #citations-options }
+### Zensical settings {: #citations-options }
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| \index{prodockit.citations!`source`} | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's own citation definitions in the registry. |
-| \index{prodockit.citations!`unresolved`} | `str` | `"?"` | Text rendered for a `\citeref{id}` key that doesn't resolve to a definition. |
-| \index{prodockit.citations!`registry`} | `CitationRegistry \| None` | discovered automatically, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
+| Setting | Default | What it controls |
+|---|---|---|
+| \index{prodockit.citations!`unresolved`} | `"?"` | Text shown for a citation id that cannot be found. |
+| \index{prodockit.citations!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
+
+`registry` is not a `zensical.toml` setting. It accepts a `CitationRegistry`
+Python object when you construct `CitationsExtension` yourself; see the manual
+multi-page example below.
 
 ### Multi-page builds {: #citations-multi-page-builds }
 
