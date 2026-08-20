@@ -22,7 +22,7 @@ the tagged source, while the documentation redeploy is deliberately run from
 
 ```mermaid
 flowchart TD
-    branch[Release branch] --> pr[Pull request]
+    branch([START<br>Release branch]):::entry --> pr[Pull request]
     pr --> ci[ci.yml<br>tests, lint, typing, strict docs]
     ci -->|required checks pass| merge[Merge to main]
     merge --> docs[docs.yml<br>PDF, site, built-output tests, Pages]
@@ -32,8 +32,14 @@ flowchart TD
     release --> redeploy[release-redeploy.yml]
     redeploy --> dispatch[Dispatch docs.yml against main]
     dispatch --> live[Pages deploy and live fingerprint check]
-    schedule[Weekly schedule] --> drift[drift.yml<br>compare pinned and newest output]
+    schedule([SCHEDULED TRIGGER<br>Every Monday]):::entry --> drift[drift.yml<br>compare pinned and newest output]
+
+    classDef entry fill:#fff4cc,stroke:#9a6700,stroke-width:3px,color:#3d2b00
 ```
+
+The rounded gold boxes are entry points: a maintainer starts the release path
+from a release branch, while GitHub starts the drift path on its weekly
+schedule. Rectangular boxes are actions or workflow stages that follow.
 
 | Workflow | Trigger | Responsibility |
 |---|---|---|

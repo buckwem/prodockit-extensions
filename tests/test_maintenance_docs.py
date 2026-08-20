@@ -42,6 +42,14 @@ def test_release_guide_covers_every_github_actions_workflow() -> None:
     assert not missing, f"GitHub Actions workflows absent from the release guide: {missing}"
 
 
+def test_release_diagram_distinguishes_entry_points_from_steps() -> None:
+    guide = (ROOT / "docs" / "devcons" / "releasing.md").read_text(encoding="utf-8")
+
+    assert "START<br>Release branch" in guide
+    assert "SCHEDULED TRIGGER<br>Every Monday" in guide
+    assert "classDef entry" in guide
+
+
 def test_release_guide_covers_the_version_sources_and_release_gates() -> None:
     guide = (ROOT / "docs" / "devcons" / "releasing.md").read_text(encoding="utf-8")
     required = (
