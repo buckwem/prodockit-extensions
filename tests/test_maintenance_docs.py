@@ -19,17 +19,19 @@ def _nav_group(title: str) -> list[dict[str, str]]:
     return next(item[title] for item in nav if title in item)
 
 
-def test_bootstrap_is_publishing_and_maintenance_has_an_end_to_end_path() -> None:
+def test_publishing_holds_setup_and_template_guides() -> None:
     publishing = _nav_group("Publishing")
     maintenance = _nav_group("Project maintenance")
 
     assert {"Set up a machine": "devcons/bootstrap.md"} in publishing
+    assert {
+        "Staying in step with the template": "devcons/template-sync.md"
+    } in publishing
     assert maintenance == [
         {"Maintenance overview": "project-maintenance.md"},
         {"Command-line tools": "command-line.md"},
         {"Repository metadata": "devcons/repo-metadata.md"},
         {"Version pinning and drift": "devcons/pinning-drift.md"},
-        {"Staying in step with the template": "devcons/template-sync.md"},
         {"Build and release": "devcons/releasing.md"},
     ]
 
