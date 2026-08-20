@@ -9,7 +9,7 @@ hide:
 
 # <span class="cover-hero-title-light">prodockit</span> {: .cover-hero-title }
 
-A docs-as-code workflow for professional and academic documentation, built on Zensical.
+A docs-as-code workflow for professional and academic documentation, built on Zensical and Markdown.
 {: .cover-hero-subtitle }
 
 {% if release %}
