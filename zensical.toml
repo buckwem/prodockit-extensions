@@ -65,9 +65,12 @@ extra_javascript = [
 
 nav = [
   {"Home" = "index.md"},
-  {"Introduction" = "introduction.md"},
-  {"Installation" = "installation.md"},
-  {"Extensions" = [
+  {"Get started" = [
+    {"Overview" = "introduction.md"},
+    {"Install prodockit" = "installation.md"},
+    {"Build your first site" = "getting-started.md"},
+  ]},
+  {"Authoring reference" = [
     {"Headings" = "extensions/headings.md"},
     {"Cross-References" = "extensions/refs.md"},
     {"Citations or References" = "extensions/citations.md"},
@@ -78,16 +81,21 @@ nav = [
     {"Bibliography" = "extensions/bibliography.md"},
     {"Index (pdf-only)" = "extensions/index-terms.md"},
   ]},
-  {"PDF generation" = "pdf.md"},
-  {"Website macros" = "macros.md"},
-  {"Dev Considerations" = [
-    {"Introduction" = "devcons/devcons.md"},
-    {"Machine bootstrap" = "devcons/bootstrap.md"},
+  {"Publishing" = [
+    {"Generate a PDF" = "pdf.md"},
+    {"Website macros" = "macros.md"},
     {"Continuous integration" = "devcons/continuous-integration.md"},
+    {"Test the built site" = "devcons/testing.md"},
+  ]},
+  {"Project maintenance" = [
+    {"Command-line tools" = "command-line.md"},
+    {"Set up a machine" = "devcons/bootstrap.md"},
     {"Repository metadata" = "devcons/repo-metadata.md"},
     {"Version pinning and drift" = "devcons/pinning-drift.md"},
     {"Staying in step with the template" = "devcons/template-sync.md"},
-    {"Testing your built site" = "devcons/testing.md"},
+  ]},
+  {"Contributor notes" = [
+    {"How the pieces fit" = "devcons/devcons.md"},
     {"Zensical coupling" = "devcons/zensical-coupling.md"},
     {"Limitations and workarounds" = "devcons/limitations.md"},
   ]},

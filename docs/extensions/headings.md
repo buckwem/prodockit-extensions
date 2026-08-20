@@ -1,13 +1,18 @@
+---
+icon: lucide/heading
+---
+
 # Headings
 
-\index{`prodockit.headings`} gives every heading in a document an `id` and a
-hierarchical section number, and records both - along with the heading's
-text and level - in a shared registry other prodockit extensions build on
-(e.g. [prodockit.refs](refs.md), which resolves `\ref{id}` by looking an id up
-in exactly this registry). You can also enable it on its own if you just
-want ids/numbers on your headings without cross-references.
+\index{`prodockit.headings`} numbers the headings in your document as sections,
+such as `1`, `1.1`, and `1.2`. The numbers update automatically when you add,
+remove, or move a heading.
 
-## Quick start {: #headings-quick-start }
+Use it when your document needs numbered sections. Add
+[Cross-References](refs.md) when you also want to link readers to those
+sections by number and name.
+
+## Enable the extension {: #headings-enable }
 
 Enable it in `zensical.toml`:
 
@@ -15,9 +20,10 @@ Enable it in `zensical.toml`:
 [project.markdown_extensions."prodockit.headings"]
 ```
 
-and every heading gets a hierarchical number automatically - an `h1` is a
-top-level counter ("1", "2", ...), an `h2` nests under the nearest preceding
-`h1` ("1.1", "1.2", ...), and so on down through `h6`:
+## Number headings {: #headings-quick-start }
+
+Each `#` heading starts a main section (`1`, `2`, and so on). A `##` heading
+starts a section inside it (`1.1`, `1.2`, and so on):
 
 === "Markdown"
 
@@ -40,16 +46,21 @@ top-level counter ("1", "2", ...), an `h2` nests under the nearest preceding
     | Scope | `scope` | `1.2` |
     | Method | `method` | `2` |
 
-`prodockit.headings` doesn't render the number into the heading text itself -
-only into the registry above, which [prodockit.refs](refs.md) then renders
-inline wherever you write `\ref{id}`. Numbers are recomputed from scratch on
-every conversion, so reordering headings always produces correct numbers on
-the next build - there's no stored/stale numbering state.
+The extension calculates the section numbers, but it does not add them to the
+visible heading text on the website. [Cross-References](refs.md) uses the
+calculated numbers in links such as “1.1 Background”.
 
-### Appendices
+!!! note "Why the heading itself does not visibly change"
+    The section numbers appear in [Cross-References](refs.md), rather than next
+    to the website's heading text.
 
-Flag a page's \index{front matter} with `is_appendix: true` to give it letter-based
-numbering instead of the normal numeric sequence - `"A"`, `"A.1"`,
+## Configure headings
+
+### Number appendices {: #appendices }
+
+Add `is_appendix: true` to the settings at the top of the page (its
+\index{front matter}) to use letter-based numbering instead of the normal
+numeric sequence - `"A"`, `"A.1"`,
 `"A.1.1"` - once you've enabled
 [continuous numbering](#continuous-numbering-across-pages-zensical) (see
 Reference below). An \index{appendix} page doesn't consume a number from the
@@ -103,7 +114,7 @@ it, still gets the next plain number in the numeric sequence (`"2"`, not
 `"3"`), exactly as if the appendix page had never consumed one. Only
 meaningful under [Zensical](https://zensical.org/); ignored otherwise.
 
-### Unnumbered headings
+### Leave a heading unnumbered {: #unnumbered-headings }
 
 A heading with an \index{headings!`unnumbered`} class - e.g. a cover page or title slide -
 still gets an id, but is skipped when computing section numbers, so it
@@ -118,7 +129,7 @@ doesn't consume a counter position:
 `Introduction` above is still numbered `1`, as if `Cover Page` weren't
 there at all.
 
-### Unlisted and unbookmarked headings (PDF only) {: #unlisted-and-unbookmarked-headings-pdf-only }
+### Hide a heading from PDF navigation {: #unlisted-and-unbookmarked-headings-pdf-only }
 
 A PDF built by [prodockit.pdf](../pdf.md) has *two* tables of contents, and
 `unnumbered` alone only reaches one of them:
@@ -275,7 +286,7 @@ for that page's first heading (see
 [prodockit.zensical_macros](../macros.md#heading_counter_resetpage)). Returns
 `None` outside a Zensical build.
 
-### CSS hooks {: #headings-css-hooks }
+## Customise with a CSS style sheet {: #headings-css-hooks }
 
 `prodockit.headings` doesn't add any class of its own to a heading - only an
 `id` (see above), the class(es) already on the heading (e.g. `unnumbered`),

@@ -74,6 +74,10 @@ needs neither of them, and no browser.
 pip install prodockit
 ```
 
+For a minimal project that needs no PDF toolchain, continue with
+[Build your first site](getting-started.md). The external tools above can be
+added later when the document needs their features.
+
 ## Enabling an extension
 
 Each prodockit extension is registered as a standard Python-Markdown extension
@@ -136,11 +140,14 @@ nothing to add to `zensical.toml`, because they are not Markdown syntax:
 | | |
 | --- | --- |
 | [`prodockit pdf`](pdf.md) | A separate PDF-generation build step |
+| [`prodockit source-bundle`](pdf.md#bundling-source-into-a-pdf) | Packages documentation source as a separate PDF |
 | [`prodockit.zensical_macros`](macros.md) | A `define_env()` module for Zensical's macros plugin, named under its `modules` config rather than as an extension |
+| [`prodockit.testing`](devcons/testing.md) | pytest fixtures and checks for an already-built site and PDF |
 | [`prodockit bootstrap`](devcons/bootstrap.md) | Sets up a machine to build the docs |
 | [`prodockit sync-repo`](devcons/repo-metadata.md) | Keeps repository metadata and README badges matching the git remote |
 | [`prodockit pins`](devcons/pinning-drift.md) | Moves build-input version pins together |
 | [`prodockit template-sync`](devcons/template-sync.md) | Brings a project back into step with the template it came from |
+| [`prodockit init-tools` / `init-mathjax`](command-line.md#publish-and-verify) | Sets up optional Mermaid and maths rendering tools |
 
 ## Development install
 

@@ -1,13 +1,17 @@
+---
+icon: lucide/link
+---
+
 # Cross-References
 
-\index{`prodockit.refs`} adds a `\ref{id}` cross-reference syntax - similar in spirit
-to LaTeX's `\ref` - that resolves to the *current* number and name of the
-heading with that id, e.g. "1.1 Configuration". It depends on the id/number registry that
-[prodockit.headings](headings.md) builds; enabling `prodockit.refs` on its own
-transparently enables `prodockit.headings` too, with matching defaults, so a
-single document works with no extra configuration.
+\index{`prodockit.refs`} creates links to headings elsewhere in your
+documentation. Each link shows the heading's current number and name, such as
+“1.1 Configuration”, so you do not have to update it when sections move.
 
-## Quick start {: #refs-quick-start }
+Use `\ref` for a link that works on the website and in the PDF. Use `\autoref`
+when the PDF should also show the target's page number.
+
+## Enable the extension {: #refs-enable }
 
 Enable it in `zensical.toml`:
 
@@ -15,38 +19,34 @@ Enable it in `zensical.toml`:
 [project.markdown_extensions."prodockit.refs"]
 ```
 
-then reference any heading's id with `\ref{id}`:
+## Reference a heading {: #refs-quick-start }
 
-```md
-# Introduction {: #intro }
+Reference any heading's id with `\ref{id}`:
 
-See \ref{intro} for background.
+=== "Markdown"
 
-## Background
-```
+    ```md
+    # Introduction {: #intro }
 
-renders to:
+    See \ref{intro} for background.
 
-<!-- These are real headings, so that the \ref link below them resolves
-     against real ids - but they are an illustration, not this page's own
-     structure. The three classes keep them out of the chapter numbering
-     (`unnumbered`), the PDF's Table of Contents (`unlisted`) and the PDF's
-     bookmark outline (`unbookmarked` - see
-     prodockit.headings#unlisted-and-unbookmarked-headings-pdf-only);
-     `prodockit.refs` itself emits none of them. -->
-<h1 id="intro" class="unnumbered unlisted unbookmarked">Introduction</h1>
-<p>See <a class="prodockit-ref" href="#intro">1 Introduction</a> for background.</p>
-<h2 id="background" class="unnumbered unlisted unbookmarked">Background</h2>
+    ## Background
+    ```
 
-Because the number is looked up fresh on every conversion, it stays correct
-even if sections are added, removed, or reordered - you never have to
-manually renumber a cross-reference. Referencing a heading defined on a
-*different* page (see [Multi-page builds](#refs-multi-page-builds) below) links
-to that page directly (e.g. `other.md#intro`, which Zensical rewrites into
-the correct clean URL) rather than a bare `#intro` fragment, which would
-only work if the target happened to be on the same page.
+=== "Result"
 
-### Forward references {: #refs-forward-references }
+    **Introduction**
+
+    See [1 Introduction](#refs-quick-start) for background.
+
+    **Background**
+
+The link takes the reader to the `Introduction` heading. Its number and name
+update automatically if the document changes.
+
+## Configure cross-references
+
+### Reference a heading before it appears {: #refs-forward-references }
 
 A reference to a heading defined *later* in the same document resolves
 correctly:
@@ -57,17 +57,14 @@ See \ref{background} below.
 ## Background {: #background }
 ```
 
-### Unresolved references {: #refs-unresolved-references }
+### Fix a missing reference {: #refs-unresolved-references }
 
-`\ref{id}` renders the `unresolved` marker (`??` by default) instead of a
-reference when `id` doesn't exist in the registry at all - a typo, or a
-reference to a heading in a page that hasn't been converted yet in a
-multi-page build (the same way an undefined LaTeX `\ref` shows `??` until
-a later compilation pass).
+If the heading id is missing or mistyped, `\ref{id}` displays `??` instead of
+a link. Check that the text inside the braces exactly matches the id on the
+heading.
 
-A heading marked `unnumbered` (see
-[prodockit.headings](headings.md#unnumbered-headings)) is *not* unresolved:
-it has no number, but it does have a name, so it renders as just the name.
+A heading marked `unnumbered` still works as a link. Because it has no section
+number, the link displays only the heading name.
 
 ```md
 # Cover Page {: .unnumbered #cover-page }
@@ -77,7 +74,7 @@ See \ref{cover-page}.
 
 renders `\ref{cover-page}` as `Cover Page`, linked to `#cover-page`.
 
-## Referencing by name and page {: #refs-autoref }
+### Include a page number in the PDF {: #refs-autoref }
 
 `\ref{id}` and `\autoref{id}` render exactly the same text - the target's
 number and name. The difference is that `\autoref{id}` also carries the
@@ -110,19 +107,7 @@ something, and `\ref{id}` where the extra "on page N" would just be noise.
 An appendix needs nothing special - its letter is already the first
 segment of its number, so `\ref{terms}` renders "A.1 Terms".
 
-### CSS hooks {: #refs-autoref-css-hooks }
-
-| State | Class |
-|---|---|
-| Resolved | `prodockit-autoref` |
-| Unresolved | `prodockit-autoref prodockit-autoref-unresolved` |
-
-The page-number suffix is attached with `target-counter()` on
-`a.prodockit-autoref[href^="#"]::after`, scoped to in-document links: an
-unresolved reference carries no `href` at all, and any other link would
-resolve to nothing and print a stray "on page" with no number after it.
-
-## Referencing a figure or table {: #refs-captions }
+### Reference a figure or table {: #refs-captions }
 
 `\ref{id}` also resolves a captioned figure or table, rendering its label:
 
@@ -165,9 +150,10 @@ sent, so that keeps its name.
 
 ### Syntax {: #refs-syntax }
 
-```
-\ref{<id>}
-```
+| Syntax | Result |
+| --- | --- |
+| `\ref{<id>}` | The target's current number and name |
+| `\autoref{<id>}` | The same link, plus “on page N” in the PDF |
 
 `<id>` is the target heading's id - either one you set explicitly via
 [`attr_list`](https://python-markdown.github.io/extensions/attr_list/)
@@ -194,7 +180,7 @@ Neither of the two shown above is resolved; both render the literal text.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| \index{prodockit.refs!`unresolved`} | `str` | `"??"` | Text rendered when `id` doesn't resolve to a numbered heading. |
+| \index{prodockit.refs!`unresolved`} | `str` | `"??"` | Text rendered when `id` is not registered. An `unnumbered` heading is registered and resolves to its name. |
 | \index{prodockit.refs!`source`} | `str` | `""`, auto-detected under Zensical | Identifier for the current document (e.g. its path) - used only to decide whether a resolved target is on this same page (bare `#id`) or a different one (a real link to it). Doesn't affect resolution itself. |
 | \index{prodockit.refs!`registry`} | `IdRegistry \| None` | discovered from a sibling `prodockit.headings`, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
 
@@ -270,15 +256,17 @@ Here, a genuine id collision between two different `source`s *does* raise
 registry means you're expected to notice and fix a collision, unlike the
 best-effort automatic Zensical case above.
 
-### CSS hooks {: #refs-css-hooks }
+## Customise with a CSS style sheet {: #refs-css-hooks }
 
 `prodockit.refs` always sets a class on the `\ref{id}` link it renders -
 resolved or not - so a stylesheet has a stable hook either way:
 
-| State | Class |
-|---|---|
-| Resolved | `prodockit-ref` |
-| Unresolved | `prodockit-ref prodockit-ref-unresolved` |
+| Syntax | State | Class |
+|---|---|---|
+| `\ref{id}` | Resolved | `prodockit-ref` |
+| `\ref{id}` | Unresolved | `prodockit-ref prodockit-ref-unresolved` |
+| `\autoref{id}` | Resolved | `prodockit-autoref` |
+| `\autoref{id}` | Unresolved | `prodockit-autoref prodockit-autoref-unresolved` |
 
 An unresolved reference (see [Unresolved references](#refs-unresolved-references)
 above) still gets a `class` either way; style `prodockit-ref-unresolved`
@@ -287,3 +275,7 @@ visually obvious without inspecting the page source. No `data-*`
 attribute is left in the rendered output - the internal
 `data-prodockit-ref` placeholder attribute used during resolution is
 always stripped before the page is rendered.
+
+The PDF page-number suffix for `\autoref` is attached with
+`target-counter()` to resolved in-document links. Unresolved references have
+no `href`, so they do not print a stray “on page” suffix.

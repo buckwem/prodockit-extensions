@@ -1,103 +1,213 @@
+---
+icon: lucide/list-ordered
+---
+
 # Numbered steps
 
-`prodockit.steps` lays out a procedure as steps a reader works through in
-order: a number to find your place by, room for a command and its
-explanation, and a line joining one step to the next.
+`prodockit.steps` presents a procedure as numbered steps that a reader works
+through in order. Each step has room for a title, instructions, commands, and
+supporting content. A joining line makes the sequence clear on both the website
+and in the PDF.
 
-A procedure is not a list of facts, and an ordinary numbered list does not
-say so - it gives each step one line and runs the command into the prose.
+Use an ordinary numbered list for a list of facts. Use `prodockit.steps` when
+the reader needs to complete one action before moving to the next.
 
-## Writing one {: #steps-writing-one }
+## Enable the extension {: #steps-enabling-it }
 
-```md
-/// steps
-
-//// step | Load the key into the agent
-```bash
-ssh-add --apple-use-keychain ~/.ssh/id_ed25519_gitlab
-```
-////
-
-//// step | Upload the public key
-Paste it into your host's SSH keys page.
-////
-
-///
-```
-
-Each `//// step` takes an optional title after `|`. The body is parsed as
-blocks, so a step can hold paragraphs, code fences, admonitions or content
-tabs - whatever the step actually needs.
-
-## Continuing a procedure
-
-A long procedure is often split across sections, and the second half should
-continue rather than begin again:
-
-```md
-/// steps
-    start: 9
-
-//// step | Point the clone at your own project
-////
-
-///
-```
-
-`attrs` works as it does on every other block - the Blocks API reserves it -
-so a style or an id can be put on the list without this extension knowing
-about either:
-
-```md
-/// steps
-    start: 9
-    attrs: {id: 'setup-continued'}
-```
-
-## Why the starting number is written twice
-
-`start: 9` emits **both** `<ol start="9">` and
-`counter-reset: list-item 8`, and that is the whole reason this is an
-extension rather than a documented HTML snippet.
-
-A browser reads `start`. WeasyPrint ignores it entirely and numbers from 1,
-so the PDF disagreed with the website while each looked correct on its own.
-`counter-reset` is what WeasyPrint reads. An author maintaining that pair by
-hand will one day change one of them, and the failure is silent and
-PDF-only.
-
-## What it produces {: #steps-what-it-produces }
-
-Structure only - `prodockit` ships the markup, your project ships the look,
-the same arrangement [prodockit.tables](tables.md) and
-[prodockit.tree](tree.md) have:
-
-```html
-<ol class="prodockit-steps">
-  <li><p class="prodockit-step-title">Load the key into the agent</p>
-      <pre>…</pre></li>
-```
-
-The title is an element rather than bold text, so it can be styled apart
-from other emphasis, collected, or given an id later.
-
-`docs/stylesheets/extra.css` in this repository carries a stylesheet to
-start from. Two things in it are worth keeping, because both fail silently
-and only in the PDF:
-
-- **the joining line is positioned from the number's own size** - half a
-  circle, less half a line - so changing `--step-size` to any value in any
-  unit leaves the two aligned
-- **`::after` carries the same `font-size` as `::before`**. The number sets
-  its own size so the digits fit, so an `em` means one thing inside the
-  circle and another in the line's `left` - measured at 8.8pt adrift once
-  the text was scaled up
-
-## Enabling it {: #steps-enabling-it }
+Add the extension to `zensical.toml`:
 
 ```toml
 [project.markdown_extensions."prodockit.steps"]
 ```
 
-The [bootstrap quick start](../devcons/bootstrap.md#bootstrap-quick-start) in this
-repository is written in it.
+## Write a procedure {: #steps-writing-one }
+
+Copy this complete example:
+
+````markdown
+/// steps
+
+//// step | Load the key into the agent
+
+```bash
+ssh-add --apple-use-keychain ~/.ssh/id_ed25519_gitlab
+```
+
+////
+
+//// step | Upload the public key
+
+Paste it into your host's SSH keys page.
+
+////
+
+///
+````
+
+It renders as:
+
+/// steps
+
+//// step | Load the key into the agent
+
+```bash
+ssh-add --apple-use-keychain ~/.ssh/id_ed25519_gitlab
+```
+
+////
+
+//// step | Upload the public key
+
+Paste it into your host's SSH keys page.
+
+////
+
+///
+
+### Opening and closing the blocks
+
+This extension uses the fenced-container syntax from
+[PyMdown Blocks](https://facelessuser.github.io/pymdown-extensions/extensions/blocks/).
+An opening fence names the block; its closing fence uses the same number of
+slashes without the name. Nested blocks must use a different fence length. In
+a numbered procedure:
+
+- `/// steps` opens the complete ordered procedure; `///` closes it.
+- `//// step` opens one step; `////` closes it.
+- Add a title after `|`, as in `//// step | Upload the public key`.
+- Leave off `|` and the title when a step needs only body content.
+
+The blank line after a step header is not required for a simple paragraph, but
+some block content needs it. Keeping the blank lines shown in the example is
+the safe, consistent form for paragraphs, fenced code, admonitions, and content
+tabs.
+
+!!! warning "Fence lengths must differ when blocks are nested"
+    The `step` fence uses four slashes because it is nested inside the
+    three-slash `steps` fence. If a step contains another Blocks-based
+    container, give that nested block another unused fence length.
+
+!!! tip "Showing Markdown that contains a code fence"
+    The copyable example uses four backticks around the complete Markdown
+    sample because the sample itself contains a three-backtick `bash` fence.
+    The outer fence must be longer than a fence inside it.
+
+### Content inside a step
+
+A step body is ordinary block Markdown. It can contain multiple paragraphs,
+code fences, admonitions, or content tabs. For example, the
+[Build your first site](../getting-started.md) walkthrough places macOS,
+Windows, and Linux commands in tabs inside its first two steps.
+
+## Configure numbered steps
+
+### Continue numbering after a break {: #steps-continuing }
+
+A long procedure can be split across sections or pages. Set `start` on the
+later block so its first step continues at the required number:
+
+```markdown
+/// steps
+    start: 9
+
+//// step | Point the clone at your own project
+
+Update the remote URL before pushing.
+
+////
+
+///
+```
+
+Options use YAML syntax. Put them directly below `/// steps`, with no blank
+line between the header and its options, and indent each option by at least
+four spaces. The blank line after the final option separates the options from
+the procedure's content.
+
+### Add an id or other HTML attributes
+
+Use the Blocks API's `attrs` option to add attributes to the generated ordered
+list. This complete example combines an id with continued numbering:
+
+```markdown
+/// steps
+    start: 9
+    attrs: {id: 'setup-continued'}
+
+//// step | Point the clone at your own project
+
+Update the remote URL before pushing.
+
+////
+
+///
+```
+
+`attrs` is inherited from the underlying Blocks API rather than defined by
+`prodockit.steps`; `start` is the extension's only steps-specific option.
+
+## Reference {: #steps-reference }
+
+| Syntax | Purpose |
+| --- | --- |
+| `/// steps` | Open or close the ordered procedure |
+| `//// step` | Open or close one step without a title |
+| `//// step \| Title` | Open one step with a title |
+| `start: 9` | Start this procedure at step 9 |
+| `attrs: {...}` | Add HTML attributes to the generated `<ol>` |
+
+Each title becomes a separate paragraph before the step body. A step may have
+no title, but every `step` must be inside a `steps` block for the resulting
+HTML to be a valid ordered list.
+
+## Customise the appearance {: #steps-generated-html }
+
+Add the numbered-step styles to your project's CSS style sheet. This
+repository's `docs/stylesheets/extra.css` contains the styles used by the
+examples on this page.
+
+### Generated HTML {: #steps-generated-html-structure }
+
+The first example produces this structure:
+
+```html
+<ol class="prodockit-steps">
+  <li>
+    <p class="prodockit-step-title">Load the key into the agent</p>
+    <pre><code>ssh-add --apple-use-keychain ~/.ssh/id_ed25519_gitlab</code></pre>
+  </li>
+  <li>
+    <p class="prodockit-step-title">Upload the public key</p>
+    <p>Paste it into your host's SSH keys page.</p>
+  </li>
+</ol>
+```
+
+The two stable class names are:
+
+| Selector | Element |
+| --- | --- |
+| `ol.prodockit-steps` | The complete procedure |
+| `.prodockit-step-title` | A step's optional title paragraph |
+
+The title is an element rather than bold text, so it can be styled separately
+from emphasis used in the step body.
+
+### Why continued numbering is emitted twice
+
+`start: 9` emits both `<ol start="9">` and
+`style="counter-reset: list-item 8"`. Browsers read the `start` attribute,
+while WeasyPrint needs the CSS counter reset. Emitting both from one option
+keeps website and PDF numbering in agreement.
+
+If you adapt the CSS style-sheet rules in `docs/stylesheets/extra.css`, retain
+these details:
+
+- the joining line is positioned from the number's own size, so changing
+  `--step-size` does not move the line away from the number;
+- the line's `::after` pseudo-element uses the same `font-size` as the number's
+  `::before` pseudo-element, keeping `em`-based measurements aligned;
+- the final step has no trailing joining line.
+
+The [bootstrap quick start](../devcons/bootstrap.md#bootstrap-quick-start) and
+[Build your first site](../getting-started.md) are larger working examples.

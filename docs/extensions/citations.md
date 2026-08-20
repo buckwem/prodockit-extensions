@@ -1,18 +1,22 @@
+---
+icon: lucide/quote
+---
+
 # Citations or References
 
-\index{`prodockit.citations`} lets you define a source once and cite it by key from
-anywhere in a build, instead of hand-typing a bracketed link at every
-citation site.
+\index{`prodockit.citations`} lets you write a reference once and cite it from
+any page. A citation such as `[Skoulikari, 2023]` links readers to the full
+reference.
 
 !!! tip "Looking for an auto-generated bibliography instead?"
-    `prodockit.citations` is one of two alternatives for citing sources -
-    this one resolves against a hand-authored paragraph you write yourself,
-    once. If you'd rather define sources in a BibTeX/BibLaTeX `.bib` file
-    and have the reference list generated for you, in any citation style,
-    see [prodockit.bibliography](bibliography.md) and its
-    [comparison of both approaches](bibliography.md#comparing-the-two-approaches).
+    This page is for a short reference list that you write yourself. To create
+    a reference list automatically from a `.bib` file, use
+    [Bibliography](bibliography.md).
 
-## Quick start {: #citations-quick-start }
+Use this extension when you want to write and format a short reference list by
+hand, but define each citation's link text only once.
+
+## Enable the extension {: #citations-enable }
 
 Enable it in `zensical.toml`:
 
@@ -20,65 +24,61 @@ Enable it in `zensical.toml`:
 [project.markdown_extensions."prodockit.citations"]
 ```
 
-Define a source's paragraph with an id and a short display text via
-[`attr_list`](https://python-markdown.github.io/extensions/attr_list/),
-then cite it from anywhere with `\citeref{id}`:
+## Add and cite a reference {: #citations-quick-start }
 
-```md
-Git is a tool used to manage version control.\citeref{skou2023}
+Write the full reference, then add its id and the shorter text you want to show
+in citations on the line below. Cite it with `\citeref{id}`:
 
-Skoulikari, A. (2023) *Learning Git: A Hands-On and Visual Guide to the
-Basics of Git*. Sebastopol, CA: O'Reilly Media.
-{: #skou2023 .reference data-cite-text="Skoulikari, 2023" }
-```
+=== "Markdown"
 
-renders to:
+    ```md
+    Git is a tool used to manage version control.\citeref{skou-example}
 
-<p>Git is a tool used to manage version control.<span class="prodockit-cite">[<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>]</span></p>
-<p class="reference" id="skou2023">Skoulikari, A. (2023) <em>Learning Git: A Hands-On and Visual Guide to the Basics of Git</em>. Sebastopol, CA: O'Reilly Media.</p>
+    Skoulikari, A. (2023) *Learning Git: A Hands-On and Visual Guide to the
+    Basics of Git*. Sebastopol, CA: O'Reilly Media.
+    {: #skou-example .reference data-cite-text="Skoulikari, 2023" }
+    ```
 
-`[Skoulikari, 2023]` is linked directly to the source's own paragraph (e.g.
-`references.md#skou2023`, or `#skou2023` if cited from that same page) -
-Zensical rewrites that into the correct clean URL for the citing page's own
-location, the same way a hand-typed `[text](references.md#skou2023)` link
-already gets rewritten. Unlike hand-typing that link yourself, you never
-have to work out the relative path to the references page, retype the
-display text, or fix every citation site if the display text needs to
-change - it's defined once.
+=== "Result"
+
+    Git is a tool used to manage version control.\citeref{skou-example}
+
+    Skoulikari, A. (2023) *Learning Git: A Hands-On and Visual Guide to the
+    Basics of Git*. Sebastopol, CA: O'Reilly Media.
+    {: #skou-example .reference data-cite-text="Skoulikari, 2023" }
+
+The extension replaces `\citeref{skou-example}` with the linked citation
+`[Skoulikari, 2023]`. Select it to jump to the full reference.
+
+## Configure citations
 
 Multiple comma-separated keys join into one bracket:
 `\citeref{skou2023,chacon2014}` → `[Skoulikari, 2023; Chacon and Straub,
 2014]`.
 
-**Unlike [prodockit.glossary](glossary.md)'s `\gls{id}`**, which inserts a
-term's own registered text in place, `\citeref{id}` *generates* new bracketed
-citation text around a link - closer to a bibliography citation than a
-glossary/acronym expansion.
-
-### Forward references {: #citations-forward-references }
+### Cite a source before its full reference {: #citations-forward-references }
 
 A citation to a source defined *later* in the same document resolves
 correctly:
 
 ```md
-See \citeref{skou2023} above.
+See \citeref{skou2023} for an introduction to Git.
 
 Skoulikari, A. (2023) *Learning Git*.
 {: #skou2023 data-cite-text="Skoulikari, 2023" }
 ```
 
-### Unresolved citations {: #citations-unresolved-citations }
+### Fix a missing citation {: #citations-unresolved-citations }
 
-A key that doesn't resolve to a definition renders the `unresolved` marker
-(`?` by default) in place of that one entry - the rest of a multi-key
-citation still resolves normally:
+If a citation id is missing or mistyped, the extension displays `?` for that
+entry. Other valid entries in the same citation still work:
 
 ```md
 \citeref{skou2023,does-not-exist}
 ```
 
-renders `[Skoulikari, 2023; ?]` - the unresolved entry has no link, unlike
-a resolved one.
+This renders `[Skoulikari, 2023; ?]`. Check the id that produced `?` against
+the id on the full reference.
 
 ## Reference {: #citations-reference }
 
@@ -105,10 +105,10 @@ be visible), while `id` stays, since citations link straight to it.
 
 #### Citing a source
 
-```
-\citeref{<id>}
-\citeref{<id1>,<id2>,...}
-```
+| Syntax | Purpose |
+| --- | --- |
+| `\citeref{<id>}` | Cite one defined source |
+| `\citeref{<id1>,<id2>,...}` | Cite several sources in one bracket |
 
 Like [prodockit.refs](refs.md), `\citeref{...}` is recognised the same way
 Python-Markdown's own inline syntax is, so it's protected inside inline
@@ -198,7 +198,7 @@ like today. See [prodockit.bibliography](bibliography.md) for the
 alternative that does exactly this, from a `.bib` file, in any citation
 style - and for the tradeoffs between the two approaches.
 
-### CSS hooks {: #citations-css-hooks }
+## Customise with a CSS style sheet {: #citations-css-hooks }
 
 `prodockit.citations` emits three hooks - one on the outer wrapper, one on
 each individual key's own link:

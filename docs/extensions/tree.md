@@ -1,27 +1,46 @@
+---
+icon: lucide/folder-tree
+---
+
 # Directory trees
 
-`prodockit.tree` turns an indented listing into a file tree - rails,
-folder emphasis and aligned descriptions - without any of that being
-typed per line.
+`prodockit.tree` turns an indented list of folders and files into a directory
+tree. Use it to show readers where files belong in a project.
 
-A listing written as a bullet list is three decisions on every row: which
-icon, whether to embolden the folder, and where the description starts.
-Each can be made differently on the next row, and none of them is checked.
+## Enable the extension {: #tree-enabling-it }
 
-## Writing one {: #tree-writing-one }
-
-```md
-/// tree
-docs/ - the documentation source tree
-  index.md - the cover page
-  stylesheets/ - CSS for both outputs
-    extra.css - website customisations
-    print.css - PDF-only styles
-zensical.toml - project configuration
-///
+```toml
+[project.markdown_extensions."prodockit.tree"]
 ```
 
-Three rules, and nothing else to remember:
+## Write a tree {: #tree-writing-one }
+
+=== "Markdown"
+
+    ```md
+    /// tree
+    docs/ - the documentation source tree
+      index.md - the home page
+      stylesheets/ - style sheets for the website and PDF
+        extra.css - website style sheet
+        print.css - PDF style sheet
+    zensical.toml - project configuration
+    ///
+    ```
+
+=== "Result"
+
+    /// tree
+    docs/ - the documentation source tree
+      index.md - the home page
+      stylesheets/ - style sheets for the website and PDF
+        extra.css - website style sheet
+        print.css - PDF style sheet
+    zensical.toml - project configuration
+    ///
+
+The complete block starts and ends with a three-slash fence. Its body follows
+three rules:
 
 - **Indentation is the structure.** Two spaces per level by default.
 - **A trailing `/` means a directory.** Anything else is a file. Nothing
@@ -30,11 +49,13 @@ Three rules, and nothing else to remember:
   required, which is what keeps `harvard-cite-them-right.csl` in one
   piece.
 
-## Options
+## Configure indentation and icons
 
 | Option | Default | What it does |
 |---|---|---|
 | `indent` | `2` | How many spaces one level costs. Set `4` for a listing written that way. |
+| `directory_icon` | `':lucide-folder:'` | Icon shortcode placed before every directory. |
+| `file_icon` | `':lucide-file:'` | Icon shortcode placed before every file. |
 
 ```md
 /// tree
@@ -45,7 +66,20 @@ docs/
 ///
 ```
 
-## Ragged indentation is refused
+Put options directly below `/// tree`. Indent each option by at least four
+spaces, then leave a blank line before the listing. For example:
+
+```md
+/// tree
+    directory_icon: ':octicons-file-directory-16:'
+    file_icon: ':octicons-file-16:'
+
+docs/
+  index.md
+///
+```
+
+### Fix indentation errors
 
 A listing is read for its shape, so an entry attached to the wrong parent
 is a diagram that is wrong and looks right. Rather than guess, the build
@@ -56,27 +90,7 @@ TreeError: indent of 3 is not a multiple of 2: 'index.md'
 TreeError: indented 2 levels at once: 'index.md'
 ```
 
-## What it produces {: #tree-what-it-produces }
-
-Structure only - `prodockit` ships the markup, your project ships the
-look, the same arrangement [prodockit.tables](tables.md) has:
-
-```html
-<div class="prodockit-tree">
-  <ul>
-    <li class="tree-directory"><code class="tree-name">docs/</code>
-      <span class="tree-note">the documentation source tree</span>
-      <ul>
-        <li class="tree-file"><code class="tree-name">index.md</code>…
-```
-
-`docs/stylesheets/extra.css` in this repository carries a stylesheet to
-start from. Two things in it are worth keeping: the rail and the stub are
-positioned from one measurement, so changing the indentation cannot leave
-them disagreeing about where a level begins; and the last child's rail
-stops at its own stub rather than running past the last entry at nothing.
-
-## This repository, as a tree {: #tree-example }
+### This repository, as a tree {: #tree-example }
 
 The block above, used on something real - prodockit's own layout, so the
 pages describing each extension can be found beside the module that
@@ -129,8 +143,53 @@ pyproject.toml - Packaging, dependencies and the entry points each extension reg
 zensical.toml - This site's own configuration
 ///
 
-## Enabling it {: #tree-enabling-it }
+## Reference {: #tree-reference }
 
-```toml
-[project.markdown_extensions."prodockit.tree"]
+| Syntax or option | Purpose |
+| --- | --- |
+| `/// tree` | Open or close a directory tree |
+| A trailing `/` | Mark an entry as a directory |
+| ` - description` | Add an optional description |
+| `indent: 4` | Use four spaces for each level instead of two |
+| `directory_icon: '…'` | Choose the directory icon |
+| `file_icon: '…'` | Choose the file icon |
+| `attrs: {...}` | Add an id, class, or other attribute to the tree |
+
+The `tree` block follows the same fence, option, and nesting rules as
+[PyMdown Blocks](https://facelessuser.github.io/pymdown-extensions/extensions/blocks/).
+
+## Customise the appearance {: #tree-what-it-produces }
+
+The extension adds stable class names that you can target in your project's
+CSS style sheet. This repository's `docs/stylesheets/extra.css` contains the
+styles used by the examples on this page.
+
+### Generated HTML {: #tree-generated-html }
+
+The extension provides structure; your project supplies the appearance:
+
+```html
+<div class="prodockit-tree">
+  <ul>
+    <li class="tree-directory">
+      <span class="tree-icon">…</span>
+      <span class="tree-name">docs</span>
+      <span class="tree-note">the documentation source tree</span>
+      <ul>
+        <li class="tree-file">
+          <span class="tree-icon">…</span>
+          <span class="tree-name">index.md</span>
+        </li>
+      </ul>
+    </li>
+  </ul>
+</div>
 ```
+
+Stable class names include `.prodockit-tree`, `.tree-directory`, `.tree-file`,
+`.tree-icon`, `.tree-name`, and `.tree-note`.
+
+`docs/stylesheets/extra.css` in this repository carries a CSS style sheet to start
+from. Keep the rail and stub positioned from one shared measurement, so
+changing indentation cannot pull them apart, and stop the last child's rail at
+its own stub rather than continuing past the final entry.

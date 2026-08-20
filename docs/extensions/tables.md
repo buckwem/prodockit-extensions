@@ -1,11 +1,14 @@
+---
+icon: lucide/table
+---
+
 # Tables
 
-\index{`prodockit.tables`} gives a table column a percentage or fixed width, via a
-`width` attribute already attachable to a header cell with
-[`attr_list`](https://python-markdown.github.io/extensions/attr_list/) -
-no new syntax to learn.
+\index{`prodockit.tables`} adds layout controls to an ordinary Markdown table.
+You can change column widths, reduce spacing, use more than one header row,
+merge cells, and rotate long headings.
 
-## Quick start {: #tables-quick-start }
+## Enable the extension {: #tables-enable }
 
 Enable it in `zensical.toml`:
 
@@ -13,7 +16,19 @@ Enable it in `zensical.toml`:
 [project.markdown_extensions."prodockit.tables"]
 ```
 
-then attach a `width` to any header cell you want to size.
+Choose the feature that solves the table's problem:
+
+| Need | Attribute |
+| --- | --- |
+| Set a column width | `width="30%"` or a fixed width such as `8rem` |
+| Fit many short columns | `.compact` |
+| Repeat more than one header row | `.header` |
+| Merge cells | `colspan=2` or `rowspan=2` |
+| Turn a long heading vertically | `rotate=90` or `rotate=270`, with `width` |
+
+The next examples show each feature in isolation before combining them.
+
+## Set column widths {: #tables-quick-start }
 
 ### Percentages that add up to 100%
 
@@ -38,11 +53,8 @@ written:
 
 ### Percentages that don't add up to 100%
 
-Leave a column unannotated and it takes whatever's left over, split evenly
-if more than one column is left unannotated - the same "standard
-algorithm" any HTML table with a `<colgroup>` and `table-layout: fixed`
-already uses to size an unspecified column, not something
-`prodockit.tables` computes itself:
+Leave a column without a width and it uses the remaining space. If several
+columns have no width, they share that space evenly:
 
 === "Markdown"
 
@@ -67,10 +79,8 @@ with at least one `width` gets a `<colgroup>`.
 
 ### Fixed widths for every column
 
-A CSS length works the same way as a percentage - useful for a column
-that should stay a constant size regardless of how wide the table's
-container ends up being. Every column can be given one, with none left to
-share remaining space:
+A fixed width is useful when a column should stay the same size even when the
+page becomes wider or narrower. You can give every column a fixed width:
 
 === "Markdown"
 
@@ -90,11 +100,8 @@ share remaining space:
 
 ### Mixing percentages and fixed widths
 
-Percentage and fixed-length columns can appear in the same table - CSS's
-own table layout algorithm sizes both correctly at once, the same way it
-would for any hand-written `<colgroup>`. A column can still be left
-unannotated here too, sharing whatever's left over the same way as the
-percentage-only case above:
+Percentage and fixed-width columns can appear in the same table. A column can
+still be left without a width and use the remaining space:
 
 === "Markdown"
 
@@ -144,7 +151,9 @@ for the full syntax. This isn't a `prodockit.tables` feature; it's
 documented here because it's the natural companion to `width` when
 sizing a column, not something `prodockit.tables` needs to reimplement.
 
-## Dense tables {: #tables-compact }
+## Configure table layouts
+
+### Use a compact layout {: #tables-compact }
 
 A table with many short columns is held wide by the theme itself: every
 header cell carries a `min-width` of `5rem`, and every cell 1.25em of
@@ -190,7 +199,7 @@ Any header cell will do. It combines with `width`, which answers a
 different question - how wide one column is, rather than how tightly every
 cell is set.
 
-## A header of more than one row {: #tables-multi-row-header }
+### Use more than one header row {: #tables-multi-row-header }
 
 A Markdown table has exactly one header row and no syntax for a second, so
 a heading that needs two lines has to be written as a body row. That row
@@ -216,7 +225,7 @@ run of marked rows is promoted: a header is the top of a table, and a
 marked row further down stays where it is rather than the table being
 quietly re-ordered around it.
 
-## Merged cells {: #tables-merged-cells }
+### Merge cells {: #tables-merged-cells }
 
 `colspan` and `rowspan` are `attr_list`'s own attributes and need nothing
 new. What `prodockit.tables` adds is removing the empty cells they leave
@@ -227,13 +236,26 @@ row wider than the header.
 A placeholder with text in it is kept. It is somebody's content, and
 dropping it silently would be worse than the ragged row it causes.
 
-## Rotated headings {: #tables-rotated-headings }
+```md
+| Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |
+|---|---|---|---|
+| | Before {: .header } | After | |
+| Widget | 1 | 2 | ok |
+```
+
+The empty cell after `Measured` and the empty cells beneath the two
+`rowspan=2` headings are structural placeholders. The extension removes those
+placeholders after applying the spans.
+
+### Rotate headings {: #tables-rotated-headings }
 
 A wide table is often wide because of its headings, not its data. Turn them
 on their side:
 
 ```md
-| Availability requirement {: rotate=270 width="1.8em" height="105pt" } |
+| Control | Availability requirement {: rotate=270 width="1.8em" height="105pt" } |
+|---|---|
+| Backups | H |
 ```
 
 `270` reads bottom-to-top, `90` top-to-bottom, and nothing else is allowed:
@@ -262,8 +284,20 @@ Builds on Python-Markdown's own `tables` extension (auto-enabled if not
 already present, the same way [prodockit.refs](refs.md) auto-enables
 [prodockit.headings](headings.md)).
 
-Attach `width` to a header cell (`th`), not a body cell - a column's width
-is a property of the whole column, so it's declared once, on the heading:
+Attach table attributes to header cells. A column's width is a property of the
+whole column, so declare it once on the heading rather than on a body cell.
+
+| Attribute | Where to put it | Effect |
+| --- | --- | --- |
+| `width="<css-length>"` | Header cell | Set that column's width |
+| `.compact` | Any header cell | Apply the compact layout to the whole table |
+| `.header` | A non-empty cell in a leading body row | Move that row into `<thead>` |
+| `colspan=<n>` | Cell being widened | Merge it with the following placeholder cells |
+| `rowspan=<n>` | Cell being deepened | Merge it with placeholder cells below |
+| `rotate=90` or `rotate=270` | Header cell that also has `width` | Rotate the heading text |
+| `height="<css-length>"` | Rotated header cell | Reserve height for the rotated text |
+
+The minimal width form is:
 
 ```
 | Column {: width="<css-length>" } | ... |
@@ -276,7 +310,7 @@ generated `<colgroup>` as-is, with no validation of its own; an invalid
 value behaves exactly as it would in any other hand-written CSS, since
 `prodockit.tables` doesn't parse or interpret it beyond that.
 
-### CSS hooks {: #tables-css-hooks }
+## Customise with a CSS style sheet {: #tables-css-hooks }
 
 A table with at least one `width`-attributed header cell gets a
 `<colgroup>` (one `<col>` per column, `style="width: ..."` set only on the
@@ -286,6 +320,8 @@ columns that had one) inserted as its first child, and
 | Element | Condition | Hook |
 |---|---|---|
 | `<table>` | at least one header cell has `width` | `class="prodockit-table-sized"` |
+| `<table>` | any header cell has `.compact` | `class="prodockit-table-compact"` |
+| `<th>` | heading has `rotate=90` or `rotate=270` | `class="prodockit-rotate"` plus an inline transform |
 | `<col>` | that column's header cell had `width` | `style="width: <value>;"` |
 | `<col>` | that column's header cell had no `width` | none - left for `table-layout: fixed` to size |
 

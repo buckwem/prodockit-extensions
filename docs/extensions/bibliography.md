@@ -1,44 +1,63 @@
+---
+icon: lucide/library
+---
+
 # Bibliography
 
-\index{`prodockit.bibliography`} is an alternative to [prodockit.citations](citations.md):
-define your sources once in a \index{BibTeX}/BibLaTeX `.bib` file, cite them by key
-with `\cite{id}` from anywhere in a build, and get a fully formatted,
-sorted reference list generated for you - in any
-[\index{Citation Style Language} (CSL)](https://citationstyles.org/) style (APA,
-IEEE, Harvard, Vancouver, and hundreds more), the same open, actively-
-maintained style ecosystem Zotero/Mendeley/EndNote already use.
+\index{`prodockit.bibliography`} creates citations and a formatted reference
+list from a `.bib` file. Use it when you have many sources or need a particular
+citation style, such as Harvard, APA, IEEE, or Vancouver.
 
-Uses its own `\cite{id}` syntax, distinct from `prodockit.citations`'
-`\citeref{id}` - see
-[Comparing the two approaches](#comparing-the-two-approaches) below for the
-full tradeoffs.
+For a short reference list that you prefer to write yourself, use
+[Citations or References](citations.md).
 
-## Requirements {: #bibliography-requirements }
+## Before you start {: #bibliography-requirements }
 
-[Pandoc](https://pandoc.org/) needs to be installed and on `PATH` -
-**including for a project that never builds a PDF at all**, unlike every
-other prodockit extension, which needs nothing beyond Python-Markdown
-itself:
+[Pandoc](https://pandoc.org/) must be installed before you use this extension:
+
+=== "macOS"
+
+    ```bash
+    brew install pandoc
+    ```
+
+=== "Windows"
+
+    ```powershell
+    winget install --source winget --exact --id JohnMacFarlane.Pandoc
+    ```
+
+=== "Linux (Ubuntu)"
+
+    ```bash
+    sudo apt update
+    sudo apt install pandoc
+    ```
+
+Check the installation:
 
 ```bash
-brew install pandoc   # or see https://pandoc.org/installing.html
+pandoc --version
 ```
 
-See [How it works](#bibliography-how-it-works) below for why.
+See [Pandoc's installation guide](https://pandoc.org/installing.html) for its
+installers and other operating systems.
 
-## Quick start {: #bibliography-quick-start }
+## Enable the extension {: #bibliography-enable }
 
-Enable it in `zensical.toml`, pointing `bib_file` at your own `.bib` file
-(a path relative to wherever `zensical build`/`zensical serve` is run
-from - typically your project root):
+Enable it in `zensical.toml` and set `bib_file` to the name of your bibliography
+file:
 
 ```toml
 [project.markdown_extensions."prodockit.bibliography"]
 bib_file = "references.bib"
 ```
 
-```bibtex
-<!-- references.bib -->
+## Add and cite a source {: #bibliography-quick-start }
+
+Create `references.bib` in the project root:
+
+```bibtex title="references.bib"
 @book{chacon2014,
   author    = {Chacon, Scott and Straub, Ben},
   title     = {Pro Git},
@@ -48,20 +67,35 @@ bib_file = "references.bib"
 }
 ```
 
-Cite it from anywhere with `\cite{id}`:
+Create a references page and put the bibliography marker alone on its own
+line:
 
-```md
-Git is a distributed version control system \cite{chacon2014}.
+```md title="docs/references.md"
+# References
+
+\bibliography
 ```
 
-renders to (default style shown; see
-[Choosing a citation style](#choosing-a-citation-style) below):
+Now cite the entry from any page with `\cite{id}`:
 
-```html
-<p>Git is a distributed version control system <span class="prodockit-bib-cite"><a href="references.md#ref-chacon2014">(Chacon and Straub 2014)</a></span>.</p>
-```
+=== "Markdown"
 
-### The reference list
+    ```md
+    Git is a distributed version control system \cite{chacon2014}.
+    ```
+
+=== "Result (default style)"
+
+    Git is a distributed version control system
+    <span class="prodockit-bib-cite"><a href="#bibliography-quick-start">(Chacon and Straub 2014)</a></span>.
+
+The exact punctuation and ordering come from the selected citation style; see
+[Choosing a citation style](#choosing-a-citation-style).
+
+The citation links to the matching entry on the References page. Keep the
+`\bibliography` marker on that page so the reference list is created.
+
+## Configure the reference list
 
 Put a bare `\bibliography` marker, alone on its own paragraph, wherever
 you want the complete, formatted reference list to appear - typically a
@@ -69,11 +103,7 @@ dedicated References page, kept at the end of `nav` as an appendix, the
 same convention `prodockit.citations`' own hand-authored references pages
 already use:
 
-```md
-# References
-
-\bibliography
-```
+The quick start above uses the default form, `\bibliography`.
 
 Every entry in `bib_file` appears, in the order your chosen CSL style
 sorts them (alphabetically by default) - not just the ones actually
@@ -204,9 +234,13 @@ renders `?`, with no link.
 
 ### Syntax {: #bibliography-syntax }
 
-```
-\cite{<id>}
-```
+| Syntax | Purpose |
+| --- | --- |
+| `\cite{<id>}` | Cite one entry from a configured `.bib` file |
+| `\bibliography` | Generate every entry from the configured `bib_file` |
+| `\bibliography{<file>}` | Generate every entry from another `.bib` file |
+| `\bibliography{<file>}{true}` | Generate only entries cited in the build |
+| `\bibliography{<file>}{false}` | Generate every entry, cited or not |
 
 Only a single key is supported - unlike `prodockit.citations`'
 `\citeref{id1,id2,...}`, a multi-key citation isn't matched by this
@@ -217,12 +251,6 @@ honest "not supported" rather than a silently wrong result) - see
 Like [prodockit.citations](citations.md#citations-syntax), `\cite{...}` is
 recognised the same way Python-Markdown's own inline syntax is, so it's
 protected inside inline code spans and fenced code blocks.
-
-```
-\bibliography
-\bibliography{<file>}
-\bibliography{<file>}{<true|false>}
-```
 
 `<file>` and `<true|false>` are both optional - see
 [Multiple sections: References and Bibliography](#bibliography-multiple-sections)
@@ -237,21 +265,6 @@ own paragraph/line.
 | \index{prodockit.bibliography!`csl_style`} | `str` | `""` (Pandoc's own default) | Path to a Citation Style Language (`.csl`) file. |
 | \index{prodockit.bibliography!`unresolved`} | `str` | `"?"` | Text rendered for a `\cite{id}` key that doesn't resolve to a `.bib` entry. |
 | \index{prodockit.bibliography!`source`} | `str` | `""`, auto-detected under Zensical | Identifier for the current document, used to build a correct link from `\cite{id}` to `\bibliography`'s own page. |
-
-### CSS hooks {: #bibliography-css-hooks }
-
-| Element | Condition | Hook |
-|---|---|---|
-| `<span>` wrapping a resolved `\cite{id}` | always | `class="prodockit-bib-cite"` |
-| `<span>` wrapping an unresolved `\cite{id}` | always | `class="prodockit-bib-cite prodockit-bib-cite-unresolved"` |
-| Each generated reference-list entry | always | `class="csl-entry reference"` |
-
-Every generated reference-list entry also gets `class="reference"` (in
-addition to Pandoc's own `csl-entry`) - matching the class
-`prodockit.citations`' own hand-authored entries already use, so
-[`prodockit.zensical_macros`](../macros.md)' `reference_style()`/
-[prodockit.pdf](../pdf.md)'s own `reference_style` setting apply uniformly,
-whether an entry was hand-typed or generated.
 
 ## How it works {: #bibliography-how-it-works }
 
@@ -348,3 +361,18 @@ is built for, as prodockit-template's own adoption shows.
 New, less battle-tested than `prodockit.citations` - no formal, versioned
 public API stability contract yet (see
 [prodockit-extensions#7](https://github.com/buckwem/prodockit-extensions/issues/7)).
+
+## Customise with a CSS style sheet {: #bibliography-css-hooks }
+
+| Element | Condition | Hook |
+|---|---|---|
+| `<span>` wrapping a resolved `\cite{id}` | always | `class="prodockit-bib-cite"` |
+| `<span>` wrapping an unresolved `\cite{id}` | always | `class="prodockit-bib-cite prodockit-bib-cite-unresolved"` |
+| Each generated reference-list entry | always | `class="csl-entry reference"` |
+
+Every generated reference-list entry also gets `class="reference"` (in
+addition to Pandoc's own `csl-entry`) - matching the class
+`prodockit.citations`' own hand-authored entries already use, so
+[`prodockit.zensical_macros`](../macros.md)' `reference_style()`/
+[prodockit.pdf](../pdf.md)'s own `reference_style` setting apply uniformly,
+whether an entry was hand-typed or generated.

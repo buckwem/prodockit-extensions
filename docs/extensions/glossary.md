@@ -1,11 +1,16 @@
+---
+icon: lucide/book-open
+---
+
 # Acronyms and Glossary
 
-\index{`prodockit.glossary`} lets you define a term once - an \index{acronym} expansion, a
-glossary definition, anything with a short name and a longer explanation -
-and insert it by id from anywhere in a build, instead of hand-typing a link
-around the term's own text at every use.
+\index{`prodockit.glossary`} lets you define an acronym or term once and reuse
+it throughout your documentation. Each use links readers to the definition.
 
-## Quick start {: #glossary-quick-start }
+Use it for terms that readers may want to look up, such as an acronym or a
+specialist word.
+
+## Enable the extension {: #glossary-enable }
 
 Enable it in `zensical.toml`:
 
@@ -13,70 +18,58 @@ Enable it in `zensical.toml`:
 [project.markdown_extensions."prodockit.glossary"]
 ```
 
-Define a term's paragraph with an id and its display text via
-[`attr_list`](https://python-markdown.github.io/extensions/attr_list/),
-then insert it from anywhere with `\gls{id}`:
+## Define and use a term {: #glossary-quick-start }
+
+Write the definition, then add its id and the text that should appear in your
+sentences on the line below. Insert the linked term with `\gls{id}`:
+
+=== "Markdown"
+
+    ```md
+    This site uses a \gls{css-example} to control appearance.
+
+    **CSS style sheet** - A file containing Cascading Style Sheets rules.
+    {: #css-example .glossary data-term="CSS style sheet" }
+    ```
+
+=== "Result"
+
+    This site uses a \gls{css-example} to control appearance.
+
+    **CSS style sheet** - A file containing Cascading Style Sheets rules.
+    {: #css-example .glossary data-term="CSS style sheet" }
+
+The extension replaces `\gls{css-example}` with **CSS style sheet** and links
+it to the definition. Select the link to jump to the definition.
+
+## Configure glossary terms
+
+### Use a term before its definition {: #glossary-forward-references }
+
+You can use a term before its definition appears on the page:
 
 ```md
-This site uses \gls{css} to control appearance.
+This example uses a \gls{css} for its layout.
 
-**CSS** - Cascading Style Sheets.
-{: #css .acronym data-term="CSS" }
+**CSS style sheet** - A file containing Cascading Style Sheets rules.
+{: #css data-term="CSS style sheet" }
 ```
 
-renders to:
+### Fix a missing term {: #glossary-unresolved-references }
 
-<p>This site uses <a class="prodockit-gls" href="#css">CSS</a> to control appearance.</p>
-<p class="acronym" id="css"><strong>CSS</strong> - Cascading Style Sheets.</p>
-
-`CSS` is linked directly to the term's own page (e.g. `acronyms.md#css`, or
-`#css` if used from that same page) - Zensical rewrites that into the
-correct clean URL for the citing page's own location, the same way a
-hand-typed `[CSS](acronyms.md#css)` link already gets rewritten.
-
-**Unlike [prodockit.citations](citations.md)'s `\citeref{id}`**, which *generates*
-new bracketed citation text (`\citeref{id}` → `[Skoulikari, 2023]`), `\gls{id}`
-inserts the term's *own* registered text in place - closer to LaTeX's
-`glossaries` package (`\gls{key}` expands to the term's own name) than to a
-citation. One shared registry covers both acronym entries and glossary
-entries (and anything else you want to define a short term for) - they're
-the same kind of thing, an id with a short display text, just conventionally
-organised across two differently-named pages (see
-[Acronyms and Glossary: one registry, two pages](#acronyms-and-glossary-one-registry-two-pages)
-below).
-
-### Forward references {: #glossary-forward-references }
-
-A `\gls{id}` pointing at a term defined *later* in the same document
-resolves correctly, the same way
-[prodockit.refs](refs.md#refs-forward-references)/[prodockit.citations](citations.md#citations-forward-references)
-do:
-
-```md
-See \gls{css} above.
-
-**CSS** - Cascading Style Sheets.
-{: #css data-term="CSS" }
-```
-
-### Unresolved references {: #glossary-unresolved-references }
-
-An id that doesn't resolve to a definition renders the `unresolved` marker
-(`?` by default), unlinked:
+If a term id is missing or mistyped, the extension displays `?` instead of a
+link:
 
 ```md
 \gls{does-not-exist}
 ```
 
-renders `?`, with no link.
+Check that the text inside the braces exactly matches the id on the definition.
 
-## Acronyms and Glossary: one registry, two pages
+### Keep acronyms and glossary terms on separate pages
 
-A common convention splits acronym expansions (a short form → long form)
-and glossary entries (a term → its definition) across two separate pages.
-`prodockit.glossary` doesn't need to know which page is "acronyms" and which
-is "glossary" - both are just term definitions in the same registry, so a
-`\gls{id}` resolves the same way regardless of which page defines it:
+You can keep acronym expansions on one page and longer glossary definitions on
+another. `\gls{id}` works with a definition on either page:
 
 ```md
 <!-- acronyms.md -->
@@ -90,21 +83,10 @@ is "glossary" - both are just term definitions in the same registry, so a
 {: #css-def .glossary data-term="Cascading Style Sheets" }
 ```
 
-### Cross-links between entries: use a plain link, not `\gls{id}`
+#### Link the two entries
 
-Linking an acronym entry to its own glossary counterpart (and vice versa)
-is a "see also" cross-reference, not a term insertion - the link text
-needs to say something like "see the glossary", not repeat the term
-itself. `\gls{id}` always inserts the *term's own registered text*, so
-it's the wrong tool here: `\gls{css-def}` renders `Cascading Style
-Sheets`, so `See \gls{css-def} for what this means` would read *"See
-Cascading Style Sheets for what this means"* - it resolves, but loses the
-"go look elsewhere" cue the word "glossary" gives the reader.
-
-Use a plain, hand-typed Markdown link instead, exactly as you would for
-any other page-to-page cross-reference - it's understood natively by both
-outputs, and doesn't need `prodockit.refs`/`prodockit.citations`/`prodockit.glossary`
-at all:
+Use an ordinary Markdown link when the link text needs to say “glossary” or
+“acronyms”. The text inside square brackets is what the reader sees:
 
 ```md
 <!-- acronyms.md -->
@@ -118,10 +100,8 @@ at all:
 {: #css-def .glossary data-term="Cascading Style Sheets" }
 ```
 
-As a rule of thumb: reach for `\gls{id}` when the term's own name belongs
-at that point in the sentence, and a plain link when the link text needs
-to say something else entirely - a "see also", a page name, or any other
-custom wording.
+Use `\gls{id}` to insert the term itself. Use `[link text](page.md#id)` when
+you want to choose different words for the link.
 
 ## Reference {: #glossary-reference }
 
@@ -146,9 +126,9 @@ visible), while `id` stays, since references link straight to it.
 
 #### Using a term
 
-```
-\gls{<id>}
-```
+| Syntax | Purpose |
+| --- | --- |
+| `\gls{<id>}` | Insert one term's registered display text and link it to its definition |
 
 Unlike `\citeref{...}`, `\gls{...}` only ever takes a single id - there's no
 multi-term/bracketed form, since inserting a term's own text doesn't
@@ -224,7 +204,7 @@ A genuine id collision between two different `source`s raises
 `prodockit.util.DuplicateIdError` here, rather than warning - a deliberately
 shared registry means you're expected to notice and fix it.
 
-### CSS hooks {: #glossary-css-hooks }
+## Customise with a CSS style sheet {: #glossary-css-hooks }
 
 `prodockit.glossary` always sets a class on the `\gls{id}` link it renders -
 resolved or not - so a stylesheet has a stable hook either way:
