@@ -1,3 +1,7 @@
+---
+icon: lucide/git-fork
+---
+
 # Repository metadata {: #sync-repo-repository-metadata }
 
 \index{`prodockit sync-repo`} keeps the repo-hosting-specific parts of your project
@@ -6,39 +10,102 @@ mirroring it between GitHub, GitLab and Bitbucket doesn't leave stale links,
 the wrong brand icon, or README badges pointing at somebody else's
 repository.
 
-Everything it writes is derived from one thing - `git remote get-url origin`:
+Everything it writes is derived from one authority: the selected git remote,
+`origin` by default.
 
 - In `zensical.toml`: `repo_url`, `repo_name`, `[project.theme.icon] repo`,
   `edit_uri`, and `site_url` where it can be known.
 - In `README.md`: the badge row between the `repo-badges` markers, if you
   have them.
 
-## Quick start {: #sync-repo-quick-start }
+## When to run it
+
+Run `sync-repo` after:
+
+- creating a repository from a template;
+- forking or transferring a repository;
+- renaming a repository or its default branch;
+- changing `origin` from GitHub to GitLab, or the reverse;
+- adding managed README badge markers;
+- noticing that “Edit this page”, canonical URLs, or badges point elsewhere.
+
+It is safe to include the check form in every pull request. The writing form is
+a maintenance action: run it on a branch and review the resulting metadata as
+you would any other source change.
+
+## Check, update, and verify {: #sync-repo-quick-start }
 
 Run it from your project root, wherever `zensical.toml` lives:
+
+/// steps
+
+//// step | Check without writing
+
+```bash
+prodockit sync-repo --check
+```
+
+Exit zero means the managed values already match the remote. A non-zero result
+lists what would change, making this form suitable for CI.
+
+////
+
+//// step | Update the managed values
 
 ```bash
 prodockit sync-repo
 ```
 
-It reports only what it actually changed:
+The command reports only what it actually changed:
 
 ```
 Detected GitHub remote (https://github.com/you/your-repo); updated: repo_url, repo_name, edit_uri
 ```
 
-Run it after changing a remote, or as a build step before `zensical build`.
-Running it twice does nothing the second time.
+////
 
-## In CI {: #sync-repo-in-ci }
+//// step | Review the source diff
 
-`--check` writes nothing and exits non-zero if anything is out of date -
-enough to fail a build when a config has drifted from the remote it's
-actually served from:
+```bash
+git diff -- zensical.toml README.md
+```
+
+Confirm that the detected host, namespace, repository, default branch, and
+public site address are the ones you intend. A syntactically valid URL can
+still identify the wrong repository.
+
+////
+
+//// step | Repeat the check and build
 
 ```bash
 prodockit sync-repo --check
+zensical build --clean --strict
 ```
+
+Running the write command twice should do nothing the second time. The strict
+build then checks the links within the site; inspect the header repository link,
+an “Edit this page” link, the canonical URL, and README badges in the rendered
+or hosted result.
+
+////
+
+///
+
+## In CI {: #sync-repo-in-ci }
+
+Place the non-writing check before the build. It catches a fork whose config
+still names its source repository before those stale links are published:
+
+```yaml
+- name: Verify repository metadata
+  run: prodockit sync-repo --check
+- run: zensical build --clean --strict
+```
+
+Do not run the writing form in an ordinary pull-request job. CI would modify
+its disposable checkout, hide the source drift, and still leave the repository
+unchanged for the next run.
 
 ## Options {: #sync-repo-options }
 
@@ -173,4 +240,3 @@ result = sync_repo_metadata(check=True)
 if result.changed:
     print("out of date:", ", ".join(result.changes))
 ```
-

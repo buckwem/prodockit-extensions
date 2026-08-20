@@ -170,8 +170,9 @@ when a source file changes; stop it with `Ctrl+C`.
   another document feature.
 - Read [Generate a PDF](pdf.md#pdf-quick-start) when the website is ready to
   print or submit.
-- Use the [command-line map](command-line.md) to find optional setup and
-  maintenance commands without reading the contributor notes.
+- Follow the [project maintenance cycle](project-maintenance.md) when the
+  first site becomes a maintained project, then use the
+  [command-line map](command-line.md) to choose a command safely.
 
 !!! note "Previewing these documentation changes"
     From this repository's root, run `zensical serve` and open the address it

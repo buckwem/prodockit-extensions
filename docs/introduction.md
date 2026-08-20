@@ -40,11 +40,11 @@ prodockit also provides commands and integrations rather than Markdown syntax:
 | [`prodockit source-bundle`](pdf.md#bundling-source-into-a-pdf) | Package the underlying Markdown and configuration as a PDF |
 | [`prodockit.zensical_macros`](macros.md) | Word counts, repository data, and document-wide numbering in templates |
 | [`prodockit.testing`](devcons/testing.md) | Check the built website and PDF with pytest |
-| [Project commands](command-line.md) | Set up tooling and keep repositories, pins, and templates current |
+| [Project maintenance](project-maintenance.md) | Keep repositories, pins, templates, builds, and releases current |
 
-The [command-line map](command-line.md) says which commands change files and
-which only report. The detailed reference stays in the section where each
-command is used.
+Start with the [maintenance cycle](project-maintenance.md) for the order of
+work. The [command-line map](command-line.md) then says which commands change
+files and which only report.
 
 ## Project status
 

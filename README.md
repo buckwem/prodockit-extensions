@@ -82,7 +82,7 @@ diagrams and TeX maths in the PDF.
 | [`prodockit.tables`](https://buckwem.github.io/prodockit-extensions/extensions/tables/) | Column widths, dense tables, headers of more than one row, merged cells and rotated headings - all through a `width`, `.compact`, `.header`, `colspan`/`rowspan` or `rotate` attribute already attachable to a cell with `attr_list`. |
 | [`prodockit.bibliography`](https://buckwem.github.io/prodockit-extensions/extensions/bibliography/) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\cite{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
 | [`prodockit.index`](https://buckwem.github.io/prodockit-extensions/extensions/index-terms/) | Mark a term inline with `\index{Term}` for a traditional, PDF-only back-of-book index - with hierarchical sub-entries and code-styled terms. |
-| [`prodockit.steps`](https://buckwem.github.io/prodockit-extensions/devcons/bootstrap/#bootstrap-quick-start) | Numbered steps a reader works through in order - a number to find your place by, room for a command and its explanation, and a line joining one step to the next. |
+| [`prodockit.steps`](https://buckwem.github.io/prodockit-extensions/extensions/steps/) | Numbered steps a reader works through in order - a number to find your place by, room for a command and its explanation, and a line joining one step to the next. |
 | [`prodockit.tree`](https://buckwem.github.io/prodockit-extensions/extensions/tree/) | A directory listing that looks like one - indentation is the structure, a trailing `/` marks a directory, and the icons come from the project's own set. |
 
 ```python

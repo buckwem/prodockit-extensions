@@ -1,3 +1,7 @@
+---
+icon: lucide/shield-check
+---
+
 # Version pinning and drift {: #pinning-version-pinning-and-drift }
 
 A documentation build has more inputs than its own source. `zensical`
@@ -28,6 +32,82 @@ The answer is two halves that only work together:
    should.
 2. **Watch for newer releases**, so pinning does not mean going quietly
    stale.
+
+## Maintain a dependency safely
+
+/// steps
+
+//// step | Check that the repository agrees with itself
+
+```bash
+prodockit pins --check --offline
+```
+
+This does not contact PyPI. It answers the pull-request question: do the
+version declarations already present in `pyproject.toml` and the workflows
+agree? It is the form used by `ci.yml`, because a new upstream release should
+not make an unrelated pull request fail.
+
+////
+
+//// step | Review drift information
+
+The scheduled `drift.yml` workflow asks the separate maintenance question:
+are newer releases available, and would they change the website or PDF? Read
+the issue it opens or run the workflow manually before selecting versions.
+
+For a quick inventory from a terminal:
+
+```bash
+prodockit pins
+```
+
+This contacts PyPI and offers the newest version, but it does not compare
+rendered artifacts for you.
+
+////
+
+//// step | Move every declaration together
+
+Set an reviewed version explicitly:
+
+```bash
+prodockit pins --set zensical=0.0.55
+```
+
+The tool preserves the role of each declaration: a library floor remains a
+floor and a publishing workflow's exact pin remains exact.
+
+////
+
+//// step | Rebuild in publishing order
+
+```bash
+prodockit pdf
+zensical build --clean --strict
+pytest
+```
+
+Compare the website and PDF with the pinned baseline recorded by the drift
+issue. Review pagination, generated indexes, diagrams, code blocks, and icons—not
+only whether the commands returned zero.
+
+////
+
+//// step | Confirm consistency before committing
+
+```bash
+prodockit pins --check --offline
+git diff --check
+git status --short
+```
+
+The final offline check prevents a partial version bump from reaching the pull
+request. The pull request then runs the same consistency gate in `ci.yml`.
+
+////
+
+///
 
 ## Where a version gets declared {: #pinning-where-declared }
 
@@ -410,17 +490,21 @@ jobs left on the old image after a partial migration.
 
 ## Taking an upgrade {: #pinning-taking-an-upgrade }
 
-When drift reports something worth having:
+When drift reports something worth having, use the complete maintenance flow
+above. The short command sequence is:
 
 ```bash
-prodockit pins            # accept the suggested version, or type one
-prodockit pdf             # rebuild - PDF first ...
-zensical build --clean    # ... then the site
+prodockit pins --set zensical=0.0.55
+prodockit pdf
+zensical build --clean --strict
+pytest
+prodockit pins --check --offline
 ```
 
-Then diff the built output against the previous version before committing.
-That is the step the whole arrangement exists to make possible: seeing what
-an upgrade does to your document *before* your readers do.
+Substitute the package and reviewed version reported by drift. Then diff the
+built output against the previous version before committing. That is the step
+the whole arrangement exists to make possible: seeing what an upgrade does to
+your document *before* your readers do.
 
 ## Limitations and workarounds {: #pinning-limitations }
 
