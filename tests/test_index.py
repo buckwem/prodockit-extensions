@@ -11,6 +11,10 @@ def _convert(text: str) -> str:
     return md.convert(text)
 
 
+def test_index_generation_settings_have_author_facing_defaults() -> None:
+    assert IndexExtension().getConfigs() == {"include": False, "title": "Index"}
+
+
 def test_marks_a_term_as_a_span() -> None:
     html = _convert(r"A \index{widget} is here.")
     assert '<span class="index">widget</span>' in html

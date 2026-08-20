@@ -361,7 +361,7 @@ h1:not(.unnumbered) { string-set: chapter-title content() !important; }
    standing in the running header for every index page - this project's
    own PDF showed "18. License" across its index. Setting it here restores
    the standard back-of-book behaviour: the index's own pages are headed
-   "Index" (or whatever `pdf_index_title` says). */
+   "Index" (or whatever `prodockit.index`'s `title` setting says). */
 h1.prodockit-index-title { string-set: chapter-title content() !important; }
 
 /* WeasyPrint bookmarks every h1-h6 into the PDF's outline (the navigation

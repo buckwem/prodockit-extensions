@@ -153,6 +153,10 @@ sizing a column, not something `prodockit.tables` needs to reimplement.
 
 ## Configure table layouts
 
+There are no additional `prodockit.tables` settings in `zensical.toml`.
+Configure each table in its Markdown by adding the attributes shown in the
+examples below.
+
 ### Use a compact layout {: #tables-compact }
 
 A table with many short columns is held wide by the theme itself: every

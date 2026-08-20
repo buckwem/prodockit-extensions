@@ -89,7 +89,7 @@ EXPECTED_INDEX_TERMS = (
     "Git",
     "ssh keys",
     "git commit",
-    "pdf_include_index",
+    "include",
     "running footer",
     "Pandoc",
 )
@@ -243,7 +243,7 @@ def _index_page_index(page_texts: list[str], title: str) -> int:
     """The 0-based position of the generated index page in `page_texts`.
 
     Fails rather than skips if it isn't there: this project turns
-    `pdf_include_index` on in `zensical.toml`, so a missing index page is
+    `prodockit.index`'s `include` setting on in `zensical.toml`, so a missing index page is
     the regression, not a reason to opt out of the checks below.
 
     Matched on the page's whole first *line*, and searched from the back.
@@ -270,7 +270,7 @@ def _index_page_index(page_texts: list[str], title: str) -> int:
     raise AssertionError(
         f"No page begins with the index title {title!r} on a line of its own "
         "- the back-of-book index is missing from the built PDF. Is "
-        "extra.pdf_include_index still set in zensical.toml, and does "
+        "prodockit.index include=true still set in zensical.toml, and does "
         "docs/extensions/index-terms.md still mark terms live in its "
         "'=== \"Result\"' tabs?"
     )
@@ -320,13 +320,15 @@ def _parse_index_entries(index_text: str) -> list[tuple[str, list[int]]]:
 
 @pytest.fixture(scope="session")
 def index_title(prodockit_resolved_config: dict[str, Any]) -> str:
-    extra = prodockit_resolved_config.get("extra") or {}
-    assert extra.get("pdf_include_index"), (
-        "extra.pdf_include_index is not set in zensical.toml - the index "
+    index_config = (prodockit_resolved_config.get("mdx_configs") or {}).get(
+        "prodockit.index"
+    ) or {}
+    assert index_config.get("include"), (
+        "prodockit.index include=true is not set in zensical.toml - the index "
         "checks below would pass vacuously against a PDF that never had an "
         "index to begin with"
     )
-    return extra.get("pdf_index_title") or DEFAULT_INDEX_TITLE
+    return index_config.get("title") or DEFAULT_INDEX_TITLE
 
 
 def test_index_markers_leave_no_trace_in_the_pdf_text_layer(prodockit_pdf_page_texts):

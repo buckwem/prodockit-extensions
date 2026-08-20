@@ -134,7 +134,7 @@ table too wide for a portrait page - printed sideways, on its own
 landscape page(s), spanning multiple pages with a repeated heading row -
 `{.web-only}`/`{.pdf-only}` markers for content that should only appear
 in one of the two outputs, and a two-column, letter-headed back-of-book
-index (`pdf_include_index`) generated from `prodockit.index`'s own
+index (enabled in `prodockit.index`'s settings) generated from its own
 `\index{Term}` markers. See the
 [docs](https://buckwem.github.io/prodockit-extensions/pdf/) for the
 `zensical.toml` settings it reads, and for the Python API

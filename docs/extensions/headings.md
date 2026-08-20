@@ -18,7 +18,12 @@ Enable it in `zensical.toml`:
 
 ```toml
 [project.markdown_extensions."prodockit.headings"]
+numbering = "continuous"
 ```
+
+`continuous` carries the numbering across the pages in your Zensical
+navigation. Use `per-document` instead when every page should start again at
+section 1.
 
 ## Number headings {: #headings-quick-start }
 
@@ -55,6 +60,26 @@ calculated numbers in links such as “1.1 Background”.
     to the website's heading text.
 
 ## Configure headings
+
+### Choose how numbering continues {: #continuous-numbering-across-pages-zensical }
+
+The `numbering` setting accepts two values:
+
+| Value | Result |
+| --- | --- |
+| `"continuous"` | Continue the main section numbers across pages in Zensical navigation order. |
+| `"per-document"` | Start each page's main section numbering at 1. This is the extension's default. |
+
+For a multi-page documentation site, set the option in `zensical.toml`:
+
+```toml
+[project.markdown_extensions."prodockit.headings"]
+numbering = "continuous"
+```
+
+For example, if one page ends at section 3, the next page starts at section 4.
+This also lets [Cross-References](refs.md) show one consistent set of section
+numbers across the site.
 
 ### Number appendices {: #appendices }
 
@@ -160,27 +185,6 @@ for the underlying stylesheet rule and worked example.
 
 ## Reference {: #headings-reference }
 
-### Continuous numbering across pages (Zensical)
-
-By default, numbering is per-document: every page's own `h1` starts back at
-1, regardless of what came before it in a multi-page build. Set
-`numbering="continuous"` to make `h1` numbering carry on from wherever the
-previous nav page left off instead:
-
-```toml
-[project.markdown_extensions."prodockit.headings"]
-numbering = "continuous"
-```
-
-e.g. if page one ends with `h1` number `"3"`, page two's first `h1` becomes
-`"4"`, not `"1"` again. This is what makes a `\ref{id}` link to a heading on
-a *different* page (see [prodockit.refs](refs.md)) show the same number that's
-actually displayed on that page.
-
-Once enabled, a page whose front matter sets `is_appendix: true` is
-numbered with a letter instead - see [Appendices](#appendices) above for a
-worked example.
-
 ### Ids
 
 An id comes from one of, in order of precedence:
@@ -197,14 +201,17 @@ An id comes from one of, in order of precedence:
    registered at all (this should not normally happen, since
    `prodockit.headings` enables it).
 
-### Options {: #headings-options }
+### Zensical settings {: #headings-options }
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| \index{prodockit.headings!`source`} | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's entries in the registry, and to safely clear/replace them on a rebuild of the same document. |
-| \index{prodockit.headings!`registry`} | `IdRegistry \| None` | a new `IdRegistry()` | Share one registry across multiple documents/conversions - see below. Passed as a constructor keyword, not a string-based config value (Python-Markdown's config system can't carry arbitrary Python objects safely). |
-| \index{prodockit.headings!`numbering`} | `"per-document" \| "continuous"` | `"per-document"` | `"continuous"` makes `h1` numbering carry on across pages in Zensical nav order, instead of restarting at 1 on every page - see [above](#continuous-numbering-across-pages-zensical). Only meaningful under Zensical; ignored otherwise. |
-| \index{prodockit.headings!`appendix_attr`} | `str` | `"is_appendix"` | Front matter flag name marking a page for letter-based numbering ("A", "A.1", ...) instead of the normal numeric sequence, when `numbering="continuous"`. |
+| Setting | Default | What it controls |
+|---|---|---|
+| \index{prodockit.headings!`numbering`} | `"per-document"` | Use `"continuous"` to carry main section numbers across pages in Zensical navigation order. |
+| \index{prodockit.headings!`appendix_attr`} | `"is_appendix"` | Name of the front matter setting that marks an appendix page. Change this only if your project uses another name. |
+| \index{prodockit.headings!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
+
+`registry` is not a `zensical.toml` setting. It accepts an `IdRegistry` Python
+object when you construct `HeadingsExtension` yourself; the manual multi-page
+example below shows when that is useful.
 
 ### Sharing a registry across a multi-page build
 

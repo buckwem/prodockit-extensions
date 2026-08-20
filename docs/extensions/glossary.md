@@ -44,6 +44,19 @@ it to the definition. Select the link to jump to the definition.
 
 ## Configure glossary terms
 
+### Choose the missing-term text
+
+An unresolved term displays `?` by default. Set `unresolved` if your project
+uses a different marker:
+
+```toml
+[project.markdown_extensions."prodockit.glossary"]
+unresolved = "MISSING"
+```
+
+`source` is the only other TOML setting. It identifies the current page, but
+Zensical detects it automatically; leave it unset in `zensical.toml`.
+
 ### Use a term before its definition {: #glossary-forward-references }
 
 You can use a term before its definition appears on the page:
@@ -148,13 +161,16 @@ Type `\gls{css}` to insert a term.
 
 Neither of the two shown above is resolved; both render the literal text.
 
-### Options {: #glossary-options }
+### Zensical settings {: #glossary-options }
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| \index{prodockit.glossary!`source`} | `str` | `""` | Identifier for the current document (e.g. its file path). Used to scope this document's own term definitions in the registry, and to build a correct link when a `\gls{id}` target lives on a different page. |
-| \index{prodockit.glossary!`unresolved`} | `str` | `"?"` | Text rendered for a `\gls{id}` that doesn't resolve to a definition. |
-| \index{prodockit.glossary!`registry`} | `GlossaryRegistry \| None` | discovered automatically, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
+| Setting | Default | What it controls |
+|---|---|---|
+| \index{prodockit.glossary!`unresolved`} | `"?"` | Text shown for a term id that cannot be found. |
+| \index{prodockit.glossary!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
+
+`registry` is not a `zensical.toml` setting. It accepts a `GlossaryRegistry`
+Python object when you construct `GlossaryExtension` yourself; see the manual
+multi-page example below.
 
 ### Multi-page builds {: #glossary-multi-page-builds }
 

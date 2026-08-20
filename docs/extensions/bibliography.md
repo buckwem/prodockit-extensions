@@ -97,6 +97,28 @@ The citation links to the matching entry on the References page. Keep the
 
 ## Configure the reference list
 
+### Choose the bibliography settings {: #bibliography-options }
+
+These are the usual project settings:
+
+```toml
+[project.markdown_extensions."prodockit.bibliography"]
+bib_file = "references.bib"
+csl_style = "harvard-cite-them-right.csl"
+unresolved = "?"
+```
+
+| Setting | Default | What it controls |
+|---|---|---|
+| \index{prodockit.bibliography!`bib_file`} | `"references.bib"` | Path to the `.bib` file, relative to the directory where you run `zensical build` or `zensical serve`. |
+| \index{prodockit.bibliography!`csl_style`} | `""` (Pandoc's default) | Path to the `.csl` file that controls citation and reference-list formatting. Leave it out to use Pandoc's default style. |
+| \index{prodockit.bibliography!`unresolved`} | `"?"` | Text shown for a citation key that cannot be found in the `.bib` file. |
+| \index{prodockit.bibliography!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
+
+Only `bib_file` is normally required. Add `csl_style` when you need a
+particular citation style, and change `unresolved` only when you want another
+missing-citation marker.
+
 Put a bare `\bibliography` marker, alone on its own paragraph, wherever
 you want the complete, formatted reference list to appear - typically a
 dedicated References page, kept at the end of `nav` as an appendix, the
@@ -256,15 +278,6 @@ protected inside inline code spans and fenced code blocks.
 [Multiple sections: References and Bibliography](#bibliography-multiple-sections)
 above for what they do and when to use them. Put the marker alone on its
 own paragraph/line.
-
-### Options {: #bibliography-options }
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| \index{prodockit.bibliography!`bib_file`} | `str` | `"references.bib"` | Path to a BibTeX/BibLaTeX `.bib` file, relative to wherever `zensical build`/`zensical serve` (or your own script) is run from. |
-| \index{prodockit.bibliography!`csl_style`} | `str` | `""` (Pandoc's own default) | Path to a Citation Style Language (`.csl`) file. |
-| \index{prodockit.bibliography!`unresolved`} | `str` | `"?"` | Text rendered for a `\cite{id}` key that doesn't resolve to a `.bib` entry. |
-| \index{prodockit.bibliography!`source`} | `str` | `""`, auto-detected under Zensical | Identifier for the current document, used to build a correct link from `\cite{id}` to `\bibliography`'s own page. |
 
 ## How it works {: #bibliography-how-it-works }
 

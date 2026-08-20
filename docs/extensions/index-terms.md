@@ -28,6 +28,7 @@ Enable it in `zensical.toml`:
 
 ```toml
 [project.markdown_extensions."prodockit.index"]
+include = true
 ```
 
 ## Mark a term {: #index-terms-quick-start }
@@ -50,8 +51,8 @@ Mark a term with `\index{Term}`:
 
 Every marked term renders inline exactly as written - `\index{widget}`
 becomes plain "widget" text, nothing more, on the live website. The
-marker only has an effect on the *PDF*, and only once `pdf_include_index`
-is on - see [Generating the index](#index-terms-generating-the-index)
+marker only has an effect on the *PDF*, and only once `include = true`
+is set - see [Generating the index](#index-terms-generating-the-index)
 below for the generated index page itself.
 
 Marking the same term more than once creates one index entry with all of its
@@ -59,17 +60,24 @@ page numbers.
 
 ## Configure the generated index {: #index-terms-generating-the-index }
 
-Set `pdf_include_index = true` under `[project.extra]` in `zensical.toml`
-for a traditional, two-column back-of-book index - terms grouped under a
+Set `include = true` in the extension's `zensical.toml` table for a
+traditional, two-column back-of-book index - terms grouped under a
 bold letter heading (A, B, C, ...), each followed by the page number(s)
 it appears on - appended as its own page(s) at the very end of the
 document:
 
 ```toml
-[project.extra]
-pdf_include_index = true
-pdf_index_title = "Index"   # optional - that page's own heading text
+[project.markdown_extensions."prodockit.index"]
+include = true
+title = "Index"
 ```
+
+| Setting | Default | What it controls |
+|---|---|---|
+| \index{prodockit.index!`include`} | `false` | Whether `prodockit pdf` generates the index pages. |
+| \index{prodockit.index!`title`} | `"Index"` | Heading shown on the first generated index page. |
+
+You can leave out `title` when “Index” is the heading you want.
 
 The `\index{widget}`/`\index{gadget}` example above renders to an index
 page like:

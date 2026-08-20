@@ -24,7 +24,7 @@ Zensical doesn't provide out of the box, each usable independently:
   `pandoc` on ``PATH`` even without a PDF build.
 - ``prodockit.index`` - mark a term inline with ``\\index{Term}`` for a
   traditional, PDF-only back-of-book index (see ``prodockit.pdf``'s own
-  ``pdf_include_index`` below) - with hierarchical sub-entries and
+  the extension's ``include`` option) - with hierarchical sub-entries and
   code-styled terms.
 - ``prodockit.steps`` - numbered steps a reader works through in order,
   written as ``/// steps`` with a ``//// step | Title`` for each one. A

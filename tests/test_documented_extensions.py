@@ -18,7 +18,10 @@ because it is registered, and anything registered has to be findable.
 
 from __future__ import annotations
 
+import importlib
 import pathlib
+
+from markdown.extensions import Extension
 
 from prodockit.template_sync import read_config
 
@@ -32,6 +35,21 @@ def registered_extensions() -> list[str]:
     config = read_config((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     group = config["project"]["entry-points"]["markdown.extensions"]
     return sorted(group)
+
+
+def registered_extension_targets() -> dict[str, str]:
+    """Every extension name and its importable ``module:class`` target."""
+    config = read_config((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    return dict(config["project"]["entry-points"]["markdown.extensions"])
+
+
+def extension_from_target(target: str) -> Extension:
+    """Construct an extension directly from its package entry-point target."""
+    module_name, class_name = target.split(":", 1)
+    extension_class = getattr(importlib.import_module(module_name), class_name)
+    extension = extension_class()
+    assert isinstance(extension, Extension)
+    return extension
 
 
 def test_every_registered_extension_is_on_the_installation_page() -> None:
@@ -59,6 +77,27 @@ def test_every_registered_extension_has_a_page_to_link_to() -> None:
     ]
 
     assert not missing, f"registered with no page under docs/extensions/: {missing}"
+
+
+def test_every_zensical_extension_setting_is_on_its_reference_page() -> None:
+    """Keep author-facing TOML settings in step with extension source code."""
+    known = {"prodockit.index": "index-terms"}
+    missing: dict[str, list[str]] = {}
+
+    for name, target in registered_extension_targets().items():
+        page_name = known.get(name, name.removeprefix("prodockit."))
+        page = ROOT / "docs" / "extensions" / f"{page_name}.md"
+        text = page.read_text(encoding="utf-8")
+        extension = extension_from_target(target)
+        undocumented = [key for key in extension.getConfigs() if f"`{key}`" not in text]
+        if undocumented:
+            missing[name] = undocumented
+
+    assert not missing, (
+        "These Python-Markdown configuration keys can be set under their "
+        "extension's zensical.toml table but are absent from its Authoring "
+        f"Reference page: {missing}"
+    )
 
 
 def test_every_registered_extension_is_in_the_package_docstring() -> None:

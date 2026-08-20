@@ -120,7 +120,7 @@ dev = [
   "pytest-cov",
   "pymupdf>=1.24",
 ]
-# Only needed for prodockit.pdf.index's own back-of-book index (pdf_include_index) -
+# Only needed for prodockit.pdf.index's own back-of-book index -
 # a real Python import (not shelled out to, unlike pandoc/weasyprint), and a
 # sizeable one, so it's kept optional rather than a hard dependency every
 # prodockit install pays for regardless of whether this feature is ever used.

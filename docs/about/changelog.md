@@ -3706,8 +3706,8 @@ Documentation only - no library, CLI or CI behaviour changes.
 ## 0.17.1 (2026-07-29)
 
 - This project's own PDF now has the back-of-book index its own docs
-  describe. `zensical.toml` never set `extra.pdf_include_index`, which
-  defaults to off, so the live `\index{}` markers in
+  describe. `zensical.toml` never set `include = true` for
+  `prodockit.index`, so the live `\index{}` markers in
   `docs/extensions/index-terms.md`'s `=== "Result"` tabs produced nothing:
   the page documenting the feature sat in a PDF that didn't have it.
 
@@ -3757,7 +3757,7 @@ Documentation only - no library, CLI or CI behaviour changes.
   and only its position gives it away.
 
 - The generated index's pages are now headed "Index" (or whatever
-  `pdf_index_title` says) rather than by the last chapter of the
+  `prodockit.index`'s `title` setting says) rather than by the last chapter of the
   document. The index's own `h1` is `unnumbered` - correct, since it must
   not take a section number or a Table of Contents entry - but
   `unnumbered` is also what excludes a heading from feeding the running
@@ -3815,7 +3815,7 @@ Documentation only - no library, CLI or CI behaviour changes.
     recorded.
 
     Needs no configuration change, and no new dependency: `pymupdf` was
-    already required for `pdf_include_index`, and the API used has been
+    already required for a generated index, and the API used has been
     available since well below the existing floor.
 
 ## 0.16.0 (2026-07-28)
@@ -4280,7 +4280,7 @@ actually finds a term on the live website. No code changes.
 Docs: `prodockit.index`'s marking syntax and `prodockit.pdf`'s back-of-book
 index *generation* were split across two pages (`extensions/index-terms.md`
 and `pdf.md` respectively), even though the marker is useless without
-turning `pdf_include_index` on and vice versa - `prodockit.bibliography`'s
+turning index generation on and vice versa - `prodockit.bibliography`'s
 own docs already combine marking and generation into one page. Moved the
 generation content into `extensions/index-terms.md` as a new "Generating
 the index" section, merged the per-feature rendered-output examples into
@@ -4577,8 +4577,8 @@ PDF pipeline test suites - each paired with a new regression test.
 
 - Docs: `prodockit.index` (new in 0.6.0) was missing from `README.md` -
   and so from PyPI's own project page - entirely: added it to the
-  "Status" line and the extensions table, and mentioned
-  `pdf_include_index` alongside `prodockit.pdf`'s other PDF-only
+  "Status" line and the extensions table, and mentioned the generated
+  index alongside `prodockit.pdf`'s other PDF-only
   features. Also added it to `pyproject.toml`'s own `description` (PyPI's
   summary line) and `src/prodockit/__init__.py`'s module docstring, both
   of which had the same gap.
@@ -4608,9 +4608,9 @@ PDF pipeline test suites - each paired with a new regression test.
       isn't exempted from Python-Markdown's own later inline-pattern
       passes the way `\ref{id}`/`\cite{id}`/`\gls{id}` are.
 - New `prodockit.pdf.index`: the two-pass build (a term's own page number
-  can only be known once WeasyPrint has already laid the PDF out once)
-  behind `pdf_include_index`/`pdf_index_title` (both off/unset by
-  default) - a traditional, two-column, letter-headed index page
+  can only be known once WeasyPrint has already laid the PDF out once),
+  configured by `prodockit.index`'s `include` and `title` settings - a
+  traditional, two-column, letter-headed index page
   (matching this project's own cover page hero graphic colour),
   alphabetised ignoring leading punctuation (so `--set-upstream option`
   files under "S", not a separate symbols section), with consecutive

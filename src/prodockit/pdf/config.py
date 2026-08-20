@@ -270,12 +270,8 @@ def build_pdf_from_zensical_config(
       see `_find_mmdc_bin`/`_find_tex2svg_script` - Mermaid diagrams/math
       formulas are simply left unrendered if neither is found, rather than
       failing the build), `pdf_math_dir`, `pdf_include_table_of_contents`
-      (default `true`), `pdf_table_of_contents_title`, `pdf_include_index`
-      (default `false` - a back-of-book index from every `\\index{Term}`
-      marker (see `prodockit.index`) anywhere in your content; see `build_pdf()`'s own
-      `include_index` docs for why this needs a real two-pass build, and
-      `prodockit.pdf.index` for the module behind it), `pdf_index_title`,
-      `pdf_extra_css` (a list of `docs_dir`-relative stylesheet paths, same
+      (default `true`), `pdf_table_of_contents_title`, `pdf_extra_css` (a
+      list of `docs_dir`-relative stylesheet paths, same
       shape as `project.extra_css` below, but meant *only* for the PDF -
       e.g. a rule that would look wrong on the live website, or one
       overriding something `project.extra_css` itself sets - concatenated
@@ -286,6 +282,12 @@ def build_pdf_from_zensical_config(
       `build_source_bundle_from_zensical_config()` below
       (prodockit-extensions#212). It reads `pdf_source_bundle_output` and
       `pdf_page_size` under `project.extra`, not this function.
+    - Under `project.markdown_extensions."prodockit.index"`: `include`
+      (default `false`) generates a back-of-book index from every
+      `\\index{Term}` marker, and `title` (default `"Index"`) sets that
+      page's heading. See `build_pdf()`'s own `include_index` documentation
+      for why this needs a real two-pass build, and `prodockit.pdf.index`
+      for the module behind it.
     - `project.extra_css` - your site's own stylesheet(s) (the same setting
       Zensical itself reads to style the live website), passed through as
       `build_pdf()`'s own `extra_css` - so a project-specific `@media print`
@@ -472,6 +474,8 @@ def build_pdf_from_zensical_config(
         reference_spacing_global,
     ) = reference_style_values(extra)
 
+    index_config = (config.get("mdx_configs") or {}).get("prodockit.index") or {}
+
     build_pdf(
         page_objects,
         output_path,
@@ -509,8 +513,8 @@ def build_pdf_from_zensical_config(
         tex2svg_script=tex2svg_script or "",
         include_table_of_contents=bool(extra.get("pdf_include_table_of_contents", True)),
         table_of_contents_title=extra.get("pdf_table_of_contents_title") or "Table of Contents",
-        include_index=bool(extra.get("pdf_include_index", False)),
-        index_title=extra.get("pdf_index_title") or "Index",
+        include_index=bool(index_config.get("include", False)),
+        index_title=index_config.get("title") or "Index",
         on_stage=on_stage,
     )
 

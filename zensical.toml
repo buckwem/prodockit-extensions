@@ -23,28 +23,6 @@ copyright = "Copyright © 2026 Mark Buckwell and contributors"
 # touching the copyright text itself.
 extra.pdf_copyright = 'Copyright © 2026 Mark Buckwell and contributors.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://buckwem.github.io/prodockit-extensions/">prodockit</a>.'
 
-# Generates the back-of-book index this project's own `prodockit.index`
-# docs describe - so the project's own PDF demonstrates the feature it
-# documents instead of describing a page it doesn't have.
-#
-# Terms are marked at the point each is actually discussed: every module
-# at its own page's opening sentence, every option/setting/fixture in the
-# reference table that defines it (nested under what it belongs to, so
-# the repeated `source`/`registry`/`unresolved` options group per module
-# rather than colliding), and the concepts and external tools where they
-# are introduced. docs/extensions/index-terms.md's own "Result" tabs stay
-# as they were - one marker per supported shape (flat, nested,
-# code-styled, linked), which keeps every branch of prodockit.pdf.index
-# exercised by the real build.
-#
-# Costs one extra pandoc+WeasyPrint pass on this build only - the index
-# needs a real two-pass build (see prodockit.pdf.index's own docstring),
-# and build_pdf() skips the second pass entirely when a document has no
-# markers, so none of docs.yml's twelve single-page `prodockit pdf -m`
-# builds pays anything for this. Mermaid/TeX pre-rendering happens before
-# either pass, so it isn't repeated.
-extra.pdf_include_index = true
-
 extra_css = ["stylesheets/extra.css"]
 
 # Client-side MathJax, for the website only - the PDF pre-renders the same
@@ -192,6 +170,13 @@ numbering = "continuous"
 [project.markdown_extensions."prodockit.tree"]
 
 [project.markdown_extensions."prodockit.index"]
+# Generates the back-of-book index this project's own `prodockit.index`
+# docs describe, so the project's PDF demonstrates the feature. Terms are
+# marked where each is discussed throughout the documentation. This costs
+# one extra Pandoc and WeasyPrint pass for the complete PDF; single-page
+# builds with no index markers still skip that pass.
+include = true
+
 # `generic = true` is required, not stylistic: it emits
 # `<div|span class="arithmatex">` wrappers, which is the only form
 # prodockit.pdf can pre-render - its Lua filter matches that class in its

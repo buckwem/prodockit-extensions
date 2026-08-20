@@ -46,6 +46,19 @@ update automatically if the document changes.
 
 ## Configure cross-references
 
+### Choose the missing-reference text
+
+An unresolved reference displays `??` by default. Set `unresolved` if your
+project uses a different marker:
+
+```toml
+[project.markdown_extensions."prodockit.refs"]
+unresolved = "MISSING"
+```
+
+`source` is the only other TOML setting. It identifies the current page, but
+Zensical detects it automatically; leave it unset in `zensical.toml`.
+
 ### Reference a heading before it appears {: #refs-forward-references }
 
 A reference to a heading defined *later* in the same document resolves
@@ -176,13 +189,16 @@ Type `\ref{intro}` to reference a section.
 
 Neither of the two shown above is resolved; both render the literal text.
 
-### Options {: #refs-options }
+### Zensical settings {: #refs-options }
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| \index{prodockit.refs!`unresolved`} | `str` | `"??"` | Text rendered when `id` is not registered. An `unnumbered` heading is registered and resolves to its name. |
-| \index{prodockit.refs!`source`} | `str` | `""`, auto-detected under Zensical | Identifier for the current document (e.g. its path) - used only to decide whether a resolved target is on this same page (bare `#id`) or a different one (a real link to it). Doesn't affect resolution itself. |
-| \index{prodockit.refs!`registry`} | `IdRegistry \| None` | discovered from a sibling `prodockit.headings`, or a new one | Share one registry across multiple documents - see below. Passed as a constructor keyword, not a string-based config value. |
+| Setting | Default | What it controls |
+|---|---|---|
+| \index{prodockit.refs!`unresolved`} | `"??"` | Text shown when an id cannot be found. |
+| \index{prodockit.refs!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
+
+`registry` is not a `zensical.toml` setting. It accepts an `IdRegistry` Python
+object when you construct `RefsExtension` yourself; see the manual multi-page
+example below.
 
 ### Multi-page builds {: #refs-multi-page-builds }
 
