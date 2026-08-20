@@ -12,6 +12,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from prodockit import __version__
+
 CHANGELOG = Path(__file__).resolve().parents[1] / "docs" / "about" / "changelog.md"
 
 #: `## 0.31.1 (2026-08-16)`, and the one heading with no version.
@@ -37,6 +39,12 @@ def test_there_is_at_most_one_unreleased_section() -> None:
         f"{len(headings)} `## Unreleased` sections - add entries under the "
         "existing one rather than inserting another heading"
     )
+
+
+def test_release_notes_explain_that_unreleased_can_be_absent() -> None:
+    introduction = CHANGELOG.read_text(encoding="utf-8").split("\n## ", 1)[0]
+
+    assert "Unreleased section when it is present" in " ".join(introduction.split())
 
 
 def test_unreleased_comes_before_every_released_version() -> None:
@@ -72,3 +80,12 @@ def test_released_entries_are_newest_first() -> None:
 
     assert dates == sorted(dates, reverse=True), "an entry is out of order by date"
 
+
+def test_package_version_matches_the_newest_release_notes() -> None:
+    pyproject = (CHANGELOG.parents[2] / "pyproject.toml").read_text(encoding="utf-8")
+    metadata_version = re.search(r'^version = "([^"]+)"$', pyproject, re.MULTILINE)
+    newest_release = _RELEASE.search(CHANGELOG.read_text(encoding="utf-8"))
+
+    assert metadata_version is not None
+    assert newest_release is not None
+    assert metadata_version.group(1) == __version__ == newest_release.group(1)

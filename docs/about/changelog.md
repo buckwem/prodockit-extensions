@@ -4,10 +4,10 @@ icon: lucide/history
 
 # Release notes
 
-Entries are arranged newest first. Read the Unreleased section and every
-version between the one a project uses and the one it will install. A change
-that needs author or maintainer action is described with the release that
-introduces it. Packaged artefacts and tags are available from
+Entries are arranged newest first. Read the Unreleased section when it is
+present, then every version between the one a project uses and the one it will
+install. A change that needs author or maintainer action is described with the
+release that introduces it. Packaged artefacts and tags are available from
 [GitHub Releases](https://github.com/buckwem/prodockit-extensions/releases).
 
 The oldest entries record the package's earlier name, `zendoc`. Versioning
@@ -15,7 +15,7 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
-## Unreleased
+## 0.41.0 (2026-08-20)
 
 - **Changed:** back-of-book index generation is now configured with the
   extension it belongs to:

@@ -97,9 +97,9 @@ def test_release_notes_explain_the_legacy_version_sequence() -> None:
     assert "newest first" in changelog[:1500]
 
 
-def test_unreleased_notes_cover_the_public_changes_since_040() -> None:
+def test_latest_notes_cover_the_public_changes_since_040() -> None:
     changelog = _text("docs/about/changelog.md")
-    unreleased = changelog.split("## Unreleased", 1)[1].split("\n## ", 1)[0]
+    latest = changelog.split("\n## ", 1)[1].split("\n## ", 1)[0]
 
     for phrase in (
         'project.markdown_extensions."prodockit.index"',
@@ -111,7 +111,7 @@ def test_unreleased_notes_cover_the_public_changes_since_040() -> None:
         "pdf-keep-tab-pages",
         "information architecture",
     ):
-        assert phrase in unreleased
+        assert phrase in latest
 
 
 def test_licence_page_explains_but_does_not_replace_the_legal_text() -> None:
