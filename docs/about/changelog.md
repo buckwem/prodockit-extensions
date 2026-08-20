@@ -1,5 +1,13 @@
 # Release Notes
 
+## Unreleased
+
+- **Documentation:** reorganised project maintenance into a task-based path
+  from a safe report-only check through reviewed updates, local builds, pull
+  request gates, package publishing, and live-site verification. The new
+  release runbook follows this repository's five GitHub Actions workflows and
+  explains where each stage resumes after a failure.
+
 ## 0.40.0 (2026-08-19)
 
 - **Added:** `prodockit template-sync --push` finishes a sync where the

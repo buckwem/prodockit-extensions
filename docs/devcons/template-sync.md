@@ -1,3 +1,7 @@
+---
+icon: lucide/refresh-cw
+---
+
 # Staying in step with the template {: #tsync-staying-in-step }
 
 A project generated from `prodockit-template` is a copy, not a link. The
@@ -9,6 +13,104 @@ document that looks slightly unlike everyone else's.
 
 `prodockit template-sync` closes that gap without touching a word of your
 writing.
+
+Use it periodically while a project is active and before a final release. A
+long gap is supported, but it produces a larger change that is harder to
+review and more likely to combine a CI migration with a visual change.
+
+## Choose how far the command should go
+
+| Command | Stops after | Use it for |
+|---|---|---|
+| `prodockit template-sync` | A report | Routine checking and learning what changed upstream |
+| `prodockit template-sync --apply` | A new branch with changes staged | The normal reviewed pull-request workflow |
+| `prodockit template-sync --apply --push` | Confirmed commit, merge to the host's default branch, and push | A project where you may merge your own maintenance directly |
+| `prodockit template-sync --apply --force PATH` | Staged update including the named edited file | A deliberate decision to replace your local version with the template's |
+
+Protected repositories should normally use `--apply`, inspect the branch, and
+open a pull request. `--push` is not a bypass for branch protection; it is an
+assisted path for repositories whose maintainer is allowed to merge directly.
+
+## Complete a template update
+
+/// steps
+
+//// step | Start clean and preview
+
+```bash
+git status --short
+prodockit template-sync
+```
+
+Uncommitted chapters are allowed, but uncommitted changes to template-owned
+files stop the run before it writes. Read the classification counts and any
+files reported as locally edited.
+
+////
+
+//// step | Apply on the generated branch
+
+```bash
+prodockit template-sync --apply
+```
+
+The command creates or safely resumes `template-update-...`, writes only the
+permitted files, and stages them. It does not commit.
+
+////
+
+//// step | Resolve kept files and sidecars
+
+For an edited template-owned file, compare the current file with its `.new`
+sidecar. Merge the useful upstream change by hand, or rerun with one explicit
+`--force PATH` if the template's complete version should win. Delete resolved
+sidecars so they cannot be mistaken for unfinished work.
+
+////
+
+//// step | Build the complete outputs
+
+```bash
+prodockit pdf
+zensical build --clean --strict
+```
+
+Run the project's tests as well. A template update commonly changes workflows,
+stylesheets, Node tooling, or pins; a source diff alone cannot show whether the
+published PDF and site still look right.
+
+////
+
+//// step | Commit and publish through the normal gate
+
+```bash
+git diff --cached
+git commit -m "Update from prodockit template"
+git push -u origin HEAD
+gh pr create
+```
+
+Merge after CI passes. If the repository deliberately permits the automated
+finish, use `prodockit template-sync --apply --push` instead and confirm the
+printed commit, merge, and push plan.
+
+////
+
+//// step | Confirm the next run is clean
+
+After merging or pushing the updated default branch:
+
+```bash
+prodockit template-sync
+```
+
+“Already in step with the template” is the verification. A remaining report
+usually means an unresolved sidecar, an intentionally kept file, or a baseline
+that was not advanced by the expected branch.
+
+////
+
+///
 
 ## What it will and will not write {: #tsync-what-it-writes }
 

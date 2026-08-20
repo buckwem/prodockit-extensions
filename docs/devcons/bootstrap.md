@@ -1,3 +1,7 @@
+---
+icon: lucide/rocket
+---
+
 # Machine bootstrap {: #bootstrap-machine-bootstrap }
 
 \index{`prodockit bootstrap`} turns the User Guide's install sequence into

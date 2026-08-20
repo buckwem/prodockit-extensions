@@ -64,13 +64,15 @@ nav = [
     {"Website macros" = "macros.md"},
     {"Continuous integration" = "devcons/continuous-integration.md"},
     {"Test the built site" = "devcons/testing.md"},
+    {"Set up a machine" = "devcons/bootstrap.md"},
+    {"Staying in step with the template" = "devcons/template-sync.md"},
   ]},
   {"Project maintenance" = [
+    {"Maintenance overview" = "project-maintenance.md"},
     {"Command-line tools" = "command-line.md"},
-    {"Set up a machine" = "devcons/bootstrap.md"},
     {"Repository metadata" = "devcons/repo-metadata.md"},
     {"Version pinning and drift" = "devcons/pinning-drift.md"},
-    {"Staying in step with the template" = "devcons/template-sync.md"},
+    {"Build and release" = "devcons/releasing.md"},
   ]},
   {"Contributor notes" = [
     {"How the pieces fit" = "devcons/devcons.md"},
