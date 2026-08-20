@@ -43,45 +43,55 @@ extra_javascript = [
 
 nav = [
   {"Home" = "index.md"},
-  {"Get started" = [
+  {"Getting started" = [
     {"Overview" = "introduction.md"},
     {"Install prodockit" = "installation.md"},
     {"Build your first site" = "getting-started.md"},
   ]},
   {"Authoring reference" = [
+    {"Overview" = "authoring.md"},
     {"Headings" = "extensions/headings.md"},
-    {"Cross-References" = "extensions/refs.md"},
-    {"Citations or References" = "extensions/citations.md"},
-    {"Acronyms and Glossary" = "extensions/glossary.md"},
+    {"Cross-references" = "extensions/refs.md"},
+    {"Hand-written citations and references" = "extensions/citations.md"},
+    {"Acronyms and glossary" = "extensions/glossary.md"},
     {"Tables" = "extensions/tables.md"},
-    {"Directory Trees" = "extensions/tree.md"},
-    {"Numbered Steps" = "extensions/steps.md"},
-    {"Bibliography" = "extensions/bibliography.md"},
-    {"Index (pdf-only)" = "extensions/index-terms.md"},
+    {"Directory trees" = "extensions/tree.md"},
+    {"Numbered steps" = "extensions/steps.md"},
+    {"BibTeX bibliography" = "extensions/bibliography.md"},
+    {"Index (PDF only)" = "extensions/index-terms.md"},
   ]},
-  {"Publishing" = [
-    {"Generate a PDF" = "pdf.md"},
-    {"Website macros" = "macros.md"},
-    {"Continuous integration" = "devcons/continuous-integration.md"},
-    {"Test the built site" = "devcons/testing.md"},
+  {"Publish a document" = [
+    {"Publishing overview" = "publishing.md"},
+    {"Command-line reference" = "command-line.md"},
+    {"Start with prodockit-template" = "prodockit-template.md"},
     {"Set up a machine" = "devcons/bootstrap.md"},
     {"Staying in step with the template" = "devcons/template-sync.md"},
+    {"Generate a PDF" = "pdf.md"},
+    {"Publish automatically" = "devcons/continuous-integration.md"},
+    {"Test the built output" = "devcons/testing.md"},
+    {"Website macros" = "macros.md"},
   ]},
-  {"Project maintenance" = [
+  {"Maintain prodockit" = [
     {"Maintenance overview" = "project-maintenance.md"},
-    {"Command-line tools" = "command-line.md"},
     {"Repository metadata" = "devcons/repo-metadata.md"},
     {"Version pinning and drift" = "devcons/pinning-drift.md"},
     {"Build and release" = "devcons/releasing.md"},
   ]},
-  {"Contributor notes" = [
-    {"How the pieces fit" = "devcons/devcons.md"},
+  {"Contributor internals" = [
+    {"Overview" = "devcons/devcons.md"},
+    {"Development and code map" = "devcons/development.md"},
+    {"Extension integration" = "devcons/extension-internals.md"},
+    {"PDF pipeline and API" = "devcons/pdf-internals.md"},
+    {"Bootstrap design" = "devcons/bootstrap-internals.md"},
     {"Zensical coupling" = "devcons/zensical-coupling.md"},
-    {"Limitations and workarounds" = "devcons/limitations.md"},
+    {"Implementation limitations" = "devcons/limitations.md"},
   ]},
   {"About" = [
-    {"Release Notes" = "about/changelog.md"},
-    {"License" = "about/license.md"},
+    {"About prodockit" = "about/index.md"},
+    {"Support and compatibility" = "about/support.md"},
+    {"Known limitations" = "about/limitations.md"},
+    {"Release notes" = "about/changelog.md"},
+    {"Licence" = "about/license.md"},
   ]},
 ]
 

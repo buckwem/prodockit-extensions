@@ -4,7 +4,7 @@ icon: lucide/package-check
 
 # Build and release
 
-This page is the maintainer runbook for taking prodockit from an accepted
+This page documents the \index{release process} for taking prodockit from an accepted
 change to a package on PyPI and a documentation site that shows the same
 release. It describes this repository's real GitHub Actions workflows rather
 than a generic Python release.
@@ -46,7 +46,7 @@ schedule. Rectangular boxes are actions or workflow stages that follow.
 | [`ci.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/ci.yml) | Pull requests; pushes to `main` | Test Python 3.10–3.13, lint, type-check, verify pins, run the suite, and strictly build the site |
 | [`docs.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/docs.yml) | Pushes to `main`; manual dispatch | Build the complete PDF and selected single-page PDFs, strictly build the website, run built-output tests, deploy Pages, then verify the live page matches the uploaded artifact |
 | [`drift.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/drift.yml) | Monday schedule; manual dispatch | Build with pinned and newest rendering dependencies, compare artifacts, run checks against the newer build, and open or update an issue rather than failing for mere availability |
-| [`publish.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/publish.yml) | Published GitHub release | Build source and wheel artifacts from the release tag, then publish them to PyPI through Trusted Publishing |
+| [`publish.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/publish.yml) | Published GitHub release | Build source and wheel artifacts from the release tag, then publish them to PyPI through \index{PyPI!Trusted Publishing} |
 | [`release-redeploy.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/release-redeploy.yml) | Published GitHub release; manual dispatch | Start `docs.yml` against `main` after the new tag exists, so the cover and macros can show the new release without deploying from a tag ref |
 
 The five workflows overlap intentionally. `ci.yml` gives quick pull-request
@@ -147,11 +147,17 @@ capability still needs review.
 
 ## 3. Run the local release gates
 
-Activate the development environment first. On macOS, export the library path
-described in
-[Contributing](https://github.com/buckwem/prodockit-extensions/blob/main/CONTRIBUTING.md)
-so WeasyPrint can find
-Homebrew's Pango libraries.
+Activate the development environment first. On Apple Silicon macOS, expose
+Homebrew's Pango libraries in the same terminal that will run the gates:
+
+```bash
+export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
+```
+
+Use `/usr/local/lib` on an Intel Mac. If this is missing, the PDF-backed tests
+typically fail with `cannot load library 'libgobject-2.0-0'` even though
+`brew install pango` has completed. This is a loader-path problem, not evidence
+of a code regression or a missing Python package.
 
 Run the same logical gates as `ci.yml`:
 
@@ -269,7 +275,7 @@ workflow:
 python -m pip index versions prodockit
 ```
 
-### Documentation: `release-redeploy.yml` → `docs.yml`
+### Documentation: `release-redeploy.yml` → `docs.yml` {: #release-documentation-redeploy }
 
 The release event itself runs against a tag ref. GitHub Pages deployments from
 that ref previously reported success while the public site kept serving the

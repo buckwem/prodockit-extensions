@@ -1,6 +1,11 @@
+---
+icon: lucide/link-2
+---
+
 # Zensical coupling {: #coupling-zensical-coupling }
 
-prodockit imports several Zensical Python APIs that Zensical neither
+\index{Zensical coupling} arises because prodockit imports several Zensical
+Python APIs that Zensical neither
 documents nor treats as public. Nothing else in these docs says which, so
 the coupling is invisible until a Zensical release breaks it. This page is
 that list.
@@ -170,7 +175,7 @@ which is what makes a deliberate pass possible at all.
 
 ## Related {: #coupling-related }
 
-- [Limitations and workarounds](limitations.md) covers the theme CSS-class
+- [Implementation limitations](limitations.md) covers the theme CSS-class
   coupling - `.md-typeset` targeting, glightbox wrappers, and Zensical's own
   `LinksTreeprocessor` URL rewriting. Those are HTML/CSS shapes rather than
   APIs, and equally undocumented.

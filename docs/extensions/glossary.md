@@ -2,7 +2,7 @@
 icon: lucide/book-open
 ---
 
-# Acronyms and Glossary
+# Acronyms and glossary
 
 \index{`prodockit.glossary`} lets you define an acronym or term once and reuse
 it throughout your documentation. Each use links readers to the definition.
@@ -61,21 +61,36 @@ Zensical detects it automatically; leave it unset in `zensical.toml`.
 
 You can use a term before its definition appears on the page:
 
-```md
-This example uses a \gls{css} for its layout.
+=== "Markdown"
 
-**CSS style sheet** - A file containing Cascading Style Sheets rules.
-{: #css data-term="CSS style sheet" }
-```
+    ```md
+    This example uses a \gls{css-forward-example} for its layout.
+
+    **CSS style sheet** - A file containing Cascading Style Sheets rules.
+    {: #css-forward-example data-term="CSS style sheet" }
+    ```
+
+=== "Result"
+
+    This example uses a \gls{css-forward-example} for its layout.
+
+    **CSS style sheet** - A file containing Cascading Style Sheets rules.
+    {: #css-forward-example data-term="CSS style sheet" }
 
 ### Fix a missing term {: #glossary-unresolved-references }
 
 If a term id is missing or mistyped, the extension displays `?` instead of a
 link:
 
-```md
-\gls{does-not-exist}
-```
+=== "Markdown"
+
+    ```md
+    \gls{does-not-exist}
+    ```
+
+=== "Result"
+
+    ?
 
 Check that the text inside the braces exactly matches the id on the definition.
 
@@ -84,17 +99,23 @@ Check that the text inside the braces exactly matches the id on the definition.
 You can keep acronym expansions on one page and longer glossary definitions on
 another. `\gls{id}` works with a definition on either page:
 
-```md
-<!-- acronyms.md -->
-**CSS** - Cascading Style Sheets.
-{: #css .acronym data-term="CSS" }
-```
+=== "Markdown"
 
-```md
-<!-- glossary.md -->
-**Cascading Style Sheets** - The language used to control appearance.
-{: #css-def .glossary data-term="Cascading Style Sheets" }
-```
+    ```md
+    <!-- acronyms.md -->
+    **CSS** - Cascading Style Sheets.
+    {: #css .acronym data-term="CSS" }
+
+    <!-- glossary.md -->
+    **Cascading Style Sheets** - The language used to control appearance.
+    {: #css-def .glossary data-term="Cascading Style Sheets" }
+    ```
+
+=== "Result"
+
+    **CSS** - Cascading Style Sheets.
+
+    **Cascading Style Sheets** - The language used to control appearance.
 
 #### Link the two entries
 
@@ -168,57 +189,18 @@ Neither of the two shown above is resolved; both render the literal text.
 | \index{prodockit.glossary!`unresolved`} | `"?"` | Text shown for a term id that cannot be found. |
 | \index{prodockit.glossary!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
 
-`registry` is not a `zensical.toml` setting. It accepts a `GlossaryRegistry`
-Python object when you construct `GlossaryExtension` yourself; see the manual
-multi-page example below.
+### Cross-page terms {: #glossary-multi-page-builds }
 
-### Multi-page builds {: #glossary-multi-page-builds }
+Under Zensical, a term can be used on a different page from its definition,
+including an Acronyms or Glossary appendix later in navigation. Prodockit reads
+definitions across the navigation before page conversion, so no author
+configuration is required.
 
-#### Under Zensical: automatic {: #glossary-under-zensical-automatic }
+Two definitions using the same id produce a warning and the first definition
+is retained. Use a unique id for every term.
 
-Under [Zensical](https://zensical.org/), referencing a term defined on a
-*different* page (the common case - Acronyms/Glossary appendix pages
-separate from the pages that use them) works with no extra configuration,
-the same way [prodockit.citations](citations.md#citations-under-zensical-automatic)
-shares its registry across pages:
-
-```toml
-[project.markdown_extensions."prodockit.glossary"]
-```
-
-**Using a term before it's defined works too**, the same way as
-`prodockit.citations`: `prodockit.glossary` pre-scans every page in the current
-Zensical build's nav for term definitions before any page has actually
-been converted, so a term used from an early chapter but defined on an
-Acronyms/Glossary page kept at the end of nav resolves correctly within a
-single `zensical build` pass.
-
-Two different sources that happen to define the same id don't fail the
-build: the first one scanned keeps that id, and the collision is logged as
-a warning rather than raised as an error.
-
-#### Under other tools: manual {: #glossary-under-other-tools-manual }
-
-Outside Zensical, share a `GlossaryRegistry` yourself, the same way as
-[prodockit.citations](citations.md#citations-under-other-tools-manual):
-
-```python
-import markdown
-from prodockit.glossary import GlossaryExtension
-from prodockit.util import GlossaryRegistry
-
-registry = GlossaryRegistry()
-
-for path, text in pages:
-    html = markdown.markdown(
-        text,
-        extensions=[GlossaryExtension(registry=registry, source=path)],
-    )
-```
-
-A genuine id collision between two different `source`s raises
-`prodockit.util.DuplicateIdError` here, rather than warning - a deliberately
-shared registry means you're expected to notice and fix it.
+For integration with another Markdown renderer, see
+[Extension integration](../devcons/extension-internals.md#share-definitions-across-pages).
 
 ## Customise with a CSS style sheet {: #glossary-css-hooks }
 
@@ -233,8 +215,4 @@ resolved or not - so a stylesheet has a stable hook either way:
 An unresolved id's `<a>` has no `href` (see
 [Unresolved references](#glossary-unresolved-references) above) - style
 `prodockit-gls-unresolved` distinctly (e.g. a warning colour) to make a
-missing term visually obvious without inspecting the page source. No
-`data-*` attribute is left in the rendered output - the internal
-`data-prodockit-gls` placeholder attribute used during resolution, and the
-`data-term` attribute marking a definition, are both always stripped
-before the page is rendered.
+missing term visually obvious.

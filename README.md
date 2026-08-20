@@ -21,268 +21,175 @@
 </p>
 <!-- repo-badges:end -->
 
-A family of extensions for [Zensical](https://zensical.org/) needed for
-professional and academic documentation: section cross-references,
-bibliography/citation handling, a glossary, and a Pandoc/WeasyPrint PDF
-pipeline for the downloadable, submittable document these usually need
-alongside the website itself.
+A toolkit for writing and publishing professional or academic documents with
+[Zensical](https://zensical.org/). Write the content once in Markdown, publish
+it as a website, and build a single downloadable or submittable PDF from the
+same pages and navigation.
 
-Most of prodockit is [Python-Markdown](https://python-markdown.github.io/)
-extensions, enabled in `zensical.toml`. `prodockit.pdf` is a command-line
-tool instead (`prodockit pdf`), since a PDF build pipeline isn't a Markdown
-syntax extension - it reads the same `zensical.toml` too. In addition,
-there's a set of website macros (`prodockit.zensical_macros`) to help use
-prodockit's features.
+prodockit combines:
 
-It's a kit for professional documentation, built on Zensical's own
-Markdown and Pandoc/WeasyPrint PDF pipeline.
+- nine [Python-Markdown](https://python-markdown.github.io/) authoring
+  extensions for headings, references, citations, glossaries, tables,
+  directories, procedures, bibliographies, and indexes;
+- a Pandoc and WeasyPrint PDF pipeline;
+- Zensical macros and built-output tests; and
+- commands for machine setup, template updates, repository metadata, and
+  reproducible build inputs.
 
-> **Status:** early, but functional - `prodockit.headings`, `prodockit.refs`,
-> `prodockit.citations`, `prodockit.glossary`, `prodockit.tables`,
-> `prodockit.bibliography`, `prodockit.index`, `prodockit.steps`,
-> `prodockit.tree`,
-> `prodockit.pdf`,
-> `prodockit.sync_repo`, `prodockit.pins` and `prodockit.zensical_macros`
-> are implemented and tested. `prodockit.bootstrap` is newer, and now
-> exercised end to end on **macOS, Ubuntu and Windows** against the
-> University of Surrey's GitLab - Windows including Mermaid diagrams and
-> TeX maths rendered into the PDF, which needs the Node toolchain as well
-> as the Python one. github.com has been run and the faults it found are
-> fixed, but it has not completed a clean run start to finish;
-> gitlab.com is covered by tests rather than by a machine.
+[PyMdown Extensions](https://facelessuser.github.io/pymdown-extensions/) is a
+direct part of the authoring foundation. `prodockit.steps` and
+`prodockit.tree` are built with the PyMdown Blocks API, so they use its
+slash-fenced block model rather than a separate, look-alike parser.
 
-**[Full documentation](https://buckwem.github.io/prodockit-extensions/)**
+## Choose where to start
+
+| You want to | Start here |
+|---|---|
+| Create and publish a document | [prodockit User Guide](https://buckwem.github.io/prodockit-userguide/) |
+| Begin with a maintained report project | [prodockit-template](https://github.com/buckwem/prodockit-template) |
+| Build a small local site from scratch | [Build your first site](https://buckwem.github.io/prodockit-extensions/getting-started/) |
+| Look up Markdown syntax and configuration | [Authoring reference](https://buckwem.github.io/prodockit-extensions/authoring/) |
+| Build a PDF or publish with CI | [Publish a document](https://buckwem.github.io/prodockit-extensions/publishing/) |
+| Evaluate versions, platforms, and maturity | [Support and compatibility](https://buckwem.github.io/prodockit-extensions/about/support/) |
+| Change prodockit itself | [Contributing](CONTRIBUTING.md) |
+
+## Project status
+
+prodockit is currently **Alpha**: its documented features are functional and
+tested, but pre-1.0 releases can still make a documented breaking change when
+needed to regularise the public configuration.
+
+Bootstrap has completed manual end-to-end testing on Ubuntu, Windows, and
+macOS against both the University of Surrey GitLab and GitHub.com.
+That testing covered creating a new document repository and installing an
+existing online repository locally. The full test suite runs on Ubuntu for
+every push and pull request and is also run locally on macOS. Windows has
+manual workflow coverage, but not a hosted full-suite regression job.
+
+See [Support and compatibility](https://buckwem.github.io/prodockit-extensions/about/support/)
+for the precise test depth, supported versions, and known constraints.
 
 ## Installation
 
-Requires **Python 3.10 or later** (tested on 3.10-3.13).
+prodockit requires **Python 3.10 or later** and is tested on Python 3.10–3.13:
 
 ```bash
-pip install prodockit
+python -m pip install prodockit
 ```
 
-Check what you have with `prodockit --version`, which prints the bare
-number the same way `zensical --version` does.
+The base installation includes Zensical, Python-Markdown, PyMdown Extensions,
+and the other Python libraries used by the Markdown extensions. Optional
+extras add features with larger testing or indexing dependencies:
 
-`prodockit.pdf` and `prodockit.bibliography` additionally need `pandoc`,
-and the PDF build needs `weasyprint` - external binaries, not Python
-packages, so `pip` doesn't install them. See
-[Installation](https://buckwem.github.io/prodockit-extensions/installation/)
-for the full list, including the optional Node tooling for Mermaid
-diagrams and TeX maths in the PDF.
+```bash
+python -m pip install "prodockit[index]"    # PDF back-of-book index
+python -m pip install "prodockit[testing]"  # checks for a built site and PDF
+```
 
-## Extensions
+PDF and bibliography features need tools that the base installation does not
+supply:
 
-| Extension | Description |
+- install WeasyPrint with `python -m pip install weasyprint` and install its
+  native Pango libraries;
+- install Pandoc for PDF generation and BibTeX/BibLaTeX bibliographies; and
+- install the optional Node tools and Chrome or Chromium only when the PDF
+  contains Mermaid diagrams or TeX maths.
+
+Follow the complete, platform-specific
+[installation guide](https://buckwem.github.io/prodockit-extensions/installation/)
+before building a PDF. Check the installed release with:
+
+```bash
+prodockit --version
+```
+
+## Authoring extensions
+
+Enable only the extensions a project uses in `zensical.toml`. Each extension
+has a beginner-first guide with copyable Markdown and a rendered result.
+
+| Extension | Use it for |
 |---|---|
-| [`prodockit.headings`](https://buckwem.github.io/prodockit-extensions/extensions/headings/) | Gives every heading an id and a hierarchical section number ("1", "1.1", "1.2", "2", ...). |
-| [`prodockit.refs`](https://buckwem.github.io/prodockit-extensions/extensions/refs/) | `\ref{id}` cross-references, resolving to a section's current number and name or a captioned figure or table's label - and `\autoref{id}`, which additionally carries the target's page number in the PDF. |
-| [`prodockit.citations`](https://buckwem.github.io/prodockit-extensions/extensions/citations/) | Define a source once, cite it by key anywhere with `\citeref{id}` - auto-generates the bracketed, linked citation text. |
-| [`prodockit.glossary`](https://buckwem.github.io/prodockit-extensions/extensions/glossary/) | Define a term once (an acronym expansion, a glossary entry), insert it by id anywhere with `\gls{id}` - similar in spirit to LaTeX's `glossaries` package. |
-| [`prodockit.tables`](https://buckwem.github.io/prodockit-extensions/extensions/tables/) | Column widths, dense tables, headers of more than one row, merged cells and rotated headings - all through a `width`, `.compact`, `.header`, `colspan`/`rowspan` or `rotate` attribute already attachable to a cell with `attr_list`. |
-| [`prodockit.bibliography`](https://buckwem.github.io/prodockit-extensions/extensions/bibliography/) | An alternative to `prodockit.citations`: define sources in a BibTeX/BibLaTeX `.bib` file and format `\cite{id}`/the reference list in any Citation Style Language style, via Pandoc's own `--citeproc`. |
-| [`prodockit.index`](https://buckwem.github.io/prodockit-extensions/extensions/index-terms/) | Mark a term inline with `\index{Term}` for a traditional, PDF-only back-of-book index - with hierarchical sub-entries and code-styled terms. |
-| [`prodockit.steps`](https://buckwem.github.io/prodockit-extensions/extensions/steps/) | Numbered steps a reader works through in order - a number to find your place by, room for a command and its explanation, and a line joining one step to the next. |
-| [`prodockit.tree`](https://buckwem.github.io/prodockit-extensions/extensions/tree/) | A directory listing that looks like one - indentation is the structure, a trailing `/` marks a directory, and the icons come from the project's own set. |
+| [`prodockit.headings`](https://buckwem.github.io/prodockit-extensions/extensions/headings/) | Numbered headings and appendices |
+| [`prodockit.refs`](https://buckwem.github.io/prodockit-extensions/extensions/refs/) | Cross-references to headings, figures, and tables |
+| [`prodockit.citations`](https://buckwem.github.io/prodockit-extensions/extensions/citations/) | A small reference list written directly in Markdown |
+| [`prodockit.glossary`](https://buckwem.github.io/prodockit-extensions/extensions/glossary/) | Acronyms and glossary terms |
+| [`prodockit.tables`](https://buckwem.github.io/prodockit-extensions/extensions/tables/) | Widths, merged cells, dense tables, and richer headers |
+| [`prodockit.tree`](https://buckwem.github.io/prodockit-extensions/extensions/tree/) | Readable directory trees |
+| [`prodockit.steps`](https://buckwem.github.io/prodockit-extensions/extensions/steps/) | Procedures presented as numbered steps |
+| [`prodockit.bibliography`](https://buckwem.github.io/prodockit-extensions/extensions/bibliography/) | BibTeX/BibLaTeX citations formatted with CSL |
+| [`prodockit.index`](https://buckwem.github.io/prodockit-extensions/extensions/index-terms/) | A PDF-only back-of-book index |
 
-```python
-import markdown
+For example:
 
-html = markdown.markdown(
-    text,
-    extensions=[
-        "attr_list", "prodockit.headings", "prodockit.refs", "prodockit.citations", "prodockit.glossary"
-    ],
-)
+```toml
+[project.markdown_extensions."prodockit.headings"]
+numbering = "continuous"
+
+[project.markdown_extensions."prodockit.refs"]
+
+[project.markdown_extensions."prodockit.steps"]
 ```
 
-```md
-# Introduction {: #intro }
+The [authoring reference](https://buckwem.github.io/prodockit-extensions/authoring/)
+explains the three consistent stages for each feature: enable the extension,
+write the Markdown, then configure optional behaviour.
 
-See \ref{intro} for background.\citeref{skou2023} This uses \gls{css}.
+## Publishing and project commands
 
-Skoulikari, A. (2023) *Learning Git*.
-{: #skou2023 data-cite-text="Skoulikari, 2023" }
+Run `prodockit --help` for the options installed with the current release.
+The `pdk` executable is an exact shorter alias for `prodockit`; `boot` aliases
+`bootstrap`, and `source` aliases `source-bundle`.
 
-**CSS** - Cascading Style Sheets.
-{: #css data-term="CSS" }
-```
+| Command | Purpose |
+|---|---|
+| `prodockit bootstrap` | Check or prepare a machine and document project |
+| `prodockit init-tools` | Install the local Node tooling for Mermaid and maths rendering |
+| `prodockit init-mathjax` | Copy the installed MathJax bundle into website assets |
+| `prodockit pdf` | Build one PDF from the pages in the Zensical navigation |
+| `prodockit source-bundle` | Bundle the Markdown source and configuration into a separate PDF |
+| `prodockit sync-repo` | Match repository links, branding, and managed README badges to `origin` |
+| `prodockit pins` | Check and update build-input versions across project files |
+| `prodockit template-sync` | Review and apply later updates from prodockit-template |
 
-`\ref{intro}` resolves to a link reading `1 Introduction` - the heading's
-number and name, with `\autoref{intro}` additionally carrying its page
-number in the PDF; `\citeref{skou2023}` resolves to `[Skoulikari, 2023]`, linked
-to that source; `\gls{css}` resolves to `CSS`, linked to its own
-definition. All three stay correct if content is reordered, since
-resolution happens fresh on every conversion. See the
-[docs](https://buckwem.github.io/prodockit-extensions/) for options, multi-page
-registry sharing, and full syntax details.
-
-## PDF generation
-
-[`prodockit.pdf`](https://buckwem.github.io/prodockit-extensions/pdf/) builds a
-standalone PDF from your site, via Pandoc and WeasyPrint (both need to be
-installed separately - see the docs). No Python required - it reads the
-same `zensical.toml` your site already has:
+The command-line reference documents
+[safe first runs, write behaviour, and aliases](https://buckwem.github.io/prodockit-extensions/command-line/).
+When publishing both outputs locally, build in this order:
 
 ```bash
 prodockit pdf
+zensical build --clean --strict
 ```
 
-That's it - run it from your project root and it builds a complete PDF,
-table of contents included, from every page in your `nav`. Also handles a
-table too wide for a portrait page - printed sideways, on its own
-landscape page(s), spanning multiple pages with a repeated heading row -
-`{.web-only}`/`{.pdf-only}` markers for content that should only appear
-in one of the two outputs, and a two-column, letter-headed back-of-book
-index (enabled in `prodockit.index`'s settings) generated from its own
-`\index{Term}` markers. See the
-[docs](https://buckwem.github.io/prodockit-extensions/pdf/) for the
-`zensical.toml` settings it reads, and for the Python API
-(`build_pdf()`, `prodockit.pdf.html`/`.lua`/`.css`/`.icons`/`.mermaid`/`.rotate`)
-if you're scripting your own build pipeline instead.
+The PDF comes first because the site build copies the completed PDF into its
+output. The maintained template includes annotated GitHub Actions and GitLab
+CI workflows that perform the same clean build, test the generated files, and
+deploy Pages.
 
-`prodockit source-bundle` builds a second, separate PDF - your Markdown
-content and `zensical.toml`, one file per page, into `docs_dir` - for a
-submission that needs the underlying source alongside the document
-itself:
+## Package integrations
 
-```bash
-prodockit source-bundle
-```
+| Integration | Purpose |
+|---|---|
+| [`prodockit.zensical_macros`](https://buckwem.github.io/prodockit-extensions/macros/) | Word counts, repository data, document-wide numbering, and layout helpers for Zensical templates |
+| [`prodockit.testing`](https://buckwem.github.io/prodockit-extensions/devcons/testing/) | Reusable pytest fixtures and checks for a generated site and PDF |
 
-A separate command from `prodockit pdf`, so a project that wants only one
-of the two PDFs doesn't build the other on every run.
-
-## Machine setup
-
-[`prodockit bootstrap`](https://buckwem.github.io/prodockit-extensions/devcons/bootstrap/)
-turns the User Guide's install sequence into twenty-three stages that can
-each be checked and repaired individually - prodockit's own environment,
-editor, git, SSH, clone, remote, commit identity, pandoc, Node - rather
-than a long list followed top to bottom and hoped over:
-
-```bash
-prodockit bootstrap            # report what is set up; changes nothing
-prodockit bootstrap --dry-run  # print the exact commands it would run
-prodockit bootstrap --apply    # set up what needs it, asking first
-```
-
-It cannot be the first thing you run - it is a prodockit command, so
-Python and `pip install prodockit` come first. Two steps need a human at
-a browser (uploading an SSH key, creating your own project); those are
-guided and then *verified*, rather than automated with a token. Currently
-implements the University of Surrey's GitLab, gitlab.com and
-github.com.
-
-## Website macros
-
-[`prodockit.zensical_macros`](https://buckwem.github.io/prodockit-extensions/macros/)
-provides a site-wide word count, the git-detected repository URL, the
-latest release tag, chapter/appendix numbering that continues across
-pages, and reference/acronym/glossary spacing that matches
-`prodockit.pdf`'s own PDF output - as Jinja variables/macros for
-Zensical's own macros plugin:
-
-```toml
-[project.markdown_extensions.zensical.extensions.macros]
-modules = ["prodockit.zensical_macros"]
-```
-
-See the [docs](https://buckwem.github.io/prodockit-extensions/macros/) for the
-full variable/macro list.
-
-## Repository metadata
-
-[`prodockit sync-repo`](https://buckwem.github.io/prodockit-extensions/devcons/repo-metadata/#sync-repo-repository-metadata)
-keeps `repo_url`, `repo_name`, the header brand icon, `edit_uri`,
-`site_url` and your README's badge row matching the git remote your
-checkout actually uses - so forking or mirroring a project between GitHub,
-GitLab and Bitbucket doesn't leave stale links, the wrong icon, or a
-canonical URL pointing at the old host behind:
-
-```bash
-prodockit sync-repo          # update everything from `origin`
-prodockit sync-repo --check  # report drift and exit non-zero, for CI
-```
-
-It also sets `edit_uri` explicitly, which fixes the "edit this page"
-button on a self-hosted GitLab and stops it pointing at a `master` branch
-that may not exist.
-
-## Staying in step with the template
-
-A project generated from a template is a copy, not a link. It starts
-ageing the moment it is created - the template gains a CI fix, a
-stylesheet rule, a newer pin - and nothing tells you, because nothing
-breaks. The site still builds; the document just looks slightly unlike
-everyone else's.
-[`prodockit template-sync`](https://buckwem.github.io/prodockit-extensions/devcons/template-sync/)
-updates the template's own files and leaves your writing alone:
-
-```bash
-prodockit template-sync                 # report; writes no project file
-prodockit template-sync --apply         # branch, write, stage - the commit is yours
-prodockit template-sync --apply --push  # ...and merge and push it, so the site rebuilds
-```
-
-What it will and will not write is decided by a manifest in the template.
-The report, its figures and its bibliography are never written and never
-even read, so a sync cannot lose your work. A template-owned file you have
-edited is kept, with the template's version written beside it as `.new` to
-compare.
-
-The template is fetched into a per-user cache, so you need no checkout of
-it - and a host that cannot be reached is answered with the cached copy
-and a warning that it may be behind, rather than a failure. Built to be
-run repeatedly through a project: a run with nothing to do says so and
-creates no branch.
-
-## Version pinning and drift
-
-A documentation build has more inputs than its own source: `zensical`
-renders the site, `weasyprint` lays out the PDF, and the CI runner image
-carries `pandoc`, the fonts and Chrome. Left unpinned, an upgrade doesn't
-fail the build - it quietly publishes a different document.
-
-Pinning them means declaring the same version in several files at once,
-which nothing keeps in step.
-[`prodockit pins`](https://buckwem.github.io/prodockit-extensions/devcons/pinning-drift/#pinning-version-pinning-and-drift)
-finds every declaration and moves them together, keeping each one's own
-operator so a library floor stays a floor and a build pin stays exact:
-
-```bash
-prodockit pins               # prompt per package; Enter takes the newest
-prodockit pins --check       # behind PyPI, or files disagreeing? exit non-zero
-prodockit pins -p ubuntu     # runner images and container tags too
-```
-
-Pandoc is managed by default too - not a pip package, so it's matched as a
-`PANDOC_VERSION` CI variable rather than a specifier.
-
-It reads `pyproject.toml`, GitHub Actions workflows, `.gitlab-ci.yml` and
-`requirements`/`constraints` files, so the same command works on either
-host. The docs also carry a weekly drift job for GitHub Actions and
-GitLab CI that rebuilds with the newest versions, diffs the output byte
-for byte, and opens an issue when an upgrade would change what you
-publish.
+These are not Markdown extensions. Macros are enabled through Zensical's
+macros configuration; testing support is installed with
+`python -m pip install "prodockit[testing]"`.
 
 ## Development
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-pytest
-```
-
-`zensical` is a core dependency, so `zensical serve` is available as soon as
-`prodockit` is installed - no extra step needed to build the documentation
-locally.
+Changes to the package, tests, automation, or technical documentation should
+follow [CONTRIBUTING.md](CONTRIBUTING.md). It gives the editable installation,
+external PDF prerequisites, macOS library-path setup, source gates, built-site
+tests, and pull-request expectations.
 
 ## Contributing
 
-Contributions are welcome - see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Contributions are welcome. Search or open an issue before starting a change
+beyond a small correction, and submit changes through a focused branch and
+pull request. See [Contributing](CONTRIBUTING.md) for the complete workflow.
 
-## License
+## Licence
 
 MIT - see [LICENSE](LICENSE).

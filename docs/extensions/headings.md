@@ -9,7 +9,7 @@ such as `1`, `1.1`, and `1.2`. The numbers update automatically when you add,
 remove, or move a heading.
 
 Use it when your document needs numbered sections. Add
-[Cross-References](refs.md) when you also want to link readers to those
+[Cross-references](refs.md) when you also want to link readers to those
 sections by number and name.
 
 ## Enable the extension {: #headings-enable }
@@ -52,11 +52,11 @@ starts a section inside it (`1.1`, `1.2`, and so on):
     | Method | `method` | `2` |
 
 The extension calculates the section numbers, but it does not add them to the
-visible heading text on the website. [Cross-References](refs.md) uses the
+visible heading text on the website. [Cross-references](refs.md) uses the
 calculated numbers in links such as “1.1 Background”.
 
 !!! note "Why the heading itself does not visibly change"
-    The section numbers appear in [Cross-References](refs.md), rather than next
+    The section numbers appear in [Cross-references](refs.md), rather than next
     to the website's heading text.
 
 ## Configure headings
@@ -78,7 +78,7 @@ numbering = "continuous"
 ```
 
 For example, if one page ends at section 3, the next page starts at section 4.
-This also lets [Cross-References](refs.md) show one consistent set of section
+This also lets [Cross-references](refs.md) show one consistent set of section
 numbers across the site.
 
 ### Number appendices {: #appendices }
@@ -94,28 +94,26 @@ are assigned sequentially in \index{nav order} - the first `is_appendix` page
 becomes `"A"`, the second `"B"`, and so on, independent of how many
 numbered pages come before them.
 
-For example, with this nav order:
+For example:
 
-```toml
-nav = [
-  {"Install tooling" = "installtooling.md"},
-  {"Glossary" = "glossary.md"},
-  {"References" = "references.md"},
-]
-```
+=== "Markdown"
 
-and `glossary.md` flagged as an appendix:
+    ```md
+    ---
+    is_appendix: true
+    ---
 
-```md
-<!-- glossary.md -->
----
-is_appendix: true
----
+    # Glossary
 
-# Glossary
+    ## Terms {: #terms }
+    ```
 
-## Terms {: #terms }
-```
+=== "Result"
+
+    | Heading | Number |
+    | --- | --- |
+    | Glossary | A |
+    | Terms | A.1 |
 
 a [prodockit.refs](refs.md) reference to `Terms` from another page:
 
@@ -145,11 +143,20 @@ A heading with an \index{headings!`unnumbered`} class - e.g. a cover page or tit
 still gets an id, but is skipped when computing section numbers, so it
 doesn't consume a counter position:
 
-```md
-# Cover Page {: .unnumbered }
+=== "Markdown"
 
-# Introduction
-```
+    ```md
+    # Cover Page {: .unnumbered }
+
+    # Introduction
+    ```
+
+=== "Result"
+
+    | Heading | Number |
+    | --- | --- |
+    | Cover Page | none |
+    | Introduction | 1 |
 
 `Introduction` above is still numbered `1`, as if `Cover Page` weren't
 there at all.
@@ -209,95 +216,26 @@ An id comes from one of, in order of precedence:
 | \index{prodockit.headings!`appendix_attr`} | `"is_appendix"` | Name of the front matter setting that marks an appendix page. Change this only if your project uses another name. |
 | \index{prodockit.headings!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
 
-`registry` is not a `zensical.toml` setting. It accepts an `IdRegistry` Python
-object when you construct `HeadingsExtension` yourself; the manual multi-page
-example below shows when that is useful.
+### Cross-page numbering in Zensical
 
-### Sharing a registry across a multi-page build
+Zensical shares heading information across the complete navigation
+automatically. With `numbering = "continuous"`, adding or reordering a page
+updates later section numbers without a manual starting value.
 
-To resolve cross-page references, every page in a build needs to write into
-- and read from - the *same* \index{`IdRegistry`} instance, each scoped by its own,
-distinct `source`.
+Give repeated headings explicit ids. If several pages each contain `## Quick
+start`, their automatically generated ids collide and the build warns; which
+page renders first is not a stable way to choose a link target:
 
-Under [Zensical](https://zensical.org/), this happens automatically with no
-configuration - see [prodockit.refs](refs.md#refs-multi-page-builds) for details:
-`prodockit.headings` detects Zensical's per-page context (each page gets its
-own fresh `Markdown` instance) and uses it to derive `source` from the
-page's own path, sharing one registry across the whole build. This
-auto-detection only activates when you *haven't* set an explicit `registry`
-or `source` yourself, and has no effect at all outside Zensical.
-
-For any other tool, construct a registry yourself and pass it to every
-page's extension instance, along with that page's own `source`:
-
-```python
-import markdown
-from prodockit.headings import HeadingsExtension
-from prodockit.util import IdRegistry
-
-registry = IdRegistry()
-
-for path, text in pages:
-    html = markdown.markdown(
-        text,
-        extensions=[HeadingsExtension(registry=registry, source=path)],
-    )
+```md
+## Quick start {: #refs-quick-start }
 ```
 
-A duplicate id registered from two *different* sources raises
-`prodockit.util.DuplicateIdError` here - re-converting the *same* source (e.g.
-a live-reload dev server) is safe and expected; its previous entries are
-cleared first. (Zensical's automatic sharing above uses the same registry,
-but logs a warning and keeps the first registration instead of raising -
-appropriate for a best-effort default rather than a setup you configured
-deliberately.)
-
-!!! warning "The 'keeping the first' winner isn't stable across builds"
-    A heading name shared across two or more pages (e.g. every page having
-    its own "Quick start"/"Options"/"Syntax" section - common in a set of
-    parallel extension/module docs) produces a "collides with ... -
-    keeping the first" warning under Zensical's automatic sharing above -
-    but *which* page's registration actually wins isn't something you can
-    rely on: Zensical doesn't render pages in a guaranteed stable order,
-    confirmed directly by running `zensical build` repeatedly against
-    identical source and observing the reported winner change from one
-    run to the next. Anything depending on that id - a `\ref{id}`/a hand-
-    typed anchor link - can silently point at the wrong page's heading
-    depending on which build produced it.
-
-    The fix is to give every colliding heading its own explicit, unique
-    id via `attr_list`, rather than leaving it to whichever page happens
-    to register first:
-
-    ```md
-    ## Quick start {: #refs-quick-start }
-    ```
-
-    A page-prefixed slug (`<page>-<heading>`) is a simple, collision-proof
-    convention - this project's own documentation uses exactly this
-    scheme throughout (every extension page shares several heading names
-    with the others), so its own markdown source is a worked example if
-    you want to see it applied across a whole site.
-
-### Looking up the same numbers from your own build tooling
-
-`prodockit.headings.prescan(appendix_attr="is_appendix")` returns
-`(start_counts, appendix_letters)` - both `dict[str, ...]` keyed by
-nav-relative page path - the exact same pre-scan `HeadingsExtension` itself
-uses internally for `numbering="continuous"`. A consuming project's own
-build tooling can call this directly to stay in sync automatically, rather
-than re-deriving the same page-order/heading-count logic a second,
-independent way - e.g. a template macro that emits a presentational CSS
-counter-reset per page, matching whatever number `prodockit.headings` computes
-for that page's first heading (see
-[prodockit.zensical_macros](../macros.md#heading_counter_resetpage)). Returns
-`None` outside a Zensical build.
+For integration with another Markdown renderer, see
+[Extension integration](../devcons/extension-internals.md#share-definitions-across-pages).
 
 ## Customise with a CSS style sheet {: #headings-css-hooks }
 
 `prodockit.headings` doesn't add any class of its own to a heading - only an
 `id` (see above), the class(es) already on the heading (e.g. `unnumbered`),
-and whatever the numbers themselves feed into via the registry (typically
-consumed by [prodockit.refs](refs.md), or by a template's own build tooling via
-`prescan()` above to drive presentational CSS). There is currently no
+and whatever numbers are consumed by [prodockit.refs](refs.md). There is no
 `prodockit-heading`-style class to hook a stylesheet onto directly.

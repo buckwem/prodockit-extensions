@@ -1,3 +1,7 @@
+---
+icon: lucide/file-text
+---
+
 # PDF generation {: #pdf-pdf-generation }
 
 `prodockit.pdf` builds a standalone PDF from your Zensical site - the kind of
@@ -5,6 +9,24 @@ downloadable, submittable document professional and academic reports
 commonly need alongside the website itself. It reads the same
 `zensical.toml` your site already has, so there's nothing new to learn or
 configure beyond a couple of optional settings.
+
+## Build your first PDF
+
+From the project root—the directory containing `zensical.toml`—run the
+\index{commands!`prodockit pdf`} command:
+
+```bash
+prodockit pdf
+```
+
+The command reads every page in `nav`, keeps that order, and writes
+`docs/site_documentation.pdf` by default. Open the result and check its cover,
+contents, headings, page breaks, diagrams, and final page before changing any
+layout setting.
+
+If the command reports a missing program or native library, install the
+requirements in the next section and repeat the same command. A project that
+already completed `prodockit bootstrap --apply` should have them.
 
 ## Requirements {: #pdf-requirements }
 
@@ -38,6 +60,18 @@ for your platform (e.g. `brew install pandoc` on macOS).
     `libharfbuzz-subset0` is a *separate* package from `libharfbuzz0b` and
     is the one usually missed.
 
+    On Apple Silicon macOS, Python's dynamic loader may still not search the
+    Homebrew library directory after Pango is installed. Export the path in
+    the terminal where you run `prodockit pdf`:
+
+    ```bash
+    export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
+    ```
+
+    Use `/usr/local/lib` on an Intel Mac. If
+    `cannot load library 'libgobject-2.0-0'` appears after `brew install pango`,
+    check this variable before reinstalling anything.
+
     Missing them looks like a Pandoc problem rather than an install one:
 
     ```text
@@ -70,7 +104,7 @@ website renders them. Both are pre-rendered to static images before \index{Pando
 sees them - \index{Mermaid} via [mermaid-cli](https://github.com/mermaid-js/mermaid-cli),
 maths via a small \index{TeX maths!MathJax} script.
 
-Set both up with:
+Set both up with the \index{commands!`prodockit init-tools`} command:
 
 ```bash
 prodockit init-tools
@@ -128,24 +162,7 @@ enough to fail the check.
     discarded in favour of `PUPPETEER_EXECUTABLE_PATH`. `init-tools`
     prints the correct pair.
 
-## Quick start {: #pdf-quick-start }
-
-From your project root (wherever `zensical.toml` lives):
-
-```bash
-prodockit pdf
-```
-
-That's it. Every page in your `nav` is rendered, in order, into
-`docs/site_documentation.pdf` (or wherever `extra.pdf_output` says - see
-below), complete with a generated table of contents, chapter numbering, and
-your site's own admonitions, code blocks, tables, and Mermaid diagrams.
-
-If a build fails (a missing `pandoc`, a WeasyPrint error, and so on), the
-command prints the underlying error and exits with a non-zero status,
-rather than silently producing a broken or missing file.
-
-## Configuration
+## Configure the PDF {: #pdf-quick-start }
 
 Everything is read from your project's own `zensical.toml` - nothing is
 passed on the command line beyond, optionally, which config file to use:
@@ -266,17 +283,9 @@ text itself:
 pdf_copyright = 'Author: Jane Doe. Licensed under the MIT License.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://buckwem.github.io/prodockit-extensions/">prodockit</a>.'
 ```
 
-Under the hood, this isn't a generated CSS `content: "..."` string the
-way most other running header/footer values are (e.g. `site_name`) - a
-CSS content string can't contain a real link at all. Instead, prodockit
-writes `copyright`/`pdf_copyright` once as a real (hidden until the
-footer clones it) HTML element, and the PDF's own generated CSS pulls it
-into the footer on every page via CSS Paged Media's `position:
-running()`/`content: element()` - confirmed directly against real
-WeasyPrint output. You don't need to know any of this to use the
-setting; it only matters if you're digging into why the PDF's footer
-behaves differently from a plain `content` string elsewhere in
-`prodockit.pdf.css`.
+Links and line breaks remain real PDF content rather than being flattened to
+plain text. Contributors changing the footer implementation should read
+[PDF pipeline and API](devcons/pdf-internals.md#preserve-real-footer-markup).
 
 The equivalent website-side credit (if your project wants a "Made with
 Zensical and *X*" line on the live site too) isn't a prodockit setting
@@ -424,7 +433,7 @@ different corner.
 
 ### Bundling source into a PDF
 
-`prodockit source-bundle` builds a second PDF - your Markdown content and
+The \index{commands!`prodockit source-bundle`} command builds a second PDF - your Markdown content and
 `zensical.toml`, one file per page - for a submission that needs the
 underlying source alongside the rendered document:
 
@@ -432,13 +441,9 @@ underlying source alongside the rendered document:
 prodockit source-bundle
 ```
 
-A separate command from `prodockit pdf` (prodockit-extensions#212), not a
-setting that runs automatically as part of it: the two PDFs serve
-different purposes (a rendered document vs. a record of what was
-written), so a project that only needs one no longer pays to build the
-other on every run - source bundling shells out to `git ls-files` and a
-second `weasyprint` invocation, unrelated in cost and content to the
-Pandoc/WeasyPrint document pipeline.
+This is separate from `prodockit pdf` because the two files serve different
+purposes: one is the rendered document and the other is a record of its
+source. Run each command only when you need that output.
 
 Writes `docs_dir/source_bundle.pdf` by default, so Zensical serves it
 with no separate copy step. Override with `pdf_source_bundle_output`
@@ -454,9 +459,6 @@ The running header's report name is your `site_name`; the page size is
 project publishes share one physical page size rather than needing it
 set twice.
 
-This is unrelated to the rest of `prodockit.pdf` - there's no Markdown
-*rendering* involved, just raw source text, so it skips Pandoc entirely
-and hands a small, self-contained HTML document straight to WeasyPrint.
 Every file is rendered in 8pt Courier with wrapped lines (a genuinely
 long line wraps rather than running off the page or getting cut off),
 starting on its own page, with a running header (that page's own file
@@ -468,17 +470,10 @@ project's tooling around it. A file that isn't valid UTF-8 text is
 silently skipped rather than failing the build, though in practice that
 never applies here (Markdown and TOML are always text).
 
-!!! info "Bundling everything, not just Markdown and config?"
-    Call `prodockit.pdf.source_bundle.build_source_bundle()` directly with
-    no `files` argument (or pass it
-    `prodockit.pdf.source_bundle.discover_source_files()`'s own result) -
-    see [`prodockit.pdf.source_bundle`](#prodockitpdfsource_bundle) below.
-    That is every text file `.gitignore` doesn't exclude, the whole
-    repository rather than just its documentation, which a project doing
-    its own academic-integrity verification (checking a submission's
-    custom code, not only its prose) may still want. `prodockit
-    source-bundle` itself has no flag for this - narrowing the CLI's own
-    default was the point of prodockit-extensions#212.
+!!! info "Need to bundle more than the document source?"
+    The command deliberately includes only Markdown pages and
+    `zensical.toml`. Contributors building a custom bundle can use the
+    Python API described in [PDF pipeline and API](devcons/pdf-internals.md).
 
 ### Table of contents and bookmark outline
 
@@ -523,480 +518,25 @@ A traditional, two-column \index{back-of-book index}, generated from every
 extension's settings. It is PDF-only; there is no equivalent on the live
 website. Marking terms, turning the setting on, and what the
 generated page itself looks like are all covered together in
-[Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index),
+[Index (PDF only)](extensions/index-terms.md#index-terms-generating-the-index),
 since (unlike every other feature on this page) marking and generation
 are two different extensions - see that page for the full syntax and
-worked examples. If you're scripting your own build pipeline rather than
-using `prodockit pdf`/`zensical.toml`, see
-[`prodockit.pdf.index`](#prodockitpdfindex) below for exactly how its
-two-pass build works.
+worked examples. Contributors scripting a custom build can read about the
+two-pass implementation in
+[PDF pipeline and API](devcons/pdf-internals.md#know-the-internal-modules).
 
-### Python API
-
-If you're scripting your own build pipeline and want to call into
-`prodockit.pdf` directly rather than through `zensical.toml`, `build_pdf()` is
-a one-call function you can import instead of shelling out to the `prodockit`
-command:
-
-```python
-from prodockit.pdf import Page, build_pdf
-
-build_pdf(
-    [
-        Page(docs_rel_path="index.md", html=rendered_html["index.md"], is_index=True),
-        Page(docs_rel_path="chapter1.md", html=rendered_html["chapter1.md"]),
-        Page(docs_rel_path="chapter2.md", html=rendered_html["chapter2.md"]),
-    ],
-    "dist/report.pdf",
-    site_name="My Report",
-    copyright_text="Copyright 2026 Jane Doe",
-)
-```
-
-`Page.html` is a page's own already-rendered HTML (not yet fixed up for
-Pandoc - `build_pdf` does that internally for you); `Page.docs_rel_path` is
-that page's path relative to your docs directory, e.g.
-`"starthere/installtooling.md"`. Mark exactly one page `is_index=True` if
-you have a dedicated cover/title page - its headings are treated as
-decorative rather than real chapters. `build_pdf` raises
-`prodockit.pdf.PdfBuildError` with the underlying error message attached if
-the build fails.
-
-#### `build_pdf`
-
-```python
-build_pdf(
-    pages: list[Page],
-    output_path: str,
-    *,
-    docs_dir: str = "docs",
-    extra_css: str = "",
-    repo_url: str = "",
-    admonition_icon_config: dict[str, Any] | None = None,
-    icon_registry: dict[str, str] | None = None,
-    render_mermaid: Callable[[str], str | None] | None = None,
-    main_font: str = "Inter",
-    mono_font: str = "JetBrains Mono",
-    copyright_text: str = "",
-    site_name: str = "",
-    page_size: str = "A4",
-    margin_top: str = "2cm",
-    margin_right: str = "2cm",
-    margin_bottom: str = "2.5cm",
-    margin_left: str = "2cm",
-    double_sided: bool = False,
-    margin_inner: str = "2cm",
-    margin_outer: str = "2cm",
-    header_footer_font_size: str = "10pt",
-    header_footer_color: str = "#555555",
-    header_footer_divider_color: str = "#e2e8f0",
-    reference_style_global: bool = False,
-    reference_spacing_european: str = "-0.8em",
-    reference_indent_global: str = "1.27cm",
-    reference_spacing_global: str = "2em",
-    heading_numbering_enabled: bool = True,
-    mathjax_available: bool = False,
-    math_dir: str | None = None,
-    tex2svg_script: str = "",
-    include_table_of_contents: bool = True,
-    table_of_contents_title: str = "Table of Contents",
-    work_dir: str | None = None,
-    keep_work_dir: bool = False,
-) -> None
-```
-
-Its two required arguments are the page list and `output_path` (where the
-PDF gets written - any path, absolute or relative; its parent directory
-must already exist). Everything else mirrors the `zensical.toml` settings
-above one-for-one, plus a few options only meaningful from Python:
-
-**Content**
-
-- `docs_dir`: your project's docs root, used to resolve each page's own
-  relative image/link references.
-- `extra_css`: your own website stylesheet's content, layered underneath
-  the CSS `build_pdf` generates, so its own `!important` rules can still
-  override a website-only style that doesn't make sense in a paginated PDF.
-- `admonition_icon_config`/`icon_registry`: give an admonition its own icon
-  in the PDF (Zensical's admonition HTML has none by default outside a
-  website) - see [prodockit.pdf.icons](#prodockitpdficons).
-- `render_mermaid`: called with each Mermaid diagram's own source text,
-  should return an image path/`data:` URI or `None` if rendering failed -
-  see [prodockit.pdf.mermaid](#prodockitpdfmermaid) for a ready-made renderer.
-
-**Working files**
-
-`pandoc` needs a few intermediate files on disk (the concatenated HTML, the
-generated Lua filter, the compiled CSS) - written under `work_dir` if
-given, or a fresh temporary directory otherwise (always cleaned up
-regardless of `keep_work_dir` - there's no path left to inspect
-afterwards). `keep_work_dir=True` with an explicit `work_dir` leaves those
-files in place, useful for checking exactly what Pandoc/WeasyPrint received
-when a build succeeds but the PDF looks wrong.
-
-#### `Page`
-
-```python
-@dataclass
-class Page:
-    docs_rel_path: str
-    html: str
-    is_index: bool = False
-    is_appendix: bool = False
-    recto_title: str | None = None
-```
-
-One page to include in the PDF. `html` is this page's own already-rendered
-HTML (not yet fixed up for Pandoc - `build_pdf` does that for you).
-`is_appendix` gives this page's first heading a letter instead of a number
-("A", "A.1", ...) if you enable `heading_numbering_enabled`. `recto_title`,
-if given, overrides this page's own running header text from the next
-page onward - see [Double-sided (duplex) printing](#double-sided-duplex-printing).
-
-#### `PdfBuildError`
-
-Raised by `build_pdf` when the underlying `pandoc` invocation fails.
-`returncode` and `stderr` are attached for logging or troubleshooting.
-
-### Building your own pipeline
-
-If `build_pdf`'s shape doesn't fit how your project is put together - e.g.
-you want to fix up and inspect each page's HTML individually before
-concatenating them yourself, or drive `pandoc` with your own extra
-arguments - the pieces `build_pdf` is built from are all directly
-importable too:
-
-<style>
-.prodockit-pipeline {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 1.25rem;
-  margin: 1.5em 0;
-}
-.prodockit-pipeline-step {
-  display: contents;
-}
-.prodockit-pipeline-node-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  height: 100%;
-}
-.prodockit-pipeline-node {
-  border: 2px solid var(--md-primary-fg-color);
-  border-radius: 0.4em;
-  padding: 0.5em 0.9em;
-  width: 180px;
-  box-sizing: border-box;
-  text-align: center;
-  white-space: nowrap;
-  background-color: var(--md-default-bg-color);
-}
-.prodockit-pipeline-node code {
-  background: none;
-  padding: 0;
-}
-.prodockit-pipeline-connector {
-  flex: 1;
-  min-height: 1.5em;
-  width: 2px;
-  background-color: var(--md-default-fg-color--lighter);
-  position: relative;
-}
-.prodockit-pipeline-connector::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 7px solid var(--md-default-fg-color--lighter);
-}
-.prodockit-pipeline-desc {
-  align-self: center;
-  padding: 0.75em 0;
-}
-</style>
-<div class="prodockit-pipeline">
-  <div class="prodockit-pipeline-step">
-    <div class="prodockit-pipeline-node-wrap">
-      <div class="prodockit-pipeline-node"><a href="#prodockitpdfhtml"><code>prodockit.pdf.html</code></a></div>
-      <div class="prodockit-pipeline-connector"></div>
-    </div>
-    <div class="prodockit-pipeline-desc">Fixes up one page's rendered HTML for Pandoc's own reader/writer quirks - the biggest piece, and what <code>build_pdf</code> calls per page internally.</div>
-  </div>
-  <div class="prodockit-pipeline-step">
-    <div class="prodockit-pipeline-node-wrap">
-      <div class="prodockit-pipeline-node"><a href="#prodockitpdflua"><code>prodockit.pdf.lua</code></a></div>
-      <div class="prodockit-pipeline-connector"></div>
-    </div>
-    <div class="prodockit-pipeline-desc">Generates the Pandoc Lua filter (chapter numbering, caption ordering, tab reconstruction, math).</div>
-  </div>
-  <div class="prodockit-pipeline-step">
-    <div class="prodockit-pipeline-node-wrap">
-      <div class="prodockit-pipeline-node"><a href="#prodockitpdfcss"><code>prodockit.pdf.css</code></a></div>
-      <div class="prodockit-pipeline-connector"></div>
-    </div>
-    <div class="prodockit-pipeline-desc">Generates the compiled CSS a paginated PDF needs on top of your website's own stylesheet.</div>
-  </div>
-  <div class="prodockit-pipeline-step">
-    <div class="prodockit-pipeline-node-wrap">
-      <div class="prodockit-pipeline-node"><a href="#prodockitpdficons"><code>prodockit.pdf.icons</code></a></div>
-      <div class="prodockit-pipeline-connector"></div>
-    </div>
-    <div class="prodockit-pipeline-desc">Resolves an admonition type to its accent-coloured icon SVG.</div>
-  </div>
-  <div class="prodockit-pipeline-step">
-    <div class="prodockit-pipeline-node-wrap">
-      <div class="prodockit-pipeline-node"><a href="#prodockitpdfmermaid"><code>prodockit.pdf.mermaid</code></a></div>
-    </div>
-    <div class="prodockit-pipeline-desc">Pre-renders a Mermaid diagram to a static SVG via <code>mermaid-cli</code>.</div>
-  </div>
-</div>
-
-#### `prodockit.pdf.html`
-
-```python
-fix_up_page_html(
-    html: str,
-    *,
-    current_docs_rel_path: str,
-    docs_dir: str,
-    page_anchor_map: dict[str, str],
-    is_index: bool = False,
-    is_appendix: bool = False,
-    repo_url: str = "",
-    admonition_icon_config: dict[str, Any] | None = None,
-    icon_registry: dict[str, str] | None = None,
-    render_mermaid: Callable[[str], str | None] | None = None,
-) -> str
-```
-
-Applies every HTML fixup a page needs - a raw inline `<svg>` (icons, emoji,
-diagrams) doesn't survive Pandoc's HTML-to-HTML round trip through to
-WeasyPrint at all; Pandoc's `Para` AST node has no attribute field,
-silently dropping any `id`/`class` a `<p>` carries; a caption meant to
-appear *before* its table/figure always ends up *after* it once Pandoc's
-own HTML writer re-serializes the page; a multi-page site concatenated
-into one PDF document needs cross-page links rewritten to in-document
-anchors; and more.
-
-A few standalone helpers, used once up front across every page rather than
-from within `fix_up_page_html` itself:
-
-| Function | Purpose |
-|---|---|
-| `build_page_anchor_map(md_files)` | Maps each page to a deterministic in-document anchor id, for cross-page link rewriting. |
-| `build_virtual_page_map(md_files)` | Same mapping, keyed by Zensical's own clean-URL "virtual directory" path instead of the raw filename. |
-| `virtual_page_path(docs_rel_path)` | The clean-URL virtual directory a single page's path maps to. |
-| `to_base64_data_uri(img_src, base_dir)` | Resolves a (possibly relative) image src to an absolute path and returns it as a base64 `data:` URI. |
-
-#### `prodockit.pdf.lua`
-
-```python
-build_lua_filter(
-    heading_numbering_enabled: bool,
-    mathjax_available: bool,
-    math_dir: str,
-    tex2svg_script: str,
-) -> str
-```
-
-Generates the complete Pandoc Lua filter source as a string - write it to a
-file and pass it to Pandoc with `--lua-filter=`.
-
-#### `prodockit.pdf.css`
-
-```python
-build_css(
-    main_font: str,
-    mono_font: str,
-    copyright_text: str,
-    site_name: str,
-    page_size: str = "A4",
-    margin_top: str = "2cm",
-    margin_right: str = "2cm",
-    margin_bottom: str = "2.5cm",
-    margin_left: str = "2cm",
-    double_sided: bool = False,
-    margin_inner: str = "2cm",
-    margin_outer: str = "2cm",
-    header_footer_font_size: str = "10pt",
-    header_footer_color: str = "#555555",
-    header_footer_divider_color: str = "#e2e8f0",
-    reference_style_global: bool = False,
-    reference_spacing_european: str = "-0.8em",
-    reference_indent_global: str = "1.27cm",
-    reference_spacing_global: str = "2em",
-) -> str
-```
-
-Generates the complete compiled CSS a PDF needs, layered on top of your own
-website stylesheet. Covers running header/footer boxes, footnotes anchored
-via `float: footnote`, and page-break tuning for headings, paragraphs,
-tables, code blocks, figures/captions, admonitions, tabbed sets, and grid
-cards - every rule here exists because a plausible-looking print CSS rule
-forced a real, confirmed blank-page gap or an orphaned heading in
-WeasyPrint specifically.
-
-#### `prodockit.pdf.icons`
-
-```python
-admonition_icon_svg(
-    adm_type: str,
-    admonition_icon_config: dict[str, Any] | None,
-    icon_registry: dict[str, str],
-) -> str | None
-```
-
-Resolves an admonition type (note, warning, tip, ...) to its accent-
-coloured icon SVG markup. `discover_icon_dirs()`/`build_icon_registry()`
-find and index the Material/Zensical/FontAwesome `.icons` directories your
-project's own icon shortcodes already draw from.
-
-#### `prodockit.pdf.mermaid`
-
-```python
-render_mermaid_diagram(
-    diagram_source: str,
-    mmdc_bin: str,
-    output_dir: str,
-    index: int,
-    timeout: int = 60,
-) -> str | None
-```
-
-Pre-renders one Mermaid diagram's source to a static SVG via a local
-[mermaid-cli](https://github.com/mermaid-js/mermaid-cli) install, since
-WeasyPrint has no JS engine to run Mermaid.js client-side.
-
-#### `prodockit.pdf.source_bundle`
-
-```python
-build_source_bundle(
-    output_path: str = "source_bundle.pdf",
-    *,
-    root: str = ".",
-    report_name: str = "",
-    page_size: str = "A4",
-    work_dir: str | None = None,
-    keep_work_dir: bool = False,
-    files: list[str] | None = None,
-) -> int
-```
-
-Unrelated to the rest of `prodockit.pdf` - see
-[Bundling source into a PDF](#bundling-source-into-a-pdf) above for what
-`prodockit source-bundle` builds with this; `build_source_bundle_from_zensical_config()`
-is the same function called for you, from `zensical.toml`. Returns how
-many files ended up in the bundle. `root` is where a relative
-`output_path` is written to.
-
-`files` is the `root`-relative path list to bundle - `prodockit
-source-bundle` passes `discover_markdown_and_config_files()`'s narrower
-list; left unset, `discover_source_files()` is called for the historical
-default of every text file `.gitignore` doesn't exclude:
-
-```python
-discover_source_files(root: str = ".") -> list[str]
-discover_markdown_and_config_files(root: str = ".") -> list[str]
-```
-
-Both are built on `git ls-files --cached --others --exclude-standard`,
-so both count already-tracked files and untracked-but-not-yet-added ones
-alike, and by content rather than extension for what's actually bundled
-- anything that isn't valid UTF-8 text (an image, a compiled binary) is
-silently skipped rather than failing the build.
-`discover_markdown_and_config_files()` further narrows to `.md` files
-plus a config file basename (`zensical.toml`, `mkdocs.yml`).
-
-A few classes of vendored, never-author-written content are always
-excluded from both, regardless of `.gitignore` - none of this is a
-project-level setting, so there's no `zensical.toml` knob to opt any of
-it back in:
-
-- Any directory literally named `.icons` (e.g. a `custom_icons`
-  directory, per [pymdownx.emoji](https://facelessuser.github.io/pymdown-extensions/extensions/emoji/#custom-icons)'s
-  own convention).
-- Any directory literally named `styles` (e.g. a Vale `StylesPath`,
-  holding downloaded rule packs).
-- Common dependency lockfiles by exact file name - `package-lock.json`,
-  `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, `Pipfile.lock`,
-  `poetry.lock`, `Cargo.lock`.
-
-These are typically *tracked* (needed for the site/PDF to build at all),
-so `.gitignore` alone can't keep a vendored icon pack's hundreds of SVGs,
-a Vale style pack, or a multi-thousand-line lockfile out.
-
-`work_dir`/`keep_work_dir` mirror `build_pdf()`'s own pair - a place to
-put (and optionally keep) the intermediate HTML `weasyprint` actually
-renders, handy when the output looks wrong. Raises
-`prodockit.pdf.source_bundle.SourceBundleError` (the underlying `git`/
-`weasyprint` exit code and stderr attached, where applicable) if either
-invocation fails.
-
-#### `prodockit.pdf.index`
-
-```python
-mark_index_terms(html: str) -> tuple[str, list[str], list[bool]]
-extract_term_pages(pdf_path: str, occurrence_count: int) -> dict[int, int | None]
-build_index_entries(
-    terms: list[str],
-    occurrence_pages: dict[int, int | None],
-    code_flags: list[bool] | None = None,
-) -> dict[str, IndexEntry]
-render_index_content(entries: dict[str, IndexEntry], level: int = 1) -> str
-format_pages(pages: list[int]) -> str
-```
-
-The three main pieces `build_pdf()`'s own `include_index` calls, in
-order, for its two-pass build - see
-[Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index)
-for the feature itself, and this module's own docstring for why a real
-two-pass build (rather than CSS's own `target-counter()`) is what backs
-it. `mark_index_terms()`
-finds every `[prodockit.index](extensions/index-terms.md)`
-`<span class="index">` and inserts a unique, *empty* marker span after
-each occurrence - carrying only an `id`, which WeasyPrint turns into a
-PDF named destination that `extract_term_pages()` resolves back to a page
-number. Since 0.17.0 the marker holds no text at all, so it cannot reach
-the finished PDF's text layer, where earlier versions left it visible to
-copy and paste, search, text extraction and screen readers. It returns
-the terms found in order - a flat
-`"Term"` or, for a hierarchical `\index{Parent!Child}`, `"Parent!Child"` -
-alongside whether each one was a
-[code-styled term](extensions/index-terms.md#code-styled-terms).
-`extract_term_pages()` needs the optional `pymupdf` dependency (only
-imported here, so only required if you actually call this function) -
-raises a plain `ModuleNotFoundError` with a clear install message if it
-isn't installed. `build_index_entries()` builds `mark_index_terms()`'s
-flat/hierarchical paths (plus its own `code_flags`) into a nested tree of
-`IndexEntry(display: str, pages: list[int], children: dict[str,
-IndexEntry], code: bool = False)` nodes, alphabetised ignoring leading
-punctuation (see
-[Index (pdf-only)](extensions/index-terms.md#index-terms-generating-the-index)
-above).
-`render_index_content()` walks that tree, grouping top-level entries
-under a bold letter heading per first letter (`build_css()`'s own
-compiled CSS lays the whole thing out in two columns), indenting each
-deeper level, and wrapping a code-styled entry's own text in `<code>` -
-matching a traditional printed book's own back-of-book index - using
-`format_pages()` to collapse each entry's own consecutive pages into
-en-dash ranges.
+Contributors calling the Python API or changing the HTML, Lua, CSS,
+Mermaid, source-bundle, or index stages should use
+[PDF pipeline and API](devcons/pdf-internals.md).
 
 ## Limitations and workarounds {: #pdf-limitations-and-workarounds }
 
 `prodockit.pdf` pipes your site's own rendered HTML through Pandoc and
 WeasyPrint to produce the PDF - two tools with their own reader/writer
 quirks and no JS engine, quite different from a browser rendering your
-live website. See [Limitations and workarounds](devcons/limitations.md#limitations-pdf-generation)
+live website. See [Known limitations](about/limitations.md)
 for the confirmed limitations this shapes in `prodockit.pdf.html`/`.lua`/
 `.css`, and the workaround each one gets.
 
-## Status {: #pdf-status }
-
-No formal, versioned public API stability contract yet (see
-[prodockit-extensions#7](https://github.com/buckwem/prodockit-extensions/issues/7)).
+For supported tool versions, platforms, and the pre-1.0 stability boundary,
+see [Support and compatibility](about/support.md).

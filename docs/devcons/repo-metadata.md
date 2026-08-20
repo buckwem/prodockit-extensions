@@ -4,7 +4,7 @@ icon: lucide/git-fork
 
 # Repository metadata {: #sync-repo-repository-metadata }
 
-\index{`prodockit sync-repo`} keeps the repo-hosting-specific parts of your project
+\index{commands!`prodockit sync-repo`} keeps the repo-hosting-specific parts of your project
 in step with the git remote the checkout actually uses, so forking or
 mirroring it between GitHub, GitLab and Bitbucket doesn't leave stale links,
 the wrong brand icon, or README badges pointing at somebody else's
@@ -112,10 +112,10 @@ unchanged for the next run.
 | Option | Default | What it does |
 | --- | --- | --- |
 | `-f`, `--config-file` | `zensical.toml` | Which Zensical config to update. |
-| \index{prodockit sync-repo!`--readme`} | `README.md` | README to update the badge block in. Pass an empty value to skip it. |
-| \index{prodockit sync-repo!`--remote`} | `origin` | Which git remote to read the repository URL from. |
-| \index{prodockit sync-repo!`--branch`} | detected | Default branch for `edit_uri` and GitLab build-badge links. |
-| \index{prodockit sync-repo!`--check`} | off | Report what would change, write nothing, exit non-zero if anything would. |
+| \index{commands!prodockit sync-repo!`--readme`} | `README.md` | README to update the badge block in. Pass an empty value to skip it. |
+| \index{commands!prodockit sync-repo!`--remote`} | `origin` | Which git remote to read the repository URL from. |
+| \index{commands!prodockit sync-repo!`--branch`} | detected | Default branch for `edit_uri` and GitLab build-badge links. |
+| \index{commands!prodockit sync-repo!`--check`} | off | Report what would change, write nothing, exit non-zero if anything would. |
 
 ## What it does, and why {: #sync-repo-what-it-does }
 
@@ -227,16 +227,5 @@ error, and `sync-repo` just says so and moves on.
     are emitted for `gitlab.com` alone. On a self-hosted instance they
     could render nothing but a broken image.
 
-## Using it from Python {: #sync-repo-from-python }
-
-The command is a thin wrapper around
-[`prodockit.sync_repo`](https://github.com/buckwem/prodockit-extensions/blob/main/src/prodockit/sync_repo.py),
-whose `sync_repo_metadata()` returns what changed rather than printing it:
-
-```python
-from prodockit.sync_repo import sync_repo_metadata
-
-result = sync_repo_metadata(check=True)
-if result.changed:
-    print("out of date:", ", ".join(result.changes))
-```
+The Python API used by the command is documented for contributors under
+[Development and code map](development.md#call-maintenance-logic-from-python).

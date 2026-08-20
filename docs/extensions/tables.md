@@ -159,10 +159,8 @@ examples below.
 
 ### Use a compact layout {: #tables-compact }
 
-A table with many short columns is held wide by the theme itself: every
-header cell carries a `min-width` of `5rem`, and every cell 1.25em of
-padding either side. A column holding `H` is then as wide as one holding a
-sentence, and the table overflows whatever it contains.
+A table with many short columns can become wider than the page. Add `.compact`
+to reduce the minimum column width and cell spacing.
 
 Mark it `{: .compact }` on any header cell:
 
@@ -180,48 +178,34 @@ Mark it `{: .compact }` on any header cell:
     |---|---|---|---|
     | Credential theft | H | H | H |
 
-The minimum goes and the padding tightens, in the PDF as well as on the
-website. Measured on a 14-column table against 1009px of A4 landscape:
-
-| | table width |
-|---|---|
-| as written | 1586.7px |
-| minimum dropped | 1190.7px |
-| and the padding tightened | 993.1px |
-
-Both are needed - neither is enough alone, which is why it is one marker
-rather than two.
-
-It is opt-in on purpose. A table that reads well at its default should
-keep it, and a table quietly changing shape because a column was added is
-the kind of surprise worth avoiding.
-
-The marker is written on a header cell because that is the only place
-`attr_list` can reach in a Markdown table; it is moved onto the table and
-removed from the cell, so it styles the table rather than that one column.
-Any header cell will do. It combines with `width`, which answers a
-different question - how wide one column is, rather than how tightly every
-cell is set.
+Use it only when the normal table is too wide. Put the marker on any header
+cell. It affects the whole table and can be combined with column widths.
 
 ### Use more than one header row {: #tables-multi-row-header }
 
-A Markdown table has exactly one header row and no syntax for a second, so
-a heading that needs two lines has to be written as a body row. That row
-then stops repeating when the table breaks across pages, because only what
-is inside `<thead>` repeats - which is precisely when a second heading line
-is needed.
+A Markdown table normally has one header row. Mark the first additional row
+with `.header` when a grouped heading needs a second row.
 
 Mark it `{: .header }`:
 
-```md
-| Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |
-|---|---|---|---|
-| | Before {: .header } | After | |
-| Widget | 1 | 2 | ok |
-```
+=== "Markdown"
 
-The row moves into `<thead>` and its cells become `th`, so both lines
-repeat on every page the table reaches.
+    ```md
+    | Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |
+    |---|---|---|---|
+    | | Before {: .header } | After | |
+    | Widget | 1 | 2 | ok |
+    ```
+
+=== "Result"
+
+    | Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |
+    |---|---|---|---|
+    | | Before {: .header } | After | |
+    | Widget | 1 | 2 | ok |
+
+Both header rows then repeat when a long table continues onto another PDF
+page.
 
 The marker has to go on a cell that **has text** - `attr_list` has nothing
 to attach to in an empty one. Any cell in the row will do. Only the leading
@@ -231,21 +215,25 @@ quietly re-ordered around it.
 
 ### Merge cells {: #tables-merged-cells }
 
-`colspan` and `rowspan` are `attr_list`'s own attributes and need nothing
-new. What `prodockit.tables` adds is removing the empty cells they leave
-behind - a pipe table has to keep its columns even to parse, so a merged
-cell is written with blank ones after it, and left in place they push the
-row wider than the header.
+Use `colspan` to join cells across columns and `rowspan` to join cells down
+rows. Keep an empty placeholder for every cell covered by the span, as shown
+below.
 
-A placeholder with text in it is kept. It is somebody's content, and
-dropping it silently would be worse than the ragged row it causes.
+=== "Markdown"
 
-```md
-| Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |
-|---|---|---|---|
-| | Before {: .header } | After | |
-| Widget | 1 | 2 | ok |
-```
+    ```md
+    | Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |
+    |---|---|---|---|
+    | | Before {: .header } | After | |
+    | Widget | 1 | 2 | ok |
+    ```
+
+=== "Result"
+
+    | Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |
+    |---|---|---|---|
+    | | Before {: .header } | After | |
+    | Widget | 1 | 2 | ok |
 
 The empty cell after `Measured` and the empty cells beneath the two
 `rowspan=2` headings are structural placeholders. The extension removes those
@@ -256,29 +244,27 @@ placeholders after applying the spans.
 A wide table is often wide because of its headings, not its data. Turn them
 on their side:
 
-```md
-| Control | Availability requirement {: rotate=270 width="1.8em" height="105pt" } |
-|---|---|
-| Backups | H |
-```
+=== "Markdown"
+
+    ```md
+    | Control | Availability requirement {: rotate=270 width="1.8em" height="105pt" } |
+    |---|---|
+    | Backups | H |
+    ```
+
+=== "Result"
+
+    | Control | Availability requirement {: rotate=270 width="1.8em" height="105pt" } |
+    |---|---|
+    | Backups | H |
 
 `270` reads bottom-to-top, `90` top-to-bottom, and nothing else is allowed:
 another angle gives a heading nobody can read and a row height nobody can
 predict.
 
-All three parts are needed, and `rotate` without `width` is refused rather
-than rendered. The reason is worth knowing: `transform` does not affect
-layout, so a rotated box still occupies the space it would have occupied
-unrotated. **The width is what buys the space; the rotation is what keeps
-the heading readable once the column is narrow.** A rotated heading in a
-full-width column looks like the feature worked.
-
-`height` sizes the header row, since the rotated text reserves none of its
-own, and is what a long heading wraps against.
-
-Rotation uses `transform` in both outputs rather than `writing-mode`, which
-WeasyPrint ignores silently - the text stays horizontal in the PDF while
-the column still narrows, so it looks merely wrapped rather than broken.
+Set `width` with `rotate`; a missing width is rejected because rotating text
+alone does not make the column narrower. Set `height` when a long heading
+needs more room.
 
 ## Reference {: #tables-reference }
 
@@ -293,12 +279,12 @@ whole column, so declare it once on the heading rather than on a body cell.
 
 | Attribute | Where to put it | Effect |
 | --- | --- | --- |
-| `width="<css-length>"` | Header cell | Set that column's width |
+| \index{prodockit.tables!`width`}=`"<css-length>"` | Header cell | Set that column's width |
 | `.compact` | Any header cell | Apply the compact layout to the whole table |
 | `.header` | A non-empty cell in a leading body row | Move that row into `<thead>` |
 | `colspan=<n>` | Cell being widened | Merge it with the following placeholder cells |
 | `rowspan=<n>` | Cell being deepened | Merge it with placeholder cells below |
-| `rotate=90` or `rotate=270` | Header cell that also has `width` | Rotate the heading text |
+| \index{prodockit.tables!`rotate`}=90 or `rotate=270` | Header cell that also has `width` | Rotate the heading text |
 | `height="<css-length>"` | Rotated header cell | Reserve height for the rotated text |
 
 The minimal width form is:
@@ -316,30 +302,16 @@ value behaves exactly as it would in any other hand-written CSS, since
 
 ## Customise with a CSS style sheet {: #tables-css-hooks }
 
-A table with at least one `width`-attributed header cell gets a
-`<colgroup>` (one `<col>` per column, `style="width: ..."` set only on the
-columns that had one) inserted as its first child, and
-`class="prodockit-table-sized"` on the `<table>` itself:
+The extension adds stable classes that a website CSS style sheet can target:
 
 | Element | Condition | Hook |
 |---|---|---|
 | `<table>` | at least one header cell has `width` | `class="prodockit-table-sized"` |
 | `<table>` | any header cell has `.compact` | `class="prodockit-table-compact"` |
 | `<th>` | heading has `rotate=90` or `rotate=270` | `class="prodockit-rotate"` plus an inline transform |
-| `<col>` | that column's header cell had `width` | `style="width: <value>;"` |
-| `<col>` | that column's header cell had no `width` | none - left for `table-layout: fixed` to size |
+| `<col>` | that column has `width` | `style="width: <value>;"` |
 
-The `width` attribute itself is always stripped from the `<th>` once
-read - it isn't meant to also linger on the header cell.
-
-`prodockit-table-sized` only *marks* a table as sized - it isn't styled by
-`prodockit.tables` itself. A stylesheet needs to apply `table-layout: fixed`
-itself for the `<colgroup>` widths (and the "share what's left" behaviour)
-to take effect at all. Under Zensical's Material-based theme specifically,
-its own default table styling (border, padding, alternating rows) is
-scoped `.md-typeset table:not([class])` - confirmed directly in Zensical's
-bundled CSS - so a table carrying `prodockit-table-sized` (or any other
-class) gets **none** of it, not just no width control:
+Add at least this rule for sized and compact website tables:
 
 ```css
 .md-typeset table.prodockit-table-sized,
@@ -353,21 +325,7 @@ class) gets **none** of it, not just no width control:
 }
 ```
 
-The rules rebuild the theme's *own* table appearance rather than inventing
-one: a table that asks for a column width has to keep looking like the
-table beside it that didn't. Using the theme's `--md-typeset-table-color`
-rather than a literal matters for the same reason - the variable follows
-the colour scheme, so the table is right in dark mode too. The full set is
-in this project's own `docs/stylesheets/extra.css`.
-
-[prodockit.pdf](../pdf.md) already includes the equivalent rule in its own
-generated CSS (as well as its own table border/padding, unaffected by this
-theme-specific quirk), so a sized table works in the PDF with no extra
-configuration; a project's own website theme needs the CSS above added
-itself (see this project's own `docs/stylesheets/extra.css` for a working
-example) - `prodockit.tables` doesn't ship a bundled website stylesheet the
-way `prodockit.pdf` ships one for the PDF path.
-
-A table with no `width`-attributed header cells at all is left completely
-untouched - no `<colgroup>`, no `prodockit-table-sized` class - so enabling
-`prodockit.tables` has no effect on any table that doesn't use it.
+The complete light- and dark-mode rules used by this site are in
+`docs/stylesheets/extra.css`. PDF builds already include equivalent layout
+rules. Contributors changing the generated table structure should read
+[Extension integration](../devcons/extension-internals.md#table-layout-contracts).

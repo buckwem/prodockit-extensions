@@ -1,3 +1,7 @@
+---
+icon: lucide/braces
+---
+
 # Website macros {: #macros-website-macros }
 
 \index{`prodockit.zensical_macros`} provides a handful of Jinja variables and macros
@@ -50,18 +54,18 @@ modules = ["prodockit.zensical_macros"]
 
 ### `heading_counter_reset(page)`
 
-Emits a `<style>` block that continues heading numbering from wherever the
-*previous* page left off, using
-[`prodockit.headings.prescan()`](extensions/headings.md) - the single source
-of truth for what number/letter a page actually gets, so this always
-matches what `\ref{}` resolves to for a heading on this page. Nothing else
-needs to change when pages are reordered or headings are added/removed.
+Continues heading numbering from wherever the previous page left off. The
+numbering stays aligned with `\ref{}` links and updates when pages are
+reordered or headings are added or removed.
 
 Set `project.extra.heading_numbering = false` in `zensical.toml` to turn
 numbering off entirely (content and sidebar) across the whole site. A page
 flagged `is_appendix: true` in its own front matter gets letter-based
 numbering instead - "Appendix A", "A.1", "A.1.1" - matching
 `prodockit.headings`' own `appendix_attr` default.
+
+Contributors changing how page numbers are discovered should read
+[Extension integration](devcons/extension-internals.md#share-definitions-across-pages).
 
 ### `reference_style()` / `acronym_style()` / `glossary_style()`
 
@@ -76,7 +80,5 @@ one configured value:
 | \index{prodockit.zensical_macros!`reference_indent_global`} | `"1.27cm"` | Hanging indent on wrapped lines, "global" style. |
 | \index{prodockit.zensical_macros!`reference_spacing_global`} | `"2em"` | Gap between entries, "global" style. |
 
-## Status {: #macros-status }
-
-No formal, versioned public API stability contract yet (see
-[prodockit-extensions#7](https://github.com/buckwem/prodockit-extensions/issues/7)).
+For supported versions and the pre-1.0 stability boundary, see
+[Support and compatibility](about/support.md).

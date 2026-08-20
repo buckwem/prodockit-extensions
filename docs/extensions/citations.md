@@ -2,7 +2,7 @@
 icon: lucide/quote
 ---
 
-# Citations or References
+# Hand-written citations and references
 
 \index{`prodockit.citations`} lets you write a reference once and cite it from
 any page. A citation such as `[Skoulikari, 2023]` links readers to the full
@@ -74,24 +74,38 @@ Multiple comma-separated keys join into one bracket:
 A citation to a source defined *later* in the same document resolves
 correctly:
 
-```md
-See \citeref{skou2023} for an introduction to Git.
+=== "Markdown"
 
-Skoulikari, A. (2023) *Learning Git*.
-{: #skou2023 data-cite-text="Skoulikari, 2023" }
-```
+    ```md
+    See \citeref{forward-citation-example} for an introduction to Git.
+
+    Skoulikari, A. (2023) *Learning Git*.
+    {: #forward-citation-example data-cite-text="Skoulikari, 2023" }
+    ```
+
+=== "Result"
+
+    See \citeref{forward-citation-example} for an introduction to Git.
+
+    Skoulikari, A. (2023) *Learning Git*.
+    {: #forward-citation-example data-cite-text="Skoulikari, 2023" }
 
 ### Fix a missing citation {: #citations-unresolved-citations }
 
 If a citation id is missing or mistyped, the extension displays `?` for that
 entry. Other valid entries in the same citation still work:
 
-```md
-\citeref{skou2023,does-not-exist}
-```
+=== "Markdown"
 
-This renders `[Skoulikari, 2023; ?]`. Check the id that produced `?` against
-the id on the full reference.
+    ```md
+    \citeref{forward-citation-example,does-not-exist}
+    ```
+
+=== "Result"
+
+    [Skoulikari, 2023; ?]
+
+Check the id that produced `?` against the id on the full reference.
 
 ## Reference {: #citations-reference }
 
@@ -144,64 +158,18 @@ Neither of the two shown above is resolved; both render the literal text.
 | \index{prodockit.citations!`unresolved`} | `"?"` | Text shown for a citation id that cannot be found. |
 | \index{prodockit.citations!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
 
-`registry` is not a `zensical.toml` setting. It accepts a `CitationRegistry`
-Python object when you construct `CitationsExtension` yourself; see the manual
-multi-page example below.
+### Cross-page citations {: #citations-multi-page-builds }
 
-### Multi-page builds {: #citations-multi-page-builds }
+Under Zensical, a citation can refer to a source defined on another page,
+including a references page later in navigation. Prodockit reads definitions
+across the navigation before page conversion, so no author configuration is
+required.
 
-#### Under Zensical: automatic {: #citations-under-zensical-automatic }
+Two definitions using the same key produce a warning and the first definition
+is retained. Use a unique key for every source.
 
-Under [Zensical](https://zensical.org/), citing a source defined on a
-*different* page (the common case - a references page separate from the
-pages that cite it) works with no extra configuration, the same way
-[prodockit.refs](refs.md#refs-under-zensical-automatic) shares its registry across
-pages: `prodockit.citations` detects Zensical's per-page context and shares
-one registry across the whole build automatically.
-
-```toml
-[project.markdown_extensions."prodockit.citations"]
-```
-
-**Citing a source before it's defined works too** - the common case, since
-a references page is usually cited from earlier chapters but kept at the
-*end* of nav as an appendix. Normally that's a forward reference to a page
-`zensical build`'s single, one-shot pass hasn't rendered yet (unlike
-`zensical serve`'s live-reload, which eventually rebuilds every page at
-least once) - `prodockit.citations` avoids this by pre-scanning every page in
-the current Zensical build's nav for citation definitions (reading raw
-file text directly, not waiting for Python-Markdown to parse each one)
-before any single page has actually been converted, the same way LaTeX
-needs multiple compilation passes to resolve a `\cite` used before its
-`\bibitem` - except here it happens automatically, within one `zensical
-build` invocation.
-
-Two different sources that happen to share the same key don't fail the
-build: the first one scanned keeps that key, and the collision is logged as
-a warning rather than raised as an error.
-
-#### Under other tools: manual {: #citations-under-other-tools-manual }
-
-Outside Zensical, share a `CitationRegistry` yourself, the same way as
-[prodockit.headings](headings.md#sharing-a-registry-across-a-multi-page-build):
-
-```python
-import markdown
-from prodockit.citations import CitationsExtension
-from prodockit.util import CitationRegistry
-
-registry = CitationRegistry()
-
-for path, text in pages:
-    html = markdown.markdown(
-        text,
-        extensions=[CitationsExtension(registry=registry, source=path)],
-    )
-```
-
-A genuine key collision between two different `source`s raises
-`prodockit.util.DuplicateIdError` here, rather than warning - a deliberately
-shared registry means you're expected to notice and fix it.
+For integration with another Markdown renderer, see
+[Extension integration](../devcons/extension-internals.md#share-definitions-across-pages).
 
 ### What this doesn't do (yet)
 
@@ -228,8 +196,4 @@ each individual key's own link:
 An unresolved key's `<a>` has no `href` (see
 [Unresolved citations](#citations-unresolved-citations) above) - style
 `prodockit-cite-unresolved` distinctly (e.g. a muted colour, no underline)
-to make a missing citation visually obvious without inspecting the page
-source. No `data-*` attribute is left in the rendered output - the
-internal `data-prodockit-cite` placeholder attribute used during
-resolution, and the `data-cite-text` attribute marking a definition, are
-both always stripped before the page is rendered.
+to make a missing citation visually obvious.

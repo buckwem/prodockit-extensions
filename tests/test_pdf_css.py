@@ -12,6 +12,21 @@ def test_font_family_placeholders_are_substituted() -> None:
     assert "__MONO_FONT__" not in css
 
 
+def test_fenced_and_inline_code_are_one_point_smaller_than_body_text() -> None:
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    assert "pre, code { font-size: 11pt !important;" in css
+
+
+def test_short_content_tabs_can_be_kept_together_in_the_pdf() -> None:
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    assert ".pdf-keep-tab-pages .tabbox-container {" in css
+    rule = css.split(".pdf-keep-tab-pages .tabbox-container {")[1].split("}")[0]
+    assert "page-break-inside: avoid !important;" in rule
+    assert "break-inside: avoid-page !important;" in rule
+
+
 def test_web_only_content_is_always_hidden() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
     assert ".web-only {" in css

@@ -1,44 +1,17 @@
-# Limitations and workarounds
+---
+icon: lucide/scan-search
+---
+
+# Implementation limitations
 
 Confirmed \index{limitations} across prodockit's three surfaces - the Python-
 Markdown extensions, `prodockit.pdf`, and `prodockit.zensical_macros` -
 and the workaround each one gets, so a project hitting unexpected output
 has somewhere to check *why* before assuming it's a bug.
 
-## Platforms {: #limitations-platforms }
-
-prodockit runs on macOS, Linux and Windows. The coverage behind those
-three is not equal, and it is worth knowing which you are on.
-
-| | Automated tests | Notes |
-|---|---|---|
-| Linux | Every push and pull request, `ubuntu-24.04` | The site and PDF published from this project are built here. |
-| macOS | None | Where it is developed day to day. |
-| Windows | None | Tested by hand, occasionally. |
-
-**Windows has no automated coverage at all**, which is the honest state
-rather than a claim that it works less well. Two things have been found
-there by hand that no test on the other two platforms could have caught,
-both now fixed, and both worth knowing as the *shape* of what tends to go
-wrong:
-
-- **Native libraries are not installed by pip.** WeasyPrint binds to Pango
-  and friends at run time, and on Windows those come from MSYS2 rather
-  than existing already - see [PDF generation's own
-  requirements](../pdf.md#pdf-requirements) for the per-platform commands.
-  Missing them surfaces as `pandoc exited with status 43`, naming neither
-  WeasyPrint nor a library.
-- **Text decoding follows the locale.** Windows defaults to `cp1252`
-  rather than UTF-8, so anything prodockit reads back from `pandoc`, `git`
-  or `mermaid-cli` used to fail on the first non-ASCII byte - an accented
-  author name in a `.bib` file was enough
-  ([#191](https://github.com/buckwem/prodockit-extensions/issues/191)).
-  Every such call now names UTF-8 explicitly, and a test fails the build
-  if a new one does not.
-
-If you use prodockit on Windows and hit something the other platforms do
-not, that is worth reporting rather than working around - it is very
-likely a real gap rather than your setup.
+This contributor reference explains implementation causes and regression
+risks. Document authors should start with the shorter, symptom-led
+[Known limitations](../about/limitations.md) page.
 
 ## Extensions {: #limitations-extensions }
 
@@ -62,7 +35,7 @@ incremental-rebuild behaviour, not prodockit's.
 
 **Duplicate heading names across pages**: `prodockit.headings`' automatic
 Zensical registry sharing (see [Sharing a registry across a multi-page
-build](../extensions/headings.md#sharing-a-registry-across-a-multi-page-build))
+build](extension-internals.md#share-definitions-across-pages))
 logs a warning and keeps the first registration rather than raising, and
 *which* page's registration wins isn't stable across builds - see the
 warning admonition partway through that same section for why, and the fix
@@ -94,7 +67,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
 
 - Mermaid diagrams: no JS engine to run Mermaid.js client-side → each
   ` ```mermaid ` fence is pre-rendered to a static SVG via `mermaid-cli`
-  before Pandoc ever sees it (see [`prodockit.pdf.mermaid`](../pdf.md#prodockitpdfmermaid)).
+  before Pandoc ever sees it (see [PDF internal modules](pdf-internals.md#know-the-internal-modules)).
     - Mermaid's default node/edge labels are HTML `<foreignObject>`
       content, which WeasyPrint's SVG renderer can't display (text
       silently vanishes) → `htmlLabels` is forced off, so Mermaid emits
@@ -102,7 +75,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
 - Math (`$...$`/`$$...$$`, `pymdownx.arithmatex`): no JS engine to run
   MathJax client-side → each formula is pre-rendered to a static SVG via
   a Lua filter `Math()` handler piping to a `tex2svg` script (see
-  [`prodockit.pdf.lua`](../pdf.md#prodockitpdflua)).
+  [PDF internal modules](pdf-internals.md#know-the-internal-modules)).
     - `arithmatex`'s *generic*-mode math (`<div class="arithmatex">`/
       `<span class="arithmatex">`) has no native Math AST node in
       Pandoc's *HTML* reader (unlike its *markdown* reader, which
@@ -131,7 +104,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
   block when that `<code>` holds nothing but text, and each of those
   constructs defeats it independently → every `<pre>` is reduced to a
   single plain-text `<code>` child before Pandoc sees it (in
-  [`prodockit.pdf.html`](../pdf.md#prodockitpdfhtml)).
+  [PDF internal modules](pdf-internals.md#know-the-internal-modules)).
 
 !!! danger "A version of pandoc decided this, and CI could not see it"
 
@@ -162,7 +135,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
 
     Two things came from that. The build pins an upstream pandoc release
     rather than taking the image's (see
-    [Pandoc version drift](continuous-integration.md#ci-pandoc-version)),
+    [Pandoc version drift](pinning-drift.md#pinning-pandoc-version-drift)),
     so a pandoc change arrives as a version bump that can be bisected. And
     the check for it measures the finished PDF - the gap between two
     monospace characters that are adjacent in the text flow - rather than
@@ -212,7 +185,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
   as a link to an external file at whatever absolute path the PDF happened
   to be built from → rewritten to in-document anchors instead (see
   `build_page_anchor_map()`/`build_virtual_page_map()` in
-  [`prodockit.pdf.html`](../pdf.md#prodockitpdfhtml)).
+  [PDF internal modules](pdf-internals.md#know-the-internal-modules)).
 - Local image/file references can't depend on relative paths resolving
   correctly from wherever Pandoc happens to run in a standalone document →
   base64-embedded as `data:` URIs directly in the HTML (see
@@ -236,7 +209,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
 WeasyPrint at all** (confirmed directly, isolated test) - affects
 admonition icons, grid-card title icons, and pre-rendered Mermaid diagrams
 alike → every `<svg>` is converted to a base64 `data:` URI `<img>` instead
-(see [`prodockit.pdf.icons`](../pdf.md#prodockitpdficons)).
+(see [PDF internal modules](pdf-internals.md#know-the-internal-modules)).
 
 **Content tabs (`pymdownx.blocks.tab`)**: each tab's label renders as an
 inline `<label>` sibling with no block boundary between them; Pandoc's
@@ -246,7 +219,7 @@ unseparated run of text with no way to recover the boundary afterward in a
 Lua filter → each `<label>` is rewritten into its own `<p>` *before*
 Pandoc's reader ever sees it, then the Lua filter reconstructs the
 `tabbed-set`/`tabbed-labels`/`tabbed-content` structure into a `tabbox`
-shape (see [`prodockit.pdf.lua`](../pdf.md#prodockitpdflua)).
+shape (see [PDF internal modules](pdf-internals.md#know-the-internal-modules)).
 
 **Figure/table captions in "prepend" position**: Pandoc's `Figure` AST
 node stores `Caption` and content as two separate, independently-typed
@@ -293,14 +266,14 @@ output has no `.md-typeset` wrapper element, so website CSS rules scoped
 to `.md-typeset ...` (reference/acronym/glossary spacing, a `.screenshot`
 class, and so on) never match in the PDF → `prodockit.pdf.css` duplicates the
 relevant rules as plain, unscoped selectors instead (see
-[`prodockit.pdf.css`](../pdf.md#prodockitpdfcss)).
+[PDF internal modules](pdf-internals.md#know-the-internal-modules)).
 
 **Footnotes**: Pandoc's default behaviour collects every footnote in the
 whole document into one section at the very end of the PDF, rather than at
 the bottom of the page it's referenced on like a printed book → a Lua
 filter handler replaces each footnote reference with an inline span styled
-via CSS `float: footnote` instead (see [`prodockit.pdf.lua`](../pdf.md#prodockitpdflua)/
-[`prodockit.pdf.css`](../pdf.md#prodockitpdfcss)).
+via CSS `float: footnote` instead (see
+[PDF internal modules](pdf-internals.md#know-the-internal-modules)).
 
 **WeasyPrint's CSS Grid support is too limited to trust for an actual
 side-by-side multi-column layout** → a Zensical grid-cards block renders
@@ -353,7 +326,7 @@ unrelated reasons.
 
 **`heading_counter_reset(page)` inherits the same `zensical serve`
 staleness bound as extensions above**: it calls
-[`prodockit.headings.prescan()`](../extensions/headings.md#looking-up-the-same-numbers-from-your-own-build-tooling)
+[`prodockit.headings.prescan()`](extension-internals.md#share-definitions-across-pages)
 directly - the identical pre-scan continuous numbering itself uses - so a
 page's displayed chapter/section number can lag behind an edit to an
 *earlier* page's heading count until that later page is itself rebuilt
