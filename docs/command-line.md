@@ -4,9 +4,14 @@ icon: lucide/terminal
 
 # Command-line tools
 
-The `prodockit` command builds deliverables and maintains the project around
-your Markdown. Run it from the project root—the directory containing
-`zensical.toml`—unless an option explicitly names another location.
+This page inventories the public \index{command-line interface} (CLI) for document authors and project
+maintainers. It keeps command names, aliases, safe defaults, write behaviour,
+and automation semantics visible in one place.
+
+Start with [Publish a document](publishing.md) to see each command in the task
+that needs it. Run a command from the project
+root—the directory containing `zensical.toml`—unless an option explicitly
+names another location.
 
 Use the shorter `pdk` executable when you prefer it; it is an exact alias.
 `bootstrap` also answers to `boot`, and `source-bundle` to `source`.
@@ -41,6 +46,10 @@ pinned by the project before assuming an option is unavailable.
 | [`prodockit sync-repo`](devcons/repo-metadata.md) | Repository links or badges must match the current remote | `prodockit sync-repo --check` | `zensical.toml` and the managed README badge block without `--check` |
 | [`prodockit pins`](devcons/pinning-drift.md) | Build-input versions disagree or need a reviewed upgrade | `prodockit pins --check --offline` | Matching version declarations when a version is selected |
 | [`prodockit template-sync`](devcons/template-sync.md) | A generated project needs later template fixes | `prodockit template-sync` | With `--apply`, template-owned/shared files on a new branch; always appends its ignored log |
+
+The \index{commands!`prodockit init-mathjax`} command is the narrower website
+asset command; use `init-tools` when preparing both Mermaid and maths for PDF
+output.
 
 ## Build and preview {: #publish-and-verify }
 
@@ -188,7 +197,7 @@ step.
 
 ## Find the next guide
 
-- [Project maintenance](project-maintenance.md) provides the complete recurring cycle.
+- [Maintain prodockit](project-maintenance.md) provides the complete recurring cycle.
 - [Set up a machine](devcons/bootstrap.md) takes a new computer through its first successful publish.
 - [Repository metadata](devcons/repo-metadata.md) explains every derived link and badge.
 - [Version pinning and drift](devcons/pinning-drift.md) covers controlled upgrades and scheduled comparisons.

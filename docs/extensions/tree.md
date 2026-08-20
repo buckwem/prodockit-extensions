@@ -4,7 +4,7 @@ icon: lucide/folder-tree
 
 # Directory trees
 
-`prodockit.tree` turns an indented list of folders and files into a directory
+\index{`prodockit.tree`} turns an indented list of folders and files into a directory
 tree. Use it to show readers where files belong in a project.
 
 ## Enable the extension {: #tree-enabling-it }
@@ -58,30 +58,35 @@ the listing:
 
 | Option | Default | What it does |
 |---|---|---|
-| `indent` | `2` | How many spaces one level costs. Set `4` for a listing written that way. |
+| \index{prodockit.tree!`indent`} | `2` | How many spaces one level costs. Set `4` for a listing written that way. |
 | `directory_icon` | `':lucide-folder:'` | Icon shortcode placed before every directory. |
 | `file_icon` | `':lucide-file:'` | Icon shortcode placed before every file. |
 
-```md
-/// tree
-    indent: 4
+This example changes both the indentation and the icons:
 
-docs/
-    index.md
-///
-```
+=== "Markdown"
 
-For example, you can choose different icons:
+    ```md
+    /// tree
+        indent: 4
+        directory_icon: ':octicons-file-directory-16:'
+        file_icon: ':octicons-file-16:'
 
-```md
-/// tree
-    directory_icon: ':octicons-file-directory-16:'
-    file_icon: ':octicons-file-16:'
+    docs/
+        index.md
+    ///
+    ```
 
-docs/
-  index.md
-///
-```
+=== "Result"
+
+    /// tree
+        indent: 4
+        directory_icon: ':octicons-file-directory-16:'
+        file_icon: ':octicons-file-16:'
+
+    docs/
+        index.md
+    ///
 
 ### Fix indentation errors
 
@@ -94,58 +99,30 @@ TreeError: indent of 3 is not a multiple of 2: 'index.md'
 TreeError: indented 2 levels at once: 'index.md'
 ```
 
-### This repository, as a tree {: #tree-example }
+### A report project {: #tree-example }
 
-The block above, used on something real - prodockit's own layout, so the
-pages describing each extension can be found beside the module that
-implements it:
+Use the block for a structure readers need to understand. This example shows
+the main files supplied by `prodockit-template`:
 
 /// tree
-src/ - The package itself
-  prodockit/ - Everything importable
-    headings.py - Heading numbering and ids
-    refs.py - Cross-references, resolved by number
-    citations.py - Citations and their reference list
-    glossary.py - Acronyms and the glossary
-    bibliography.py - Bibliography rendering, through pandoc
-    tables.py - Table column widths
-    index.py - Back-of-book index markers
-    steps.py - Numbered steps
-    tree.py - This extension
-    zensical_macros.py - The Jinja macros a Zensical build calls
-    settings.py - Reading configuration out of zensical.toml
-    cli.py - The `prodockit` command
-    pins.py - `prodockit pins`, which manages build-input versions
-    sync_repo.py - `prodockit sync-repo`
-    init_tools.py - `prodockit init-tools` and `init-mathjax`
-    tools.py - Finding git, pandoc and node when PATH cannot
-    wordcount.py - Word counting for the cover page
-    util.py - Shared helpers
-    pdf/ - The PDF pipeline, not a Markdown extension
-      build.py - Orchestrates pandoc and WeasyPrint
-      css.py - The stylesheet the PDF is built with
-      html.py - Fixing up each page's HTML before pandoc
-      lua.py - The pandoc filter
-      index.py - Building the back-of-book index from the laid-out PDF
-      mermaid.py - Rendering diagrams to images
-      source_bundle.py - `prodockit source-bundle`
-      release.py - Resolving the release marker on the cover page
-    bootstrap/ - `prodockit bootstrap`, machine setup
-      stages.py - Every stage, as a check and a plan
-      model.py - Hosts, runners and the stage record
-      surrey.py - What a University of Surrey setup can derive
-      fetch.py - Asking a URL what it says
-      config.py - The questions and where the answers are kept
-    testing/ - A pytest plugin projects can use on their own builds
-docs/ - This documentation site
-  extensions/ - A page per Markdown extension
-  devcons/ - Design notes and the decisions behind them
-  stylesheets/ - Including the stylesheets these extensions expect
-tests/ - The test suite
-tools/ - Node tooling used only by the PDF build
-pyproject.toml - Packaging, dependencies and the entry points each extension registers
-zensical.toml - This site's own configuration
+docs/
+  index.md - cover page
+  section1.md - first report section
+  acronyms.md - acronym definitions
+  glossary.md - glossary definitions
+  references.md - generated reference list
+  stylesheets/
+    extra.css - website style sheet
+    print.css - PDF style sheet
+tools/
+  mermaid/ - diagram renderer
+  mathjax/ - maths renderer
+zensical.toml - navigation and extension configuration
+references.bib - bibliography source
 ///
+
+The package's own source-code map now lives under
+[Contributor internals](../devcons/development.md#find-the-code).
 
 ## Reference {: #tree-reference }
 

@@ -127,6 +127,10 @@ h1, h2, h3, h4, h5, h6 {
 pre, code {
     font-family: "__MONO_FONT__", monospace !important;
 }
+/* WeasyPrint's default body text is 12pt. Keep inline and fenced code one
+   point smaller: the monospace face otherwise appears optically larger than
+   the surrounding proportional face at the same nominal size. */
+pre, code { font-size: 11pt !important; }
 
 /* ==========================================================================
    CRITICAL WEASYPRINT STRUCTURAL CANVAS RESET
@@ -605,6 +609,15 @@ img.pdf-only {
     background-color: #f2f2f2 !important; padding: 12px;
     page-break-inside: auto !important; break-inside: auto !important;
     -webkit-box-decoration-break: clone !important; box-decoration-break: clone !important;
+}
+/* Opt in only for tab groups whose individual panels are known to be short.
+   The general tab rule must remain splittable because a panel can exceed a
+   page. For short operating-system command panels, however, keeping each
+   reconstructed header/body pair together prevents an empty body fragment at
+   the foot of one page with all of its content on the next. */
+.pdf-keep-tab-pages .tabbox-container {
+    page-break-inside: avoid !important;
+    break-inside: avoid-page !important;
 }
 .admonition {
     border-left: 4px solid #448aff !important; background-color: #f8fafc !important;

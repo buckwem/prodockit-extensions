@@ -11,7 +11,7 @@ born with. Nothing tells you, because nothing breaks - the site still
 builds, the PDF still renders, and the difference only shows up as a
 document that looks slightly unlike everyone else's.
 
-`prodockit template-sync` closes that gap without touching a word of your
+The \index{commands!`prodockit template-sync`} command closes that gap without touching a word of your
 writing.
 
 Use it periodically while a project is active and before a final release. A

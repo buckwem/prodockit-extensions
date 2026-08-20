@@ -377,7 +377,7 @@ def build_pdf_from_zensical_config(
         os.makedirs(math_dir, exist_ok=True)
 
     page_objects = []
-    for nav_page in nav_pages:
+    for page_position, nav_page in enumerate(nav_pages):
         docs_rel_path = nav_page["url"]
         full_path = os.path.join(docs_dir, docs_rel_path)
         with open(full_path, encoding="utf-8") as f:
@@ -415,7 +415,12 @@ def build_pdf_from_zensical_config(
             Page(
                 docs_rel_path=docs_rel_path,
                 html=html,
-                is_index=bool(nav_page.get("is_index")),
+                # Zensical marks every directory's `index.md` as an index
+                # page for website routing. Only the first navigation page
+                # can be this compiled document's cover; treating a nested
+                # `about/index.md` as another cover strips its chapter number
+                # and bookmark from the PDF.
+                is_index=page_position == 0 and bool(nav_page.get("is_index")),
                 is_appendix=bool(meta.get(APPENDIX_FRONT_MATTER_KEY, False)),
                 recto_title=meta.get(RECTO_TITLE_FRONT_MATTER_KEY) or None,
             )

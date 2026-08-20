@@ -1,4 +1,8 @@
-# Testing your built site {: #testing-testing-your-built-site }
+---
+icon: lucide/badge-check
+---
+
+# Test the built output {: #testing-testing-your-built-site }
 
 \index{`prodockit.testing`} gives a project \index{pytest} fixtures pointing at its own
 *built* output - the site directory and the PDF - plus checks for the
@@ -15,7 +19,7 @@ Run your builds first:
 
 ```bash
 prodockit pdf
-zensical build
+zensical build --clean --strict
 python -m pytest
 ```
 
@@ -117,11 +121,6 @@ From `prodockit.testing`:
 Both assertions name the fix (`prodockit init-tools`) in their failure
 message rather than only reporting the symptom.
 
-## A note on installing this everywhere {: #testing-plugin-safety }
-
-The plugin loads into *every* pytest run in an environment where prodockit
-is installed, including projects unrelated to it. It is written so that
-this costs nothing: no heavy imports at module scope, `pymupdf` and
-BeautifulSoup imported only inside the fixtures that need them, and a
-missing `zensical.toml` failing the individual fixture rather than
-collection.
+Contributor guidance for keeping the automatically discovered plugin
+lightweight lives under
+[Development and code map](development.md#keep-the-pytest-plugin-lightweight).

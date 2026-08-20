@@ -1,3 +1,7 @@
+---
+icon: lucide/rocket
+---
+
 # Build your first site
 
 This walkthrough starts with an empty directory and ends with a local Zensical
@@ -10,6 +14,8 @@ site using numbered headings and a cross-reference. It also demonstrates
 
 prodockit requires Python 3.10 or later. Install Python for your operating
 system, then close and reopen the terminal so the new command is on `PATH`.
+
+<div class="pdf-keep-tab-pages" markdown="1">
 
 === ":material-apple: macOS"
 
@@ -45,11 +51,16 @@ system, then close and reopen the terminal so the new command is on `PATH`.
     python3 --version
     ```
 
+</div>
+
 ////
 
 //// step | Create and activate a virtual environment
 
-Create a directory for the site, then create the environment inside it:
+Create a directory for the site, then create the \index{virtual environment}
+inside it:
+
+<div class="pdf-keep-tab-pages" markdown="1">
 
 === ":material-apple: macOS"
 
@@ -79,6 +90,8 @@ Create a directory for the site, then create the environment inside it:
     python3 -m venv .venv
     source .venv/bin/activate
     ```
+
+</div>
 
 The prompt normally starts with `(.venv)` after activation. The rest of the
 walkthrough uses `python`, which now means the interpreter inside that virtual
@@ -175,5 +188,5 @@ when a source file changes; stop it with `Ctrl+C`.
   [command-line map](command-line.md) to choose a command safely.
 
 !!! note "Previewing these documentation changes"
-    From this repository's root, run `zensical serve` and open the address it
+    From this repository's root, run \index{`zensical serve`} and open the address it
     prints. This page already has `prodockit.steps` enabled and styled.

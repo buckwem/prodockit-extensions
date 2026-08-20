@@ -2,14 +2,14 @@
 icon: lucide/library
 ---
 
-# Bibliography
+# BibTeX bibliography
 
 \index{`prodockit.bibliography`} creates citations and a formatted reference
 list from a `.bib` file. Use it when you have many sources or need a particular
 citation style, such as Harvard, APA, IEEE, or Vancouver.
 
 For a short reference list that you prefer to write yourself, use
-[Citations or References](citations.md).
+[Hand-written citations and references](citations.md).
 
 ## Before you start {: #bibliography-requirements }
 
@@ -279,40 +279,9 @@ protected inside inline code spans and fenced code blocks.
 above for what they do and when to use them. Put the marker alone on its
 own paragraph/line.
 
-## How it works {: #bibliography-how-it-works }
-
-Citation/bibliography formatting is delegated entirely to
-[Pandoc](https://pandoc.org/)'s own `--citeproc` (confirmed directly: a
-plain `.bib` file plus a chosen `.csl` style produces correctly formatted,
-sorted output with no custom code at all) rather than reimplemented here -
-CSL processing (sorting, disambiguation, locale-specific formatting) is a
-mature-tool-sized problem, the same reasoning
-[prodockit.pdf](../devcons/limitations.md#limitations-pdf-generation) already gives for why
-it feeds Pandoc real HTML instead of hand-translating every markdown
-feature.
-
-Zensical renders your site as usual, but each time this extension resolves
-a `\cite{id}` or `\bibliography` marker it shells out to `pandoc
---citeproc`, once per distinct citation and once per generated list, each
-memoized for the rest of the build - Pandoc never sees, and has no part in
-rendering, anything else on the page:
-
-```mermaid
-flowchart LR
-    bib[".bib file<br>.csl style"]
-    md["Markdown source<br>\cite{id} / \bibliography"]
-    ext["prodockit.bibliography<br>(Python-Markdown extension)"]
-    pandoc["pandoc --citeproc"]
-    web["Zensical<br>(live website)"]
-    pdf["prodockit.pdf<br>(WeasyPrint PDF)"]
-
-    bib --> ext
-    md --> ext
-    ext -- "subprocess call,<br>memoized per build" --> pandoc
-    pandoc -- "formatted citation /<br>reference list HTML" --> ext
-    ext --> web
-    ext --> pdf
-```
+The extension delegates CSL formatting to Pandoc. Contributors changing that
+integration should read
+[Extension integration](../devcons/extension-internals.md#delegate-bibliography-formatting).
 
 ## Comparing the two approaches
 
@@ -369,11 +338,11 @@ hand-typed list - a longer, frequently-updated bibliography, or needing
 to match a specific CSL style - is exactly the case `prodockit.bibliography`
 is built for, as prodockit-template's own adoption shows.
 
-## Status {: #bibliography-status }
-
-New, less battle-tested than `prodockit.citations` - no formal, versioned
-public API stability contract yet (see
-[prodockit-extensions#7](https://github.com/buckwem/prodockit-extensions/issues/7)).
+!!! caution "A newer authoring option"
+    `prodockit.bibliography` is newer and less battle-tested than
+    `prodockit.citations`. The project-wide maturity and compatibility
+    boundary is documented under
+    [Support and compatibility](../about/support.md).
 
 ## Customise with a CSS style sheet {: #bibliography-css-hooks }
 

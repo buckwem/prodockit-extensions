@@ -74,21 +74,15 @@ INDEX_ENTRY_RE = re.compile(
     r"(?P<pages>\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*)$"
 )
 
-#: One term per supported marker shape, pinned so the checks below can't
-#: quietly pass against an index that lost whichever shape stopped
-#: working. The first five are `index-terms.md`'s own `=== "Result"` tab
-#: demos - a flat term, a nested `Parent!Child`, a code-styled
-#: `` \index{`git commit`} ``, and a linked `\index{[Git](...)}` (whose
-#: entry text is the link's own text). The rest are load-bearing entries
-#: from the real index the docs now carry: a code-styled term nested under
-#: a plain parent, a multi-word term (which the PDF line-wraps, so it also
-#: pins the whitespace normalising below), and a plain top-level term.
+#: Load-bearing entries from the real documentation index, selected across
+#: flat, nested, code-styled, multi-word, command, configuration, and platform
+#: terms. Demonstration-only Result panes are deliberately excluded so the
+#: book index remains useful to a reader.
 EXPECTED_INDEX_TERMS = (
-    "gadget",
-    "widget",
-    "Git",
-    "ssh keys",
-    "git commit",
+    "prodockit pdf",
+    "DYLD_FALLBACK_LIBRARY_PATH",
+    "PyMdown Blocks",
+    "width",
     "include",
     "running footer",
     "Pandoc",
@@ -136,8 +130,10 @@ def documents_own_chapters(prodockit_paths, prodockit_resolved_config) -> list[s
     appendix because it is lettered instead of numbered.
     """
     chapters = []
-    for page in flatten_nav(prodockit_resolved_config.get("nav") or []):
-        if page.get("is_index"):
+    for page_position, page in enumerate(
+        flatten_nav(prodockit_resolved_config.get("nav") or [])
+    ):
+        if page_position == 0 and page.get("is_index"):
             continue
         text = (prodockit_paths.docs_dir / page["url"]).read_text(encoding="utf-8")
         if _front_matter_flag(text, APPENDIX_ATTR):

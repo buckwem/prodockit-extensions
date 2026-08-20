@@ -4,7 +4,7 @@ icon: lucide/rocket
 
 # Machine bootstrap {: #bootstrap-machine-bootstrap }
 
-\index{`prodockit bootstrap`} turns the User Guide's install sequence into
+\index{commands!`prodockit bootstrap`} turns the User Guide's install sequence into
 a list of stages that can be checked individually and repaired one at a
 time, rather than followed top to bottom and hoped over. `prodockit
 bootstrap` reports how many there are; the table below names them.
@@ -379,382 +379,15 @@ Stages 8 to 14, 18, 19, 21 and 23 do the same thing on every operating
 system - they are about your project and your host rather than about the
 machine. The rest differ, because installing software does.
 
-The list is longer than it was because it was wrong. Comparing it
-against the User Guide step by step found six things it did not do at
-all, from the PDF fonts' checker language down to the project's own
-virtual environment - see [What "ready" means](#bootstrap-ready).
-
-### A check must be able to see what its plan does {: #bootstrap-invariant }
-
-The most persistent bug in this command has never been a wrong message.
-It is a stage whose **check is narrower than its own plan**: the check
-passes, the plan never runs, and the stage reports a state it is not in.
-`ok` stops you looking, which is the whole cost.
-
-It has happened seven times. Four were found by people running the tool;
-three more were added *after* the pattern was written down, in the same
-week - fonts added to a plan with no font check, Chromium and two shell
-exports added with neither. The suite passed throughout, because it
-asserted each half correctly and in isolation.
-
-So there are now two gates across all stages, rather than an audit of
-each:
-
-1. **Every stage declares what its plan produces.** A stage added without
-   an entry fails. Writing the entry is the point - it forces the
-   question "can a check see this?" at the moment the plan grows.
-2. **No stage whose plan installs something may report `ok` about a
-   machine where nothing is installed.** This is the behavioural half,
-   and it is what catches a declaration that was written without doing
-   the work.
-
-One refinement, learned from the case that nearly failed the rule while
-being correct. Stage 12 installs Pango and **cannot** verify it -
-importing WeasyPrint is the only real test, and WeasyPrint is not
-installed until stage 13. That hand-off is right, so the invariant is
-*some* stage's check must be able to observe what a plan changes, not
-necessarily its own.
-
-### What "ready" means {: #bootstrap-ready }
-
-The bar is that **opening the project in VS Code is enough to start
-writing**. Anything short of that is a stage, not a footnote - which is
-why the list grew from thirteen to sixteen when it was compared against
-the User Guide line by line.
-
-Six things it did not do at all:
-
-| | What was missing |
-| --- | --- |
-| **WeasyPrint was never verified** | Stage 12 was *named* "Pandoc and WeasyPrint's libraries" and only ever ran `pandoc --version`. It reported `ok` on a machine whose first PDF build would fail at `cannot load library`. Importing WeasyPrint is now the test, at stage 13 - a strict one, because the import loads Pango through the system linker, so success proves the package *and* the native libraries. `pip` exiting zero proves neither. |
-| **Two required extensions, absent** | Even Better TOML and LTeX+ were missing, while Code Spell Checker - from the *optional* tooling page - was installed in their place. |
-| **The project had no environment** | The clone ships a `requirements.txt` that nothing installed, so Zensical itself was absent from the project. |
-| **The template's history was kept** | The guide resets it; the clone carried the template's whole log and branches into your project. |
-| **Zensical Studio was unconfigured** | Markdown was not handed to its language mode. |
-| **The grammar checker had no language** | LTeX+ was installed with nothing telling it what it was reading. |
-
-Two of those deserve their own explanation, below: the project's own
-virtual environment, and the history reset.
-
-### Three things the first build needs {: #bootstrap-first-build }
-
-The User Guide found these on a fresh Ubuntu ARM64 machine
-(prodockit-userguide#101, #102 and #103), and all three were true here
-too. Each fails in a way that does not point at itself.
-
-**Mermaid's browser has to be the right architecture.** `npm ci` in
-`tools/mermaid` triggers Puppeteer's own postinstall download, and that
-download is not guaranteed to match the CPU it lands on. On ARM64 - an
-Apple-silicon Linux VM, Graviton, a Raspberry Pi - it fetches an x86_64
-Chrome that can never run. Nothing fails at install time. The symptom is
-a diagram that will not render, much later, with nothing to connect it to
-the install. So on Ubuntu the stage installs a system Chromium and
-exports
-
-```bash
-PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser || which chromium)
-PUPPETEER_SKIP_DOWNLOAD=true
-```
-
-**before** `npm ci`, and appends them to `~/.bashrc` so later sessions
-have them too - once, checked first, because a profile carrying the same
-two exports four times over is the mark of a tool that assumed it would
-only ever run once. macOS and Windows are left alone: Puppeteer's own
-download is fine there.
-
-**The PDF's fonts are not the website's fonts.** The site loads Inter and
-JetBrains Mono from a CDN when a page is viewed; a PDF has to embed the
-actual files. WeasyPrint **substitutes a fallback silently** rather than
-failing, so the build succeeds, the PDF looks plausible, and the only
-symptom is a test reporting `No 'Inter' font found`. They are installed
-with the graphics stack now, per platform.
-
-**The citation style is fetched, not committed.** `prodockit.bibliography`
-is enabled by default and points `csl_style` at
-`harvard-cite-them-right.csl`, which is not in the clone - so `zensical
-serve`, `zensical build` and `prodockit pdf` all fail outright until it is
-there. Stage 17 fetches it. An *empty* file counts as `WRONG` rather than
-done: a failed download leaves one behind, and anything asking only
-whether the path exists would call that finished. A project configured
-for a different style is told to fetch its own rather than given Harvard.
-
-### Two virtual environments, and only one of them is yours {: #bootstrap-project-env }
-
-There are two, and confusing them is the whole difficulty of stage 13.
-
-Bootstrap runs from one that **necessarily predates the project** -
-`pip install prodockit` has to happen before there is anything to clone.
-The User Guide's is a *second* environment, created inside the project
-afterwards, and it is the one that matters day to day: the VS Code Python
-extension finds `.venv` in your project folder and activates it in every
-new terminal, which is why the guide's prompts read
-
-```text
-(.venv) yourname@Mac your-project %
-```
-
-So stage 13 creates `<project>/.venv` and installs `requirements.txt`
-into **that**, naming the interpreter explicitly:
-
-```bash
-<project>/.venv/bin/python -m pip install -r <project>/requirements.txt
-```
-
-The explicitness is load-bearing. A bare `pip install -r
-requirements.txt` finds whichever `pip` is on `PATH` - bootstrap's own -
-and installs your project's dependencies into bootstrap's environment
-instead. It exits zero, the stage re-checks, and your `.venv` is still
-empty. You would find out at your first `zensical build`, with nothing
-to suggest why.
-
-### Deleting history is the one thing that asks first {: #bootstrap-fresh-history }
-
-Stage 8 does what the guide's "Start with a fresh commit history" step
-does - `rm -rf .git`, `git init -b main`, `git config core.fileMode
-false` - and it is the only stage that destroys anything.
-
-Two safeguards, both deliberate:
-
-**It reports `WRONG`, not `MISSING`.** That is not a description of the
-repository so much as a choice about the prompt: `MISSING` offers
-`[Y/n]`, and deleting a repository's history should never happen by
-pressing Enter.
-
-**It is judged by `origin`, not by whether commits exist.** The obvious
-test - "does this repository have history?" - would tell somebody who had
-been writing for a month that theirs needed deleting. `origin` still
-pointing at the template is the only state where discarding it is
-unambiguously right, and it is one that cannot recur: resetting removes
-the remote, repointing replaces it. A clone made from your own
-`source_url` never matches it at all.
-
-`core.fileMode false` comes along from the guide, and earns its place: git
-treats a change to a file's executable bit as a change to the file, and
-cloud-sync clients rewrite those bits as they sync - so a project in a
-synced folder can show every file as modified without a byte of content
-having changed.
-
-### The key ssh never offers {: #bootstrap-ssh-config }
-
-Stage 4 exists because of a failure that lies about its own cause. With
-no `Host` stanza, ssh does not know that `id_ed25519_gitlab` has
-anything to do with `gitlab.surrey.ac.uk`. It offers its own defaults -
-`id_rsa`, `id_ed25519` - and when none of them is accepted, falls back
-to asking for a password:
-
-```text
-git@gitlab.surrey.ac.uk's password:
-```
-
-Which is indistinguishable from a key the host has rejected. The reader
-goes back to the upload step and re-pastes a key that was never the
-problem, because the key was never offered.
-
-So the stanza is written first, in the User Guide's own shape:
-
-```text
-Host gitlab.surrey.ac.uk
-    HostName gitlab.surrey.ac.uk
-    User git
-    IdentityFile ~/.ssh/id_ed25519_gitlab
-```
-
-It is **appended**, never written over: an ssh config is your file and
-may hold entries for hosts this knows nothing about. And if a stanza for
-this host already exists pointing somewhere else, bootstrap explains the
-edit rather than making it - ssh takes the first match, so a second entry
-would be ignored anyway, and rewriting your ssh config underneath you is
-not something an installer should do unasked.
-
-Permissions come with it, for the same reason. ssh refuses a private key
-that others can read:
-
-```text
-Permissions 0644 for '/Users/al01234/.ssh/id_ed25519_gitlab' are too open.
-This private key will be ignored.
-```
-
-and then falls back to a password - the same symptom, from a different
-cause. `chmod 600` on both the key and the config closes it. Windows has
-no `chmod` and restricts a profile file to its owner already, so it gets
-the stanza without the permission step.
-
-### The key ssh cannot use {: #bootstrap-ssh-agent }
-
-Stage 5 is the second half of the same trap, and it catches the machines
-stage 4 does not.
-
-Stage 3 tells you to give the key a passphrase, which is right. But every
-ssh command bootstrap runs carries `BatchMode=yes`, so none of them may
-ask you for it. Those two are only compatible if an **agent** is holding
-the decrypted key.
-
-Without one, the failure is subtle enough to be worth spelling out. `ssh
--T` reads the `.pub` file and offers the public half quite happily - that
-needs no passphrase:
-
-```text
-debug1: Offering public key: ~/.ssh/id_ed25519_gitlab ED25519 SHA256:NXf+... explicit
-```
-
-The host recognises it and challenges ssh to prove it holds the private
-half. *That* needs the passphrase, and there is nobody to ask:
-
-```text
-Load key "~/.ssh/id_ed25519_gitlab": incorrect passphrase supplied to decrypt private key
-```
-
-So authentication fails, and stage 6 reports `the host rejected the key`
-about a key that is correct, uploaded, and simply locked.
-
-`ssh-add` is run with **the terminal handed over** - the only command in
-bootstrap that gets it - because the passphrase prompt has to appear
-somewhere and ssh reads it from `/dev/tty` regardless of what the caller
-does with stdin. Run captured, it would sit unanswerable until the
-timeout, which is exactly what `sudo` did in #243.
-
-Starting an agent, though, is genuinely not automatable:
-
-```bash
-eval "$(ssh-agent -s)"
-```
-
-works by exporting `SSH_AUTH_SOCK` into *the shell that runs it*, and a
-subprocess cannot export anything into its parent. Bootstrap running that
-would start an agent, set the variable in a shell that then exits, and
-change nothing at all. So when no agent is running it says so and gives
-you the line to run - and asks you to re-run bootstrap in that same
-terminal. On Windows the agent is a service, and enabling it needs an
-Administrator window, which is a different shell rather than a different
-command.
-
-### Your commits, under your own name {: #bootstrap-identity }
-
-Stage 11 sets `user.name` and `user.email` **on the clone**, not globally:
-
-```bash
-git config --local user.name  "Ada Lovelace"
-git config --local user.email "al01234@surrey.ac.uk"
-```
-
-Per-repository is the right scope, and deliberately so. A global
-`user.email` is a legitimate personal preference, and a tool that sets up
-one university project has no business rewriting the identity you use for
-everything else.
-
-It also has to be *checked* per-repository, which is subtler than it
-sounds. `git config user.email` inside a repository falls back to the
-global value, so a check written that way passes on any machine with any
-identity at all - which is how bootstrap once asked for an email, stored
-it, reported every stage `ok`, and never applied it. Commits went out
-under a GitHub noreply address instead.
-
-That is worth more than tidiness here: on Surrey's GitLab, a commit whose
-author address matches no known account is not linked to one, so
-coursework can appear to be authored by an unrecognised user - and you
-would have no reason to suspect it.
-
-### The two stages that cannot be automated {: #bootstrap-guide-and-verify }
-
-Uploading an SSH public key and creating your own project both need an
-authenticated human in a browser. They could in principle be done through
-the host's API, but only with a Personal Access Token - which you would
-create through the same web interface we were trying to avoid, and which
-bootstrap would then have to receive and hold.
-
-For a tool aimed at people setting up their first project, that trades
-two well-signposted clicks for a credential-handling problem. So
-bootstrap **guides and then verifies** instead: it tells you exactly what
-to do and where, and then checks whether it worked - `ssh -T` for the key,
-`git ls-remote` for the project.
-
-The verification is the valuable half. "I clicked something" and
-"authentication works" are different states, and only one of them lets
-you push.
-
-Guiding well is the other half, and it is the part written instructions
-usually get wrong. Three things the upload stage does deliberately:
-
-**It prints the key, rather than naming the file it lives in.**
-
-```text
-    4. Click 'Add new key', then fill in:
-       Title: any clear name, so you can tell this machine's key from another's later.
-       Key: copy everything between the lines below - all of it, and nothing else - and paste it in:
-       ======= PUBLIC KEY =======
-       ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... al01234@surrey.ac.uk
-       ======= PUBLIC KEY =======
-```
-
-"Paste the contents of `~/.ssh/id_ed25519_gitlab.pub`" asks you to find a
-dotfile, open it in something, and copy the right one of two files whose
-names differ by four characters - and the wrong one is your *private*
-key. Only `.pub` is ever read. The markers earn their place too: the key
-is one long line that wraps in a terminal, and a key pasted a character
-short is rejected exactly like one never uploaded at all.
-
-**It navigates by menu, not only by URL.** A pasted link is the quicker
-route if you already know where you are going, and the worse one if you
-do not - it gives you no way to tell whether you have arrived somewhere
-sensible. The menu path comes first and the URL follows as a shortcut.
-
-**It names the traps the host sets.** GitLab requires an expiry date,
-fills it in a year ahead, and will not let you clear it - so accepting
-the default locks you out mid-course, and the failure surfaces months
-later as a permission error that reads exactly like a misconfigured key.
-GitHub has no such field. That difference is a value on the host record
-rather than a branch in the stage, which is what keeps adding a host to
-filling in a record.
-
-### Nothing bootstrap runs can ask you a question {: #bootstrap-no-prompts }
-
-Every command bootstrap runs - checking or applying - runs in an
-environment that cannot prompt: `BatchMode=yes` for `ssh`,
-`GIT_TERMINAL_PROMPT=0` for git, and both reaching `git clone` and
-`git ls-remote` through `GIT_SSH_COMMAND`.
-
-This is not tidiness. Before a key is uploaded, `ssh` falls back to
-password authentication - and it reads that password from `/dev/tty`
-directly, bypassing whatever the calling program did with stdin. A
-read-only check sat at a `git@gitlab.surrey.ac.uk's password:` prompt
-with no way out. Failing fast is the point: "could not authenticate" is
-a finding bootstrap can report and act on, and a blinking cursor is not.
-
-If you have set `GIT_SSH_COMMAND` yourself, it is left alone.
-
-There is exactly one deliberate exception, and it is asked **before**
-anything runs rather than during it:
-
-```text
-  Run 2 commands? [Y/n]: y
-  These need administrator rights.
-  Password:
-```
-
-`sudo` reads its password from `/dev/tty` too, so telling it not to ask
-is not an option the way it is for ssh and git. Left alone, it asked from
-*inside* a captured subprocess: the reader typed a password into a
-command whose output was being swallowed, and their thinking time counted
-against the install's own time limit, which then expired
-([#243](https://github.com/buckwem/prodockit-extensions/issues/243)). So
-`sudo -v` is run first, with the terminal attached and nothing captured,
-purely to refresh the credential - it runs no command of its own. The
-privileged commands then find a warm timestamp and never prompt. Plans
-that need no privileges, such as macOS's `brew install`, are never asked.
-
-One consequence is deliberate. The first time a machine connects to a
-host, ssh asks whether to trust its fingerprint - and bootstrap will not
-answer that for you:
-
-```text
- 4  WRONG  SSH key on the host - gitlab.surrey.ac.uk is not a known host
-           yet - run `ssh -T git@gitlab.surrey.ac.uk` once and accept the
-           fingerprint
-```
-
-Trusting a host key is a security decision. A tool that makes it
-silently on your behalf has taken something from you that you did not
-know you had, so this one hands it back with the exact command.
+The stages deliberately separate checks, automated plans, and actions that need
+a signed-in person. The fresh-history stage removes only the template's Git
+history and requires explicit confirmation; uploading an SSH key and creating
+the remote project are guided and then verified.
+
+Use `--dry-run` before `--apply` to see which stages are outstanding and
+which commands will run. Contributors changing stage ordering, check/plan
+behaviour, subprocess prompting, or destructive-action safeguards should read
+[Bootstrap design](bootstrap-internals.md).
 
 ## Checking without changing anything {: #bootstrap-check }
 
@@ -883,7 +516,19 @@ does nothing.
 
 ## Configuration {: #bootstrap-configuration }
 
-You should not need to open this file. When a run finds an answer
+Bootstrap normally stores answers in `.pdk-bootstrap.toml` in the directory
+where you run it. The file is kept out of Git when that directory is already a
+repository. An older per-user bootstrap file is still read when no local file
+exists, so existing setups continue to work.
+
+Pass `--config PATH` when you deliberately want to read and write a different
+file:
+
+```bash
+prodockit bootstrap --config path/to/bootstrap.toml
+```
+
+You should not normally need to open the file. When a run finds an answer
 missing it offers to ask for it, and only for the ones actually blank:
 
 ```text
@@ -904,21 +549,19 @@ that might not be buildable at all.
 It is asked as a **hostname** - the thing in your address bar - rather
 than a nickname, and it is judged twice before it is stored.
 
-*Is it a GitLab?*
+*Is it a supported host?*
 
 ```text
 The git host your project lives on [gitlab.surrey.ac.uk]: bitbucket.org
-  'bitbucket.org' does not look like a GitLab host - bootstrap's stages
-  are written around GitLab, so a hostname naming something else cannot
-  be set up (e.g. gitlab.surrey.ac.uk)
+  bitbucket.org is not a supported host. Choose gitlab.surrey.ac.uk,
+  gitlab.com, or github.com.
 ```
 
-*Is it one that works yet?*
+Surrey GitLab remains the default. GitHub.com and GitLab.com can be selected
+explicitly:
 
 ```text
 The git host your project lives on [gitlab.surrey.ac.uk]: github.com
-  github.com is declared but not yet supported - prodockit bootstrap
-  currently implements gitlab.surrey.ac.uk only
 ```
 
 *Does it answer?*
@@ -944,12 +587,11 @@ VPN, press Enter, and the second attempt succeeds.
 Port 22 rather than 443, because every URL bootstrap builds is
 `git@host:path`, which is ssh.
 
-A configuration written before this stored a key - `host = "surrey"` -
+A configuration written before hostname support stored a key - `host = "surrey"` -
 and those files are on real machines, so they still resolve. The prompt
 stores a hostname from now on.
 
-Press Enter and you get Surrey's GitLab, which is the only host
-implemented today.
+Press Enter to accept Surrey GitLab.
 
 A piped or scripted run never prompts - it reports what is missing and
 carries on, rather than blocking on a question nobody is there to
@@ -1001,11 +643,11 @@ would re-prompt for everything with no explanation of why.
 
 ## Hosts {: #bootstrap-hosts }
 
-Only the University of Surrey's GitLab (`gitlab.surrey.ac.uk`) is
-supported today. `gitlab.com` and `github.com` are declared, so the shape
-is right and adding them is filling in a record rather than rewriting the
-stages - but they are refused with a clear message rather than
-half-working against something nothing has tested.
+Bootstrap supports the University of Surrey's GitLab
+(`gitlab.surrey.ac.uk`), GitHub.com, and GitLab.com. The completed manual
+end-to-end platform matrix covers Surrey GitLab and GitHub.com. GitLab.com is
+implemented and tested at command level, but has not yet received the same
+reported manual coverage across Ubuntu, Windows, and macOS.
 
 Everything host-specific is a *value* rather than a branch: the hostname,
 the greeting `ssh -T` prints on success, the settings and new-project
@@ -1014,42 +656,31 @@ URLs, and the vocabulary (GitLab's *project* in a *group*, GitHub's
 
 ## Status {: #bootstrap-status }
 
-Checking, `--dry-run`, `--configure` and `--apply` all work. macOS is
-the platform this has been exercised on end to end - a real clone of the
-Surrey template, applied and verified.
+Checking, `--dry-run`, `--configure`, and `--apply` are covered by the automated
+test suite. Beyond that command-level coverage, bootstrap has completed manual
+end-to-end testing on Ubuntu Linux, Windows, and macOS with both Surrey GitLab
+and GitHub.com.
 
-Ubuntu is being exercised now, on an ARM virtual machine, and the first
-run found several things no unit test could have: a `.deb` installed from
-a filename that never existed (#233), the SSH stage ending the run on the
-very state it exists to repair (#234), and a Chrome downloaded for the
-wrong architecture (#249). All are fixed; the platform should be treated
-as newly-trodden rather than proven.
+The manual testing covered two starting points:
 
-**Windows now has every stage automated, and none of it has been run on a
-Windows machine.** Those two facts belong in the same sentence. All
-seventeen stages produce commands or instructions there, MSYS2 and Pango
-install unattended, and the checks are written - but the only evidence
-any of it works is that the command lists are what the User Guide says
-they should be, asserted from macOS. Treat the first real run as the
-test, and expect it to find things, because every other platform's first
-run did.
+1. **A new document repository:** bootstrap prepared the machine and the
+   workflow continued through creating a new hosted document repository to a
+   usable local build.
+2. **An existing online repository:** bootstrap prepared the machine and the
+   workflow continued through installing the existing repository locally to a
+   usable local build.
 
-Two Windows-specific hazards are handled because they are the same
-hazards seen elsewhere, not because anyone hit them here:
+This is a stronger level of evidence than unit tests alone: it exercises real
+package managers, shells, SSH configuration, repository hosts, clones, and
+local project setup as one connected workflow. It remains point-in-time manual
+integration coverage, not an automated cross-platform regression matrix.
+Linux runs the complete automated suite in hosted CI for every push and pull
+request. The full test suite is also run locally on macOS, but macOS does not
+currently have an equivalent hosted pull-request job. Windows has neither a
+hosted full-suite job nor the same locally repeated regression coverage.
 
-- **`winget` asks questions.** It wants agreement to its source terms the
-  first time it is used, and to a package's terms when one carries them -
-  on the terminal, so a captured, timed subprocess simply waits. That is
-  [the `sudo` failure](#bootstrap-no-prompts) reached by a different
-  route, and it would have met every Windows reader at stage 1. Every
-  `winget install` carries `--accept-source-agreements`,
-  `--accept-package-agreements` and `-e`, the last because an ambiguous
-  package id is one more thing to be asked about.
-- **Rerunning must not accumulate.** The `PATH` entry for MSYS2 is added
-  only when absent, the same way the ssh config stanza and the Puppeteer
-  exports are.
-
-What is still yours to do on Windows: the `ssh-agent` service, which needs
-an Administrator window, and the PDF's two fonts, which Windows has no
-package manager for. Both are *checked* rather than merely suggested - an
-instruction nobody verifies is how a font goes missing silently.
+Platform-specific manual stages still remain where the operating system
+requires them. On Windows, the `ssh-agent` service needs an Administrator
+window and the PDF fonts have no package-manager installation path. Bootstrap
+guides those steps and verifies their outcome rather than treating an
+instruction as proof that it was completed.

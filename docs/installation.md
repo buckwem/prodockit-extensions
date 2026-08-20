@@ -1,3 +1,7 @@
+---
+icon: lucide/package-plus
+---
+
 # Installation
 
 ## Requirements
@@ -12,7 +16,7 @@ except where noted:
 | --- | --- |
 | [`Markdown`](https://python-markdown.github.io/) (>= 3.10.3) | every extension |
 | [`zensical`](https://zensical.org/) (>= 0.0.55) | Zensical integration and `prodockit.zensical_macros` |
-| \index{dependencies!`pymdown-extensions`} (>= 11.0.1) | `prodockit.pdf` matches the class shapes it emits |
+| [PyMdown Extensions](https://facelessuser.github.io/pymdown-extensions/) (>= 11.0.1) | `prodockit.steps` and `prodockit.tree` are built directly on the PyMdown Blocks API; `prodockit.pdf` also preserves the output of PyMdown features |
 | [`beautifulsoup4`](https://www.crummy.com/software/BeautifulSoup/) (>= 4.12) | `prodockit.pdf` |
 | \index{dependencies!`click`} (>= 8.0) | the `prodockit` command-line tool |
 | \index{dependencies!`pypdf`} (>= 4.0) | `prodockit.pdf` |
@@ -64,7 +68,7 @@ and tells you when your local pandoc differs - see
 [Pinning build inputs](devcons/pinning-drift.md).
 
 See [PDF generation](pdf.md) for how `prodockit.pdf` locates these, and
-[Limitations and workarounds](devcons/limitations.md) for why the Node
+[Known limitations](about/limitations.md) for why the Node
 ones are needed at all. A build with neither Mermaid diagrams nor maths
 needs neither of them, and no browser.
 
@@ -117,8 +121,7 @@ requires another.
 
 ### The nine extensions {: #installation-the-extensions }
 
-See each one's own page for its options, and for how to share a registry
-across multiple pages of a site build:
+See each extension's own page for its syntax, examples, and configuration:
 
 | Extension | What it adds |
 | --- | --- |
@@ -149,17 +152,6 @@ nothing to add to `zensical.toml`, because they are not Markdown syntax:
 | [`prodockit template-sync`](devcons/template-sync.md) | Brings a project back into step with the template it came from |
 | [`prodockit init-tools` / `init-mathjax`](command-line.md#publish-and-verify) | Sets up optional Mermaid and maths rendering tools |
 
-## Development install
-
-```bash
-git clone https://github.com/buckwem/prodockit-extensions
-cd prodockit-extensions
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-pytest
-```
-
-`zensical` is a core dependency, so `zensical serve` is available as soon as
-`pip install -e ".[dev]"` finishes - no extra step needed to build these
-docs locally.
+Contributors changing the package itself should use the editable installation
+and repository checks in
+[Development and code map](devcons/development.md#create-a-development-environment).

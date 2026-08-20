@@ -1093,7 +1093,10 @@ def _verify_until_done(context: Context, stage: Stage, plan: Plan) -> bool:
     "--config",
     "config_file",
     default=None,
-    help="Path to bootstrap's own config file. Defaults to your user config directory.",
+    help=(
+        ".pdk-bootstrap.toml is the default in the current directory. Pass "
+        "another bootstrap config path; an existing legacy user config is still read."
+    ),
 )
 def bootstrap(
     check_only: bool,

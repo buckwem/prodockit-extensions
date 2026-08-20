@@ -2,18 +2,22 @@
 icon: lucide/wrench
 ---
 
-# Project maintenance
+# Maintain prodockit
 
-A documentation project needs occasional maintenance after its first
-successful publish. Repository links change, build tools release new versions,
-the source template improves, and a release must be built from exactly the
-change that was reviewed.
+This section is for maintainers of the prodockit repository. It covers the
+package's own source, test matrix, documentation artifacts, pinned build
+inputs, GitHub Actions workflows, PyPI release, and public documentation
+deployment.
 
-This section turns those separate jobs into one repeatable cycle. Start here
-when you inherit a project, return to it before a release, and use the detailed
-pages when a check reports work to do.
+If you are writing and publishing a document with prodockit, use
+[Publish a document](publishing.md) instead. Machine setup, `prodockit-template`,
+template syncing, PDF generation, and Pages publication belong to that author
+workflow.
 
 ## The maintenance cycle
+
+The \index{maintenance cycle} below keeps repository identity, dependency
+versions, generated artifacts, and release automation under review.
 
 /// steps
 
@@ -62,21 +66,6 @@ prodockit pins --check --offline
 Use the scheduled drift workflow to decide whether to adopt a newer release.
 Do not upgrade merely to clear a notification: rebuild and compare the output
 first. See [Version pinning and drift](devcons/pinning-drift.md).
-
-////
-
-//// step | Compare with the project template
-
-Projects created from `prodockit-template` are copies, so they do not receive
-later CI, stylesheet, or tooling fixes automatically. Preview the difference:
-
-```bash
-prodockit template-sync
-```
-
-Apply only after reading the report. The command creates its own branch and
-stages rather than commits by default. See
-[Staying in step with the template](devcons/template-sync.md).
 
 ////
 
@@ -130,8 +119,6 @@ additional gates described in [Build and release](devcons/releasing.md).
 | A fork, mirror, or renamed repository points at the wrong place | `prodockit sync-repo --check` | Repository URLs, edit links, host icon, and managed README badges |
 | CI files disagree about dependency versions | `prodockit pins --check --offline` | Version declarations, preserving each file's existing operator |
 | A newer dependency may change published output | GitHub's `drift.yml` result | Nothing automatically; it opens or updates an issue with the comparison |
-| A generated project is behind its template | `prodockit template-sync` | Template-owned files and selected shared configuration, on a branch |
-| A machine cannot build or publish yet | `prodockit bootstrap` | Tooling and project setup; see [Set up a machine](devcons/bootstrap.md) under Publishing |
 | A prodockit release is ready | The release checklist | Package version, release notes, GitHub release, PyPI package, and rebuilt documentation |
 
 ## What automation does—and does not—prove
@@ -158,9 +145,8 @@ The deployment workflow performs that final delivery check separately.
 | Every pull request | Repository and pin consistency, tests, lint, typing, strict docs build |
 | Weekly | Let `drift.yml` compare pinned and newest renderers; triage the issue it opens |
 | After moving or forking a repository | Run `sync-repo`, rebuild, and inspect canonical/edit links and badges |
-| Every few weeks in a template-derived project | Preview `template-sync`; apply and review when upstream moved |
 | Before a package release | Complete the local build gates, merge the release PR, publish a GitHub release, verify PyPI and Pages |
 
-The [command-line map](command-line.md) gives the safe default and write
-behaviour for every command. The pages after it explain each maintenance job
-in depth.
+The [command-line map](command-line.md) inventories the public CLI that a
+maintainer must keep consistent. The pages after it explain each repository
+maintenance job in depth.

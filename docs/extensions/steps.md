@@ -4,7 +4,7 @@ icon: lucide/list-ordered
 
 # Numbered steps
 
-`prodockit.steps` presents a procedure as numbered steps that a reader works
+\index{`prodockit.steps`} presents a procedure as numbered steps that a reader works
 through in order. Each step has room for a title, instructions, commands, and
 supporting content. A joining line makes the sequence clear on both the website
 and in the PDF.
@@ -109,18 +109,33 @@ Configure each procedure inside its `/// steps` Markdown block.
 A long procedure can be split across sections or pages. Set `start` on the
 later block so its first step continues at the required number:
 
-```markdown
-/// steps
-    start: 9
+=== "Markdown"
 
-//// step | Point the clone at your own project
+    ```markdown
+    /// steps
+        start: 9
 
-Update the remote URL before pushing.
+    //// step | Point the clone at your own project
 
-////
+    Update the remote URL before pushing.
 
-///
-```
+    ////
+
+    ///
+    ```
+
+=== "Result"
+
+    /// steps
+        start: 9
+
+    //// step | Point the clone at your own project
+
+    Update the remote URL before pushing.
+
+    ////
+
+    ///
 
 Options use YAML syntax. Put them directly below `/// steps`, with no blank
 line between the header and its options, and indent each option by at least
@@ -132,19 +147,35 @@ the procedure's content.
 Use the Blocks API's `attrs` option to add attributes to the generated ordered
 list. This complete example combines an id with continued numbering:
 
-```markdown
-/// steps
-    start: 9
-    attrs: {id: 'setup-continued'}
+=== "Markdown"
 
-//// step | Point the clone at your own project
+    ```markdown
+    /// steps
+        start: 9
+        attrs: {id: 'setup-continued'}
 
-Update the remote URL before pushing.
+    //// step | Verify the remote
 
-////
+    Run `git remote -v` before pushing.
 
-///
-```
+    ////
+
+    ///
+    ```
+
+=== "Result"
+
+    /// steps
+        start: 9
+        attrs: {id: 'setup-continued'}
+
+    //// step | Verify the remote
+
+    Run `git remote -v` before pushing.
+
+    ////
+
+    ///
 
 `attrs` is inherited from the underlying Blocks API rather than defined by
 `prodockit.steps`; `start` is the extension's only steps-specific option.
@@ -156,7 +187,7 @@ Update the remote URL before pushing.
 | `/// steps` | Open or close the ordered procedure |
 | `//// step` | Open or close one step without a title |
 | `//// step \| Title` | Open one step with a title |
-| `start: 9` | Start this procedure at step 9 |
+| \index{prodockit.steps!`start`}: 9 | Start this procedure at step 9 |
 | `attrs: {...}` | Add HTML attributes to the generated `<ol>` |
 
 Each title becomes a separate paragraph before the step body. A step may have
@@ -196,13 +227,6 @@ The two stable class names are:
 The title is an element rather than bold text, so it can be styled separately
 from emphasis used in the step body.
 
-### Why continued numbering is emitted twice
-
-`start: 9` emits both `<ol start="9">` and
-`style="counter-reset: list-item 8"`. Browsers read the `start` attribute,
-while WeasyPrint needs the CSS counter reset. Emitting both from one option
-keeps website and PDF numbering in agreement.
-
 If you adapt the CSS style-sheet rules in `docs/stylesheets/extra.css`, retain
 these details:
 
@@ -214,3 +238,6 @@ these details:
 
 The [bootstrap quick start](../devcons/bootstrap.md#bootstrap-quick-start) and
 [Build your first site](../getting-started.md) are larger working examples.
+
+Contributors changing the generated representation should read
+[Extension integration](../devcons/extension-internals.md#preserve-website-and-pdf-block-behaviour).

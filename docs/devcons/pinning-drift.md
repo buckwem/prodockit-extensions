@@ -4,7 +4,8 @@ icon: lucide/shield-check
 
 # Version pinning and drift {: #pinning-version-pinning-and-drift }
 
-A documentation build has more inputs than its own source. `zensical`
+A documentation build has more inputs than its own source, which creates
+\index{dependency drift} when declared or installed versions diverge. `zensical`
 renders the site, `weasyprint` lays out the PDF, and both are ordinary
 Python packages that resolve to whatever is newest unless you say
 otherwise.
@@ -26,7 +27,8 @@ differs from the one you reviewed.
     the [back-of-book index](../extensions/index-terms.md) and the table of
     contents.
 
-The answer is two halves that only work together:
+The \index{commands!`prodockit pins`} command supports two halves that only
+work together:
 
 1. **Pin the build inputs**, so output changes when someone decides it
    should.
@@ -273,17 +275,35 @@ always a pip package:
 !!! info "Why pandoc is managed by default"
     Pandoc is not a Python package, so it never appears as a pip specifier
     - it is a build-provided binary, pinned as a `<PACKAGE>_VERSION`
-    variable the way `prodockit pdf`'s own recipe in
-    [Continuous integration](continuous-integration.md#ci-github-actions)
-    does. It earns a place in the default set for the same reason Zensical
+    variable the way `prodockit pdf`'s publishing workflow does. It earns a
+    place in the default set for the same reason Zensical
     and WeasyPrint do: pandoc is not always compatible with itself across
     releases, and one of its changes broke every fenced code block in this
-    project's own PDF while the build kept reporting success - see
-    [Pandoc version drift](continuous-integration.md#ci-pandoc-version).
+    project's own PDF while the build kept reporting success.
 
     The CI variable's name keeps its case on rewrite - `PANDOC_VERSION`,
     not `pandoc_VERSION` - since a workflow step reading `${{
     env.PANDOC_VERSION }}` needs the name unchanged, only the value.
+
+### Pandoc version drift {: #pinning-pandoc-version-drift }
+
+Distribution Pandoc packages can lag several major versions behind upstream.
+Ubuntu 24.04, for example, supplies an older release than the one this
+repository currently tests and publishes with. Installing the distribution
+package locally while CI downloads a current release means the two builds can
+parse identical HTML differently.
+
+That happened here when one Pandoc release accepted highlighted
+`<pre><code>` content that a newer release interpreted differently. Every
+fenced code block reflowed as ordinary justified prose in one environment,
+while the other environment continued publishing a correct PDF. Both builds
+reported success.
+
+Pin Pandoc as a `PANDOC_VERSION` workflow variable and move it through
+`prodockit pins`, then compare complete PDF and website artifacts before and
+after the change. Pinning does not prevent incompatibility; it makes the
+change arrive in a reviewed commit instead of with an unannounced runner
+update.
 
 !!! note "Only versioned declarations are found"
     A dependency installed with no version at all is not a declaration
@@ -432,8 +452,8 @@ half, and nothing in `pyproject.toml` or a workflow's `pip install` line
 touches it:
 
 - **`pandoc`** comes from the image's own package archive. Distribution
-  packages lag upstream far enough that some markdown edge cases parse
-  differently - see [Pandoc version drift](continuous-integration.md#ci-pandoc-version).
+  packages lag upstream far enough that some Markdown edge cases parse
+  differently—see [Pandoc version drift](#pinning-pandoc-version-drift).
 - **Fonts** the PDF embeds (`fonts-inter`, `fonts-jetbrains-mono`).
 - **Chrome**, which rasterises Mermaid diagrams.
 
@@ -508,7 +528,7 @@ your document *before* your readers do.
 
 ## Limitations and workarounds {: #pinning-limitations }
 
-See [Limitations and workarounds](limitations.md) for the general list.
+See [Implementation limitations](limitations.md) for the general list.
 Specific to pinning:
 
 - **A floor still floats.** `zensical>=0.0.55` in `pyproject.toml` records

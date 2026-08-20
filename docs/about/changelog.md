@@ -1,12 +1,89 @@
-# Release Notes
+---
+icon: lucide/history
+---
+
+# Release notes
+
+Entries are arranged newest first. Read the Unreleased section and every
+version between the one a project uses and the one it will install. A change
+that needs author or maintainer action is described with the release that
+introduces it. Packaged artefacts and tags are available from
+[GitHub Releases](https://github.com/buckwem/prodockit-extensions/releases).
+
+The oldest entries record the package's earlier name, `zendoc`. Versioning
+restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
+near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
+Those are two package eras rather than duplicate releases.
 
 ## Unreleased
 
+- **Changed:** back-of-book index generation is now configured with the
+  extension it belongs to:
+
+    ```toml
+    [project.markdown_extensions."prodockit.index"]
+    include = true
+    title = "Index"
+    ```
+
+    This is a breaking configuration change. Replace the former
+    `project.extra.pdf_include_index` and `project.extra.pdf_index_title`
+    settings; they are no longer read. The extension now declares both
+    options itself, so Zensical, the Markdown extension, and the PDF builder
+    use one public configuration surface.
+
+- **Fixed:** a nested `index.md`, such as the new About overview, is no longer
+  treated as a second PDF cover. Only the first navigation page can be the
+  compiled document's cover; later directory indexes retain their chapter
+  number and PDF bookmark.
+
+- **Fixed:** `prodockit bootstrap --help` now says that
+  `.pdk-bootstrap.toml` in the current directory is the default configuration
+  file. It previously described a user configuration directory even though
+  the command did not use that as its normal default. Existing legacy user
+  configuration remains readable.
+
+- **Changed:** fenced and inline code in the PDF render at 11pt, one point
+  below the 12pt body text. This compensates for the monospace face appearing
+  optically larger at the same nominal size.
+
+- **Fixed:** short content-tab panels can opt into page-safe PDF rendering by
+  wrapping the tab group in `.pdf-keep-tab-pages`. Each reconstructed tab
+  header now stays with its body, avoiding an empty panel fragment at the foot
+  of one page with all of its content on the next. Ordinary tabs remain
+  splittable because a panel can legitimately be taller than a page.
+
+- **Documentation:** reorganised the site's information architecture around
+  five audiences and tasks: getting started, authoring, publishing a
+  document, maintaining prodockit, and contributor internals. New overview
+  pages route each reader before the detailed reference, while About now
+  centralises maturity, platform coverage, dependencies, limitations,
+  release history, and licence information.
+
+- **Documentation:** rewrote all nine authoring references for a reader with
+  limited Markdown experience. Each guide now follows the same enable, write,
+  and configure progression and provides a rendered result for every syntax
+  section. The numbered-steps and directory-tree guides also make their
+  direct foundation on PyMdown Blocks explicit.
+
+- **Documentation:** added a document-author publishing path from
+  `prodockit-template` and machine setup through local PDF and strict website
+  builds, built-output tests, GitHub or GitLab Pages deployment, and public
+  verification. The guide distinguishes template-owned publishing files from
+  an author's content and explains the Surrey `is_surrey` presentation
+  choice.
+
 - **Documentation:** reorganised project maintenance into a task-based path
   from a safe report-only check through reviewed updates, local builds, pull
-  request gates, package publishing, and live-site verification. The new
-  release runbook follows this repository's five GitHub Actions workflows and
-  explains where each stage resumes after a failure.
+  request gates, package publishing, and live-site verification. The release
+  runbook follows this repository's five GitHub Actions workflows and explains
+  where each stage resumes after a failure.
+
+- **Documentation:** expanded `README.md` and `CONTRIBUTING.md` into current
+  entry points for package users and contributors. They now distinguish
+  Python packages from external PDF requirements, record the tested Ubuntu,
+  Windows, and macOS workflows, inventory the public commands, and give the
+  complete local verification order.
 
 ## 0.40.0 (2026-08-19)
 

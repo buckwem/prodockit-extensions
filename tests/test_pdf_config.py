@@ -293,6 +293,39 @@ def test_appendix_front_matter_flag_is_read_from_the_page(
     assert pages_by_path["index.md"].is_appendix is False
 
 
+def test_only_the_first_navigation_index_is_the_pdf_cover(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+    about = root / "docs" / "about"
+    about.mkdir()
+    (about / "index.md").write_text("# About\n", encoding="utf-8")
+    (root / "zensical.toml").write_text(
+        """[project]
+site_name = "Test project"
+nav = [
+  {"Home" = "index.md"},
+  {"Chapter" = "chapter1.md"},
+  {"About" = [{"Overview" = "about/index.md"}]},
+]
+""",
+        encoding="utf-8",
+    )
+
+    captured = {}
+    import prodockit.pdf.config as config_module
+
+    def _spy(pages, output_path, **kwargs):
+        captured["pages"] = pages
+
+    monkeypatch.setattr(config_module, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+    pages_by_path = {page.docs_rel_path: page for page in captured["pages"]}
+    assert pages_by_path["index.md"].is_index is True
+    assert pages_by_path["about/index.md"].is_index is False
+
+
 def test_recto_title_front_matter_is_read_from_the_page(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:

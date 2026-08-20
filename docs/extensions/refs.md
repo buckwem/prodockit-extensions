@@ -2,7 +2,7 @@
 icon: lucide/link
 ---
 
-# Cross-References
+# Cross-references
 
 \index{`prodockit.refs`} creates links to headings elsewhere in your
 documentation. Each link shows the heading's current number and name, such as
@@ -196,81 +196,18 @@ Neither of the two shown above is resolved; both render the literal text.
 | \index{prodockit.refs!`unresolved`} | `"??"` | Text shown when an id cannot be found. |
 | \index{prodockit.refs!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
 
-`registry` is not a `zensical.toml` setting. It accepts an `IdRegistry` Python
-object when you construct `RefsExtension` yourself; see the manual multi-page
-example below.
+### Cross-page references {: #refs-multi-page-builds }
 
-### Multi-page builds {: #refs-multi-page-builds }
+Under Zensical, cross-page references work automatically when headings and
+references are enabled. Prodockit reads heading ids and numbers across the
+navigation before individual pages finish rendering, so a reference can point
+to a page built later.
 
-#### Under Zensical: automatic {: #refs-under-zensical-automatic }
+Two pages with the same generated heading id produce a warning. Give the
+headings distinct explicit ids so every destination is stable.
 
-Under [Zensical](https://zensical.org/), cross-page references work with no
-extra configuration - just enable both extensions in `zensical.toml` as
-usual:
-
-```toml
-[project.markdown_extensions."prodockit.headings"]
-[project.markdown_extensions."prodockit.refs"]
-```
-
-Zensical builds each page with its own, fresh `Markdown` instance, so
-`prodockit.headings` detects this (via Zensical's own per-page context) and
-transparently shares one registry across every page of the build, keyed by
-each page's own path - no explicit `registry`/`source` needed.
-
-**Referencing a heading on a page built later works too**, in a single
-`zensical build` pass: `prodockit.headings` pre-scans every page in the
-current build's nav for its headings' ids and section numbers before any
-page has actually been converted, the same way
-[prodockit.citations](citations.md#citations-under-zensical-automatic)
-pre-scans for citation definitions. Pages aren't necessarily built in nav
-order - or even all within one shared Python process - so without this a
-cross-page `\ref{id}` could resolve on one build and fall back to
-`unresolved` (`??`) on the next, from the same unchanged source (see
-[prodockit-extensions#54](https://github.com/buckwem/prodockit-extensions/issues/54)).
-A page that *is* converted in the same process supersedes its own
-pre-scanned entries with the real ones from the parsed document, so the
-pre-scan only ever fills a gap.
-
-Two pages that happen to share an identically-titled heading (e.g. both
-have their own "Overview" section) don't fail the build: the *first* one
-built keeps that id, and the collision is logged as a warning rather than
-raised as an error - give one of them an explicit id via `attr_list` (`##
-Overview {: #api-overview }`) to disambiguate and make both referenceable.
-
-#### Under other tools: manual {: #refs-under-other-tools-manual }
-
-Outside \index{Zensical}, give `prodockit.headings` and `prodockit.refs` the *same*
-`IdRegistry` on every page yourself, converting pages in the order
-cross-references should become resolvable in:
-
-```python
-import markdown
-from prodockit.headings import HeadingsExtension
-from prodockit.refs import RefsExtension
-from prodockit.util import IdRegistry
-
-registry = IdRegistry()
-
-for path, text in pages:
-    html = markdown.markdown(
-        text,
-        extensions=[
-            HeadingsExtension(registry=registry, source=path),
-            RefsExtension(registry=registry, source=path),
-        ],
-    )
-```
-
-Give `RefsExtension` the same `source=path` as `HeadingsExtension` - without
-it, every resolved link is treated as cross-page (harmless, just not the
-minimal same-page form for a reference that happens to target its own
-page).
-
-Here, a genuine id collision between two different `source`s *does* raise
-`prodockit.util.DuplicateIdError` rather than warning - a deliberately shared
-registry means you're expected to notice and fix a collision, unlike the
-best-effort automatic Zensical case above.
+For integration with another Markdown renderer, see
+[Extension integration](../devcons/extension-internals.md#share-definitions-across-pages).
 
 ## Customise with a CSS style sheet {: #refs-css-hooks }
 
@@ -287,11 +224,5 @@ resolved or not - so a stylesheet has a stable hook either way:
 An unresolved reference (see [Unresolved references](#refs-unresolved-references)
 above) still gets a `class` either way; style `prodockit-ref-unresolved`
 distinctly (e.g. a warning colour) to make a broken cross-reference
-visually obvious without inspecting the page source. No `data-*`
-attribute is left in the rendered output - the internal
-`data-prodockit-ref` placeholder attribute used during resolution is
-always stripped before the page is rendered.
-
-The PDF page-number suffix for `\autoref` is attached with
-`target-counter()` to resolved in-document links. Unresolved references have
-no `href`, so they do not print a stray “on page” suffix.
+visually obvious. Unresolved references have no destination, so an unresolved
+`\autoref` does not print a stray page-number suffix in the PDF.

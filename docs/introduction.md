@@ -1,7 +1,15 @@
+---
+icon: lucide/signpost
+---
+
 # Overview
 
+This section is for anyone new to prodockit. It explains what the package
+adds to Zensical, how to install it, and how to build a first local site before
+you choose authoring or publishing features.
+
 prodockit adds the document features that professional and academic
-[Zensical](https://zensical.org/) projects commonly need: numbered sections,
+\index{Zensical} projects ([Zensical website](https://zensical.org/)) commonly need: numbered sections,
 cross-references, citations, glossaries, richer tables, and a printable PDF.
 Install one Python package, then enable only the parts your project uses.
 
@@ -40,16 +48,19 @@ prodockit also provides commands and integrations rather than Markdown syntax:
 | [`prodockit source-bundle`](pdf.md#bundling-source-into-a-pdf) | Package the underlying Markdown and configuration as a PDF |
 | [`prodockit.zensical_macros`](macros.md) | Word counts, repository data, and document-wide numbering in templates |
 | [`prodockit.testing`](devcons/testing.md) | Check the built website and PDF with pytest |
-| [Project maintenance](project-maintenance.md) | Keep repositories, pins, templates, builds, and releases current |
+| [Maintain prodockit](project-maintenance.md) | Maintain the package repository, build pins, automation, and releases |
 
-Start with the [maintenance cycle](project-maintenance.md) for the order of
-work. The [command-line map](command-line.md) then says which commands change
-files and which only report.
+Go to the [Authoring reference](authoring.md) when you want to add document
+features. Go to [Publish a document](publishing.md) when you are ready to use
+the template, build a PDF, or publish with continuous integration. The
+[command-line reference](command-line.md) says which commands change files and
+which only report.
 
 ## Project status
 
 prodockit is early but functional. All nine extensions, the PDF and source
 bundle builders, website macros, testing support, and project-management
-commands are implemented and tested. It currently targets Python 3.10–3.13;
-see [Installation](installation.md) for external tools and
-[Release Notes](about/changelog.md) for changes between versions.
+commands are implemented and tested. See
+[Support and compatibility](about/support.md) for maturity, PyMdown Blocks and
+other required versions, platform coverage, and known constraints. Read the
+[release notes](about/changelog.md) before upgrading.

@@ -20,8 +20,8 @@ def _nav_group(title: str) -> list[dict[str, str]]:
 
 
 def test_publishing_holds_setup_and_template_guides() -> None:
-    publishing = _nav_group("Publishing")
-    maintenance = _nav_group("Project maintenance")
+    publishing = _nav_group("Publish a document")
+    maintenance = _nav_group("Maintain prodockit")
 
     assert {"Set up a machine": "devcons/bootstrap.md"} in publishing
     assert {
@@ -29,7 +29,6 @@ def test_publishing_holds_setup_and_template_guides() -> None:
     } in publishing
     assert maintenance == [
         {"Maintenance overview": "project-maintenance.md"},
-        {"Command-line tools": "command-line.md"},
         {"Repository metadata": "devcons/repo-metadata.md"},
         {"Version pinning and drift": "devcons/pinning-drift.md"},
         {"Build and release": "devcons/releasing.md"},

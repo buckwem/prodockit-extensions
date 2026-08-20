@@ -1,9 +1,23 @@
-# How the pieces fit {: #devcons-introduction }
+---
+icon: lucide/code-xml
+---
 
-The beginner, authoring, publishing, and maintenance sections explain how to
-use prodockit. These contributor notes explain the engineering behind it:
-where a build can fail quietly, which Zensical internals the package relies
-on, and which limitations are deliberate rather than undocumented features.
+# Contributor internals {: #devcons-introduction }
+
+These \index{contributor internals} are for developers contributing code to prodockit or reviewing a
+change that touches its internal design. It is not required reading for a
+document author or for a maintainer following the operational release
+runbook.
+
+The beginner and authoring sections explain how to write with prodockit.
+[Publish a document](../publishing.md) is for a document author producing and
+deploying a website and PDF. [Maintain prodockit](../project-maintenance.md)
+is for maintainers of the prodockit repository reviewing its automation,
+pins, tests, and package releases.
+
+These contributor notes explain the implementation behind both audiences:
+which Zensical internals the package relies on and which limitations are
+deliberate rather than undocumented features.
 
 They are grouped together because they share a failure mode. Almost nothing
 here breaks loudly. The PDF pipeline shells out to external binaries, reads
@@ -15,30 +29,20 @@ a diagram that reached the PDF as raw source, a reference that resolved to
 weak evidence, which is why these pages spend as much time on what to check
 as on what to configure.
 
-In the order you would set them up:
+Read these after the public task guides when you need to change the package
+itself:
 
-1. **[Continuous integration](continuous-integration.md)** - what the build
-   actually needs, working recipes for both GitHub Actions and GitLab CI,
-   and the traps that catch almost everyone at least once.
-2. **[Repository metadata](repo-metadata.md)** - keeping your repo links,
-   brand icon and README badges in step with whichever git remote you
-   actually publish from, so forking or mirroring doesn't leave stale ones
-   behind.
-3. **[Version pinning and drift](pinning-drift.md)** - pinning the versions
-   of Zensical, WeasyPrint and the runner image the build renders with, and
-   watching for a newer release that would actually change what gets
-   published.
-
-Then, once it builds:
-
-4. **[Testing your built site](testing.md)** - pytest fixtures pointing at
-   your own built site and PDF, plus ready-made checks for the failure modes
-   every prodockit project shares. This is the part that turns "it built"
-   into "it built correctly".
-5. **[Zensical coupling](zensical-coupling.md)** - every undocumented
-   Zensical API prodockit depends on, with call sites and why each is
-   needed. Read it before taking a Zensical upgrade, and after one breaks
-   something.
-6. **[Limitations and workarounds](limitations.md)** - what prodockit does
-   not do, what it cannot do, and what it does differently between the
-   website and the PDF. Worth reading once before you hit any of it.
+1. **[Development and code map](development.md)** - install an editable
+   checkout, run the contributor checks, and find the code responsible for a
+   feature.
+2. **[Extension integration](extension-internals.md)** - shared registries,
+   cross-page pre-scans, bibliography delegation, index passes, and block
+   output contracts.
+3. **[PDF pipeline and API](pdf-internals.md)** - the render pipeline, Python
+   entry points, internal modules, and error boundaries.
+4. **[Bootstrap design](bootstrap-internals.md)** - the check, plan, apply,
+   recheck model and the ordering constraints behind machine setup.
+5. **[Zensical coupling](zensical-coupling.md)** - undocumented Zensical APIs
+   prodockit depends on. Read it before taking a Zensical upgrade.
+6. **[Implementation limitations](limitations.md)** - known platform,
+   extension, PDF, and macro constraints and the reason for each workaround.
