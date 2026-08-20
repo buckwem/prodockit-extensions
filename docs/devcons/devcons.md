@@ -1,9 +1,9 @@
-# Development considerations {: #devcons-introduction }
+# How the pieces fit {: #devcons-introduction }
 
-The rest of these docs cover authoring: the syntax each extension adds and
-what it renders to. This section covers everything around that - building a
-prodockit site, publishing it, checking what got published, and knowing
-where the sharp edges are.
+The beginner, authoring, publishing, and maintenance sections explain how to
+use prodockit. These contributor notes explain the engineering behind it:
+where a build can fail quietly, which Zensical internals the package relies
+on, and which limitations are deliberate rather than undocumented features.
 
 They are grouped together because they share a failure mode. Almost nothing
 here breaks loudly. The PDF pipeline shells out to external binaries, reads
