@@ -335,9 +335,9 @@ class HeadingsExtension(Extension):
         )
 
     def _preseed_from_nav(self, md: Markdown, registry: IdRegistry) -> None:
-        """Provisionally registers every nav page's heading ids/numbers, so a
-        `\\ref{id}` resolves even when the page defining that id was never
-        rendered in *this* Python context - see
+        """Provisionally registers every nav page's heading and caption
+        ids/numbers, so a `\\ref{id}` resolves even when the page defining it
+        was never rendered in *this* Python context - see
         prodockit._zensical.preseed_heading_ids_from_nav and
         prodockit-extensions#54.
 
