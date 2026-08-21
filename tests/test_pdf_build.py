@@ -8,6 +8,7 @@ import stat
 import sys
 from pathlib import Path
 
+import markdown
 import pytest
 from pypdf import PdfReader
 
@@ -1202,6 +1203,39 @@ def test_autoref_renders_the_targets_real_page_number(tmp_path: Path) -> None:
         )
     finally:
         doc.close()
+
+
+@real_pandoc_and_weasyprint_required
+def test_heading_permalink_is_not_copied_into_pdf_reference_labels(tmp_path: Path) -> None:
+    """The website keeps its heading permalink, but the generated control
+    character must not become authored reference text in the PDF (#511)."""
+    source = r"""# Root
+
+REF: \ref{target}.
+
+AUTOREF: \autoref{target}.
+
+## Controlled Target {: #target }
+"""
+    html = markdown.markdown(
+        source,
+        extensions=["attr_list", "toc", "prodockit.refs"],
+        extension_configs={"toc": {"permalink": True}},
+    )
+    assert 'class="headerlink"' in html
+    output_path = tmp_path / "out.pdf"
+
+    build_pdf(
+        [Page(docs_rel_path="chapter.md", html=html)],
+        str(output_path),
+        include_table_of_contents=False,
+    )
+
+    with pymupdf.open(str(output_path)) as doc:
+        text = "\n".join(page.get_text() for page in doc)
+    assert "¶" not in text
+    assert "REF: 1.1 Controlled Target." in text
+    assert "AUTOREF: 1.1 Controlled Target on page 1." in text
 
 
 @real_pandoc_and_weasyprint_required
