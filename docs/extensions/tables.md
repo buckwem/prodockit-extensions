@@ -240,6 +240,29 @@ The empty cell after `Measured` and the empty cells beneath the two
 `rowspan=2` headings are structural placeholders. The extension removes those
 placeholders after applying the spans.
 
+### Fix a table that renders as pipe characters {: #tables-row-width-mismatch }
+
+The header and delimiter rows must declare the same number of cells. A merged
+heading still needs one empty placeholder for every column it covers:
+
+```md
+| Target | Risk evaluation {: colspan=3 } | | |
+| --- | --- | --- | --- |
+```
+
+Without the two empty cells after `Risk evaluation`, Python-Markdown cannot
+recognise the block as a table at all. `prodockit.tables` detects that failed
+parse and stops the build with both counts instead of publishing a paragraph
+of raw pipe characters:
+
+```text
+row 1 declares 2 cells but the delimiter row declares 4 - a colspan=3 cell
+still needs 2 empty placeholder cells after it
+```
+
+Fenced and indented code examples are excluded from this check, as is prose
+that merely contains pipe characters.
+
 ### Adjust cell shading {: #tables-cell-shading }
 
 Header cells have a subtle 5% shade by default. Remove it from one cell with

@@ -17,11 +17,14 @@ CSS hook below), a browser/WeasyPrint's own table layout algorithm already
 gives an explicitly-widthed column its width and splits whatever's left
 evenly across the rest - the "standard algorithm" for sharing remaining
 space the CSS table layout algorithm has always implemented, not something
-worth re-deriving in Python.
+worth re-deriving in Python. The extension also refuses an unmistakable pipe
+table whose header and delimiter row widths disagree, which Python-Markdown
+would otherwise publish silently as prose.
 """
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as etree
 from decimal import Decimal, InvalidOperation
 
@@ -72,6 +75,8 @@ SHADED_CELL_CLASS = "prodockit-table-cell-shaded"
 UNSHADED_CELL_CLASS = "prodockit-table-cell-unshaded"
 SHADE_PROPERTY = "--prodockit-table-cell-shade"
 
+DELIMITER_ROW = re.compile(r"^\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|$")
+
 
 class TableError(ValueError):
     """A table that cannot be built as asked.
@@ -121,6 +126,64 @@ class TableWidthTreeprocessor(Treeprocessor):
                     col.set("style", f"width: {width};")
             table.insert(0, colgroup)
             _add_class(table, SIZED_TABLE_CLASS)
+
+
+def _paragraph_source(element: etree.Element) -> str:
+    """Reconstructs a paragraph while masking pipes inside inline code.
+
+    Python-Markdown's table parser ignores pipes between matching backticks.
+    By this stage inline processing has replaced those spans with ``<code>``
+    elements, so retaining their text would make a cell containing ``a | b``
+    look like two cells and could hide the real mismatch.
+    """
+    parts = [element.text or ""]
+    for child in element:
+        if child.tag == "code":
+            parts.append("".join(child.itertext()).replace("|", ""))
+        else:
+            parts.append(_paragraph_source(child))
+        parts.append(child.tail or "")
+    return "".join(parts)
+
+
+class MalformedTableTreeprocessor(Treeprocessor):
+    """Refuses an attempted pipe table that Python-Markdown left as prose.
+
+    The normal table treeprocessor cannot see this failure: unequal header
+    and delimiter widths make the upstream blockprocessor decline the whole
+    block before a ``<table>`` exists. A remaining paragraph is considered an
+    attempted table only when every non-empty line has both pipe borders and
+    one line is unmistakably a Markdown delimiter row. Fenced and indented
+    examples are ``<pre>`` elements, so they never enter this check.
+    """
+
+    def run(self, root: etree.Element) -> None:
+        for paragraph in root.iter("p"):
+            source = _paragraph_source(paragraph)
+            lines = [line.strip() for line in source.splitlines() if line.strip()]
+            if len(lines) < 2 or not all(
+                line.startswith("|") and line.endswith("|") for line in lines
+            ):
+                continue
+            delimiter = next((line for line in lines if DELIMITER_ROW.fullmatch(line)), None)
+            if delimiter is None:
+                continue
+            header_cells = lines[0].count("|") - 1
+            delimiter_cells = delimiter.count("|") - 1
+            if header_cells == delimiter_cells:
+                continue
+            detail = "every row must declare the same number of cells"
+            span = re.search(r"\bcolspan\s*=\s*[\"']?(\d+)", source)
+            if span is not None and int(span.group(1)) > 1:
+                count = int(span.group(1))
+                detail = (
+                    f"a colspan={count} cell still needs {count - 1} empty "
+                    f"placeholder cell{'s' if count != 2 else ''} after it"
+                )
+            raise TableError(
+                f"row 1 declares {header_cells} cells but the delimiter row declares "
+                f"{delimiter_cells} - {detail}"
+            )
 
 
 def _promote_header_rows(table: etree.Element) -> None:
@@ -367,8 +430,7 @@ def _apply_compact(table: etree.Element, headers: list[etree.Element]) -> None:
 
 
 class TablesExtension(Extension):
-    """Python-Markdown extension turning a header cell's ``width`` attr_list
-    attribute into column widths, via a generated ``<colgroup>``."""
+    """Adds table layout features and rejects failed pipe-table parses."""
 
     def extendMarkdown(self, md: Markdown) -> None:
         md.registerExtension(self)
@@ -378,6 +440,11 @@ class TablesExtension(Extension):
             TableWidthTreeprocessor(md),
             "prodockit-tables",
             3,
+        )
+        md.treeprocessors.register(
+            MalformedTableTreeprocessor(md),
+            "prodockit-malformed-tables",
+            2,
         )
 
 
