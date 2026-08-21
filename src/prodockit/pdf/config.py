@@ -554,10 +554,10 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
       PDFs a project publishes).
 
     Which files are included is decided by
-    `discover_markdown_and_config_files()` - every `.md` file, plus this
-    project's own `zensical.toml` (`root`-relative to `config_path`'s own
-    directory, matching how `git ls-files` reports paths regardless of
-    where the command itself was run from).
+    `discover_markdown_and_config_files()` - root `README.md`, every `.md`
+    file below `docs_dir`, and this project's own Zensical config. Paths are
+    `root`-relative to `config_path`'s own directory, matching how
+    `git ls-files` reports them regardless of where the command was run.
 
     Raises `SourceBundleError` if the underlying `git`/`weasyprint`
     invocation fails.
@@ -579,6 +579,10 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
         root=root,
         report_name=config.get("site_name") or "",
         page_size=extra.get("pdf_page_size") or "A4",
-        files=discover_markdown_and_config_files(root),
+        files=discover_markdown_and_config_files(
+            root,
+            docs_dir=docs_dir,
+            config_file=config_path,
+        ),
     )
     return output_path

@@ -82,8 +82,10 @@ module alone.
 
 ### Preserve source-bundle boundaries
 
-The `prodockit source-bundle` command includes Markdown below `docs_dir` plus
-`zensical.toml`. It is intentionally separate from the rendered-document
+The `prodockit source-bundle` command includes root `README.md`, Markdown below
+`docs_dir`, and the active Zensical config. Root-level generated Markdown such
+as changelog, contribution, and licence files stays outside that boundary. It
+is intentionally separate from the rendered-document
 pipeline: it discovers files with git, writes a self-contained HTML document,
 and calls WeasyPrint without Pandoc. The lower-level source-bundle API can
 discover every non-ignored text file for a specialised caller, but that is not

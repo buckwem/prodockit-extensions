@@ -464,15 +464,17 @@ long line wraps rather than running off the page or getting cut off),
 starting on its own page, with a running header (that page's own file
 path on the right) and a "Page N of M" footer.
 
-Which files are included: every `.md` file under `docs_dir` (recursively)
-plus `zensical.toml` itself - your documentation's own source, not the
-project's tooling around it. A file that isn't valid UTF-8 text is
+Which files are included: `README.md` at the project root, every `.md` file
+under `docs_dir` recursively, and the Zensical config used for the build -
+your editable documentation source, not generated root Markdown such as
+`CHANGELOG.md`, `CONTRIBUTING.md`, or `LICENSE.md`, and not the project's
+tooling around it. A file that isn't valid UTF-8 text is
 silently skipped rather than failing the build, though in practice that
 never applies here (Markdown and TOML are always text).
 
 !!! info "Need to bundle more than the document source?"
-    The command deliberately includes only Markdown pages and
-    `zensical.toml`. Contributors building a custom bundle can use the
+    The command deliberately includes only the root README, documentation
+    pages, and Zensical config. Contributors building a custom bundle can use the
     Python API described in [PDF pipeline and API](devcons/pdf-internals.md).
 
 ### Table of contents and bookmark outline

@@ -232,24 +232,32 @@ def test_discover_markdown_and_config_files_keeps_only_md_and_config(tmp_path: P
     _init_git_repo(tmp_path)
     (tmp_path / "docs").mkdir()
     (tmp_path / "docs" / "index.md").write_text("# Home\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("# Report\n", encoding="utf-8")
+    for generated in ("CHANGELOG.md", "CONTRIBUTING.md", "LICENSE.md"):
+        (tmp_path / generated).write_text("generated\n", encoding="utf-8")
     (tmp_path / "macros.py").write_text("def word_count(): ...\n", encoding="utf-8")
     (tmp_path / "zensical.toml").write_text('site_name = "T"\n', encoding="utf-8")
     subprocess.run(
-        ["git", "add", "docs/index.md", "macros.py", "zensical.toml"], cwd=tmp_path, check=True
+        ["git", "add", "-A"], cwd=tmp_path, check=True
     )
 
     files = discover_markdown_and_config_files(str(tmp_path))
 
-    assert files == ["docs/index.md", "zensical.toml"]
+    assert files == ["README.md", "docs/index.md", "zensical.toml"]
 
 
-def test_discover_markdown_and_config_files_finds_md_in_any_subdirectory(tmp_path: Path) -> None:
+def test_discover_markdown_and_config_files_finds_md_only_below_docs_dir(
+    tmp_path: Path,
+) -> None:
     _init_git_repo(tmp_path)
     (tmp_path / "docs" / "guides").mkdir(parents=True)
     (tmp_path / "docs" / "index.md").write_text("# Home\n", encoding="utf-8")
     (tmp_path / "docs" / "guides" / "setup.md").write_text("# Setup\n", encoding="utf-8")
+    (tmp_path / "notes.md").write_text("generated\n", encoding="utf-8")
+    (tmp_path / "other").mkdir()
+    (tmp_path / "other" / "page.md").write_text("generated\n", encoding="utf-8")
     subprocess.run(
-        ["git", "add", "docs/index.md", "docs/guides/setup.md"], cwd=tmp_path, check=True
+        ["git", "add", "-A"], cwd=tmp_path, check=True
     )
 
     files = discover_markdown_and_config_files(str(tmp_path))
@@ -257,25 +265,22 @@ def test_discover_markdown_and_config_files_finds_md_in_any_subdirectory(tmp_pat
     assert files == ["docs/guides/setup.md", "docs/index.md"]
 
 
-def test_discover_markdown_and_config_files_matches_config_by_basename(tmp_path: Path) -> None:
-    """`mkdocs.yml` is not a file a Zensical project ever has - listed
-    anyway, matched by basename like `zensical.toml`, since a project's
-    own config could in principle live nested rather than at the root."""
+def test_discovery_uses_the_configured_docs_dir_and_exact_config_file(tmp_path: Path) -> None:
     _init_git_repo(tmp_path)
-    (tmp_path / "project").mkdir()
-    (tmp_path / "project" / "zensical.toml").write_text("", encoding="utf-8")
+    (tmp_path / "content" / "nested").mkdir(parents=True)
+    (tmp_path / "content" / "index.md").write_text("# Home\n", encoding="utf-8")
+    (tmp_path / "content" / "nested" / "page.md").write_text("# Page\n", encoding="utf-8")
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "site.toml").write_text("", encoding="utf-8")
+    (tmp_path / "zensical.toml").write_text("not the active config\n", encoding="utf-8")
     (tmp_path / "mkdocs.yml").write_text("", encoding="utf-8")
-    (tmp_path / "requirements.txt").write_text("", encoding="utf-8")
-    subprocess.run(
-        ["git", "add", "project/zensical.toml", "mkdocs.yml", "requirements.txt"],
-        cwd=tmp_path,
-        check=True,
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+
+    files = discover_markdown_and_config_files(
+        str(tmp_path), docs_dir="content", config_file="config/site.toml"
     )
 
-    files = discover_markdown_and_config_files(str(tmp_path))
-
-    assert files == ["mkdocs.yml", "project/zensical.toml"]
-    assert "requirements.txt" not in files
+    assert files == ["config/site.toml", "content/index.md", "content/nested/page.md"]
 
 
 def test_discover_markdown_and_config_files_still_honours_always_excluded_paths(

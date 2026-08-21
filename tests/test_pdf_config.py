@@ -652,8 +652,11 @@ def test_source_bundle_uses_the_narrow_discovery_not_every_source_file(
     a project's own Python source must not reach the bundle just because
     it happens to be tracked in git."""
     root = source_bundle_project()
+    (root / "README.md").write_text("# Report\n", encoding="utf-8")
+    for generated in ("CHANGELOG.md", "CONTRIBUTING.md", "LICENSE.md"):
+        (root / generated).write_text("generated\n", encoding="utf-8")
     (root / "macros.py").write_text("def word_count(): ...\n", encoding="utf-8")
-    subprocess.run(["git", "add", "macros.py"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
     work_dir = root / "work"
     real_build_source_bundle = config.build_source_bundle
 
@@ -666,8 +669,12 @@ def test_source_bundle_uses_the_narrow_discovery_not_every_source_file(
     build_source_bundle_from_zensical_config(str(root / "zensical.toml"))
 
     html = (work_dir / "_prodockit_source_bundle.html").read_text(encoding="utf-8")
+    assert 'class="file-marker">README.md<' in html
     assert 'class="file-marker">docs/index.md<' in html
+    assert 'class="file-marker">zensical.toml<' in html
     assert "macros.py" not in html
+    for generated in ("CHANGELOG.md", "CONTRIBUTING.md", "LICENSE.md"):
+        assert generated not in html
 
 
 def test_pdf_never_builds_a_source_bundle_as_a_side_effect(
