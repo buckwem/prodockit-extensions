@@ -10,9 +10,10 @@ Two file lists are on offer, matching two different reasons to want a
 bundle. `discover_source_files()` finds everything under a repository
 `.gitignore` doesn't exclude - a project's own tooling alongside its
 content, for a full record of what was authored.
-`discover_markdown_and_config_files()` narrows that to a project's
-Markdown content and its site configuration only - what
-`prodockit source-bundle` builds by default (prodockit-extensions#212).
+`discover_markdown_and_config_files()` narrows that to the root README,
+Markdown below the configured documentation directory, and the active site
+configuration - what `prodockit source-bundle` builds by default
+(prodockit-extensions#212/#510).
 `build_source_bundle()` takes either as its `files` argument, or neither,
 in which case it discovers the full list itself.
 
@@ -143,22 +144,23 @@ def discover_source_files(root: str = ".") -> list[str]:
     return [f for f in all_files if not _is_excluded(f)]
 
 
-#: Config-file basenames `discover_markdown_and_config_files()` keeps,
-#: matched by basename rather than a fixed path so a config file nested
-#: in a subdirectory still counts. `mkdocs.yml` is not a file this
-#: project's own Zensical-based tooling ever writes or reads - listed
-#: because a project's documentation source is still its documentation
-#: source regardless of which static-site generator wrote the config, and
-#: this costs nothing to check for; it will simply never match on a
-#: Zensical project.
-_CONFIG_FILE_BASENAMES = frozenset({"zensical.toml", "mkdocs.yml"})
+def _git_relative_path(root: str, path: str) -> str:
+    """Normalises a configured path to git's `/`-separated spelling."""
+    absolute = path if os.path.isabs(path) else os.path.join(root, path)
+    return os.path.relpath(absolute, root).replace(os.sep, "/")
 
 
-def discover_markdown_and_config_files(root: str = ".") -> list[str]:
+def discover_markdown_and_config_files(
+    root: str = ".",
+    *,
+    docs_dir: str = "docs",
+    config_file: str = "zensical.toml",
+) -> list[str]:
     """The narrower file list `prodockit source-bundle` bundles by
-    default: every Markdown file `discover_source_files()` would find,
-    plus this project's own site-configuration file - the documentation's
-    own source, rather than every tracked file in the repository.
+    default: the root ``README.md``, every Markdown file below the configured
+    ``docs_dir``, and the actual Zensical ``config_file`` used for the build.
+    These are the editable documentation sources, rather than every Markdown
+    or config-looking file tracked elsewhere in the repository.
 
     This is deliberately narrower than `discover_source_files()`'s own
     "everything but vendored noise" - a project's custom Python
@@ -172,10 +174,15 @@ def discover_markdown_and_config_files(root: str = ".") -> list[str]:
     is filtered out here too, before the narrower `.md`/config check ever
     runs.
     """
+    docs_path = _git_relative_path(root, docs_dir).rstrip("/")
+    docs_prefix = f"{docs_path}/" if docs_path not in {"", "."} else ""
+    config_path = _git_relative_path(root, config_file)
     return [
         f
         for f in discover_source_files(root)
-        if f.endswith(".md") or os.path.basename(f) in _CONFIG_FILE_BASENAMES
+        if f == "README.md"
+        or f == config_path
+        or (f.startswith(docs_prefix) and f.endswith(".md"))
     ]
 
 
