@@ -406,6 +406,19 @@ def prescan_headings(appendix_attr: str) -> tuple[dict[str, int], dict[str, str]
 _HEADING_LINE_RE = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
 _TRAILING_ATTR_RE = re.compile(r"\s*\{:\s*([^}]*?)\s*\}\s*$")
 _INLINE_MARKUP_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)|[*_`~]")
+_CAPTION_OPEN_RE = re.compile(
+    r"^[ \t]{0,3}///[ \t]+(figure-caption|table-caption)"
+    r"(?:[ \t]*\|[ \t]*(.*?))?[ \t]*$"
+)
+_CAPTION_CLOSE_RE = re.compile(r"^[ \t]{0,3}///[ \t]*$")
+_CAPTION_SELECTOR_ID_RE = re.compile(r"#([\w:.-]+)")
+_CAPTION_ATTR_ID_RE = re.compile(
+    r"(?:^|[, {])[\"']?id[\"']?[ \t]*:[ \t]*[\"']?([\w:.-]+)"
+)
+_CAPTION_LABELS = {
+    "figure-caption": "Figure",
+    "table-caption": "Table",
+}
 
 
 def _strip_front_matter(text: str) -> str:
@@ -426,46 +439,117 @@ def _heading_display_text(raw: str) -> str:
     return _INLINE_MARKUP_RE.sub(lambda m: m.group(1) or "", raw).strip()
 
 
-def _scan_page_headings(text: str) -> list[tuple[int, str, str | None, bool]]:
-    """Returns ``(level, display_text, explicit_id, unnumbered)`` for every
-    ATX heading in one page's raw markdown, in document order - skipping
-    fenced code blocks and HTML comments, the same way
-    _count_top_level_headings() does, so a heading shown as a literal
-    example isn't mistaken for a real one."""
-    headings: list[tuple[int, str, str | None, bool]] = []
+def _caption_id(argument: str, body: list[str]) -> str | None:
+    """Returns a caption block's explicit id, if it has one.
+
+    ``pymdownx.blocks.caption`` accepts selectors on the opening line
+    (``/// figure-caption | #fig-one``) or an indented YAML-ish ``attrs``
+    option. Prodockit's templates and existing projects use both forms.
+    """
+    if id_match := _CAPTION_SELECTOR_ID_RE.search(argument):
+        return id_match.group(1)
+
+    attrs_indent: int | None = None
+    for line in body:
+        stripped = line.strip()
+        if not stripped:
+            if attrs_indent is not None:
+                break
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent < 4:
+            break
+        if attrs_indent is None:
+            if not stripped.startswith("attrs:"):
+                continue
+            attrs_indent = indent
+            if id_match := _CAPTION_ATTR_ID_RE.search(stripped.removeprefix("attrs:")):
+                return id_match.group(1)
+            continue
+        if indent <= attrs_indent:
+            break
+        if id_match := _CAPTION_ATTR_ID_RE.search(stripped):
+            return id_match.group(1)
+    return None
+
+
+def _scan_page_numberables(
+    text: str,
+) -> list[tuple[str, int, str, str | None, bool]]:
+    """Scans headings and caption blocks in their shared document order.
+
+    Each result is ``(kind, level, text, explicit_id, unnumbered)``. Caption
+    kinds are the pymdownx block names and use level 0, which is also how the
+    real headings treeprocessor distinguishes them in the registry.
+    """
+    items: list[tuple[str, int, str, str | None, bool]] = []
+    lines = _strip_front_matter(text).splitlines()
     in_fence = False
     in_comment = False
-    for line in _strip_front_matter(text).splitlines():
+    index = 0
+    while index < len(lines):
+        line = lines[index]
         stripped = line.strip()
         if not in_comment and (stripped.startswith("```") or stripped.startswith("~~~")):
             in_fence = not in_fence
+            index += 1
             continue
         if in_fence:
+            index += 1
             continue
         if not in_comment and "<!--" in stripped:
             in_comment = True
         if in_comment:
             if "-->" in stripped:
                 in_comment = False
+            index += 1
             continue
+
+        if caption_match := _CAPTION_OPEN_RE.match(line):
+            end = index + 1
+            while end < len(lines) and _CAPTION_CLOSE_RE.match(lines[end]) is None:
+                end += 1
+            body = lines[index + 1 : end]
+            kind = caption_match.group(1)
+            caption_id = _caption_id(caption_match.group(2) or "", body)
+            items.append((kind, 0, "", caption_id, False))
+            # Keep scanning the block's Markdown body: a heading inside a
+            # caption is unusual, but the real treeprocessor sees and
+            # numbers it after the containing figure too.
+            index += 1
+            continue
+
         match = _HEADING_LINE_RE.match(line)
-        if match is None:
-            continue
-        level = len(match.group(1))
-        rest = match.group(2)
-        explicit_id: str | None = None
-        unnumbered = False
-        if attr_match := _TRAILING_ATTR_RE.search(rest):
-            attrs = attr_match.group(1)
-            if id_match := _ID_RE.search(attrs):
-                explicit_id = id_match.group(1)
-            unnumbered = ".unnumbered" in attrs
-            rest = rest[: attr_match.start()]
-        # A closed ATX heading ("## Title ##") - the trailing hashes aren't
-        # part of the text.
-        rest = re.sub(r"\s+#+\s*$", "", rest)
-        headings.append((level, _heading_display_text(rest), explicit_id, unnumbered))
-    return headings
+        if match is not None:
+            level = len(match.group(1))
+            rest = match.group(2)
+            explicit_id: str | None = None
+            unnumbered = False
+            if attr_match := _TRAILING_ATTR_RE.search(rest):
+                attrs = attr_match.group(1)
+                if id_match := _ID_RE.search(attrs):
+                    explicit_id = id_match.group(1)
+                unnumbered = ".unnumbered" in attrs
+                rest = rest[: attr_match.start()]
+            rest = re.sub(r"\s+#+\s*$", "", rest)
+            items.append(
+                ("heading", level, _heading_display_text(rest), explicit_id, unnumbered)
+            )
+        index += 1
+    return items
+
+
+def _scan_page_headings(text: str) -> list[tuple[int, str, str | None, bool]]:
+    """Returns ``(level, display_text, explicit_id, unnumbered)`` for every
+    ATX heading in one page's raw markdown, in document order - skipping
+    fenced code blocks and HTML comments, the same way
+    _count_top_level_headings() does, so a heading shown as a literal
+    example isn't mistaken for a real one."""
+    return [
+        (level, display_text, explicit_id, unnumbered)
+        for kind, level, display_text, explicit_id, unnumbered in _scan_page_numberables(text)
+        if kind == "heading"
+    ]
 
 
 def preseed_heading_ids_from_nav(
@@ -476,10 +560,10 @@ def preseed_heading_ids_from_nav(
     separator: str = "-",
 ) -> bool:
     """Pre-scans every page in the current Zensical build's nav for its
-    headings' ids and section numbers, provisionally registering each one
+    headings' and captions' ids and numbers, provisionally registering each one
     (via ``registry.preseed``) before any page has actually been converted -
     the same idea as ``preseed_attr_from_nav`` for citation/glossary
-    definitions, applied to headings.
+    definitions, applied to reference targets.
 
     Fixes prodockit-extensions#54: a ``\\ref{id}`` pointing at a heading on
     another page can only resolve if that page's own real registration is
@@ -525,8 +609,22 @@ def preseed_heading_ids_from_nav(
             continue
         appendix_letter = appendix_letters.get(rel_path)
         counters = [start_counts.get(rel_path, 0), 0, 0, 0, 0, 0]
+        captions = dict.fromkeys(_CAPTION_LABELS, 0)
         seen_ids: set[str] = set()
-        for level, text_content, explicit_id, unnumbered in _scan_page_headings(text):
+        for kind, level, text_content, explicit_id, unnumbered in _scan_page_numberables(text):
+            if kind in _CAPTION_LABELS:
+                captions[kind] += 1
+                if explicit_id is None:
+                    continue
+                chapter = appendix_letter if appendix_letter is not None else str(counters[0] or 1)
+                registry.preseed(
+                    source=rel_path,
+                    id=explicit_id,
+                    level=0,
+                    text=text_content,
+                    number=f"{_CAPTION_LABELS[kind]} {chapter}.{captions[kind]}",
+                )
+                continue
             heading_id = explicit_id or unique(slugify(text_content, separator), seen_ids)
             seen_ids.add(heading_id)
             if unnumbered:

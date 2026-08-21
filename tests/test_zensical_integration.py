@@ -162,6 +162,177 @@ def test_ref_resolves_for_a_page_never_rendered_in_this_context(
     assert "??" not in html
 
 
+def _convert_as_zensical_page_with_captions(
+    text: str, path: str, *, continuous: bool = False
+) -> str:
+    md = markdown.Markdown(
+        extensions=[
+            ContextExtension(page=Page(url=path, path=path), config={}),
+            "attr_list",
+            "tables",
+            "pymdownx.blocks.caption",
+            prodockit_headings.HeadingsExtension(
+                numbering="continuous" if continuous else "per-document"
+            ),
+            "prodockit.refs",
+        ],
+        extension_configs={
+            "pymdownx.blocks.caption": {
+                "types": [
+                    {
+                        "name": "figure-caption",
+                        "prefix": "{}.",
+                        "classes": "prodockit-figure-caption",
+                    },
+                    {
+                        "name": "table-caption",
+                        "prefix": "{}.",
+                        "classes": "prodockit-table-caption",
+                    },
+                ]
+            }
+        },
+    )
+    return md.convert(text)
+
+
+def test_forward_cross_page_caption_references_resolve_via_nav_preseed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The later target page is never converted, so only the nav pre-scan
+    can resolve these forward references (prodockit-extensions#512)."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    earlier = "# Earlier\n\nSee \\ref{fig-later} and \\ref{tab-later}.\n"
+    later = """# Later
+
+![Example](example.png)
+/// figure-caption | #fig-later
+Later figure
+///
+
+| a | b |
+| - | - |
+| 1 | 2 |
+/// table-caption
+    attrs: {id: tab-later}
+
+Later table
+///
+"""
+    (docs_dir / "earlier.md").write_text(earlier, encoding="utf-8")
+    (docs_dir / "later.md").write_text(later, encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["earlier.md", "later.md"]),
+    )
+
+    html = _convert_as_zensical_page_with_captions(
+        earlier, "earlier.md", continuous=True
+    )
+
+    assert '<a class="prodockit-ref" href="later.md#fig-later">Figure 2.1</a>' in html
+    assert '<a class="prodockit-ref" href="later.md#tab-later">Table 2.1</a>' in html
+    assert "??" not in html
+
+
+def test_forward_cross_page_caption_preseed_preserves_caption_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Id-less captions still consume a number on the real target page."""
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "earlier.md").write_text("# Earlier\n", encoding="utf-8")
+    (docs_dir / "later.md").write_text(
+        """# Later
+
+![First](one.png)
+/// figure-caption
+Unreferenced first figure
+///
+
+![Second](two.png)
+/// figure-caption | #fig-second
+Referenced second figure
+///
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["earlier.md", "later.md"]),
+    )
+
+    html = _convert_as_zensical_page_with_captions(
+        "# Earlier\n\nSee \\ref{fig-second}.\n", "earlier.md", continuous=True
+    )
+
+    assert '<a class="prodockit-ref" href="later.md#fig-second">Figure 2.2</a>' in html
+
+
+def test_forward_cross_page_caption_preseed_uses_appendix_letter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "appendix.md").write_text(
+        """---
+is_appendix: true
+---
+
+# Appendix
+
+![Example](example.png)
+/// figure-caption | #fig-appendix
+Appendix figure
+///
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["earlier.md", "appendix.md"]),
+    )
+
+    html = _convert_as_zensical_page_with_captions(
+        "# Earlier\n\nSee \\ref{fig-appendix}.\n", "earlier.md", continuous=True
+    )
+
+    assert '<a class="prodockit-ref" href="appendix.md#fig-appendix">Figure A.1</a>' in html
+
+
+def test_caption_preseed_ignores_fenced_documentation_examples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "guide.md").write_text(
+        """# Guide
+
+```md
+/// figure-caption | #not-a-real-figure
+Example caption syntax
+///
+```
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["guide.md", "other.md"]),
+    )
+
+    html = _convert_as_zensical_page_with_captions(
+        "See \\ref{not-a-real-figure}.\n", "other.md"
+    )
+
+    assert '<a class="prodockit-ref prodockit-ref-unresolved">??</a>' in html
+
+
 def test_preseeded_heading_is_superseded_by_its_real_registration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
