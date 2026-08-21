@@ -157,4 +157,4 @@ small output artifact that shows the result.
 ## Licence
 
 By contributing, you agree that your contributions will be licensed under the
-project's [MIT License](LICENSE).
+project's [MIT License](LICENSE.md).

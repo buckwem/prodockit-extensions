@@ -13,5 +13,5 @@ This summary is explanatory only and does not replace the authoritative legal
 text below.
 
 ```text
---8<-- "LICENSE"
+--8<-- "LICENSE.md"
 ```
