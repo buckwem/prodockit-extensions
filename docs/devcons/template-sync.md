@@ -126,6 +126,14 @@ that is in neither list stops the run rather than being guessed at.
 | Shared | `.gitignore`, `zensical.toml` | Merged line by line, never replaced |
 | Excluded | `CONTRIBUTING.md`, issue templates | Not delivered at all |
 
+Within the shared `zensical.toml`, an existing `project.extra.pdf_*` value is
+author-owned. Template sync adds a PDF parameter introduced by a newer
+template when the project does not have it, but never overwrites an existing
+page size, margin, duplex-layout, header/footer, stylesheet, output-path, or
+future PDF setting. Those values describe the document the author intends to
+publish; restoring defaults such as A4 paper and 2 cm margins would be a
+content-changing operation, not maintenance.
+
 !!! warning "Your writing is not in scope"
     The report, its figures and its bibliography are never written, and
     never even read for comparison. A sync cannot lose your work because

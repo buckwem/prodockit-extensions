@@ -701,24 +701,27 @@ def test_the_template_s_own_config_keys_are_offered() -> None:
 
 
 def test_a_changed_setting_is_an_update_not_an_addition() -> None:
-    template = {"project": {"extra": {"pdf_double_sided": True}}}
-    project = {"project": {"extra": {"pdf_double_sided": False}}}
+    template = {"project": {"markdown_extensions": {"prodockit.tree": {"indent": 2}}}}
+    project = {"project": {"markdown_extensions": {"prodockit.tree": {"indent": 4}}}}
 
     added, updated = config_changes(load_manifest(MANIFEST), template, project)
 
-    assert (added, updated) == ([], ["project.extra.pdf_double_sided"])
+    assert (added, updated) == (
+        [],
+        ['project.markdown_extensions."prodockit.tree".indent'],
+    )
 
 
-def test_the_project_s_own_settings_are_never_touched() -> None:
-    """`site_name` is the reader's, and nothing outside the patterns the
-    manifest names may be offered at all."""
+def test_only_missing_settings_inside_the_template_boundary_are_added() -> None:
+    """`site_name` is outside the manifest boundary, while a missing PDF
+    parameter is introduced without changing an existing author value."""
     template = {"project": {"site_name": "Document Template", "extra": {"pdf_x": 1}}}
     project = {"project": {"site_name": "My Report", "extra": {}}}
 
     added, updated = config_changes(load_manifest(MANIFEST), template, project)
 
     assert added == ["project.extra.pdf_x"]
-    assert not any("site_name" in key for key in added + updated)
+    assert updated == []
 
 
 def test_an_extension_switched_off_is_not_switched_back_on() -> None:
@@ -764,19 +767,51 @@ def test_files_no_longer_delivered_are_reported_not_removed() -> None:
     ]
 
 
-def test_a_key_that_holds_the_project_s_content_is_never_taken() -> None:
-    """`project.extra.pdf_*` covers margins and page size - and also
-    `pdf_copyright`, which on a real assignment reads `Author: 123456`
-    against the template's own name. Overwriting that would put the
-    template author's name on somebody else's report."""
+def test_existing_pdf_settings_are_preserved_even_when_the_manifest_claims_them() -> None:
+    """The template's broad `take` pattern must not restore page defaults
+    or put the template author's name on somebody else's report."""
     manifest = load_manifest(MANIFEST)
     template = {"project": {"extra": {"pdf_copyright": "Mark", "pdf_page_size": "A4"}}}
     project = {"project": {"extra": {"pdf_copyright": "123456", "pdf_page_size": "A5"}}}
 
     added, updated = config_changes(manifest, template, project)
 
-    assert updated == ["project.extra.pdf_page_size"]
-    assert not any("copyright" in key for key in added + updated)
+    assert added == []
+    assert updated == []
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "pdf_page_size",
+        "pdf_margin_top",
+        "pdf_margin_right",
+        "pdf_margin_bottom",
+        "pdf_margin_left",
+        "pdf_margin_inner",
+        "pdf_margin_outer",
+        "pdf_double_sided",
+        "pdf_header_footer_font_size",
+        "pdf_header_footer_color",
+        "pdf_header_footer_divider_color",
+        "pdf_extra_css",
+        "pdf_source_bundle_output",
+        "pdf_future_page_setting",
+    ],
+)
+def test_every_pdf_setting_is_preserved_when_it_differs(key: str) -> None:
+    manifest = load_manifest(MANIFEST)
+    template = {"project": {"extra": {key: "template default"}}}
+    project = {"project": {"extra": {key: "author choice"}}}
+
+    assert config_changes(manifest, template, project) == ([], [])
+
+
+def test_a_new_pdf_setting_is_added_from_the_template() -> None:
+    manifest = load_manifest(MANIFEST)
+    template = {"project": {"extra": {"pdf_page_size": "A4"}}}
+
+    assert config_changes(manifest, template, {}) == (["project.extra.pdf_page_size"], [])
 
 
 # ---------------------------------------------------------------------------
