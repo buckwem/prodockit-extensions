@@ -2,11 +2,15 @@
 # SPDX-License-Identifier: MIT
 
 import os
+from pathlib import Path
 
 import markdown
 import pytest
 
 from prodockit.tables import TableError, TablesExtension
+
+REPO = Path(__file__).resolve().parents[1]
+EXTRA_CSS = REPO / "docs" / "stylesheets" / "extra.css"
 
 PLAIN_TABLE = "| Name | Description |\n|---|---|\n| a | b |\n"
 
@@ -48,6 +52,87 @@ def _css_defaults() -> dict[str, object]:
 def _convert(text: str) -> str:
     md = markdown.Markdown(extensions=["attr_list", TablesExtension()])
     return md.convert(text)
+
+
+def test_website_tables_draw_a_theme_coloured_border_around_every_cell() -> None:
+    """Merged headers expose the old row-only style immediately: their
+    internal boundaries had no rule until the first body row (#524)."""
+    css = EXTRA_CSS.read_text(encoding="utf-8")
+
+    for selector in (
+        ".md-typeset table:not([class]) th",
+        ".md-typeset table:not([class]) td",
+        ".md-typeset table.prodockit-table-sized th",
+        ".md-typeset table.prodockit-table-sized td",
+        ".md-typeset table.prodockit-table-compact th",
+        ".md-typeset table.prodockit-table-compact td",
+    ):
+        assert selector in css
+    assert "border-collapse: collapse;" in css
+    assert "border: 0.05rem solid var(--md-typeset-table-color);" in css
+
+
+def test_website_table_headers_use_a_five_percent_theme_aware_shaded_band() -> None:
+    css = EXTRA_CSS.read_text(encoding="utf-8")
+
+    for selector in (
+        ".md-typeset table:not([class]) th",
+        ".md-typeset table.prodockit-table-sized th",
+        ".md-typeset table.prodockit-table-compact th",
+    ):
+        assert selector in css
+    assert "background-color: rgba(var(--prodockit-table-shade-rgb), 0.05);" in css
+    assert '--prodockit-table-shade-rgb: 255, 255, 255;' in css
+
+
+def test_pdf_table_grid_matches_the_light_website_line_style() -> None:
+    from prodockit.pdf.css import build_css
+
+    css = build_css(**_css_defaults())
+    table_css = css.split("TABLE LAYOUT")[1].split("ADMONITIONS & TABS LAYOUT")[0]
+
+    assert table_css.count("border: 0.05rem solid rgba(0, 0, 0, 0.12) !important;") == 2
+    assert "table th { background-color: rgba(0, 0, 0, 0.05) !important;" in table_css
+    assert "border: 0.5pt solid #555555" not in table_css
+
+
+def test_pdf_merged_cells_render_with_every_boundary_visible() -> None:
+    """Check the laid-out grid, not only its CSS: collapsed borders share
+    their width between adjacent cells, including rowspan/colspan edges."""
+    weasyprint = pytest.importorskip("weasyprint")
+
+    from prodockit.pdf.css import build_css
+
+    css = build_css(**_css_defaults())
+    html = _convert(TWO_ROW_HEADER)
+    page = weasyprint.HTML(
+        string=f"<!DOCTYPE html><html><head><style>{css}</style></head><body>{html}</body></html>"
+    ).render().pages[0]
+    cells: list[object] = []
+    seen: set[int] = set()
+
+    def walk(box: object) -> None:
+        element = getattr(box, "element", None)
+        if getattr(box, "element_tag", None) in {"th", "td"} and id(element) not in seen:
+            seen.add(id(element))
+            cells.append(box)
+        for child in getattr(box, "children", []):
+            walk(child)
+
+    walk(page._page_box)
+
+    assert len(cells) == 9
+    assert all(
+        min(
+            cell.border_top_width,
+            cell.border_right_width,
+            cell.border_bottom_width,
+            cell.border_left_width,
+        )
+        > 0
+        for cell in cells
+    )
+    assert all("/ 0.12" in str(cell.style["border_right_color"]) for cell in cells)
 
 
 def test_table_without_any_width_is_left_untouched() -> None:
@@ -273,6 +358,84 @@ TWO_ROW_HEADER = (
     "| | Before {: .header } | After | |\n"
     "| Widget | 1 | 2 | ok |\n"
 )
+
+
+def test_shading_can_be_disabled_on_one_merged_header_cell() -> None:
+    html = _convert(
+        '| Target {: rowspan=2 shade="off" } | Measured {: colspan=2 } | |\n'
+        '|---|---|---|\n'
+        '| | Before {: .header } | After |\n'
+        '| Widget | 1 | 2 |\n'
+    )
+    head = html.split("<tbody>")[0]
+
+    assert (
+        '<th class="prodockit-table-cell-unshaded" rowspan="2">Target</th>' in head
+    )
+    assert head.count("</th>") == 4, "shade handling must not restore span placeholders"
+    assert "shade=" not in html
+
+
+def test_a_percentage_can_shade_a_specific_merged_cell() -> None:
+    html = _convert(
+        '| Group {: colspan=2 shade="7.5%" } | | Note |\n'
+        '|---|---|---|\n'
+        '| a | b | c |\n'
+    )
+
+    assert (
+        'class="prodockit-table-cell-shaded" colspan="2" '
+        'style="--prodockit-table-cell-shade: 7.5%;">Group</th>' in html
+    )
+    assert "shade=" not in html
+
+
+def test_a_percentage_can_turn_shading_on_for_a_body_cell() -> None:
+    html = _convert('| A | B |\n|---|---|\n| highlighted {: shade="9%" } | plain |\n')
+
+    assert (
+        '<td class="prodockit-table-cell-shaded" '
+        'style="--prodockit-table-cell-shade: 9%;">highlighted</td>' in html
+    )
+
+
+def test_pdf_cell_shading_works_on_merged_and_unmerged_cells() -> None:
+    weasyprint = pytest.importorskip("weasyprint")
+
+    from prodockit.pdf.css import build_css
+
+    text = (
+        '| Off {: shade="off" } | Custom {: colspan=2 shade="7.5%" } | |\n'
+        '|---|---|---|\n'
+        '| plain | Highlighted {: shade="9%" } | plain |\n'
+    )
+    page = weasyprint.HTML(
+        string=(
+            f"<!DOCTYPE html><html><head><style>{build_css(**_css_defaults())}</style>"
+            f"</head><body>{_convert(text)}</body></html>"
+        )
+    ).render().pages[0]
+    cells: dict[str, object] = {}
+
+    def walk(box: object) -> None:
+        element = getattr(box, "element", None)
+        if getattr(box, "element_tag", None) in {"th", "td"} and element is not None:
+            label = "".join(element.itertext())
+            cells.setdefault(label, box.style["background_color"])
+        for child in getattr(box, "children", []):
+            walk(child)
+
+    walk(page._page_box)
+
+    assert cells["Off"].alpha == 0
+    assert cells["Custom"].alpha == pytest.approx(0.075)
+    assert cells["Highlighted"].alpha == pytest.approx(0.09)
+
+
+@pytest.mark.parametrize("value", ["on", "5", "-1%", "101%", "wat%"])
+def test_invalid_cell_shades_are_refused(value: str) -> None:
+    with pytest.raises(TableError, match='shade must be "off" or a percentage'):
+        _convert(f'| A {{: shade="{value}" }} | B |\n|---|---|\n| a | b |\n')
 
 
 def test_a_marked_row_joins_the_header() -> None:

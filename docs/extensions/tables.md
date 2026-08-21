@@ -24,6 +24,7 @@ Choose the feature that solves the table's problem:
 | Fit many short columns | `.compact` |
 | Repeat more than one header row | `.header` |
 | Merge cells | `colspan=2` or `rowspan=2` |
+| Change one cell's shading | `shade="off"` or `shade="8%"` |
 | Turn a long heading vertically | `rotate=90` or `rotate=270`, with `width` |
 
 The next examples show each feature in isolation before combining them.
@@ -239,6 +240,30 @@ The empty cell after `Measured` and the empty cells beneath the two
 `rowspan=2` headings are structural placeholders. The extension removes those
 placeholders after applying the spans.
 
+### Adjust cell shading {: #tables-cell-shading }
+
+Header cells have a subtle 5% shade by default. Remove it from one cell with
+`shade="off"`, or give any header or body cell an explicit percentage:
+
+=== "Markdown"
+
+    ```md
+    | Unshaded {: shade="off" } | Grouped heading {: colspan=2 shade="8%" } | |
+    |---|---|---|
+    | Normal | Highlighted {: shade="5%" } | Normal |
+    ```
+
+=== "Result"
+
+    | Unshaded {: shade="off" } | Grouped heading {: colspan=2 shade="8%" } | |
+    |---|---|---|
+    | Normal | Highlighted {: shade="5%" } | Normal |
+
+Shading applies to the whole surviving merged cell, so `shade` combines with
+`colspan` and `rowspan` on the same attribute list. A percentage must be from
+`0%` to `100%`; use `off` when the intent is to suppress the default header
+shade explicitly.
+
 ### Rotate headings {: #tables-rotated-headings }
 
 A wide table is often wide because of its headings, not its data. Turn them
@@ -284,6 +309,8 @@ whole column, so declare it once on the heading rather than on a body cell.
 | `.header` | A non-empty cell in a leading body row | Move that row into `<thead>` |
 | `colspan=<n>` | Cell being widened | Merge it with the following placeholder cells |
 | `rowspan=<n>` | Cell being deepened | Merge it with placeholder cells below |
+| `shade="off"` | Any cell | Remove shading from that cell |
+| `shade="<percentage>"` | Any cell | Shade that cell by an explicit percentage |
 | \index{prodockit.tables!`rotate`}=90 or `rotate=270` | Header cell that also has `width` | Rotate the heading text |
 | `height="<css-length>"` | Rotated header cell | Reserve height for the rotated text |
 
@@ -309,11 +336,19 @@ The extension adds stable classes that a website CSS style sheet can target:
 | `<table>` | at least one header cell has `width` | `class="prodockit-table-sized"` |
 | `<table>` | any header cell has `.compact` | `class="prodockit-table-compact"` |
 | `<th>` | heading has `rotate=90` or `rotate=270` | `class="prodockit-rotate"` plus an inline transform |
+| `<th>` or `<td>` | cell has `shade="off"` | `class="prodockit-table-cell-unshaded"` |
+| `<th>` or `<td>` | cell has `shade="<percentage>"` | `class="prodockit-table-cell-shaded"` plus `--prodockit-table-cell-shade` |
 | `<col>` | that column has `width` | `style="width: <value>;"` |
 
 Add at least this rule for sized and compact website tables:
 
 ```css
+.md-typeset table:not([class]),
+.md-typeset table.prodockit-table-sized,
+.md-typeset table.prodockit-table-compact {
+  border-collapse: collapse;
+}
+
 .md-typeset table.prodockit-table-sized,
 .md-typeset table.prodockit-table-compact {
   table-layout: fixed;
@@ -323,9 +358,35 @@ Add at least this rule for sized and compact website tables:
   border-radius: 0.1rem;
   font-size: 0.64rem;
 }
+
+.md-typeset table:not([class]) th,
+.md-typeset table.prodockit-table-sized th,
+.md-typeset table.prodockit-table-compact th {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.md-typeset table th.prodockit-table-cell-unshaded,
+.md-typeset table td.prodockit-table-cell-unshaded {
+  background-color: transparent;
+}
+
+.md-typeset table th.prodockit-table-cell-shaded,
+.md-typeset table td.prodockit-table-cell-shaded {
+  background-color: rgba(0, 0, 0, var(--prodockit-table-cell-shade));
+}
+
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td,
+.md-typeset table.prodockit-table-sized th,
+.md-typeset table.prodockit-table-sized td,
+.md-typeset table.prodockit-table-compact th,
+.md-typeset table.prodockit-table-compact td {
+  border: 0.05rem solid var(--md-typeset-table-color);
+}
 ```
 
 The complete light- and dark-mode rules used by this site are in
 `docs/stylesheets/extra.css`. PDF builds already include equivalent layout
-rules. Contributors changing the generated table structure should read
+rules with the light website scheme's line colour and the same width.
+Contributors changing the generated table structure should read
 [Extension integration](../devcons/extension-internals.md#table-layout-contracts).

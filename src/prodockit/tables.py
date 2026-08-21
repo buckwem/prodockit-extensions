@@ -23,6 +23,7 @@ worth re-deriving in Python.
 from __future__ import annotations
 
 import xml.etree.ElementTree as etree
+from decimal import Decimal, InvalidOperation
 
 from markdown import Markdown
 from markdown.extensions import Extension
@@ -64,6 +65,13 @@ ROTATE_CLASS = "prodockit-rotate"
 #: and a row height nobody can predict.
 ROTATE_ANGLES = (90, 270)
 
+#: Cell-level header shading controls. Header cells are shaded by default;
+#: ``{: shade="off" }`` removes it from one cell, while a percentage applies
+#: an explicit strength to either a header or body cell.
+SHADED_CELL_CLASS = "prodockit-table-cell-shaded"
+UNSHADED_CELL_CLASS = "prodockit-table-cell-unshaded"
+SHADE_PROPERTY = "--prodockit-table-cell-shade"
+
 
 class TableError(ValueError):
     """A table that cannot be built as asked.
@@ -97,6 +105,7 @@ class TableWidthTreeprocessor(Treeprocessor):
             headers = [c for row in table.findall("./thead/tr") for c in row]
             _apply_compact(table, headers)
             _apply_rotation(headers)
+            _apply_cell_shading(table)
             # Widths come from the first header row only - it is the one
             # with a cell per column, which is what a <colgroup> needs.
             widths = [th.get("width") for th in header_row.findall("th")]
@@ -294,6 +303,43 @@ def _add_class(element: etree.Element, name: str) -> None:
     classes = (element.get("class") or "").split()
     if name not in classes:
         element.set("class", " ".join([*classes, name]))
+
+
+def _apply_cell_shading(table: etree.Element) -> None:
+    """Turns a cell's ``shade`` attribute into stable CSS hooks.
+
+    ``off`` suppresses the normal header shade. A percentage supplies a
+    custom shade for a header or body cell. The raw authoring attribute is
+    removed so generated HTML remains valid and the website and PDF can each
+    provide the appropriate light/dark colour behind the shared opacity.
+    """
+    for cell in table.iter():
+        if cell.tag not in {"th", "td"} or "shade" not in cell.attrib:
+            continue
+        raw = cell.attrib.pop("shade").strip().lower()
+        if raw == "off":
+            _add_class(cell, UNSHADED_CELL_CLASS)
+            continue
+        if not raw.endswith("%"):
+            raise TableError(
+                f'shade must be "off" or a percentage from 0% to 100%, not {raw!r}'
+            )
+        try:
+            percentage = Decimal(raw[:-1])
+        except InvalidOperation as error:
+            raise TableError(
+                f'shade must be "off" or a percentage from 0% to 100%, not {raw!r}'
+            ) from error
+        if not percentage.is_finite() or not 0 <= percentage <= 100:
+            raise TableError(
+                f'shade must be "off" or a percentage from 0% to 100%, not {raw!r}'
+            )
+        value = f"{percentage.normalize()}%"
+        style = cell.get("style", "").strip()
+        if style and not style.endswith(";"):
+            style += ";"
+        cell.set("style", f"{style} {SHADE_PROPERTY}: {value};".strip())
+        _add_class(cell, SHADED_CELL_CLASS)
 
 
 def _apply_compact(table: etree.Element, headers: list[etree.Element]) -> None:
