@@ -223,6 +223,64 @@ def test_does_not_duplicate_the_tables_extension_if_already_enabled() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Attempted tables rejected by Python-Markdown (#505)
+# ---------------------------------------------------------------------------
+
+
+def test_a_header_narrower_than_its_delimiter_row_is_refused() -> None:
+    text = (
+        "| **Threat Target** | **Attack Technique** | **Threat Agent** | "
+        "**Risk eval.** {: colspan=4 } | **Risk Mitigation** | | | "
+        "**Residual Risk** {: colspan=4 } |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+    )
+
+    with pytest.raises(
+        TableError,
+        match=(
+            "row 1 declares 8 cells but the delimiter row declares 14 - "
+            "a colspan=4 cell still needs 3 empty placeholder cells after it"
+        ),
+    ):
+        _convert(text)
+
+
+def test_a_header_wider_than_its_delimiter_row_is_refused() -> None:
+    with pytest.raises(
+        TableError,
+        match="row 1 declares 3 cells but the delimiter row declares 2",
+    ):
+        _convert("| A | B | C |\n| --- | --- |\n| 1 | 2 | 3 |\n")
+
+
+def test_inline_code_pipes_are_not_counted_as_cell_boundaries() -> None:
+    with pytest.raises(
+        TableError,
+        match="row 1 declares 2 cells but the delimiter row declares 3",
+    ):
+        _convert("| Name | `a | b` |\n| --- | --- | --- |\n")
+
+
+def test_prose_that_merely_contains_pipes_is_left_alone() -> None:
+    text = "This paragraph discusses A | B in prose.\n| --- | --- |\n"
+
+    assert _convert(text).startswith("<p>")
+
+
+def test_a_malformed_table_inside_a_fenced_example_is_left_alone() -> None:
+    md = markdown.Markdown(extensions=["fenced_code", "attr_list", TablesExtension()])
+    text = "```md\n| A | B |\n| --- | --- | --- |\n```\n"
+
+    assert "<pre><code" in md.convert(text)
+
+
+def test_a_malformed_table_inside_an_indented_example_is_left_alone() -> None:
+    text = "    | A | B |\n    | --- | --- | --- |\n"
+
+    assert "<pre><code>" in _convert(text)
+
+
+# ---------------------------------------------------------------------------
 # Dense tables: `{: .compact }`
 # ---------------------------------------------------------------------------
 
