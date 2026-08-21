@@ -67,6 +67,12 @@ MANIFEST_FILE = ".prodockit-template.toml"
 #: `missing_ignores` below: it is a diagnostic, not part of the project.
 LOG_FILE = ".prodockit-template.log"
 
+#: Existing PDF presentation and output settings are author choices. A
+#: template may introduce a missing ``pdf_*`` parameter, but must not reset an
+#: existing paper size, margin, duplex layout, header/footer style, or another
+#: current/future value to its default.
+PRESERVE_CONFIG_PATTERNS = ("project.extra.pdf_*",)
+
 
 class TemplateSyncError(ValueError):
     """A sync that cannot be run as asked.
@@ -666,13 +672,11 @@ def config_changes(
     off has made a choice, and a tool that turns it back on because the
     template has it is not updating anything - it is reverting them.
 
-    `never` is the other half of that. A pattern broad enough to be
-    useful catches keys that hold the project's *content* rather than its
-    settings: `project.extra.pdf_*` covers the margins and the page size,
-    and also `pdf_copyright`, which on a real assignment reads
-    `Author: 123456` against the template's own name. Overwriting that
-    would put the template author's name on somebody else's report, which
-    is precisely what this tool exists not to do.
+    `never` is the other half of that. Existing `project.extra.pdf_*` values
+    have a further invariant: they are author customisations, so a broad or
+    older manifest may add a newly introduced parameter but cannot silently
+    restore a template default over an existing page size, margin, duplex
+    layout, header/footer presentation or PDF content/output choice.
     """
     take, never = manifest.take, manifest.never
     theirs = {
@@ -682,7 +686,13 @@ def config_changes(
     }
     mine = _dotted(project_config)
     added = sorted(k for k in theirs if k not in mine)
-    updated = sorted(k for k in theirs if k in mine and mine[k] != theirs[k])
+    updated = sorted(
+        k
+        for k in theirs
+        if k in mine
+        and mine[k] != theirs[k]
+        and not _matches(k, PRESERVE_CONFIG_PATTERNS)
+    )
     return added, updated
 
 
