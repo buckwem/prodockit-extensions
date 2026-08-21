@@ -120,7 +120,7 @@ def test_licence_page_explains_but_does_not_replace_the_legal_text() -> None:
     assert "icon:" in licence
     assert "# Licence" in licence
     assert "plain-language summary" in licence
-    assert '--8<-- "LICENSE"' in licence
+    assert '--8<-- "LICENSE.md"' in licence
 
 
 def test_bootstrap_maturity_distinguishes_manual_and_automated_coverage() -> None:

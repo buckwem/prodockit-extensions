@@ -192,4 +192,4 @@ pull request. See [Contributing](CONTRIBUTING.md) for the complete workflow.
 
 ## Licence
 
-MIT - see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE.md).

@@ -155,7 +155,7 @@ link = "https://github.com/buckwem/prodockit-extensions"
 
 # ----------------------------------------------------------------------------
 # Markdown extensions used to render these docs. pymdownx.snippets is used to
-# embed LICENSE (outside docs_dir) into about/license.md.
+# embed LICENSE.md (outside docs_dir) into about/license.md.
 # ----------------------------------------------------------------------------
 [project.markdown_extensions.toc]
 permalink = true
