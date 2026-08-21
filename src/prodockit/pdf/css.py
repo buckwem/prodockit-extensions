@@ -418,7 +418,7 @@ a.prodockit-autoref[href^="#"]::after {
    ========================================================================== */
 table {
     border-collapse: collapse !important;
-    border: 0.5pt solid #555555 !important;
+    border: 0.05rem solid rgba(0, 0, 0, 0.12) !important;
     width: 100% !important;
     margin: 1.2em 0 !important;
     page-break-inside: auto !important;
@@ -453,7 +453,15 @@ div.prodockit-figure-caption > p:first-child {
     page-break-after: avoid !important;
     break-after: avoid-page !important;
 }
-table th { background-color: rgba(0, 0, 0, 0.1) !important; font-weight: bold !important; text-align: center !important; }
+table th { background-color: rgba(0, 0, 0, 0.05) !important; font-weight: bold !important; text-align: center !important; }
+table th.prodockit-table-cell-shaded,
+table td.prodockit-table-cell-shaded {
+    background-color: rgba(0, 0, 0, var(--prodockit-table-cell-shade)) !important;
+}
+table th.prodockit-table-cell-unshaded,
+table td.prodockit-table-cell-unshaded {
+    background-color: transparent !important;
+}
 /* text-align/font-size set explicitly here, not left to inherit - a
    table-caption's own wrapping div (div.prodockit-table-caption above, or
    the "figure {}" rule below for an append-position table caption) sets
@@ -466,7 +474,9 @@ table th { background-color: rgba(0, 0, 0, 0.1) !important; font-weight: bold !i
    sizes below. */
 table th, table td {
     padding: 8px 12px !important;
-    border: 0.5pt solid #555555 !important;
+    /* Match the website's light-scheme --md-typeset-table-color and line
+       width, while remaining self-contained when no theme variables exist. */
+    border: 0.05rem solid rgba(0, 0, 0, 0.12) !important;
     font-size: 10pt !important;
 }
 table td { text-align: left !important; }
