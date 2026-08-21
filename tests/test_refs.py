@@ -157,6 +157,39 @@ def test_ref_and_autoref_can_target_the_same_heading() -> None:
     assert '<a class="prodockit-autoref" href="#introduction">1 Introduction</a>' in html
 
 
+def _convert_with_permalink(permalink: bool) -> str:
+    source = r"""# Root
+
+REF: \ref{target}.
+
+AUTOREF: \autoref{target}.
+
+## Controlled *Target* {: #target }
+"""
+    return markdown.markdown(
+        source,
+        extensions=["attr_list", "toc", "prodockit.refs"],
+        extension_configs={"toc": {"permalink": permalink}},
+    )
+
+
+def test_heading_permalink_is_not_in_ref_or_autoref_labels() -> None:
+    html = _convert_with_permalink(True)
+
+    assert '<a class="prodockit-ref" href="#target">1.1 Controlled Target</a>' in html
+    assert '<a class="prodockit-autoref" href="#target">1.1 Controlled Target</a>' in html
+    assert html.count('class="headerlink"') == 2
+    assert '<h2 id="target">Controlled <em>Target</em><a class="headerlink"' in html
+
+
+def test_ref_labels_are_unchanged_when_heading_permalinks_are_disabled() -> None:
+    html = _convert_with_permalink(False)
+
+    assert '<a class="prodockit-ref" href="#target">1.1 Controlled Target</a>' in html
+    assert '<a class="prodockit-autoref" href="#target">1.1 Controlled Target</a>' in html
+    assert "headerlink" not in html
+
+
 # ---------------------------------------------------------------------------
 # Referencing a captioned figure or table
 # ---------------------------------------------------------------------------

@@ -92,6 +92,25 @@ def _caption_text(el: etree.Element) -> Iterator[str]:
             yield node.text
 
 
+def _heading_text(el: etree.Element) -> Iterator[str]:
+    """A heading's authored text, without TOC-generated permalink controls.
+
+    The TOC treeprocessor runs first so this extension can reuse its final
+    heading ids. With ``permalink`` enabled, it also appends an anchor whose
+    pilcrow is control text rather than part of the heading's label. Walk the
+    tree explicitly so ordinary inline markup remains included while only a
+    ``headerlink`` subtree is omitted.
+    """
+    if el.text:
+        yield el.text
+    for child in el:
+        classes = (child.get("class") or "").split()
+        if "headerlink" not in classes:
+            yield from _heading_text(child)
+        if child.tail:
+            yield child.tail
+
+
 class HeadingsTreeprocessor(Treeprocessor):
     """Records every h1-h6 element's id, and its hierarchical section number,
     in a shared :class:`IdRegistry`, keyed by the current document's source
@@ -207,7 +226,7 @@ class HeadingsTreeprocessor(Treeprocessor):
                 continue
             if el.tag not in HEADING_TAGS:
                 continue
-            text = "".join(el.itertext())
+            text = "".join(_heading_text(el))
             heading_id = el.get("id")
             if not heading_id:
                 heading_id = _slugify(text)
