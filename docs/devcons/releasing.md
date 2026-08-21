@@ -293,6 +293,13 @@ old build. `release-redeploy.yml` therefore builds nothing: it dispatches
 7. fingerprints the uploaded `index.html` and polls the public Pages URL until
    it serves those exact bytes.
 
+The single-page builds come from `.github/docs-single-page-pdfs.toml`. Every
+navigated page is either a representative build or explicitly mapped to one;
+`tests/test_docs_pdf_matrix.py` rejects an unclassified new page. All nine
+authoring extensions and each audience overview are representatives, while
+pages with the same material shape reuse one build to keep renderer work
+bounded.
+
 The workflow uses a `pages` concurrency group with cancellation disabled. A
 queued later deployment must wait and supersede the earlier one; cancelling it
 could leave the pre-release-tag build live.

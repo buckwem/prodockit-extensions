@@ -258,26 +258,26 @@ jobs:
       # input to the PDF's own correctness, not just to the website's
       # appearance.
       - run: pip install -e ".[testing]" "zensical==0.0.55" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
-      # Two pandoc+WeasyPrint passes, not one: extra.pdf_include_index is on
-      # in zensical.toml, and the back-of-book index can only be built once
-      # WeasyPrint has laid the document out (see prodockit.pdf.index). The
-      # single-page builds below stay single-pass - build_pdf() skips the
-      # second pass for a document with no \index{} markers, and the only
-      # live markers in these docs are in extensions/index-terms.md, which
-      # has no single-page build of its own.
+      # Two pandoc+WeasyPrint passes when a selected document contains index
+      # terms: the back-of-book index can only be built once WeasyPrint has
+      # laid the document out (see prodockit.pdf.index). The reviewed matrix
+      # includes index-terms.md deliberately, so that behavior is exercised
+      # through the distinct single-page path as well as the complete PDF.
       - run: prodockit pdf
-      - run: prodockit pdf -m introduction.md
-      - run: prodockit pdf -m installation.md
-      - run: prodockit pdf -m extensions/headings.md
-      - run: prodockit pdf -m extensions/refs.md
-      - run: prodockit pdf -m extensions/citations.md
-      - run: prodockit pdf -m extensions/glossary.md
-      - run: prodockit pdf -m extensions/tables.md
-      - run: prodockit pdf -m extensions/bibliography.md
-      - run: prodockit pdf -m pdf.md
-      - run: prodockit pdf -m macros.md
-      - run: prodockit pdf -m about/changelog.md
-      - run: prodockit pdf -m about/license.md
+      - name: Build reviewed single-page PDF matrix
+        run: |
+          python - <<'PY'
+          import subprocess
+          import tomllib
+
+          with open(".github/docs-single-page-pdfs.toml", "rb") as source:
+              matrix = tomllib.load(source)
+          for group, paths in matrix["build"].items():
+              for path in paths:
+                  print(f"::group::{group}: {path}", flush=True)
+                  subprocess.run(["prodockit", "pdf", "-m", path], check=True)
+                  print("::endgroup::", flush=True)
+          PY
       - run: zensical build --clean --strict
       # Checks what the builds above actually produced, using this project's
       # own pytest plugin - deselected from the normal unit run, which needs
