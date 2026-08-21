@@ -1,0 +1,68 @@
+# Reviewed coverage for the distinct `prodockit pdf --markdown-file` path.
+#
+# Every page in zensical.toml's navigation must appear exactly once: either
+# below as a representative build, or under [covered] with the representative
+# that exercises the same material page shape. tests/test_docs_pdf_matrix.py
+# enforces that boundary, so a new public page requires a coverage decision.
+version = 1
+
+[build]
+# Overview pages are cheap and deliberately explicit: these pages define the
+# site's new audience-level shapes, and previously had almost no single-page
+# coverage beyond the general introduction.
+overviews = [
+  "introduction.md",
+  "authoring.md",
+  "publishing.md",
+  "project-maintenance.md",
+  "devcons/devcons.md",
+  "about/index.md",
+]
+
+# All nine public authoring extensions. Each exercises distinct Markdown
+# conversion behavior, so none is represented by another extension page.
+authoring_extensions = [
+  "extensions/headings.md",
+  "extensions/refs.md",
+  "extensions/citations.md",
+  "extensions/glossary.md",
+  "extensions/tables.md",
+  "extensions/tree.md",
+  "extensions/steps.md",
+  "extensions/bibliography.md",
+  "extensions/index-terms.md",
+]
+
+# Materially different shapes outside the overview and extension families:
+# setup instructions, the PDF reference, macro examples, a very long page,
+# and a page assembled from an external snippet.
+other_page_shapes = [
+  "installation.md",
+  "pdf.md",
+  "macros.md",
+  "about/changelog.md",
+  "about/license.md",
+]
+
+# Pages whose single-page path is represented above. `complete` is reserved
+# for the cover: `--markdown-file` deliberately has no cover-page semantics.
+[covered]
+"index.md" = "complete"
+"getting-started.md" = "installation.md"
+"command-line.md" = "publishing.md"
+"prodockit-template.md" = "installation.md"
+"devcons/bootstrap.md" = "installation.md"
+"devcons/template-sync.md" = "publishing.md"
+"devcons/continuous-integration.md" = "publishing.md"
+"devcons/testing.md" = "publishing.md"
+"devcons/repo-metadata.md" = "project-maintenance.md"
+"devcons/pinning-drift.md" = "project-maintenance.md"
+"devcons/releasing.md" = "about/changelog.md"
+"devcons/development.md" = "devcons/devcons.md"
+"devcons/extension-internals.md" = "authoring.md"
+"devcons/pdf-internals.md" = "pdf.md"
+"devcons/bootstrap-internals.md" = "installation.md"
+"devcons/zensical-coupling.md" = "devcons/devcons.md"
+"devcons/limitations.md" = "devcons/devcons.md"
+"about/support.md" = "about/index.md"
+"about/limitations.md" = "about/index.md"
