@@ -17,6 +17,10 @@ Those are two package eras rather than duplicate releases.
 
 ## 0.42.1 (2026-08-22)
 
+- **Fixed:** PDF body text is explicitly 12pt and inline or fenced code is
+  explicitly 11pt, preserving the intended one-point difference even when a
+  site's own print stylesheet customises typography.
+
 - **Fixed:** the copyable website table CSS now keeps its default 5% header
   shading and explicit per-cell shading visible in both light and dark colour
   schemes. It uses the same theme-aware shade variable as prodockit's live

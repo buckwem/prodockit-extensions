@@ -120,6 +120,7 @@ def build_css(
    ========================================================================== */
 body {
     font-family: "__MAIN_FONT__", sans-serif !important;
+    font-size: 12pt !important;
 }
 h1, h2, h3, h4, h5, h6 {
     font-family: "__MAIN_FONT__", sans-serif !important;
@@ -127,9 +128,9 @@ h1, h2, h3, h4, h5, h6 {
 pre, code {
     font-family: "__MONO_FONT__", monospace !important;
 }
-/* WeasyPrint's default body text is 12pt. Keep inline and fenced code one
-   point smaller: the monospace face otherwise appears optically larger than
-   the surrounding proportional face at the same nominal size. */
+/* Keep inline and fenced code one point smaller than the explicit body size:
+   the monospace face otherwise appears optically larger than the surrounding
+   proportional face at the same nominal size. */
 pre, code { font-size: 11pt !important; }
 
 /* ==========================================================================
