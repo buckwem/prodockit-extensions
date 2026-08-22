@@ -280,7 +280,7 @@ text itself:
 
 ```toml
 [project.extra]
-pdf_copyright = 'Author: Jane Doe. Licensed under the MIT License.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://buckwem.github.io/prodockit-extensions/">prodockit</a>.'
+pdf_copyright = 'Author: Jane Doe. Licensed under the MIT License.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://prodockit.org/">prodockit</a>.'
 ```
 
 Links and line breaks remain real PDF content rather than being flattened to
