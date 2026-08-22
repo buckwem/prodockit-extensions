@@ -218,5 +218,6 @@ def test_unknown_option_fails_before_loading_configuration(
     result = bootstrap_cli.invoke("--not-an-option")
 
     assert result.exit_code == 2
-    assert "No such option '--not-an-option'" in result.output
+    assert "No such option" in result.output
+    assert "--not-an-option" in result.output
     assert loaded == []

@@ -168,8 +168,12 @@ def _pdkboot_action(report: StageReport, plan: Plan | None = None) -> str:
         return plan.action.upper()
     if plan.choices:
         return "CHOOSE"
-    if report.stage.id == "fresh-history" and plan.destructive:
+    if report.stage.id == "fresh-history":
         return "ARCHIVE"
+    if report.stage.id == "ssh-upload":
+        return "MANUAL"
+    if report.stage.id == "git" and report.result.status is Status.WRONG:
+        return "CONFIGURE"
     if plan.is_manual:
         return "MANUAL"
     if report.stage.id in {"first-push", "site"}:
@@ -257,6 +261,7 @@ class _PdkbootCommandProgress:
         self._thread: threading.Thread | None = None
         self._started = 0.0
         self._label = ""
+        self._widest = 0
         self._interactive = bool(click.get_text_stream("stdout").isatty())
 
     def __call__(
@@ -269,7 +274,9 @@ class _PdkbootCommandProgress:
             if not self._interactive:
                 click.echo(f"  Working on {self._label} ...")
                 return
-            click.echo(f"  ⠋ Working on {self._label} (0s)", nl=False)
+            line = f"  ⠋ Working on {self._label} (0s)"
+            self._widest = len(line)
+            click.echo(line, nl=False)
             self._thread = threading.Thread(target=self._pulse, daemon=True)
             self._thread.start()
             return
@@ -281,18 +288,18 @@ class _PdkbootCommandProgress:
         elapsed = max(0, round(time.monotonic() - self._started))
         result = "failed" if event == "failed" else "done"
         prefix = "\r  " if self._interactive else "  "
-        padding = "    " if self._interactive else ""
-        click.echo(f"{prefix}{self._label} - {result} ({elapsed}s){padding}")
+        finished = f"  {self._label} - {result} ({elapsed}s)"
+        padding = " " * max(0, self._widest - len(finished)) if self._interactive else ""
+        click.echo(f"{prefix}{finished.removeprefix('  ')}{padding}")
 
     def _pulse(self) -> None:
         frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
         frame = 0
         while not self._stop.wait(0.2):
             elapsed = max(0, round(time.monotonic() - self._started))
-            click.echo(
-                f"\r  {frames[frame % len(frames)]} Working on {self._label} ({elapsed}s)",
-                nl=False,
-            )
+            line = f"  {frames[frame % len(frames)]} Working on {self._label} ({elapsed}s)"
+            self._widest = max(self._widest, len(line))
+            click.echo(f"\r{line}", nl=False)
             frame += 1
 
 
@@ -943,9 +950,10 @@ def _announce_apply(
             click.echo(f"  Work:     {summary}")
     click.echo("")
     click.echo(
-        "  Run this from your top-level project directory, from the virtual\n"
-        "  environment prodockit itself is installed in - not the project's own,\n"
-        "  which stage 16 builds. Nothing is changed without asking first."
+        "  Run this from the setup directory containing .pdkboot.toml. The project\n"
+        "  shown above will be created beneath it. Use the virtual environment\n"
+        "  prodockit itself is installed in - stage 16 builds the project's own.\n"
+        "  Nothing is changed without asking first."
     )
     click.echo("")
 
@@ -1187,23 +1195,15 @@ def _work_through(
                 if not verified:
                     click.echo("  skipped")
                 continue
-            # There are commands, and they need the step above done
-            # first. The answer is *acted on*: this was written as a bare
-            # acknowledgement, so "Delete the template's history and start
-            # a new repository? [Y/n]: n" printed the commands anyway and
-            # asked again, which reads as the tool ignoring a refusal
-            # (prodockit-extensions#330).
-            #
-            # Default follows the same rule as the command prompt below -
-            # No when the plan destroys something (#259). Defaulting a
-            # deletion to Yes was the other half of the same fault.
-            if not click.confirm(f"  {plan.confirm}", default=not plan.destructive):
-                if journal is not None:
-                    journal.stage(report.stage.id, "skipped", action=action)
-                click.echo("  skipped")
-                continue
-            click.echo("")
-
+            if not context.pdkboot:
+                if not click.confirm(
+                    f"  {plan.confirm}", default=not plan.destructive
+                ):
+                    if journal is not None:
+                        journal.stage(report.stage.id, "skipped", action=action)
+                    click.echo("  skipped")
+                    continue
+                click.echo("")
         if plan.commands:
             if plan.describe:
                 click.echo("  Will do:")
@@ -1211,7 +1211,15 @@ def _work_through(
             else:
                 click.echo("  Will run:")
                 for command in plan.commands:
-                    click.echo(f"    {_readable_command(command)}")
+                    click.echo(
+                        _wrapped(
+                            _readable_command(command, 10_000),
+                            first="    ",
+                            rest="      ",
+                        )
+                    )
+            if plan.cwd:
+                click.echo(f"  Working directory: {plan.cwd}")
             click.echo("")
             # Yes unless it destroys something. A reader who typed
             # `--apply` has said what they want; making them say it again
@@ -1220,8 +1228,13 @@ def _work_through(
             # (#259).
             default_yes = not plan.destructive
             count = len(plan.commands)
-            if not click.confirm(f"  Run {count} command{'s' if count != 1 else ''}?",
-                                 default=default_yes):
+            if context.pdkboot and plan.instructions and plan.confirm:
+                question = plan.confirm
+            elif plan.describe:
+                question = f"Apply {count} change{'s' if count != 1 else ''}?"
+            else:
+                question = f"Run {count} command{'s' if count != 1 else ''}?"
+            if not click.confirm(f"  {question}", default=default_yes):
                 if journal is not None:
                     journal.stage(report.stage.id, "skipped", action=action)
                 click.echo("  skipped")
@@ -1325,7 +1338,7 @@ def _work_through(
                         },
                     )
                 sys.exit(1)
-            if outcome.ok:
+            if outcome.ok and not plan.follow_up:
                 recovered_detail = ""
                 if outcome.recovered is not None:
                     recovered_detail = (
@@ -1678,12 +1691,22 @@ def bootstrap(
     }
     for number, report in enumerate(reports, start=1):
         symbol = symbols[report.result.status]
+        if (
+            context.pdkboot
+            and report.result.status is Status.MISSING
+            and report.result.detail.startswith(
+                ("no project directory yet", "no project to install")
+            )
+        ):
+            symbol = "WAIT"
         detail = f" - {report.result.detail}" if report.result.detail else ""
         click.echo(f"{number:2}  {symbol}  {report.stage.summary}{detail}")
         if dry_run and report.plan is not None:
             # In the order they actually happen: prepare, run, finish.
             for instruction in report.plan.instructions:
                 _echo_wrapped_instruction(instruction)
+            if report.plan.cwd:
+                click.echo(f"        in:  {report.plan.cwd}")
             for command in report.plan.commands:
                 click.echo(f"        run: {' '.join(command)}")
             for instruction in report.plan.follow_up:

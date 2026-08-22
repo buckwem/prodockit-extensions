@@ -29,6 +29,8 @@ worked*, which is the half a written instruction can never do
 from __future__ import annotations
 
 import json
+import os
+import re
 import socket
 import sys
 import tempfile
@@ -803,6 +805,7 @@ def _plan_ssh_key(context: Context) -> Plan:
             "remember it; it protects the key if your machine is lost.",
         ],
         confirm="Ready to create the key?",
+        needs_terminal=context.pdkboot,
     )
 
 
@@ -1778,7 +1781,11 @@ def host_said(result: CommandResult) -> str:
     """
     for line in f"{result.stderr}\n{result.stdout}".splitlines():
         said = line.strip().removeprefix("remote:").strip()
-        if not said or said.lower().startswith(_GIT_NOISE):
+        if (
+            not said
+            or set(said) <= {"=", "-"}
+            or said.lower().startswith(_GIT_NOISE)
+        ):
             continue
         return said
     return ""
@@ -2336,9 +2343,34 @@ def _venv_command(context: Context, name: str) -> Path:
     return venv / "bin" / name
 
 
+_MACOS_DYLD_MARKER = "# Added by pdkboot for WeasyPrint"
+
+
+def _homebrew_library_path(context: Context) -> str:
+    """The Homebrew library directory WeasyPrint's loader needs on macOS."""
+    prefix = context.runner.run(["brew", "--prefix"])
+    root = prefix.stdout.strip() if prefix.ok and prefix.stdout.strip() else "/opt/homebrew"
+    return str(Path(root) / "lib")
+
+
+def _macos_loader_is_configured(context: Context) -> bool:
+    activate = _project_venv(context) / "bin" / "activate"
+    try:
+        return _MACOS_DYLD_MARKER in activate.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
 def _imports_from_project_venv(context: Context, module: str) -> CommandResult:
     """Runs `import <module>` using the *project's* interpreter."""
-    return context.runner.run([str(_venv_python(context)), "-c", f"import {module}"])
+    command = [str(_venv_python(context)), "-c", f"import {module}"]
+    if context.pdkboot and context.platform == MACOS:
+        command = [
+            "env",
+            f"DYLD_FALLBACK_LIBRARY_PATH={_homebrew_library_path(context)}",
+            *command,
+        ]
+    return context.runner.run(command)
 
 
 def _check_project_env(context: Context) -> CheckResult:
@@ -2377,7 +2409,17 @@ def _check_project_env(context: Context) -> CheckResult:
         # at the libraries rather than at pip.
         return _wrong(
             "WeasyPrint is installed but cannot load its graphics libraries - "
-            "the pandoc stage installs them, so re-run that first"
+            "the pandoc stage installs them, and pdkboot will configure the project's "
+            "environment to find Homebrew's libraries"
+        )
+    if (
+        context.pdkboot
+        and context.platform == MACOS
+        and not _macos_loader_is_configured(context)
+    ):
+        return _wrong(
+            "WeasyPrint works in this run, but the project environment does not yet "
+            "preserve Homebrew's library path for future shells"
         )
     # Says whose environment it is. There are two in a finished setup -
     # prodockit's own and this one - and a reader who has just been asked
@@ -2535,6 +2577,22 @@ def _plan_project_env(context: Context) -> Plan:
     commands.append(
         [str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")]
     )
+    if context.pdkboot and context.platform == MACOS:
+        activate = venv / "bin" / "activate"
+        library = _homebrew_library_path(context)
+        script = (
+            "from pathlib import Path; import sys\n"
+            "path = Path(sys.argv[1]); marker = sys.argv[2]; library = sys.argv[3]\n"
+            "text = path.read_text(encoding='utf-8')\n"
+            "line = 'export DYLD_FALLBACK_LIBRARY_PATH=\"' + library + "
+            "'${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}\"'\n"
+            "if marker not in text:\n"
+            "    updated = text.rstrip() + '\\n\\n' + marker + '\\n' + line + '\\n'\n"
+            "    path.write_text(updated, encoding='utf-8')\n"
+        )
+        commands.append(
+            [sys.executable, "-c", script, str(activate), _MACOS_DYLD_MARKER, library]
+        )
     return Plan(cwd=str(project), commands=commands)
 
 
@@ -3191,7 +3249,30 @@ def _http_status(context: Context, url: str) -> int | None:
     login-walled site is recognised as published.
     """
     answer = context.fetch(url)
-    return answer.status if answer is not None else None
+    if answer is not None:
+        return int(answer.status)
+    if not context.pdkboot:
+        return None
+    # Python's TLS trust can differ from the operating system's on macOS.
+    # curl uses the system trust store, so it is a useful second opinion.
+    curl = "curl.exe" if context.platform == WINDOWS else "curl"
+    result = context.runner.run(
+        [
+            curl,
+            "-sS",
+            "-o",
+            os.devnull,
+            "-w",
+            "%{http_code}",
+            "--max-redirs",
+            "0",
+            "--connect-timeout",
+            "20",
+            url,
+        ]
+    )
+    match = re.search(r"\b([1-5]\d\d)\b", result.stdout)
+    return int(match.group(1)) if match else None
 
 
 def _site_answers(context: Context) -> bool:
@@ -3246,7 +3327,14 @@ def _check_site_published(context: Context) -> CheckResult:
         # Nobody said the site is missing - the question was never put.
         # curl arrives with the Pandoc stage, so a run that has not got
         # that far has no way to ask (prodockit-extensions#374).
-        return _missing(f"could not check {url} from here - the probe did not run")
+        detail = f"could not check {url} from here - the probe did not run"
+        if context.pdkboot:
+            return CheckResult(
+                Status.MISSING,
+                f"{detail}; confirm it in your browser",
+                verifiable=False,
+            )
+        return _missing(detail)
     if status in (401, 403) or 300 <= status < 400:
         # A login wall is proof the site is there. A university instance
         # publishes behind its own sign-in, so an anonymous probe is sent
@@ -3276,6 +3364,11 @@ def _plan_site_published(context: Context) -> Plan:
     """
     host = context.host
     url = site_url(context)
+    readme = context.config.resolved_project_dir(context.home) / "README.md"
+    try:
+        readme_already_links_to_site = url in readme.read_text(encoding="utf-8")
+    except OSError:
+        readme_already_links_to_site = False
     return Plan(
         instructions=[
             f"Push your first commit, and the workflow will publish {url}.",
@@ -3283,7 +3376,7 @@ def _plan_site_published(context: Context) -> Plan:
             # call, and asking a reader to install and sign into a command
             # line for one field was four ways to go wrong for a link they
             # can paste in ten seconds (#357).
-            *host.site_link_steps,
+            *(() if readme_already_links_to_site else host.site_link_steps),
             "It enables Pages itself, so there is nothing to switch on.",
             *([host.site_visibility_note] if host.site_visibility_note else []),
             *([host.site_missing_note] if host.site_missing_note else []),
@@ -3712,7 +3805,12 @@ def _plan_clone_source(context: Context) -> Plan:
     """
     name = f"{context.config.namespace.strip()}/{context.config.project_name.strip()}"
     return Plan(
-        instructions=[f"{name} already exists on {context.host.hostname} and has content in it."],
+        instructions=[
+            f"{name} already exists on {context.host.hostname} and has content in it.",
+            f"Open https://{context.host.hostname}/{name} and confirm this exact active "
+            "project opens without redirecting to an archived or deletion-scheduled name "
+            "before choosing. Git can still follow a renamed project's old address.",
+        ],
         choices=(
             f"clone the full repo {name!r}, then leave the existing git records and "
             "sync origin unchanged",

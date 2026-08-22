@@ -345,6 +345,49 @@ def test_site_stage_is_not_applicable_without_a_fixed_pages_address(
     assert "not checked" in result.detail
 
 
+def test_site_stage_accepts_an_oauth_redirect_found_by_system_curl(
+    tmp_path: Path,
+) -> None:
+    runner = CliFakeRunner({"curl": CommandResult(47, "302")})
+    context = _context(tmp_path, runner=runner)
+
+    result = stages._check_site_published(context)
+
+    assert result.status is Status.OK
+    assert "login" in result.detail
+    assert any(call[0] == "curl" and "--max-redirs" in call for call in runner.calls)
+
+
+def test_unavailable_site_probe_takes_a_browser_confirmation_on_trust(
+    tmp_path: Path,
+) -> None:
+    result = stages._check_site_published(_context(tmp_path))
+
+    assert result.status is Status.MISSING
+    assert result.verifiable is False
+    assert "confirm it in your browser" in result.detail
+
+
+def test_macos_project_environment_plan_persists_homebrew_library_path(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "report"
+    project.mkdir()
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    context = _context(
+        tmp_path,
+        runner=CliFakeRunner({"brew --prefix": CommandResult(0, "/opt/homebrew\n")}),
+    )
+
+    plan = stages._plan_project_env(context)
+    rendered = "\n".join(" ".join(command) for command in plan.commands)
+
+    assert "DYLD_FALLBACK_LIBRARY_PATH" in rendered
+    assert "/opt/homebrew/lib" in rendered
+    assert "activate" in rendered
+    compile(plan.commands[-1][2], "<pdkboot macOS activation update>", "exec")
+
+
 def test_first_push_reports_an_unreachable_origin(tmp_path: Path) -> None:
     (tmp_path / "report" / ".git").mkdir(parents=True)
     runner = CliFakeRunner(

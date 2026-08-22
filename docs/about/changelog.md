@@ -15,6 +15,24 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
+## 0.43.0a2 (2026-08-22)
+
+- **Fixed:** macOS project environments now retain Homebrew's library path,
+  allowing WeasyPrint to load Pango in later shells without a manual export.
+  Interactive SSH key creation keeps direct terminal access, installer
+  follow-ups are never skipped after a successful command, and progress lines
+  cleanly replace their spinner text.
+
+- **Changed:** each stage asks for approval once, shows full commands and their
+  working directory, and classifies configuration, manual and archived-history
+  work accurately. Project-dependent checks display as waiting until a clone
+  exists, and clone choices warn about renamed or deletion-scheduled projects.
+
+- **Fixed:** the published-site check falls back to the operating system's TLS
+  trust and recognises GitLab Pages OAuth redirects as proof of publication. If
+  neither probe can run, an explicit browser confirmation is accepted rather
+  than entering an ineffective retry loop.
+
 ## 0.43.0a1 (2026-08-22)
 
 - **Preview:** the standalone `pdkboot` command provides an isolated proving

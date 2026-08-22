@@ -8,7 +8,7 @@ Use a disposable VM snapshot. The preview is deliberately isolated from
 `prodockit bootstrap`: it installs the `pdkboot` command and writes
 `.pdkboot.toml` plus `.pdkboot.last-run.json` in the directory where it runs.
 
-The package under test is `prodockit 0.43.0a1`. Confirm the wheel against
+The package under test is `prodockit 0.43.0a2`. Confirm the wheel against
 `dist/SHA256SUMS` before copying it into a VM.
 
 ## Install from a Parallels shared folder
@@ -21,7 +21,7 @@ affect a project's Python environment.
     ```powershell
     py -m venv "$env:USERPROFILE\pdkboot-preview"
     & "$env:USERPROFILE\pdkboot-preview\Scripts\python.exe" -m pip install --upgrade pip
-    & "$env:USERPROFILE\pdkboot-preview\Scripts\python.exe" -m pip install --pre "Z:\path\to\prodockit-0.43.0a1-py3-none-any.whl"
+    & "$env:USERPROFILE\pdkboot-preview\Scripts\python.exe" -m pip install --pre "Z:\path\to\prodockit-0.43.0a2-py3-none-any.whl"
     & "$env:USERPROFILE\pdkboot-preview\Scripts\pdkboot.exe" --version
     ```
 
@@ -30,7 +30,7 @@ affect a project's Python environment.
     ```bash
     python3 -m venv ~/pdkboot-preview
     ~/pdkboot-preview/bin/python -m pip install --upgrade pip
-    ~/pdkboot-preview/bin/python -m pip install --pre /path/to/prodockit-0.43.0a1-py3-none-any.whl
+    ~/pdkboot-preview/bin/python -m pip install --pre /path/to/prodockit-0.43.0a2-py3-none-any.whl
     ~/pdkboot-preview/bin/pdkboot --version
     ```
 
@@ -39,11 +39,11 @@ affect a project's Python environment.
     ```bash
     python3 -m venv ~/pdkboot-preview
     ~/pdkboot-preview/bin/python -m pip install --upgrade pip
-    ~/pdkboot-preview/bin/python -m pip install --pre /path/to/prodockit-0.43.0a1-py3-none-any.whl
+    ~/pdkboot-preview/bin/python -m pip install --pre /path/to/prodockit-0.43.0a2-py3-none-any.whl
     ~/pdkboot-preview/bin/pdkboot --version
     ```
 
-The version command must print `pdkboot, version 0.43.0a1`.
+The version command must print `pdkboot, version 0.43.0a2`.
 
 ## Run one scenario per snapshot
 
@@ -81,7 +81,7 @@ then install the wheel over it:
 
 ```text
 python -m pip install "prodockit==0.42.1"
-python -m pip install --upgrade --pre /path/to/prodockit-0.43.0a1-py3-none-any.whl
+python -m pip install --upgrade --pre /path/to/prodockit-0.43.0a2-py3-none-any.whl
 pdkboot --version
 ```
 

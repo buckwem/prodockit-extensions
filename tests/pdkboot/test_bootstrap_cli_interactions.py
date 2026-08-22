@@ -234,7 +234,7 @@ def test_active_stage_shows_action_current_state_and_goal(tmp_path: Path) -> Non
         input="n\n",
     )
 
-    assert "Action:   REPAIR" in output
+    assert "Action:   CONFIGURE" in output
     assert "Current:  email is not configured" in output
     assert "Goal:     Git, installed and configured" in output
 
@@ -402,9 +402,10 @@ def test_apply_failure_records_stage_exit_status_and_message(tmp_path: Path) -> 
     report = StageReport(stage, CheckResult(Status.MISSING), stage.plan(context))
 
     runner_cli = CliRunner()
-    with runner_cli.isolation(input="y\n") as (output, error, _), pytest.raises(SystemExit):
-        _apply_outstanding(context, [report], config_path)
-    rendered = output.getvalue().decode() + error.getvalue().decode()
+    with runner_cli.isolation(input="y\n") as (output, error, _):
+        with pytest.raises(SystemExit):
+            _apply_outstanding(context, [report], config_path)
+        rendered = output.getvalue().decode() + error.getvalue().decode()
 
     saved = json.loads(
         (tmp_path / ".pdkboot.last-run.json").read_text(encoding="utf-8")
@@ -709,6 +710,59 @@ def test_follow_up_after_commands_can_confirm_without_being_marked_skipped(
 
     assert "confirmed" in output
     assert "skipped" not in output
+
+
+def test_successful_installer_still_shows_and_confirms_its_follow_up(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = _context(tmp_path)
+    checks = iter([CheckResult(Status.MISSING), CheckResult(Status.OK)])
+    stage = _stage(
+        lambda context: next(checks),
+        lambda context: Plan(
+            commands=[["installer"]],
+            follow_up=["Enable the installed integration."],
+            confirm="Finished?",
+        ),
+    )
+    report = StageReport(stage, CheckResult(Status.MISSING), stage.plan(context))
+    monkeypatch.setattr(
+        "prodockit.cli.apply_stage",
+        lambda context, stage, plan, **kwargs: ApplyResult(
+            stage=stage,
+            ran=[["installer"]],
+            verified=CheckResult(Status.OK),
+        ),
+    )
+
+    _, output, _ = _isolated(
+        lambda: _work_through(context, [report], None), input="y\nyes\n"
+    )
+
+    assert "commands ran — one more step" in output
+    assert "Enable the installed integration." in output
+    assert "confirmed" in output
+
+
+def test_instructions_and_commands_have_one_approval_prompt(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    stage = _stage(
+        lambda context: CheckResult(Status.MISSING, "not installed"),
+        lambda context: Plan(
+            commands=[["installer"]],
+            instructions=["Choose a passphrase when asked."],
+            confirm="Ready to install?",
+        ),
+    )
+    report = StageReport(stage, CheckResult(Status.MISSING), stage.plan(context))
+
+    _, output, _ = _isolated(
+        lambda: _work_through(context, [report], None), input="n\n"
+    )
+
+    assert output.count("Ready to install?") == 1
+    assert "Run 1 command?" not in output
+    assert output.index("Will run:") < output.index("Ready to install?")
 
 
 def test_contact_report_is_silent_before_any_host_question(tmp_path: Path) -> None:

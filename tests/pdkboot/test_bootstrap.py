@@ -136,6 +136,9 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     venv_python = project / ".venv" / "bin" / "python"
     venv_python.parent.mkdir(parents=True, exist_ok=True)
     venv_python.write_text("", encoding="utf-8")
+    (venv_python.parent / "activate").write_text(
+        "# Added by pdkboot for WeasyPrint\n", encoding="utf-8"
+    )
     (project / "harvard-cite-them-right.csl").write_text("<style/>", encoding="utf-8")
     pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
     pinned.mkdir(parents=True, exist_ok=True)
@@ -2584,6 +2587,7 @@ def test_a_preparing_instruction_is_shown_before_the_command_that_needs_it(
     assert "passphrase" in " ".join(keypair.instructions)
     assert any("ssh-keygen" in " ".join(command) for command in keypair.commands)
     assert not keypair.follow_up, "the warning precedes the prompt, so it is not a follow-up"
+    assert keypair.needs_terminal, "the passphrase prompt must not be hidden by a spinner"
 
 
 def test_dry_run_lists_manual_steps_in_the_order_they_happen(
