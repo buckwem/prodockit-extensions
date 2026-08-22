@@ -225,7 +225,12 @@ class ApplyResult:
         return self.failed is None and self.verified is not None and not self.verified.needs_work
 
 
-def apply_stage(context: Context, stage: Stage, plan: Plan | None = None) -> ApplyResult:
+def apply_stage(
+    context: Context,
+    stage: Stage,
+    plan: Plan | None = None,
+    progress: Callable[[str, int, int, list[str]], None] | None = None,
+) -> ApplyResult:
     """Runs an approved stage plan, then re-checks it.
 
     Stops at the first command that fails rather than pressing on: the
@@ -244,7 +249,8 @@ def apply_stage(context: Context, stage: Stage, plan: Plan | None = None) -> App
     if plan is None:
         plan = stage.plan(context)
     result = ApplyResult(stage=stage)
-    for planned in plan.commands:
+    command_count = len(plan.commands)
+    for command_number, planned in enumerate(plan.commands, start=1):
         # Resolved now rather than when the plan was written. A command
         # installed by an earlier line of the *same* plan cannot be found
         # at planning time - `winget install` Node, then `npm ci` - and
@@ -256,26 +262,43 @@ def apply_stage(context: Context, stage: Stage, plan: Plan | None = None) -> App
         # 100 MB download and an `apt install` behind it are ordinary
         # here, and killing them at the check's limit reported a failure
         # over an install that then succeeded (#243).
-        outcome = context.runner.run(
-            command,
-            cwd=plan.cwd,
-            timeout=INSTALL_TIMEOUT_SECONDS,
-            # Applying is never captured. An installer's own output is
-            # the only sign a run is alive: `apt update`, a 100 MB
-            # download and `apt install` behind it are minutes of
-            # silence otherwise, and a silent terminal is
-            # indistinguishable from a hung one - readers interrupted
-            # installs that were working (prodockit-extensions#244).
-            #
-            # It also covers what `needs_terminal` was added for: a
-            # command that has to ask something (#246) now always has
-            # the terminal, rather than only when a plan remembered to
-            # say so.
-            #
-            # Checks stay captured - they read what a command printed,
-            # and there are dozens of them per run.
-            capture=False,
-        )
+        if progress is not None:
+            progress("start", command_number, command_count, list(command))
+        try:
+            outcome = context.runner.run(
+                command,
+                cwd=plan.cwd,
+                timeout=INSTALL_TIMEOUT_SECONDS,
+                # Legacy bootstrap streams an installer's output because it
+                # otherwise offers no indication that a slow download is alive
+                # (prodockit-extensions#244). pdkboot supplies a live progress
+                # callback instead, captures routine chatter, and shows the
+                # captured output if the command fails.
+                #
+                # It also covers what `needs_terminal` was added for: a
+                # command that has to ask something (#246) now always has
+                # the terminal, rather than only when a plan remembered to
+                # say so.
+                #
+                # Checks stay captured - they read what a command printed, and
+                # there are dozens of them per run.
+                # pdkboot replaces routine installer chatter with its own live
+                # progress display, but a command that genuinely needs the
+                # terminal must still own it. Legacy bootstrap retains the
+                # streamed output its users already know.
+                capture=(
+                    context.pdkboot
+                    and progress is not None
+                    and not plan.needs_terminal
+                ),
+            )
+        except BaseException:
+            # In particular, stop pdkboot's background spinner when the user
+            # interrupts a command. The original exception still decides the
+            # process outcome.
+            if progress is not None:
+                progress("failed", command_number, command_count, list(command))
+            raise
         result.ran.append(list(command))
         # Whatever this command did, anything remembered about the host
         # from before it ran is now a statement about the past. Dropped
@@ -293,7 +316,15 @@ def apply_stage(context: Context, stage: Stage, plan: Plan | None = None) -> App
         # failure, and stopping there abandoned the `git config` commands
         # that followed in the same plan - leaving git installed and
         # unconfigured, with the run blaming the install (#309).
-        if not benign_outcome(command, outcome):
+        accepted = benign_outcome(command, outcome)
+        if progress is not None:
+            progress(
+                "finish" if accepted else "failed",
+                command_number,
+                command_count,
+                list(command),
+            )
+        if not accepted:
             return ApplyResult(stage=stage, ran=result.ran, failed=outcome)
     # Unconditionally, not only after a command. The two browser stages
     # have instructions-only plans, so the loop above never ran and never

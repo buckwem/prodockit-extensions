@@ -24,6 +24,7 @@ from __future__ import annotations
 import pathlib
 import sys
 import textwrap
+import threading
 import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -87,6 +88,154 @@ from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
 _PDKBOOT_MODE: ContextVar[bool] = ContextVar("pdkboot_mode", default=False)
+
+
+# These are presentation groups, not execution units: stages still run in
+# their established dependency order and are rechecked immediately before
+# use. Keeping the grouping here means the replacement command can evolve
+# without changing legacy bootstrap's model or output.
+_PDKBOOT_PHASES: tuple[tuple[str, frozenset[str]], ...] = (
+    ("Preflight", frozenset({"own-venv"})),
+    ("Core tools", frozenset({"vscode", "git"})),
+    (
+        "Git and host",
+        frozenset({"ssh-key", "ssh-config", "ssh-agent", "ssh-upload"}),
+    ),
+    (
+        "Project",
+        frozenset(
+            {
+                "clone-source",
+                "clone",
+                "fresh-history",
+                "own-project",
+                "pages",
+                "remote",
+                "identity",
+            }
+        ),
+    ),
+    (
+        "Build toolchain",
+        frozenset({"pandoc", "project-env", "node"}),
+    ),
+    (
+        "Editor and project",
+        frozenset({"extensions", "vscode-settings", "csl-style", "mathjax"}),
+    ),
+    ("Publish", frozenset({"first-push", "site"})),
+)
+
+_PDKBOOT_INSTALL_STAGES = frozenset(
+    {
+        "own-venv",
+        "vscode",
+        "git",
+        "ssh-key",
+        "clone",
+        "pandoc",
+        "project-env",
+        "node",
+        "extensions",
+        "csl-style",
+        "mathjax",
+    }
+)
+_PDKBOOT_CONFIGURE_STAGES = frozenset(
+    {"ssh-config", "ssh-agent", "remote", "identity", "vscode-settings"}
+)
+
+
+def _pdkboot_phase(stage_id: str) -> tuple[int, str] | None:
+    """Return the display phase for a real bootstrap stage."""
+    for number, (name, stage_ids) in enumerate(_PDKBOOT_PHASES, start=1):
+        if stage_id in stage_ids:
+            return number, name
+    return None
+
+
+def _pdkboot_action(report: StageReport, plan: Plan | None = None) -> str:
+    """Describe work in terms a reader can use to judge its risk."""
+    plan = plan or report.plan
+    if plan is None:
+        return "WAIT" if report.result.status is Status.BLOCKED else "CHECK"
+    if plan.action:
+        return plan.action.upper()
+    if plan.choices:
+        return "CHOOSE"
+    if report.stage.id == "fresh-history" and plan.destructive:
+        return "ARCHIVE"
+    if plan.is_manual:
+        return "MANUAL"
+    if report.stage.id in {"first-push", "site"}:
+        return "PUBLISH"
+    if report.stage.id in _PDKBOOT_CONFIGURE_STAGES:
+        return "CONFIGURE"
+    if report.stage.id in _PDKBOOT_INSTALL_STAGES:
+        return "INSTALL" if report.result.status is Status.MISSING else "REPAIR"
+    if report.result.status is Status.WRONG:
+        return "REPAIR"
+    return "INSTALL" if plan.commands else "MANUAL"
+
+
+def _pdkboot_work_summary(reports: Sequence[StageReport]) -> str:
+    """Compact counts of the kinds of outstanding work in this pass."""
+    order = ("INSTALL", "UPGRADE", "CONFIGURE", "REPAIR", "ARCHIVE", "CHOOSE", "MANUAL", "PUBLISH")
+    counts = dict.fromkeys(order, 0)
+    for report in reports:
+        if report.needs_work and report.plan is not None:
+            action = _pdkboot_action(report)
+            counts[action] = counts.get(action, 0) + 1
+    return " · ".join(
+        f"{count} {action.lower()}" for action in order if (count := counts[action])
+    )
+
+
+class _PdkbootCommandProgress:
+    """Keep a quiet install visibly alive without hiding its failures."""
+
+    def __init__(self) -> None:
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._started = 0.0
+        self._label = ""
+        self._interactive = bool(click.get_text_stream("stdout").isatty())
+
+    def __call__(
+        self, event: str, number: int, total: int, command: list[str]
+    ) -> None:
+        if event == "start":
+            self._started = time.monotonic()
+            self._label = f"command {number}/{total}: {_readable_command(command, 64)}"
+            self._stop.clear()
+            if not self._interactive:
+                click.echo(f"  Working on {self._label} ...")
+                return
+            click.echo(f"  ⠋ Working on {self._label} (0s)", nl=False)
+            self._thread = threading.Thread(target=self._pulse, daemon=True)
+            self._thread.start()
+            return
+
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.2)
+            self._thread = None
+        elapsed = max(0, round(time.monotonic() - self._started))
+        result = "failed" if event == "failed" else "done"
+        prefix = "\r  " if self._interactive else "  "
+        padding = "    " if self._interactive else ""
+        click.echo(f"{prefix}{self._label} - {result} ({elapsed}s){padding}")
+
+    def _pulse(self) -> None:
+        frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+        frame = 0
+        while not self._stop.wait(0.2):
+            elapsed = max(0, round(time.monotonic() - self._started))
+            click.echo(
+                f"\r  {frames[frame % len(frames)]} Working on {self._label} ({elapsed}s)",
+                nl=False,
+            )
+            frame += 1
 
 
 @contextmanager
@@ -698,7 +847,11 @@ def _readable_command(command: Sequence[str], limit: int = 110) -> str:
     return rendered
 
 
-def _announce_apply(context: Context, outstanding: int) -> None:
+def _announce_apply(
+    context: Context,
+    outstanding: int,
+    reports: Sequence[StageReport] = (),
+) -> None:
     """Says what is about to happen, before it starts happening.
 
     `--apply` opened straight into `[1/11] Visual Studio Code`, which
@@ -726,6 +879,10 @@ def _announce_apply(context: Context, outstanding: int) -> None:
     click.echo(f"  Host:     {context.host.hostname}")
     click.echo(f"  Project:  {context.config.resolved_project_dir(context.home)}")
     click.echo(f"  To do:    {outstanding} of {len(STAGES)} stages")
+    if context.pdkboot and reports:
+        summary = _pdkboot_work_summary(reports)
+        if summary:
+            click.echo(f"  Work:     {summary}")
     click.echo("")
     click.echo(
         "  Run this from your top-level project directory, from the virtual\n"
@@ -752,7 +909,7 @@ def _apply_outstanding(
                    "configuration.")
         return
 
-    _announce_apply(context, len(outstanding))
+    _announce_apply(context, len(outstanding), reports)
     try:
         _work_through(context, reports, config_path)
     except _StartAgain as done_but_unseen:
@@ -781,6 +938,7 @@ def _work_through(
     # were invisible rather than reassuring
     # (prodockit-extensions#284).
     total = len(reports)
+    shown_phase: tuple[int, str] | None = None
     for number, report in enumerate(reports, start=1):
         # Asked again, here, rather than trusting the pass taken before
         # any of this ran. Earlier stages change the machine the later
@@ -800,6 +958,17 @@ def _work_through(
             result=result,
             plan=report.stage.plan(context) if plannable else None,
         )
+        phase = _pdkboot_phase(report.stage.id) if context.pdkboot else None
+        if phase is not None and phase != shown_phase:
+            phase_number, phase_name = phase
+            click.echo("")
+            click.echo(
+                click.style(
+                    f"Phase {phase_number}/{len(_PDKBOOT_PHASES)} — {phase_name}",
+                    bold=True,
+                )
+            )
+            shown_phase = phase
         if not report.needs_work:
             # With the detail, as the report itself prints it. Without
             # it, "ok" said nothing about *why* - and for the stage that
@@ -840,7 +1009,11 @@ def _work_through(
 
         click.echo("")
         click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))
-        if report.result.detail:
+        if context.pdkboot:
+            click.echo(f"  Action:   {_pdkboot_action(report, plan)}")
+            click.echo(f"  Current:  {report.result.detail or 'not yet satisfied'}")
+            click.echo(f"  Goal:     {report.stage.summary}")
+        elif report.result.detail:
             click.echo(f"        {report.result.detail}")
         click.echo("")
 
@@ -920,7 +1093,7 @@ def _work_through(
             # whose clock is running. sudo reads from /dev/tty exactly as
             # ssh does, so it asks regardless of what stdin is set to -
             # and the reader's typing time was counted against the
-            # install's timeout (#243).
+                # install's timeout (#243).
             if needs_sudo(plan.commands) and _is_interactive():
                 click.echo("  These need administrator rights.")
                 if not authenticate_sudo():
@@ -932,10 +1105,20 @@ def _work_through(
             # seconds (an `ssh -T` carries a ten-second connect timeout),
             # which reads as a hang right after a command has visibly
             # finished. So both ends are announced (#244).
-            click.echo("  Working - the commands' own output follows.")
-            click.echo("")
+            if context.pdkboot and plan.needs_terminal:
+                click.echo("  This command needs the terminal; its output will be shown.")
+            elif context.pdkboot:
+                click.echo("  Routine command output is hidden; failures are shown in full.")
+            else:
+                click.echo("  Working - the commands' own output follows.")
+                click.echo("")
             outcome = (
-                apply_stage(context, report.stage, plan)
+                apply_stage(
+                    context,
+                    report.stage,
+                    plan,
+                    progress=None if plan.needs_terminal else _PdkbootCommandProgress(),
+                )
                 if context.pdkboot
                 else apply_stage(context, report.stage)
             )
@@ -946,10 +1129,23 @@ def _work_through(
                 # so there is usually no captured stderr to summarise -
                 # point at what the reader can see rather than invent a
                 # sentence (#244).
+                captured = "\n".join(
+                    part.strip()
+                    for part in (outcome.failed.stdout, outcome.failed.stderr)
+                    if part.strip()
+                )
+                if context.pdkboot and captured:
+                    click.echo("  Command output:", err=True)
+                    for line in captured.splitlines():
+                        click.echo(f"    {line}", err=True)
                 summary = (
                     _first_meaningful_line(outcome.failed.stderr)
                     if outcome.failed.stderr.strip()
-                    else f"exit status {outcome.failed.returncode} - see the output above"
+                    else (
+                        _first_meaningful_line(outcome.failed.stdout)
+                        if outcome.failed.stdout.strip()
+                        else f"exit status {outcome.failed.returncode}"
+                    )
                 )
                 click.echo(f"  failed: {summary}", err=True)
                 click.echo("  Stopping - later stages depend on this one.", err=True)

@@ -971,6 +971,13 @@ class Plan:
     #: pressing Enter through them. Each entry is one option, in order;
     #: the answer is its 1-based number (prodockit-extensions#348).
     choices: tuple[str, ...] = ()
+    #: The user-facing kind of work this plan performs. ``pdkboot`` uses
+    #: this when the distinction cannot be inferred safely from the stage:
+    #: repairing an installed runtime and upgrading an old one can both
+    #: contain the same package-manager command shape as a fresh install.
+    #: Legacy bootstrap does not render it. Kept last to preserve positional
+    #: construction compatibility for callers of this public model.
+    action: str = ""
 
     @property
     def is_manual(self) -> bool:

@@ -9,6 +9,7 @@ import pytest
 from click.testing import CliRunner
 
 from prodockit.bootstrap import (
+    STAGES,
     ApplyResult,
     BootstrapConfig,
     CheckResult,
@@ -17,11 +18,18 @@ from prodockit.bootstrap import (
     Stage,
     StageReport,
     Status,
+    apply_stage,
     build_context,
     load,
 )
 from prodockit.bootstrap.model import MACOS
-from prodockit.cli import _report_contacts, _verify_until_done, _work_through
+from prodockit.cli import (
+    _announce_apply,
+    _pdkboot_phase,
+    _report_contacts,
+    _verify_until_done,
+    _work_through,
+)
 
 from .harness import CliFakeRunner, unreachable
 
@@ -169,6 +177,180 @@ def test_apply_view_distinguishes_blocked_from_unknown_stages(tmp_path: Path) ->
     assert "?     Unknown stage - could not inspect" in output
 
 
+def test_apply_groups_real_stages_into_named_phases(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    git = Stage(
+        id="git",
+        summary="Git",
+        check=lambda context: CheckResult(Status.OK, "ready"),
+        plan=lambda context: Plan(),
+    )
+    ssh = Stage(
+        id="ssh-key",
+        summary="SSH key",
+        check=lambda context: CheckResult(Status.OK, "ready"),
+        plan=lambda context: Plan(),
+    )
+
+    _, output, _ = _isolated(
+        lambda: _work_through(
+            context,
+            [
+                StageReport(git, CheckResult(Status.OK), None),
+                StageReport(ssh, CheckResult(Status.OK), None),
+            ],
+            None,
+        ),
+        input="",
+    )
+
+    assert "Phase 2/7 — Core tools" in output
+    assert "Phase 3/7 — Git and host" in output
+
+
+def test_every_real_stage_has_one_forward_moving_phase() -> None:
+    phases = [_pdkboot_phase(stage.id) for stage in STAGES]
+
+    assert all(phase is not None for phase in phases)
+    numbers = [phase[0] for phase in phases if phase is not None]
+    assert numbers == sorted(numbers)
+    assert set(numbers) == set(range(1, 8))
+
+
+def test_active_stage_shows_action_current_state_and_goal(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    stage = Stage(
+        id="git",
+        summary="Git, installed and configured",
+        check=lambda context: CheckResult(Status.WRONG, "email is not configured"),
+        plan=lambda context: Plan(commands=[["git", "config", "user.email", "ada@example.test"]]),
+    )
+    report = StageReport(stage, CheckResult(Status.WRONG), stage.plan(context))
+
+    _, output, _ = _isolated(
+        lambda: _work_through(context, [report], None),
+        input="n\n",
+    )
+
+    assert "Action:   REPAIR" in output
+    assert "Current:  email is not configured" in output
+    assert "Goal:     Git, installed and configured" in output
+
+
+def test_apply_announcement_summarises_kinds_of_work(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    stages = [
+        Stage(
+            id="node",
+            summary="Node",
+            check=lambda context: CheckResult(Status.MISSING),
+            plan=lambda context: Plan(commands=[["install-node"]]),
+        ),
+        Stage(
+            id="identity",
+            summary="Identity",
+            check=lambda context: CheckResult(Status.WRONG),
+            plan=lambda context: Plan(commands=[["configure-git"]]),
+        ),
+        Stage(
+            id="site",
+            summary="Site",
+            check=lambda context: CheckResult(Status.MISSING),
+            plan=lambda context: Plan(instructions=["Publish it"]),
+        ),
+    ]
+    reports = [
+        StageReport(stage, stage.check(context), stage.plan(context)) for stage in stages
+    ]
+
+    _, output, _ = _isolated(
+        lambda: _announce_apply(context, len(reports), reports),
+        input="",
+    )
+
+    assert "Work:     1 install · 1 configure · 1 manual" in output
+
+
+def test_pdkboot_captures_routine_output_but_retains_failure_details(tmp_path: Path) -> None:
+    runner = CliFakeRunner(
+        {"installer": CommandResult(1, stdout="download context", stderr="package failed")}
+    )
+    context = build_context(
+        _config(),
+        runner=runner,
+        platform=MACOS,
+        home=tmp_path,
+        fetch=unreachable,
+        pdkboot=True,
+    )
+    stage = _stage(
+        lambda context: CheckResult(Status.MISSING),
+        lambda context: Plan(commands=[["installer"]]),
+    )
+
+    outcome = apply_stage(
+        context,
+        stage,
+        stage.plan(context),
+        progress=lambda event, number, total, command: None,
+    )
+
+    assert runner.captures == [True]
+    assert outcome.failed == CommandResult(
+        1, stdout="download context", stderr="package failed"
+    )
+
+
+def test_pdkboot_prints_captured_output_when_a_command_fails(tmp_path: Path) -> None:
+    runner = CliFakeRunner(
+        {"installer": CommandResult(1, stdout="download context", stderr="package failed")}
+    )
+    context = build_context(
+        _config(),
+        runner=runner,
+        platform=MACOS,
+        home=tmp_path,
+        fetch=unreachable,
+        pdkboot=True,
+    )
+    stage = _stage(
+        lambda context: CheckResult(Status.MISSING, "not installed"),
+        lambda context: Plan(commands=[["installer"]]),
+    )
+    report = StageReport(stage, CheckResult(Status.MISSING), stage.plan(context))
+
+    click_runner = CliRunner()
+    with click_runner.isolation(input="y\n") as (output, error, _):
+        with pytest.raises(SystemExit):
+            _work_through(context, [report], None)
+        stdout = output.getvalue().decode()
+        stderr = error.getvalue().decode()
+
+    assert "Working on command 1/1: installer" in stdout
+    assert "download context" in stderr
+    assert "package failed" in stderr
+
+
+def test_terminal_command_keeps_direct_terminal_access(tmp_path: Path) -> None:
+    runner = CliFakeRunner({"ssh-add": CommandResult(0)})
+    context = build_context(
+        _config(),
+        runner=runner,
+        platform=MACOS,
+        home=tmp_path,
+        fetch=unreachable,
+        pdkboot=True,
+    )
+    stage = _stage(
+        lambda context: CheckResult(Status.OK),
+        lambda context: Plan(commands=[["ssh-add"]], needs_terminal=True),
+    )
+
+    apply_stage(context, stage, stage.plan(context))
+
+    assert runner.captures == [False]
+
+
 def test_reader_can_decline_a_retry_after_failed_verification(tmp_path: Path) -> None:
     context = _context(tmp_path)
     stage = _stage(
@@ -219,7 +401,7 @@ def test_successful_command_path_reports_done_even_if_sudo_authentication_failed
     monkeypatch.setattr("prodockit.cli.authenticate_sudo", lambda: False)
     monkeypatch.setattr(
         "prodockit.cli.apply_stage",
-        lambda context, stage, plan: ApplyResult(
+        lambda context, stage, plan, **kwargs: ApplyResult(
             stage=stage,
             ran=[["sudo", "true"]],
             verified=CheckResult(Status.OK),
@@ -250,7 +432,7 @@ def test_command_path_executes_the_exact_plan_the_reader_approved(
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: False)
     monkeypatch.setattr(
         "prodockit.cli.apply_stage",
-        lambda context, stage, plan: approved.append(plan)
+        lambda context, stage, plan, **kwargs: approved.append(plan)
         or ApplyResult(stage=stage, verified=CheckResult(Status.OK)),
     )
 
@@ -277,7 +459,7 @@ def test_a_failed_stage_explains_how_to_resume(
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: False)
     monkeypatch.setattr(
         "prodockit.cli.apply_stage",
-        lambda context, stage, plan: ApplyResult(
+        lambda context, stage, plan, **kwargs: ApplyResult(
             stage=stage,
             failed=failed,
             verified=verified,
@@ -311,7 +493,7 @@ def test_declining_follow_up_after_commands_marks_the_stage_skipped(
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: False)
     monkeypatch.setattr(
         "prodockit.cli.apply_stage",
-        lambda context, stage, plan: ApplyResult(
+        lambda context, stage, plan, **kwargs: ApplyResult(
             stage=stage,
             ran=[["installer"]],
             verified=CheckResult(Status.MISSING, "follow-up absent"),
@@ -342,7 +524,7 @@ def test_follow_up_after_commands_can_confirm_without_being_marked_skipped(
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: False)
     monkeypatch.setattr(
         "prodockit.cli.apply_stage",
-        lambda context, stage, plan: ApplyResult(
+        lambda context, stage, plan, **kwargs: ApplyResult(
             stage=stage,
             ran=[["installer"]],
             verified=CheckResult(Status.MISSING, "follow-up absent"),

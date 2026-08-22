@@ -2280,6 +2280,7 @@ def _plan_pandoc(context: Context) -> Plan:
             if pandoc_upgrade
             else ""
         ),
+        action="UPGRADE" if pandoc_upgrade else "",
         destructive=pandoc_upgrade,
         # Independent of the winget install, so either order works - after
         # it, so the automated half is not held up behind a manual one.
@@ -2710,6 +2711,7 @@ def _plan_node(context: Context) -> Plan:
                     else ""
                 )
             ),
+            action="UPGRADE" if upgrade else ("REPAIR" if repair else ""),
             # An upgrade or repair of an existing runtime is an explicit
             # decision. A fresh install and npm's project-local work keep the
             # established yes default.
