@@ -546,28 +546,27 @@ is looked for, whether the thing you are creating is called a project or
 a repository. Answering it sixth would mean five questions about a setup
 that might not be buildable at all.
 
-It is asked as a **hostname** - the thing in your address bar - rather
-than a nickname, and it is judged twice before it is stored.
-
-*Is it a supported host?*
+It is selected from a numbered menu of the three supported services. The
+stored value is still the **hostname** - the thing in your address bar -
+rather than a nickname:
 
 ```text
-The git host your project lives on [gitlab.surrey.ac.uk]: bitbucket.org
-  bitbucket.org is not a supported host. Choose gitlab.surrey.ac.uk,
-  gitlab.com, or github.com.
+1/8 The git host your project lives on
+  1. gitlab.surrey.ac.uk
+  2. github.com
+  3. gitlab.com
+
+  Select a git service [1]:
 ```
 
-Surrey GitLab remains the default. GitHub.com and GitLab.com can be selected
-explicitly:
+Surrey GitLab remains the default; press Enter to keep it. Type `2` for
+GitHub.com or `3` for GitLab.com. A different number is rejected at the
+menu, so an unsupported host cannot be stored accidentally.
+
+The selected service is then checked: *does it answer?*
 
 ```text
-The git host your project lives on [gitlab.surrey.ac.uk]: github.com
-```
-
-*Does it answer?*
-
-```text
-The git host your project lives on [gitlab.surrey.ac.uk]:
+  Select a git service [1]:
   could not reach gitlab.surrey.ac.uk on port 22 - Operation timed out.
   If this host is only reachable from your university network, connect
   the VPN and press Enter to try again.
@@ -590,8 +589,6 @@ Port 22 rather than 443, because every URL bootstrap builds is
 A configuration written before hostname support stored a key - `host = "surrey"` -
 and those files are on real machines, so they still resolve. The prompt
 stores a hostname from now on.
-
-Press Enter to accept Surrey GitLab.
 
 A piped or scripted run never prompts - it reports what is missing and
 carries on, rather than blocking on a question nobody is there to
