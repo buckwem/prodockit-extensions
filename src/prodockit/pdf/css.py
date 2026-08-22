@@ -120,7 +120,7 @@ def build_css(
    ========================================================================== */
 body {
     font-family: "__MAIN_FONT__", sans-serif !important;
-    font-size: 12pt !important;
+    font-size: 11pt !important;
 }
 h1, h2, h3, h4, h5, h6 {
     font-family: "__MAIN_FONT__", sans-serif !important;
@@ -131,7 +131,7 @@ pre, code {
 /* Keep inline and fenced code one point smaller than the explicit body size:
    the monospace face otherwise appears optically larger than the surrounding
    proportional face at the same nominal size. */
-pre, code { font-size: 11pt !important; }
+pre, code { font-size: 10pt !important; }
 
 /* ==========================================================================
    CRITICAL WEASYPRINT STRUCTURAL CANVAS RESET
