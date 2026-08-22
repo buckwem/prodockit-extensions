@@ -15,6 +15,13 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
+## 0.42.1 (2026-08-22)
+
+- **Fixed:** the copyable website table CSS now keeps its default 5% header
+  shading and explicit per-cell shading visible in both light and dark colour
+  schemes. It uses the same theme-aware shade variable as prodockit's live
+  documentation instead of hard-coding black in the example.
+
 ## 0.42.0 (2026-08-22)
 
 - **Added:** website tables now use the same complete, light grid as their PDF
