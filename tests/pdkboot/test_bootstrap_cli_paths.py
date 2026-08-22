@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from prodockit import __version__
 from prodockit.bootstrap import (
     BootstrapConfig,
     BootstrapConfigError,
@@ -75,10 +76,27 @@ def test_pdkboot_exposes_the_complete_option_set(bootstrap_cli: PdkbootCliHarnes
     result = bootstrap_cli.invoke("--help")
 
     assert result.exit_code == 0
-    for option in ("--check", "--dry-run", "--apply", "--configure", "--config"):
+    for option in (
+        "--version",
+        "--check",
+        "--dry-run",
+        "--apply",
+        "--configure",
+        "--config",
+    ):
         assert option in result.output
     assert ".pdkboot.toml is the default" in result.output
     assert ".pdk-bootstrap.toml" not in result.output
+    assert "Phase 1 installs nothing" not in result.output
+
+
+def test_pdkboot_reports_the_installable_package_version(
+    bootstrap_cli: PdkbootCliHarness,
+) -> None:
+    result = bootstrap_cli.invoke("--version")
+
+    assert result.exit_code == 0
+    assert result.output.strip() == f"pdkboot, version {__version__}"
 
 
 def test_pdkboot_default_config_never_falls_back_to_legacy_state(tmp_path: Path) -> None:

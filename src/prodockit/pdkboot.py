@@ -15,8 +15,21 @@ from typing import Any
 
 import click
 
+from prodockit import __version__
 from prodockit.cli import bootstrap as _legacy_command
 from prodockit.cli import pdkboot_mode
+
+_HELP = """Set up this machine and project with the phased bootstrap preview.
+
+Checks all 23 stages, including the editor, Git and SSH, project checkout,
+Python and Node environments, PDF tools and publishing. A stage whose goal is
+already satisfied is rechecked and left alone.
+
+With no operating-mode option this reports what it finds and changes nothing.
+Use --dry-run to review exact work or --apply to perform it with confirmation,
+progress and a resumable recovery report. This command uses .pdkboot.toml and
+does not read or modify legacy bootstrap configuration.
+"""
 
 
 def _run(**kwargs: Any) -> None:
@@ -25,11 +38,32 @@ def _run(**kwargs: Any) -> None:
         _legacy_command.callback(**kwargs)
 
 
+def _show_version(
+    context: click.Context,
+    _parameter: click.Parameter,
+    value: bool,
+) -> None:
+    """Print the independently installable preview's package identity."""
+    if value and not context.resilient_parsing:
+        click.echo(f"pdkboot, version {__version__}")
+        context.exit()
+
+
 main = click.Command(
     name="pdkboot",
     callback=_run,
-    params=deepcopy(_legacy_command.params),
-    help=_legacy_command.help,
+    params=[
+        click.Option(
+            ["--version"],
+            is_flag=True,
+            is_eager=True,
+            expose_value=False,
+            callback=_show_version,
+            help="Show the installed pdkboot package version and exit.",
+        ),
+        *deepcopy(_legacy_command.params),
+    ],
+    help=_HELP,
     epilog=_legacy_command.epilog,
     context_settings=dict(_legacy_command.context_settings),
 )

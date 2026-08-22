@@ -15,6 +15,23 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
+## 0.43.0a1 (2026-08-22)
+
+- **Preview:** the standalone `pdkboot` command provides an isolated proving
+  ground for the future bootstrap replacement. It uses its own configuration,
+  test suite and recovery report while `prodockit bootstrap` and `pdk boot`
+  retain their established behaviour.
+
+- **Added:** phased setup output identifies installs, upgrades, repairs,
+  configuration and manual work. Slow commands show live elapsed progress
+  without routine installer chatter; failed output is retained in full.
+
+- **Added:** installers converge on the detected machine state, including
+  explicit Windows upgrades and repairs. Interrupted, partial and failed runs
+  record exact resume arguments and conservative recovery guidance, and a
+  non-zero installer result can continue only when an independent stage check
+  proves its goal was achieved.
+
 ## 0.42.1 (2026-08-22)
 
 - **Changed:** PDF body text is explicitly 11pt and inline or fenced code is
