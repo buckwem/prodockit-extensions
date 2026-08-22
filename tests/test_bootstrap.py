@@ -3764,6 +3764,33 @@ def test_the_host_is_the_first_thing_asked() -> None:
     assert PROMPTS[0][0] == "host"
 
 
+def test_the_host_is_a_numbered_menu_with_surrey_as_the_default(
+    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#534. The three implemented services are visible choices, while
+    Enter keeps the established Surrey default."""
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
+
+    result = cli_bootstrap(
+        "--configure",
+        input="\nAda Lovelace\nab1234\nn\n\n\n",
+    )
+
+    output = result.output
+    choices = (
+        "1. gitlab.surrey.ac.uk",
+        "2. github.com",
+        "3. gitlab.com",
+    )
+    assert all(choice in output for choice in choices)
+    assert [output.index(choice) for choice in choices] == sorted(
+        output.index(choice) for choice in choices
+    )
+    assert "Select a git service [1]" in output
+    assert load(tmp_path / "b.toml").host == "gitlab.surrey.ac.uk"
+
+
 def test_the_host_is_a_hostname_not_a_nickname() -> None:
     """Asked as the thing the reader can see in their address bar. A key
     like `surrey` means nothing to somebody typing it for the first
@@ -3885,7 +3912,7 @@ def test_an_unreachable_host_is_re_asked_with_the_vpn_named(
     result = cli_bootstrap(
         "--configure",
         input=(
-            "gitlab.surrey.ac.uk\ngitlab.surrey.ac.uk\nAda Lovelace\n"
+            "1\n1\nAda Lovelace\n"
             "al01234\nn\n\n\n"
         ),
     )
@@ -3896,24 +3923,24 @@ def test_an_unreachable_host_is_re_asked_with_the_vpn_named(
     assert load(tmp_path / "b.toml").host == "gitlab.surrey.ac.uk"
 
 
-def test_an_unusable_host_is_re_asked_rather_than_stored(
+def test_an_invalid_host_menu_choice_is_re_asked_rather_than_stored(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The point of asking first is finding out immediately. Accepting
-    an unsupported host and failing five questions later would be worse
-    than not asking at all."""
+    """Only the three implemented hosts can leave the menu. An invalid
+    number is rejected at the prompt rather than stored for a later
+    stage to fail on."""
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
     result = cli_bootstrap(
         "--configure",
         input=(
-            "gitlab.example.edu\ngitlab.surrey.ac.uk\nAda Lovelace\n"
+            "4\n1\nAda Lovelace\n"
             "al01234\nn\n\n\n"
         ),
     )
 
-    assert "self-hosted" in result.output, "a host with no record is still refused"
+    assert "not one of '1', '2', '3'" in result.output
     assert load(tmp_path / "b.toml").host == "gitlab.surrey.ac.uk"
 
 
@@ -3930,7 +3957,7 @@ def test_a_reachable_host_is_never_asked_about_twice(
 
     cli_bootstrap(
         "--configure",
-        input=("gitlab.surrey.ac.uk\nAda Lovelace\nal01234\nn\n\n\n"),
+        input=("1\nAda Lovelace\nal01234\nn\n\n\n"),
     )
 
     assert tested == ["gitlab.surrey.ac.uk"]
@@ -3952,7 +3979,7 @@ def test_surrey_derives_five_answers_from_four_questions(  # type: ignore[no-unt
     # host, name, login, assessed? -> yes, course, stage 2 (SRA), year
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ny\ncomm058\n2\n2026\n",
+        input="1\nAda Lovelace\nab1234\ny\ncomm058\n2\n2026\n",
     )
 
     stored = load(tmp_path / "b.toml")
@@ -3988,7 +4015,7 @@ def test_a_first_run_stops_before_the_stage_list(  # type: ignore[no-untyped-def
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
     result = cli_bootstrap(
-        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n"
+        input="y\n1\nAda Lovelace\nab1234\nn\n\n\n"
     )
 
     assert "Note these down:" in result.output
@@ -4003,7 +4030,8 @@ def test_a_first_run_takes_the_surrey_path_too(  # type: ignore[no-untyped-def]
     """prodockit-extensions#430, reported from Windows on 0.35.0.
 
         Some details are not set yet: host, full_name, email, ...
-        1/8 The git host your project lives on [gitlab.surrey.ac.uk]:
+        1/8 The git host your project lives on
+          1. gitlab.surrey.ac.uk
         3/8 The email address used for your gitlab.surrey.ac.uk login []:
 
     The shorter path was chosen only when `--configure` asked for
@@ -4020,7 +4048,7 @@ def test_a_first_run_takes_the_surrey_path_too(  # type: ignore[no-untyped-def]
 
     # "yes, ask me now", then Surrey's own five answers.
     result = cli_bootstrap(
-        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n"
+        input="y\n1\nAda Lovelace\nab1234\nn\n\n\n"
     )
 
     stored = load(tmp_path / "b.toml")
@@ -4063,7 +4091,7 @@ def test_the_module_year_is_asked_for_and_defaults_to_this_one(  # type: ignore[
     # Enter accepts the offered year, so the year is never typed here.
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ny\ncomm058\n1\n\n",
+        input="1\nAda Lovelace\nab1234\ny\ncomm058\n1\n\n",
     )
 
     from prodockit.bootstrap import surrey
@@ -4084,7 +4112,7 @@ def test_a_year_that_is_not_a_year_is_asked_again(  # type: ignore[no-untyped-de
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ny\ncomm058\n1\n26\n2026\n",
+        input="1\nAda Lovelace\nab1234\ny\ncomm058\n1\n26\n2026\n",
     )
 
     assert "Four figures" in result.output
@@ -4106,7 +4134,7 @@ def test_the_stage_menu_comes_before_the_year_that_names_it(  # type: ignore[no-
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ny\ncomm058\n2\n2026\n",
+        input="1\nAda Lovelace\nab1234\ny\ncomm058\n2\n2026\n",
     )
     output = result.output
 
@@ -4125,7 +4153,7 @@ def test_unassessed_work_is_asked_for_its_namespace_and_nothing_else(  # type: i
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n",
+        input="1\nAda Lovelace\nab1234\nn\n\n\n",
     )
 
     stored = load(tmp_path / "b.toml")
@@ -4156,12 +4184,12 @@ def test_both_paths_ask_the_same_number_of_questions(  # type: ignore[no-untyped
 
     assessed = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\ny\ncomm058\n2\n2026\n",
+        input="1\nAda Lovelace\nab1234\ny\ncomm058\n2\n2026\n",
     ).output
     (tmp_path / "b.toml").unlink()
     unassessed = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n",
+        input="1\nAda Lovelace\nab1234\nn\n\n\n",
     ).output
 
     for number in range(2, 8):
@@ -4187,7 +4215,7 @@ def test_the_offered_repository_name_can_be_typed_over(  # type: ignore[no-untyp
 
     cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\nnotes\n",
+        input="1\nAda Lovelace\nab1234\nn\n\nnotes\n",
     )
 
     stored = load(tmp_path / "b.toml")
@@ -4205,7 +4233,7 @@ def test_a_namespace_typed_over_the_default_is_kept(  # type: ignore[no-untyped-
 
     cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\ndocs-team\n\n",
+        input="1\nAda Lovelace\nab1234\nn\ndocs-team\n\n",
     )
 
     assert load(tmp_path / "b.toml").namespace == "docs-team"
@@ -4221,7 +4249,7 @@ def test_unassessed_surrey_work_goes_to_the_students_own_namespace(  # type: ign
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n",
+        input="1\nAda Lovelace\nab1234\nn\n\n\n",
     )
 
     stored = load(tmp_path / "b.toml")
@@ -4247,7 +4275,7 @@ def test_the_short_path_says_why_it_is_shorter(  # type: ignore[no-untyped-def]
 
     result = cli_bootstrap(
         "--configure",
-        input="gitlab.surrey.ac.uk\nAda Lovelace\nab1234\nn\n\n\n",
+        input="1\nAda Lovelace\nab1234\nn\n\n\n",
     )
 
     assert "1/8 The git host" in result.output
@@ -4255,15 +4283,20 @@ def test_the_short_path_says_why_it_is_shorter(  # type: ignore[no-untyped-def]
     assert "2/7" in result.output
 
 
+@pytest.mark.parametrize(("choice", "hostname"), [("2", "github.com"), ("3", "gitlab.com")])
 def test_answering_the_host_does_not_disturb_the_other_questions(
-    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    cli_bootstrap,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    choice: str,
+    hostname: str,
 ) -> None:
     """A new first prompt shifts every answer by one, which is exactly
     the kind of change that silently reassigns a name to an email.
 
-    Asked of github.com, which takes the general path. Surrey's own is
-    shorter and derives most of these (#420), so it cannot stand in for
-    the ordering this is about.
+    Asked of both general-path hosts. Surrey's own path is shorter and
+    derives most of these (#420), so it cannot stand in for the ordering
+    this is about.
     """
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
@@ -4271,13 +4304,13 @@ def test_answering_the_host_does_not_disturb_the_other_questions(
     cli_bootstrap(
         "--configure",
         input=(
-            "github.com\nAda Lovelace\nal01234@surrey.ac.uk\n"
+            f"{choice}\nAda Lovelace\nal01234@surrey.ac.uk\n"
             "al01234\ncomm058-2026\nreport-x\n\n\n"
         ),
     )
 
     stored = load(tmp_path / "b.toml")
-    assert stored.host == "github.com"
+    assert stored.host == hostname
     assert stored.full_name == "Ada Lovelace"
     assert stored.email == "al01234@surrey.ac.uk"
     assert stored.username == "al01234"
@@ -4757,7 +4790,7 @@ def test_a_first_run_asks_the_host_even_without_configure(
     assert not (tmp_path / "b.toml").exists()
 
     result = cli_bootstrap(
-        input="y\ngitlab.surrey.ac.uk\nAda Lovelace\nal01234\nn\n\n\n",
+        input="y\n1\nAda Lovelace\nal01234\nn\n\n\n",
     )
 
     assert "The git host your project lives on" in result.output
@@ -5947,7 +5980,7 @@ def _configured(
     monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: has_content)
     return cli_bootstrap(
         "--configure",
-        input=f"github.com\nAda\na@b.c\nbuckwem\nbuckwem\nreport-windows-v1\n\n{answer}\n",
+        input=f"2\nAda\na@b.c\nbuckwem\nbuckwem\nreport-windows-v1\n\n{answer}\n",
     )
 
 
@@ -6082,7 +6115,7 @@ def test_the_question_wraps_whatever_the_project_is_called(
 
     result = cli_bootstrap(
         "--configure",
-        input=f"github.com\nAda\na@b.c\nbuckwem\nbuckwem\n{long_name}\n\n1\n",
+        input=f"2\nAda\na@b.c\nbuckwem\nbuckwem\n{long_name}\n\n1\n",
     )
     lines = [line for line in result.output.splitlines() if line.startswith("  ")]
 
@@ -6101,7 +6134,7 @@ def test_the_questions_say_how_many_there_are(
     monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: False)
 
     result = cli_bootstrap(
-        "--configure", input="github.com\nAda\na@b.c\nbuckwem\nbuckwem\nreport\n\n\n"
+        "--configure", input="2\nAda\na@b.c\nbuckwem\nbuckwem\nreport\n\n\n"
     )
 
     assert "1/8 The git host" in result.output

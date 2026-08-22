@@ -57,6 +57,7 @@ from prodockit.bootstrap import (
     plan_all,
     project_on_host,
     question_for,
+    resolve_host,
     surrey,
 )
 from prodockit.bootstrap import build_context as build_bootstrap_context
@@ -130,6 +131,11 @@ def main() -> None:
 #: name).
 _SURREY_QUESTIONS_ASSESSED = 7
 _SURREY_QUESTIONS_UNASSESSED = 6
+
+#: The hosts offered by bootstrap, in the order a first-time reader sees
+#: them. Surrey remains first because it is the existing default; GitHub
+#: precedes the public GitLab service to match the requested menu (#534).
+_HOST_OPTIONS = ("gitlab.surrey.ac.uk", "github.com", "gitlab.com")
 
 
 def _ask_surrey(config: BootstrapConfig) -> None:
@@ -284,11 +290,31 @@ def _ask_each(
         while True:
             # `default_for` fills a blank answer from one already given, so
             # a first run still has something sensible to press Enter on.
-            answer = click.prompt(
-                f"{position}/{total} {question_for(config, key, question)}",
-                default=default_for(config, key),
-                show_default=True,
-            ).strip()
+            if key == "host":
+                current = resolve_host(default_for(config, key))
+                default_choice = (
+                    str(_HOST_OPTIONS.index(current.hostname) + 1)
+                    if current is not None and current.hostname in _HOST_OPTIONS
+                    else "1"
+                )
+                click.echo(f"{position}/{total} {question_for(config, key, question)}")
+                for number, hostname in enumerate(_HOST_OPTIONS, start=1):
+                    click.echo(f"  {number}. {hostname}")
+                click.echo("")
+                choice = click.prompt(
+                    "  Select a git service",
+                    type=click.Choice(["1", "2", "3"]),
+                    default=default_choice,
+                    show_choices=False,
+                    show_default=True,
+                )
+                answer = _HOST_OPTIONS[int(choice) - 1]
+            else:
+                answer = click.prompt(
+                    f"{position}/{total} {question_for(config, key, question)}",
+                    default=default_for(config, key),
+                    show_default=True,
+                ).strip()
             # The host is asked first precisely so an unusable answer is
             # caught here, rather than after five more questions about a
             # setup that cannot be built (#255).
