@@ -106,6 +106,16 @@ class BootstrapConfig:
 
 #: The per-directory config, beside whatever is being set up.
 LOCAL_CONFIG_NAME = ".pdk-bootstrap.toml"
+#: Independent per-directory state for the phased standalone command. It
+#: deliberately has no user-level fallback: discovering the legacy answers
+#: would make manual pdkboot testing mutate an existing bootstrap setup.
+PDKBOOT_CONFIG_NAME = ".pdkboot.toml"
+
+
+def pdkboot_config_path(cwd: Path | None = None) -> Path:
+    """The standalone command's config, isolated from legacy bootstrap."""
+    here = Path(cwd) if cwd is not None else Path.cwd()
+    return here / PDKBOOT_CONFIG_NAME
 
 
 def config_path(home: Path | None = None, cwd: Path | None = None) -> Path:

@@ -30,6 +30,7 @@ from typing import Any
 
 from prodockit.bootstrap.config import (
     LOCAL_CONFIG_NAME,
+    PDKBOOT_CONFIG_NAME,
     PROMPTS,
     BootstrapConfig,
     BootstrapConfigError,
@@ -37,6 +38,7 @@ from prodockit.bootstrap.config import (
     default_for,
     load,
     missing_keys,
+    pdkboot_config_path,
     question_for,
     save,
 )
@@ -79,6 +81,7 @@ __all__ = [
     "HOSTS",
     "INSTALL_TIMEOUT_SECONDS",
     "LOCAL_CONFIG_NAME",
+    "PDKBOOT_CONFIG_NAME",
     "PROMPTS",
     "STAGES",
     "SURREY_GITLAB",
@@ -116,6 +119,7 @@ __all__ = [
     "normalise_host",
     "own_project_exists",
     "own_project_has_content",
+    "pdkboot_config_path",
     "plan_all",
     "project_on_host",
     "question_for",
@@ -171,6 +175,7 @@ def build_context(
     home: Path | None = None,
     exists: Callable[[Path], bool] | None = None,
     fetch: Callable[..., Any] | None = None,
+    pdkboot: bool = False,
 ) -> Context:
     """Assembles what the stages need, resolving the configured host.
 
@@ -196,6 +201,7 @@ def build_context(
         exists=exists or Path.exists,
         fetch=fetch or default_fetch,
         contacts=contacts,
+        pdkboot=pdkboot,
     )
 
 
@@ -219,8 +225,8 @@ class ApplyResult:
         return self.failed is None and self.verified is not None and not self.verified.needs_work
 
 
-def apply_stage(context: Context, stage: Stage) -> ApplyResult:
-    """Runs a stage's plan, then re-checks it.
+def apply_stage(context: Context, stage: Stage, plan: Plan | None = None) -> ApplyResult:
+    """Runs an approved stage plan, then re-checks it.
 
     Stops at the first command that fails rather than pressing on: the
     later commands in a plan generally depend on the earlier ones (a
@@ -232,7 +238,11 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
     runs its verification command only, which is exactly the point: the
     human does the work, bootstrap decides whether it took.
     """
-    plan = stage.plan(context)
+    # Interactive callers pass the exact plan the reader approved. Keeping
+    # the default preserves the useful direct API without silently changing
+    # a reviewed plan between display and execution.
+    if plan is None:
+        plan = stage.plan(context)
     result = ApplyResult(stage=stage)
     for planned in plan.commands:
         # Resolved now rather than when the plan was written. A command

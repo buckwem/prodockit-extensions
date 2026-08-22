@@ -25,7 +25,10 @@ import pathlib
 import sys
 import textwrap
 import time
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import replace
 from pathlib import Path
 
 import click
@@ -54,6 +57,7 @@ from prodockit.bootstrap import (
     needs_sudo,
     own_project_exists,
     own_project_has_content,
+    pdkboot_config_path,
     plan_all,
     project_on_host,
     question_for,
@@ -81,6 +85,18 @@ from prodockit.pdf.config import (
 )
 from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
+
+_PDKBOOT_MODE: ContextVar[bool] = ContextVar("pdkboot_mode", default=False)
+
+
+@contextmanager
+def pdkboot_mode() -> Iterator[None]:
+    """Run the bootstrap callback with the phased ``pdkboot`` behaviour."""
+    token = _PDKBOOT_MODE.set(True)
+    try:
+        yield
+    finally:
+        _PDKBOOT_MODE.reset(token)
 
 
 def _echo_captured_stderr(error: Exception) -> None:
@@ -745,10 +761,12 @@ def _apply_outstanding(
         click.echo("")
         click.echo(f"  {done_but_unseen} is done, but this run cannot see it.")
         click.echo("")
-        click.echo("Run `prodockit bootstrap --apply` again to carry on from here.")
+        resume_command = "pdkboot" if context.pdkboot else "prodockit bootstrap"
+        click.echo(f"Run `{resume_command} --apply` again to carry on from here.")
         return
     click.echo("")
-    click.echo("Finished. Run `prodockit bootstrap` to confirm.")
+    check_command = "pdkboot" if context.pdkboot else "prodockit bootstrap"
+    click.echo(f"Finished. Run `{check_command}` to confirm.")
 
 
 def _work_through(
@@ -792,11 +810,16 @@ def _work_through(
             click.echo(f"{number:2}  ok    {report.stage.summary}{detail}")
             continue
         if report.plan is None:
-            # Waiting on an answer rather than on the machine, so there is
-            # nothing to offer - said rather than skipped, or a stage
-            # simply vanishes from the run.
+            # Distinguish a stage whose state is unknown from one waiting on
+            # a prerequisite. Both have no safe action, but the reader needs
+            # different information to recover.
             detail = f" - {report.result.detail}" if report.result.detail else ""
-            click.echo(f"{number:2}  ?     {report.stage.summary}{detail}")
+            symbol = (
+                "WAIT"
+                if context.pdkboot and report.result.status is Status.BLOCKED
+                else "?   "
+            )
+            click.echo(f"{number:2}  {symbol}  {report.stage.summary}{detail}")
             continue
         # Built now, not at the start of the run. `plan_all` computes every
         # plan before anything has been applied, so a plan that depends on
@@ -809,9 +832,11 @@ def _work_through(
         # of ~/.ssh/id_ed25519_gitlab.pub" about a key that existed by the
         # time the step was reached (prodockit-extensions#281).
         #
-        # `apply_stage` already re-derives the plan before running it, so
-        # the commands were always current; only what was shown was stale.
-        plan = report.stage.plan(context)
+        # In pdkboot this exact plan is also passed to `apply_stage`: mutable
+        # or network-sensitive commands must not change after the reader has
+        # reviewed and approved them. Legacy bootstrap retains its existing
+        # re-planning behaviour until it is deliberately replaced.
+        plan = report.plan if context.pdkboot else report.stage.plan(context)
 
         click.echo("")
         click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))
@@ -909,7 +934,11 @@ def _work_through(
             # finished. So both ends are announced (#244).
             click.echo("  Working - the commands' own output follows.")
             click.echo("")
-            outcome = apply_stage(context, report.stage)
+            outcome = (
+                apply_stage(context, report.stage, plan)
+                if context.pdkboot
+                else apply_stage(context, report.stage)
+            )
             click.echo("")
             click.echo("  Commands finished, checking the result...")
             if outcome.failed is not None:
@@ -924,6 +953,12 @@ def _work_through(
                 )
                 click.echo(f"  failed: {summary}", err=True)
                 click.echo("  Stopping - later stages depend on this one.", err=True)
+                if context.pdkboot:
+                    click.echo(
+                        "  Fix the problem, then run `pdkboot --apply` again; "
+                        "completed stages will be rechecked and skipped.",
+                        err=True,
+                    )
                 sys.exit(1)
             if outcome.ok:
                 click.echo("  done")
@@ -936,6 +971,12 @@ def _work_through(
             elif not plan.instructions:
                 detail = outcome.verified.detail if outcome.verified else "unknown"
                 click.echo(f"  ran, but still not right: {detail}", err=True)
+                if context.pdkboot:
+                    click.echo(
+                        "  Fix the problem, then run `pdkboot --apply` again; "
+                        "completed stages will be rechecked and skipped.",
+                        err=True,
+                    )
                 sys.exit(1)
             if not _verify_until_done(context, report.stage, plan):
                 click.echo("  skipped")
@@ -1146,6 +1187,19 @@ def bootstrap(
     safe default, and the question most people are actually asking. Phase
     1 installs nothing either way.
     """
+    if _PDKBOOT_MODE.get():
+        modes = {
+            "--check": check_only,
+            "--dry-run": dry_run,
+            "--apply": apply_stages,
+            "--configure": configure,
+        }
+        selected = [name for name, enabled in modes.items() if enabled]
+        if len(selected) > 1:
+            raise click.UsageError(
+                f"Choose only one operating mode; got {', '.join(selected)}."
+            )
+
     # Bare `prodockit bootstrap` is a checking run. Defaulting to the
     # read-only behaviour matters more than usual here: the alternative
     # default is a command that starts installing software because someone
@@ -1153,7 +1207,11 @@ def bootstrap(
     if not dry_run and not apply_stages and not configure:
         check_only = True
 
-    path = Path(config_file) if config_file else bootstrap_config_path()
+    path = (
+        Path(config_file)
+        if config_file
+        else (pdkboot_config_path() if _PDKBOOT_MODE.get() else bootstrap_config_path())
+    )
     try:
         config = load_bootstrap_config(path)
     except BootstrapConfigError as error:
@@ -1179,11 +1237,15 @@ def bootstrap(
         # Stopping where `--configure` stops, and for the same reason: the
         # run has just told the reader the namespace and repository name
         # to note down, and a stage report would scroll both away (#433).
-        click.echo("Run `prodockit bootstrap` to see what is set up.")
+        check_command = "pdkboot" if _PDKBOOT_MODE.get() else "prodockit bootstrap"
+        click.echo(f"Run `{check_command}` to see what is set up.")
         return
 
     try:
-        context = build_bootstrap_context(config)
+        context = replace(
+            build_bootstrap_context(config),
+            pdkboot=_PDKBOOT_MODE.get(),
+        )
     except UnsupportedHostError as error:
         click.echo(f"Error: {error}", err=True)
         sys.exit(1)

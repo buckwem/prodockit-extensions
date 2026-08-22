@@ -1616,7 +1616,7 @@ def _file_mode_ignored(context: Context) -> bool:
 
 
 def _plan_fresh_history(context: Context) -> Plan:
-    """Deletes `.git` and starts again. There is no undo.
+    """Archives the template's `.git` directory and starts again.
 
     `core.fileMode false` comes with it, from the guide: git treats a
     change to a file's executable bit as a change to the file, and
@@ -1627,7 +1627,7 @@ def _plan_fresh_history(context: Context) -> Plan:
     project = context.config.resolved_project_dir(context.home)
     # A clone that already carries its own history has nothing to reset,
     # and this stage's other concern - core.fileMode - is a one-line
-    # setting. Returning the reset here offered to `rm -rf .git` on the
+    # setting. Returning the reset here offered to replace `.git` on the
     # reader's own project because a git *option* was unset: the exact
     # mistake `_check_fresh_history` says this stage must never make
     # (prodockit-extensions#332).
@@ -1638,36 +1638,71 @@ def _plan_fresh_history(context: Context) -> Plan:
             commands=[[git_command(context), "config", "core.fileMode", "false"]],
         )
     git_dir = project / ".git"
-    remove = (
-        ["powershell", "-NoProfile", "-Command", f"Remove-Item -Recurse -Force '{git_dir}'"]
-        if context.platform == WINDOWS
-        else ["rm", "-rf", str(git_dir)]
-    )
+    if not context.pdkboot:
+        remove = (
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                f"Remove-Item -Recurse -Force '{git_dir}'",
+            ]
+            if context.platform == WINDOWS
+            else ["rm", "-rf", str(git_dir)]
+        )
+        return Plan(
+            cwd=str(project),
+            destructive=False,
+            confirm="Delete the template's history and start a new repository?",
+            instructions=[
+                "This deletes the template's commit history from your clone - every "
+                "commit, branch and tag - and cannot be undone. Your files are not "
+                "touched, only the history behind them.\n"
+                f"The directory is {project}.\n"
+                "Skip this if you want to keep the template's history.",
+            ],
+            commands=[
+                remove,
+                [git_command(context), "init", "-b", "main"],
+                [git_command(context), "config", "core.fileMode", "false"],
+            ],
+        )
+    # Outside the new repository: leaving the backup inside the project
+    # would make `git add -A` include the entire archived object database in
+    # the first commit.
+    backup = project.parent / f".{project.name}.git.pdk-template-backup"
+    suffix = 2
+    while backup.exists():
+        backup = project.parent / f".{project.name}.git.pdk-template-backup-{suffix}"
+        suffix += 1
+    if context.platform == WINDOWS:
+        # PowerShell escapes a literal apostrophe by doubling it inside a
+        # single-quoted string. Paths are data here, not script fragments.
+        source = str(git_dir).replace("'", "''")
+        destination = str(backup).replace("'", "''")
+        archive = [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            f"Move-Item -LiteralPath '{source}' -Destination '{destination}'",
+        ]
+    else:
+        archive = ["mv", str(git_dir), str(backup)]
     return Plan(
         cwd=str(project),
-        # Not marked destructive, and that is a change worth explaining.
-        #
-        # #259 made this the one prompt defaulting to No, because it is
-        # the one plan that cannot be undone. What it deletes, though, is
-        # only ever the *template's* history: a clone carrying the
-        # reader's own is never offered this at all - its plan is one
-        # `core.fileMode` setting (#332), and the stage is blocked while
-        # the decision is unmade (#348).
-        #
-        # So the answer here is always yes, and defaulting to No cost a
-        # student who pressed Enter a project stuck with the template's
-        # commits behind it (prodockit-extensions#356).
+        # The old history is moved aside, never deleted. The move itself is
+        # atomic on the same filesystem and refuses to overwrite an existing
+        # backup, so an interrupted reset remains recoverable.
         destructive=False,
-        confirm="Delete the template's history and start a new repository?",
+        confirm="Archive the template's history and start a new repository?",
         instructions=[
-            "This deletes the template's commit history from your clone - every "
-            "commit, branch and tag - and cannot be undone. Your files are not "
-            "touched, only the history behind them.\n"
+            "This moves the template's commit history out of the active clone - "
+            "every commit, branch and tag. Your files are not touched, and the "
+            f"old history can be recovered from {backup}.\n"
             f"The directory is {project}.\n"
             "Skip this if you want to keep the template's history.",
         ],
         commands=[
-            remove,
+            archive,
             [git_command(context), "init", "-b", "main"],
             [git_command(context), "config", "core.fileMode", "false"],
         ],
@@ -1710,8 +1745,8 @@ def _check_own_project(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
         return unknown
     # Deliberately not blocked on the history reset. The repository lives
-    # on the *host*, and `rm -rf .git` is local - so nothing here is
-    # thrown away by the reset, unlike the repoint in the stage below.
+    # on the *host*, and archiving the local `.git` is local - so nothing
+    # here is thrown away by the reset, unlike the repoint in the stage below.
     #
     # Blocking it made the retry loop unescapable: the reader created the
     # repository, said yes, and was told the clone still points at the
@@ -2693,6 +2728,25 @@ path, incoming = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])
 path.parent.mkdir(parents=True, exist_ok=True)
 try:
     current = json.loads(path.read_text(encoding="utf-8") or "{}")
+except FileNotFoundError:
+    current = {}
+if not isinstance(current, dict):
+    raise ValueError(f"{path} is not a JSON object")
+raw_associations = current.get("files.associations")
+associations = dict(raw_associations) if isinstance(raw_associations, dict) else {}
+associations.update(incoming.pop("files.associations", {}))
+if associations:
+    current["files.associations"] = associations
+current.update(incoming)
+path.write_text(json.dumps(current, indent=2) + "\\n", encoding="utf-8")
+"""
+
+_LEGACY_MERGE_SETTINGS = """
+import json, sys, pathlib
+path, incoming = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])
+path.parent.mkdir(parents=True, exist_ok=True)
+try:
+    current = json.loads(path.read_text(encoding="utf-8") or "{}")
 except (OSError, ValueError):
     current = {}
 if not isinstance(current, dict):
@@ -2769,8 +2823,20 @@ def _check_vscode_settings(context: Context) -> CheckResult:
     path = _settings_path(context)
     try:
         current = json.loads(path.read_text(encoding="utf-8") or "{}")
-    except (OSError, ValueError):
+    except FileNotFoundError:
         return _missing(f"{path} is not there yet")
+    except OSError:
+        return (
+            _wrong(f"{path} cannot be read")
+            if context.pdkboot
+            else _missing(f"{path} is not there yet")
+        )
+    except ValueError:
+        return (
+            _wrong(f"{path} is not valid JSON")
+            if context.pdkboot
+            else _missing(f"{path} is not there yet")
+        )
     if not isinstance(current, dict):
         return _wrong(f"{path} is not a JSON object")
 
@@ -2789,6 +2855,28 @@ def _check_vscode_settings(context: Context) -> CheckResult:
 
 
 def _plan_vscode_settings(context: Context) -> Plan:
+    path = _settings_path(context)
+    if context.pdkboot and path.exists():
+        try:
+            current = json.loads(path.read_text(encoding="utf-8") or "{}")
+        except (OSError, ValueError):
+            return Plan(
+                instructions=[
+                    f"{path} already exists but is not valid JSON. It has been left "
+                    "unchanged. Remove comments or trailing commas (which VS Code "
+                    "accepts but JSON tools do not), then save the file."
+                ],
+                confirm="Have you repaired the existing VS Code settings file?",
+            )
+        if not isinstance(current, dict):
+            return Plan(
+                instructions=[
+                    f"{path} is a valid JSON value, but VS Code settings must be a "
+                    "JSON object. It has been left unchanged; replace the outer "
+                    "value with an object before continuing."
+                ],
+                confirm="Have you repaired the existing VS Code settings file?",
+            )
     language = _reader_language(context)
     wanted = "Markdown opens in Zensical Studio's editor"
     if language is not None:
@@ -2799,7 +2887,7 @@ def _plan_vscode_settings(context: Context) -> Plan:
             [
                 sys.executable,
                 "-c",
-                _MERGE_SETTINGS,
+                _MERGE_SETTINGS if context.pdkboot else _LEGACY_MERGE_SETTINGS,
                 str(_settings_path(context)),
                 json.dumps(_wanted_settings(context)),
             ]
@@ -3135,13 +3223,20 @@ def _push_refused(context: Context) -> str:
     return next((sign for sign in _PUSH_REFUSED_SIGNS if sign in said), "")
 
 
-def _has_uncommitted_work(context: Context) -> bool:
-    """Whether the project has changes that are not in a commit yet."""
+def _uncommitted_work(context: Context) -> list[str]:
+    """The exact porcelain-status lines a first commit would include."""
     project = context.config.resolved_project_dir(context.home)
     pending = context.runner.run(
         [git_command(context), "-C", str(project), "status", "--porcelain"]
     )
-    return bool(pending.ok and pending.stdout.strip())
+    if not pending.ok:
+        return []
+    return [line for line in pending.stdout.splitlines() if line.strip()]
+
+
+def _has_uncommitted_work(context: Context) -> bool:
+    """Whether the project has changes that are not in a commit yet."""
+    return bool(_uncommitted_work(context))
 
 
 def _check_first_push(context: Context) -> CheckResult:
@@ -3278,6 +3373,7 @@ def _plan_first_push(context: Context) -> Plan:
     and the fonts out.
     """
     project = context.config.resolved_project_dir(context.home)
+    pending = _uncommitted_work(context)
     return Plan(
         cwd=str(project),
         commands=[
@@ -3304,7 +3400,7 @@ def _plan_first_push(context: Context) -> Plan:
             # had just reached (prodockit-extensions#414).
             *(
                 [[git_command(context), "commit", "-m", "Initial commit"]]
-                if _has_uncommitted_work(context)
+                if pending
                 else []
             ),
             *_adopt_commands(context),
@@ -3313,6 +3409,14 @@ def _plan_first_push(context: Context) -> Plan:
         instructions=[
             "This builds the site once, commits everything in the project, "
             "and pushes it - which is what publishes it.",
+            *(
+                [
+                    "These are the exact uncommitted changes that `git add -A` "
+                    "will include:\n" + "\n".join(f"  {line}" for line in pending)
+                ]
+                if context.pdkboot and pending
+                else []
+            ),
             *(
                 [
                     "The repository was created with a README, which nothing here "

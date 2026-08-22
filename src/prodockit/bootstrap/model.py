@@ -1017,6 +1017,10 @@ class Context:
     #: costs, and not before (prodockit-extensions#304). Typed loosely to
     #: keep `model` free of a dependency on the module that wraps it.
     contacts: Any = None
+    #: Whether this run came from the standalone, phased ``pdkboot``
+    #: command. The legacy ``prodockit bootstrap``/``pdk boot`` path keeps
+    #: this false until the replacement is ready for existing users.
+    pdkboot: bool = False
 
 
 @dataclass(frozen=True)
