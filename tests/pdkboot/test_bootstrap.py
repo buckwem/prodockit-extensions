@@ -628,6 +628,39 @@ def test_git_plan_skips_reinstalling_an_already_installed_git(tmp_path: Path) ->
     assert "user.email" in flat
 
 
+def test_git_plan_skips_winget_when_git_is_installed_but_off_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.bootstrap import stages as stage_module
+
+    installed = tmp_path / "Program Files" / "Git" / "cmd" / "git.exe"
+    installed.parent.mkdir(parents=True)
+    installed.write_text("", encoding="utf-8")
+    monkeypatch.setattr(stage_module, "_GIT_APP_PATHS", {WINDOWS: (str(installed),)})
+    context = _context(
+        tmp_path,
+        platform=WINDOWS,
+        runner=FakeRunner({"git --version": CommandResult(127, stderr="not found")}),
+    )
+
+    plan = next(s for s in STAGES if s.id == "git").plan(context)
+
+    assert not any(command[0] == "winget" for command in plan.commands)
+    assert all(command[0] == str(installed) for command in plan.commands)
+
+
+def test_pdkboot_winget_installs_never_upgrade_or_prompt_implicitly(tmp_path: Path) -> None:
+    plan = next(s for s in STAGES if s.id == "vscode").plan(
+        _context(tmp_path, platform=WINDOWS)
+    )
+    command = plan.commands[0]
+
+    assert command[:4] == ["winget", "install", "--id", "Microsoft.VisualStudioCode"]
+    assert "--no-upgrade" in command
+    assert "--silent" in command
+    assert "--disable-interactivity" in command
+
+
 def test_the_two_browser_stages_guide_and_leave_verifying_to_the_check(
     tmp_path: Path,
 ) -> None:
@@ -2376,6 +2409,20 @@ def test_pandoc_too_old_is_wrong_not_ok(tmp_path: Path) -> None:
     assert "too old" in result.detail
 
 
+def test_old_windows_pandoc_is_an_explicit_pinned_upgrade(tmp_path: Path) -> None:
+    runner = FakeRunner({"pandoc --version": CommandResult(0, "pandoc 2.19.2\n")})
+
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+    command = plan.commands[0]
+
+    assert command[:4] == ["winget", "upgrade", "--id", "JohnMacFarlane.Pandoc"]
+    assert command[command.index("--version") + 1] == PANDOC_VERSION
+    assert plan.destructive
+    assert plan.describe.startswith("Upgrade Pandoc")
+
+
 def test_pandoc_current_version_is_ok(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
@@ -2422,6 +2469,58 @@ def test_ubuntu_node_installs_curl_first(tmp_path: Path) -> None:
     plan = next(s for s in STAGES if s.id == "node").plan(context)
     first_install = plan.commands[0]
     assert "curl" in first_install
+
+
+def test_current_node_is_not_reinstalled_when_only_toolchains_are_missing(
+    tmp_path: Path,
+) -> None:
+    runner = FakeRunner(
+        {
+            "node --version": CommandResult(0, "v22.14.0\n"),
+            "npm --version": CommandResult(0, "10.9.2\n"),
+        }
+    )
+
+    plan = next(s for s in STAGES if s.id == "node").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+
+    assert not any(command[0] == "winget" for command in plan.commands)
+    assert len([command for command in plan.commands if "ci" in command]) == 2
+
+
+def test_old_windows_node_is_an_explicit_upgrade_not_an_install(tmp_path: Path) -> None:
+    runner = FakeRunner(
+        {
+            "node --version": CommandResult(0, "v18.20.0\n"),
+            "npm --version": CommandResult(0, "10.9.2\n"),
+        }
+    )
+
+    plan = next(s for s in STAGES if s.id == "node").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+
+    assert plan.commands[0][:4] == ["winget", "upgrade", "--id", "OpenJS.NodeJS.LTS"]
+    assert plan.destructive, "the upgrade must default to No until explicitly approved"
+    assert plan.describe.startswith("Upgrade Node")
+
+
+def test_windows_node_without_npm_uses_repair_not_reinstall(tmp_path: Path) -> None:
+    runner = FakeRunner(
+        {
+            "node --version": CommandResult(0, "v22.14.0\n"),
+            "npm --version": CommandResult(127, stderr="not found"),
+        }
+    )
+
+    plan = next(s for s in STAGES if s.id == "node").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+
+    assert plan.commands[0][:4] == ["winget", "repair", "--id", "OpenJS.NodeJS.LTS"]
+    assert plan.destructive, "repairing an existing runtime needs explicit approval"
+    assert plan.describe.startswith("Repair the existing Node")
 
 
 # ---------------------------------------------------------------------------

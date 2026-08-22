@@ -155,7 +155,12 @@ _MSYS2_ENVIRONMENTS = {
 }
 
 
-def _winget(package_id: str, version: str = "") -> list[str]:
+def _winget(
+    package_id: str,
+    version: str = "",
+    *,
+    resilient: bool = False,
+) -> list[str]:
     """One `winget install`, wired so it cannot stop for a human.
 
     The two `--accept-*` flags are the point. winget asks for agreement
@@ -186,6 +191,40 @@ def _winget(package_id: str, version: str = "") -> list[str]:
         "-e",
         "--accept-source-agreements",
         "--accept-package-agreements",
+        *(
+            ["--no-upgrade", "--silent", "--disable-interactivity"]
+            if resilient
+            else []
+        ),
+    ]
+
+
+def _winget_upgrade(package_id: str, version: str = "") -> list[str]:
+    """An explicit, non-interactive upgrade for an approved pdkboot plan."""
+    return [
+        "winget",
+        "upgrade",
+        "--id",
+        package_id,
+        *(["--version", version] if version else []),
+        "-e",
+        "--silent",
+        "--accept-source-agreements",
+        "--accept-package-agreements",
+        "--disable-interactivity",
+    ]
+
+
+def _winget_repair(package_id: str) -> list[str]:
+    """Repair an installed package without treating it as a fresh install."""
+    return [
+        "winget",
+        "repair",
+        "--id",
+        package_id,
+        "-e",
+        "--accept-package-agreements",
+        "--disable-interactivity",
     ]
 
 
@@ -643,7 +682,11 @@ def _plan_vscode(context: Context) -> Plan:
                 _apt("install", "-y", "/tmp/code.deb"),
             ]
         )
-    return Plan(commands=[_winget("Microsoft.VisualStudioCode")])
+    return Plan(
+        commands=[
+            _winget("Microsoft.VisualStudioCode", resilient=context.pdkboot)
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -676,7 +719,7 @@ def _plan_git(context: Context) -> Plan:
     install = {
         MACOS: [["brew", "install", "git"]],
         UBUNTU: [_apt("update"), _apt("install", "-y", "git")],
-        WINDOWS: [_winget("Git.Git")],
+        WINDOWS: [_winget("Git.Git", resilient=context.pdkboot)],
     }[context.platform]
     configure = [
         [git_command(context), "config", "--global", "user.name", context.config.full_name],
@@ -684,7 +727,7 @@ def _plan_git(context: Context) -> Plan:
     ]
     # Only install if it is actually absent - a rerun repairing unset
     # identity should not reinstall git underneath a working one.
-    if _installed(context, "git"):
+    if _installed(context, "git") or (context.pdkboot and _git_is_available(context)):
         return Plan(commands=configure)
     return Plan(commands=[*install, *configure])
 
@@ -2174,6 +2217,22 @@ def _plan_pandoc(context: Context) -> Plan:
     # package name, different DLL directory (#393). So the script settles
     # them where they can actually be observed, on the machine, at the
     # moment it runs.
+    pandoc_upgrade = False
+    pandoc_install = _winget(
+        "JohnMacFarlane.Pandoc",
+        PANDOC_VERSION,
+        resilient=context.pdkboot,
+    )
+    if context.pdkboot:
+        installed = context.runner.run([pandoc_command(context), "--version"])
+        installed_version = _pandoc_version(installed.stdout) if installed.ok else None
+        installed_major = installed_version.split(".")[0] if installed_version else ""
+        if installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR:
+            pandoc_install = _winget_upgrade(
+                "JohnMacFarlane.Pandoc", PANDOC_VERSION
+            )
+            pandoc_upgrade = True
+
     arm, other = _MSYS2_ENVIRONMENTS["arm64"], _MSYS2_ENVIRONMENTS["other"]
     roots = ", ".join(f'"{root}"' for root in _MSYS2_ROOTS)
     pango = (
@@ -2210,11 +2269,18 @@ def _plan_pandoc(context: Context) -> Plan:
     )
     return Plan(
         commands=[
-            _winget("JohnMacFarlane.Pandoc", PANDOC_VERSION),
-            _winget("MSYS2.MSYS2"),
+            pandoc_install,
+            _winget("MSYS2.MSYS2", resilient=context.pdkboot),
             ["powershell", "-NoProfile", "-Command", pango],
             ["powershell", "-NoProfile", "-Command", path_entry],
         ],
+        describe=(
+            f"Upgrade Pandoc to the supported {PANDOC_VERSION} release, then "
+            "prepare the Windows PDF libraries"
+            if pandoc_upgrade
+            else ""
+        ),
+        destructive=pandoc_upgrade,
         # Independent of the winget install, so either order works - after
         # it, so the automated half is not held up behind a manual one.
         follow_up=[
@@ -2418,7 +2484,7 @@ def _plan_own_venv(context: Context) -> Plan:
     installers = {
         UBUNTU: _apt("install", "-y", "python3-venv"),
         MACOS: ["brew", "install", "python@3.13"],
-        WINDOWS: _winget("Python.Python.3.13"),
+        WINDOWS: _winget("Python.Python.3.13", resilient=context.pdkboot),
     }
     missing_machinery = not _can_build_environments(context)
     return Plan(
@@ -2548,6 +2614,18 @@ def _check_node(context: Context) -> CheckResult:
     return _ok(f"node {raw}")
 
 
+def _node_runtime_state(context: Context) -> tuple[int | None, bool]:
+    """Installed Node major and whether its npm companion is runnable."""
+    result = context.runner.run([node_command(context), "--version"])
+    if not result.ok:
+        return None, False
+    raw = result.stdout.strip().lstrip("v")
+    major = raw.split(".")[0] if raw else ""
+    parsed = int(major) if major.isdigit() else None
+    npm_ok = context.runner.run([npm_command(context), "--version"]).ok
+    return parsed, npm_ok
+
+
 def _chromium_ready(context: Context) -> bool:
     """Whether Mermaid has a browser it can actually use, on Ubuntu.
 
@@ -2595,8 +2673,21 @@ def _plan_node(context: Context) -> Plan:
             ["bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"],
             _apt("install", "-y", "nodejs"),
         ],
-        WINDOWS: [_winget("OpenJS.NodeJS.LTS")],
+        WINDOWS: [_winget("OpenJS.NodeJS.LTS", resilient=context.pdkboot)],
     }[context.platform]
+
+    upgrade = False
+    repair = False
+    if context.pdkboot:
+        major, npm_ok = _node_runtime_state(context)
+        if major is not None and major >= NODE_MAJOR and npm_ok:
+            install = []
+        elif context.platform == WINDOWS and major is not None and major < NODE_MAJOR:
+            install = [_winget_upgrade("OpenJS.NodeJS.LTS")]
+            upgrade = True
+        elif context.platform == WINDOWS and major is not None and not npm_ok:
+            install = [_winget_repair("OpenJS.NodeJS.LTS")]
+            repair = True
 
     mermaid = str(project / "tools" / "mermaid")
     mathjax = str(project / "tools" / "mathjax")
@@ -2607,7 +2698,22 @@ def _plan_node(context: Context) -> Plan:
                 *install,
                 [npm_command(context), "ci", "--prefix", mermaid],
                 [npm_command(context), "ci", "--prefix", mathjax],
-            ]
+            ],
+            describe=(
+                f"Upgrade Node to the supported {NODE_MAJOR}.x release, then install "
+                "the project toolchains"
+                if upgrade
+                else (
+                    "Repair the existing Node installation so npm works, then install "
+                    "the project toolchains"
+                    if repair
+                    else ""
+                )
+            ),
+            # An upgrade or repair of an existing runtime is an explicit
+            # decision. A fresh install and npm's project-local work keep the
+            # established yes default.
+            destructive=upgrade or repair,
         )
 
     # Chromium first, and the exports before `npm ci` rather than after.
