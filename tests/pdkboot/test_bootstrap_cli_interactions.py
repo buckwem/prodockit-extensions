@@ -3,6 +3,7 @@
 
 """Interactive branches in the ``pdk boot --apply`` command loop."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,7 @@ from prodockit.bootstrap import (
 from prodockit.bootstrap.model import MACOS
 from prodockit.cli import (
     _announce_apply,
+    _apply_outstanding,
     _pdkboot_phase,
     _report_contacts,
     _verify_until_done,
@@ -349,6 +351,102 @@ def test_terminal_command_keeps_direct_terminal_access(tmp_path: Path) -> None:
     apply_stage(context, stage, stage.plan(context))
 
     assert runner.captures == [False]
+
+
+def test_apply_records_skipped_work_and_exact_resume_command(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    (tmp_path / ".git").mkdir()
+    config_path = tmp_path / "manual test.toml"
+    stage = _stage(
+        lambda context: CheckResult(Status.MISSING, "not installed"),
+        lambda context: Plan(commands=[["installer"]]),
+    )
+    report = StageReport(stage, CheckResult(Status.MISSING), stage.plan(context))
+
+    _, output, _ = _isolated(
+        lambda: _apply_outstanding(context, [report], config_path),
+        input="n\n",
+    )
+
+    report_path = tmp_path / "manual test.last-run.json"
+    saved = json.loads(report_path.read_text(encoding="utf-8"))
+    assert saved["status"] == "incomplete"
+    assert saved["stages"][0]["status"] == "skipped"
+    assert saved["resume"] == [
+        "pdkboot",
+        "--config",
+        str(config_path),
+        "--apply",
+    ]
+    assert f"Recovery report: {report_path}" in output
+    ignored = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    assert report_path.name in ignored.splitlines()
+    assert "recovery state" in ignored
+
+
+def test_apply_failure_records_stage_exit_status_and_message(tmp_path: Path) -> None:
+    runner = CliFakeRunner({"installer": CommandResult(23, stderr="repository unavailable")})
+    context = build_context(
+        _config(),
+        runner=runner,
+        platform=MACOS,
+        home=tmp_path,
+        fetch=unreachable,
+        pdkboot=True,
+    )
+    config_path = tmp_path / ".pdkboot.toml"
+    stage = _stage(
+        lambda context: CheckResult(Status.MISSING, "not installed"),
+        lambda context: Plan(commands=[["installer"]]),
+    )
+    report = StageReport(stage, CheckResult(Status.MISSING), stage.plan(context))
+
+    runner_cli = CliRunner()
+    with runner_cli.isolation(input="y\n"), pytest.raises(SystemExit):
+        _apply_outstanding(context, [report], config_path)
+
+    saved = json.loads(
+        (tmp_path / ".pdkboot.last-run.json").read_text(encoding="utf-8")
+    )
+    assert saved["status"] == "failed"
+    assert saved["failure"] == {
+        "stage": "edge",
+        "returncode": 23,
+        "message": "repository unavailable",
+    }
+    assert saved["stages"][0]["status"] == "failed"
+
+
+def test_interrupted_apply_records_where_to_resume(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(tmp_path)
+    config_path = tmp_path / ".pdkboot.toml"
+    stage = _stage(
+        lambda context: CheckResult(Status.MISSING, "not installed"),
+        lambda context: Plan(commands=[["installer"]]),
+    )
+    report = StageReport(stage, CheckResult(Status.MISSING), stage.plan(context))
+
+    def interrupt(context, reports, config_path, journal):  # type: ignore[no-untyped-def]
+        journal.stage("edge", "running", action="INSTALL")
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("prodockit.cli._work_through", interrupt)
+    runner_cli = CliRunner()
+    with runner_cli.isolation(input=""), pytest.raises(KeyboardInterrupt):
+        _apply_outstanding(context, [report], config_path)
+
+    saved = json.loads(
+        (tmp_path / ".pdkboot.last-run.json").read_text(encoding="utf-8")
+    )
+    assert saved["status"] == "interrupted"
+    assert saved["current_stage"] == "edge"
+    assert saved["failure"] == {
+        "stage": "edge",
+        "message": "run interrupted by the user",
+    }
 
 
 def test_reader_can_decline_a_retry_after_failed_verification(tmp_path: Path) -> None:

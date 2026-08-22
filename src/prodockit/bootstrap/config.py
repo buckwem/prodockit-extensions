@@ -157,7 +157,11 @@ def user_config_path(home: Path | None = None) -> Path:
     return root / "prodockit" / "bootstrap.toml"
 
 
-def keep_out_of_git(path: Path) -> bool:
+def keep_out_of_git(
+    path: Path,
+    *,
+    reason: str = "Your own answers to `prodockit bootstrap`.",
+) -> bool:
     """Adds `path`'s name to the `.gitignore` beside it, if that is a repo.
 
     The config holds a reader's name, email and username, and it now sits
@@ -183,7 +187,7 @@ def keep_out_of_git(path: Path) -> bool:
         return False
     separator = "" if not existing or existing.endswith("\n") else "\n"
     ignore.write_text(
-        f"{existing}{separator}\n# Your own answers to `prodockit bootstrap`.\n{path.name}\n",
+        f"{existing}{separator}\n# {reason}\n{path.name}\n",
         encoding="utf-8",
     )
     return True

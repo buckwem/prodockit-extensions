@@ -70,6 +70,7 @@ from prodockit.bootstrap import config_path as bootstrap_config_path
 from prodockit.bootstrap import load as load_bootstrap_config
 from prodockit.bootstrap import save as save_bootstrap_config
 from prodockit.bootstrap.config import keep_out_of_git
+from prodockit.bootstrap.recovery import PdkbootRunJournal, pdkboot_report_path
 from prodockit.init_tools import (
     COMPONENT_PURPOSE,
     InitToolsError,
@@ -189,6 +190,59 @@ def _pdkboot_work_summary(reports: Sequence[StageReport]) -> str:
     return " · ".join(
         f"{count} {action.lower()}" for action in order if (count := counts[action])
     )
+
+
+def _pdkboot_journal(
+    context: Context,
+    reports: Sequence[StageReport],
+    config_path: Path | None,
+) -> PdkbootRunJournal | None:
+    """Start the recovery record for an apply run, if it has a location."""
+    if not context.pdkboot or config_path is None:
+        return None
+    stages = []
+    for report in reports:
+        status = {
+            Status.OK: "satisfied",
+            Status.BLOCKED: "waiting",
+            Status.UNKNOWN: "unknown",
+        }.get(report.result.status, "planned")
+        stages.append(
+            {
+                "id": report.stage.id,
+                "summary": report.stage.summary,
+                "status": status,
+                "detail": report.result.detail,
+                "action": (
+                    _pdkboot_action(report)
+                    if report.needs_work and report.plan is not None
+                    else ""
+                ),
+            }
+        )
+    path = pdkboot_report_path(config_path)
+    journal = PdkbootRunJournal(
+        path,
+        version=__version__,
+        config_path=config_path,
+        resume=["pdkboot", "--config", str(config_path), "--apply"],
+        stages=stages,
+    )
+    if journal.error is None:
+        keep_out_of_git(
+            path,
+            reason="Local pdkboot recovery state; do not commit.",
+        )
+    return journal
+
+
+def _resume_command(context: Context, config_path: Path | None) -> str:
+    """The rerun that preserves this command and its chosen configuration."""
+    if not context.pdkboot:
+        return "prodockit bootstrap --apply"
+    if config_path is None:
+        return "pdkboot --apply"
+    return f'pdkboot --config "{config_path}" --apply'
 
 
 class _PdkbootCommandProgress:
@@ -903,31 +957,75 @@ def _apply_outstanding(
     before you have done it. Exiting at that point threw away every stage
     already completed and made the reader start again.
     """
+    journal = _pdkboot_journal(context, reports, config_path)
+    if journal is not None and journal.error is not None:
+        click.echo(f"Warning: recovery report unavailable: {journal.error}", err=True)
+        journal = None
+
     outstanding = [r for r in reports if r.needs_work and r.plan is not None]
     if not outstanding:
+        if journal is not None:
+            journal.settle()
         click.echo("Nothing to do - every stage is either set up or waiting on "
                    "configuration.")
+        if journal is not None:
+            click.echo(f"Recovery report: {journal.path}")
         return
 
     _announce_apply(context, len(outstanding), reports)
+    if journal is not None:
+        click.echo(f"  Report:   {journal.path}")
+        click.echo("")
     try:
-        _work_through(context, reports, config_path)
+        _work_through(context, reports, config_path, journal)
     except _StartAgain as done_but_unseen:
+        if journal is not None:
+            journal.finish("waiting")
         # Not an error, and not a stage left undone: the reader did what
         # was asked, and this process simply cannot see it (#397).
         click.echo("")
         click.echo(f"  {done_but_unseen} is done, but this run cannot see it.")
         click.echo("")
-        resume_command = "pdkboot" if context.pdkboot else "prodockit bootstrap"
-        click.echo(f"Run `{resume_command} --apply` again to carry on from here.")
+        resume_command = _resume_command(context, config_path)
+        click.echo(f"Run `{resume_command}` again to carry on from here.")
         return
+    except (KeyboardInterrupt, click.Abort):
+        if journal is not None:
+            journal.finish(
+                "interrupted",
+                failure={
+                    "stage": journal.data["current_stage"],
+                    "message": "run interrupted by the user",
+                },
+            )
+        click.echo("\nInterrupted. No later stages were started.", err=True)
+        if journal is not None:
+            click.echo(f"Recovery report: {journal.path}", err=True)
+        raise
+    except SystemExit:
+        if journal is not None and journal.data["status"] == "running":
+            journal.finish(
+                "failed",
+                failure={
+                    "stage": journal.data["current_stage"],
+                    "message": "stage did not complete",
+                },
+            )
+        raise
+    if journal is not None:
+        journal.settle()
     click.echo("")
     check_command = "pdkboot" if context.pdkboot else "prodockit bootstrap"
     click.echo(f"Finished. Run `{check_command}` to confirm.")
+    if journal is not None:
+        click.echo(f"Recovery report: {journal.path}")
 
 
 def _work_through(
-    context: Context, reports: list[StageReport], config_path: Path | None
+    context: Context,
+    reports: list[StageReport],
+    config_path: Path | None,
+    journal: PdkbootRunJournal | None = None,
 ) -> None:
     """Each stage in turn, asking before it acts on any of them."""
 
@@ -970,6 +1068,12 @@ def _work_through(
             )
             shown_phase = phase
         if not report.needs_work:
+            if journal is not None:
+                journal.stage(
+                    report.stage.id,
+                    "satisfied",
+                    detail=report.result.detail,
+                )
             # With the detail, as the report itself prints it. Without
             # it, "ok" said nothing about *why* - and for the stage that
             # decides where the project comes from, "searched and found
@@ -989,6 +1093,16 @@ def _work_through(
                 else "?   "
             )
             click.echo(f"{number:2}  {symbol}  {report.stage.summary}{detail}")
+            if journal is not None:
+                journal.stage(
+                    report.stage.id,
+                    (
+                        "waiting"
+                        if report.result.status is Status.BLOCKED
+                        else "unknown"
+                    ),
+                    detail=report.result.detail,
+                )
             continue
         # Built now, not at the start of the run. `plan_all` computes every
         # plan before anything has been applied, so a plan that depends on
@@ -1006,11 +1120,19 @@ def _work_through(
         # reviewed and approved them. Legacy bootstrap retains its existing
         # re-planning behaviour until it is deliberately replaced.
         plan = report.plan if context.pdkboot else report.stage.plan(context)
+        action = _pdkboot_action(report, plan) if context.pdkboot else ""
+        if journal is not None:
+            journal.stage(
+                report.stage.id,
+                "running",
+                detail=report.result.detail,
+                action=action,
+            )
 
         click.echo("")
         click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))
         if context.pdkboot:
-            click.echo(f"  Action:   {_pdkboot_action(report, plan)}")
+            click.echo(f"  Action:   {action}")
             click.echo(f"  Current:  {report.result.detail or 'not yet satisfied'}")
             click.echo(f"  Goal:     {report.stage.summary}")
         elif report.result.detail:
@@ -1040,6 +1162,8 @@ def _work_through(
                 show_choices=False,
             )
             _record_clone_source(context.config, picked, config_path)
+            if journal is not None:
+                journal.stage(report.stage.id, "completed", action=action)
             click.echo("")
             continue
 
@@ -1049,7 +1173,14 @@ def _work_through(
                 # Guide and verify. The stage's own check is the
                 # verification, and "not finished yet" is the normal
                 # answer to it, not a failure - so it asks again.
-                if not _verify_until_done(context, report.stage, plan):
+                verified = _verify_until_done(context, report.stage, plan)
+                if journal is not None:
+                    journal.stage(
+                        report.stage.id,
+                        "completed" if verified else "skipped",
+                        action=action,
+                    )
+                if not verified:
                     click.echo("  skipped")
                 continue
             # There are commands, and they need the step above done
@@ -1063,6 +1194,8 @@ def _work_through(
             # No when the plan destroys something (#259). Defaulting a
             # deletion to Yes was the other half of the same fault.
             if not click.confirm(f"  {plan.confirm}", default=not plan.destructive):
+                if journal is not None:
+                    journal.stage(report.stage.id, "skipped", action=action)
                 click.echo("  skipped")
                 continue
             click.echo("")
@@ -1085,6 +1218,8 @@ def _work_through(
             count = len(plan.commands)
             if not click.confirm(f"  Run {count} command{'s' if count != 1 else ''}?",
                                  default=default_yes):
+                if journal is not None:
+                    journal.stage(report.stage.id, "skipped", action=action)
                 click.echo("  skipped")
                 continue
 
@@ -1151,12 +1286,30 @@ def _work_through(
                 click.echo("  Stopping - later stages depend on this one.", err=True)
                 if context.pdkboot:
                     click.echo(
-                        "  Fix the problem, then run `pdkboot --apply` again; "
+                        f"  Fix the problem, then run `{_resume_command(context, config_path)}` "
+                        "again; "
                         "completed stages will be rechecked and skipped.",
                         err=True,
                     )
+                if journal is not None:
+                    journal.stage(
+                        report.stage.id,
+                        "failed",
+                        detail=summary,
+                        action=action,
+                    )
+                    journal.finish(
+                        "failed",
+                        failure={
+                            "stage": report.stage.id,
+                            "returncode": outcome.failed.returncode,
+                            "message": summary,
+                        },
+                    )
                 sys.exit(1)
             if outcome.ok:
+                if journal is not None:
+                    journal.stage(report.stage.id, "completed", action=action)
                 click.echo("  done")
                 continue
             if plan.follow_up:
@@ -1169,17 +1322,38 @@ def _work_through(
                 click.echo(f"  ran, but still not right: {detail}", err=True)
                 if context.pdkboot:
                     click.echo(
-                        "  Fix the problem, then run `pdkboot --apply` again; "
+                        f"  Fix the problem, then run `{_resume_command(context, config_path)}` "
+                        "again; "
                         "completed stages will be rechecked and skipped.",
                         err=True,
                     )
+                if journal is not None:
+                    journal.stage(
+                        report.stage.id,
+                        "failed",
+                        detail=detail,
+                        action=action,
+                    )
+                    journal.finish(
+                        "failed",
+                        failure={"stage": report.stage.id, "message": detail},
+                    )
                 sys.exit(1)
-            if not _verify_until_done(context, report.stage, plan):
+            verified = _verify_until_done(context, report.stage, plan)
+            if journal is not None:
+                journal.stage(
+                    report.stage.id,
+                    "completed" if verified else "skipped",
+                    action=action,
+                )
+            if not verified:
                 click.echo("  skipped")
             continue
 
         # No commands and no manual steps — nothing to do for this stage.
         # Should not happen, but not worth crashing over.
+        if journal is not None:
+            journal.stage(report.stage.id, "skipped", action=action)
         click.echo("  nothing to do")  # pragma: no cover
 
 

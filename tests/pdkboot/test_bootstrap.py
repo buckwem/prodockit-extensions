@@ -2019,7 +2019,8 @@ def test_a_step_only_a_new_run_can_see_ends_the_run(  # type: ignore[no-untyped-
     )
 
     assert "cannot see it" in result.output
-    assert "run `pdkboot --apply` again" in result.output.lower()
+    assert "run `pdkboot --config" in result.output.lower()
+    assert "--apply` again" in result.output.lower()
     assert "not there yet" not in result.output, "it was there - just not visible here"
     assert "Try again?" not in result.output, "the answer was accepted, not doubted"
     assert result.exit_code == 0, "the reader did what was asked; nothing failed"
