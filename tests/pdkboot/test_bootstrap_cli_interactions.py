@@ -402,8 +402,9 @@ def test_apply_failure_records_stage_exit_status_and_message(tmp_path: Path) -> 
     report = StageReport(stage, CheckResult(Status.MISSING), stage.plan(context))
 
     runner_cli = CliRunner()
-    with runner_cli.isolation(input="y\n"), pytest.raises(SystemExit):
+    with runner_cli.isolation(input="y\n") as (output, error, _), pytest.raises(SystemExit):
         _apply_outstanding(context, [report], config_path)
+    rendered = output.getvalue().decode() + error.getvalue().decode()
 
     saved = json.loads(
         (tmp_path / ".pdkboot.last-run.json").read_text(encoding="utf-8")
@@ -413,8 +414,15 @@ def test_apply_failure_records_stage_exit_status_and_message(tmp_path: Path) -> 
         "stage": "edge",
         "returncode": 23,
         "message": "repository unavailable",
+        "category": "unclassified",
+        "recovery": [
+            "Review the command output above and correct the reported condition.",
+            "Resume pdkboot; completed stages will be checked and skipped.",
+        ],
     }
     assert saved["stages"][0]["status"] == "failed"
+    assert "Recovery:" in rendered
+    assert "Review the command output" in rendered
 
 
 def test_interrupted_apply_records_where_to_resume(
@@ -447,6 +455,74 @@ def test_interrupted_apply_records_where_to_resume(
         "stage": "edge",
         "message": "run interrupted by the user",
     }
+
+
+def test_failed_installer_can_recover_when_the_stage_now_verifies(tmp_path: Path) -> None:
+    runner = CliFakeRunner(
+        {"installer": CommandResult(1603, stderr="installer reported a final error")}
+    )
+    context = build_context(
+        _config(),
+        runner=runner,
+        platform=MACOS,
+        home=tmp_path,
+        fetch=unreachable,
+        pdkboot=True,
+    )
+    checks = iter(
+        [
+            CheckResult(Status.MISSING, "not installed"),
+            CheckResult(Status.OK, "installed despite the exit code"),
+        ]
+    )
+    stage = _stage(
+        lambda context: next(checks),
+        lambda context: Plan(commands=[["installer"]]),
+    )
+    report = StageReport(stage, CheckResult(Status.MISSING), stage.plan(context))
+    config_path = tmp_path / ".pdkboot.toml"
+
+    _, output, error = _isolated(
+        lambda: _apply_outstanding(context, [report], config_path),
+        input="y\n",
+    )
+
+    assert "recovered: command returned 1603" in output
+    assert "installer reported a final error" in output
+    assert error == ""
+    saved = json.loads(
+        (tmp_path / ".pdkboot.last-run.json").read_text(encoding="utf-8")
+    )
+    assert saved["status"] == "completed"
+    assert saved["stages"][0]["status"] == "completed"
+    assert "stage now verifies correctly" in saved["stages"][0]["detail"]
+
+
+def test_failed_installer_still_stops_when_the_stage_is_partial(tmp_path: Path) -> None:
+    runner = CliFakeRunner({"installer": CommandResult(1, stderr="partial install")})
+    context = build_context(
+        _config(),
+        runner=runner,
+        platform=MACOS,
+        home=tmp_path,
+        fetch=unreachable,
+        pdkboot=True,
+    )
+    stage = _stage(
+        lambda context: CheckResult(Status.WRONG, "only part is present"),
+        lambda context: Plan(commands=[["installer"]]),
+    )
+
+    outcome = apply_stage(
+        context,
+        stage,
+        stage.plan(context),
+        progress=lambda event, number, total, command: None,
+    )
+
+    assert outcome.ok is False
+    assert outcome.failed == CommandResult(1, stderr="partial install")
+    assert outcome.recovered is None
 
 
 def test_reader_can_decline_a_retry_after_failed_verification(tmp_path: Path) -> None:

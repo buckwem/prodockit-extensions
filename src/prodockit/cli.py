@@ -70,7 +70,11 @@ from prodockit.bootstrap import config_path as bootstrap_config_path
 from prodockit.bootstrap import load as load_bootstrap_config
 from prodockit.bootstrap import save as save_bootstrap_config
 from prodockit.bootstrap.config import keep_out_of_git
-from prodockit.bootstrap.recovery import PdkbootRunJournal, pdkboot_report_path
+from prodockit.bootstrap.recovery import (
+    PdkbootRunJournal,
+    pdkboot_report_path,
+    recovery_advice,
+)
 from prodockit.init_tools import (
     COMPONENT_PURPOSE,
     InitToolsError,
@@ -1284,6 +1288,18 @@ def _work_through(
                 )
                 click.echo(f"  failed: {summary}", err=True)
                 click.echo("  Stopping - later stages depend on this one.", err=True)
+                advice = (
+                    recovery_advice(
+                        report.stage.id,
+                        context.platform,
+                        outcome.ran[-1] if outcome.ran else [],
+                        outcome.failed,
+                    )
+                    if context.pdkboot
+                    else None
+                )
+                if advice is not None:
+                    _show_steps("  Recovery:", list(advice.steps))
                 if context.pdkboot:
                     click.echo(
                         f"  Fix the problem, then run `{_resume_command(context, config_path)}` "
@@ -1304,12 +1320,38 @@ def _work_through(
                             "stage": report.stage.id,
                             "returncode": outcome.failed.returncode,
                             "message": summary,
+                            "category": advice.category if advice is not None else "",
+                            "recovery": list(advice.steps) if advice is not None else [],
                         },
                     )
                 sys.exit(1)
             if outcome.ok:
+                recovered_detail = ""
+                if outcome.recovered is not None:
+                    recovered_detail = (
+                        "command returned "
+                        f"{outcome.recovered.returncode}, but the stage now verifies correctly"
+                    )
+                    click.echo(f"  recovered: {recovered_detail}")
+                    captured = "\n".join(
+                        part.strip()
+                        for part in (
+                            outcome.recovered.stdout,
+                            outcome.recovered.stderr,
+                        )
+                        if part.strip()
+                    )
+                    if captured:
+                        click.echo("  Command output:")
+                        for line in captured.splitlines():
+                            click.echo(f"    {line}")
                 if journal is not None:
-                    journal.stage(report.stage.id, "completed", action=action)
+                    journal.stage(
+                        report.stage.id,
+                        "completed",
+                        detail=recovered_detail,
+                        action=action,
+                    )
                 click.echo("  done")
                 continue
             if plan.follow_up:

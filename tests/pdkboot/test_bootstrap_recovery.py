@@ -8,7 +8,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from prodockit.bootstrap.recovery import PdkbootRunJournal, pdkboot_report_path
+import pytest
+
+from prodockit.bootstrap import CommandResult
+from prodockit.bootstrap.model import MACOS, UBUNTU, WINDOWS
+from prodockit.bootstrap.recovery import (
+    PdkbootRunJournal,
+    pdkboot_report_path,
+    recovery_advice,
+)
 
 
 def _journal(tmp_path: Path) -> PdkbootRunJournal:
@@ -99,3 +107,126 @@ def test_journal_failure_is_reported_without_raising(tmp_path: Path) -> None:
 
     assert journal.error is not None
     assert "could not update" in journal.error
+
+
+@pytest.mark.parametrize(
+    ("stage", "platform", "command", "outcome", "category", "expected"),
+    [
+        (
+            "git",
+            WINDOWS,
+            ["winget", "install", "--id", "Git.Git"],
+            CommandResult(127, stderr="winget: not found"),
+            "package-manager-missing",
+            "App Installer",
+        ),
+        (
+            "git",
+            WINDOWS,
+            ["winget", "install", "--id", "Git.Git"],
+            CommandResult(1, stderr="Failed when opening source; 0x8A15000F"),
+            "winget-source",
+            "source reset --force",
+        ),
+        (
+            "clone",
+            UBUNTU,
+            ["git", "clone"],
+            CommandResult(1, stderr="Could not resolve host"),
+            "network",
+            "DNS",
+        ),
+        (
+            "project-env",
+            MACOS,
+            ["python", "-m", "venv"],
+            CommandResult(1, stderr="Permission denied"),
+            "permissions",
+            "do not change ownership recursively",
+        ),
+        (
+            "node",
+            UBUNTU,
+            ["npm", "ci"],
+            CommandResult(1, stderr="ENOSPC: no space left on device"),
+            "disk-space",
+            "Free disk space",
+        ),
+        (
+            "pandoc",
+            UBUNTU,
+            ["apt", "install"],
+            CommandResult(100, stderr="Could not get lock /var/lib/dpkg/lock"),
+            "installer-busy",
+            "do not delete",
+        ),
+        (
+            "clone",
+            MACOS,
+            ["git", "clone"],
+            CommandResult(1, stderr="remote ended unexpectedly"),
+            "partial-clone",
+            "move the partial directory aside",
+        ),
+        (
+            "node",
+            WINDOWS,
+            ["winget", "install", "--id", "OpenJS.NodeJS.LTS"],
+            CommandResult(1, stderr="installer returned an unknown error"),
+            "alternative-installer",
+            "official installer for the current Node.js LTS",
+        ),
+        (
+            "git",
+            MACOS,
+            ["brew", "install", "git"],
+            CommandResult(1, stderr="formula installation failed"),
+            "alternative-installer",
+            "xcode-select --install",
+        ),
+        (
+            "project-env",
+            MACOS,
+            ["python", "-m", "pip", "install"],
+            CommandResult(1, stderr="build backend failed"),
+            "partial-environment",
+            "move the project's `.venv` aside",
+        ),
+        (
+            "node",
+            MACOS,
+            ["npm", "ci"],
+            CommandResult(1, stderr="dependency install failed"),
+            "node-toolchain",
+            "npm cache verify",
+        ),
+        (
+            "pandoc",
+            WINDOWS,
+            ["powershell", "-Command", "install pango"],
+            CommandResult(1, stderr="MSYS2 failed"),
+            "windows-pdf-toolchain",
+            "winget list --id JohnMacFarlane.Pandoc",
+        ),
+        (
+            "git",
+            MACOS,
+            ["git", "config"],
+            CommandResult(1, stderr="unexpected failure"),
+            "unclassified",
+            "Review the command output",
+        ),
+    ],
+)
+def test_failure_is_classified_with_safe_recovery_steps(
+    stage: str,
+    platform: str,
+    command: list[str],
+    outcome: CommandResult,
+    category: str,
+    expected: str,
+) -> None:
+    advice = recovery_advice(stage, platform, command, outcome)
+
+    assert advice.category == category
+    assert expected in " ".join(advice.steps)

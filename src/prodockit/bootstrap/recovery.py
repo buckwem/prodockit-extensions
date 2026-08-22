@@ -10,11 +10,249 @@ import os
 import tempfile
 from collections.abc import Sequence
 from contextlib import suppress
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from prodockit.bootstrap.model import WINDOWS, CommandResult
+
 REPORT_SCHEMA = 1
+
+
+@dataclass(frozen=True)
+class RecoveryAdvice:
+    """A diagnosed failure category and safe next actions."""
+
+    category: str
+    steps: tuple[str, ...]
+
+
+def recovery_advice(
+    stage_id: str,
+    platform: str,
+    command: Sequence[str],
+    outcome: CommandResult,
+) -> RecoveryAdvice:
+    """Turn common installer failures into conservative recovery actions."""
+    executable = Path(command[0]).name.lower() if command else "command"
+    output = f"{outcome.stdout}\n{outcome.stderr}".lower()
+
+    missing = outcome.returncode == 127 or any(
+        marker in output for marker in ("not found", "not recognized")
+    )
+    if missing:
+        if executable in {"winget", "winget.exe"}:
+            return RecoveryAdvice(
+                "package-manager-missing",
+                (
+                    "Open Microsoft Store and install or repair App Installer, "
+                    "which provides winget.",
+                    "Close and reopen the terminal, run `winget --version`, then "
+                    "resume pdkboot.",
+                ),
+            )
+        if executable == "brew":
+            return RecoveryAdvice(
+                "package-manager-missing",
+                (
+                    "Confirm Homebrew is installed and `brew --version` works in "
+                    "this terminal.",
+                    "If Homebrew is installed elsewhere, reopen the terminal after "
+                    "adding its shell environment, then resume pdkboot.",
+                ),
+            )
+        name = command[0] if command else "the command"
+        return RecoveryAdvice(
+            "command-missing",
+            (
+                f"Confirm `{name}` is installed and visible on PATH in this terminal.",
+                "If it was just installed, close and reopen the terminal before "
+                "resuming pdkboot.",
+            ),
+        )
+
+    winget_source_error = executable in {"winget", "winget.exe"} and any(
+        marker in output
+        for marker in ("source data", "failed when opening source", "0x8a15000f")
+    )
+    if winget_source_error:
+        return RecoveryAdvice(
+            "winget-source",
+            (
+                "Run `winget source update` and retry.",
+                "If that reports a damaged source, run `winget source reset "
+                "--force`, then `winget source update` before resuming pdkboot.",
+            ),
+        )
+
+    if any(
+        marker in output
+        for marker in (
+            "timed out",
+            "could not resolve",
+            "temporary failure in name resolution",
+            "connection refused",
+            "connection reset",
+            "network is unreachable",
+            "certificate verify failed",
+            "ssl certificate problem",
+        )
+    ):
+        return RecoveryAdvice(
+            "network",
+            (
+                "Check the VM's network, DNS, proxy and system clock, then retry "
+                "the failed command.",
+                "Resume pdkboot after the command can reach its package or "
+                "repository service.",
+            ),
+        )
+
+    if any(
+        marker in output
+        for marker in (
+            "permission denied",
+            "access is denied",
+            "requires elevation",
+            "eacces",
+        )
+    ):
+        return RecoveryAdvice(
+            "permissions",
+            (
+                "Check the failed path and package-manager permissions; do not "
+                "change ownership recursively.",
+                "Use an elevated terminal only if the failed installer explicitly "
+                "requires it, then resume pdkboot.",
+            ),
+        )
+
+    if any(marker in output for marker in ("no space left", "disk full", "enospc")):
+        return RecoveryAdvice(
+            "disk-space",
+            (
+                "Free disk space in the VM and its temporary-file location.",
+                "Resume pdkboot; completed stages will be checked rather than "
+                "installed again.",
+            ),
+        )
+
+    if any(
+        marker in output
+        for marker in (
+            "could not get lock",
+            "unable to acquire the dpkg frontend lock",
+            "another installation is in progress",
+        )
+    ):
+        return RecoveryAdvice(
+            "installer-busy",
+            (
+                "Let the other installer or operating-system update finish; do "
+                "not delete package-manager lock files.",
+                "Resume pdkboot when no other installation is running.",
+            ),
+        )
+
+    package_manager = executable in {
+        "apt",
+        "apt-get",
+        "brew",
+        "winget",
+        "winget.exe",
+    }
+    if package_manager and platform == WINDOWS and stage_id in {"git", "vscode", "node"}:
+        product = {
+            "git": "Git for Windows",
+            "vscode": "Visual Studio Code",
+            "node": "the current Node.js LTS",
+        }[stage_id]
+        verification = {
+            "git": "`git --version`",
+            "vscode": "`code --version`",
+            "node": "both `node --version` and `npm --version`",
+        }[stage_id]
+        return RecoveryAdvice(
+            "alternative-installer",
+            (
+                f"If winget continues to fail, use the vendor's official installer "
+                f"for {product}; keep its option to add the command to PATH enabled.",
+                f"Close and reopen the terminal, confirm {verification}, then resume "
+                "pdkboot so the installed version and remaining configuration are checked.",
+            ),
+        )
+
+    if package_manager and platform != WINDOWS and stage_id == "vscode":
+        return RecoveryAdvice(
+            "alternative-installer",
+            (
+                "If the package manager remains unavailable, install Visual Studio "
+                "Code with the vendor's official desktop installer.",
+                "Enable VS Code's `code` shell command, reopen the terminal, run "
+                "`code --version`, then resume pdkboot.",
+            ),
+        )
+
+    if executable == "brew" and stage_id == "git":
+        return RecoveryAdvice(
+            "alternative-installer",
+            (
+                "If Homebrew remains unavailable, run `xcode-select --install` and "
+                "complete Apple's Command Line Tools installer.",
+                "Open a new terminal, run `git --version`, then resume pdkboot so "
+                "Git configuration is completed.",
+            ),
+        )
+
+    if stage_id == "clone":
+        return RecoveryAdvice(
+            "partial-clone",
+            (
+                "Inspect the destination directory: a failed clone may have left "
+                "a partial checkout.",
+                "If it contains work, preserve it. Otherwise move the partial "
+                "directory aside, then resume pdkboot.",
+            ),
+        )
+    if stage_id == "project-env":
+        return RecoveryAdvice(
+            "partial-environment",
+            (
+                "The project environment may be partially populated; resume once "
+                "to let pdkboot recheck it.",
+                "If the same dependency failure repeats, move the project's "
+                "`.venv` aside and resume to rebuild it cleanly.",
+            ),
+        )
+    if stage_id == "node":
+        return RecoveryAdvice(
+            "node-toolchain",
+            (
+                "Run `node --version` and `npm --version` to distinguish a runtime "
+                "failure from a project-toolchain failure.",
+                "Run `npm cache verify`; if it succeeds, resume pdkboot so `npm ci` "
+                "can rebuild the project toolchains.",
+            ),
+        )
+    if stage_id == "pandoc" and platform == WINDOWS:
+        return RecoveryAdvice(
+            "windows-pdf-toolchain",
+            (
+                "Run `winget list --id JohnMacFarlane.Pandoc --exact` and `pandoc "
+                "--version` to check whether Pandoc installed despite the error.",
+                "Check that MSYS2 opens before resuming; pdkboot will recheck "
+                "Pandoc and the PDF libraries separately.",
+            ),
+        )
+
+    return RecoveryAdvice(
+        "unclassified",
+        (
+            "Review the command output above and correct the reported condition.",
+            "Resume pdkboot; completed stages will be checked and skipped.",
+        ),
+    )
 
 
 def pdkboot_report_path(config_path: Path) -> Path:
@@ -138,4 +376,9 @@ class PdkbootRunJournal:
                     temporary.unlink(missing_ok=True)
 
 
-__all__ = ["PdkbootRunJournal", "pdkboot_report_path"]
+__all__ = [
+    "PdkbootRunJournal",
+    "RecoveryAdvice",
+    "pdkboot_report_path",
+    "recovery_advice",
+]

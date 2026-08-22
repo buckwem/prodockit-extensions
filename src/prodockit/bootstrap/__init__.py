@@ -219,6 +219,11 @@ class ApplyResult:
     ran: list[list[str]] = field(default_factory=list)
     failed: CommandResult | None = None
     verified: CheckResult | None = None
+    #: A command returned a non-benign failure, but an immediate pdkboot
+    #: recheck proved that the stage's required end state was present. Kept
+    #: separately so the caller can report the anomaly without treating a
+    #: successfully verified stage as failed.
+    recovered: CommandResult | None = None
 
     @property
     def ok(self) -> bool:
@@ -317,6 +322,16 @@ def apply_stage(
         # that followed in the same plan - leaving git installed and
         # unconfigured, with the run blaming the install (#309).
         accepted = benign_outcome(command, outcome)
+        recovered: CheckResult | None = None
+        if not accepted and context.pdkboot:
+            # Installers do not all agree that "already at the requested
+            # state" is success, and some report failure after completing
+            # their work. Trust the stage's end-state check over the process
+            # exit code, but do not run the rest of a plan after a genuinely
+            # partial result.
+            forget_contacts(context)
+            recovered = stage.check(context)
+            accepted = not recovered.needs_work
         if progress is not None:
             progress(
                 "finish" if accepted else "failed",
@@ -326,6 +341,13 @@ def apply_stage(
             )
         if not accepted:
             return ApplyResult(stage=stage, ran=result.ran, failed=outcome)
+        if recovered is not None:
+            return ApplyResult(
+                stage=stage,
+                ran=result.ran,
+                verified=recovered,
+                recovered=outcome,
+            )
     # Unconditionally, not only after a command. The two browser stages
     # have instructions-only plans, so the loop above never ran and never
     # cleared anything - and their whole point is that a *human* changed
