@@ -98,9 +98,9 @@ macros plugin's own ``modules`` config, not a Markdown extension either, and
 (``prodockit sync-repo``, ``prodockit template-sync``) with a plain Python API
 alongside them.
 
-See https://buckwem.github.io/prodockit-extensions/ for documentation.
+See https://prodockit.org/ for documentation.
 """
 
-__version__ = "0.41.0"
+__version__ = "0.42.0"
 
 __all__ = ["__version__"]

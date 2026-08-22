@@ -70,11 +70,11 @@ requests carrying a changelog entry:
 
 ```bash
 git fetch --tags origin
-git log --oneline prodockit-v0.40.0..origin/main
+git log --oneline prodockit-v0.41.0..origin/main
 ```
 
 The tag prefix matters. Historic tags named only `vX.Y.Z` exist, but current
-package releases use `prodockit-vX.Y.Z`, such as `prodockit-v0.40.0`.
+package releases use `prodockit-vX.Y.Z`, such as `prodockit-v0.41.0`.
 
 ## 2. Prepare the release branch
 
@@ -85,10 +85,10 @@ package releases use `prodockit-vX.Y.Z`, such as `prodockit-v0.40.0`.
 ```bash
 git switch main
 git pull --ff-only
-git switch -c release/0.41.0
+git switch -c release/0.42.0
 ```
 
-Replace `0.41.0` throughout this page with the version being prepared.
+Replace `0.42.0` throughout this page with the version being prepared.
 
 ////
 
@@ -98,11 +98,11 @@ The package version is declared twice:
 
 ```toml title="pyproject.toml"
 [project]
-version = "0.41.0"
+version = "0.42.0"
 ```
 
 ```python title="src/prodockit/__init__.py"
-__version__ = "0.41.0"
+__version__ = "0.42.0"
 ```
 
 They serve different readers: build metadata supplies the wheel and PyPI;
@@ -116,7 +116,7 @@ Leaving either behind publishes two answers about one release.
 In `docs/about/changelog.md`, replace the one `## Unreleased` heading with:
 
 ```markdown
-## 0.41.0 (2026-08-20)
+## 0.42.0 (2026-08-22)
 ```
 
 Review every merged change since the previous tag. Add missing entries and
@@ -182,11 +182,11 @@ Then verify the release identity directly:
 
 ```bash
 python -m build
-python -m zipfile --list dist/prodockit-0.41.0-py3-none-any.whl
+python -m zipfile --list dist/prodockit-0.42.0-py3-none-any.whl
 prodockit --version
 ```
 
-The wheel filename and command output should both say `0.41.0`. Do not upload
+The wheel filename and command output should both say `0.42.0`. Do not upload
 the locally built `dist/`; `publish.yml` rebuilds from the immutable release
 tag and publishes that artifact.
 
@@ -204,9 +204,9 @@ Commit, push, and open the pull request:
 
 ```bash
 git add pyproject.toml src/prodockit/__init__.py docs/about/changelog.md
-git commit -m "Release 0.41.0"
-git push -u origin release/0.41.0
-gh pr create --title "Release 0.41.0"
+git commit -m "Release 0.42.0"
+git push -u origin release/0.42.0
+gh pr create --title "Release 0.42.0"
 ```
 
 Only add files actually changed and reviewed; the command above is a checklist,
@@ -232,18 +232,18 @@ saving a draft—is the event that starts PyPI publishing and the documentation
 redeploy:
 
 ```bash
-gh release create prodockit-v0.41.0 \
+gh release create prodockit-v0.42.0 \
   --repo buckwem/prodockit-extensions \
   --target main \
-  --title "prodockit 0.41.0" \
+  --title "prodockit 0.42.0" \
   --generate-notes
 ```
 
 Before confirming, check:
 
-- the tag is exactly `prodockit-v0.41.0`;
+- the tag is exactly `prodockit-v0.42.0`;
 - the target is the merged release commit on `main`;
-- the release title is `prodockit 0.41.0`;
+- the release title is `prodockit 0.42.0`;
 - the notes describe the same release as `docs/about/changelog.md`.
 
 A tag with the right name on the wrong commit is still the wrong package.
@@ -317,10 +317,10 @@ Automation has separate success conditions, so perform separate public checks:
 
 | Check | What it proves |
 |---|---|
-| GitHub release page shows `prodockit-v0.41.0` | The release and tag are public |
-| PyPI lists `0.41.0` and both wheel/source files | Trusted Publishing completed |
-| A clean environment installs `prodockit==0.41.0` | Package metadata and dependencies resolve for a user |
-| `prodockit --version` prints `0.41.0` | The installed code agrees with package metadata |
+| GitHub release page shows `prodockit-v0.42.0` | The release and tag are public |
+| PyPI lists `0.42.0` and both wheel/source files | Trusted Publishing completed |
+| A clean environment installs `prodockit==0.42.0` | Package metadata and dependencies resolve for a user |
+| `prodockit --version` prints `0.42.0` | The installed code agrees with package metadata |
 | Documentation cover shows the new release | The post-release main-branch redeploy completed |
 | `docs.yml` verify job passes | The public Pages URL serves the artifact built by that run |
 
@@ -328,7 +328,7 @@ A clean installation check can use a temporary virtual environment:
 
 ```bash
 python -m venv /tmp/prodockit-release-check
-/tmp/prodockit-release-check/bin/python -m pip install "prodockit==0.41.0"
+/tmp/prodockit-release-check/bin/python -m pip install "prodockit==0.42.0"
 /tmp/prodockit-release-check/bin/prodockit --version
 ```
 

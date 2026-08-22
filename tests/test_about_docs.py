@@ -97,9 +97,9 @@ def test_release_notes_explain_the_legacy_version_sequence() -> None:
     assert "newest first" in changelog[:1500]
 
 
-def test_latest_notes_cover_the_public_changes_since_040() -> None:
+def test_041_notes_cover_the_public_changes_since_040() -> None:
     changelog = _text("docs/about/changelog.md")
-    latest = changelog.split("\n## ", 1)[1].split("\n## ", 1)[0]
+    notes = changelog.split("\n## 0.41.0 ", 1)[1].split("\n## ", 1)[0]
 
     for phrase in (
         'project.markdown_extensions."prodockit.index"',
@@ -111,7 +111,26 @@ def test_latest_notes_cover_the_public_changes_since_040() -> None:
         "pdf-keep-tab-pages",
         "information architecture",
     ):
-        assert phrase in latest
+        assert phrase in notes
+
+
+def test_042_notes_cover_the_public_changes_since_041() -> None:
+    changelog = _text("docs/about/changelog.md")
+    notes = changelog.split("\n## 0.42.0 ", 1)[1].split("\n## ", 1)[0]
+    prose = " ".join(notes.split())
+
+    for phrase in (
+        'shade="off"',
+        "numbered menu",
+        "forward cross-page references",
+        "permalink",
+        "pipe table",
+        "project.extra.pdf_*",
+        "PDF source bundle",
+        "prodockit.org",
+        "LICENSE.md",
+    ):
+        assert phrase in prose
 
 
 def test_licence_page_explains_but_does_not_replace_the_legal_text() -> None:

@@ -15,6 +15,53 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
+## 0.42.0 (2026-08-22)
+
+- **Added:** website tables now use the same complete, light grid as their PDF
+  rendering, including across merged cells. Header cells receive a subtle 5%
+  shade by default; `shade="off"` removes it from one cell, while
+  `shade="<percentage>"` applies an explicit shade to any header or body cell.
+
+- **Changed:** `prodockit bootstrap` selects its git service from a numbered
+  menu rather than asking for a hostname as free text. Surrey GitLab remains
+  the default, followed by GitHub.com and GitLab.com, and the existing
+  reachability and VPN check still runs after selection.
+
+- **Fixed:** forward cross-page references can resolve figure and table
+  captions declared later in the navigation. The initial site-wide scan now
+  records caption IDs and numbering before individual pages render, including
+  caption attributes written on an opening line or through `attrs`.
+
+- **Fixed:** heading references no longer include the visible permalink
+  pilcrow in `\ref{}` or `\autoref{}` text. Authored inline heading content and
+  the clickable website permalink remain unchanged.
+
+- **Fixed:** an unmistakable pipe table whose header and delimiter rows have
+  different widths now fails with their actual cell counts and, where
+  relevant, a hint about colspan placeholder cells. Prose, code examples and
+  inline-code pipes are not mistaken for malformed tables.
+
+- **Fixed:** template sync preserves a project's existing
+  `project.extra.pdf_*` settings. A newer template can still introduce a new
+  PDF parameter, but an existing page size, margin, duplex, header, footer or
+  output choice is no longer replaced by the template default.
+
+- **Changed:** a PDF source bundle now contains only the root `README.md`,
+  Markdown beneath the configured documentation directory, and the active
+  Zensical configuration. Generated root files such as `CHANGELOG.md`,
+  `CONTRIBUTING.md` and `LICENSE.md` are no longer copied into the bundle.
+
+- **Documentation:** the Pages site now publishes at `prodockit.org`; the
+  package metadata, README links, PDF credit and Python help all use that
+  canonical address. Its cover description also names Markdown explicitly.
+  The documentation workflow builds a reviewed matrix of single-page PDFs
+  covering every authoring extension and audience overview; a new navigation
+  page must now make an explicit coverage decision.
+
+- **Packaging:** the repository and wheel licence file is now named
+  `LICENSE.md`, matching Zensical and `prodockit-template`. Its MIT text and
+  package metadata are unchanged.
+
 ## 0.41.0 (2026-08-20)
 
 - **Changed:** back-of-book index generation is now configured with the

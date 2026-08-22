@@ -585,7 +585,7 @@ def test_copyright_text_with_a_line_break_and_a_real_link_renders_correctly(
         str(output_path),
         copyright_text=(
             'Copyright test.<br>Made with <a href="https://zensical.org/">Zensical</a>'
-            ' and <a href="https://buckwem.github.io/prodockit-extensions/">prodockit</a>.'
+            ' and <a href="https://prodockit.org/">prodockit</a>.'
         ),
         site_name="Test Site",
     )
@@ -601,7 +601,7 @@ def test_copyright_text_with_a_line_break_and_a_real_link_renders_correctly(
         assert "Copyright test.\nMade with Zensical and prodockit." in footer_text
         links = {link.get("uri") for link in page.get_links()}
         assert "https://zensical.org/" in links
-        assert "https://buckwem.github.io/prodockit-extensions/" in links
+        assert "https://prodockit.org/" in links
     doc.close()
 
 

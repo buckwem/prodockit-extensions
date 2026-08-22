@@ -54,6 +54,20 @@ def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
     assert "[Publish a document](publishing.md)" in introduction
 
 
+def test_public_documentation_links_use_the_custom_domain() -> None:
+    for relative_path in (
+        "README.md",
+        "pyproject.toml",
+        "zensical.toml",
+        "src/prodockit/__init__.py",
+        "docs/pdf.md",
+        "overrides/partials/copyright.html",
+    ):
+        text = _text(relative_path)
+        assert "https://prodockit.org/" in text, relative_path
+        assert "https://buckwem.github.io/prodockit-extensions/" not in text, relative_path
+
+
 def test_command_line_reference_is_for_document_authors() -> None:
     nav = _nav()
     publishing = next(item["Publish a document"] for item in nav if "Publish a document" in item)

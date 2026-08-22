@@ -20,10 +20,10 @@ def test_readme_routes_each_audience_to_the_right_guide() -> None:
     for target in (
         "https://buckwem.github.io/prodockit-userguide/",
         "https://github.com/buckwem/prodockit-template",
-        "https://buckwem.github.io/prodockit-extensions/getting-started/",
-        "https://buckwem.github.io/prodockit-extensions/authoring/",
-        "https://buckwem.github.io/prodockit-extensions/publishing/",
-        "https://buckwem.github.io/prodockit-extensions/about/support/",
+        "https://prodockit.org/getting-started/",
+        "https://prodockit.org/authoring/",
+        "https://prodockit.org/publishing/",
+        "https://prodockit.org/about/support/",
         "CONTRIBUTING.md",
     ):
         assert target in README
