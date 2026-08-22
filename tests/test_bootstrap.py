@@ -914,7 +914,7 @@ def test_a_multi_line_step_hangs_under_its_own_text(tmp_path: Path) -> None:
     runner = CliRunner()
     with runner.isolation() as (out, _err, _):
         _show_steps("  What you need to do:", ["first", "second\nCONTINUED\nAGAIN"])
-    rendered = out.getvalue().decode()
+        rendered = out.getvalue().decode()
 
     assert "    1. first" in rendered
     assert "    2. second" in rendered
@@ -6508,11 +6508,10 @@ def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
     runner = CliRunner()
     # Whatever the run does after the question is not this test's
     # business - it may exit or run out of answers, and either is fine.
-    with runner.isolation(input="1\n" + "n\n" * 60) as (out, _err, _), suppress(
-        SystemExit, RuntimeError
-    ):
-        _apply_outstanding(context, reports)
-    printed = out.getvalue().decode()
+    with runner.isolation(input="1\n" + "n\n" * 60) as (out, _err, _):
+        with suppress(SystemExit, RuntimeError):
+            _apply_outstanding(context, reports)
+        printed = out.getvalue().decode()
 
     assert "Select 1, 2 or 3" in printed, "the question was put once the host answered"
 
@@ -7272,7 +7271,7 @@ def test_unassessed_work_is_never_asked_for_a_course_code() -> None:
     responses = "ab1234\nn\n\n\n"
     with runner.isolation(input=responses) as (out, _err, _):
         _ask_surrey(config)
-    rendered = out.getvalue().decode()
+        rendered = out.getvalue().decode()
 
     assert "course code" not in rendered.lower()
     assert "4/7 Is this an assessed assignment?" in rendered
@@ -7297,7 +7296,7 @@ def test_assessed_work_is_still_asked_for_a_course_code() -> None:
     responses = "ab1234\ny\ncomm058\n1\n2026\n"
     with runner.isolation(input=responses) as (out, _err, _):
         _ask_surrey(config)
-    rendered = out.getvalue().decode()
+        rendered = out.getvalue().decode()
 
     assert "5/7 Your course code" in rendered
     assert "6/7 Which stage" in rendered

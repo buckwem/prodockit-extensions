@@ -382,10 +382,18 @@ Add at least this rule for sized and compact website tables:
   font-size: 0.64rem;
 }
 
+:root {
+  --prodockit-table-shade-rgb: 0, 0, 0;
+}
+
+[data-md-color-scheme="slate"] {
+  --prodockit-table-shade-rgb: 255, 255, 255;
+}
+
 .md-typeset table:not([class]) th,
 .md-typeset table.prodockit-table-sized th,
 .md-typeset table.prodockit-table-compact th {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(var(--prodockit-table-shade-rgb), 0.05);
 }
 
 .md-typeset table th.prodockit-table-cell-unshaded,
@@ -395,7 +403,10 @@ Add at least this rule for sized and compact website tables:
 
 .md-typeset table th.prodockit-table-cell-shaded,
 .md-typeset table td.prodockit-table-cell-shaded {
-  background-color: rgba(0, 0, 0, var(--prodockit-table-cell-shade));
+  background-color: rgba(
+    var(--prodockit-table-shade-rgb),
+    var(--prodockit-table-cell-shade)
+  );
 }
 
 .md-typeset table:not([class]) th,

@@ -15,7 +15,8 @@ def test_font_family_placeholders_are_substituted() -> None:
 def test_fenced_and_inline_code_are_one_point_smaller_than_body_text() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
 
-    assert "pre, code { font-size: 11pt !important;" in css
+    assert 'body {\n    font-family: "Inter", sans-serif !important;\n    font-size: 11pt !important;' in css
+    assert "pre, code { font-size: 10pt !important;" in css
 
 
 def test_short_content_tabs_can_be_kept_together_in_the_pdf() -> None:

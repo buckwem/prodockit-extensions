@@ -85,6 +85,16 @@ def test_website_table_headers_use_a_five_percent_theme_aware_shaded_band() -> N
     assert '--prodockit-table-shade-rgb: 255, 255, 255;' in css
 
 
+def test_copyable_table_css_uses_the_same_theme_aware_shading() -> None:
+    docs = (REPO / "docs" / "extensions" / "tables.md").read_text(encoding="utf-8")
+    css_example = docs.split("Add at least this rule", 1)[1].split("```css", 1)[1].split("```", 1)[0]
+
+    assert "--prodockit-table-shade-rgb: 0, 0, 0;" in css_example
+    assert "--prodockit-table-shade-rgb: 255, 255, 255;" in css_example
+    assert "background-color: rgba(var(--prodockit-table-shade-rgb), 0.05);" in css_example
+    assert "rgba(0, 0, 0, var(--prodockit-table-cell-shade))" not in css_example
+
+
 def test_pdf_table_grid_matches_the_light_website_line_style() -> None:
     from prodockit.pdf.css import build_css
 
