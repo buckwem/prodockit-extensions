@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from prodockit.bootstrap.model import WINDOWS, CommandResult
+from prodockit.bootstrap.model import UBUNTU, WINDOWS, CommandResult
 
 REPORT_SCHEMA = 1
 
@@ -36,7 +36,28 @@ def recovery_advice(
 ) -> RecoveryAdvice:
     """Turn common installer failures into conservative recovery actions."""
     executable = Path(command[0]).name.lower() if command else "command"
+    if executable in {"sudo", "sudo.exe"}:
+        executable = next(
+            (
+                Path(argument).name.lower()
+                for argument in command[1:]
+                if not argument.startswith("-")
+            ),
+            executable,
+        )
     output = f"{outcome.stdout}\n{outcome.stderr}".lower()
+
+    if "did not finish within" in output:
+        return RecoveryAdvice(
+            "command-timeout",
+            (
+                "The command exceeded pdkboot's 30-minute safety limit. Check that "
+                "no installer or package-manager process is still running before retrying.",
+                "Do not start a second installer over a running one. Once the first has "
+                "finished or stopped, resume pdkboot; the stage will be checked before "
+                "anything is repeated.",
+            ),
+        )
 
     missing = outcome.returncode == 127 or any(
         marker in output for marker in ("not found", "not recognized")
@@ -48,16 +69,14 @@ def recovery_advice(
                 (
                     "Open Microsoft Store and install or repair App Installer, "
                     "which provides winget.",
-                    "Close and reopen the terminal, run `winget --version`, then "
-                    "resume pdkboot.",
+                    "Close and reopen the terminal, run `winget --version`, then resume pdkboot.",
                 ),
             )
         if executable == "brew":
             return RecoveryAdvice(
                 "package-manager-missing",
                 (
-                    "Confirm Homebrew is installed and `brew --version` works in "
-                    "this terminal.",
+                    "Confirm Homebrew is installed and `brew --version` works in this terminal.",
                     "If Homebrew is installed elsewhere, reopen the terminal after "
                     "adding its shell environment, then resume pdkboot.",
                 ),
@@ -67,14 +86,12 @@ def recovery_advice(
             "command-missing",
             (
                 f"Confirm `{name}` is installed and visible on PATH in this terminal.",
-                "If it was just installed, close and reopen the terminal before "
-                "resuming pdkboot.",
+                "If it was just installed, close and reopen the terminal before resuming pdkboot.",
             ),
         )
 
     winget_source_error = executable in {"winget", "winget.exe"} and any(
-        marker in output
-        for marker in ("source data", "failed when opening source", "0x8a15000f")
+        marker in output for marker in ("source data", "failed when opening source", "0x8a15000f")
     )
     if winget_source_error:
         return RecoveryAdvice(
@@ -89,11 +106,40 @@ def recovery_advice(
     if any(
         marker in output
         for marker in (
+            "server returned 429",
+            "server returned 500",
+            "server returned 502",
+            "server returned 503",
+            "server returned 504",
+            "service unavailable",
+            "too many requests",
+            "temporarily unavailable",
+        )
+    ):
+        return RecoveryAdvice(
+            "service-temporarily-unavailable",
+            (
+                "The remote package or extension service is temporarily unavailable; "
+                "no local repair is needed.",
+                "Wait briefly and resume pdkboot; completed work will be skipped and "
+                "the failed download will be retried.",
+            ),
+        )
+
+    if any(
+        marker in output
+        for marker in (
             "timed out",
             "could not resolve",
             "temporary failure in name resolution",
             "connection refused",
             "connection reset",
+            "econnreset",
+            "etimedout",
+            "operation timed out",
+            "tls handshake timeout",
+            "unexpected eof",
+            "remote end closed connection",
             "network is unreachable",
             "certificate verify failed",
             "ssl certificate problem",
@@ -104,8 +150,7 @@ def recovery_advice(
             (
                 "Check the VM's network, DNS, proxy and system clock, then retry "
                 "the failed command.",
-                "Resume pdkboot after the command can reach its package or "
-                "repository service.",
+                "Resume pdkboot after the command can reach its package or repository service.",
             ),
         )
 
@@ -133,8 +178,7 @@ def recovery_advice(
             "disk-space",
             (
                 "Free disk space in the VM and its temporary-file location.",
-                "Resume pdkboot; completed stages will be checked rather than "
-                "installed again.",
+                "Resume pdkboot; completed stages will be checked rather than installed again.",
             ),
         )
 
@@ -225,6 +269,21 @@ def recovery_advice(
                 "`.venv` aside and resume to rebuild it cleanly.",
             ),
         )
+    if (
+        stage_id == "node"
+        and platform == UBUNTU
+        and any("nodesource-setup.sh" in argument for argument in command)
+    ):
+        return RecoveryAdvice(
+            "node-repository",
+            (
+                "The NodeSource repository setup failed before Node was installed; "
+                "review its output and confirm the VM's Ubuntu release is supported.",
+                "If NodeSource remains unavailable, install the current Node.js LTS "
+                "with its official Linux instructions, confirm both `node --version` "
+                "and `npm --version`, then resume pdkboot.",
+            ),
+        )
     if stage_id == "node":
         return RecoveryAdvice(
             "node-toolchain",
@@ -233,6 +292,17 @@ def recovery_advice(
                 "failure from a project-toolchain failure.",
                 "Run `npm cache verify`; if it succeeds, resume pdkboot so `npm ci` "
                 "can rebuild the project toolchains.",
+            ),
+        )
+    if stage_id == "pandoc" and platform == UBUNTU:
+        return RecoveryAdvice(
+            "linux-pdf-toolchain",
+            (
+                "Check whether the pinned Pandoc package downloaded to "
+                "`/tmp/pandoc.deb` and whether its architecture matches `dpkg "
+                "--print-architecture`.",
+                "Resume pdkboot after the download or apt problem is corrected; "
+                "it will recheck Pandoc before installing the remaining PDF libraries.",
             ),
         )
     if stage_id == "pandoc" and platform == WINDOWS:

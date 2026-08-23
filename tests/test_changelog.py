@@ -16,10 +16,8 @@ from prodockit import __version__
 
 CHANGELOG = Path(__file__).resolve().parents[1] / "docs" / "about" / "changelog.md"
 
-#: `## 0.31.1 (2026-08-16)`, a PEP 440 pre-release such as `0.43.0a1`,
-#: and the one heading with no version.
-_VERSION = r"\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?"
-_RELEASE = re.compile(rf"^## ({_VERSION}) \(\d{{4}}-\d{{2}}-\d{{2}}\)$", flags=re.MULTILINE)
+#: `## 0.31.1 (2026-08-16)`, and the one heading with no version.
+_RELEASE = re.compile(r"^## (\d+\.\d+\.\d+) \(\d{4}-\d{2}-\d{2}\)$", flags=re.MULTILINE)
 _UNRELEASED = re.compile(r"^## Unreleased$", flags=re.MULTILINE)
 
 
@@ -76,9 +74,7 @@ def test_released_entries_are_newest_first() -> None:
     dates = [
         tuple(int(part) for part in raw.split("-"))
         for raw in re.findall(
-            rf"^## {_VERSION} \((\d{{4}}-\d{{2}}-\d{{2}})\)$",
-            text,
-            flags=re.MULTILINE,
+            r"^## \d+\.\d+\.\d+ \((\d{4}-\d{2}-\d{2})\)$", text, flags=re.MULTILINE
         )
     ]
 

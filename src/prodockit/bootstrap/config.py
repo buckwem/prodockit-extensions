@@ -113,8 +113,17 @@ PDKBOOT_CONFIG_NAME = ".pdkboot.toml"
 
 
 def pdkboot_config_path(cwd: Path | None = None) -> Path:
-    """The standalone command's config, isolated from legacy bootstrap."""
+    """The nearest standalone config, isolated from legacy bootstrap.
+
+    A project is created beneath the setup directory that owns this file.
+    Finding the nearest parent lets ``pdkboot --check`` work from inside
+    that project without offering to create a second, conflicting config.
+    """
     here = Path(cwd) if cwd is not None else Path.cwd()
+    for directory in (here, *here.parents):
+        candidate = directory / PDKBOOT_CONFIG_NAME
+        if candidate.exists():
+            return candidate
     return here / PDKBOOT_CONFIG_NAME
 
 
@@ -296,9 +305,7 @@ def missing_keys(config: BootstrapConfig) -> list[str]:
     everyone a question most people should skip.
     """
     optional = {"source_url"}
-    return [
-        key for key, _ in PROMPTS if key not in optional and not getattr(config, key, "")
-    ]
+    return [key for key, _ in PROMPTS if key not in optional and not getattr(config, key, "")]
 
 
 def question_for(config: BootstrapConfig, key: str, question: str) -> str:

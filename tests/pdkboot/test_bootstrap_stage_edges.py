@@ -18,7 +18,7 @@ import pytest
 
 import prodockit.bootstrap.stages as stages
 from prodockit.bootstrap import BootstrapConfig, CommandResult, Status, build_context
-from prodockit.bootstrap.model import MACOS, UBUNTU
+from prodockit.bootstrap.model import MACOS, UBUNTU, WINDOWS
 
 from .harness import CliFakeRunner, unreachable
 
@@ -368,6 +368,31 @@ def test_unavailable_site_probe_takes_a_browser_confirmation_on_trust(
     assert "confirm it in your browser" in result.detail
 
 
+def test_windows_certificate_failure_is_diagnosed_without_disabling_tls(
+    tmp_path: Path,
+) -> None:
+    runner = CliFakeRunner(
+        {
+            "curl.exe": CommandResult(
+                60,
+                "000",
+                "curl: (60) schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - "
+                "The certificate chain was issued by an authority that is not trusted.",
+            )
+        }
+    )
+
+    result = stages._check_site_published(_context(tmp_path, runner=runner, platform=WINDOWS))
+
+    assert result.status is Status.MISSING
+    assert result.verifiable is False
+    assert "certificate chain is not trusted" in result.detail
+    assert "browser" in result.detail
+    assert "probe did not run" not in result.detail
+    curl = next(call for call in runner.calls if call[0] == "curl.exe")
+    assert "-k" not in curl and "--insecure" not in curl
+
+
 def test_macos_project_environment_plan_persists_homebrew_library_path(
     tmp_path: Path,
 ) -> None:
@@ -386,6 +411,69 @@ def test_macos_project_environment_plan_persists_homebrew_library_path(
     assert "/opt/homebrew/lib" in rendered
     assert "activate" in rendered
     compile(plan.commands[-1][2], "<pdkboot macOS activation update>", "exec")
+
+
+@pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
+def test_own_environment_recovery_resumes_with_pdkboot(tmp_path: Path, platform: str) -> None:
+    context = _context(
+        tmp_path,
+        platform=platform,
+        runner=CliFakeRunner({"import ensurepip, venv": CommandResult(1)}),
+    )
+
+    instructions = "\n".join(stages._plan_own_venv(context).instructions)
+
+    assert "pdkboot" in instructions
+    assert "pdk bootstrap" not in instructions
+
+
+def test_linux_node_setup_separates_download_from_privileged_execution(
+    tmp_path: Path,
+) -> None:
+    plan = stages._plan_node(_context(tmp_path, platform=UBUNTU))
+    rendered = [" ".join(command) for command in plan.commands]
+
+    assert any("/tmp/nodesource-setup.sh" in line and line.startswith("curl ") for line in rendered)
+    assert any(line.startswith("sudo -E bash /tmp/nodesource-setup.sh") for line in rendered)
+    assert not any("| sudo" in line for line in rendered)
+
+
+def test_windows_node_repair_is_fully_non_interactive(tmp_path: Path) -> None:
+    runner = CliFakeRunner(
+        {
+            "node --version": CommandResult(0, "v22.0.0\n"),
+            "npm --version": CommandResult(1, stderr="npm is broken"),
+        }
+    )
+    plan = stages._plan_node(_context(tmp_path, platform=WINDOWS, runner=runner))
+    repair = next(command for command in plan.commands if command[:2] == ["winget", "repair"])
+
+    assert "--silent" in repair
+    assert "--accept-source-agreements" in repair
+    assert "--accept-package-agreements" in repair
+    assert "--disable-interactivity" in repair
+
+
+@pytest.mark.parametrize(
+    ("python_machine", "package", "environment"),
+    [
+        ("0x8664", "mingw-w64-ucrt-x86_64-pango", "ucrt64"),
+        ("0xaa64", "mingw-w64-clang-aarch64-pango", "clangarm64"),
+    ],
+)
+def test_windows_pango_matches_the_python_process_architecture(
+    tmp_path: Path,
+    python_machine: str,
+    package: str,
+    environment: str,
+) -> None:
+    runner = CliFakeRunner({"int.from_bytes": CommandResult(0, python_machine)})
+    plan = stages._plan_pandoc(_context(tmp_path, platform=WINDOWS, runner=runner))
+    rendered = " ".join(" ".join(command) for command in plan.commands)
+
+    assert package in rendered
+    assert f"$msysEnv = '{environment}'" in rendered
+    assert "PROCESSOR_ARCHITEW6432" not in rendered
 
 
 def test_first_push_reports_an_unreachable_origin(tmp_path: Path) -> None:

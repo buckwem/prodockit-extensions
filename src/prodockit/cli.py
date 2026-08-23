@@ -195,9 +195,7 @@ def _pdkboot_work_summary(reports: Sequence[StageReport]) -> str:
         if report.needs_work and report.plan is not None:
             action = _pdkboot_action(report)
             counts[action] = counts.get(action, 0) + 1
-    return " · ".join(
-        f"{count} {action.lower()}" for action in order if (count := counts[action])
-    )
+    return " · ".join(f"{count} {action.lower()}" for action in order if (count := counts[action]))
 
 
 def _pdkboot_journal(
@@ -222,9 +220,7 @@ def _pdkboot_journal(
                 "status": status,
                 "detail": report.result.detail,
                 "action": (
-                    _pdkboot_action(report)
-                    if report.needs_work and report.plan is not None
-                    else ""
+                    _pdkboot_action(report) if report.needs_work and report.plan is not None else ""
                 ),
             }
         )
@@ -261,12 +257,9 @@ class _PdkbootCommandProgress:
         self._thread: threading.Thread | None = None
         self._started = 0.0
         self._label = ""
-        self._widest = 0
         self._interactive = bool(click.get_text_stream("stdout").isatty())
 
-    def __call__(
-        self, event: str, number: int, total: int, command: list[str]
-    ) -> None:
+    def __call__(self, event: str, number: int, total: int, command: list[str]) -> None:
         if event == "start":
             self._started = time.monotonic()
             self._label = f"command {number}/{total}: {_readable_command(command, 64)}"
@@ -275,7 +268,6 @@ class _PdkbootCommandProgress:
                 click.echo(f"  Working on {self._label} ...")
                 return
             line = f"  ⠋ Working on {self._label} (0s)"
-            self._widest = len(line)
             click.echo(line, nl=False)
             self._thread = threading.Thread(target=self._pulse, daemon=True)
             self._thread.start()
@@ -289,8 +281,8 @@ class _PdkbootCommandProgress:
         result = "failed" if event == "failed" else "done"
         prefix = "\r  " if self._interactive else "  "
         finished = f"  {self._label} - {result} ({elapsed}s)"
-        padding = " " * max(0, self._widest - len(finished)) if self._interactive else ""
-        click.echo(f"{prefix}{finished.removeprefix('  ')}{padding}")
+        clear = "\x1b[K" if self._interactive else ""
+        click.echo(f"{prefix}{finished.removeprefix('  ')}{clear}")
 
     def _pulse(self) -> None:
         frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
@@ -298,8 +290,7 @@ class _PdkbootCommandProgress:
         while not self._stop.wait(0.2):
             elapsed = max(0, round(time.monotonic() - self._started))
             line = f"  {frames[frame % len(frames)]} Working on {self._label} ({elapsed}s)"
-            self._widest = max(self._widest, len(line))
-            click.echo(f"\r{line}", nl=False)
+            click.echo(f"\r{line}\x1b[K", nl=False)
             frame += 1
 
 
@@ -402,9 +393,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     project = ""
     if assessed:
         course = surrey.course_code(
-            click.prompt(
-                f"5/{_SURREY_QUESTIONS_ASSESSED} Your course code, e.g. `comm058`"
-            )
+            click.prompt(f"5/{_SURREY_QUESTIONS_ASSESSED} Your course code, e.g. `comm058`")
         )
         click.echo("")
         for number, name, _suffix in surrey.STAGES:
@@ -454,8 +443,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
         # the ordinary answer and typed over only by somebody who wants
         # something else.
         namespace = click.prompt(
-            f"5/{_SURREY_QUESTIONS_UNASSESSED} The group or namespace the "
-            "project lives under",
+            f"5/{_SURREY_QUESTIONS_UNASSESSED} The group or namespace the project lives under",
             default=login,
             show_default=True,
         ).strip()
@@ -469,9 +457,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     config.username = login
     config.email = surrey.email_for(login)
     config.namespace = namespace or surrey.namespace_for(course, login, assessment, year)
-    config.project_name = project or surrey.project_name_for(
-        course, login, year, assessment
-    )
+    config.project_name = project or surrey.project_name_for(course, login, year, assessment)
     config.project_dir = f"./{config.project_name}"
 
     # Bulleted rather than numbered: these are three facts to note, not
@@ -481,8 +467,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     click.echo(click.style("Note these down:", bold=True))
     for fact in (
         f"Your GitLab repository will be in the group or namespace {config.namespace}.",
-        f"Your repository, and the folder it lands in here, will be "
-        f"{config.project_name}.",
+        f"Your repository, and the folder it lands in here, will be {config.project_name}.",
         f"Commits will be signed {config.full_name} <{config.email}>.",
     ):
         click.echo(_wrapped(f"* {fact}", first="  ", rest="    "))
@@ -899,6 +884,12 @@ def _readable_command(command: Sequence[str], limit: int = 110) -> str:
     reader who wants the exact text has `--dry-run`, which is what that
     is for.
     """
+    if len(command) >= 6 and command[1] == "-c" and "DYLD_FALLBACK_LIBRARY_PATH" in command[2]:
+        return (
+            f"update {command[3]} so activated project shells use "
+            f"DYLD_FALLBACK_LIBRARY_PATH={command[5]}"
+        )
+
     parts = []
     for argument in command:
         if "\n" in argument:
@@ -978,8 +969,7 @@ def _apply_outstanding(
     if not outstanding:
         if journal is not None:
             journal.settle()
-        click.echo("Nothing to do - every stage is either set up or waiting on "
-                   "configuration.")
+        click.echo("Nothing to do - every stage is either set up or waiting on configuration.")
         if journal is not None:
             click.echo(f"Recovery report: {journal.path}")
         return
@@ -1100,19 +1090,13 @@ def _work_through(
             # different information to recover.
             detail = f" - {report.result.detail}" if report.result.detail else ""
             symbol = (
-                "WAIT"
-                if context.pdkboot and report.result.status is Status.BLOCKED
-                else "?   "
+                "WAIT" if context.pdkboot and report.result.status is Status.BLOCKED else "?   "
             )
             click.echo(f"{number:2}  {symbol}  {report.stage.summary}{detail}")
             if journal is not None:
                 journal.stage(
                     report.stage.id,
-                    (
-                        "waiting"
-                        if report.result.status is Status.BLOCKED
-                        else "unknown"
-                    ),
+                    ("waiting" if report.result.status is Status.BLOCKED else "unknown"),
                     detail=report.result.detail,
                 )
             continue
@@ -1196,9 +1180,7 @@ def _work_through(
                     click.echo("  skipped")
                 continue
             if not context.pdkboot:
-                if not click.confirm(
-                    f"  {plan.confirm}", default=not plan.destructive
-                ):
+                if not click.confirm(f"  {plan.confirm}", default=not plan.destructive):
                     if journal is not None:
                         journal.stage(report.stage.id, "skipped", action=action)
                     click.echo("  skipped")
@@ -1245,7 +1227,7 @@ def _work_through(
             # whose clock is running. sudo reads from /dev/tty exactly as
             # ssh does, so it asks regardless of what stdin is set to -
             # and the reader's typing time was counted against the
-                # install's timeout (#243).
+            # install's timeout (#243).
             if needs_sudo(plan.commands) and _is_interactive():
                 click.echo("  These need administrator rights.")
                 if not authenticate_sudo():
@@ -1420,6 +1402,32 @@ def _echo_wrapped_instruction(instruction: str) -> None:
         click.echo(f"             {line}")
 
 
+def _echo_dry_run_command(command: Sequence[str]) -> None:
+    """Show an exact command without losing indentation inside scripts."""
+    rendered = " ".join(command)
+    first, *rest = rendered.splitlines() or [""]
+    click.echo(f"        run: {first}")
+    for line in rest:
+        click.echo(f"             {line}")
+
+
+_PDKBOOT_WAIT_DETAILS = (
+    "no project directory yet",
+    "no project to install",
+    "no clone to repoint yet",
+    "no clone to set an identity in yet",
+    "could not list extensions - is VS Code installed?",
+)
+
+
+def _pdkboot_waiting(report: StageReport) -> bool:
+    """Whether a pdkboot report has no safe work until a prerequisite exists."""
+    return report.result.status is Status.BLOCKED or (
+        report.result.status is Status.MISSING
+        and report.result.detail.startswith(_PDKBOOT_WAIT_DETAILS)
+    )
+
+
 def _report_contacts(context: Context) -> None:
     """Says how many times this pass reached the host.
 
@@ -1458,9 +1466,7 @@ def _show_steps(title: str, steps: list[str]) -> None:
     click.echo("")
 
 
-def _record_clone_source(
-    config: BootstrapConfig, picked: str, config_path: Path | None
-) -> None:
+def _record_clone_source(config: BootstrapConfig, picked: str, config_path: Path | None) -> None:
     """Writes down which of the three paths was chosen.
 
     Both of the first two clone the repository itself - the difference is
@@ -1621,9 +1627,7 @@ def bootstrap(
         }
         selected = [name for name, enabled in modes.items() if enabled]
         if len(selected) > 1:
-            raise click.UsageError(
-                f"Choose only one operating mode; got {', '.join(selected)}."
-            )
+            raise click.UsageError(f"Choose only one operating mode; got {', '.join(selected)}.")
 
     # Bare `prodockit bootstrap` is a checking run. Defaulting to the
     # read-only behaviour matters more than usual here: the alternative
@@ -1675,7 +1679,6 @@ def bootstrap(
         click.echo(f"Error: {error}", err=True)
         sys.exit(1)
 
-
     reports = check_all(context) if check_only else plan_all(context)
 
     if apply_stages:
@@ -1691,24 +1694,19 @@ def bootstrap(
     }
     for number, report in enumerate(reports, start=1):
         symbol = symbols[report.result.status]
-        if (
-            context.pdkboot
-            and report.result.status is Status.MISSING
-            and report.result.detail.startswith(
-                ("no project directory yet", "no project to install")
-            )
-        ):
+        waiting = context.pdkboot and _pdkboot_waiting(report)
+        if waiting:
             symbol = "WAIT"
         detail = f" - {report.result.detail}" if report.result.detail else ""
         click.echo(f"{number:2}  {symbol}  {report.stage.summary}{detail}")
-        if dry_run and report.plan is not None:
+        if dry_run and report.plan is not None and not waiting:
             # In the order they actually happen: prepare, run, finish.
             for instruction in report.plan.instructions:
                 _echo_wrapped_instruction(instruction)
             if report.plan.cwd:
                 click.echo(f"        in:  {report.plan.cwd}")
             for command in report.plan.commands:
-                click.echo(f"        run: {' '.join(command)}")
+                _echo_dry_run_command(command)
             for instruction in report.plan.follow_up:
                 _echo_wrapped_instruction(instruction)
 
@@ -1997,10 +1995,7 @@ def init_tools_command(tools_dir: str, mermaid: bool, mathjax: bool, force: bool
         click.echo(f"  {line}")
 
     if "mermaid" in result.components:
-        click.echo(
-            "\nIn CI, mermaid-cli drives Chrome through Puppeteer. Install "
-            "Chrome and set:"
-        )
+        click.echo("\nIn CI, mermaid-cli drives Chrome through Puppeteer. Install Chrome and set:")
         for name, value in ci_environment().items():
             click.echo(f"  {name}: {value}")
         click.echo(
@@ -2393,7 +2388,6 @@ def _run_template_sync(
         logged.extend(f"  {line}" for line in render(*args, verbose=True))
 
     try:
-
         # 1. Which template this project tracks.
         if template_path:
             # Named outright, so nothing is derived and nothing is fetched.
@@ -2585,14 +2579,14 @@ def _run_template_sync(
         also_written: list[str] = []
 
         if config_path.exists() and (added or updated):
-                config_path.write_text(
-                    apply_config_changes(
-                        config_path.read_text(encoding="utf-8"), template_config, added, updated
-                    ),
-                    encoding="utf-8",
-                )
-                say(f"zensical.toml  {len(added)} added, {len(updated)} updated")
-                also_written.append("zensical.toml")
+            config_path.write_text(
+                apply_config_changes(
+                    config_path.read_text(encoding="utf-8"), template_config, added, updated
+                ),
+                encoding="utf-8",
+            )
+            say(f"zensical.toml  {len(added)} added, {len(updated)} updated")
+            also_written.append("zensical.toml")
 
         if ignores:
             ignores_path.write_text(
@@ -2659,8 +2653,6 @@ def _run_template_sync(
         newly_ignored = ignore_the_log(project)
         note = "  (added to .gitignore)" if newly_ignored else ""
         click.echo(f"log       {log_path.name}{note}")
-
-
 
 
 def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path, str]:

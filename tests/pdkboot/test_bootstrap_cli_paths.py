@@ -85,7 +85,7 @@ def test_pdkboot_exposes_the_complete_option_set(bootstrap_cli: PdkbootCliHarnes
         "--config",
     ):
         assert option in result.output
-    assert ".pdkboot.toml is the default" in result.output
+    assert ".pdkboot.toml in the current or nearest parent" in result.output
     assert ".pdk-bootstrap.toml" not in result.output
     assert "Phase 1 installs nothing" not in result.output
 
@@ -106,6 +106,28 @@ def test_pdkboot_default_config_never_falls_back_to_legacy_state(tmp_path: Path)
     legacy_user.write_text("legacy user", encoding="utf-8")
 
     assert pdkboot_config_path(cwd=tmp_path) == tmp_path / ".pdkboot.toml"
+
+
+def test_pdkboot_finds_the_setup_config_from_inside_its_project(tmp_path: Path) -> None:
+    setup = tmp_path / "setup"
+    project = setup / "report" / "docs"
+    project.mkdir(parents=True)
+    config = setup / ".pdkboot.toml"
+    config.write_text("host = 'github.com'\n", encoding="utf-8")
+
+    assert pdkboot_config_path(cwd=project) == config
+
+
+def test_pdkboot_uses_the_nearest_parent_config(tmp_path: Path) -> None:
+    outer = tmp_path / ".pdkboot.toml"
+    inner_dir = tmp_path / "setup"
+    project = inner_dir / "report"
+    project.mkdir(parents=True)
+    inner = inner_dir / ".pdkboot.toml"
+    outer.write_text("host = 'github.com'\n", encoding="utf-8")
+    inner.write_text("host = 'gitlab.com'\n", encoding="utf-8")
+
+    assert pdkboot_config_path(cwd=project) == inner
 
 
 @pytest.mark.parametrize(

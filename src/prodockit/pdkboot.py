@@ -70,7 +70,7 @@ main = click.Command(
 for parameter in main.params:
     if isinstance(parameter, click.Option) and parameter.name == "config_file":
         parameter.help = (
-            ".pdkboot.toml is the default in the current directory. "
+            ".pdkboot.toml in the current or nearest parent directory is the default. "
             "Pass another pdkboot config path explicitly."
         )
 
