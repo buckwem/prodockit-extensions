@@ -407,10 +407,11 @@ _HEADING_LINE_RE = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
 _TRAILING_ATTR_RE = re.compile(r"\s*\{:\s*([^}]*?)\s*\}\s*$")
 _INLINE_MARKUP_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)|[*_`~]")
 _CAPTION_OPEN_RE = re.compile(
-    r"^[ \t]{0,3}///[ \t]+(figure-caption|table-caption)"
+    r"^(?P<indent>[ \t]*)///[ \t]+(?P<kind>figure-caption|table-caption)"
     r"(?:[ \t]*\|[ \t]*(.*?))?[ \t]*$"
 )
-_CAPTION_CLOSE_RE = re.compile(r"^[ \t]{0,3}///[ \t]*$")
+_CAPTION_CLOSE_RE = re.compile(r"^(?P<indent>[ \t]*)///[ \t]*$")
+_LIST_ITEM_RE = re.compile(r"^(?P<indent>[ \t]*)(?:[-+*]|\d+[.)])[ \t]+")
 _CAPTION_SELECTOR_ID_RE = re.compile(r"#([\w:.-]+)")
 _CAPTION_ATTR_ID_RE = re.compile(
     r"(?:^|[, {])[\"']?id[\"']?[ \t]*:[ \t]*[\"']?([\w:.-]+)"
@@ -473,6 +474,40 @@ def _caption_id(argument: str, body: list[str]) -> str | None:
     return None
 
 
+def _indent_width(value: str) -> int:
+    """Returns Markdown indentation width, treating a tab as four spaces."""
+    return len(value.expandtabs(4))
+
+
+def _caption_block_indent_is_valid(lines: list[str], index: int, indent: str) -> bool:
+    """Whether a raw caption opener is a block rather than indented code.
+
+    Markdown permits up to three leading spaces for a top-level block. In a
+    list, prodockit's Markdown style indents each nested level by four spaces,
+    so a valid caption beneath an ordered or unordered item starts at four,
+    eight, and so on. The nearest preceding line at a shallower indentation
+    must be that enclosing list marker; otherwise four leading spaces mean an
+    indented code block and must not be registered as a real figure/table.
+    """
+    width = _indent_width(indent)
+    if width <= 3:
+        return True
+    for previous in reversed(lines[:index]):
+        if not previous.strip():
+            continue
+        previous_indent = previous[: len(previous) - len(previous.lstrip(" \t"))]
+        previous_width = _indent_width(previous_indent)
+        if previous_width >= width:
+            continue
+        list_item = _LIST_ITEM_RE.match(previous)
+        return bool(
+            list_item
+            and width - _indent_width(list_item.group("indent")) >= 4
+            and (width - _indent_width(list_item.group("indent"))) % 4 == 0
+        )
+    return False
+
+
 def _scan_page_numberables(
     text: str,
 ) -> list[tuple[str, int, str, str | None, bool]]:
@@ -505,13 +540,23 @@ def _scan_page_numberables(
             index += 1
             continue
 
-        if caption_match := _CAPTION_OPEN_RE.match(line):
+        if (caption_match := _CAPTION_OPEN_RE.match(line)) and _caption_block_indent_is_valid(
+            lines, index, caption_match.group("indent")
+        ):
+            caption_indent = _indent_width(caption_match.group("indent"))
             end = index + 1
-            while end < len(lines) and _CAPTION_CLOSE_RE.match(lines[end]) is None:
+            while end < len(lines):
+                close = _CAPTION_CLOSE_RE.match(lines[end])
+                if close is not None:
+                    close_indent = _indent_width(close.group("indent"))
+                    if (caption_indent <= 3 and close_indent <= 3) or (
+                        caption_indent > 3 and close_indent == caption_indent
+                    ):
+                        break
                 end += 1
             body = lines[index + 1 : end]
-            kind = caption_match.group(1)
-            caption_id = _caption_id(caption_match.group(2) or "", body)
+            kind = caption_match.group("kind")
+            caption_id = _caption_id(caption_match.group(3) or "", body)
             items.append((kind, 0, "", caption_id, False))
             # Keep scanning the block's Markdown body: a heading inside a
             # caption is unusual, but the real treeprocessor sees and

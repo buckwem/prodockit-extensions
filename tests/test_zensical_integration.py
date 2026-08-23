@@ -237,6 +237,67 @@ Later table
     assert "??" not in html
 
 
+def test_forward_references_resolve_to_two_figures_nested_in_a_later_list_item(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression for the real #512 report after its first fix.
+
+    Caption blocks nested beneath an ordered-list step are indented four
+    spaces. Pymdown renders and numbers them, but the raw nav pre-scan used
+    to accept at most three spaces and therefore left both earlier-page
+    references as ``??``.
+    """
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    earlier = (
+        "# Development journey\n\nThe default values are shown in "
+        "\\ref{fig-grafana-admin-username-config} and "
+        "\\ref{fig-grafana-admin-password-config}.\n"
+    )
+    later = """# Test procedure
+
+## Step 8
+
+2. Log in with the configured credentials.
+
+    ![Username](username.png)
+    /// figure-caption | #fig-grafana-admin-username-config
+    Shows the username field
+    ///
+
+    ![Password](password.png)
+    /// figure-caption | #fig-grafana-admin-password-config
+    Shows the password field
+    ///
+"""
+    (docs_dir / "development-journey.md").write_text(earlier, encoding="utf-8")
+    (docs_dir / "test-procedure.md").write_text(later, encoding="utf-8")
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (
+            str(docs_dir),
+            ["development-journey.md", "test-procedure.md"],
+        ),
+    )
+
+    html = _convert_as_zensical_page_with_captions(
+        earlier, "development-journey.md", continuous=True
+    )
+
+    assert (
+        '<a class="prodockit-ref" '
+        'href="test-procedure.md#fig-grafana-admin-username-config">Figure 2.1</a>'
+        in html
+    )
+    assert (
+        '<a class="prodockit-ref" '
+        'href="test-procedure.md#fig-grafana-admin-password-config">Figure 2.2</a>'
+        in html
+    )
+    assert "??" not in html
+
+
 def test_forward_cross_page_caption_preseed_preserves_caption_counts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -328,6 +389,39 @@ Example caption syntax
 
     html = _convert_as_zensical_page_with_captions(
         "See \\ref{not-a-real-figure}.\n", "other.md"
+    )
+
+    assert '<a class="prodockit-ref prodockit-ref-unresolved">??</a>' in html
+
+
+def test_caption_preseed_ignores_four_space_indented_code_example(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Four spaces are a caption only inside a four-space-indented list.
+
+    Outside a list they are Markdown's traditional indented code syntax and
+    must not become a phantom reference target merely because nested caption
+    blocks are now supported.
+    """
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "guide.md").write_text(
+        """# Guide
+
+    /// figure-caption | #not-a-real-indented-figure
+    Example caption syntax
+    ///
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "nav_pages",
+        lambda: (str(docs_dir), ["guide.md", "other.md"]),
+    )
+
+    html = _convert_as_zensical_page_with_captions(
+        "See \\ref{not-a-real-indented-figure}.\n", "other.md"
     )
 
     assert '<a class="prodockit-ref prodockit-ref-unresolved">??</a>' in html
