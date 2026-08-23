@@ -72,6 +72,20 @@ def test_template_sync_has_no_root_option() -> None:
     assert {"--apply", "--verbose", "--force", "--template-path"} <= names
 
 
+def test_template_sync_help_is_written_for_an_author() -> None:
+    from click.testing import CliRunner
+
+    from prodockit.cli import main
+
+    result = CliRunner().invoke(main, ["template-sync", "--help"])
+
+    assert result.exit_code == 0
+    assert "Your writing, figures, and bibliography are left alone" in result.output
+    assert "only previews" in result.output
+    assert "--force FILE-PATH" in result.output
+    assert "does not require a PR/MR" in result.output
+
+
 def test_template_sync_survives_a_directory_it_cannot_read(tmp_path, monkeypatch) -> None:
     """`/tmp` holds mounted images whose entries raise on stat, and the
     first real run outside a repository crashed there rather than

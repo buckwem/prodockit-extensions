@@ -20,31 +20,41 @@ review and more likely to combine a CI migration with a visual change.
 
 ## Choose how far the command should go
 
-| Command | Stops after | Use it for |
+| Command | What it does | When to use it |
 |---|---|---|
-| `prodockit template-sync` | A report | Routine checking and learning what changed upstream |
-| `prodockit template-sync --apply` | A new branch with changes staged | The normal reviewed pull-request workflow |
-| `prodockit template-sync --apply --push` | Confirmed commit, merge to the host's default branch, and push | A project where you may merge your own maintenance directly |
-| `prodockit template-sync --apply --force PATH` | Staged update including the named edited file | A deliberate decision to replace your local version with the template's |
+| `prodockit template-sync` | Shows what needs updating, without changing the project | Start here |
+| `prodockit template-sync --verbose` | Shows the same preview with technical details and file paths | You are investigating a particular file or reporting a problem |
+| `prodockit template-sync --apply` | Makes the changes on a separate branch, ready for you to review | Your project uses a pull request (GitHub) or merge request (GitLab) |
+| `prodockit template-sync --apply --push` | Makes the changes and, after asking you, updates `main` directly | Your usual practice is to update `main` without a pull or merge request |
+| `prodockit template-sync --apply --force FILE-PATH` | Also replaces the named file even though it differs from the template | You have checked that file and want the template's complete version |
 
-Protected repositories should normally use `--apply`, inspect the branch, and
-open a pull request. `--push` is not a bypass for branch protection; it is an
-assisted path for repositories whose maintainer is allowed to merge directly.
+If you are unsure, use the first command. It is only a preview. The output tells
+you whether an update is available and which command to run next.
+
+Use `--apply` on its own when changes normally reach `main` through a pull
+request or merge request. Use `--apply --push` only when your usual practice is
+to update `main` directly. It cannot bypass a protected branch.
 
 ## Complete a template update
 
 /// steps
 
-//// step | Start clean and preview
+//// step | Open the project directory and preview
 
 ```bash
+cd path/to/your-project
 git status --short
 prodockit template-sync
 ```
 
-Uncommitted chapters are allowed, but uncommitted changes to template-owned
-files stop the run before it writes. Read the classification counts and any
-files reported as locally edited.
+Replace `path/to/your-project` with the folder containing your project. The
+command must be run from that top-level folder, where the `.git` directory and
+`zensical.toml` file are located.
+
+You can have unfinished writing in your chapters. The command will stop only if
+a file supplied by the template has uncommitted changes, because updating that
+file could hide work you have not saved in Git. Read the short summary and pay
+particular attention to any files described as "your edited files".
 
 ////
 
@@ -54,17 +64,19 @@ files reported as locally edited.
 prodockit template-sync --apply
 ```
 
-The command creates or safely resumes `template-update-...`, writes only the
-permitted files, and stages them. It does not commit.
+The command makes a separate `template-update-...` branch, applies the changes,
+and prepares them for a commit. Your writing is not changed, and nothing is
+sent to GitHub or GitLab.
 
 ////
 
 //// step | Resolve kept files and sidecars
 
-For an edited template-owned file, compare the current file with its `.new`
-sidecar. Merge the useful upstream change by hand, or rerun with one explicit
-`--force PATH` if the template's complete version should win. Delete resolved
-sidecars so they cannot be mistaken for unfinished work.
+If the summary says that one of your edited files was kept, the newer template
+copy is beside it with `.new` added to its name. Compare the two. Keep your file
+and copy across any useful changes, or rerun with `--force FILE-PATH` if you want the
+template to replace that file completely. Delete the `.new` copy when you have
+finished deciding.
 
 ////
 
@@ -81,32 +93,42 @@ published PDF and site still look right.
 
 ////
 
-//// step | Commit and publish through the normal gate
+//// step | Choose how to publish the update
+
+If your project uses a pull request or merge request, commit and push the
+separate update branch, then open the request in GitHub or GitLab:
 
 ```bash
 git diff --cached
 git commit -m "Update from prodockit template"
 git push -u origin HEAD
-gh pr create
 ```
 
-Merge after CI passes. If the repository deliberately permits the automated
-finish, use `prodockit template-sync --apply --push` instead and confirm the
-printed commit, merge, and push plan.
+Wait for the automated checks to pass, then merge the pull request or merge
+request in the website.
+
+If your normal practice is to update `main` directly without a pull request or
+merge request, you can let the command complete those steps instead:
+
+```bash
+prodockit template-sync --apply --push
+```
+
+It shows the commit, merge, and push it proposes and asks before doing them.
 
 ////
 
 //// step | Confirm the next run is clean
 
-After merging or pushing the updated default branch:
+After the update reaches `main`:
 
 ```bash
 prodockit template-sync
 ```
 
-“Already in step with the template” is the verification. A remaining report
-usually means an unresolved sidecar, an intentionally kept file, or a baseline
-that was not advanced by the expected branch.
+“Your project is already up to date with the template” is the verification. If
+changes are still shown, check for an unresolved `.new` file or an edited file
+you deliberately kept.
 
 ////
 
@@ -149,15 +171,36 @@ writes is relative to where it started.
 prodockit template-sync
 ```
 
-That reports and writes no project file. Read the report, then:
+That is a preview: it applies no template change. It only updates the ignored
+diagnostic log described below. Read the report, then:
 
 ```bash
 prodockit template-sync --apply
 ```
 
-`--apply` starts a branch of its own, writes, and **stages without
-committing**. The commit is yours to write, so nothing lands in your
-history that you have not read first.
+`--apply` makes the changes on a separate branch and prepares them for you to
+review. It does not commit or send anything to GitHub or GitLab.
+
+### Showing technical detail with `--verbose` {: #tsync-verbose }
+
+The normal report is intentionally short. It gives the number of files to add
+or update and names only edited files that need your decision.
+
+Add `--verbose` when you need to see how the result was reached:
+
+```bash
+prodockit template-sync --verbose
+```
+
+The detailed report includes the template source, the version used for the
+comparison, how every template file is managed, every file to add or update,
+and older template files that will be left alone. `--verbose` does not change
+the project and can be combined with `--apply` if you want the same detail
+while making the update.
+
+Every run writes this full detail to `.prodockit-template.log`, even when you
+do not use `--verbose`. If you need help with a run, share that log rather than
+running the command again solely to collect the detail.
 
 ### The branch it works on {: #tsync-the-branch }
 
@@ -190,36 +233,37 @@ Nothing is lost or duplicated: the second branch is made *from* the first,
 so it contains it, and one merge picks up both. Merging them separately
 just makes the first look like it did nothing.
 
-### Finishing where the pipeline can see it {: #tsync-push }
+### Updating `main` directly {: #tsync-push }
 
-`--apply` stops at staged, on its own branch. That is deliberate - the
-commit is yours - but it also means **nothing is published**. Both hosts
-build only from the default branch, so a sync sitting on a
-`template-update-...` branch produces no pipeline and no rebuilt site,
-even after you commit and push it. The steps are spelled out
-[below](#tsync-finish-by-hand) if you would rather not use this flag.
-
-`--push` finishes the job:
+Use this route only if your normal practice is to update `main` without a
+pull request or merge request:
 
 ```bash
 prodockit template-sync --apply --push
 ```
 
-It commits the staged sync, merges it into the branch your host builds
-from, and pushes - which is what starts the pipeline. It always shows
-what it is about to do and waits:
+The command applies the template changes on its separate branch, commits them,
+merges them into `main`, and sends the updated `main` branch to GitHub or
+GitLab. Sending `main` starts the automated build that republishes the site.
+
+Before doing that, it shows a final summary and asks you to confirm:
 
 ```text
---push would now, on your confirmation:
-  commit  9 file(s) on template-update-6fbbbbeb8
-  merge   template-update-6fbbbbeb8 into main
-  push    main to origin - which is what starts the pipeline
+Ready to update the main project directly:
+  Save this update as one commit (9 files).
+  Add it to main.
+  Send main to GitHub or GitLab, which starts the site build.
+  This does not create a pull request or merge request.
 
-Go ahead? [y/N]:
+Update the main project now? [y/N]:
 ```
 
-Answer anything but yes and the run stops with everything still staged
-and nothing merged or pushed.
+Answer `y` to continue. Any other answer stops safely: the changes remain on
+the separate branch and nothing is sent to GitHub or GitLab.
+
+If your project normally uses a pull request or merge request, do **not** use
+`--push`. Run `prodockit template-sync --apply`, then commit and push the
+separate `template-update-...` branch and open the request in the website.
 
 !!! note "Uncommitted writing is fine"
     You do not have to commit your chapters first. A project being
@@ -227,15 +271,10 @@ and nothing merged or pushed.
     switch untouched. Only uncommitted changes to *template-owned* files
     stop a run, and those are refused earlier, before anything is written.
 
-Which branch it merges into comes from the remote itself, not from your
-local `origin/HEAD` - that is a cache written when you cloned, and it goes
-stale. A merge into the branch the sync was written on is refused
-outright.
+#### Updating `main` by hand {: #tsync-finish-by-hand }
 
-#### Or finish it by hand {: #tsync-finish-by-hand }
-
-If you would rather do it yourself, the steps are the ones `--push`
-performs — and the middle one is the one people miss:
+If direct updates to `main` are allowed but you prefer to enter the Git
+commands yourself, use these three commands after `--apply`:
 
 ```bash
 git commit -m "Sync with the template"
@@ -249,26 +288,16 @@ git checkout main && git merge --no-ff template-update-6fbbbbeb8
 git push
 ```
 
-**Committing alone does nothing**, and neither does pushing the update
-branch. A commit is local, so the host never sees it - and neither host
-builds from a branch like this one. GitLab's `pages` job is guarded by
-`if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'`; GitHub's docs workflow
-lists `branches: [master, main]`. Different mechanisms, same answer: a
-pushed `template-update-...` branch produces no pipeline at all.
-
-It is the merge into the default branch, and the push of *that*, which
-rebuilds the site. A run that appears to have had no effect has almost
-always stopped at one of those two steps.
+Replace the example branch name with the branch printed by your run. The site
+is rebuilt only after the updated `main` branch is pushed. Committing locally,
+or pushing only the `template-update-...` branch, does not republish it.
 
 !!! warning "This merges straight into your default branch"
-    `--push` assumes you merge your own work directly - no merge request,
-    no review, no approval step. That is the assumption this is built on,
-    and it matches how a student works on their own report.
-
-    If your project *does* gate the default branch behind merge requests,
-    do not use `--push`: it would either bypass that gate or be rejected
-    by a protected branch. Use `--apply` on its own and open a merge
-    request from the `template-update-...` branch instead.
+    `--push` does not create a pull request or merge request and does not add a
+    review or approval step. Use it only when direct updates are the normal
+    practice for your project. If `main` is protected, the push will be
+    rejected; use `--apply` on its own and open a pull request or merge request
+    instead.
 
 ### A file you have edited {: #tsync-edited-files }
 
@@ -313,9 +342,9 @@ Three things to know about `--force`:
   can overwrite your own work, so each file is named deliberately.
 - **Paths are as the report prints them**, relative to the project root. A
   leading `./` is tolerated; anything else will not match.
-- **A `--force` that matches nothing is ignored**, not warned about. So
-  the check is the report itself - it should say `forced 2` where it
-  previously said `keep 2`.
+- **A `--force` that matches nothing is ignored**, not warned about. Check the
+  summary: the file should move from “Your edited files to keep” to “Your
+  edited files to replace”.
 
 #### Then delete the sidecars {: #tsync-sidecars }
 
@@ -374,7 +403,7 @@ that case is the one built for.
 A run with nothing to do says so and stops:
 
 ```text
-Already in step with the template - nothing to write.
+Your project is already up to date with the template.
 ```
 
 No branch, no staged change, nothing to commit. That matters more than it
@@ -422,9 +451,9 @@ account of itself to `.prodockit-template.log`, and adds that file to
 
 ```text
 === 2026-08-19T14:37:35+01:00  started  prodockit template-sync
-template  git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git
+Template source: git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git
 
-  template      15 files  (replace where unedited)
+  Template-managed files: 15 (updated unless you changed them)
       .github/workflows/docs.yml
       ...
 === 2026-08-19T14:37:39+01:00  finished
