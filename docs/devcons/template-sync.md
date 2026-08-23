@@ -39,17 +39,45 @@ to update `main` directly. It cannot bypass a protected branch.
 
 /// steps
 
-//// step | Open the project directory and preview
+//// step | Open the project and activate its environment
+
+<div class="pdf-keep-tab-pages" markdown="1">
+
+=== ":material-apple: macOS / :material-linux: Linux"
+
+    ```bash
+    cd path/to/your-project
+    source .venv/bin/activate
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    In PowerShell:
+
+    ```powershell
+    cd path\to\your-project
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+</div>
+
+Replace `path/to/your-project` with the folder containing your project. The
+folder must be the top level of the project, where the `.git` directory,
+`.venv` directory, and `zensical.toml` file are located. The prompt normally
+starts with `(.venv)` after activation.
+
+////
+
+//// step | Check the project and preview the update
 
 ```bash
-cd path/to/your-project
 git status --short
 prodockit template-sync
 ```
 
-Replace `path/to/your-project` with the folder containing your project. The
-command must be run from that top-level folder, where the `.git` directory and
-`zensical.toml` file are located.
+Run `template-sync` from the activated project environment. This uses the
+version of prodockit installed for that project and keeps the command aligned
+with the project's other build tools.
 
 You can have unfinished writing in your chapters. The command will stop only if
 a file supplied by the template has uncommitted changes, because updating that
@@ -163,9 +191,12 @@ content-changing operation, not maintenance.
 
 ## Running it {: #tsync-running-it }
 
-Run it from the root of the project - the same directory as `.git`. It
-refuses anywhere else rather than half-working, because every path it
-writes is relative to where it started.
+Run it from the project's activated virtual environment and from the root of
+the project - the directory containing `.venv` and `.git`. It refuses to run
+from another directory rather than half-working, because every path it writes
+is relative to where it started. The first step in
+[Complete a template update](#complete-a-template-update) shows both commands
+for macOS, Linux, and Windows.
 
 ```bash
 prodockit template-sync
