@@ -15,6 +15,20 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
+## 0.43.0 (2026-08-23)
+
+- **Added:** `pdkboot` is available as an isolated preview of the next machine
+  setup command. It uses its own `.pdkboot.toml` configuration and test suite,
+  works in resumable phases, records a recovery report, and improves progress,
+  failure recovery and cross-platform installation without changing the
+  existing `prodockit bootstrap` command.
+
+- **Changed:** `prodockit template-sync` now gives document authors a shorter,
+  clearer summary of the updates and decisions that need their attention.
+  `--verbose` retains the detailed file-by-file report for investigation, and
+  the guide now clearly distinguishes reviewed pull or merge requests from
+  projects that update `main` directly.
+
 ## 0.42.1 (2026-08-22)
 
 - **Changed:** PDF body text is explicitly 11pt and inline or fenced code is
