@@ -256,7 +256,7 @@ def test_windows_pdkboot_runner_uses_system_ssh_for_git(
     )
 
 
-def test_an_existing_git_ssh_override_is_still_respected(
+def test_pdkboot_windows_replaces_an_ssh_override_that_bypasses_its_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     seen: dict[str, object] = {}
@@ -274,7 +274,22 @@ def test_an_existing_git_ssh_override_is_still_respected(
 
     environment = seen["env"]
     assert isinstance(environment, dict)
-    assert environment["GIT_SSH_COMMAND"] == "my-ssh-wrapper"
+    assert environment["GIT_SSH_COMMAND"] == (
+        "C:/Windows/System32/OpenSSH/ssh.exe -o BatchMode=yes -o ConnectTimeout=10"
+    )
+
+
+def test_a_missing_working_directory_is_not_reported_as_a_missing_command(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "project-that-was-not-cloned"
+
+    result = SubprocessRunner().run(["git", "status"], cwd=str(missing))
+
+    assert result.returncode == 127
+    assert str(missing) in result.stderr
+    assert "working directory does not exist" in result.stderr
+    assert "git: not found" not in result.stderr
 
 
 @pytest.mark.parametrize(("returncode", "expected"), [(0, True), (1, False)])

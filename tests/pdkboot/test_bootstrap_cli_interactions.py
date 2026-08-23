@@ -28,6 +28,7 @@ from prodockit.cli import (
     _announce_apply,
     _apply_outstanding,
     _pdkboot_phase,
+    _pdkboot_stages,
     _report_contacts,
     _verify_until_done,
     _work_through,
@@ -61,6 +62,41 @@ def _context(tmp_path: Path):
 
 def _stage(check, plan) -> Stage:  # type: ignore[no-untyped-def]
     return Stage(id="edge", summary="Edge stage", check=check, plan=plan)
+
+
+def test_pdkboot_profile_is_passed_while_the_command_context_is_built(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The Windows SSH choice lives in the runner built with the context.
+
+    Marking a completed context as pdkboot afterwards changes its display
+    profile but cannot reconstruct its runner. That made Windows' ``ssh -T``
+    authenticate while Git's repository probes used another SSH client and
+    failed with ``Permission denied (publickey)``.
+    """
+    from prodockit.pdkboot import main
+
+    received: list[bool] = []
+
+    def build(config, *, pdkboot=False):  # type: ignore[no-untyped-def]
+        received.append(pdkboot)
+        return build_context(
+            config,
+            runner=CliFakeRunner(),
+            platform=MACOS,
+            home=tmp_path,
+            fetch=unreachable,
+            pdkboot=pdkboot,
+        )
+
+    monkeypatch.setattr("prodockit.cli.load_bootstrap_config", lambda path: _config())
+    monkeypatch.setattr("prodockit.cli.build_bootstrap_context", build)
+    monkeypatch.setattr("prodockit.cli.check_all", lambda context, stages: [])
+
+    result = CliRunner().invoke(main, ["--check", "--config", str(tmp_path / "pdk.toml")])
+
+    assert result.exit_code == 0, result.output
+    assert received == [True]
 
 
 def _isolated(call, *, input: str):  # type: ignore[no-untyped-def]
@@ -131,6 +167,40 @@ def test_unverifiable_manual_step_is_taken_on_trust(tmp_path: Path) -> None:
 
     assert result is True
     assert "taken on trust - private host" in output
+
+
+def test_browser_confirmed_site_is_remembered_for_the_next_check(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    stage = next(stage for stage in STAGES if stage.id == "site")
+    config_path = tmp_path / ".pdkboot.toml"
+
+    result, output, _ = _isolated(
+        lambda: _verify_until_done(
+            context,
+            stage,
+            stage.plan(context),
+            config_path,
+        ),
+        input="yes\n",
+    )
+
+    assert result is True
+    assert "taken on trust" in output
+    saved = load(config_path)
+    assert saved.confirmed_site_url.endswith("/report-al01234/")
+
+    checked_again = stage.check(
+        build_context(
+            saved,
+            runner=CliFakeRunner(),
+            platform=MACOS,
+            home=tmp_path,
+            fetch=unreachable,
+            pdkboot=True,
+        )
+    )
+    assert checked_again.status is Status.OK
+    assert "confirmed in your browser" in checked_again.detail
 
 
 def test_manual_step_that_becomes_blocked_does_not_retry_forever(tmp_path: Path) -> None:
@@ -208,15 +278,31 @@ def test_apply_groups_real_stages_into_named_phases(tmp_path: Path) -> None:
 
     assert "Phase 2/7 — Core tools" in output
     assert "Phase 3/7 — Git and host" in output
+    assert output.count("═" * 40) == 4, "each phase has a double-line top and bottom"
 
 
 def test_every_real_stage_has_one_forward_moving_phase() -> None:
-    phases = [_pdkboot_phase(stage.id) for stage in STAGES]
+    phases = [_pdkboot_phase(stage.id) for stage in _pdkboot_stages()]
 
     assert all(phase is not None for phase in phases)
     numbers = [phase[0] for phase in phases if phase is not None]
     assert numbers == sorted(numbers)
     assert set(numbers) == set(range(1, 8))
+
+
+def test_pdkboot_creates_the_host_project_before_choosing_and_cloning() -> None:
+    """A newly created empty repository becomes usable in the same run."""
+    pdkboot_ids = [stage.id for stage in _pdkboot_stages()]
+    legacy_ids = [stage.id for stage in STAGES]
+
+    assert pdkboot_ids.index("ssh-upload") < pdkboot_ids.index("own-project")
+    assert pdkboot_ids.index("own-project") < pdkboot_ids.index("clone-source")
+    assert pdkboot_ids.index("clone-source") < pdkboot_ids.index("clone")
+    assert pdkboot_ids.index("clone") < pdkboot_ids.index("fresh-history")
+    assert legacy_ids.index("clone") < legacy_ids.index("own-project"), (
+        "the existing prodockit bootstrap order remains unchanged"
+    )
+    assert {stage.id for stage in _pdkboot_stages()} == {stage.id for stage in STAGES}
 
 
 def test_active_stage_shows_action_current_state_and_goal(tmp_path: Path) -> None:
@@ -237,6 +323,8 @@ def test_active_stage_shows_action_current_state_and_goal(tmp_path: Path) -> Non
     assert "Action:   CONFIGURE" in output
     assert "Current:  email is not configured" in output
     assert "Goal:     Git, installed and configured" in output
+    assert "Stage [1/1] Git, installed and configured" in output
+    assert "─" * 40 in output, "the stage has a visible boundary in plain logs"
 
 
 def test_apply_announcement_summarises_kinds_of_work(tmp_path: Path) -> None:

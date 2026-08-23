@@ -77,6 +77,7 @@ from prodockit.bootstrap.stages import (
     own_project_has_content,
     project_on_host,
     resolve_for_execution,
+    site_url,
 )
 
 __all__ = [
@@ -128,6 +129,7 @@ __all__ = [
     "refresh_windows_path",
     "resolve_host",
     "save",
+    "site_url",
     "windows_system_ssh",
 ]
 
@@ -252,6 +254,14 @@ def build_context(
     # added later introduces (#304).
     contacts = HostContacts()
     resolved_platform = platform or current_platform()
+    # Windows installers persist PATH and WeasyPrint's DLL directory in the
+    # registry, but an already-open PowerShell keeps the environment it
+    # inherited when it started.  Reload both at the beginning of every
+    # pdkboot invocation as well as after install commands, so a later
+    # ``pdkboot --check`` sees the native libraries that the earlier run
+    # installed.  Keep legacy bootstrap's startup behaviour unchanged.
+    if pdkboot and resolved_platform == WINDOWS:
+        refresh_windows_path()
     default_runner = SubprocessRunner(
         git_ssh_executable=(
             windows_system_ssh() if pdkboot and resolved_platform == WINDOWS else None

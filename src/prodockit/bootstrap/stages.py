@@ -266,6 +266,15 @@ def _winget_repair(package_id: str) -> list[str]:
 #: (prodockit-userguide#101, prodockit-extensions#249).
 PDF_FONT_PACKAGES = ("fonts-inter", "fonts-jetbrains-mono")
 PDF_FONT_CASKS = ("font-inter", "font-jetbrains-mono")
+WINDOWS_INTER_URL = "https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip"
+WINDOWS_INTER_SHA256 = "9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e"
+WINDOWS_JETBRAINS_MONO_URL = (
+    "https://github.com/JetBrains/JetBrainsMono/releases/download/"
+    "v2.304/JetBrainsMono-2.304.zip"
+)
+WINDOWS_JETBRAINS_MONO_SHA256 = (
+    "6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf"
+)
 
 #: The pandoc version this family of repos pins. Set in one place so a
 #: bump does not leave bootstrap behind - the CI workflows pin the same
@@ -1967,8 +1976,15 @@ def _plan_own_project(context: Context) -> Plan:
             f"{context.config.project_name!r} in the {host.group_word} "
             f"{context.config.namespace!r}.",
             host.project_visibility,
-            "Untick every 'initialize with' option - the clone you already have "
-            "provides the contents, and an initialised remote would conflict with it.",
+            (
+                "Untick every 'initialize with' option - pdkboot will add the selected "
+                "project contents after this, and an initialised remote would conflict "
+                "with them."
+                if context.pdkboot
+                else "Untick every 'initialize with' option - the clone you already "
+                "have provides the contents, and an initialised remote would conflict "
+                "with it."
+            ),
             # Said here because this is where a reader stands when the
             # address is wrong: they can see the project in the browser
             # and bootstrap cannot (#441).
@@ -1998,7 +2014,8 @@ def _check_remote(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not (project / ".git").exists():
-        return _missing("no clone to repoint yet")
+        absent = _blocked if context.pdkboot else _missing
+        return absent("no clone to repoint yet")
     wanted = context.host.remote_url(context.config.namespace, context.config.project_name)
     result = context.runner.run(
         [git_command(context), "-C", str(project), "remote", "get-url", "origin"]
@@ -2124,7 +2141,8 @@ def _check_project_identity(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not context.exists(project / ".git"):
-        return _missing("no clone to set an identity in yet")
+        absent = _blocked if context.pdkboot else _missing
+        return absent("no clone to set an identity in yet")
 
     unset: list[str] = []
     mismatched: list[str] = []
@@ -2271,6 +2289,62 @@ def _absent_pdf_fonts(context: Context) -> str:
     return ", ".join(absent)
 
 
+def _windows_font_install_command() -> list[str]:
+    """Install the PDF fonts for the current Windows user, unattended.
+
+    There are no dependable font packages in the community winget source.
+    Download the publishers' versioned archives instead, verify the exact
+    bytes before extracting them, and use Windows' documented per-user font
+    location and registry key. Per-user installation avoids UAC and is the
+    same scope pdkboot's font check reads.
+    """
+    script = (
+        "$ErrorActionPreference = 'Stop'; "
+        "$ProgressPreference = 'SilentlyContinue'; "
+        "$work = Join-Path ([IO.Path]::GetTempPath()) "
+        "('pdkboot-fonts-' + [guid]::NewGuid()); "
+        "$fontDir = Join-Path $env:LOCALAPPDATA 'Microsoft\\Windows\\Fonts'; "
+        "$fontKey = 'HKCU:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts'; "
+        "New-Item -ItemType Directory -Force -Path $work,$fontDir | Out-Null; "
+        "New-Item -Path $fontKey -Force | Out-Null; "
+        "try { "
+        f"$archives = @(@{{Name='inter'; Uri='{WINDOWS_INTER_URL}'; "
+        f"Sha='{WINDOWS_INTER_SHA256}'}}, "
+        f"@{{Name='jetbrains'; Uri='{WINDOWS_JETBRAINS_MONO_URL}'; "
+        f"Sha='{WINDOWS_JETBRAINS_MONO_SHA256}'}}); "
+        "foreach ($archive in $archives) { "
+        "$zip = Join-Path $work ($archive.Name + '.zip'); "
+        "$out = Join-Path $work $archive.Name; "
+        "Invoke-WebRequest -Uri $archive.Uri -OutFile $zip; "
+        "$actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant(); "
+        "if ($actual -ne $archive.Sha) { "
+        "throw \"Font archive checksum failed for $($archive.Name)\" }; "
+        "Expand-Archive -LiteralPath $zip -DestinationPath $out -Force }; "
+        "$fonts = @("
+        "@{Path='inter\\Inter.ttc'; Name='Inter (TrueType)'},"
+        "@{Path='inter\\InterVariable.ttf'; Name='Inter Variable (TrueType)'},"
+        "@{Path='inter\\InterVariable-Italic.ttf'; Name='Inter Variable Italic (TrueType)'},"
+        "@{Path='jetbrains\\fonts\\ttf\\JetBrainsMono-Regular.ttf'; "
+        "Name='JetBrains Mono Regular (TrueType)'},"
+        "@{Path='jetbrains\\fonts\\ttf\\JetBrainsMono-Italic.ttf'; "
+        "Name='JetBrains Mono Italic (TrueType)'},"
+        "@{Path='jetbrains\\fonts\\ttf\\JetBrainsMono-Bold.ttf'; "
+        "Name='JetBrains Mono Bold (TrueType)'},"
+        "@{Path='jetbrains\\fonts\\ttf\\JetBrainsMono-BoldItalic.ttf'; "
+        "Name='JetBrains Mono Bold Italic (TrueType)'}) ; "
+        "foreach ($font in $fonts) { "
+        "$source = Join-Path $work $font.Path; "
+        "if (-not (Test-Path -LiteralPath $source)) { "
+        "throw \"Font file missing from archive: $($font.Path)\" }; "
+        "$file = Split-Path -Leaf $source; "
+        "Copy-Item -LiteralPath $source -Destination (Join-Path $fontDir $file) -Force; "
+        "New-ItemProperty -Path $fontKey -Name $font.Name -Value $file "
+        "-PropertyType String -Force | Out-Null } "
+        "} finally { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }"
+    )
+    return ["powershell", "-NoProfile", "-Command", script]
+
+
 def _plan_pandoc(context: Context) -> Plan:
     if context.platform == MACOS:
         return Plan(
@@ -2386,13 +2460,16 @@ def _plan_pandoc(context: Context) -> Plan:
         "[Environment]::SetEnvironmentVariable("
         "'WEASYPRINT_DLL_DIRECTORIES', $bin, 'User')"
     )
+    commands = [
+        pandoc_install,
+        _winget("MSYS2.MSYS2", resilient=context.pdkboot),
+        ["powershell", "-NoProfile", "-Command", pango],
+        ["powershell", "-NoProfile", "-Command", path_entry],
+    ]
+    if context.pdkboot:
+        commands.append(_windows_font_install_command())
     return Plan(
-        commands=[
-            pandoc_install,
-            _winget("MSYS2.MSYS2", resilient=context.pdkboot),
-            ["powershell", "-NoProfile", "-Command", pango],
-            ["powershell", "-NoProfile", "-Command", path_entry],
-        ],
+        commands=commands,
         describe=(
             f"Upgrade Pandoc to the supported {PANDOC_VERSION} release, then "
             "prepare the Windows PDF libraries"
@@ -2403,16 +2480,20 @@ def _plan_pandoc(context: Context) -> Plan:
         destructive=pandoc_upgrade,
         # Independent of the winget install, so either order works - after
         # it, so the automated half is not held up behind a manual one.
-        follow_up=[
-            "After setup finishes, open a new PowerShell before running build "
-            "commands yourself. pdkboot has refreshed its own PATH for this run, "
-            "so do not close this window now.",
-            "Install the fonts the PDF uses, which Windows has no package "
-            "manager for: download the desktop (.ttf/.otf) files for Inter and "
-            "JetBrains Mono from fonts.google.com, select them all, right-click, "
-            "and choose 'Install'.",
-        ],
-        confirm="Have you installed the fonts?",
+        follow_up=(
+            []
+            if context.pdkboot
+            else [
+                "After setup finishes, open a new PowerShell before running build "
+                "commands yourself. pdkboot has refreshed its own PATH for this run, "
+                "so do not close this window now.",
+                "Install the fonts the PDF uses, which Windows has no package "
+                "manager for: download the desktop (.ttf/.otf) files for Inter and "
+                "JetBrains Mono from fonts.google.com, select them all, right-click, "
+                "and choose 'Install'.",
+            ]
+        ),
+        confirm=("" if context.pdkboot else "Have you installed the fonts?"),
     )
 
 
@@ -3467,6 +3548,8 @@ def _check_site_published(context: Context) -> CheckResult:
             detail = f"could not verify {url} because {probe_problem}"
         else:
             detail = f"could not check {url} from here - the probe did not run"
+        if context.pdkboot and context.config.confirmed_site_url == url:
+            return _ok(f"published at {url} - confirmed in your browser")
         if context.pdkboot:
             return CheckResult(
                 Status.MISSING,
@@ -3929,11 +4012,23 @@ def _check_clone_source(context: Context) -> CheckResult:
         # repository the key cannot see with the words they use for one
         # that does not exist - github.com says `Repository not found.`
         # either way - so absence is not something this can report.
+        if context.pdkboot and project_on_host(context):
+            return _ok(f"{probed} exists and is empty - the template will be cloned")
         return _ok(f"nothing visible at {probed} - the template will be cloned")
-    return _missing(
-        f"{context.config.namespace.strip()}/{context.config.project_name.strip()} has "
-        "work on the host - choose what to do with it"
-    )
+    name = f"{context.config.namespace.strip()}/{context.config.project_name.strip()}"
+    if context.pdkboot:
+        # The standalone preview deliberately exposes only the proven-safe
+        # path for now. Keep the decision in this run's config object so the
+        # clone plan remains a pure reader and `--dry-run` does not make a
+        # second network call while building it. It need not be written to
+        # disk: once cloned, origin settles this stage permanently.
+        context.config.source_url = name
+        context.config.history = "keep"
+        return _ok(
+            f"Option 1 selected automatically: {name} has work on the host, so pdkboot "
+            "will clone the full repository and keep its existing commit history and origin"
+        )
+    return _missing(f"{name} has work on the host - choose what to do with it")
 
 
 def _plan_clone_source(context: Context) -> Plan:

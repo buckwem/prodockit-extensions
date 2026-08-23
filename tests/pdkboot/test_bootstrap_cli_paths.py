@@ -50,8 +50,12 @@ def _prepare_mode_test(
 ) -> list[str]:
     save(bootstrap_cli.tmp_path / "b.toml", _complete_config())
     called: list[str] = []
-    monkeypatch.setattr("prodockit.cli.check_all", lambda context: called.append("check") or [])
-    monkeypatch.setattr("prodockit.cli.plan_all", lambda context: called.append("plan") or [])
+    monkeypatch.setattr(
+        "prodockit.cli.check_all", lambda context, stages: called.append("check") or []
+    )
+    monkeypatch.setattr(
+        "prodockit.cli.plan_all", lambda context, stages: called.append("plan") or []
+    )
     monkeypatch.setattr(
         "prodockit.cli._apply_outstanding",
         lambda context, reports, path: called.append("apply"),
@@ -221,7 +225,7 @@ def test_an_unsupported_host_is_a_clean_cli_error(
     error = UnsupportedHostError("no install recipe for platform 'plan9'")
     monkeypatch.setattr(
         "prodockit.cli.build_bootstrap_context",
-        lambda config: (_ for _ in ()).throw(error),
+        lambda config, **kwargs: (_ for _ in ()).throw(error),
     )
 
     result = bootstrap_cli.invoke("--check", patch_context=False)
@@ -273,7 +277,7 @@ def test_check_mode_renders_every_stage_status_and_optional_detail(
             plan=lambda context: None,  # type: ignore[arg-type,return-value]
         )
         reports.append(StageReport(stage, CheckResult(status, f"{status.value} detail"), None))
-    monkeypatch.setattr("prodockit.cli.check_all", lambda context: reports)
+    monkeypatch.setattr("prodockit.cli.check_all", lambda context, stages: reports)
 
     result = bootstrap_cli.invoke("--check")
 

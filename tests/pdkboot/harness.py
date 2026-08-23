@@ -103,14 +103,14 @@ class PdkbootCliHarness:
             self.last_runner = runner
             self.monkeypatch.setattr(
                 "prodockit.cli.build_bootstrap_context",
-                lambda config: build_context(
+                lambda config, *, pdkboot=False: build_context(
                     config,
                     runner=runner,
                     exists=lambda path: False if _looks_like_vscode_app(path) else path.exists(),
                     platform=platform,
                     home=self.tmp_path,
                     fetch=fetch or unreachable,
-                    pdkboot=True,
+                    pdkboot=pdkboot,
                 ),
             )
 
