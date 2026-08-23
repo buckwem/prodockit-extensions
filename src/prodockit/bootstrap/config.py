@@ -106,6 +106,25 @@ class BootstrapConfig:
 
 #: The per-directory config, beside whatever is being set up.
 LOCAL_CONFIG_NAME = ".pdk-bootstrap.toml"
+#: Independent per-directory state for the phased standalone command. It
+#: deliberately has no user-level fallback: discovering the legacy answers
+#: would make manual pdkboot testing mutate an existing bootstrap setup.
+PDKBOOT_CONFIG_NAME = ".pdkboot.toml"
+
+
+def pdkboot_config_path(cwd: Path | None = None) -> Path:
+    """The nearest standalone config, isolated from legacy bootstrap.
+
+    A project is created beneath the setup directory that owns this file.
+    Finding the nearest parent lets ``pdkboot --check`` work from inside
+    that project without offering to create a second, conflicting config.
+    """
+    here = Path(cwd) if cwd is not None else Path.cwd()
+    for directory in (here, *here.parents):
+        candidate = directory / PDKBOOT_CONFIG_NAME
+        if candidate.exists():
+            return candidate
+    return here / PDKBOOT_CONFIG_NAME
 
 
 def config_path(home: Path | None = None, cwd: Path | None = None) -> Path:
@@ -147,7 +166,11 @@ def user_config_path(home: Path | None = None) -> Path:
     return root / "prodockit" / "bootstrap.toml"
 
 
-def keep_out_of_git(path: Path) -> bool:
+def keep_out_of_git(
+    path: Path,
+    *,
+    reason: str = "Your own answers to `prodockit bootstrap`.",
+) -> bool:
     """Adds `path`'s name to the `.gitignore` beside it, if that is a repo.
 
     The config holds a reader's name, email and username, and it now sits
@@ -173,7 +196,7 @@ def keep_out_of_git(path: Path) -> bool:
         return False
     separator = "" if not existing or existing.endswith("\n") else "\n"
     ignore.write_text(
-        f"{existing}{separator}\n# Your own answers to `prodockit bootstrap`.\n{path.name}\n",
+        f"{existing}{separator}\n# {reason}\n{path.name}\n",
         encoding="utf-8",
     )
     return True
@@ -282,9 +305,7 @@ def missing_keys(config: BootstrapConfig) -> list[str]:
     everyone a question most people should skip.
     """
     optional = {"source_url"}
-    return [
-        key for key, _ in PROMPTS if key not in optional and not getattr(config, key, "")
-    ]
+    return [key for key, _ in PROMPTS if key not in optional and not getattr(config, key, "")]
 
 
 def question_for(config: BootstrapConfig, key: str, question: str) -> str:

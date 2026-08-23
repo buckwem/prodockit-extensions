@@ -463,10 +463,7 @@ def host_problem(value: str) -> str | None:
             f"supported yet - {_supported_hosts()} only"
         )
     if not host.supported:
-        return (
-            f"{host.hostname} is declared but not yet supported - "
-            f"{_supported_hosts()} only"
-        )
+        return f"{host.hostname} is declared but not yet supported - {_supported_hosts()} only"
     return None
 
 
@@ -623,7 +620,13 @@ SSH_NO_PROMPT_OPTIONS: tuple[str, ...] = (
 )
 
 
-def _no_prompt_env() -> dict[str, str]:
+def windows_system_ssh() -> str:
+    """Windows OpenSSH, written in the form Git's command parser accepts."""
+    root = os.environ.get("SYSTEMROOT", r"C:\Windows").replace("\\", "/").rstrip("/")
+    return f"{root}/System32/OpenSSH/ssh.exe"
+
+
+def _no_prompt_env(git_ssh_executable: str | None = None) -> dict[str, str]:
     """The environment every bootstrap command runs in: one that cannot ask.
 
     Bootstrap runs commands both to *check* and to *apply*, and neither
@@ -650,7 +653,10 @@ def _no_prompt_env() -> dict[str, str]:
     """
     env = dict(os.environ)
     env["GIT_TERMINAL_PROMPT"] = "0"
-    env.setdefault("GIT_SSH_COMMAND", " ".join(SSH_NO_PROMPT_OPTIONS))
+    options = list(SSH_NO_PROMPT_OPTIONS)
+    if git_ssh_executable:
+        options[0] = git_ssh_executable
+    env.setdefault("GIT_SSH_COMMAND", " ".join(options))
     return env
 
 
@@ -688,6 +694,9 @@ class SubprocessRunner:
     problem, but the default has to be the safe one.
     """
 
+    def __init__(self, *, git_ssh_executable: str | None = None) -> None:
+        self.git_ssh_executable = git_ssh_executable
+
     def run(
         self,
         command: Sequence[str],
@@ -707,7 +716,7 @@ class SubprocessRunner:
                 stdin=subprocess.DEVNULL if capture else None,
                 text=True,
                 encoding="utf-8",
-                env=_no_prompt_env(),
+                env=_no_prompt_env(self.git_ssh_executable),
                 timeout=CHECK_TIMEOUT_SECONDS if timeout is None else timeout,
             )
         except FileNotFoundError:
@@ -780,6 +789,15 @@ def refresh_windows_path() -> str | None:
             continue
         if value:
             parts.append(os.path.expandvars(str(value)))
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:  # type: ignore[attr-defined]
+            dll_directories, _ = winreg.QueryValueEx(  # type: ignore[attr-defined]
+                key, "WEASYPRINT_DLL_DIRECTORIES"
+            )
+    except OSError:
+        dll_directories = ""
+    if dll_directories:
+        os.environ["WEASYPRINT_DLL_DIRECTORIES"] = os.path.expandvars(str(dll_directories))
     if not parts:
         return None
     merged = os.pathsep.join(parts)
@@ -971,6 +989,13 @@ class Plan:
     #: pressing Enter through them. Each entry is one option, in order;
     #: the answer is its 1-based number (prodockit-extensions#348).
     choices: tuple[str, ...] = ()
+    #: The user-facing kind of work this plan performs. ``pdkboot`` uses
+    #: this when the distinction cannot be inferred safely from the stage:
+    #: repairing an installed runtime and upgrading an old one can both
+    #: contain the same package-manager command shape as a fresh install.
+    #: Legacy bootstrap does not render it. Kept last to preserve positional
+    #: construction compatibility for callers of this public model.
+    action: str = ""
 
     @property
     def is_manual(self) -> bool:
@@ -1017,6 +1042,10 @@ class Context:
     #: costs, and not before (prodockit-extensions#304). Typed loosely to
     #: keep `model` free of a dependency on the module that wraps it.
     contacts: Any = None
+    #: Whether this run came from the standalone, phased ``pdkboot``
+    #: command. The legacy ``prodockit bootstrap``/``pdk boot`` path keeps
+    #: this false until the replacement is ready for existing users.
+    pdkboot: bool = False
 
 
 @dataclass(frozen=True)

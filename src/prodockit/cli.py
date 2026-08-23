@@ -24,8 +24,12 @@ from __future__ import annotations
 import pathlib
 import sys
 import textwrap
+import threading
 import time
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import replace
 from pathlib import Path
 
 import click
@@ -54,6 +58,7 @@ from prodockit.bootstrap import (
     needs_sudo,
     own_project_exists,
     own_project_has_content,
+    pdkboot_config_path,
     plan_all,
     project_on_host,
     question_for,
@@ -65,6 +70,11 @@ from prodockit.bootstrap import config_path as bootstrap_config_path
 from prodockit.bootstrap import load as load_bootstrap_config
 from prodockit.bootstrap import save as save_bootstrap_config
 from prodockit.bootstrap.config import keep_out_of_git
+from prodockit.bootstrap.recovery import (
+    PdkbootRunJournal,
+    pdkboot_report_path,
+    recovery_advice,
+)
 from prodockit.init_tools import (
     COMPONENT_PURPOSE,
     InitToolsError,
@@ -81,6 +91,217 @@ from prodockit.pdf.config import (
 )
 from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
+
+_PDKBOOT_MODE: ContextVar[bool] = ContextVar("pdkboot_mode", default=False)
+
+
+# These are presentation groups, not execution units: stages still run in
+# their established dependency order and are rechecked immediately before
+# use. Keeping the grouping here means the replacement command can evolve
+# without changing legacy bootstrap's model or output.
+_PDKBOOT_PHASES: tuple[tuple[str, frozenset[str]], ...] = (
+    ("Preflight", frozenset({"own-venv"})),
+    ("Core tools", frozenset({"vscode", "git"})),
+    (
+        "Git and host",
+        frozenset({"ssh-key", "ssh-config", "ssh-agent", "ssh-upload"}),
+    ),
+    (
+        "Project",
+        frozenset(
+            {
+                "clone-source",
+                "clone",
+                "fresh-history",
+                "own-project",
+                "pages",
+                "remote",
+                "identity",
+            }
+        ),
+    ),
+    (
+        "Build toolchain",
+        frozenset({"pandoc", "project-env", "node"}),
+    ),
+    (
+        "Editor and project",
+        frozenset({"extensions", "vscode-settings", "csl-style", "mathjax"}),
+    ),
+    ("Publish", frozenset({"first-push", "site"})),
+)
+
+_PDKBOOT_INSTALL_STAGES = frozenset(
+    {
+        "own-venv",
+        "vscode",
+        "git",
+        "ssh-key",
+        "clone",
+        "pandoc",
+        "project-env",
+        "node",
+        "extensions",
+        "csl-style",
+        "mathjax",
+    }
+)
+_PDKBOOT_CONFIGURE_STAGES = frozenset(
+    {"ssh-config", "ssh-agent", "remote", "identity", "vscode-settings"}
+)
+
+
+def _pdkboot_phase(stage_id: str) -> tuple[int, str] | None:
+    """Return the display phase for a real bootstrap stage."""
+    for number, (name, stage_ids) in enumerate(_PDKBOOT_PHASES, start=1):
+        if stage_id in stage_ids:
+            return number, name
+    return None
+
+
+def _pdkboot_action(report: StageReport, plan: Plan | None = None) -> str:
+    """Describe work in terms a reader can use to judge its risk."""
+    plan = plan or report.plan
+    if plan is None:
+        return "WAIT" if report.result.status is Status.BLOCKED else "CHECK"
+    if plan.action:
+        return plan.action.upper()
+    if plan.choices:
+        return "CHOOSE"
+    if report.stage.id == "fresh-history":
+        return "ARCHIVE"
+    if report.stage.id == "ssh-upload":
+        return "MANUAL"
+    if report.stage.id == "git" and report.result.status is Status.WRONG:
+        return "CONFIGURE"
+    if plan.is_manual:
+        return "MANUAL"
+    if report.stage.id in {"first-push", "site"}:
+        return "PUBLISH"
+    if report.stage.id in _PDKBOOT_CONFIGURE_STAGES:
+        return "CONFIGURE"
+    if report.stage.id in _PDKBOOT_INSTALL_STAGES:
+        return "INSTALL" if report.result.status is Status.MISSING else "REPAIR"
+    if report.result.status is Status.WRONG:
+        return "REPAIR"
+    return "INSTALL" if plan.commands else "MANUAL"
+
+
+def _pdkboot_work_summary(reports: Sequence[StageReport]) -> str:
+    """Compact counts of the kinds of outstanding work in this pass."""
+    order = ("INSTALL", "UPGRADE", "CONFIGURE", "REPAIR", "ARCHIVE", "CHOOSE", "MANUAL", "PUBLISH")
+    counts = dict.fromkeys(order, 0)
+    for report in reports:
+        if report.needs_work and report.plan is not None:
+            action = _pdkboot_action(report)
+            counts[action] = counts.get(action, 0) + 1
+    return " · ".join(f"{count} {action.lower()}" for action in order if (count := counts[action]))
+
+
+def _pdkboot_journal(
+    context: Context,
+    reports: Sequence[StageReport],
+    config_path: Path | None,
+) -> PdkbootRunJournal | None:
+    """Start the recovery record for an apply run, if it has a location."""
+    if not context.pdkboot or config_path is None:
+        return None
+    stages = []
+    for report in reports:
+        status = {
+            Status.OK: "satisfied",
+            Status.BLOCKED: "waiting",
+            Status.UNKNOWN: "unknown",
+        }.get(report.result.status, "planned")
+        stages.append(
+            {
+                "id": report.stage.id,
+                "summary": report.stage.summary,
+                "status": status,
+                "detail": report.result.detail,
+                "action": (
+                    _pdkboot_action(report) if report.needs_work and report.plan is not None else ""
+                ),
+            }
+        )
+    path = pdkboot_report_path(config_path)
+    journal = PdkbootRunJournal(
+        path,
+        version=__version__,
+        config_path=config_path,
+        resume=["pdkboot", "--config", str(config_path), "--apply"],
+        stages=stages,
+    )
+    if journal.error is None:
+        keep_out_of_git(
+            path,
+            reason="Local pdkboot recovery state; do not commit.",
+        )
+    return journal
+
+
+def _resume_command(context: Context, config_path: Path | None) -> str:
+    """The rerun that preserves this command and its chosen configuration."""
+    if not context.pdkboot:
+        return "prodockit bootstrap --apply"
+    if config_path is None:
+        return "pdkboot --apply"
+    return f'pdkboot --config "{config_path}" --apply'
+
+
+class _PdkbootCommandProgress:
+    """Keep a quiet install visibly alive without hiding its failures."""
+
+    def __init__(self) -> None:
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._started = 0.0
+        self._label = ""
+        self._interactive = bool(click.get_text_stream("stdout").isatty())
+
+    def __call__(self, event: str, number: int, total: int, command: list[str]) -> None:
+        if event == "start":
+            self._started = time.monotonic()
+            self._label = f"command {number}/{total}: {_readable_command(command, 64)}"
+            self._stop.clear()
+            if not self._interactive:
+                click.echo(f"  Working on {self._label} ...")
+                return
+            line = f"  ⠋ Working on {self._label} (0s)"
+            click.echo(line, nl=False)
+            self._thread = threading.Thread(target=self._pulse, daemon=True)
+            self._thread.start()
+            return
+
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.2)
+            self._thread = None
+        elapsed = max(0, round(time.monotonic() - self._started))
+        result = "failed" if event == "failed" else "done"
+        prefix = "\r  " if self._interactive else "  "
+        finished = f"  {self._label} - {result} ({elapsed}s)"
+        clear = "\x1b[K" if self._interactive else ""
+        click.echo(f"{prefix}{finished.removeprefix('  ')}{clear}")
+
+    def _pulse(self) -> None:
+        frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+        frame = 0
+        while not self._stop.wait(0.2):
+            elapsed = max(0, round(time.monotonic() - self._started))
+            line = f"  {frames[frame % len(frames)]} Working on {self._label} ({elapsed}s)"
+            click.echo(f"\r{line}\x1b[K", nl=False)
+            frame += 1
+
+
+@contextmanager
+def pdkboot_mode() -> Iterator[None]:
+    """Run the bootstrap callback with the phased ``pdkboot`` behaviour."""
+    token = _PDKBOOT_MODE.set(True)
+    try:
+        yield
+    finally:
+        _PDKBOOT_MODE.reset(token)
 
 
 def _echo_captured_stderr(error: Exception) -> None:
@@ -172,9 +393,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     project = ""
     if assessed:
         course = surrey.course_code(
-            click.prompt(
-                f"5/{_SURREY_QUESTIONS_ASSESSED} Your course code, e.g. `comm058`"
-            )
+            click.prompt(f"5/{_SURREY_QUESTIONS_ASSESSED} Your course code, e.g. `comm058`")
         )
         click.echo("")
         for number, name, _suffix in surrey.STAGES:
@@ -224,8 +443,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
         # the ordinary answer and typed over only by somebody who wants
         # something else.
         namespace = click.prompt(
-            f"5/{_SURREY_QUESTIONS_UNASSESSED} The group or namespace the "
-            "project lives under",
+            f"5/{_SURREY_QUESTIONS_UNASSESSED} The group or namespace the project lives under",
             default=login,
             show_default=True,
         ).strip()
@@ -239,9 +457,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     config.username = login
     config.email = surrey.email_for(login)
     config.namespace = namespace or surrey.namespace_for(course, login, assessment, year)
-    config.project_name = project or surrey.project_name_for(
-        course, login, year, assessment
-    )
+    config.project_name = project or surrey.project_name_for(course, login, year, assessment)
     config.project_dir = f"./{config.project_name}"
 
     # Bulleted rather than numbered: these are three facts to note, not
@@ -251,8 +467,7 @@ def _ask_surrey(config: BootstrapConfig) -> None:
     click.echo(click.style("Note these down:", bold=True))
     for fact in (
         f"Your GitLab repository will be in the group or namespace {config.namespace}.",
-        f"Your repository, and the folder it lands in here, will be "
-        f"{config.project_name}.",
+        f"Your repository, and the folder it lands in here, will be {config.project_name}.",
         f"Commits will be signed {config.full_name} <{config.email}>.",
     ):
         click.echo(_wrapped(f"* {fact}", first="  ", rest="    "))
@@ -669,6 +884,12 @@ def _readable_command(command: Sequence[str], limit: int = 110) -> str:
     reader who wants the exact text has `--dry-run`, which is what that
     is for.
     """
+    if len(command) >= 6 and command[1] == "-c" and "DYLD_FALLBACK_LIBRARY_PATH" in command[2]:
+        return (
+            f"update {command[3]} so activated project shells use "
+            f"DYLD_FALLBACK_LIBRARY_PATH={command[5]}"
+        )
+
     parts = []
     for argument in command:
         if "\n" in argument:
@@ -682,7 +903,11 @@ def _readable_command(command: Sequence[str], limit: int = 110) -> str:
     return rendered
 
 
-def _announce_apply(context: Context, outstanding: int) -> None:
+def _announce_apply(
+    context: Context,
+    outstanding: int,
+    reports: Sequence[StageReport] = (),
+) -> None:
     """Says what is about to happen, before it starts happening.
 
     `--apply` opened straight into `[1/11] Visual Studio Code`, which
@@ -710,11 +935,16 @@ def _announce_apply(context: Context, outstanding: int) -> None:
     click.echo(f"  Host:     {context.host.hostname}")
     click.echo(f"  Project:  {context.config.resolved_project_dir(context.home)}")
     click.echo(f"  To do:    {outstanding} of {len(STAGES)} stages")
+    if context.pdkboot and reports:
+        summary = _pdkboot_work_summary(reports)
+        if summary:
+            click.echo(f"  Work:     {summary}")
     click.echo("")
     click.echo(
-        "  Run this from your top-level project directory, from the virtual\n"
-        "  environment prodockit itself is installed in - not the project's own,\n"
-        "  which stage 16 builds. Nothing is changed without asking first."
+        "  Run this from the setup directory containing .pdkboot.toml. The project\n"
+        "  shown above will be created beneath it. Use the virtual environment\n"
+        "  prodockit itself is installed in - stage 16 builds the project's own.\n"
+        "  Nothing is changed without asking first."
     )
     click.echo("")
 
@@ -730,29 +960,74 @@ def _apply_outstanding(
     before you have done it. Exiting at that point threw away every stage
     already completed and made the reader start again.
     """
+    journal = _pdkboot_journal(context, reports, config_path)
+    if journal is not None and journal.error is not None:
+        click.echo(f"Warning: recovery report unavailable: {journal.error}", err=True)
+        journal = None
+
     outstanding = [r for r in reports if r.needs_work and r.plan is not None]
     if not outstanding:
-        click.echo("Nothing to do - every stage is either set up or waiting on "
-                   "configuration.")
+        if journal is not None:
+            journal.settle()
+        click.echo("Nothing to do - every stage is either set up or waiting on configuration.")
+        if journal is not None:
+            click.echo(f"Recovery report: {journal.path}")
         return
 
-    _announce_apply(context, len(outstanding))
+    _announce_apply(context, len(outstanding), reports)
+    if journal is not None:
+        click.echo(f"  Report:   {journal.path}")
+        click.echo("")
     try:
-        _work_through(context, reports, config_path)
+        _work_through(context, reports, config_path, journal)
     except _StartAgain as done_but_unseen:
+        if journal is not None:
+            journal.finish("waiting")
         # Not an error, and not a stage left undone: the reader did what
         # was asked, and this process simply cannot see it (#397).
         click.echo("")
         click.echo(f"  {done_but_unseen} is done, but this run cannot see it.")
         click.echo("")
-        click.echo("Run `prodockit bootstrap --apply` again to carry on from here.")
+        resume_command = _resume_command(context, config_path)
+        click.echo(f"Run `{resume_command}` again to carry on from here.")
         return
+    except (KeyboardInterrupt, click.Abort):
+        if journal is not None:
+            journal.finish(
+                "interrupted",
+                failure={
+                    "stage": journal.data["current_stage"],
+                    "message": "run interrupted by the user",
+                },
+            )
+        click.echo("\nInterrupted. No later stages were started.", err=True)
+        if journal is not None:
+            click.echo(f"Recovery report: {journal.path}", err=True)
+        raise
+    except SystemExit:
+        if journal is not None and journal.data["status"] == "running":
+            journal.finish(
+                "failed",
+                failure={
+                    "stage": journal.data["current_stage"],
+                    "message": "stage did not complete",
+                },
+            )
+        raise
+    if journal is not None:
+        journal.settle()
     click.echo("")
-    click.echo("Finished. Run `prodockit bootstrap` to confirm.")
+    check_command = "pdkboot" if context.pdkboot else "prodockit bootstrap"
+    click.echo(f"Finished. Run `{check_command}` to confirm.")
+    if journal is not None:
+        click.echo(f"Recovery report: {journal.path}")
 
 
 def _work_through(
-    context: Context, reports: list[StageReport], config_path: Path | None
+    context: Context,
+    reports: list[StageReport],
+    config_path: Path | None,
+    journal: PdkbootRunJournal | None = None,
 ) -> None:
     """Each stage in turn, asking before it acts on any of them."""
 
@@ -763,6 +1038,7 @@ def _work_through(
     # were invisible rather than reassuring
     # (prodockit-extensions#284).
     total = len(reports)
+    shown_phase: tuple[int, str] | None = None
     for number, report in enumerate(reports, start=1):
         # Asked again, here, rather than trusting the pass taken before
         # any of this ran. Earlier stages change the machine the later
@@ -782,7 +1058,24 @@ def _work_through(
             result=result,
             plan=report.stage.plan(context) if plannable else None,
         )
+        phase = _pdkboot_phase(report.stage.id) if context.pdkboot else None
+        if phase is not None and phase != shown_phase:
+            phase_number, phase_name = phase
+            click.echo("")
+            click.echo(
+                click.style(
+                    f"Phase {phase_number}/{len(_PDKBOOT_PHASES)} — {phase_name}",
+                    bold=True,
+                )
+            )
+            shown_phase = phase
         if not report.needs_work:
+            if journal is not None:
+                journal.stage(
+                    report.stage.id,
+                    "satisfied",
+                    detail=report.result.detail,
+                )
             # With the detail, as the report itself prints it. Without
             # it, "ok" said nothing about *why* - and for the stage that
             # decides where the project comes from, "searched and found
@@ -792,11 +1085,20 @@ def _work_through(
             click.echo(f"{number:2}  ok    {report.stage.summary}{detail}")
             continue
         if report.plan is None:
-            # Waiting on an answer rather than on the machine, so there is
-            # nothing to offer - said rather than skipped, or a stage
-            # simply vanishes from the run.
+            # Distinguish a stage whose state is unknown from one waiting on
+            # a prerequisite. Both have no safe action, but the reader needs
+            # different information to recover.
             detail = f" - {report.result.detail}" if report.result.detail else ""
-            click.echo(f"{number:2}  ?     {report.stage.summary}{detail}")
+            symbol = (
+                "WAIT" if context.pdkboot and report.result.status is Status.BLOCKED else "?   "
+            )
+            click.echo(f"{number:2}  {symbol}  {report.stage.summary}{detail}")
+            if journal is not None:
+                journal.stage(
+                    report.stage.id,
+                    ("waiting" if report.result.status is Status.BLOCKED else "unknown"),
+                    detail=report.result.detail,
+                )
             continue
         # Built now, not at the start of the run. `plan_all` computes every
         # plan before anything has been applied, so a plan that depends on
@@ -809,13 +1111,27 @@ def _work_through(
         # of ~/.ssh/id_ed25519_gitlab.pub" about a key that existed by the
         # time the step was reached (prodockit-extensions#281).
         #
-        # `apply_stage` already re-derives the plan before running it, so
-        # the commands were always current; only what was shown was stale.
-        plan = report.stage.plan(context)
+        # In pdkboot this exact plan is also passed to `apply_stage`: mutable
+        # or network-sensitive commands must not change after the reader has
+        # reviewed and approved them. Legacy bootstrap retains its existing
+        # re-planning behaviour until it is deliberately replaced.
+        plan = report.plan if context.pdkboot else report.stage.plan(context)
+        action = _pdkboot_action(report, plan) if context.pdkboot else ""
+        if journal is not None:
+            journal.stage(
+                report.stage.id,
+                "running",
+                detail=report.result.detail,
+                action=action,
+            )
 
         click.echo("")
         click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))
-        if report.result.detail:
+        if context.pdkboot:
+            click.echo(f"  Action:   {action}")
+            click.echo(f"  Current:  {report.result.detail or 'not yet satisfied'}")
+            click.echo(f"  Goal:     {report.stage.summary}")
+        elif report.result.detail:
             click.echo(f"        {report.result.detail}")
         click.echo("")
 
@@ -842,6 +1158,8 @@ def _work_through(
                 show_choices=False,
             )
             _record_clone_source(context.config, picked, config_path)
+            if journal is not None:
+                journal.stage(report.stage.id, "completed", action=action)
             click.echo("")
             continue
 
@@ -851,24 +1169,23 @@ def _work_through(
                 # Guide and verify. The stage's own check is the
                 # verification, and "not finished yet" is the normal
                 # answer to it, not a failure - so it asks again.
-                if not _verify_until_done(context, report.stage, plan):
+                verified = _verify_until_done(context, report.stage, plan)
+                if journal is not None:
+                    journal.stage(
+                        report.stage.id,
+                        "completed" if verified else "skipped",
+                        action=action,
+                    )
+                if not verified:
                     click.echo("  skipped")
                 continue
-            # There are commands, and they need the step above done
-            # first. The answer is *acted on*: this was written as a bare
-            # acknowledgement, so "Delete the template's history and start
-            # a new repository? [Y/n]: n" printed the commands anyway and
-            # asked again, which reads as the tool ignoring a refusal
-            # (prodockit-extensions#330).
-            #
-            # Default follows the same rule as the command prompt below -
-            # No when the plan destroys something (#259). Defaulting a
-            # deletion to Yes was the other half of the same fault.
-            if not click.confirm(f"  {plan.confirm}", default=not plan.destructive):
-                click.echo("  skipped")
-                continue
-            click.echo("")
-
+            if not context.pdkboot:
+                if not click.confirm(f"  {plan.confirm}", default=not plan.destructive):
+                    if journal is not None:
+                        journal.stage(report.stage.id, "skipped", action=action)
+                    click.echo("  skipped")
+                    continue
+                click.echo("")
         if plan.commands:
             if plan.describe:
                 click.echo("  Will do:")
@@ -876,7 +1193,15 @@ def _work_through(
             else:
                 click.echo("  Will run:")
                 for command in plan.commands:
-                    click.echo(f"    {_readable_command(command)}")
+                    click.echo(
+                        _wrapped(
+                            _readable_command(command, 10_000),
+                            first="    ",
+                            rest="      ",
+                        )
+                    )
+            if plan.cwd:
+                click.echo(f"  Working directory: {plan.cwd}")
             click.echo("")
             # Yes unless it destroys something. A reader who typed
             # `--apply` has said what they want; making them say it again
@@ -885,8 +1210,15 @@ def _work_through(
             # (#259).
             default_yes = not plan.destructive
             count = len(plan.commands)
-            if not click.confirm(f"  Run {count} command{'s' if count != 1 else ''}?",
-                                 default=default_yes):
+            if context.pdkboot and plan.instructions and plan.confirm:
+                question = plan.confirm
+            elif plan.describe:
+                question = f"Apply {count} change{'s' if count != 1 else ''}?"
+            else:
+                question = f"Run {count} command{'s' if count != 1 else ''}?"
+            if not click.confirm(f"  {question}", default=default_yes):
+                if journal is not None:
+                    journal.stage(report.stage.id, "skipped", action=action)
                 click.echo("  skipped")
                 continue
 
@@ -907,9 +1239,23 @@ def _work_through(
             # seconds (an `ssh -T` carries a ten-second connect timeout),
             # which reads as a hang right after a command has visibly
             # finished. So both ends are announced (#244).
-            click.echo("  Working - the commands' own output follows.")
-            click.echo("")
-            outcome = apply_stage(context, report.stage)
+            if context.pdkboot and plan.needs_terminal:
+                click.echo("  This command needs the terminal; its output will be shown.")
+            elif context.pdkboot:
+                click.echo("  Routine command output is hidden; failures are shown in full.")
+            else:
+                click.echo("  Working - the commands' own output follows.")
+                click.echo("")
+            outcome = (
+                apply_stage(
+                    context,
+                    report.stage,
+                    plan,
+                    progress=None if plan.needs_terminal else _PdkbootCommandProgress(),
+                )
+                if context.pdkboot
+                else apply_stage(context, report.stage)
+            )
             click.echo("")
             click.echo("  Commands finished, checking the result...")
             if outcome.failed is not None:
@@ -917,15 +1263,90 @@ def _work_through(
                 # so there is usually no captured stderr to summarise -
                 # point at what the reader can see rather than invent a
                 # sentence (#244).
+                captured = "\n".join(
+                    part.strip()
+                    for part in (outcome.failed.stdout, outcome.failed.stderr)
+                    if part.strip()
+                )
+                if context.pdkboot and captured:
+                    click.echo("  Command output:", err=True)
+                    for line in captured.splitlines():
+                        click.echo(f"    {line}", err=True)
                 summary = (
                     _first_meaningful_line(outcome.failed.stderr)
                     if outcome.failed.stderr.strip()
-                    else f"exit status {outcome.failed.returncode} - see the output above"
+                    else (
+                        _first_meaningful_line(outcome.failed.stdout)
+                        if outcome.failed.stdout.strip()
+                        else f"exit status {outcome.failed.returncode}"
+                    )
                 )
                 click.echo(f"  failed: {summary}", err=True)
                 click.echo("  Stopping - later stages depend on this one.", err=True)
+                advice = (
+                    recovery_advice(
+                        report.stage.id,
+                        context.platform,
+                        outcome.ran[-1] if outcome.ran else [],
+                        outcome.failed,
+                    )
+                    if context.pdkboot
+                    else None
+                )
+                if advice is not None:
+                    _show_steps("  Recovery:", list(advice.steps))
+                if context.pdkboot:
+                    click.echo(
+                        f"  Fix the problem, then run `{_resume_command(context, config_path)}` "
+                        "again; "
+                        "completed stages will be rechecked and skipped.",
+                        err=True,
+                    )
+                if journal is not None:
+                    journal.stage(
+                        report.stage.id,
+                        "failed",
+                        detail=summary,
+                        action=action,
+                    )
+                    journal.finish(
+                        "failed",
+                        failure={
+                            "stage": report.stage.id,
+                            "returncode": outcome.failed.returncode,
+                            "message": summary,
+                            "category": advice.category if advice is not None else "",
+                            "recovery": list(advice.steps) if advice is not None else [],
+                        },
+                    )
                 sys.exit(1)
-            if outcome.ok:
+            if outcome.ok and not plan.follow_up:
+                recovered_detail = ""
+                if outcome.recovered is not None:
+                    recovered_detail = (
+                        "command returned "
+                        f"{outcome.recovered.returncode}, but the stage now verifies correctly"
+                    )
+                    click.echo(f"  recovered: {recovered_detail}")
+                    captured = "\n".join(
+                        part.strip()
+                        for part in (
+                            outcome.recovered.stdout,
+                            outcome.recovered.stderr,
+                        )
+                        if part.strip()
+                    )
+                    if captured:
+                        click.echo("  Command output:")
+                        for line in captured.splitlines():
+                            click.echo(f"    {line}")
+                if journal is not None:
+                    journal.stage(
+                        report.stage.id,
+                        "completed",
+                        detail=recovered_detail,
+                        action=action,
+                    )
                 click.echo("  done")
                 continue
             if plan.follow_up:
@@ -936,13 +1357,40 @@ def _work_through(
             elif not plan.instructions:
                 detail = outcome.verified.detail if outcome.verified else "unknown"
                 click.echo(f"  ran, but still not right: {detail}", err=True)
+                if context.pdkboot:
+                    click.echo(
+                        f"  Fix the problem, then run `{_resume_command(context, config_path)}` "
+                        "again; "
+                        "completed stages will be rechecked and skipped.",
+                        err=True,
+                    )
+                if journal is not None:
+                    journal.stage(
+                        report.stage.id,
+                        "failed",
+                        detail=detail,
+                        action=action,
+                    )
+                    journal.finish(
+                        "failed",
+                        failure={"stage": report.stage.id, "message": detail},
+                    )
                 sys.exit(1)
-            if not _verify_until_done(context, report.stage, plan):
+            verified = _verify_until_done(context, report.stage, plan)
+            if journal is not None:
+                journal.stage(
+                    report.stage.id,
+                    "completed" if verified else "skipped",
+                    action=action,
+                )
+            if not verified:
                 click.echo("  skipped")
             continue
 
         # No commands and no manual steps — nothing to do for this stage.
         # Should not happen, but not worth crashing over.
+        if journal is not None:
+            journal.stage(report.stage.id, "skipped", action=action)
         click.echo("  nothing to do")  # pragma: no cover
 
 
@@ -952,6 +1400,32 @@ def _echo_wrapped_instruction(instruction: str) -> None:
     click.echo(f"        you: {first}")
     for line in rest:
         click.echo(f"             {line}")
+
+
+def _echo_dry_run_command(command: Sequence[str]) -> None:
+    """Show an exact command without losing indentation inside scripts."""
+    rendered = " ".join(command)
+    first, *rest = rendered.splitlines() or [""]
+    click.echo(f"        run: {first}")
+    for line in rest:
+        click.echo(f"             {line}")
+
+
+_PDKBOOT_WAIT_DETAILS = (
+    "no project directory yet",
+    "no project to install",
+    "no clone to repoint yet",
+    "no clone to set an identity in yet",
+    "could not list extensions - is VS Code installed?",
+)
+
+
+def _pdkboot_waiting(report: StageReport) -> bool:
+    """Whether a pdkboot report has no safe work until a prerequisite exists."""
+    return report.result.status is Status.BLOCKED or (
+        report.result.status is Status.MISSING
+        and report.result.detail.startswith(_PDKBOOT_WAIT_DETAILS)
+    )
 
 
 def _report_contacts(context: Context) -> None:
@@ -992,9 +1466,7 @@ def _show_steps(title: str, steps: list[str]) -> None:
     click.echo("")
 
 
-def _record_clone_source(
-    config: BootstrapConfig, picked: str, config_path: Path | None
-) -> None:
+def _record_clone_source(config: BootstrapConfig, picked: str, config_path: Path | None) -> None:
     """Writes down which of the three paths was chosen.
 
     Both of the first two clone the repository itself - the difference is
@@ -1146,6 +1618,17 @@ def bootstrap(
     safe default, and the question most people are actually asking. Phase
     1 installs nothing either way.
     """
+    if _PDKBOOT_MODE.get():
+        modes = {
+            "--check": check_only,
+            "--dry-run": dry_run,
+            "--apply": apply_stages,
+            "--configure": configure,
+        }
+        selected = [name for name, enabled in modes.items() if enabled]
+        if len(selected) > 1:
+            raise click.UsageError(f"Choose only one operating mode; got {', '.join(selected)}.")
+
     # Bare `prodockit bootstrap` is a checking run. Defaulting to the
     # read-only behaviour matters more than usual here: the alternative
     # default is a command that starts installing software because someone
@@ -1153,7 +1636,11 @@ def bootstrap(
     if not dry_run and not apply_stages and not configure:
         check_only = True
 
-    path = Path(config_file) if config_file else bootstrap_config_path()
+    path = (
+        Path(config_file)
+        if config_file
+        else (pdkboot_config_path() if _PDKBOOT_MODE.get() else bootstrap_config_path())
+    )
     try:
         config = load_bootstrap_config(path)
     except BootstrapConfigError as error:
@@ -1179,15 +1666,18 @@ def bootstrap(
         # Stopping where `--configure` stops, and for the same reason: the
         # run has just told the reader the namespace and repository name
         # to note down, and a stage report would scroll both away (#433).
-        click.echo("Run `prodockit bootstrap` to see what is set up.")
+        check_command = "pdkboot" if _PDKBOOT_MODE.get() else "prodockit bootstrap"
+        click.echo(f"Run `{check_command}` to see what is set up.")
         return
 
     try:
-        context = build_bootstrap_context(config)
+        context = replace(
+            build_bootstrap_context(config),
+            pdkboot=_PDKBOOT_MODE.get(),
+        )
     except UnsupportedHostError as error:
         click.echo(f"Error: {error}", err=True)
         sys.exit(1)
-
 
     reports = check_all(context) if check_only else plan_all(context)
 
@@ -1204,14 +1694,19 @@ def bootstrap(
     }
     for number, report in enumerate(reports, start=1):
         symbol = symbols[report.result.status]
+        waiting = context.pdkboot and _pdkboot_waiting(report)
+        if waiting:
+            symbol = "WAIT"
         detail = f" - {report.result.detail}" if report.result.detail else ""
         click.echo(f"{number:2}  {symbol}  {report.stage.summary}{detail}")
-        if dry_run and report.plan is not None:
+        if dry_run and report.plan is not None and not waiting:
             # In the order they actually happen: prepare, run, finish.
             for instruction in report.plan.instructions:
                 _echo_wrapped_instruction(instruction)
+            if report.plan.cwd:
+                click.echo(f"        in:  {report.plan.cwd}")
             for command in report.plan.commands:
-                click.echo(f"        run: {' '.join(command)}")
+                _echo_dry_run_command(command)
             for instruction in report.plan.follow_up:
                 _echo_wrapped_instruction(instruction)
 
@@ -1500,10 +1995,7 @@ def init_tools_command(tools_dir: str, mermaid: bool, mathjax: bool, force: bool
         click.echo(f"  {line}")
 
     if "mermaid" in result.components:
-        click.echo(
-            "\nIn CI, mermaid-cli drives Chrome through Puppeteer. Install "
-            "Chrome and set:"
-        )
+        click.echo("\nIn CI, mermaid-cli drives Chrome through Puppeteer. Install Chrome and set:")
         for name, value in ci_environment().items():
             click.echo(f"  {name}: {value}")
         click.echo(
@@ -2240,8 +2732,6 @@ def _run_template_sync(
         newly_ignored = ignore_the_log(project)
         note = "  (added to .gitignore)" if newly_ignored else ""
         click.echo(f"log       {log_path.name}{note}")
-
-
 
 
 def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path, str]:

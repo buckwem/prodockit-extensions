@@ -136,6 +136,9 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     venv_python = project / ".venv" / "bin" / "python"
     venv_python.parent.mkdir(parents=True, exist_ok=True)
     venv_python.write_text("", encoding="utf-8")
+    (venv_python.parent / "activate").write_text(
+        "# Added by pdkboot for WeasyPrint\n", encoding="utf-8"
+    )
     (project / "harvard-cite-them-right.csl").write_text("<style/>", encoding="utf-8")
     pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
     pinned.mkdir(parents=True, exist_ok=True)
@@ -143,7 +146,9 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     vendor = project / "docs" / "javascripts" / "vendor" / "mathjax"
     vendor.mkdir(parents=True, exist_ok=True)
     (vendor / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
-    (project / "docs" / "javascripts" / "mathjax.js").write_text("window.MathJax={}", encoding="utf-8")
+    (project / "docs" / "javascripts" / "mathjax.js").write_text(
+        "window.MathJax={}", encoding="utf-8"
+    )
     (project / ".vscode").mkdir(exist_ok=True)
     (project / ".vscode" / "settings.json").write_text(
         '{"files.associations": {"*.md": "python-markdown"}}', encoding="utf-8"
@@ -162,6 +167,9 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         "git --version": CommandResult(0, "git version 2.43.0"),
         "git config --global user.name": CommandResult(0, "Ada\n"),
         "git config --global user.email": CommandResult(0, "a@b.c\n"),
+        "config --global core.sshCommand": CommandResult(
+            0, "C:/Windows/System32/OpenSSH/ssh.exe\n"
+        ),
         "ssh": CommandResult(1, stderr="Welcome to GitLab, @al01234!"),
         "git": CommandResult(0, "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git\n"),
         "prodockit sync-repo --check": CommandResult(0),
@@ -304,10 +312,9 @@ def _context(
         home=tmp_path,
         # Only the VS Code application paths are described; everything
         # else is a real path under tmp_path and answers for itself.
-        exists=lambda path: (
-            vscode_app if _looks_like_vscode_app(path) else path.exists()
-        ),
+        exists=lambda path: vscode_app if _looks_like_vscode_app(path) else path.exists(),
         fetch=fetch or _unreachable,
+        pdkboot=True,
     )
 
 
@@ -523,13 +530,33 @@ def test_git_installed_but_unconfigured_is_wrong_not_missing(tmp_path: Path) -> 
     assert "user.email" in result.detail
 
 
+def test_windows_git_uses_the_agent_backed_system_ssh(tmp_path: Path) -> None:
+    """Git for Windows bundles another ssh.exe which cannot use the
+    Windows service agent configured by pdkboot."""
+    machine = _ready_machine(tmp_path)
+    machine["config --global core.sshCommand"] = CommandResult(1)
+    stage = next(s for s in STAGES if s.id == "git")
+    context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine))
+
+    result = stage.check(context)
+    commands = [" ".join(command) for command in stage.plan(context).commands]
+
+    assert result.status is Status.WRONG
+    assert "Windows OpenSSH" in result.detail
+    assert any(
+        "core.sshCommand C:/Windows/System32/OpenSSH/ssh.exe" in command for command in commands
+    )
+
+
 def test_ssh_success_is_read_from_the_greeting_not_the_exit_code(tmp_path: Path) -> None:
     """`ssh -T` against a git host exits non-zero even when the key works -
     there is no shell to give you. Reading the exit code would report every
     correctly configured machine as broken.
     """
+    _write_keypair(tmp_path)
     runner = FakeRunner(
-        {"ssh": CommandResult(1, stderr="Welcome to GitLab, @al01234!")}
+        _agent(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)")
+        | {"ssh": CommandResult(1, stderr="Welcome to GitLab, @al01234!")}
     )
     context = _context(tmp_path, runner=runner)
     result = next(s for s in STAGES if s.id == "ssh-upload").check(context)
@@ -537,7 +564,11 @@ def test_ssh_success_is_read_from_the_greeting_not_the_exit_code(tmp_path: Path)
 
 
 def test_a_rejected_key_is_missing_not_merely_unconfirmed(tmp_path: Path) -> None:
-    runner = FakeRunner({"ssh": CommandResult(255, stderr="Permission denied (publickey).")})
+    _write_keypair(tmp_path)
+    runner = FakeRunner(
+        _agent(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)")
+        | {"ssh": CommandResult(255, stderr="Permission denied (publickey).")}
+    )
     context = _context(tmp_path, runner=runner)
     assert next(s for s in STAGES if s.id == "ssh-upload").check(context).status is Status.MISSING
 
@@ -631,6 +662,37 @@ def test_git_plan_skips_reinstalling_an_already_installed_git(tmp_path: Path) ->
     flat = " ".join(" ".join(command) for command in plan.commands)
     assert "brew" not in flat
     assert "user.email" in flat
+
+
+def test_git_plan_skips_winget_when_git_is_installed_but_off_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.bootstrap import stages as stage_module
+
+    installed = tmp_path / "Program Files" / "Git" / "cmd" / "git.exe"
+    installed.parent.mkdir(parents=True)
+    installed.write_text("", encoding="utf-8")
+    monkeypatch.setattr(stage_module, "_GIT_APP_PATHS", {WINDOWS: (str(installed),)})
+    context = _context(
+        tmp_path,
+        platform=WINDOWS,
+        runner=FakeRunner({"git --version": CommandResult(127, stderr="not found")}),
+    )
+
+    plan = next(s for s in STAGES if s.id == "git").plan(context)
+
+    assert not any(command[0] == "winget" for command in plan.commands)
+    assert all(command[0] == str(installed) for command in plan.commands)
+
+
+def test_pdkboot_winget_installs_never_upgrade_or_prompt_implicitly(tmp_path: Path) -> None:
+    plan = next(s for s in STAGES if s.id == "vscode").plan(_context(tmp_path, platform=WINDOWS))
+    command = plan.commands[0]
+
+    assert command[:4] == ["winget", "install", "--id", "Microsoft.VisualStudioCode"]
+    assert "--no-upgrade" in command
+    assert "--silent" in command
+    assert "--disable-interactivity" in command
 
 
 def test_the_two_browser_stages_guide_and_leave_verifying_to_the_check(
@@ -846,7 +908,9 @@ def test_windows_writes_the_config_without_chmod(tmp_path: Path) -> None:
     assert "Add-Content" in script, "appended, not overwritten"
 
 
-def _write_keypair(tmp_path: Path, public: str = "ssh-ed25519 AAAAC3Nz-PUBLIC al@surrey.ac.uk") -> None:
+def _write_keypair(
+    tmp_path: Path, public: str = "ssh-ed25519 AAAAC3Nz-PUBLIC al@surrey.ac.uk"
+) -> None:
     """A keypair on disk, with halves that cannot be mistaken for each other."""
     (tmp_path / ".ssh").mkdir(exist_ok=True)
     (tmp_path / ".ssh" / "id_ed25519_gitlab.pub").write_text(public + "\n", encoding="utf-8")
@@ -1089,9 +1153,7 @@ def test_dry_run_prints_the_commands(cli_bootstrap, monkeypatch: pytest.MonkeyPa
     assert "run: brew install --cask visual-studio-code" in result.output
 
 
-def test_bootstrap_exits_zero_when_everything_is_set_up(
-    cli_bootstrap, tmp_path: Path
-) -> None:
+def test_bootstrap_exits_zero_when_everything_is_set_up(cli_bootstrap, tmp_path: Path) -> None:
     """Usable as a script check, matching `sync-repo --check`."""
     result = cli_bootstrap(responses=_ready_machine(tmp_path), fetch=_ready_fetch())
 
@@ -1152,8 +1214,8 @@ def test_apply_reruns_the_check_afterwards(tmp_path: Path) -> None:
     runner = FakeRunner({"brew": CommandResult(0), "code": CommandResult(127)})
     context = _context(tmp_path, runner=runner)
     outcome = apply_stage(context, next(s for s in STAGES if s.id == "vscode"))
-    assert outcome.failed is None          # the install command "succeeded"
-    assert not outcome.ok                  # but the check still fails
+    assert outcome.failed is None  # the install command "succeeded"
+    assert not outcome.ok  # but the check still fails
     assert outcome.verified is not None
 
 
@@ -1166,7 +1228,7 @@ def test_apply_stops_at_the_first_failing_command(tmp_path: Path) -> None:
     context = _context(tmp_path, runner=runner)
     outcome = apply_stage(context, next(s for s in STAGES if s.id == "remote"))
     assert outcome.failed is not None
-    assert len(outcome.ran) == 1           # set-url failed; sync-repo never ran
+    assert len(outcome.ran) == 1  # set-url failed; sync-repo never ran
 
 
 def test_the_runner_never_inherits_stdin() -> None:
@@ -1437,9 +1499,7 @@ def test_git_installed_a_moment_ago_is_not_reported_missing(
     monkeypatch.setattr(stage_module, "_GIT_APP_PATHS", {WINDOWS: (str(installed),)})
 
     # PATH cannot see it: `git --version` fails.
-    machine = _ready_machine(tmp_path) | {
-        "git --version": CommandResult(127, stderr="not found")
-    }
+    machine = _ready_machine(tmp_path) | {"git --version": CommandResult(127, stderr="not found")}
     context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine))
 
     assert stage_module.git_command(context) == str(installed), (
@@ -1524,9 +1584,7 @@ def test_no_plan_installs_a_tool_and_then_runs_it_by_a_bare_name(tmp_path: Path)
     installers = {"winget", "apt", "brew", "sudo", "pacman"}
     offenders: list[str] = []
     for platform in (WINDOWS, MACOS, UBUNTU):
-        context = _context(
-            tmp_path, platform=platform, runner=FakeRunner(_ready_machine(tmp_path))
-        )
+        context = _context(tmp_path, platform=platform, runner=FakeRunner(_ready_machine(tmp_path)))
         for stage in STAGES:
             names = [c[0] for c in stage.plan(context).commands if c]
             if not (found := [i for i, n in enumerate(names) if n in installers]):
@@ -1613,7 +1671,7 @@ def test_a_repository_created_with_a_readme_is_not_reported_as_pushed(
     hiding.
     """
     machine = _ready_machine(tmp_path)
-    machine["rev-parse HEAD"] = CommandResult(0, "ffffff\n")   # ours
+    machine["rev-parse HEAD"] = CommandResult(0, "ffffff\n")  # ours
     machine["ls-remote origin HEAD"] = CommandResult(0, "aaaaaa\tHEAD\n")  # theirs
     machine["ls-tree"] = CommandResult(0, "README.md\n")
     machine["rev-list"] = CommandResult(0, "1\n")
@@ -1719,7 +1777,8 @@ def test_work_that_is_not_a_readme_is_never_pushed_over(tmp_path: Path) -> None:
     assert "commits this project does not" in result.detail
 
     push = next(
-        c for c in next(s for s in STAGES if s.id == "first-push").plan(context).commands
+        c
+        for c in next(s for s in STAGES if s.id == "first-push").plan(context).commands
         if "push" in c
     )
     assert not any(part.startswith("--force") for part in push), push
@@ -1739,7 +1798,7 @@ def test_a_retry_after_a_refused_push_pushes(tmp_path: Path) -> None:
     true nor the obstacle.
     """
     machine = _ready_machine(tmp_path)
-    machine["status --porcelain"] = CommandResult(0, "")      # nothing left to commit
+    machine["status --porcelain"] = CommandResult(0, "")  # nothing left to commit
     stage = next(s for s in STAGES if s.id == "first-push")
     commands = stage.plan(_context(tmp_path, runner=FakeRunner(machine))).commands
     names = [" ".join(c) for c in commands]
@@ -1754,6 +1813,21 @@ def test_a_retry_after_a_refused_push_pushes(tmp_path: Path) -> None:
     assert any("commit" in " ".join(c) for c in first)
 
 
+def test_the_first_push_lists_every_change_it_will_commit(tmp_path: Path) -> None:
+    machine = _ready_machine(tmp_path)
+    machine["status --porcelain"] = CommandResult(0, " M docs/index.md\n?? notes with spaces.md\n")
+
+    plan = next(s for s in STAGES if s.id == "first-push").plan(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+    shown = "\n".join(plan.instructions)
+
+    assert "exact uncommitted changes" in shown
+    assert " M docs/index.md" in shown
+    assert "?? notes with spaces.md" in shown
+    assert ["git", "add", "-A"] in plan.commands
+
+
 def test_a_push_the_host_refuses_is_named_not_numbered(tmp_path: Path) -> None:
     """`failed: exit status 128` scrolled past sixty-eight `create mode`
     lines, and the one sentence that mattered was the hardest to find.
@@ -1764,7 +1838,7 @@ def test_a_push_the_host_refuses_is_named_not_numbered(tmp_path: Path) -> None:
     """
     machine = _ready_machine(tmp_path)
     machine["status --porcelain"] = CommandResult(0, "")
-    machine["ls-remote origin HEAD"] = CommandResult(0, "")   # empty on the host
+    machine["ls-remote origin HEAD"] = CommandResult(0, "")  # empty on the host
     machine["push --dry-run"] = CommandResult(
         128, stderr="remote: You are not allowed to push code to this project."
     )
@@ -1846,7 +1920,7 @@ def test_the_apply_loop_resolves_before_it_runs(tmp_path: Path) -> None:
 
 #: `| 7 | SSH key on the host | **guide and verify** |`
 _STAGE_ROW = re.compile(r"^\| (\d+) \| (.+?) \| (.+?) \|$", flags=re.MULTILINE)
-BOOTSTRAP_PAGE = Path(__file__).resolve().parents[1] / "docs" / "devcons" / "bootstrap.md"
+BOOTSTRAP_PAGE = Path(__file__).resolve().parents[2] / "docs" / "devcons" / "bootstrap.md"
 
 
 def test_the_documented_stages_are_the_stages() -> None:
@@ -1923,7 +1997,7 @@ def test_a_service_that_is_running_by_the_time_we_look_carries_on(
 
     assert stage.check(context).needs_work, "no agent yet - the state under test"
     with CliRunner().isolation(input="yes\n"):
-        started.append(True)          # they go and start it, then answer
+        started.append(True)  # they go and start it, then answer
         done = _verify_until_done(context, stage, plan)
 
     assert done, "the check could see it - the run should carry on"
@@ -1946,50 +2020,22 @@ def test_a_step_still_unseen_after_answering_ends_the_run(tmp_path: Path) -> Non
         _verify_until_done(context, stage, plan)
 
 
-def test_a_step_only_a_new_run_can_see_ends_the_run(  # type: ignore[no-untyped-def]
-    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """prodockit-extensions#397, reported from Windows.
-
-        Have you started the ssh-agent service? (yes/no): yes
-        not there yet - no ssh agent is running
-        Try again? [Y/n]:
-
-    The reader had started it, in the Administrator window they were told
-    to use. This process cannot see that - and every stage below needs
-    the agent - so re-checking asks a question that cannot have changed,
-    and asking it again reads as the tool ignoring the answer it just
-    got.
-
-    Ends the run instead, saying what to type next, and exits zero:
-    nothing failed.
-    """
-    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
-    save(tmp_path / "b.toml", _config())
-
-    # Everything else in place, so the run reaches the agent stage.
-    machine = _ready_machine(tmp_path) | {"ssh-add -l": CommandResult(2)}
-    result = cli_bootstrap(
-        "--apply", responses=machine, input="yes\n" + "n\n" * 30, platform=WINDOWS
-    )
-
-    assert "cannot see it" in result.output
-    assert "run `prodockit bootstrap --apply` again" in result.output.lower()
-    assert "not there yet" not in result.output, "it was there - just not visible here"
-    assert "Try again?" not in result.output, "the answer was accepted, not doubted"
-    assert result.exit_code == 0, "the reader did what was asked; nothing failed"
-
-
-def test_only_windows_needs_a_new_run_for_the_agent(tmp_path: Path) -> None:
-    """On macOS and Ubuntu the reader starts an agent in *this* terminal,
-    so the re-check can see it and the run carries on."""
+def test_windows_agent_setup_continues_in_the_same_run(tmp_path: Path) -> None:
+    """pdkboot requests elevation itself, then loads the key in the
+    original terminal instead of telling the reader to restart it."""
     stage = next(s for s in STAGES if s.id == "ssh-agent")
     machine = {"ssh-add -l": CommandResult(2)}
-    for platform in (MACOS, UBUNTU):
-        plan = stage.plan(_context(tmp_path, platform=platform, runner=FakeRunner(machine)))
-        assert not plan.needs_a_new_run, platform
     windows = stage.plan(_context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine)))
-    assert windows.needs_a_new_run
+
+    assert not windows.needs_a_new_run
+    assert windows.needs_terminal
+    assert len(windows.commands) == 2
+    elevated = " ".join(windows.commands[0])
+    assert "Start-Process powershell.exe" in elevated
+    assert "-Verb RunAs" in elevated
+    assert "Set-Service ssh-agent -StartupType Automatic" in elevated
+    assert "Start-Service ssh-agent" in elevated
+    assert windows.commands[1][0] == "ssh-add"
 
 
 def test_a_browser_step_cannot_be_answered_with_the_enter_key(  # type: ignore[no-untyped-def]
@@ -2011,15 +2057,15 @@ def test_a_browser_step_cannot_be_answered_with_the_enter_key(  # type: ignore[n
         "both the bare Enter and the `y` were turned away"
     )
     assert "(yes/no)" in result.output, "the prompt says what it wants"
-    assert "[Y/n]" not in result.output.split("What you need to do:")[-1].split(
-        "Try again?"
-    )[0], "no default to press past"
+    assert "[Y/n]" not in result.output.split("What you need to do:")[-1].split("Try again?")[0], (
+        "no default to press past"
+    )
 
 
 def test_saying_no_to_a_browser_step_leaves_it_outstanding(  # type: ignore[no-untyped-def]
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """"no" is a real answer, not a way of getting past the prompt.
+    """ "no" is a real answer, not a way of getting past the prompt.
 
     It has to be, or the only way out of a step a reader cannot do yet is
     to claim they did it - which is the habit #374 is about.
@@ -2129,7 +2175,8 @@ def test_the_ssh_probe_cannot_stop_for_a_human(tmp_path: Path) -> None:
     Testing stopped. `BatchMode=yes` is what makes ssh fail instead of
     ask; nothing else in the invocation does.
     """
-    runner = FakeRunner()
+    _write_keypair(tmp_path)
+    runner = FakeRunner(_agent(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)"))
     context = _context(tmp_path, runner=runner)
     next(s for s in STAGES if s.id == "ssh-upload").check(context)
 
@@ -2138,14 +2185,30 @@ def test_the_ssh_probe_cannot_stop_for_a_human(tmp_path: Path) -> None:
     assert "ConnectTimeout=10" in probe
 
 
+def test_the_host_probe_waits_for_the_key_and_agent(tmp_path: Path) -> None:
+    """A host result before its signing prerequisites exist is noise, not
+    a useful diagnosis, and must not make a network call."""
+    runner = FakeRunner({"ssh": CommandResult(255, stderr="Host key verification failed.")})
+
+    result = next(s for s in STAGES if s.id == "ssh-upload").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.status is Status.BLOCKED
+    assert "keypair" in result.detail
+    assert not any(call[0] == "ssh" for call in runner.calls)
+
+
 def test_an_unknown_host_is_reported_not_silently_trusted(tmp_path: Path) -> None:
     """Accepting a host key is a trust decision, and a tool that makes it
     silently on a reader's behalf has taken something from them they did
     not know they had. With `BatchMode` the probe fails instead - so the
     failure has to carry the way out, or it is just a dead end.
     """
+    _write_keypair(tmp_path)
     runner = FakeRunner(
-        {"ssh": CommandResult(255, stderr="Host key verification failed.")}
+        _agent(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)")
+        | {"ssh": CommandResult(255, stderr="Host key verification failed.")}
     )
     result = next(s for s in STAGES if s.id == "ssh-upload").check(
         _context(tmp_path, runner=runner)
@@ -2156,9 +2219,7 @@ def test_an_unknown_host_is_reported_not_silently_trusted(tmp_path: Path) -> Non
     # silently - not that the reader is told to go and do it elsewhere.
     # Bootstrap now offers to run `ssh -T` with the terminal handed over,
     # so ssh asks its own question and the reader still answers it.
-    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(
-        _context(tmp_path, runner=runner)
-    )
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path, runner=runner))
     assert plan.needs_terminal
     assert "-o BatchMode=yes" not in " ".join(plan.commands[0])
     assert "yes" not in " ".join(plan.commands[0]), "nothing answers it on their behalf"
@@ -2189,7 +2250,9 @@ def test_the_real_runner_tells_git_not_to_ask_either(tmp_path: Path) -> None:
 
     from prodockit.bootstrap.model import SubprocessRunner
 
-    script = "import os; print(os.environ.get('GIT_TERMINAL_PROMPT'), os.environ.get('GIT_SSH_COMMAND'))"
+    script = (
+        "import os; print(os.environ.get('GIT_TERMINAL_PROMPT'), os.environ.get('GIT_SSH_COMMAND'))"
+    )
     result = SubprocessRunner().run([sys.executable, "-c", script])
     assert result.ok
     assert result.stdout.startswith("0 ssh ")
@@ -2225,9 +2288,7 @@ def _clone(tmp_path: Path) -> Path:
 
 
 def _identity_check(tmp_path: Path, runner: FakeRunner) -> object:
-    return next(s for s in STAGES if s.id == "identity").check(
-        _context(tmp_path, runner=runner)
-    )
+    return next(s for s in STAGES if s.id == "identity").check(_context(tmp_path, runner=runner))
 
 
 def test_a_global_identity_does_not_satisfy_the_project_identity(tmp_path: Path) -> None:
@@ -2255,7 +2316,7 @@ def test_a_global_identity_does_not_satisfy_the_project_identity(tmp_path: Path)
 
 
 def test_a_different_identity_names_both_values(tmp_path: Path) -> None:
-    """"Wrong" without saying what it is leaves the reader to go and find
+    """ "Wrong" without saying what it is leaves the reader to go and find
     out with a command they would have to know already."""
     _clone(tmp_path)
     runner = FakeRunner(
@@ -2357,11 +2418,23 @@ def test_pandoc_too_old_is_wrong_not_ok(tmp_path: Path) -> None:
     pandoc installed?" passes on those, and the first `prodockit pdf`
     fails with justified prose where code blocks should be (#207)."""
     runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 2.17.1.1\n")})
-    result = next(s for s in STAGES if s.id == "pandoc").check(
-        _context(tmp_path, runner=runner)
-    )
+    result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
     assert result.status is Status.WRONG
     assert "too old" in result.detail
+
+
+def test_old_windows_pandoc_is_an_explicit_pinned_upgrade(tmp_path: Path) -> None:
+    runner = FakeRunner({"pandoc --version": CommandResult(0, "pandoc 2.19.2\n")})
+
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+    command = plan.commands[0]
+
+    assert command[:4] == ["winget", "upgrade", "--id", "JohnMacFarlane.Pandoc"]
+    assert command[command.index("--version") + 1] == PANDOC_VERSION
+    assert plan.destructive
+    assert plan.describe.startswith("Upgrade Pandoc")
 
 
 def test_pandoc_current_version_is_ok(tmp_path: Path) -> None:
@@ -2371,9 +2444,7 @@ def test_pandoc_current_version_is_ok(tmp_path: Path) -> None:
             "fc-list": CommandResult(0, "Inter\nJetBrains Mono\n"),
         }
     )
-    result = next(s for s in STAGES if s.id == "pandoc").check(
-        _context(tmp_path, runner=runner)
-    )
+    result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
     assert result.status is Status.OK
     assert "3.10.1" in result.detail
 
@@ -2410,6 +2481,58 @@ def test_ubuntu_node_installs_curl_first(tmp_path: Path) -> None:
     plan = next(s for s in STAGES if s.id == "node").plan(context)
     first_install = plan.commands[0]
     assert "curl" in first_install
+
+
+def test_current_node_is_not_reinstalled_when_only_toolchains_are_missing(
+    tmp_path: Path,
+) -> None:
+    runner = FakeRunner(
+        {
+            "node --version": CommandResult(0, "v22.14.0\n"),
+            "npm --version": CommandResult(0, "10.9.2\n"),
+        }
+    )
+
+    plan = next(s for s in STAGES if s.id == "node").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+
+    assert not any(command[0] == "winget" for command in plan.commands)
+    assert len([command for command in plan.commands if "ci" in command]) == 2
+
+
+def test_old_windows_node_is_an_explicit_upgrade_not_an_install(tmp_path: Path) -> None:
+    runner = FakeRunner(
+        {
+            "node --version": CommandResult(0, "v18.20.0\n"),
+            "npm --version": CommandResult(0, "10.9.2\n"),
+        }
+    )
+
+    plan = next(s for s in STAGES if s.id == "node").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+
+    assert plan.commands[0][:4] == ["winget", "upgrade", "--id", "OpenJS.NodeJS.LTS"]
+    assert plan.destructive, "the upgrade must default to No until explicitly approved"
+    assert plan.describe.startswith("Upgrade Node")
+
+
+def test_windows_node_without_npm_uses_repair_not_reinstall(tmp_path: Path) -> None:
+    runner = FakeRunner(
+        {
+            "node --version": CommandResult(0, "v22.14.0\n"),
+            "npm --version": CommandResult(127, stderr="not found"),
+        }
+    )
+
+    plan = next(s for s in STAGES if s.id == "node").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+
+    assert plan.commands[0][:4] == ["winget", "repair", "--id", "OpenJS.NodeJS.LTS"]
+    assert plan.destructive, "repairing an existing runtime needs explicit approval"
+    assert plan.describe.startswith("Repair the existing Node")
 
 
 # ---------------------------------------------------------------------------
@@ -2472,6 +2595,7 @@ def test_a_preparing_instruction_is_shown_before_the_command_that_needs_it(
     assert "passphrase" in " ".join(keypair.instructions)
     assert any("ssh-keygen" in " ".join(command) for command in keypair.commands)
     assert not keypair.follow_up, "the warning precedes the prompt, so it is not a follow-up"
+    assert keypair.needs_terminal, "the passphrase prompt must not be hidden by a spinner"
 
 
 def test_dry_run_lists_manual_steps_in_the_order_they_happen(
@@ -2568,7 +2692,9 @@ def test_no_extensions_installed_is_missing_not_wrong(tmp_path: Path) -> None:
     reapplying over something can destroy work. With nothing installed
     there is nothing to destroy, so this is MISSING."""
     runner = FakeRunner({"code --list-extensions": CommandResult(0, "")})
-    result = next(s for s in STAGES if s.id == "extensions").check(_context(tmp_path, runner=runner))
+    result = next(s for s in STAGES if s.id == "extensions").check(
+        _context(tmp_path, runner=runner)
+    )
 
     assert result.status is Status.MISSING
     assert f"0 of {len(VSCODE_EXTENSIONS)} installed" in result.detail
@@ -2580,7 +2706,9 @@ def test_some_extensions_installed_is_still_wrong(tmp_path: Path) -> None:
     behaviour that case was given deliberately."""
     present = "\n".join(VSCODE_EXTENSIONS[:1])
     runner = FakeRunner({"code --list-extensions": CommandResult(0, present)})
-    result = next(s for s in STAGES if s.id == "extensions").check(_context(tmp_path, runner=runner))
+    result = next(s for s in STAGES if s.id == "extensions").check(
+        _context(tmp_path, runner=runner)
+    )
 
     assert result.status is Status.WRONG
     assert f"1 of {len(VSCODE_EXTENSIONS)} installed" in result.detail
@@ -2627,15 +2755,20 @@ def test_every_apt_command_waits_for_the_dpkg_lock(tmp_path: Path) -> None:
     assert seen >= 4, "the Ubuntu plans should have several apt commands between them"
 
 
-def test_the_lock_wait_covers_apt_inside_a_shell_command(tmp_path: Path) -> None:
-    """Two plans wrap a download and an install in one `bash -c`, so the
-    apt call is inside a string rather than at the front of a list - the
-    easiest place for an option to be forgotten."""
+def test_pdkboot_keeps_privileged_apt_out_of_download_shells(tmp_path: Path) -> None:
+    """A download failure and a privileged install have separate outcomes.
+
+    This also keeps sudo at the front of its own command, where pdkboot can
+    authenticate before the timed, captured installer starts.
+    """
     context = _context(tmp_path, platform=UBUNTU)
     for stage_id in ("pandoc",):
         plan = next(s for s in STAGES if s.id == stage_id).plan(context)
         script = next(c for c in plan.commands if c[0] == "bash")[-1]
-        assert "DPkg::Lock::Timeout" in script, stage_id
+        assert "sudo" not in script, stage_id
+        install = next(c for c in plan.commands if c[-1] == "/tmp/pandoc.deb")
+        assert install[:2] == ["sudo", "apt"]
+        assert "DPkg::Lock::Timeout" in " ".join(install)
 
 
 def test_an_install_gets_longer_than_a_check(tmp_path: Path) -> None:
@@ -2877,18 +3010,18 @@ def test_starting_an_agent_is_explained_rather_than_attempted(tmp_path: Path) ->
 
 
 def test_windows_is_told_about_the_service_instead(tmp_path: Path) -> None:
-    """Windows runs the agent as a service, and enabling it needs an
-    Administrator window - a different shell, not just a different
-    command."""
+    """Windows service elevation is visible and remains inside pdkboot."""
     runner = FakeRunner(_agent(2, "Could not open a connection to your agent."))
     plan = next(s for s in STAGES if s.id == "ssh-agent").plan(
         _context(tmp_path, runner=runner, platform=WINDOWS)
     )
     joined = "\n".join(plan.instructions)
+    commands = "\n".join(" ".join(command) for command in plan.commands)
 
-    assert "Start-Service ssh-agent" in joined
-    assert "Administrator" in joined
-    assert "ssh-agent -s" not in joined, "that is the Unix route"
+    assert "UAC" in joined
+    assert "Start-Service ssh-agent" in commands
+    assert "-Verb RunAs" in commands
+    assert "ssh-agent -s" not in commands, "that is the Unix route"
 
 
 # ---------------------------------------------------------------------------
@@ -2926,7 +3059,9 @@ def test_the_template_history_is_reset_only_while_origin_is_the_template(
     save(tmp_path / "b.toml", _config())
     stage = next(s for s in STAGES if s.id == "fresh-history")
 
-    still_template = FakeRunner({"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)})
+    still_template = FakeRunner(
+        {"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)}
+    )
     assert stage.check(_context(tmp_path, runner=still_template)).status is Status.WRONG
 
     their_own = FakeRunner(
@@ -2955,20 +3090,61 @@ def test_deleting_history_is_wrong_not_missing_so_enter_declines(tmp_path: Path)
     assert result.status is Status.WRONG, "MISSING would default the prompt to yes"
 
 
-def test_the_history_reset_says_it_cannot_be_undone(tmp_path: Path) -> None:
+def test_the_history_reset_preserves_a_recovery_copy(tmp_path: Path) -> None:
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True)
     runner = FakeRunner({"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)})
-    plan = next(s for s in STAGES if s.id == "fresh-history").plan(_context(tmp_path, runner=runner))
+    plan = next(s for s in STAGES if s.id == "fresh-history").plan(
+        _context(tmp_path, runner=runner)
+    )
     joined = "\n".join(plan.instructions)
     flat = " ".join(" ".join(c) for c in plan.commands)
 
-    assert "cannot be undone" in joined
-    assert str(project) in joined, "say which directory, before deleting it"
+    backup = project.parent / ".report-al01234.git.pdk-template-backup"
+    assert str(backup) in joined
+    assert "recovered" in joined
+    assert plan.commands[0] == ["mv", str(project / ".git"), str(backup)]
     assert "git init -b main" in flat
     # From the guide: cloud-sync clients rewrite the executable bit, so a
     # synced project shows every file as modified without a byte changing.
     assert "core.fileMode false" in flat
+
+
+def test_the_history_reset_never_overwrites_an_existing_recovery_copy(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project.parent / ".report-al01234.git.pdk-template-backup").mkdir()
+    (project.parent / ".report-al01234.git.pdk-template-backup-2").mkdir()
+    runner = FakeRunner({"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)})
+
+    plan = next(s for s in STAGES if s.id == "fresh-history").plan(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert plan.commands[0][-1] == str(project.parent / ".report-al01234.git.pdk-template-backup-3")
+
+
+def test_the_windows_history_reset_uses_literal_escaped_paths(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "reader's-report"
+    (project / ".git").mkdir(parents=True)
+    runner = FakeRunner({"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)})
+
+    plan = next(s for s in STAGES if s.id == "fresh-history").plan(
+        _context(
+            tmp_path,
+            platform=WINDOWS,
+            runner=runner,
+            project_dir=str(project),
+        )
+    )
+    command = plan.commands[0]
+
+    assert command[:3] == ["powershell", "-NoProfile", "-Command"]
+    assert "Move-Item -LiteralPath" in command[3]
+    assert "reader''s-report" in command[3]
+    assert "Remove-Item" not in command[3]
 
 
 def test_the_history_reset_runs_before_the_remote_is_set() -> None:
@@ -3055,6 +3231,29 @@ def test_weasyprint_is_verified_from_the_projects_venv(tmp_path: Path) -> None:
     assert "pandoc stage" in result.detail, "point at the fix, not at pip"
 
 
+def test_windows_weasyprint_failure_names_msys2_not_homebrew(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    python = project / ".venv" / "Scripts" / "python.exe"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    runner = FakeRunner(
+        {
+            "import zensical": CommandResult(0),
+            "import weasyprint": CommandResult(1, stderr="cannot load library"),
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "project-env").check(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+
+    assert "MSYS2" in result.detail
+    assert "Python's architecture" in result.detail
+    assert "Homebrew" not in result.detail
+
+
 def test_the_pandoc_stage_no_longer_claims_what_it_cannot_check() -> None:
     """It installs the libraries and cannot verify them - importing
     WeasyPrint does that, one stage later. The summary should not promise
@@ -3104,12 +3303,10 @@ def test_the_settings_merge_keeps_what_is_already_there(tmp_path: Path) -> None:
     assert written["files.associations"]["*.md"] == "python-markdown"
 
 
-def test_the_settings_plan_survives_a_file_that_is_not_json(tmp_path: Path) -> None:
+def test_the_settings_plan_preserves_a_file_that_is_not_json(tmp_path: Path) -> None:
     """VS Code tolerates comments and trailing commas in settings.json;
     `json.loads` does not. Failing here would leave the reader with a
     traceback over an editor preference."""
-    import subprocess
-
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".vscode").mkdir(parents=True)
     settings = project / ".vscode" / "settings.json"
@@ -3117,9 +3314,24 @@ def test_the_settings_plan_survives_a_file_that_is_not_json(tmp_path: Path) -> N
     save(tmp_path / "b.toml", _config())
 
     plan = next(s for s in STAGES if s.id == "vscode-settings").plan(_context(tmp_path))
-    subprocess.run(plan.commands[0], check=True)
 
-    assert json.loads(settings.read_text(encoding="utf-8"))["files.associations"]
+    assert plan.commands == []
+    assert "left unchanged" in " ".join(plan.instructions)
+    assert settings.read_text(encoding="utf-8") == "{ // a comment VS Code allows\n}"
+
+
+def test_the_settings_plan_preserves_a_non_object_document(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".vscode").mkdir(parents=True)
+    settings = project / ".vscode" / "settings.json"
+    settings.write_text('["do", "not", "discard"]', encoding="utf-8")
+    save(tmp_path / "b.toml", _config())
+
+    plan = next(s for s in STAGES if s.id == "vscode-settings").plan(_context(tmp_path))
+
+    assert plan.commands == []
+    assert "must be a JSON object" in " ".join(plan.instructions)
+    assert settings.read_text(encoding="utf-8") == '["do", "not", "discard"]'
 
 
 def test_the_checker_language_follows_the_machine_not_the_guide(tmp_path: Path) -> None:
@@ -3539,7 +3751,10 @@ def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> 
 def test_the_pandoc_stage_notices_its_own_fonts_are_missing(tmp_path: Path) -> None:
     """Added to the plan in #249 with nothing checking them."""
     runner = FakeRunner(
-        {"pandoc": CommandResult(0, "pandoc 3.10.1\n"), "fc-list": CommandResult(0, "DejaVu Sans\n")}
+        {
+            "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
+            "fc-list": CommandResult(0, "DejaVu Sans\n"),
+        }
     )
     result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
 
@@ -3548,7 +3763,7 @@ def test_the_pandoc_stage_notices_its_own_fonts_are_missing(tmp_path: Path) -> N
 
 
 def test_a_machine_that_cannot_be_asked_about_fonts_is_not_accused(tmp_path: Path) -> None:
-    """"I could not tell" must not read as "they are missing". A false
+    """ "I could not tell" must not read as "they are missing". A false
     alarm sends the reader to reinstall fonts they already have, which is
     worse than the silence this replaced."""
     runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})  # no fc-list
@@ -3606,18 +3821,34 @@ def test_windows_installs_pango_rather_than_describing_it(tmp_path: Path) -> Non
     """WeasyPrint draws text through Pango, which on Windows comes from
     MSYS2. The guide walks the reader through a MINGW64 shell and the
     Environment Variables dialog; all three steps run unattended."""
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
+    runner = FakeRunner({"int.from_bytes": CommandResult(0, "0x8664\n")})
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
     flat = " ".join(" ".join(c) for c in plan.commands)
 
     assert "MSYS2.MSYS2" in flat
     assert "--noconfirm" in flat, "pacman asks otherwise"
     assert "--needed" in flat, "a rerun should be a no-op, not a reinstall"
     assert "SetEnvironmentVariable" in flat
-    # Both environments, because which one applies is a fact about the
-    # machine and is settled there (#393).
-    assert "mingw-w64-x86_64-pango" in flat
+    assert "WEASYPRINT_DLL_DIRECTORIES" in flat
+    assert "mingw-w64-ucrt-x86_64-pango" in flat
+    assert "mingw-w64-clang-aarch64-pango" not in flat
+    assert "PROCESSOR_ARCHITECTURE" not in flat
+    assert "PROCESSOR_ARCHITEW6432" not in flat
+
+
+def test_windows_native_arm64_python_installs_arm64_pango(tmp_path: Path) -> None:
+    runner = FakeRunner({"int.from_bytes": CommandResult(0, "0xaa64\n")})
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+    flat = " ".join(" ".join(command) for command in plan.commands)
+
     assert "mingw-w64-clang-aarch64-pango" in flat
-    assert "PROCESSOR_ARCHITECTURE" in flat
+    assert "$msysEnv = 'clangarm64'" in flat
+    assert 'Join-Path $root "$msysEnv\\bin"' in flat
+    assert "mingw-w64-ucrt-x86_64-pango" not in flat
 
 
 def test_the_msys2_path_entry_is_added_only_once(tmp_path: Path) -> None:
@@ -3853,10 +4084,7 @@ def test_an_unreachable_host_is_re_asked_with_the_vpn_named(
 
     result = cli_bootstrap(
         "--configure",
-        input=(
-            "1\n1\nAda Lovelace\n"
-            "al01234\nn\n\n\n"
-        ),
+        input=("1\n1\nAda Lovelace\nal01234\nn\n\n\n"),
     )
 
     assert "could not reach gitlab.surrey.ac.uk" in result.output
@@ -3876,10 +4104,7 @@ def test_an_invalid_host_menu_choice_is_re_asked_rather_than_stored(
 
     result = cli_bootstrap(
         "--configure",
-        input=(
-            "4\n1\nAda Lovelace\n"
-            "al01234\nn\n\n\n"
-        ),
+        input=("4\n1\nAda Lovelace\nal01234\nn\n\n\n"),
     )
 
     assert "not one of '1', '2', '3'" in result.output
@@ -3956,14 +4181,12 @@ def test_a_first_run_stops_before_the_stage_list(  # type: ignore[no-untyped-def
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
-    result = cli_bootstrap(
-        input="y\n1\nAda Lovelace\nab1234\nn\n\n\n"
-    )
+    result = cli_bootstrap(input="y\n1\nAda Lovelace\nab1234\nn\n\n\n")
 
     assert "Note these down:" in result.output
     assert "report-ab1234" in result.output
     assert "MISS" not in result.output, "the stage list would scroll the note away"
-    assert "Run `prodockit bootstrap` to see what is set up." in result.output
+    assert "Run `pdkboot` to see what is set up." in result.output
 
 
 def test_a_first_run_takes_the_surrey_path_too(  # type: ignore[no-untyped-def]
@@ -3989,9 +4212,7 @@ def test_a_first_run_takes_the_surrey_path_too(  # type: ignore[no-untyped-def]
     monkeypatch.setattr("prodockit.cli.connection_problem", lambda value: None)
 
     # "yes, ask me now", then Surrey's own five answers.
-    result = cli_bootstrap(
-        input="y\n1\nAda Lovelace\nab1234\nn\n\n\n"
-    )
+    result = cli_bootstrap(input="y\n1\nAda Lovelace\nab1234\nn\n\n\n")
 
     stored = load(tmp_path / "b.toml")
     assert stored.email == "ab1234@surrey.ac.uk", "derived, not asked for"
@@ -4137,13 +4358,9 @@ def test_both_paths_ask_the_same_number_of_questions(  # type: ignore[no-untyped
     for number in range(2, 8):
         assert f"{number}/7" in assessed, f"{number}/7 missing from the assessed path:\n{assessed}"
     for number in range(2, 5):
-        assert f"{number}/7" in unassessed, (
-            f"{number}/7 missing before the split:\n{unassessed}"
-        )
+        assert f"{number}/7" in unassessed, f"{number}/7 missing before the split:\n{unassessed}"
     for number in range(5, 7):
-        assert f"{number}/6" in unassessed, (
-            f"{number}/6 missing after the split:\n{unassessed}"
-        )
+        assert f"{number}/6" in unassessed, f"{number}/6 missing after the split:\n{unassessed}"
     assert "questions rather than 7" in unassessed, "the drop from 7 to 6 is announced"
 
 
@@ -4246,8 +4463,7 @@ def test_answering_the_host_does_not_disturb_the_other_questions(
     cli_bootstrap(
         "--configure",
         input=(
-            f"{choice}\nAda Lovelace\nal01234@surrey.ac.uk\n"
-            "al01234\ncomm058-2026\nreport-x\n\n\n"
+            f"{choice}\nAda Lovelace\nal01234@surrey.ac.uk\nal01234\ncomm058-2026\nreport-x\n\n\n"
         ),
     )
 
@@ -4335,9 +4551,7 @@ def test_the_heading_is_not_printed_when_there_is_nothing_to_do(
     """Announcing a setup and then doing nothing reads as a failure."""
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
 
-    result = cli_bootstrap(
-        "--apply", responses=_ready_machine(tmp_path), fetch=_ready_fetch()
-    )
+    result = cli_bootstrap("--apply", responses=_ready_machine(tmp_path), fetch=_ready_fetch())
 
     assert "setting up your development environment" not in result.output
     assert "Nothing to do" in result.output
@@ -4439,7 +4653,7 @@ def test_no_manual_step_is_left_asking_the_generic_question(tmp_path: Path) -> N
             assert plan.confirm.endswith("?"), f"{stage.id}: {plan.confirm!r}"
 
 
-def test_the_history_prompt_asks_whether_to_do_it_not_whether_it_is_done(
+def test_the_history_prompt_asks_whether_to_archive_it_not_whether_it_is_done(
     tmp_path: Path,
 ) -> None:
     """The case from the issue. Nothing is being asked *of* the reader
@@ -4454,11 +4668,11 @@ def test_the_history_prompt_asks_whether_to_do_it_not_whether_it_is_done(
         _context(tmp_path, runner=runner)
     )
 
-    assert plan.confirm == "Delete the template's history and start a new repository?"
+    assert plan.confirm == "Archive the template's history and start a new repository?"
 
 
 def test_the_browser_steps_name_the_host_they_are_about(tmp_path: Path) -> None:
-    """"Have you loaded the SSH key into your online Git repo?" was the
+    """ "Have you loaded the SSH key into your online Git repo?" was the
     issue's own suggestion; naming the host makes it checkable."""
     _write_keypair(tmp_path)
     save(tmp_path / "b.toml", _config())
@@ -4532,17 +4746,20 @@ def test_a_command_carrying_a_script_is_never_printed_whole() -> None:
     assert len(rendered) <= 110
 
 
-def test_dry_run_still_prints_the_exact_commands(
+def test_dry_run_does_not_print_commands_for_waiting_stages(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`--dry-run` is how a plan is reviewed before being trusted, so it
-    keeps showing the real thing - the summary is for the prompt."""
+    """Plans below missing prerequisites are not yet executable and must
+    not be presented as though pdkboot could run them now."""
     monkeypatch.setattr("prodockit.bootstrap.stages._vscode_app_installed", lambda ctx: False)
     save(tmp_path / "b.toml", _config())
 
     result = cli_bootstrap("--dry-run", responses={"code --version": CommandResult(127)})
 
-    assert "import json, sys, pathlib" in result.output
+    assert "WAIT" in result.output
+    assert "import json, sys, pathlib" not in result.output
+    assert "git remote add origin" not in result.output
+    assert "code --install-extension" not in result.output
 
 
 def test_the_email_prompt_names_the_host_not_a_university() -> None:
@@ -4574,9 +4791,7 @@ def test_no_prompt_names_a_host_of_its_own(tmp_path: Path) -> None:
     thing worth holding is that no prompt names a host on its own.
     """
     named = ("github.com", "gitlab.com", "gitlab.surrey.ac.uk", "GitHub", "GitLab")
-    offenders = [
-        (key, name) for key, question in PROMPTS for name in named if name in question
-    ]
+    offenders = [(key, name) for key, question in PROMPTS for name in named if name in question]
 
     assert not offenders, f"say {{host}} instead: {offenders}"
 
@@ -4717,6 +4932,7 @@ def test_a_stages_instructions_describe_the_machine_as_it_is_now(
     )
     assert "paste the contents of" not in result.output, "that is the no-key fallback"
 
+
 def test_a_first_run_asks_the_host_even_without_configure(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -4834,9 +5050,14 @@ def test_a_trailing_git_suffix_is_not_doubled(tmp_path: Path) -> None:
 
     assert plan.commands[0][2] == "git@gitlab.surrey.ac.uk:grp/report-x.git"
 
+
 def _unknown_host_runner() -> FakeRunner:
     return FakeRunner(
-        {"BatchMode": CommandResult(255, stderr="The authenticity of host 'x' can't be established.")}
+        {
+            "BatchMode": CommandResult(
+                255, stderr="The authenticity of host 'x' can't be established."
+            )
+        }
     )
 
 
@@ -4888,9 +5109,7 @@ def test_a_known_host_is_still_guide_and_verify(tmp_path: Path) -> None:
     only, and its verification stays the stage's own check (#234)."""
     _write_keypair(tmp_path)
     runner = FakeRunner({"BatchMode": CommandResult(255, stderr="Permission denied (publickey).")})
-    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(
-        _context(tmp_path, runner=runner)
-    )
+    plan = next(s for s in STAGES if s.id == "ssh-upload").plan(_context(tmp_path, runner=runner))
 
     assert not plan.commands
     assert not plan.needs_terminal
@@ -4901,8 +5120,11 @@ def test_the_check_no_longer_tells_the_reader_to_run_it_themselves(tmp_path: Pat
     """The detail said "run `ssh -T ...` once and accept the fingerprint".
     Bootstrap does that now, so saying it would be instructing a reader to
     duplicate a step it is about to offer."""
+    _write_keypair(tmp_path)
+    runner = _unknown_host_runner()
+    runner.responses.update(_agent(0, f"256 {LOADED_FINGERPRINT} al@surrey (ED25519)"))
     result = next(s for s in STAGES if s.id == "ssh-upload").check(
-        _context(tmp_path, runner=_unknown_host_runner())
+        _context(tmp_path, runner=runner)
     )
 
     assert result.status is Status.WRONG
@@ -4955,9 +5177,7 @@ def test_a_stage_waiting_on_configuration_is_named_not_skipped(
     # would consume the input below - the state under test here is the
     # apply loop meeting a stage that cannot be judged yet.
     monkeypatch.setattr("prodockit.cli._ask_for_configuration", lambda config, **kw: config)
-    monkeypatch.setattr(
-        "prodockit.cli._offer_to_fill_gaps", lambda config, path: (config, False)
-    )
+    monkeypatch.setattr("prodockit.cli._offer_to_fill_gaps", lambda config, path: (config, False))
 
     result = cli_bootstrap("--apply", input="n\n" * 40)
 
@@ -4981,6 +5201,7 @@ def _windows_context(tmp_path: Path, *, cli: bool, app: bool = True, runner=None
         exists=lambda path: (
             cli if str(path).endswith("code.cmd") else (app and "Microsoft VS Code" in str(path))
         ),
+        pdkboot=True,
     )
 
 
@@ -5070,7 +5291,10 @@ def test_windows_finds_npm_by_path_when_the_bare_name_will_not_run(tmp_path: Pat
     from prodockit.bootstrap.stages import npm_command
 
     context = build_context(
-        _config(), runner=FakeRunner(), platform=WINDOWS, home=tmp_path,
+        _config(),
+        runner=FakeRunner(),
+        platform=WINDOWS,
+        home=tmp_path,
         exists=lambda path: str(path).endswith("npm.cmd"),
     )
 
@@ -5108,7 +5332,10 @@ def test_msys2_says_where_it_looked_rather_than_failing_on_a_guess(tmp_path: Pat
     """
     from prodockit.bootstrap.stages import _MSYS2_ROOTS
 
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
+    runner = FakeRunner({"int.from_bytes": CommandResult(0, "0xaa64\n")})
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
     pacman = next(c for c in plan.commands if "pacman" in " ".join(c))
     script = " ".join(pacman)
 
@@ -5123,7 +5350,8 @@ def test_msys2_says_where_it_looked_rather_than_failing_on_a_guess(tmp_path: Pat
     # pointed at a directory that does not exist on this machine.
     path_command = next(c for c in plan.commands if "SetEnvironmentVariable" in " ".join(c))
     entry = " ".join(path_command)
-    assert "clangarm64" in entry and "mingw64" in entry
+    assert "clangarm64" in entry
+    assert "ucrt64" not in entry
     assert "Join-Path" in entry
 
 
@@ -5131,13 +5359,12 @@ def test_the_csl_download_turns_powershells_progress_bar_off(tmp_path: Path) -> 
     """On PowerShell 5.1 - still the Windows default - Invoke-WebRequest's
     progress bar makes a download dramatically slower, which reads as a
     hang (#244)."""
-    plan = next(s for s in STAGES if s.id == "csl-style").plan(
-        _context(tmp_path, platform=WINDOWS)
-    )
+    plan = next(s for s in STAGES if s.id == "csl-style").plan(_context(tmp_path, platform=WINDOWS))
     script = " ".join(plan.commands[0])
 
     assert "$ProgressPreference = 'SilentlyContinue'" in script
     assert script.index("ProgressPreference") < script.index("Invoke-WebRequest")
+
 
 def test_an_install_is_never_run_with_its_output_swallowed(tmp_path: Path) -> None:
     """prodockit-extensions#244: `apt update`, a 100 MB download and
@@ -5165,7 +5392,12 @@ def test_checks_are_still_captured(tmp_path: Path) -> None:
     """The other half. A check *reads* what a command printed - `pandoc
     --version`, `ssh -T`'s greeting - and there are dozens per run, so
     they must not spill onto the screen."""
-    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1"), "fc-list": CommandResult(0, "Inter\nJetBrains Mono")})
+    runner = FakeRunner(
+        {
+            "pandoc": CommandResult(0, "pandoc 3.10.1"),
+            "fc-list": CommandResult(0, "Inter\nJetBrains Mono"),
+        }
+    )
     next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
 
     assert all(runner.captures), "a check that printed its own output would bury the report"
@@ -5202,9 +5434,7 @@ def test_the_architecture_is_named_rather_than_worked_out_in_a_shell(tmp_path: P
 
 def test_an_unaskable_dpkg_falls_back_to_the_common_architecture(tmp_path: Path) -> None:
     """Better than an empty URL, and x64 is what most machines are."""
-    plan = next(s for s in STAGES if s.id == "vscode").plan(
-        _context(tmp_path, platform=UBUNTU)
-    )
+    plan = next(s for s in STAGES if s.id == "vscode").plan(_context(tmp_path, platform=UBUNTU))
 
     assert next(c for c in plan.commands if c[0] == "curl")[-1].endswith("linux-deb-x64/stable")
 
@@ -5214,9 +5444,7 @@ def test_the_privileged_half_of_the_install_is_its_own_command(tmp_path: Path) -
     them keeps `sudo` at the front of a command where it can be seen -
     and where a timestamp expiring mid-run prompts visibly rather than
     inside a shell nobody is watching (#287, #244)."""
-    plan = next(s for s in STAGES if s.id == "vscode").plan(
-        _context(tmp_path, platform=UBUNTU)
-    )
+    plan = next(s for s in STAGES if s.id == "vscode").plan(_context(tmp_path, platform=UBUNTU))
 
     assert not any(c[0] == "bash" for c in plan.commands), "no shell wrapper left"
     assert next(c for c in plan.commands if c[0] == "curl")[0] != "sudo"
@@ -5281,7 +5509,9 @@ def test_a_real_rejection_still_says_so(tmp_path: Path) -> None:
     refusal would tell the reader to wait when the fix is in their
     hands."""
     machine = _ready_machine(tmp_path)
-    machine["ssh"] = CommandResult(255, stderr="git@gitlab.surrey.ac.uk: Permission denied (publickey).")
+    machine["ssh"] = CommandResult(
+        255, stderr="git@gitlab.surrey.ac.uk: Permission denied (publickey)."
+    )
     result = next(s for s in STAGES if s.id == "ssh-upload").check(
         _context(tmp_path, runner=FakeRunner(machine))
     )
@@ -5295,7 +5525,9 @@ def test_a_dropped_connection_is_not_read_as_a_missing_project(tmp_path: Path) -
     the browser yet", which is the wrong instruction when the host is
     simply refusing to talk."""
     machine = _ready_machine(tmp_path)
-    machine["git ls-remote"] = CommandResult(128, stderr="Connection closed by 131.227.81.118 port 22")
+    machine["git ls-remote"] = CommandResult(
+        128, stderr="Connection closed by 131.227.81.118 port 22"
+    )
     result = next(s for s in STAGES if s.id == "own-project").check(
         _context(tmp_path, runner=FakeRunner(machine))
     )
@@ -5348,8 +5580,12 @@ def test_githubs_own_greeting_is_what_proves_authentication(tmp_path: Path) -> N
     Matching GitLab's string would report a working GitHub key as
     broken."""
     machine = _ready_machine(tmp_path)
+    github_key = tmp_path / ".ssh" / "id_ed25519_github"
+    github_key.write_text("private", encoding="utf-8")
+    github_key.with_suffix(".pub").write_text("public", encoding="utf-8")
     machine["ssh"] = CommandResult(
-        1, stderr="Hi buckwem! You've successfully authenticated, but GitHub does not provide shell access."
+        1,
+        stderr="Hi buckwem! You've successfully authenticated, but GitHub does not provide shell access.",
     )
     result = next(s for s in STAGES if s.id == "ssh-upload").check(
         _context(tmp_path, host="github.com", runner=FakeRunner(machine))
@@ -5359,7 +5595,7 @@ def test_githubs_own_greeting_is_what_proves_authentication(tmp_path: Path) -> N
 
 
 def test_the_username_question_names_the_host_that_was_answered() -> None:
-    """"Your GitLab username" is simply wrong once the answer was
+    """ "Your GitLab username" is simply wrong once the answer was
     github.com."""
     from prodockit.bootstrap import PROMPTS, question_for
 
@@ -5423,6 +5659,105 @@ def test_the_rest_of_the_plan_runs_after_a_no_op_install(tmp_path: Path) -> None
     assert any("user.name" in c for c in ran), "the plan carried on"
     assert any("user.email" in c for c in ran)
     assert result.failed is None
+
+
+def test_pdkboot_retries_a_temporary_remote_service_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Marketplace 503 is not a machine fault and usually clears before
+    asking the reader to restart the whole run is useful."""
+    from prodockit.bootstrap import Stage, apply_stage
+
+    class Recovers(FakeRunner):
+        attempts = 0
+
+        def run(self, command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
+            if "--install-extension" in command:
+                self.attempts += 1
+                if self.attempts == 1:
+                    return CommandResult(1, stderr="Server returned 503")
+                return CommandResult(0)
+            return super().run(command, cwd, timeout, capture)
+
+    delays: list[int] = []
+    monkeypatch.setattr("prodockit.bootstrap.time.sleep", delays.append)
+    runner = Recovers()
+    context = _context(tmp_path, runner=runner)
+    stage = Stage(
+        "extensions",
+        "VS Code extensions",
+        lambda context: CheckResult(Status.OK),
+        lambda context: Plan(commands=[["code", "--install-extension", "ms-python.python"]]),
+    )
+
+    result = apply_stage(context, stage)
+
+    assert result.failed is None
+    assert runner.attempts == 2
+    assert delays == [2]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Could not resolve host: registry.npmjs.org",
+        "npm ERR! code ECONNRESET",
+        "operation timed out",
+    ],
+)
+def test_pdkboot_retries_safe_downloads_after_transient_network_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, message: str
+) -> None:
+    from prodockit.bootstrap import Stage, apply_stage
+
+    class Recovers(FakeRunner):
+        attempts = 0
+
+        def run(self, command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
+            self.attempts += 1
+            if self.attempts == 1:
+                return CommandResult(1, stderr=message)
+            return CommandResult(0)
+
+    monkeypatch.setattr("prodockit.bootstrap.time.sleep", lambda _delay: None)
+    runner = Recovers()
+    context = _context(tmp_path, runner=runner)
+    stage = Stage(
+        "node",
+        "Node",
+        lambda context: CheckResult(Status.OK),
+        lambda context: Plan(commands=[["npm", "ci"]]),
+    )
+
+    result = apply_stage(context, stage)
+
+    assert result.ok
+    assert runner.attempts == 2
+
+
+def test_pdkboot_does_not_retry_a_command_that_can_duplicate_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.bootstrap import Stage, apply_stage
+
+    runner = FakeRunner({"git push": CommandResult(1, stderr="connection reset")})
+    delays: list[int] = []
+    monkeypatch.setattr("prodockit.bootstrap.time.sleep", delays.append)
+    context = _context(tmp_path, runner=runner)
+    stage = Stage(
+        "first-push",
+        "Push",
+        lambda context: CheckResult(Status.MISSING),
+        lambda context: Plan(commands=[["git", "push"]]),
+    )
+
+    result = apply_stage(context, stage)
+
+    assert result.failed is not None
+    assert len(runner.calls) == 1
+    assert delays == []
+
+
 TEMPLATE_ORIGIN = "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
 
 
@@ -5520,7 +5855,8 @@ def test_a_successful_ssh_probe_is_never_a_failed_command() -> None:
     from prodockit.bootstrap import benign_outcome
 
     greeted = CommandResult(
-        1, stderr="Hi buckwem! You've successfully authenticated, but GitHub does not provide shell access."
+        1,
+        stderr="Hi buckwem! You've successfully authenticated, but GitHub does not provide shell access.",
     )
     assert benign_outcome(["ssh", "-T", "-o", "ConnectTimeout=10", "git@github.com"], greeted)
 
@@ -5564,7 +5900,9 @@ def test_accepting_the_host_key_lets_the_run_continue(tmp_path: Path) -> None:
     from prodockit.bootstrap import apply_stage
 
     machine = _ready_machine(tmp_path)
-    machine["ssh"] = CommandResult(1, stderr="The authenticity of host 'github.com' can't be established.")
+    machine["ssh"] = CommandResult(
+        1, stderr="The authenticity of host 'github.com' can't be established."
+    )
     context = _context(tmp_path, host="github.com", runner=FakeRunner(machine))
 
     result = apply_stage(context, next(s for s in STAGES if s.id == "ssh-upload"))
@@ -5598,9 +5936,7 @@ def test_a_fresh_posix_machine_gets_a_private_ssh_directory(tmp_path: Path) -> N
 def test_windows_makes_the_directory_without_chmod(tmp_path: Path) -> None:
     """No chmod on Windows, and PowerShell rather than mkdir - the same
     shape the ssh-config stage already uses."""
-    plan = next(s for s in STAGES if s.id == "ssh-key").plan(
-        _context(tmp_path, platform=WINDOWS)
-    )
+    plan = next(s for s in STAGES if s.id == "ssh-key").plan(_context(tmp_path, platform=WINDOWS))
     script = " ".join(" ".join(c) for c in plan.commands)
 
     assert "New-Item -ItemType Directory" in script
@@ -5708,8 +6044,11 @@ def test_a_recorded_choice_is_what_the_clone_stage_reads(tmp_path: Path) -> None
     machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
     machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
     context = _context(
-        tmp_path, host="github.com", namespace="buckwem",
-        project_name="report-windows-v1", runner=FakeRunner(machine),
+        tmp_path,
+        host="github.com",
+        namespace="buckwem",
+        project_name="report-windows-v1",
+        runner=FakeRunner(machine),
     )
     script = " ".join(next(s for s in STAGES if s.id == "clone").plan(context).commands[0])
 
@@ -5722,7 +6061,10 @@ def test_an_empty_project_still_gets_the_template(tmp_path: Path) -> None:
     two cases are told apart on evidence: an empty repository answers
     successfully and lists no refs."""
     context = _context(
-        tmp_path, host="github.com", namespace="buckwem", project_name="report-windows-v1",
+        tmp_path,
+        host="github.com",
+        namespace="buckwem",
+        project_name="report-windows-v1",
         runner=_host_with_project(tmp_path, ""),
     )
     script = " ".join(next(s for s in STAGES if s.id == "clone").plan(context).commands[0])
@@ -5743,7 +6085,10 @@ def test_an_explicit_source_url_still_wins(tmp_path: Path) -> None:
     """Detection is a default, not an override. Someone who named a
     repository meant it."""
     context = _context(
-        tmp_path, host="github.com", namespace="buckwem", project_name="report-windows-v1",
+        tmp_path,
+        host="github.com",
+        namespace="buckwem",
+        project_name="report-windows-v1",
         source_url="some-other-repo",
         runner=_host_with_project(tmp_path, "abc123\trefs/heads/main\n"),
     )
@@ -5767,7 +6112,10 @@ def test_a_student_given_a_repo_is_never_offered_the_history_reset(tmp_path: Pat
     machine["remote get-url origin"] = CommandResult(0, f"{own}\n")
     machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
     context = _context(
-        tmp_path, host="github.com", namespace="buckwem", project_name="report-windows-v1",
+        tmp_path,
+        host="github.com",
+        namespace="buckwem",
+        project_name="report-windows-v1",
         runner=FakeRunner(machine),
     )
 
@@ -5797,8 +6145,8 @@ def test_saying_no_to_a_destructive_step_does_not_then_offer_it(
 
     result = cli_bootstrap("--apply", responses=machine, input="n\n" * 30)
 
-    assert "Delete the template's history" in result.output
-    assert "rm -rf" not in result.output, "a refusal must not be followed by the commands"
+    assert "Archive the template's history" in result.output
+    assert "Move-Item" not in result.output, "a refusal must not be followed by the commands"
 
 
 def test_the_reset_only_ever_deletes_the_templates_history(tmp_path: Path) -> None:
@@ -5819,8 +6167,10 @@ def test_the_reset_only_ever_deletes_the_templates_history(tmp_path: Path) -> No
         _context(tmp_path, host="github.com", runner=FakeRunner(own))
     )
 
-    assert any("rm -rf" in " ".join(c) for c in from_template.commands)
-    assert not any("rm -rf" in " ".join(c) for c in mine.commands), "never the reader's own"
+    assert any("git.pdk-template-backup" in " ".join(c) for c in from_template.commands)
+    assert not any("git.pdk-template-backup" in " ".join(c) for c in mine.commands), (
+        "never archive the reader's own history"
+    )
     assert mine.commands == [["git", "config", "core.fileMode", "false"]]
 
 
@@ -5851,7 +6201,9 @@ def test_the_template_and_a_named_repository_are_not_second_guessed(tmp_path: Pa
     the reader. Only detection needs confirming."""
     template = next(s for s in STAGES if s.id == "clone").plan(_context(tmp_path))
     named = next(s for s in STAGES if s.id == "clone").plan(
-        _context(tmp_path, source_url="some-repo", runner=FakeRunner(_own_project_machine(tmp_path)))
+        _context(
+            tmp_path, source_url="some-repo", runner=FakeRunner(_own_project_machine(tmp_path))
+        )
     )
 
     assert not template.instructions
@@ -6001,9 +6353,7 @@ def test_an_empty_repository_gets_the_template_and_keeps_its_permissions(
     be used" alone reads as though the issued repository were being
     ignored (#332).
     """
-    result = _configured(
-        cli_bootstrap, monkeypatch, answer="", exists=True, has_content=False
-    )
+    result = _configured(cli_bootstrap, monkeypatch, answer="", exists=True, has_content=False)
 
     assert "is empty on github.com" in result.output
     assert "keeps" in result.output and "permissions" in result.output
@@ -6014,12 +6364,10 @@ def test_an_empty_repository_gets_the_template_and_keeps_its_permissions(
 def test_a_repository_that_is_not_there_says_so_differently(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """"Does not exist yet" and "is empty" are different states, and a
+    """ "Does not exist yet" and "is empty" are different states, and a
     reader checking whether they created the thing needs to be told
     which."""
-    result = _configured(
-        cli_bootstrap, monkeypatch, answer="", exists=False, has_content=False
-    )
+    result = _configured(cli_bootstrap, monkeypatch, answer="", exists=False, has_content=False)
 
     assert "does not exist yet on github.com" in result.output
     assert load(tmp_path / "b.toml").source_url == ""
@@ -6033,8 +6381,11 @@ def test_a_recorded_decision_means_no_prompt_during_the_run(tmp_path: Path) -> N
     machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
     plan = next(s for s in STAGES if s.id == "clone").plan(
         _context(
-            tmp_path, host="github.com", namespace="buckwem",
-            project_name="report-windows-v1", source_url="report-windows-v1",
+            tmp_path,
+            host="github.com",
+            namespace="buckwem",
+            project_name="report-windows-v1",
+            source_url="report-windows-v1",
             runner=FakeRunner(machine),
         )
     )
@@ -6075,9 +6426,7 @@ def test_the_questions_say_how_many_there_are(
     monkeypatch.setattr("prodockit.cli.own_project_exists", lambda context: False)
     monkeypatch.setattr("prodockit.cli.own_project_has_content", lambda context: False)
 
-    result = cli_bootstrap(
-        "--configure", input="2\nAda\na@b.c\nbuckwem\nbuckwem\nreport\n\n\n"
-    )
+    result = cli_bootstrap("--configure", input="2\nAda\na@b.c\nbuckwem\nbuckwem\nreport\n\n\n")
 
     assert "1/8 The git host" in result.output
     assert "6/8 Your project name" in result.output
@@ -6094,7 +6443,10 @@ def test_the_project_is_committed_and_pushed(tmp_path: Path) -> None:
     )
 
     assert [c[-2:] if c[0].endswith("zensical") else c[:2] for c in plan.commands] == [
-        ["build", "--clean"], ["git", "add"], ["git", "commit"], ["git", "push"]
+        ["build", "--clean"],
+        ["git", "add"],
+        ["git", "commit"],
+        ["git", "push"],
     ]
     assert plan.commands[-1] == ["git", "push", "-u", "origin", "main"]
     assert plan.confirm.endswith("?")
@@ -6159,9 +6511,6 @@ def test_pages_is_its_own_stage_right_after_the_project(tmp_path: Path) -> None:
     assert ids.index("pages") < ids.index("first-push"), "before the push it would break"
 
 
-
-
-
 def test_a_host_it_cannot_reach_is_not_called_missing(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -6193,9 +6542,7 @@ def test_only_the_host_saying_so_counts_as_absent(tmp_path: Path) -> None:
     ):
         machine = _ready_machine(tmp_path)
         machine["git ls-remote"] = CommandResult(128, stderr=stderr)
-        answer = project_on_host(
-            _context(tmp_path, host="github.com", runner=FakeRunner(machine))
-        )
+        answer = project_on_host(_context(tmp_path, host="github.com", runner=FakeRunner(machine)))
         assert answer is expected, stderr
 
 
@@ -6228,8 +6575,11 @@ def test_a_project_with_work_in_it_is_put_to_the_reader(tmp_path: Path) -> None:
     machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
     stage = next(s for s in STAGES if s.id == "clone-source")
     context = _context(
-        tmp_path, host="github.com", namespace="buckwem",
-        project_name="report-linux-v4", runner=FakeRunner(machine),
+        tmp_path,
+        host="github.com",
+        namespace="buckwem",
+        project_name="report-linux-v4",
+        runner=FakeRunner(machine),
     )
 
     assert stage.check(context).status is Status.MISSING
@@ -6383,8 +6733,11 @@ def test_each_stage_is_checked_when_the_loop_reaches_it(tmp_path: Path) -> None:
             return super().run(command, cwd, timeout, capture)
 
     context = _context(
-        tmp_path, host="github.com", namespace="buckwem",
-        project_name="report-linux-v4", runner=Reachable(machine),
+        tmp_path,
+        host="github.com",
+        namespace="buckwem",
+        project_name="report-linux-v4",
+        runner=Reachable(machine),
     )
     stage = next(s for s in STAGES if s.id == "clone-source")
 
@@ -6395,8 +6748,8 @@ def test_each_stage_is_checked_when_the_loop_reaches_it(tmp_path: Path) -> None:
     # Said with what was actually seen: this failed once in CI and
     # nowhere else, and "assert False" gave nothing to work from.
     context_note = f"ls-remote calls: {len(seen)}"
-    assert not first.needs_work, (
-        f"unreachable host, so nothing to decide - yet; got "
+    assert first.status is Status.BLOCKED, (
+        f"unreachable host, so the decision must wait; got "
         f"{first.status.value}: {first.detail!r} ({context_note})"
     )
     assert later.needs_work, (
@@ -6439,13 +6792,16 @@ def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
 
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
     context = _context(
-        tmp_path, host="github.com", namespace="buckwem",
-        project_name="report-linux-v4", runner=Reachable(machine),
+        tmp_path,
+        host="github.com",
+        namespace="buckwem",
+        project_name="report-linux-v4",
+        runner=Reachable(machine),
     )
     reports = plan_all(context)
-    assert not next(r for r in reports if r.stage.id == "clone-source").needs_work, (
-        "the up-front pass saw an unreachable host"
-    )
+    initial = next(r for r in reports if r.stage.id == "clone-source")
+    assert initial.result.status is Status.BLOCKED
+    assert initial.plan is None, "there is no safe clone plan before SSH works"
 
     runner = CliRunner()
     # Whatever the run does after the question is not this test's
@@ -6456,9 +6812,6 @@ def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
         printed = out.getvalue().decode()
 
     assert "Select 1, 2 or 3" in printed, "the question was put once the host answered"
-
-
-
 
 
 def test_pages_is_read_without_a_token_where_that_is_possible(tmp_path: Path) -> None:
@@ -6565,6 +6918,13 @@ def test_being_unable_to_see_a_repository_is_not_permission_to_make_one(
     before creating anything.
     """
     machine = _ready_machine(tmp_path)
+    github_key = tmp_path / ".ssh" / "id_ed25519_github"
+    github_key.write_text("private", encoding="utf-8")
+    github_key.with_suffix(".pub").write_text("public", encoding="utf-8")
+    machine["ssh"] = CommandResult(
+        1,
+        stderr="Hi ada! You've successfully authenticated, but GitHub does not provide shell access.",
+    )
     machine["git ls-remote"] = CommandResult(128, stderr="ERROR: Repository not found.")
     stage = next(s for s in STAGES if s.id == "own-project")
     context = _context(tmp_path, host="github.com", runner=FakeRunner(machine))
@@ -6624,9 +6984,7 @@ def test_a_private_repository_is_shown_the_steps_and_taken_on_trust(
     # The API says 404 to an anonymous caller, and nothing is published
     # either - or the site would answer for it.
     not_found = '{"message":"Not Found","status":"404"}'
-    probe = _answers_by_url(
-        **{"api_github_com": (404, not_found), "github_io": (404, "")}
-    )
+    probe = _answers_by_url(**{"api_github_com": (404, not_found), "github_io": (404, "")})
     result = next(s for s in STAGES if s.id == "pages").check(
         _context(tmp_path, host="github.com", fetch=probe)
     )
@@ -6645,9 +7003,7 @@ def test_a_private_repository_that_has_published_says_so(tmp_path: Path) -> None
     something already done.
     """
     not_found = '{"message":"Not Found","status":"404"}'
-    probe = _answers_by_url(
-        **{"api_github_com": (404, not_found), "github_io": (200, "")}
-    )
+    probe = _answers_by_url(**{"api_github_com": (404, not_found), "github_io": (200, "")})
     result = next(s for s in STAGES if s.id == "pages").check(
         _context(tmp_path, host="github.com", fetch=probe)
     )
@@ -6694,7 +7050,7 @@ def test_a_site_that_answers_is_finished(tmp_path: Path) -> None:
 
 
 def test_ok_says_which_reason_it_is(tmp_path: Path) -> None:
-    """"ok" with nothing after it read the same whether the host had been
+    """ "ok" with nothing after it read the same whether the host had been
     searched and found empty or never reached at all - and that ambiguity
     is the fault chased through #344 and #351 (#356)."""
     machine = _before_the_clone(_ready_machine(tmp_path))
@@ -6709,13 +7065,13 @@ def test_ok_says_which_reason_it_is(tmp_path: Path) -> None:
         _context(tmp_path, host="github.com", runner=FakeRunner(unreachable))
     )
 
-    assert absent.status is Status.OK and blind.status is Status.OK
+    assert absent.status is Status.OK and blind.status is Status.BLOCKED
     assert "nothing visible at" in absent.detail, (
         "not 'no repository found' - both hosts answer a private repository the "
         "key cannot see with the words they use for one that is absent (#377)"
     )
     assert "the template will be cloned" in absent.detail
-    assert "could not reach" in blind.detail, "not the same sentence as having looked"
+    assert "could not yet ask" in blind.detail, "not the same sentence as having looked"
     assert absent.detail != blind.detail
     # Which address was asked about, in both. A reader whose project
     # plainly exists needs to see that a different one was probed - the
@@ -6925,7 +7281,9 @@ def test_a_sync_check_that_could_not_run_is_not_called_a_difference(
 
     broke = stage.check(
         _context(
-            tmp_path, namespace="ns", project_name="p",
+            tmp_path,
+            namespace="ns",
+            project_name="p",
             runner=machine_saying(
                 CommandResult(1, stderr="Error: could not run git: [WinError 2] ...")
             ),
@@ -6938,7 +7296,9 @@ def test_a_sync_check_that_could_not_run_is_not_called_a_difference(
     # A check that ran and found a real difference is unchanged.
     differs = stage.check(
         _context(
-            tmp_path, namespace="ns", project_name="p",
+            tmp_path,
+            namespace="ns",
+            project_name="p",
             runner=machine_saying(CommandResult(1, "repo_url differs\n")),
         )
     )
@@ -6991,9 +7351,7 @@ def test_windows_installs_the_pandoc_the_builds_pin(tmp_path: Path) -> None:
     """Ubuntu has always downloaded an exact release; Windows took
     whatever winget was serving, which is how a machine bootstrap had
     just set up came to run 3.10.2 against builds pinning 3.10.1."""
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=WINDOWS)
-    )
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
     pandoc = next(c for c in plan.commands if "JohnMacFarlane.Pandoc" in c)
 
     assert pandoc[pandoc.index("--version") + 1] == PANDOC_VERSION, pandoc
@@ -7003,9 +7361,7 @@ def test_only_pandoc_is_pinned_at_the_winget_line(tmp_path: Path) -> None:
     """MSYS2 and the rest are machine plumbing - pinning them would buy
     nothing and break whenever winget pruned an old build. The version
     argument exists for inputs that change this project's *output*."""
-    plan = next(s for s in STAGES if s.id == "pandoc").plan(
-        _context(tmp_path, platform=WINDOWS)
-    )
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
     msys2 = next(c for c in plan.commands if "MSYS2.MSYS2" in c)
 
     assert "--version" not in msys2, msys2
@@ -7016,9 +7372,11 @@ def _ubuntu_vscode_commands(tmp_path: Path) -> list[list[str]]:
     machine = _ready_machine(tmp_path)
     machine["dpkg --print-architecture"] = CommandResult(0, "amd64\n")
     machine["code"] = CommandResult(127, stderr="not found")
-    return next(s for s in STAGES if s.id == "vscode").plan(
-        _context(tmp_path, platform=UBUNTU, runner=FakeRunner(machine))
-    ).commands
+    return (
+        next(s for s in STAGES if s.id == "vscode")
+        .plan(_context(tmp_path, platform=UBUNTU, runner=FakeRunner(machine)))
+        .commands
+    )
 
 
 def test_the_vs_code_package_is_answered_before_it_asks(tmp_path: Path) -> None:
@@ -7108,8 +7466,13 @@ def test_nothing_is_said_about_the_address_where_it_cannot_differ(
     from prodockit.bootstrap.model import Host
 
     quiet = Host(
-        key="q", template_remote="git@q:t.git", key_suffix="q", hostname="q",
-        ssh_success="ok", ssh_keys_url="https://q/keys", new_project_url="https://q/new",
+        key="q",
+        template_remote="git@q:t.git",
+        key_suffix="q",
+        hostname="q",
+        ssh_success="ok",
+        ssh_keys_url="https://q/keys",
+        new_project_url="https://q/new",
     )
     assert quiet.namespace_note == ""
 

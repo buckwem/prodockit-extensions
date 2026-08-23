@@ -23,6 +23,7 @@ would use. Nothing here installs anything yet.
 from __future__ import annotations
 
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,6 +31,7 @@ from typing import Any
 
 from prodockit.bootstrap.config import (
     LOCAL_CONFIG_NAME,
+    PDKBOOT_CONFIG_NAME,
     PROMPTS,
     BootstrapConfig,
     BootstrapConfigError,
@@ -37,6 +39,7 @@ from prodockit.bootstrap.config import (
     default_for,
     load,
     missing_keys,
+    pdkboot_config_path,
     question_for,
     save,
 )
@@ -66,6 +69,7 @@ from prodockit.bootstrap.model import (
     normalise_host,
     refresh_windows_path,
     resolve_host,
+    windows_system_ssh,
 )
 from prodockit.bootstrap.stages import (
     STAGES,
@@ -79,6 +83,7 @@ __all__ = [
     "HOSTS",
     "INSTALL_TIMEOUT_SECONDS",
     "LOCAL_CONFIG_NAME",
+    "PDKBOOT_CONFIG_NAME",
     "PROMPTS",
     "STAGES",
     "SURREY_GITLAB",
@@ -116,17 +121,75 @@ __all__ = [
     "normalise_host",
     "own_project_exists",
     "own_project_has_content",
+    "pdkboot_config_path",
     "plan_all",
     "project_on_host",
     "question_for",
     "refresh_windows_path",
     "resolve_host",
     "save",
+    "windows_system_ssh",
 ]
 
 
 class UnsupportedHostError(Exception):
     """Raised for a host that is declared but not yet implemented."""
+
+
+def _temporary_network_failure(outcome: CommandResult) -> bool:
+    """Whether a completed command reports a short-lived remote failure.
+
+    Deliberately excludes the runner's own 30-minute timeout. A package
+    manager may have left an installer child or lock behind when it was
+    killed, so immediately starting it again is less safe than stopping
+    with recovery advice. These are failures where the command itself has
+    returned and repeating an idempotent download/install is safe.
+    """
+    output = f"{outcome.stdout}\n{outcome.stderr}".lower()
+    return any(
+        marker in output
+        for marker in (
+            "server returned 429",
+            "server returned 500",
+            "server returned 502",
+            "server returned 503",
+            "server returned 504",
+            "service unavailable",
+            "too many requests",
+            "temporarily unavailable",
+            "could not resolve host",
+            "temporary failure in name resolution",
+            "name or service not known",
+            "network is unreachable",
+            "connection refused",
+            "connection reset",
+            "econnreset",
+            "etimedout",
+            "operation timed out",
+            "tls handshake timeout",
+            "unexpected eof",
+            "remote end closed connection",
+        )
+    )
+
+
+def _safe_to_retry(command: list[str]) -> bool:
+    """Whether repeating this command cannot duplicate user-owned work."""
+    if not command:
+        return False
+    executable = Path(command[0]).name.lower().removesuffix(".exe")
+    if executable in {"apt", "apt-get", "brew", "curl", "npm", "pip", "winget"}:
+        return True
+    if executable in {"code", "code.cmd"}:
+        return "--install-extension" in command
+    if "-m" in command and "pip" in command and "install" in command:
+        return True
+    if executable in {"bash", "powershell"}:
+        rendered = " ".join(command).lower()
+        return any(
+            marker in rendered for marker in ("curl ", "invoke-webrequest", "npm ci", "pacman -s")
+        )
+    return False
 
 
 def forget_contacts(context: Context) -> None:
@@ -171,6 +234,7 @@ def build_context(
     home: Path | None = None,
     exists: Callable[[Path], bool] | None = None,
     fetch: Callable[..., Any] | None = None,
+    pdkboot: bool = False,
 ) -> Context:
     """Assembles what the stages need, resolving the configured host.
 
@@ -187,15 +251,22 @@ def build_context(
     # reaches the host is counted by construction, including any a stage
     # added later introduces (#304).
     contacts = HostContacts()
+    resolved_platform = platform or current_platform()
+    default_runner = SubprocessRunner(
+        git_ssh_executable=(
+            windows_system_ssh() if pdkboot and resolved_platform == WINDOWS else None
+        )
+    )
     return Context(
         config=config,
         host=host,
-        platform=platform or current_platform(),
-        runner=CountingRunner(runner or SubprocessRunner(), contacts),
+        platform=resolved_platform,
+        runner=CountingRunner(runner or default_runner, contacts),
         home=home or Path.home(),
         exists=exists or Path.exists,
         fetch=fetch or default_fetch,
         contacts=contacts,
+        pdkboot=pdkboot,
     )
 
 
@@ -213,14 +284,24 @@ class ApplyResult:
     ran: list[list[str]] = field(default_factory=list)
     failed: CommandResult | None = None
     verified: CheckResult | None = None
+    #: A command returned a non-benign failure, but an immediate pdkboot
+    #: recheck proved that the stage's required end state was present. Kept
+    #: separately so the caller can report the anomaly without treating a
+    #: successfully verified stage as failed.
+    recovered: CommandResult | None = None
 
     @property
     def ok(self) -> bool:
         return self.failed is None and self.verified is not None and not self.verified.needs_work
 
 
-def apply_stage(context: Context, stage: Stage) -> ApplyResult:
-    """Runs a stage's plan, then re-checks it.
+def apply_stage(
+    context: Context,
+    stage: Stage,
+    plan: Plan | None = None,
+    progress: Callable[[str, int, int, list[str]], None] | None = None,
+) -> ApplyResult:
+    """Runs an approved stage plan, then re-checks it.
 
     Stops at the first command that fails rather than pressing on: the
     later commands in a plan generally depend on the earlier ones (a
@@ -232,9 +313,14 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
     runs its verification command only, which is exactly the point: the
     human does the work, bootstrap decides whether it took.
     """
-    plan = stage.plan(context)
+    # Interactive callers pass the exact plan the reader approved. Keeping
+    # the default preserves the useful direct API without silently changing
+    # a reviewed plan between display and execution.
+    if plan is None:
+        plan = stage.plan(context)
     result = ApplyResult(stage=stage)
-    for planned in plan.commands:
+    command_count = len(plan.commands)
+    for command_number, planned in enumerate(plan.commands, start=1):
         # Resolved now rather than when the plan was written. A command
         # installed by an earlier line of the *same* plan cannot be found
         # at planning time - `winget install` Node, then `npm ci` - and
@@ -246,26 +332,49 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
         # 100 MB download and an `apt install` behind it are ordinary
         # here, and killing them at the check's limit reported a failure
         # over an install that then succeeded (#243).
-        outcome = context.runner.run(
-            command,
-            cwd=plan.cwd,
-            timeout=INSTALL_TIMEOUT_SECONDS,
-            # Applying is never captured. An installer's own output is
-            # the only sign a run is alive: `apt update`, a 100 MB
-            # download and `apt install` behind it are minutes of
-            # silence otherwise, and a silent terminal is
-            # indistinguishable from a hung one - readers interrupted
-            # installs that were working (prodockit-extensions#244).
-            #
-            # It also covers what `needs_terminal` was added for: a
-            # command that has to ask something (#246) now always has
-            # the terminal, rather than only when a plan remembered to
-            # say so.
-            #
-            # Checks stay captured - they read what a command printed,
-            # and there are dozens of them per run.
-            capture=False,
-        )
+        if progress is not None:
+            progress("start", command_number, command_count, list(command))
+        try:
+            outcome = CommandResult(1)
+            for delay in (0, 2, 5):
+                if delay:
+                    time.sleep(delay)
+                outcome = context.runner.run(
+                    command,
+                    cwd=plan.cwd,
+                    timeout=INSTALL_TIMEOUT_SECONDS,
+                    # Legacy bootstrap streams an installer's output because it
+                    # otherwise offers no indication that a slow download is alive
+                    # (prodockit-extensions#244). pdkboot supplies a live progress
+                    # callback instead, captures routine chatter, and shows the
+                    # captured output if the command fails.
+                    #
+                    # It also covers what `needs_terminal` was added for: a
+                    # command that has to ask something (#246) now always has
+                    # the terminal, rather than only when a plan remembered to
+                    # say so.
+                    #
+                    # Checks stay captured - they read what a command printed, and
+                    # there are dozens of them per run.
+                    # pdkboot replaces routine installer chatter with its own live
+                    # progress display, but a command that genuinely needs the
+                    # terminal must still own it. Legacy bootstrap retains the
+                    # streamed output its users already know.
+                    capture=(context.pdkboot and progress is not None and not plan.needs_terminal),
+                )
+                if (
+                    not context.pdkboot
+                    or not _safe_to_retry(command)
+                    or not _temporary_network_failure(outcome)
+                ):
+                    break
+        except BaseException:
+            # In particular, stop pdkboot's background spinner when the user
+            # interrupts a command. The original exception still decides the
+            # process outcome.
+            if progress is not None:
+                progress("failed", command_number, command_count, list(command))
+            raise
         result.ran.append(list(command))
         # Whatever this command did, anything remembered about the host
         # from before it ran is now a statement about the past. Dropped
@@ -283,8 +392,33 @@ def apply_stage(context: Context, stage: Stage) -> ApplyResult:
         # failure, and stopping there abandoned the `git config` commands
         # that followed in the same plan - leaving git installed and
         # unconfigured, with the run blaming the install (#309).
-        if not benign_outcome(command, outcome):
+        accepted = benign_outcome(command, outcome)
+        recovered: CheckResult | None = None
+        if not accepted and context.pdkboot:
+            # Installers do not all agree that "already at the requested
+            # state" is success, and some report failure after completing
+            # their work. Trust the stage's end-state check over the process
+            # exit code, but do not run the rest of a plan after a genuinely
+            # partial result.
+            forget_contacts(context)
+            recovered = stage.check(context)
+            accepted = not recovered.needs_work
+        if progress is not None:
+            progress(
+                "finish" if accepted else "failed",
+                command_number,
+                command_count,
+                list(command),
+            )
+        if not accepted:
             return ApplyResult(stage=stage, ran=result.ran, failed=outcome)
+        if recovered is not None:
+            return ApplyResult(
+                stage=stage,
+                ran=result.ran,
+                verified=recovered,
+                recovered=outcome,
+            )
     # Unconditionally, not only after a command. The two browser stages
     # have instructions-only plans, so the loop above never ran and never
     # cleared anything - and their whole point is that a *human* changed

@@ -11,8 +11,8 @@ the hermetic harness from ``bootstrap_cli_harness.py``.
 from pathlib import Path
 
 import pytest
-from bootstrap_cli_harness import BootstrapCliHarness
 
+from prodockit import __version__
 from prodockit.bootstrap import (
     BootstrapConfig,
     BootstrapConfigError,
@@ -22,9 +22,14 @@ from prodockit.bootstrap import (
     Status,
     UnsupportedHostError,
     load,
+    pdkboot_config_path,
     save,
 )
-from prodockit.cli import COMMAND_ALIASES, main
+from prodockit.cli import main as legacy_main
+from prodockit.pdkboot import main
+from prodockit.template_sync import read_config
+
+from .harness import PdkbootCliHarness
 
 
 def _complete_config() -> BootstrapConfig:
@@ -40,7 +45,7 @@ def _complete_config() -> BootstrapConfig:
 
 
 def _prepare_mode_test(
-    bootstrap_cli: BootstrapCliHarness,
+    bootstrap_cli: PdkbootCliHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[str]:
     save(bootstrap_cli.tmp_path / "b.toml", _complete_config())
@@ -54,17 +59,75 @@ def _prepare_mode_test(
     return called
 
 
-def test_boot_is_the_same_click_command_as_bootstrap() -> None:
-    assert COMMAND_ALIASES["boot"] == "bootstrap"
-    assert main.commands["boot"] is main.commands["bootstrap"]
+def test_pdkboot_is_separate_from_the_legacy_bootstrap_command() -> None:
+    assert main is not legacy_main.commands["bootstrap"]
+    assert legacy_main.commands["boot"] is legacy_main.commands["bootstrap"]
 
 
-def test_boot_alias_exposes_the_complete_option_set(bootstrap_cli: BootstrapCliHarness) -> None:
-    result = bootstrap_cli.invoke("--help", command="boot")
+def test_distribution_registers_the_standalone_command() -> None:
+    project = Path(__file__).resolve().parents[2]
+    metadata = read_config((project / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert metadata["project"]["scripts"]["pdkboot"] == "prodockit.pdkboot:main"
+    assert metadata["project"]["scripts"]["prodockit"] == "prodockit.cli:main"
+
+
+def test_pdkboot_exposes_the_complete_option_set(bootstrap_cli: PdkbootCliHarness) -> None:
+    result = bootstrap_cli.invoke("--help")
 
     assert result.exit_code == 0
-    for option in ("--check", "--dry-run", "--apply", "--configure", "--config"):
+    for option in (
+        "--version",
+        "--check",
+        "--dry-run",
+        "--apply",
+        "--configure",
+        "--config",
+    ):
         assert option in result.output
+    assert ".pdkboot.toml in the current or nearest parent" in result.output
+    assert ".pdk-bootstrap.toml" not in result.output
+    assert "Phase 1 installs nothing" not in result.output
+
+
+def test_pdkboot_reports_the_installable_package_version(
+    bootstrap_cli: PdkbootCliHarness,
+) -> None:
+    result = bootstrap_cli.invoke("--version")
+
+    assert result.exit_code == 0
+    assert result.output.strip() == f"pdkboot, version {__version__}"
+
+
+def test_pdkboot_default_config_never_falls_back_to_legacy_state(tmp_path: Path) -> None:
+    (tmp_path / ".pdk-bootstrap.toml").write_text("legacy", encoding="utf-8")
+    legacy_user = tmp_path / ".config" / "prodockit" / "bootstrap.toml"
+    legacy_user.parent.mkdir(parents=True)
+    legacy_user.write_text("legacy user", encoding="utf-8")
+
+    assert pdkboot_config_path(cwd=tmp_path) == tmp_path / ".pdkboot.toml"
+
+
+def test_pdkboot_finds_the_setup_config_from_inside_its_project(tmp_path: Path) -> None:
+    setup = tmp_path / "setup"
+    project = setup / "report" / "docs"
+    project.mkdir(parents=True)
+    config = setup / ".pdkboot.toml"
+    config.write_text("host = 'github.com'\n", encoding="utf-8")
+
+    assert pdkboot_config_path(cwd=project) == config
+
+
+def test_pdkboot_uses_the_nearest_parent_config(tmp_path: Path) -> None:
+    outer = tmp_path / ".pdkboot.toml"
+    inner_dir = tmp_path / "setup"
+    project = inner_dir / "report"
+    project.mkdir(parents=True)
+    inner = inner_dir / ".pdkboot.toml"
+    outer.write_text("host = 'github.com'\n", encoding="utf-8")
+    inner.write_text("host = 'gitlab.com'\n", encoding="utf-8")
+
+    assert pdkboot_config_path(cwd=project) == inner
 
 
 @pytest.mark.parametrize(
@@ -77,7 +140,7 @@ def test_boot_alias_exposes_the_complete_option_set(bootstrap_cli: BootstrapCliH
     ],
 )
 def test_each_execution_mode_uses_only_its_own_path(
-    bootstrap_cli: BootstrapCliHarness,
+    bootstrap_cli: PdkbootCliHarness,
     monkeypatch: pytest.MonkeyPatch,
     args: tuple[str, ...],
     expected: list[str],
@@ -90,24 +153,38 @@ def test_each_execution_mode_uses_only_its_own_path(
     assert called == expected
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="issue #540: conflicting modes are accepted and --dry-run --apply applies",
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("--check", "--dry-run"),
+        ("--check", "--apply"),
+        ("--check", "--configure"),
+        ("--dry-run", "--apply"),
+        ("--dry-run", "--configure"),
+        ("--apply", "--configure"),
+        ("--check", "--dry-run", "--apply", "--configure"),
+    ],
 )
-def test_dry_run_cannot_reach_the_apply_path(
-    bootstrap_cli: BootstrapCliHarness,
+def test_conflicting_modes_are_rejected_before_any_bootstrap_work(
+    bootstrap_cli: PdkbootCliHarness,
     monkeypatch: pytest.MonkeyPatch,
+    args: tuple[str, ...],
 ) -> None:
-    called = _prepare_mode_test(bootstrap_cli, monkeypatch)
+    called: list[str] = []
+    monkeypatch.setattr(
+        "prodockit.cli.load_bootstrap_config",
+        lambda path: called.append("load") or _complete_config(),
+    )
 
-    result = bootstrap_cli.invoke("--dry-run", "--apply")
+    result = bootstrap_cli.invoke(*args)
 
     assert result.exit_code == 2
-    assert "apply" not in called
+    assert "Choose only one operating mode" in result.output
+    assert called == []
 
 
 def test_a_malformed_config_is_a_clean_cli_error(
-    bootstrap_cli: BootstrapCliHarness,
+    bootstrap_cli: PdkbootCliHarness,
 ) -> None:
     path = bootstrap_cli.tmp_path / "broken.toml"
     path.write_text("this is not key-value syntax\n", encoding="utf-8")
@@ -121,7 +198,7 @@ def test_a_malformed_config_is_a_clean_cli_error(
 
 
 def test_an_unreadable_config_is_a_clean_cli_error(
-    bootstrap_cli: BootstrapCliHarness,
+    bootstrap_cli: PdkbootCliHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     path = bootstrap_cli.tmp_path / "unreadable.toml"
@@ -137,7 +214,7 @@ def test_an_unreadable_config_is_a_clean_cli_error(
 
 
 def test_an_unsupported_host_is_a_clean_cli_error(
-    bootstrap_cli: BootstrapCliHarness,
+    bootstrap_cli: PdkbootCliHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     save(bootstrap_cli.tmp_path / "b.toml", _complete_config())
@@ -154,7 +231,7 @@ def test_an_unsupported_host_is_a_clean_cli_error(
 
 
 def test_configure_stops_before_any_stage_path(
-    bootstrap_cli: BootstrapCliHarness,
+    bootstrap_cli: PdkbootCliHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     called = _prepare_mode_test(bootstrap_cli, monkeypatch)
@@ -168,7 +245,7 @@ def test_configure_stops_before_any_stage_path(
 
 
 def test_configure_keeps_a_project_local_config_out_of_git(
-    bootstrap_cli: BootstrapCliHarness,
+    bootstrap_cli: PdkbootCliHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     (bootstrap_cli.tmp_path / ".git").mkdir()
@@ -183,7 +260,7 @@ def test_configure_keeps_a_project_local_config_out_of_git(
 
 
 def test_check_mode_renders_every_stage_status_and_optional_detail(
-    bootstrap_cli: BootstrapCliHarness,
+    bootstrap_cli: PdkbootCliHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     save(bootstrap_cli.tmp_path / "b.toml", _complete_config())
@@ -206,7 +283,7 @@ def test_check_mode_renders_every_stage_status_and_optional_detail(
 
 
 def test_unknown_option_fails_before_loading_configuration(
-    bootstrap_cli: BootstrapCliHarness,
+    bootstrap_cli: PdkbootCliHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     loaded: list[Path] = []

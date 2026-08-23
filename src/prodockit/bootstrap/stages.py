@@ -29,6 +29,8 @@ worked*, which is the half a written instruction can never do
 from __future__ import annotations
 
 import json
+import os
+import re
 import socket
 import sys
 import tempfile
@@ -47,6 +49,7 @@ from prodockit.bootstrap.model import (
     Plan,
     Stage,
     Status,
+    windows_system_ssh,
 )
 
 #: The VS Code extensions the User Guide installs. Kept here rather than
@@ -154,8 +157,40 @@ _MSYS2_ENVIRONMENTS = {
     "other": ("mingw64", "mingw-w64-x86_64-pango"),
 }
 
+_PDKBOOT_MSYS2_ENVIRONMENTS = {
+    "arm64": ("clangarm64", "mingw-w64-clang-aarch64-pango"),
+    # UCRT64 is MSYS2's current x64 default. MINGW64 began deprecation in
+    # 2026, and CPython itself uses the Universal C Runtime on supported
+    # Windows releases, so this is also the closer match for cffi-loaded DLLs.
+    "other": ("ucrt64", "mingw-w64-ucrt-x86_64-pango"),
+}
 
-def _winget(package_id: str, version: str = "") -> list[str]:
+_PYTHON_PE_MACHINE = (
+    "from pathlib import Path; import sys; "
+    "data=Path(sys.executable).read_bytes(); "
+    "offset=int.from_bytes(data[60:64], 'little'); "
+    "print(hex(int.from_bytes(data[offset+4:offset+6], 'little')))"
+)
+
+
+def _windows_python_is_arm64(context: Context) -> bool:
+    """Whether the Python process that will load Pango is native ARM64.
+
+    Windows on ARM can run x64 Python. Such a process must load x64 DLLs,
+    regardless of the host's native architecture; selecting from
+    PROCESSOR_ARCHITEW6432 instead installs an ARM64 Pango that cffi cannot
+    load into that emulated process.
+    """
+    result = context.runner.run([sys.executable, "-c", _PYTHON_PE_MACHINE])
+    return result.ok and result.stdout.strip().lower() == "0xaa64"
+
+
+def _winget(
+    package_id: str,
+    version: str = "",
+    *,
+    resilient: bool = False,
+) -> list[str]:
     """One `winget install`, wired so it cannot stop for a human.
 
     The two `--accept-*` flags are the point. winget asks for agreement
@@ -186,6 +221,38 @@ def _winget(package_id: str, version: str = "") -> list[str]:
         "-e",
         "--accept-source-agreements",
         "--accept-package-agreements",
+        *(["--no-upgrade", "--silent", "--disable-interactivity"] if resilient else []),
+    ]
+
+
+def _winget_upgrade(package_id: str, version: str = "") -> list[str]:
+    """An explicit, non-interactive upgrade for an approved pdkboot plan."""
+    return [
+        "winget",
+        "upgrade",
+        "--id",
+        package_id,
+        *(["--version", version] if version else []),
+        "-e",
+        "--silent",
+        "--accept-source-agreements",
+        "--accept-package-agreements",
+        "--disable-interactivity",
+    ]
+
+
+def _winget_repair(package_id: str) -> list[str]:
+    """Repair an installed package without treating it as a fresh install."""
+    return [
+        "winget",
+        "repair",
+        "--id",
+        package_id,
+        "-e",
+        "--silent",
+        "--accept-source-agreements",
+        "--accept-package-agreements",
+        "--disable-interactivity",
     ]
 
 
@@ -343,12 +410,12 @@ _VSCODE_APP_PATHS = {
 
 #: What to ask once that has been shown. "Tell me when that is done"
 #: does not say which of several things, and this one is easy to skip.
-_VSCODE_CONFIRM = "Have you run the 'Shell Command' action in VS Code?"
+_VSCODE_CONFIRM = "Have you installed the code command in PATH from VS Code?"
 
 #: How to add the `code` command once the application is installed.
 _VSCODE_SHELL_COMMAND_HELP = (
     "In VS Code, open the Command Palette (Cmd+Shift+P / Ctrl+Shift+P) and run "
-    "'Shell Command: Install \'code\' command in PATH'."
+    "Shell Command: Install 'code' command in PATH."
 )
 
 
@@ -557,7 +624,7 @@ def _check_vscode(context: Context) -> CheckResult:
         # (prodockit-extensions#424).
         return _ok(
             f"{command} - `code` itself is not on PATH. For your own terminal, run "
-            "'Shell Command: Install \'code\' command in PATH' from VS Code's "
+            "'Shell Command: Install 'code' command in PATH' from VS Code's "
             "Command Palette"
         )
     if _vscode_app_installed(context):
@@ -615,10 +682,7 @@ def _plan_vscode(context: Context) -> Plan:
         # reads as a hardcoded target even though it only maps dpkg's
         # name onto VS Code's - and asking somebody to approve a command
         # they must parse to trust is asking too much (#287).
-        url = (
-            "https://update.code.visualstudio.com/latest/"
-            f"linux-deb-{_deb_arch(context)}/stable"
-        )
+        url = f"https://update.code.visualstudio.com/latest/linux-deb-{_deb_arch(context)}/stable"
         return Plan(
             commands=[
                 _apt("install", "-y", "curl"),
@@ -643,7 +707,7 @@ def _plan_vscode(context: Context) -> Plan:
                 _apt("install", "-y", "/tmp/code.deb"),
             ]
         )
-    return Plan(commands=[_winget("Microsoft.VisualStudioCode")])
+    return Plan(commands=[_winget("Microsoft.VisualStudioCode", resilient=context.pdkboot)])
 
 
 # ---------------------------------------------------------------------------
@@ -668,6 +732,14 @@ def _check_git(context: Context) -> CheckResult:
         # reader to install git they already have would send them the wrong
         # way entirely.
         return _wrong(f"git is installed but {' and '.join(unset)} are not set")
+    if context.pdkboot and context.platform == WINDOWS:
+        ssh_command = context.runner.run([git, "config", "--global", "core.sshCommand"])
+        configured = ssh_command.stdout.strip().replace("\\", "/").lower()
+        expected = windows_system_ssh().lower()
+        if not ssh_command.ok or configured != expected:
+            return _wrong(
+                "git is installed and has an identity, but is not configured to use Windows OpenSSH"
+            )
     found = "" if git == "git" else f" - {git} (PATH picks it up in a new terminal)"
     return _ok(f"{name.stdout.strip()} <{email.stdout.strip()}>{found}")
 
@@ -676,15 +748,25 @@ def _plan_git(context: Context) -> Plan:
     install = {
         MACOS: [["brew", "install", "git"]],
         UBUNTU: [_apt("update"), _apt("install", "-y", "git")],
-        WINDOWS: [_winget("Git.Git")],
+        WINDOWS: [_winget("Git.Git", resilient=context.pdkboot)],
     }[context.platform]
     configure = [
         [git_command(context), "config", "--global", "user.name", context.config.full_name],
         [git_command(context), "config", "--global", "user.email", context.config.email],
     ]
+    if context.pdkboot and context.platform == WINDOWS:
+        configure.append(
+            [
+                git_command(context),
+                "config",
+                "--global",
+                "core.sshCommand",
+                windows_system_ssh(),
+            ]
+        )
     # Only install if it is actually absent - a rerun repairing unset
     # identity should not reinstall git underneath a working one.
-    if _installed(context, "git"):
+    if _installed(context, "git") or (context.pdkboot and _git_is_available(context)):
         return Plan(commands=configure)
     return Plan(commands=[*install, *configure])
 
@@ -760,6 +842,7 @@ def _plan_ssh_key(context: Context) -> Plan:
             "remember it; it protects the key if your machine is lost.",
         ],
         confirm="Ready to create the key?",
+        needs_terminal=context.pdkboot,
     )
 
 
@@ -910,13 +993,24 @@ def _plan_ssh_config(context: Context) -> Plan:
             f"New-Item -ItemType Directory -Force -Path '{path.parent}' | Out-Null; "
             f"Add-Content -Path '{path}' -Value @'\n{block}'@"
         )
-        return Plan(commands=[["powershell", "-NoProfile", "-Command", powershell]])
+        return Plan(
+            commands=[["powershell", "-NoProfile", "-Command", powershell]],
+            describe=(
+                f"Add a Host entry for {context.host.hostname} to {path}, using "
+                f"{private.name} and keeping the key loaded"
+            ),
+        )
 
     # `>>` so an existing config is added to rather than replaced, and a
     # leading newline so the stanza cannot land on the end of somebody
     # else's last line.
     append = f"mkdir -p {path.parent} && printf '\\n%s' '{block}' >> {path}"
     return Plan(
+        describe=(
+            f"Add a Host entry for {context.host.hostname} to {path}, using "
+            f"{private.name}, keep the key loaded, and restrict the config and "
+            "private-key permissions"
+        ),
         commands=[
             ["bash", "-c", append],
             # ssh ignores a private key others can read - "Permissions
@@ -925,7 +1019,7 @@ def _plan_ssh_config(context: Context) -> Plan:
             # symptom as having no config at all.
             ["chmod", "600", str(path)],
             ["chmod", "600", str(private)],
-        ]
+        ],
     )
 
 
@@ -983,25 +1077,52 @@ def _check_ssh_agent(context: Context) -> CheckResult:
 def _plan_ssh_agent(context: Context) -> Plan:
     """Loads the key, or explains how to start an agent to load it into.
 
-    Starting an agent is the one thing that genuinely cannot be
-    automated. `eval "$(ssh-agent -s)"` works by exporting `SSH_AUTH_SOCK`
-    into *the shell that runs it*, and a subprocess cannot export
-    anything into its parent - so bootstrap running it would start an
-    agent, set the variable in a shell that then exits, and change
-    nothing. That one is the reader's to run.
+    A Unix shell agent cannot be started for the parent process:
+    `eval "$(ssh-agent -s)"` exports `SSH_AUTH_SOCK` into *the shell that
+    runs it*, and a subprocess cannot export anything into its parent.
+    Windows is different: its agent is a system service, so pdkboot can
+    request elevation through UAC and continue once that service starts.
     """
     private = _key_path(context)
     listed = context.runner.run(["ssh-add", "-l"])
 
     if listed.returncode == _AGENT_NOT_RUNNING:
         if context.platform == WINDOWS:
+            if context.pdkboot:
+                elevated = (
+                    "$process = Start-Process powershell.exe -Verb RunAs -Wait "
+                    "-PassThru -ArgumentList '-NoProfile -Command "
+                    '"Set-Service ssh-agent -StartupType Automatic; '
+                    "Start-Service ssh-agent\"'; "
+                    "exit $process.ExitCode"
+                )
+                return Plan(
+                    commands=[
+                        ["powershell", "-NoProfile", "-Command", elevated],
+                        ["ssh-add", str(private)],
+                    ],
+                    instructions=[
+                        "Windows will ask for permission to enable and start its "
+                        "built-in ssh-agent service. Accept that UAC prompt. "
+                        "Back in this terminal, ssh-add will then ask for the "
+                        "key's passphrase."
+                    ],
+                    confirm="Ready to enable the Windows SSH agent and load the key?",
+                    needs_terminal=True,
+                    describe=(
+                        "Enable and start Windows' built-in ssh-agent service, then "
+                        f"load {private.name} into it"
+                    ),
+                    action="configure",
+                )
+            next_command = "pdkboot" if context.pdkboot else "bootstrap"
             return Plan(
                 instructions=[
                     "The ssh-agent service is not running. In a PowerShell window "
                     "opened as Administrator:\n"
                     "Set-Service ssh-agent -StartupType Automatic\n"
                     "Start-Service ssh-agent\n"
-                    "Then run bootstrap again in your normal window.",
+                    f"Then run {next_command} again in your normal window.",
                 ],
                 confirm="Have you started the ssh-agent service?",
                 # This run cannot see the service start: it is a separate
@@ -1010,13 +1131,15 @@ def _plan_ssh_agent(context: Context) -> Plan:
                 # re-check something that cannot have changed (#397).
                 needs_a_new_run=True,
             )
+        next_command = "pdkboot" if context.pdkboot else "bootstrap"
+        tool_name = "pdkboot" if context.pdkboot else "bootstrap"
         return Plan(
             instructions=[
-                "No ssh agent is running. Start one in this terminal - bootstrap "
+                f"No ssh agent is running. Start one in this terminal - {tool_name} "
                 "cannot do it for you, because the agent is found through a "
                 "variable that only the shell running it can set:\n"
                 'eval "$(ssh-agent -s)"\n'
-                "Then run bootstrap again in the same terminal.",
+                f"Then run {next_command} again in the same terminal.",
             ],
             confirm="Have you started an agent in this terminal?",
         )
@@ -1038,8 +1161,7 @@ def _plan_ssh_agent(context: Context) -> Plan:
         needs_terminal=True,
         commands=[command],
         instructions=[
-            "ssh-add will ask for the passphrase you gave the key when it "
-            "was created.",
+            "ssh-add will ask for the passphrase you gave the key when it was created.",
         ],
         confirm="Ready to load the key into the agent?",
     )
@@ -1143,6 +1265,14 @@ def _check_ssh_authenticates(context: Context) -> CheckResult:
     string is the only reliable signal, which is why every `Host` carries
     its own.
     """
+    if context.pdkboot:
+        key = _check_ssh_key(context)
+        if key.needs_work:
+            return _blocked("the SSH keypair is not ready yet")
+        agent = _check_ssh_agent(context)
+        if agent.needs_work:
+            return _blocked("the key is not available through the SSH agent yet")
+
     result = context.runner.run(_ssh_probe(context))
     combined = f"{result.stdout}\n{result.stderr}"
     if context.host.ssh_success in combined:
@@ -1240,8 +1370,7 @@ def _plan_ssh_upload(context: Context) -> Plan:
         # read. Naming the path is the best available, and the warning
         # against its neighbour matters more here than anywhere.
         key_field = (
-            f"Key: paste the contents of {public} - the .pub file, never the "
-            "one without it."
+            f"Key: paste the contents of {public} - the .pub file, never the one without it."
         )
 
     # Key first, Title second, because that is the order the form
@@ -1302,11 +1431,21 @@ def _plan_ssh_upload(context: Context) -> Plan:
 # 7. Template cloned (platform-independent)
 # ---------------------------------------------------------------------------
 
+
 def _check_clone(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "project_name")) is not None:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
+        if (
+            context.pdkboot
+            and not context.config.source_url.strip()
+            and project_on_host(context) is None
+        ):
+            return _blocked(
+                "where the project comes from cannot be decided until SSH access "
+                "to the host is ready"
+            )
         return _missing(f"{project} does not exist")
     if not (project / ".git").exists():
         return _wrong(f"{project} exists but is not a git repository")
@@ -1466,8 +1605,15 @@ def remote_is_only_its_first_readme(context: Context) -> bool:
     project = context.config.resolved_project_dir(context.home)
     with tempfile.TemporaryDirectory() as into:
         clone = context.runner.run(
-            [git_command(context), "clone", "--depth", "1", "--no-checkout",
-             _origin_url(context) or str(project), into]
+            [
+                git_command(context),
+                "clone",
+                "--depth",
+                "1",
+                "--no-checkout",
+                _origin_url(context) or str(project),
+                into,
+            ]
         )
         if not clone.ok:
             return False
@@ -1616,7 +1762,7 @@ def _file_mode_ignored(context: Context) -> bool:
 
 
 def _plan_fresh_history(context: Context) -> Plan:
-    """Deletes `.git` and starts again. There is no undo.
+    """Archives the template's `.git` directory and starts again.
 
     `core.fileMode false` comes with it, from the guide: git treats a
     change to a file's executable bit as a change to the file, and
@@ -1627,7 +1773,7 @@ def _plan_fresh_history(context: Context) -> Plan:
     project = context.config.resolved_project_dir(context.home)
     # A clone that already carries its own history has nothing to reset,
     # and this stage's other concern - core.fileMode - is a one-line
-    # setting. Returning the reset here offered to `rm -rf .git` on the
+    # setting. Returning the reset here offered to replace `.git` on the
     # reader's own project because a git *option* was unset: the exact
     # mistake `_check_fresh_history` says this stage must never make
     # (prodockit-extensions#332).
@@ -1636,41 +1782,78 @@ def _plan_fresh_history(context: Context) -> Plan:
         return Plan(
             cwd=str(project),
             commands=[[git_command(context), "config", "core.fileMode", "false"]],
+            action="configure",
         )
     git_dir = project / ".git"
-    remove = (
-        ["powershell", "-NoProfile", "-Command", f"Remove-Item -Recurse -Force '{git_dir}'"]
-        if context.platform == WINDOWS
-        else ["rm", "-rf", str(git_dir)]
-    )
+    if not context.pdkboot:
+        remove = (
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                f"Remove-Item -Recurse -Force '{git_dir}'",
+            ]
+            if context.platform == WINDOWS
+            else ["rm", "-rf", str(git_dir)]
+        )
+        return Plan(
+            cwd=str(project),
+            destructive=False,
+            confirm="Delete the template's history and start a new repository?",
+            instructions=[
+                "This deletes the template's commit history from your clone - every "
+                "commit, branch and tag - and cannot be undone. Your files are not "
+                "touched, only the history behind them.\n"
+                f"The directory is {project}.\n"
+                "Skip this if you want to keep the template's history.",
+            ],
+            commands=[
+                remove,
+                [git_command(context), "init", "-b", "main"],
+                [git_command(context), "config", "core.fileMode", "false"],
+            ],
+        )
+    # Outside the new repository: leaving the backup inside the project
+    # would make `git add -A` include the entire archived object database in
+    # the first commit.
+    backup = project.parent / f".{project.name}.git.pdk-template-backup"
+    suffix = 2
+    while backup.exists():
+        backup = project.parent / f".{project.name}.git.pdk-template-backup-{suffix}"
+        suffix += 1
+    if context.platform == WINDOWS:
+        # PowerShell escapes a literal apostrophe by doubling it inside a
+        # single-quoted string. Paths are data here, not script fragments.
+        source = str(git_dir).replace("'", "''")
+        destination = str(backup).replace("'", "''")
+        archive = [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            f"Move-Item -LiteralPath '{source}' -Destination '{destination}'",
+        ]
+    else:
+        archive = ["mv", str(git_dir), str(backup)]
     return Plan(
         cwd=str(project),
-        # Not marked destructive, and that is a change worth explaining.
-        #
-        # #259 made this the one prompt defaulting to No, because it is
-        # the one plan that cannot be undone. What it deletes, though, is
-        # only ever the *template's* history: a clone carrying the
-        # reader's own is never offered this at all - its plan is one
-        # `core.fileMode` setting (#332), and the stage is blocked while
-        # the decision is unmade (#348).
-        #
-        # So the answer here is always yes, and defaulting to No cost a
-        # student who pressed Enter a project stuck with the template's
-        # commits behind it (prodockit-extensions#356).
+        # The old history is moved aside, never deleted. The move itself is
+        # atomic on the same filesystem and refuses to overwrite an existing
+        # backup, so an interrupted reset remains recoverable.
         destructive=False,
-        confirm="Delete the template's history and start a new repository?",
+        confirm="Archive the template's history and start a new repository?",
         instructions=[
-            "This deletes the template's commit history from your clone - every "
-            "commit, branch and tag - and cannot be undone. Your files are not "
-            "touched, only the history behind them.\n"
+            "This moves the template's commit history out of the active clone - "
+            "every commit, branch and tag. Your files are not touched, and the "
+            f"old history can be recovered from {backup}.\n"
             f"The directory is {project}.\n"
             "Skip this if you want to keep the template's history.",
         ],
         commands=[
-            remove,
+            archive,
             [git_command(context), "init", "-b", "main"],
             [git_command(context), "config", "core.fileMode", "false"],
         ],
+        action="archive",
     )
 
 
@@ -1700,7 +1883,7 @@ def host_said(result: CommandResult) -> str:
     """
     for line in f"{result.stderr}\n{result.stdout}".splitlines():
         said = line.strip().removeprefix("remote:").strip()
-        if not said or said.lower().startswith(_GIT_NOISE):
+        if not said or set(said) <= {"=", "-"} or said.lower().startswith(_GIT_NOISE):
             continue
         return said
     return ""
@@ -1710,14 +1893,19 @@ def _check_own_project(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
         return unknown
     # Deliberately not blocked on the history reset. The repository lives
-    # on the *host*, and `rm -rf .git` is local - so nothing here is
-    # thrown away by the reset, unlike the repoint in the stage below.
+    # on the *host*, and archiving the local `.git` is local - so nothing
+    # here is thrown away by the reset, unlike the repoint in the stage below.
     #
     # Blocking it made the retry loop unescapable: the reader created the
     # repository, said yes, and was told the clone still points at the
     # template - a fact about their machine that creating a repository
     # cannot change (prodockit-extensions#336).
     url = context.host.remote_url(context.config.namespace, context.config.project_name)
+    if context.pdkboot and _check_ssh_authenticates(context).needs_work:
+        return _blocked(
+            "SSH access to the host is not ready yet - complete the 'SSH key on the "
+            "host' stage first"
+        )
     result = context.runner.run([git_command(context), "ls-remote", url])
     if result.ok:
         return _ok(url)
@@ -1791,9 +1979,7 @@ def _plan_own_project(context: Context) -> Plan:
             # (#324).
             *host.after_creating_steps,
         ],
-        confirm=(
-            f"Have you created the {host.project_word} on {host.hostname}?"
-        ),
+        confirm=(f"Have you created the {host.project_word} on {host.hostname}?"),
         # Instructions only, for the same reason as the SSH upload above:
         # `git ls-remote` is this stage's check, and a check run as a plan
         # command turns "you have not finished in the browser yet" - the
@@ -1837,9 +2023,7 @@ def _check_remote(context: Context) -> CheckResult:
     # advertising the template's repository on every page. Asking
     # sync-repo itself is the honest test, and the one that stays correct
     # as sync-repo grows.
-    synced = context.runner.run(
-        [*_prodockit_command(), "sync-repo", "--check"], cwd=str(project)
-    )
+    synced = context.runner.run([*_prodockit_command(), "sync-repo", "--check"], cwd=str(project))
     if not synced.ok:
         # Three results, not two. `--check` exits non-zero both for
         # "there is a difference" and for "I could not look", and saying
@@ -2107,17 +2291,24 @@ def _plan_pandoc(context: Context) -> Plan:
         v = PANDOC_VERSION
         deb_url = (
             f"https://github.com/jgm/pandoc/releases/download/{v}/"
-            f'pandoc-{v}-1-$(dpkg --print-architecture).deb'
+            f"pandoc-{v}-1-$(dpkg --print-architecture).deb"
         )
+        download_and_install = [
+            [
+                "bash",
+                "-c",
+                f'curl -fsSL -o /tmp/pandoc.deb "{deb_url}" && {APT_SH} install -y /tmp/pandoc.deb',
+            ]
+        ]
+        if context.pdkboot:
+            download_and_install = [
+                ["bash", "-c", f'curl -fsSL -o /tmp/pandoc.deb "{deb_url}"'],
+                _apt("install", "-y", "/tmp/pandoc.deb"),
+            ]
         return Plan(
             commands=[
                 _apt("install", "-y", "curl"),
-                [
-                    "bash",
-                    "-c",
-                    f'curl -fsSL -o /tmp/pandoc.deb "{deb_url}" '
-                    f"&& {APT_SH} install -y /tmp/pandoc.deb",
-                ],
+                *download_and_install,
                 _apt(
                     "install",
                     "-y",
@@ -2132,30 +2323,51 @@ def _plan_pandoc(context: Context) -> Plan:
     # Windows. The User Guide walks the reader through a MINGW64 shell
     # and the Environment Variables dialog; all three steps run
     # unattended, so they do.
-    # Both of these are facts about the machine rather than about this
+    # Both of these are facts about the installation rather than about this
     # project, and neither can be known from here: winget installs MSYS2
-    # where it likes, and an arm64 Windows gets the arm64 build, whose
-    # native environment is CLANGARM64 rather than MINGW64 - different
-    # package name, different DLL directory (#393). So the script settles
-    # them where they can actually be observed, on the machine, at the
-    # moment it runs.
-    arm, other = _MSYS2_ENVIRONMENTS["arm64"], _MSYS2_ENVIRONMENTS["other"]
+    # where it likes, and Pango must match the Python process that loads
+    # it. Windows on ARM may run x64 tools under emulation, so neither a
+    # PowerShell process nor the host architecture reliably answers that
+    # question. pdkboot asks its own Python interpreter (#393).
+    pandoc_upgrade = False
+    pandoc_install = _winget(
+        "JohnMacFarlane.Pandoc",
+        PANDOC_VERSION,
+        resilient=context.pdkboot,
+    )
+    if context.pdkboot:
+        installed = context.runner.run([pandoc_command(context), "--version"])
+        installed_version = _pandoc_version(installed.stdout) if installed.ok else None
+        installed_major = installed_version.split(".")[0] if installed_version else ""
+        if installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR:
+            pandoc_install = _winget_upgrade("JohnMacFarlane.Pandoc", PANDOC_VERSION)
+            pandoc_upgrade = True
+
+    environments = _PDKBOOT_MSYS2_ENVIRONMENTS if context.pdkboot else _MSYS2_ENVIRONMENTS
+    arm, other = environments["arm64"], environments["other"]
     roots = ", ".join(f'"{root}"' for root in _MSYS2_ROOTS)
+    if context.pdkboot:
+        selected = arm if _windows_python_is_arm64(context) else other
+        select_environment = f"$msysEnv = '{selected[0]}'; $pkg = '{selected[1]}'; "
+    else:
+        select_environment = (
+            "$nativeArch = $env:PROCESSOR_ARCHITECTURE; "
+            f"$msysEnv = if ($nativeArch -eq 'ARM64') {{ '{arm[0]}' }} "
+            f"else {{ '{other[0]}' }}; "
+            f"$pkg = if ($msysEnv -eq '{arm[0]}') {{ '{arm[1]}' }} "
+            f"else {{ '{other[1]}' }}; "
+        )
     pango = (
         "$roots = @(" + roots + "); "
-        "$root = $roots | Where-Object { Test-Path \"$_\\usr\\bin\\bash.exe\" } "
+        '$root = $roots | Where-Object { Test-Path "$_\\usr\\bin\\bash.exe" } '
         "| Select-Object -First 1; "
         "if (-not $root) { "
         "Write-Host \"MSYS2 was not found. Looked in: $($roots -join ', ')\"; "
-        "Write-Host \"Install it, or run pacman for pango in its own shell yourself.\"; "
-        "exit 1 }; "
-        f"$msysEnv = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {{ '{arm[0]}' }} "
-        f"else {{ '{other[0]}' }}; "
-        f"$pkg = if ($msysEnv -eq '{arm[0]}') {{ '{arm[1]}' }} else {{ '{other[1]}' }}; "
-        "Write-Host \"Using MSYS2 at $root ($msysEnv)\"; "
+        'Write-Host "Install it, or run pacman for pango in its own shell yourself."; '
+        "exit 1 }; " + select_environment + 'Write-Host "Using MSYS2 at $root ($msysEnv)"; '
         # `--needed` so a rerun is a no-op rather than a reinstall, and
         # `--noconfirm` because pacman asks otherwise.
-        "& \"$root\\usr\\bin\\bash.exe\" -lc \"pacman -S --noconfirm --needed $pkg\"; "
+        '& "$root\\usr\\bin\\bash.exe" -lc "pacman -S --noconfirm --needed $pkg"; '
         "exit $LASTEXITCODE"
     )
     # Appended only when absent: a PATH with the same entry on it four
@@ -2163,28 +2375,38 @@ def _plan_pandoc(context: Context) -> Plan:
     # follows the environment found above, for the same reason.
     path_entry = (
         "$roots = @(" + roots + "); "
-        "$root = $roots | Where-Object { Test-Path \"$_\\usr\\bin\\bash.exe\" } "
+        '$root = $roots | Where-Object { Test-Path "$_\\usr\\bin\\bash.exe" } '
         "| Select-Object -First 1; "
         "if (-not $root) { exit 1 }; "
-        f"$msysEnv = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {{ '{arm[0]}' }} "
-        f"else {{ '{other[0]}' }}; "
-        "$bin = Join-Path $root \"$msysEnv\\bin\"; "
+        + select_environment
+        + '$bin = Join-Path $root "$msysEnv\\bin"; '
         "$p=[Environment]::GetEnvironmentVariable('Path','User'); "
-        "if ($p -notlike \"*$bin*\") { "
-        "[Environment]::SetEnvironmentVariable('Path', $p + \";$bin\", 'User') }"
+        'if ($p -notlike "*$bin*") { '
+        "[Environment]::SetEnvironmentVariable('Path', $p + \";$bin\", 'User') }; "
+        "[Environment]::SetEnvironmentVariable("
+        "'WEASYPRINT_DLL_DIRECTORIES', $bin, 'User')"
     )
     return Plan(
         commands=[
-            _winget("JohnMacFarlane.Pandoc", PANDOC_VERSION),
-            _winget("MSYS2.MSYS2"),
+            pandoc_install,
+            _winget("MSYS2.MSYS2", resilient=context.pdkboot),
             ["powershell", "-NoProfile", "-Command", pango],
             ["powershell", "-NoProfile", "-Command", path_entry],
         ],
+        describe=(
+            f"Upgrade Pandoc to the supported {PANDOC_VERSION} release, then "
+            "prepare the Windows PDF libraries"
+            if pandoc_upgrade
+            else ""
+        ),
+        action="UPGRADE" if pandoc_upgrade else "",
+        destructive=pandoc_upgrade,
         # Independent of the winget install, so either order works - after
         # it, so the automated half is not held up behind a manual one.
         follow_up=[
-            "Close and reopen PowerShell, so the PATH entry just added takes "
-            "effect - anything started before it will not see MSYS2.",
+            "After setup finishes, open a new PowerShell before running build "
+            "commands yourself. pdkboot has refreshed its own PATH for this run, "
+            "so do not close this window now.",
             "Install the fonts the PDF uses, which Windows has no package "
             "manager for: download the desktop (.ttf/.otf) files for Inter and "
             "JetBrains Mono from fonts.google.com, select them all, right-click, "
@@ -2234,9 +2456,34 @@ def _venv_command(context: Context, name: str) -> Path:
     return venv / "bin" / name
 
 
+_MACOS_DYLD_MARKER = "# Added by pdkboot for WeasyPrint"
+
+
+def _homebrew_library_path(context: Context) -> str:
+    """The Homebrew library directory WeasyPrint's loader needs on macOS."""
+    prefix = context.runner.run(["brew", "--prefix"])
+    root = prefix.stdout.strip() if prefix.ok and prefix.stdout.strip() else "/opt/homebrew"
+    return str(Path(root) / "lib")
+
+
+def _macos_loader_is_configured(context: Context) -> bool:
+    activate = _project_venv(context) / "bin" / "activate"
+    try:
+        return _MACOS_DYLD_MARKER in activate.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
 def _imports_from_project_venv(context: Context, module: str) -> CommandResult:
     """Runs `import <module>` using the *project's* interpreter."""
-    return context.runner.run([str(_venv_python(context)), "-c", f"import {module}"])
+    command = [str(_venv_python(context)), "-c", f"import {module}"]
+    if context.pdkboot and context.platform == MACOS:
+        command = [
+            "env",
+            f"DYLD_FALLBACK_LIBRARY_PATH={_homebrew_library_path(context)}",
+            *command,
+        ]
+    return context.runner.run(command)
 
 
 def _check_project_env(context: Context) -> CheckResult:
@@ -2273,9 +2520,19 @@ def _check_project_env(context: Context) -> CheckResult:
         # Installed but unusable, which is exactly what WRONG is for -
         # and reinstalling it would not help, so the detail has to point
         # at the libraries rather than at pip.
+        library_source = {
+            MACOS: "Homebrew's libraries",
+            WINDOWS: "the MSYS2 libraries matching this Python's architecture",
+            UBUNTU: "the system Pango libraries",
+        }[context.platform]
         return _wrong(
             "WeasyPrint is installed but cannot load its graphics libraries - "
-            "the pandoc stage installs them, so re-run that first"
+            f"the pandoc stage installs {library_source}"
+        )
+    if context.pdkboot and context.platform == MACOS and not _macos_loader_is_configured(context):
+        return _wrong(
+            "WeasyPrint works in this run, but the project environment does not yet "
+            "preserve Homebrew's library path for future shells"
         )
     # Says whose environment it is. There are two in a finished setup -
     # prodockit's own and this one - and a reader who has just been asked
@@ -2360,15 +2617,17 @@ def _venv_recipe(context: Context, interpreter: str = "") -> list[str]:
     """
     if context.platform == WINDOWS:
         home = r"%USERPROFILE%"
+        command = "pdkboot" if context.pdkboot else "pdk bootstrap"
         return [
             rf"{interpreter or 'py'} -m venv {home}\.venvs\prodockit",
             rf"{home}\.venvs\prodockit\Scripts\pip install prodockit",
-            rf"{home}\.venvs\prodockit\Scripts\pdk bootstrap",
+            rf"{home}\.venvs\prodockit\Scripts\{command}",
         ]
+    command = "pdkboot" if context.pdkboot else "pdk bootstrap"
     return [
         f"{interpreter or 'python3'} -m venv ~/.venvs/prodockit",
         "~/.venvs/prodockit/bin/pip install prodockit",
-        "~/.venvs/prodockit/bin/pdk bootstrap",
+        f"~/.venvs/prodockit/bin/{command}",
     ]
 
 
@@ -2383,7 +2642,7 @@ def _plan_own_venv(context: Context) -> Plan:
     installers = {
         UBUNTU: _apt("install", "-y", "python3-venv"),
         MACOS: ["brew", "install", "python@3.13"],
-        WINDOWS: _winget("Python.Python.3.13"),
+        WINDOWS: _winget("Python.Python.3.13", resilient=context.pdkboot),
     }
     missing_machinery = not _can_build_environments(context)
     return Plan(
@@ -2430,9 +2689,21 @@ def _plan_project_env(context: Context) -> Plan:
     commands: list[list[str]] = []
     if not python.exists():
         commands.append([sys.executable, "-m", "venv", str(venv)])
-    commands.append(
-        [str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")]
-    )
+    commands.append([str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")])
+    if context.pdkboot and context.platform == MACOS:
+        activate = venv / "bin" / "activate"
+        library = _homebrew_library_path(context)
+        script = (
+            "from pathlib import Path; import sys\n"
+            "path = Path(sys.argv[1]); marker = sys.argv[2]; library = sys.argv[3]\n"
+            "text = path.read_text(encoding='utf-8')\n"
+            "line = 'export DYLD_FALLBACK_LIBRARY_PATH=\"' + library + "
+            "'${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}\"'\n"
+            "if marker not in text:\n"
+            "    updated = text.rstrip() + '\\n\\n' + marker + '\\n' + line + '\\n'\n"
+            "    path.write_text(updated, encoding='utf-8')\n"
+        )
+        commands.append([sys.executable, "-c", script, str(activate), _MACOS_DYLD_MARKER, library])
     return Plan(cwd=str(project), commands=commands)
 
 
@@ -2513,6 +2784,18 @@ def _check_node(context: Context) -> CheckResult:
     return _ok(f"node {raw}")
 
 
+def _node_runtime_state(context: Context) -> tuple[int | None, bool]:
+    """Installed Node major and whether its npm companion is runnable."""
+    result = context.runner.run([node_command(context), "--version"])
+    if not result.ok:
+        return None, False
+    raw = result.stdout.strip().lstrip("v")
+    major = raw.split(".")[0] if raw else ""
+    parsed = int(major) if major.isdigit() else None
+    npm_ok = context.runner.run([npm_command(context), "--version"]).ok
+    return parsed, npm_ok
+
+
 def _chromium_ready(context: Context) -> bool:
     """Whether Mermaid has a browser it can actually use, on Ubuntu.
 
@@ -2545,23 +2828,47 @@ def _puppeteer_exports() -> str:
     because the path does not exist yet when the plan is built - the same
     plan installs Chromium a command earlier.
     """
-    return (
-        f"export {PUPPETEER_PATH_VAR}={_WHICH_CHROMIUM}; "
-        f"export {PUPPETEER_SKIP_VAR}=true; "
-    )
+    return f"export {PUPPETEER_PATH_VAR}={_WHICH_CHROMIUM}; export {PUPPETEER_SKIP_VAR}=true; "
 
 
 def _plan_node(context: Context) -> Plan:
     project = context.config.resolved_project_dir(context.home)
+    ubuntu_node_install = [
+        _apt("install", "-y", "curl"),
+        ["bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"],
+        _apt("install", "-y", "nodejs"),
+    ]
+    if context.pdkboot:
+        ubuntu_node_install = [
+            _apt("install", "-y", "curl"),
+            [
+                "curl",
+                "-fsSL",
+                "-o",
+                "/tmp/nodesource-setup.sh",
+                "https://deb.nodesource.com/setup_22.x",
+            ],
+            ["sudo", "-E", "bash", "/tmp/nodesource-setup.sh"],
+            _apt("install", "-y", "nodejs"),
+        ]
     install = {
         MACOS: [["brew", "install", "node"]],
-        UBUNTU: [
-            _apt("install", "-y", "curl"),
-            ["bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"],
-            _apt("install", "-y", "nodejs"),
-        ],
-        WINDOWS: [_winget("OpenJS.NodeJS.LTS")],
+        UBUNTU: ubuntu_node_install,
+        WINDOWS: [_winget("OpenJS.NodeJS.LTS", resilient=context.pdkboot)],
     }[context.platform]
+
+    upgrade = False
+    repair = False
+    if context.pdkboot:
+        major, npm_ok = _node_runtime_state(context)
+        if major is not None and major >= NODE_MAJOR and npm_ok:
+            install = []
+        elif context.platform == WINDOWS and major is not None and major < NODE_MAJOR:
+            install = [_winget_upgrade("OpenJS.NodeJS.LTS")]
+            upgrade = True
+        elif context.platform == WINDOWS and major is not None and not npm_ok:
+            install = [_winget_repair("OpenJS.NodeJS.LTS")]
+            repair = True
 
     mermaid = str(project / "tools" / "mermaid")
     mathjax = str(project / "tools" / "mathjax")
@@ -2572,7 +2879,23 @@ def _plan_node(context: Context) -> Plan:
                 *install,
                 [npm_command(context), "ci", "--prefix", mermaid],
                 [npm_command(context), "ci", "--prefix", mathjax],
-            ]
+            ],
+            describe=(
+                f"Upgrade Node to the supported {NODE_MAJOR}.x release, then install "
+                "the project toolchains"
+                if upgrade
+                else (
+                    "Repair the existing Node installation so npm works, then install "
+                    "the project toolchains"
+                    if repair
+                    else ""
+                )
+            ),
+            action="UPGRADE" if upgrade else ("REPAIR" if repair else ""),
+            # An upgrade or repair of an existing runtime is an explicit
+            # decision. A fresh install and npm's project-local work keep the
+            # established yes default.
+            destructive=upgrade or repair,
         )
 
     # Chromium first, and the exports before `npm ci` rather than after.
@@ -2693,6 +3016,25 @@ path, incoming = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])
 path.parent.mkdir(parents=True, exist_ok=True)
 try:
     current = json.loads(path.read_text(encoding="utf-8") or "{}")
+except FileNotFoundError:
+    current = {}
+if not isinstance(current, dict):
+    raise ValueError(f"{path} is not a JSON object")
+raw_associations = current.get("files.associations")
+associations = dict(raw_associations) if isinstance(raw_associations, dict) else {}
+associations.update(incoming.pop("files.associations", {}))
+if associations:
+    current["files.associations"] = associations
+current.update(incoming)
+path.write_text(json.dumps(current, indent=2) + "\\n", encoding="utf-8")
+"""
+
+_LEGACY_MERGE_SETTINGS = """
+import json, sys, pathlib
+path, incoming = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])
+path.parent.mkdir(parents=True, exist_ok=True)
+try:
+    current = json.loads(path.read_text(encoding="utf-8") or "{}")
 except (OSError, ValueError):
     current = {}
 if not isinstance(current, dict):
@@ -2769,8 +3111,20 @@ def _check_vscode_settings(context: Context) -> CheckResult:
     path = _settings_path(context)
     try:
         current = json.loads(path.read_text(encoding="utf-8") or "{}")
-    except (OSError, ValueError):
+    except FileNotFoundError:
         return _missing(f"{path} is not there yet")
+    except OSError:
+        return (
+            _wrong(f"{path} cannot be read")
+            if context.pdkboot
+            else _missing(f"{path} is not there yet")
+        )
+    except ValueError:
+        return (
+            _wrong(f"{path} is not valid JSON")
+            if context.pdkboot
+            else _missing(f"{path} is not there yet")
+        )
     if not isinstance(current, dict):
         return _wrong(f"{path} is not a JSON object")
 
@@ -2789,6 +3143,28 @@ def _check_vscode_settings(context: Context) -> CheckResult:
 
 
 def _plan_vscode_settings(context: Context) -> Plan:
+    path = _settings_path(context)
+    if context.pdkboot and path.exists():
+        try:
+            current = json.loads(path.read_text(encoding="utf-8") or "{}")
+        except (OSError, ValueError):
+            return Plan(
+                instructions=[
+                    f"{path} already exists but is not valid JSON. It has been left "
+                    "unchanged. Remove comments or trailing commas (which VS Code "
+                    "accepts but JSON tools do not), then save the file."
+                ],
+                confirm="Have you repaired the existing VS Code settings file?",
+            )
+        if not isinstance(current, dict):
+            return Plan(
+                instructions=[
+                    f"{path} is a valid JSON value, but VS Code settings must be a "
+                    "JSON object. It has been left unchanged; replace the outer "
+                    "value with an object before continuing."
+                ],
+                confirm="Have you repaired the existing VS Code settings file?",
+            )
     language = _reader_language(context)
     wanted = "Markdown opens in Zensical Studio's editor"
     if language is not None:
@@ -2799,11 +3175,11 @@ def _plan_vscode_settings(context: Context) -> Plan:
             [
                 sys.executable,
                 "-c",
-                _MERGE_SETTINGS,
+                _MERGE_SETTINGS if context.pdkboot else _LEGACY_MERGE_SETTINGS,
                 str(_settings_path(context)),
                 json.dumps(_wanted_settings(context)),
             ]
-        ]
+        ],
     )
 
 
@@ -2925,9 +3301,7 @@ def _check_mathjax(context: Context) -> CheckResult:
         return _missing("no project to install it into yet")
     source, bundle, config = _mathjax_paths(context)
     absent = [
-        name
-        for name, path in (("the config", config), ("the bundle", bundle))
-        if not path.exists()
+        name for name, path in (("the config", config), ("the bundle", bundle)) if not path.exists()
     ]
     if absent:
         return _missing(f"{' and '.join(absent)} for the website is not installed")
@@ -2978,7 +3352,7 @@ def site_url(context: Context) -> str:
     return template.format(namespace=namespace, project=project)
 
 
-def _http_status(context: Context, url: str) -> int | None:
+def _http_probe(context: Context, url: str) -> tuple[int | None, str]:
     """What a stranger gets from `url`, or `None` if the asking failed.
 
     `None` is not a status and must never be read as one - a refused
@@ -2995,7 +3369,46 @@ def _http_status(context: Context, url: str) -> int | None:
     login-walled site is recognised as published.
     """
     answer = context.fetch(url)
-    return answer.status if answer is not None else None
+    if answer is not None:
+        return int(answer.status), ""
+    if not context.pdkboot:
+        return None, ""
+    # Python's TLS trust can differ from the operating system's on macOS.
+    # curl uses the system trust store, so it is a useful second opinion.
+    curl = "curl.exe" if context.platform == WINDOWS else "curl"
+    result = context.runner.run(
+        [
+            curl,
+            "-sS",
+            "-o",
+            os.devnull,
+            "-w",
+            "%{http_code}",
+            "--max-redirs",
+            "0",
+            "--connect-timeout",
+            "20",
+            url,
+        ]
+    )
+    match = re.search(r"\b([1-5]\d\d)\b", result.stdout)
+    if match:
+        return int(match.group(1)), ""
+    combined = f"{result.stdout}\n{result.stderr}".lower()
+    certificate_errors = (
+        "sec_e_untrusted_root",
+        "certificate chain was issued by an authority that is not trusted",
+        "certificate verify failed",
+        "ssl certificate problem",
+    )
+    if any(error in combined for error in certificate_errors):
+        return None, "the certificate chain is not trusted by this machine"
+    return None, ""
+
+
+def _http_status(context: Context, url: str) -> int | None:
+    """Compatibility wrapper for callers that need only the status."""
+    return _http_probe(context, url)[0]
 
 
 def _site_answers(context: Context) -> bool:
@@ -3038,7 +3451,7 @@ def _check_site_published(context: Context) -> CheckResult:
         # than the gap it reports - but the detail says it was not
         # checked, rather than implying a site was found.
         return _ok(f"not checked - {context.host.hostname} publishes at no fixed address")
-    status = _http_status(context, url)
+    status, probe_problem = _http_probe(context, url)
     if status == 200:
         # Said plainly, because it is the part readers get wrong: a Pages
         # site is readable by anyone, even when the repository behind it
@@ -3050,7 +3463,17 @@ def _check_site_published(context: Context) -> CheckResult:
         # Nobody said the site is missing - the question was never put.
         # curl arrives with the Pandoc stage, so a run that has not got
         # that far has no way to ask (prodockit-extensions#374).
-        return _missing(f"could not check {url} from here - the probe did not run")
+        if probe_problem:
+            detail = f"could not verify {url} because {probe_problem}"
+        else:
+            detail = f"could not check {url} from here - the probe did not run"
+        if context.pdkboot:
+            return CheckResult(
+                Status.MISSING,
+                f"{detail}; confirm it in your browser",
+                verifiable=False,
+            )
+        return _missing(detail)
     if status in (401, 403) or 300 <= status < 400:
         # A login wall is proof the site is there. A university instance
         # publishes behind its own sign-in, so an anonymous probe is sent
@@ -3080,6 +3503,11 @@ def _plan_site_published(context: Context) -> Plan:
     """
     host = context.host
     url = site_url(context)
+    readme = context.config.resolved_project_dir(context.home) / "README.md"
+    try:
+        readme_already_links_to_site = url in readme.read_text(encoding="utf-8")
+    except OSError:
+        readme_already_links_to_site = False
     return Plan(
         instructions=[
             f"Push your first commit, and the workflow will publish {url}.",
@@ -3087,7 +3515,7 @@ def _plan_site_published(context: Context) -> Plan:
             # call, and asking a reader to install and sign into a command
             # line for one field was four ways to go wrong for a link they
             # can paste in ten seconds (#357).
-            *host.site_link_steps,
+            *(() if readme_already_links_to_site else host.site_link_steps),
             "It enables Pages itself, so there is nothing to switch on.",
             *([host.site_visibility_note] if host.site_visibility_note else []),
             *([host.site_missing_note] if host.site_missing_note else []),
@@ -3135,13 +3563,20 @@ def _push_refused(context: Context) -> str:
     return next((sign for sign in _PUSH_REFUSED_SIGNS if sign in said), "")
 
 
-def _has_uncommitted_work(context: Context) -> bool:
-    """Whether the project has changes that are not in a commit yet."""
+def _uncommitted_work(context: Context) -> list[str]:
+    """The exact porcelain-status lines a first commit would include."""
     project = context.config.resolved_project_dir(context.home)
     pending = context.runner.run(
         [git_command(context), "-C", str(project), "status", "--porcelain"]
     )
-    return bool(pending.ok and pending.stdout.strip())
+    if not pending.ok:
+        return []
+    return [line for line in pending.stdout.splitlines() if line.strip()]
+
+
+def _has_uncommitted_work(context: Context) -> bool:
+    """Whether the project has changes that are not in a commit yet."""
+    return bool(_uncommitted_work(context))
 
 
 def _check_first_push(context: Context) -> CheckResult:
@@ -3278,6 +3713,7 @@ def _plan_first_push(context: Context) -> Plan:
     and the fonts out.
     """
     project = context.config.resolved_project_dir(context.home)
+    pending = _uncommitted_work(context)
     return Plan(
         cwd=str(project),
         commands=[
@@ -3302,17 +3738,21 @@ def _plan_first_push(context: Context) -> Plan:
             # 1, so the retry failed before reaching the push: the one
             # state the stage could not make progress from was the one it
             # had just reached (prodockit-extensions#414).
-            *(
-                [[git_command(context), "commit", "-m", "Initial commit"]]
-                if _has_uncommitted_work(context)
-                else []
-            ),
+            *([[git_command(context), "commit", "-m", "Initial commit"]] if pending else []),
             *_adopt_commands(context),
             _push_command(context),
         ],
         instructions=[
             "This builds the site once, commits everything in the project, "
             "and pushes it - which is what publishes it.",
+            *(
+                [
+                    "These are the exact uncommitted changes that `git add -A` "
+                    "will include:\n" + "\n".join(f"  {line}" for line in pending)
+                ]
+                if context.pdkboot and pending
+                else []
+            ),
             *(
                 [
                     "The repository was created with a README, which nothing here "
@@ -3476,6 +3916,11 @@ def _check_clone_source(context: Context) -> CheckResult:
             context.config.namespace.strip(), context.config.project_name.strip()
         )
         if project_on_host(context) is None:
+            if context.pdkboot:
+                return _blocked(
+                    f"could not yet ask {context.host.hostname} about {probed} - "
+                    "this stage will be rechecked after SSH is ready"
+                )
             return _ok(
                 f"could not reach {context.host.hostname} to ask about {probed} - "
                 "the template will be cloned"
@@ -3500,7 +3945,12 @@ def _plan_clone_source(context: Context) -> Plan:
     """
     name = f"{context.config.namespace.strip()}/{context.config.project_name.strip()}"
     return Plan(
-        instructions=[f"{name} already exists on {context.host.hostname} and has content in it."],
+        instructions=[
+            f"{name} already exists on {context.host.hostname} and has content in it.",
+            f"Open https://{context.host.hostname}/{name} and confirm this exact active "
+            "project opens without redirecting to an archived or deletion-scheduled name "
+            "before choosing. Git can still follow a renamed project's old address.",
+        ],
         choices=(
             f"clone the full repo {name!r}, then leave the existing git records and "
             "sync origin unchanged",
