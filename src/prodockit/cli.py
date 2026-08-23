@@ -1870,8 +1870,8 @@ def _run_template_sync(
         raise TemplateSyncError(_wrong_directory(project))
     if push and not do_apply:
         raise TemplateSyncError(
-            "--push finishes a run that wrote something, so it needs --apply too. "
-            "Without --apply this only reports, and there is nothing to push"
+            "--push sends an applied update to GitHub or GitLab, so use it with "
+            "--apply: prodockit template-sync --apply --push"
         )
     git = git_runner(project)
 
@@ -1883,7 +1883,15 @@ def _run_template_sync(
         click.echo(text)
         logged.append(text)
 
-    def say_report(render: Callable[..., Iterable[str]], *args: Any) -> None:
+    def say_detail(text: str = "") -> None:
+        """Keep diagnostic detail in the log; show it with --verbose."""
+        if verbose:
+            click.echo(text)
+        logged.append(text)
+
+    def say_report(
+        render: Callable[..., Iterable[str]], *args: Any, details_only: bool = False
+    ) -> None:
         """A block the terminal may want in summary and the log always in full.
 
         Rendered twice rather than once: the reports are pure functions
@@ -1891,17 +1899,20 @@ def _run_template_sync(
         terminal was asked for is no use for diagnosing the run that did
         not ask for --verbose.
         """
-        for line in render(*args, verbose=verbose):
-            click.echo(f"  {line}")
+        if verbose or not details_only:
+            for line in render(*args, verbose=verbose):
+                click.echo(f"  {line}")
         logged.extend(f"  {line}" for line in render(*args, verbose=True))
 
     try:
+        say("Checking this project for template updates...")
+        say_detail()
 
         # 1. Which template this project tracks.
         if template_path:
             # Named outright, so nothing is derived and nothing is fetched.
             template = pathlib.Path(template_path).resolve()
-            say(f"template  {template}  (--template-path)")
+            say_detail(f"Template source: {template} (--template-path)")
         else:
             remote = subprocess.run(
                 ["git", "-C", str(project), "remote", "get-url", "origin"],
@@ -1911,11 +1922,11 @@ def _run_template_sync(
                 check=False,
             ).stdout.strip()
             template_remote = resolve_template(remote or None, github=github, surrey=surrey)
-            say(f"template  {template_remote}")
+            say_detail(f"Template source: {template_remote}")
             template, how = _template_checkout(project, template_remote)
-            say(f"checkout  {template}  ({how})")
+            say_detail(f"Template checkout: {template} ({how})")
 
-        say()
+        say_detail()
 
         # 2. What the manifest says.
         manifest_path = template / MANIFEST_FILE
@@ -1932,8 +1943,8 @@ def _run_template_sync(
             encoding="utf-8",
             check=False,
         ).stdout.split()
-        say_report(classification_report, manifest, files)
-        say()
+        say_report(classification_report, manifest, files, details_only=True)
+        say_detail()
 
         # 3. Where this project came from.
         stamp = read_stamp(project)
@@ -1980,9 +1991,12 @@ def _run_template_sync(
             [stamp] if stamp else versions,
             blob_at,
         )
-        say(f"baseline  {'recorded' if stamp else 'derived by content'}")
-        say_report(baseline_report, baseline)
-        say()
+        say_detail(
+            "Comparison point: "
+            + ("recorded by an earlier sync" if stamp else "worked out from file contents")
+        )
+        say_report(baseline_report, baseline, details_only=True)
+        say_detail()
 
         # 4. Whether it is safe to write.
         dirty = [
@@ -1998,8 +2012,10 @@ def _run_template_sync(
         blocked = blocking_changes(manifest, dirty)
         if blocked:
             raise TemplateSyncError(
-                "commit or revert these first - they are the template's files and an "
-                f"update would write over them: {', '.join(blocked)}"
+                "these files have changes that have not been committed, and the "
+                f"template may need to update them: {', '.join(blocked)}. Commit or "
+                "undo those changes, then run template-sync again; nothing has been "
+                "changed by this run"
             )
 
         # 5 and 6. What would change.
@@ -2011,10 +2027,10 @@ def _run_template_sync(
             baseline,
             force=force,
         )
-        say_report(update_report, plan)
-        say()
 
-        # 8 and 9, reported whether or not anything is written.
+        # 7 to 9. Work out every change before reporting, including shared
+        # settings and starter files. A preview that reports only ordinary
+        # template files is not a preview of what --apply will do.
         ignores_path = project / ".gitignore"
         ignores = missing_ignores(
             manifest,
@@ -2030,21 +2046,6 @@ def _run_template_sync(
                 check=False,
             ).stdout.split(),
         )
-        if stale:
-            say(f"  {len(stale)} file(s) here are no longer delivered, and are left alone:")
-            for path in stale if verbose else stale[:3]:
-                click.echo(f"      {path}")
-            if not verbose and len(stale) > 3:
-                click.echo(f"      ... and {len(stale) - 3} more")
-            logged.extend(f"      {path}" for path in stale)
-            say()
-
-        if not do_apply:
-            say(
-                "No project files written - only the log below. "
-                "Re-run with --apply to make these changes."
-            )
-            return
 
         config_path = project / "zensical.toml"
         template_config: dict[str, Any] = {}
@@ -2065,20 +2066,92 @@ def _run_template_sync(
         # unedited files as edited.
         wanted_stamp = versions[0] if versions else (baseline.version or "")
         stamp_is_stale = bool(baseline.version) and read_stamp(project) != wanted_stamp
+        work_needed = bool(pending or seeds or added or updated or ignores or stamp_is_stale)
 
-        if not (pending or seeds or added or updated or ignores or stamp_is_stale):
+        # Normal mode answers the author's questions and stops. Diagnostic
+        # classification, baseline and every routine filename remain in
+        # --verbose and in the always-detailed log.
+        decisions = [action for action in plan if action.action in {"keep", "forced"}]
+        summary_actions = list(pending)
+        summary_actions.extend(action for action in decisions if action not in summary_actions)
+
+        say("Changes available:" if work_needed else "Result:")
+        terminal_actions = plan if verbose else summary_actions
+        for line in update_report(terminal_actions, verbose=verbose):
+            say(f"  {line}")
+        if not verbose:
+            logged.extend(f"  {line}" for line in update_report(plan, verbose=True))
+
+        if seeds:
+            say(f"  Starter files to add: {len(seeds)}")
+            for path in seeds:
+                say_detail(f"      {manifest.rename(path)}")
+        if added or updated:
+            say(
+                "  Project settings to update: "
+                f"{len(added) + len(updated)} "
+                f"({len(added)} new, {len(updated)} changed)"
+            )
+            for key in added:
+                say_detail(f"      add {key}")
+            for key in updated:
+                say_detail(f"      update {key}")
+        if ignores:
+            say(f"  Other project setup updates: {len(ignores)}")
+            for entry in ignores:
+                say_detail(f"      {entry}")
+        if stamp_is_stale and not (pending or seeds or added or updated or ignores):
+            say("  The saved template version needs refreshing; no project content will change.")
+
+        kept = [action for action in plan if action.action == "keep"]
+        forced = [action for action in plan if action.action == "forced"]
+        if kept:
+            say()
+            say("Your edited files are protected:")
+            say("  Without --force, your versions stay unchanged.")
+            say("  The newer template copies will be saved beside them as .new files.")
+            say(
+                "  For each file you want to replace, add `--force FILE-PATH`, "
+                "using the file path shown above."
+            )
+        if forced:
+            say()
+            say("You used --force:")
+            say("  The named files will be replaced by the template versions.")
+            say("  Remove --force to keep your versions instead.")
+
+        if stale:
+            say_detail(f"Older template files left alone: {len(stale)}")
+            for path in stale:
+                say_detail(f"      {path}")
+
+        say()
+        if not do_apply:
+            if work_needed:
+                say("Preview only - no template changes have been made.")
+                say("Add `--apply` to the command you just ran to make these changes.")
+            elif kept:
+                say("No safe changes need applying; the files you edited remain unchanged.")
+            else:
+                say("Your project is already up to date with the template.")
+            return
+
+        if not work_needed:
             # Nothing to do, so no branch. A run that branched anyway left
             # an empty branch behind, which then blocked the next run - the
             # ordinary way to use this is to run it repeatedly, and most of
             # those runs find nothing.
-            say("Already in step with the template - nothing to write.")
+            say("Your project is already up to date with the template. Nothing was changed.")
             return
 
         # 10, first: the branch, before anything is written.
         name = branch_name(baseline.version or "unknown")
         if not start_branch(git, name):
-            raise TemplateSyncError(f"could not switch to {name} - is this a git repository?")
-        say(f"on branch {name}")
+            raise TemplateSyncError(
+                f"could not create or open the separate update branch {name}. "
+                "Nothing has been changed"
+            )
+        say(f"Applying the update on a separate branch: {name}")
 
         written = apply_file_actions(plan, project, lambda p: (template / p).read_bytes())
         written += apply_seeds(manifest, project, lambda p: (template / p).read_bytes())
@@ -2088,14 +2161,14 @@ def _run_template_sync(
         also_written: list[str] = []
 
         if config_path.exists() and (added or updated):
-                config_path.write_text(
-                    apply_config_changes(
-                        config_path.read_text(encoding="utf-8"), template_config, added, updated
-                    ),
-                    encoding="utf-8",
-                )
-                say(f"zensical.toml  {len(added)} added, {len(updated)} updated")
-                also_written.append("zensical.toml")
+            config_path.write_text(
+                apply_config_changes(
+                    config_path.read_text(encoding="utf-8"), template_config, added, updated
+                ),
+                encoding="utf-8",
+            )
+            say_detail(f"zensical.toml: {len(added)} settings added, {len(updated)} updated")
+            also_written.append("zensical.toml")
 
         if ignores:
             ignores_path.write_text(
@@ -2105,12 +2178,12 @@ def _run_template_sync(
                 ),
                 encoding="utf-8",
             )
-            say(f".gitignore     {len(ignores)} line(s) appended")
+            say_detail(f".gitignore: {len(ignores)} entries added")
             also_written.append(".gitignore")
 
         say()
-        for line in written_report(written):
-            say(f"  {line}")
+        say("Changes made:")
+        say_report(written_report, written)
 
         # 10, last: the stamp describes a state that now exists.
         if baseline.version:
@@ -2119,7 +2192,9 @@ def _run_template_sync(
         stage_changes(git, [w.path for w in written] + also_written)
         say()
         if not push:
-            say("Staged, not committed - the commit is yours to write.")
+            say("The changes are ready for you to review.")
+            say("Nothing has been committed or sent to GitHub or GitLab.")
+            say_detail("Git detail: the changes are staged but not committed.")
             return
 
         # 11: onto the branch the host actually builds from. A sync sitting
@@ -2130,30 +2205,33 @@ def _run_template_sync(
         target = default_branch(read)
         if target is None:
             raise TemplateSyncError(
-                "cannot tell which branch this host builds from, so --push has "
-                "nowhere to merge to - merge and push by hand"
+                "cannot find the main branch to update. The changes remain ready on "
+                f"{name}; nothing has been sent to GitHub or GitLab"
             )
         blockers = publish_blockers(read, target, name)
         if blockers:
-            say("Staged, not committed. --push cannot finish here:")
+            say("The changes are ready, but cannot be sent directly to the main project:")
             for problem in blockers:
                 say(f"  - {problem}")
+            say("Nothing has been committed or sent to GitHub or GitLab.")
             return
 
         version = wanted_stamp[:9] if wanted_stamp else "the template"
         message = f"Sync with the template at {version}"
-        say("--push would now, on your confirmation:")
-        say(f"  commit  {len(written) + len(also_written)} file(s) on {name}")
-        say(f"  merge   {name} into {target}")
-        say(f"  push    {target} to origin - which is what starts the pipeline")
+        say("Ready to update the main project directly:")
+        say(f"  Save this update as one commit ({len(written) + len(also_written)} files).")
+        say(f"  Add it to {target}.")
+        say(f"  Send {target} to GitHub or GitLab, which starts the site build.")
+        say("  This does not create a pull request or merge request.")
         say()
-        if not click.confirm("Go ahead?", default=False):
-            say("Left staged and uncommitted. Nothing was merged or pushed.")
+        if not click.confirm("Update the main project now?", default=False):
+            say("Stopped safely. Nothing was committed or sent to GitHub or GitLab.")
             return
 
         publish(git, name, target, message)
         say()
-        say(f"Merged into {target} and pushed. The pipeline builds from here.")
+        say(f"Updated {target} and sent it to GitHub or GitLab.")
+        say("The automated site build can now start.")
     finally:
         # Written however the run ended. A run that raised is the one
         # most worth reading afterwards, so the log is not conditional
@@ -2220,24 +2298,28 @@ def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path
     "--apply",
     "do_apply",
     is_flag=True,
-    help="Write the changes. Without this the run only reports, and touches "
-    "nothing but its own log.",
+    help="Make the reported changes on a separate branch. Without --apply, "
+    "template-sync only previews them.",
 )
-@click.option("--verbose", is_flag=True, help="List every file, not just the counts.")
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Show the template source, comparison details, and individual file paths.",
+)
 @click.option(
     "--push",
     is_flag=True,
-    help="After writing, commit the sync, merge it into the branch your host "
-    "builds from, and push - so the site rebuilds. Asks first, and needs --apply.",
+    help="After asking, commit the update and send it directly to main so the site "
+    "rebuilds. Use only if your project does not require a PR/MR. Needs --apply.",
 )
 @click.option(
     "--force",
     "force",
     multiple=True,
-    metavar="PATH",
+    metavar="FILE-PATH",
     help=(
-        "Overwrite a file you have edited, by name. Repeatable. Only reaches "
-        "files this reports as kept; anything else is unaffected."
+        "Replace one edited file with the template's version. Use the path shown "
+        "in the report. Repeat --force FILE-PATH for another file."
     ),
 )
 @click.option(
@@ -2279,19 +2361,14 @@ def template_sync(
     surrey: str | None,
     template_path: str | None,
 ) -> None:
-    """Bring a project back into step with the template it came from.
+    """Check for and apply updates from the project's template.
 
-    Updates the template's own files - stylesheets, CI, the Node tooling -
-    and leaves everything else alone. The report, its figures and its
-    bibliography are never written, and never even read for comparison.
+    Your writing, figures, and bibliography are left alone. Without --apply,
+    this only previews the changes. With --apply, it makes the changes on a
+    separate branch for you to review.
 
-    Reports by default, writing no project file. `--apply` performs the
-    same run, on a branch of its own, and stages the result without
-    committing it.
-
-    Every run, either way, appends its full account to
-    `.prodockit-template.log` - and adds that file to `.gitignore` if it
-    is not there already. Send that log when reporting a problem.
+    Use --verbose for technical details. Every run also keeps those details in
+    .prodockit-template.log for troubleshooting.
     """
     from prodockit.template_sync import TemplateSyncError
 

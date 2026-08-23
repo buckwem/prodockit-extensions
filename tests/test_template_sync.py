@@ -405,9 +405,9 @@ def test_the_summary_counts_every_file_exactly_once() -> None:
     tree - a reader sees nothing was missed without reading every line."""
     lines = classification_report(load_manifest(MANIFEST), FILES)
 
-    counts = {line.split()[0]: int(line.split()[1]) for line in lines}
-    assert counts == {"template": 2, "project": 2, "shared": 1, "excluded": 1}
-    assert sum(counts.values()) == len(FILES)
+    counts = [int(re.search(r": (\d+) \(", line).group(1)) for line in lines]
+    assert counts == [2, 2, 1, 1]
+    assert sum(counts) == len(FILES)
 
 
 def test_the_summary_stays_a_summary() -> None:
@@ -438,8 +438,8 @@ def test_an_unclassified_file_is_reported_even_though_the_group_is_usually_absen
     quiet = classification_report(manifest, ["macros.py"])
     noisy = classification_report(manifest, ["macros.py", "tools/x.json"], verbose=True)
 
-    assert not any("unclassified" in line for line in quiet)
-    assert any("unclassified" in line for line in noisy)
+    assert not any("Missing a template rule" in line for line in quiet)
+    assert any("Missing a template rule" in line for line in noisy)
     assert any("tools/x.json" in line for line in noisy)
 
 
@@ -451,7 +451,7 @@ def test_the_edited_files_are_always_listed() -> None:
     lines = baseline_report(baseline)
 
     assert any("macros.py" in line for line in lines)
-    assert any(line.startswith("edited") for line in lines)
+    assert any(line.startswith("Files changed in this project") for line in lines)
 
 
 def test_verbose_adds_the_files_that_agreed() -> None:
@@ -470,7 +470,7 @@ def test_verbose_adds_the_files_that_agreed() -> None:
 def test_a_project_with_nothing_to_compare_says_so_rather_than_reporting_a_version() -> None:
     lines = baseline_report(Baseline(version=None, matched=0, total=0))
 
-    assert lines == ["no template-owned files found - nothing to compare"]
+    assert lines == ["No template-managed files were found to compare."]
 
 
 def test_each_group_says_what_will_happen_to_it() -> None:
@@ -480,10 +480,10 @@ def test_each_group_says_what_will_happen_to_it() -> None:
     lines = classification_report(load_manifest(MANIFEST), FILES)
 
     text = "\n".join(lines)
-    assert "template" in text and "replace where unedited" in text
-    assert "project" in text and "never written" in text
-    assert "shared" in text and "merge" in text
-    assert "excluded" in text and "not delivered" in text
+    assert "Template-managed files" in text and "unless you changed them" in text
+    assert "Your project files" in text and "your writing - never changed" in text
+    assert "Shared settings" in text and "keeping your choices" in text
+    assert "Not copied into projects" in text and "not delivered" in text
 
 
 def test_every_group_has_an_action_including_the_error_one() -> None:
@@ -498,8 +498,8 @@ def test_the_counts_survive_the_actions_being_added() -> None:
     """The count is still parseable, and still adds up to the tree."""
     lines = classification_report(load_manifest(MANIFEST), FILES)
 
-    counts = {line.split()[0]: int(line.split()[1]) for line in lines}
-    assert sum(counts.values()) == len(FILES)
+    counts = [int(re.search(r": (\d+) \(", line).group(1)) for line in lines]
+    assert sum(counts) == len(FILES)
 
 
 # ---------------------------------------------------------------------------
@@ -639,30 +639,63 @@ def test_the_update_report_never_lists_the_unchanged_files() -> None:
         FileAction("a.py", "a.py", "update", "y"),
     ]
 
-    for verbose in (False, True):
-        lines = update_report(actions, verbose=verbose)
-        assert any("same" in line for line in lines), "still counted"
-        assert not any("macros.py" in line for line in lines), verbose
-        assert any("a.py" in line for line in lines)
+    quiet = update_report(actions)
+    noisy = update_report(actions, verbose=True)
+
+    assert not any("up to date" in line for line in quiet)
+    assert any("Already up to date: 1" in line for line in noisy)
+    assert not any("macros.py" in line for line in noisy)
+    assert not any("a.py" in line for line in quiet)
+    assert any("a.py" in line for line in noisy)
 
 
-def test_the_update_report_says_why_for_each_group() -> None:
-    actions = [FileAction("a.py", "a.py", "keep", FILE_ACTIONS["keep"])]
+def test_the_standard_report_lists_only_files_needing_an_author_s_decision() -> None:
+    actions = [
+        FileAction("new.py", "new.py", "add", FILE_ACTIONS["add"]),
+        FileAction("routine.py", "routine.py", "update", FILE_ACTIONS["update"]),
+        FileAction("mine.py", "mine.py", "keep", FILE_ACTIONS["keep"]),
+        FileAction("replace.py", "replace.py", "forced", FILE_ACTIONS["forced"]),
+    ]
 
     text = "\n".join(update_report(actions))
 
-    assert "yours kept" in text and ".new" in text
+    assert "New template files to add: 1" in text
+    assert "Template files to update: 1" in text
+    assert "new.py" not in text and "routine.py" not in text
+    assert "mine.py" in text and "replace.py" in text
+
+
+def test_verbose_report_adds_routine_paths_and_plain_language_reasons() -> None:
+    actions = [
+        FileAction("new.py", "new.py", "add", FILE_ACTIONS["add"]),
+        FileAction("routine.py", "routine.py", "update", FILE_ACTIONS["update"]),
+        FileAction("mine.py", "mine.py", "keep", FILE_ACTIONS["keep"]),
+    ]
+
+    text = "\n".join(update_report(actions, verbose=True))
+
+    assert "new.py" in text and "routine.py" in text and "mine.py" in text
+    assert "new files supplied by the template" in text
+    assert "template copies are saved as .new" in text
+
+
+def test_the_verbose_update_report_says_why_for_each_group() -> None:
+    actions = [FileAction("a.py", "a.py", "keep", FILE_ACTIONS["keep"])]
+
+    text = "\n".join(update_report(actions, verbose=True))
+
+    assert "versions stay" in text and ".new" in text
 
 
 def test_a_renamed_file_shows_both_names() -> None:
     """Otherwise a reader cannot tell why the template's path is not the
     one being written."""
-    actions = [
-        FileAction("docs/javascripts/extra.js", "docs/javascript/extra.js", "update", "x")
-    ]
+    actions = [FileAction("docs/javascripts/extra.js", "docs/javascript/extra.js", "update", "x")]
 
-    text = "\n".join(update_report(actions))
+    quiet = "\n".join(update_report(actions))
+    text = "\n".join(update_report(actions, verbose=True))
 
+    assert "docs/javascript/extra.js" not in quiet
     assert "docs/javascript/extra.js" in text
     assert "<- docs/javascripts/extra.js" in text
 
@@ -975,13 +1008,17 @@ def test_the_report_is_built_from_what_was_written(tmp_path) -> None:
         _actions(("a.py", "update"), ("b.py", "same")), tmp_path, lambda p: b"x"
     )
 
-    text = "\n".join(written_report(written))
+    text = "\n".join(written_report(written, verbose=True))
     assert "a.py" in text
     assert "b.py" not in text, "a file that was not written must not be reported"
 
+    quiet = "\n".join(written_report(written))
+    assert "Template files to update: 1" in quiet
+    assert "a.py" not in quiet
+
 
 def test_a_project_already_in_step_says_so(tmp_path) -> None:
-    assert written_report([]) == ["nothing to write - this project is already in step"]
+    assert written_report([]) == ["No template files needed changing."]
 
 
 # ---------------------------------------------------------------------------

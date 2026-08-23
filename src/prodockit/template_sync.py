@@ -421,16 +421,24 @@ def derive_baseline(
 #: will not, what needs deciding, what is not delivered at all.
 REPORT_ORDER = ("template", "project", "shared", "excluded", "unclassified")
 
+REPORT_LABELS = {
+    "template": "Template-managed files",
+    "project": "Your project files",
+    "shared": "Shared settings",
+    "excluded": "Not copied into projects",
+    "unclassified": "Missing a template rule",
+}
+
 #: What each group means an update will *do*, said in the report rather
 #: than left to be inferred from the group's name. "project" and
 #: "excluded" both mean untouched, for entirely different reasons, and a
 #: reader should not have to know the manifest to tell them apart.
 GROUP_ACTIONS = {
-    "template": "replace where unedited",
-    "project": "never written",
-    "shared": "merge",
-    "excluded": "not delivered",
-    "unclassified": "error - the manifest must classify every file",
+    "template": "updated unless you changed them",
+    "project": "your writing - never changed",
+    "shared": "updated carefully, keeping your choices",
+    "excluded": "not delivered by template sync",
+    "unclassified": "template error - every file needs a rule",
 }
 
 
@@ -456,7 +464,7 @@ def classification_report(
         members = groups[name]
         if name == "unclassified" and not members:
             continue  # nothing to say, and saying it invites a shrug
-        lines.append(f"{name:12} {len(members):3} files  ({GROUP_ACTIONS[name]})")
+        lines.append(f"{REPORT_LABELS[name]}: {len(members)} ({GROUP_ACTIONS[name]})")
         if verbose:
             lines.extend(f"    {path}" for path in sorted(members))
     return lines
@@ -471,16 +479,16 @@ def baseline_report(baseline: Baseline, *, verbose: bool = False) -> list[str]:
     somebody checks the conclusion rather than taking it.
     """
     if baseline.version is None:
-        return ["no template-owned files found - nothing to compare"]
+        return ["No template-managed files were found to compare."]
 
     lines = [
-        f"baseline     {baseline.version}",
-        f"agreeing     {baseline.matched} of {baseline.total}",
-        f"edited       {len(baseline.edited)}",
+        f"Template version used for comparison: {baseline.version}",
+        f"Files matching that version: {baseline.matched} of {baseline.total}",
+        f"Files changed in this project: {len(baseline.edited)}",
     ]
     lines.extend(f"    {path}" for path in baseline.edited)
     if verbose:
-        lines.append("agreeing files")
+        lines.append("Files matching that version:")
         lines.extend(f"    {path}" for path in sorted(baseline.agreeing))
     return lines
 
@@ -499,11 +507,19 @@ class FileAction:
 
 #: Every action a file can be given, and what it means for the project.
 FILE_ACTIONS = {
-    "same": "already matches the template",
-    "add": "absent here - the template has gained it",
-    "update": "behind - not edited here",
-    "keep": "edited here - yours kept, template's written alongside as .new",
-    "forced": "edited here - overwritten on request",
+    "same": "already up to date",
+    "add": "new files supplied by the template",
+    "update": "newer template versions are available",
+    "keep": "your versions stay; template copies are saved as .new",
+    "forced": "the template versions will replace yours because you used --force",
+}
+
+FILE_ACTION_LABELS = {
+    "same": "Already up to date",
+    "add": "New template files to add",
+    "update": "Template files to update",
+    "keep": "Your edited files to keep",
+    "forced": "Your edited files to replace",
 }
 
 
@@ -561,30 +577,41 @@ def plan_template_files(
     return actions
 
 
-def update_report(
-    actions: Sequence[FileAction], *, verbose: bool = False
-) -> list[str]:
+def update_report(actions: Sequence[FileAction], *, verbose: bool = False) -> list[str]:
     """What the update would do, grouped by action.
 
-    `same` is counted and never listed even in verbose: it is almost
-    every file, it is the uninteresting case, and burying the five that
-    matter under sixty that do not is how a report stops being read.
+    Normal mode omits files that are already current and the names of
+    routine additions and updates. `verbose` adds their counts and paths,
+    while still avoiding a long list of every unchanged file.
     """
     grouped: dict[str, list[FileAction]] = {name: [] for name in FILE_ACTIONS}
     for action in actions:
         grouped[action.action].append(action)
 
+    changed = [action for action in actions if action.action != "same"]
+    if not changed:
+        if verbose and grouped["same"]:
+            return [f"{FILE_ACTION_LABELS['same']}: {len(grouped['same'])}"]
+        return ["No template file changes are needed."]
+
     lines: list[str] = []
-    for name, description in FILE_ACTIONS.items():
+    for name in FILE_ACTIONS:
         members = grouped[name]
         if not members:
             continue
-        lines.append(f"{name:8} {len(members):3}  ({description})")
-        if name == "same" and not verbose:
-            continue
         if name == "same":
+            if verbose:
+                lines.append(f"{FILE_ACTION_LABELS[name]}: {len(members)}")
             continue
-        for action in sorted(members, key=lambda a: a.project_path):
+        line = f"{FILE_ACTION_LABELS[name]}: {len(members)}"
+        if verbose:
+            line += f" ({FILE_ACTIONS[name]})"
+        lines.append(line)
+        # In the normal report only paths needing a decision are useful.
+        # --verbose adds the routine add/update paths as well.
+        if not verbose and name not in {"keep", "forced"}:
+            continue
+        for action in sorted(members, key=lambda item: item.project_path):
             suffix = "" if action.project_path == action.path else f"   <- {action.path}"
             lines.append(f"    {action.project_path}{suffix}")
     return lines
@@ -894,21 +921,25 @@ def apply_file_actions(
     return written
 
 
-def written_report(written: Sequence[Written]) -> list[str]:
+def written_report(written: Sequence[Written], *, verbose: bool = False) -> list[str]:
     """What an apply did, grouped the way the plan was reported.
 
     Deliberately built from `Written` rather than from the plan: if the
     two ever disagree, this is where it shows.
     """
     if not written:
-        return ["nothing to write - this project is already in step"]
+        return ["No template files needed changing."]
     grouped: dict[str, list[str]] = {}
     for item in written:
         grouped.setdefault(item.action, []).append(item.path)
     lines = []
     for action, paths in grouped.items():
-        lines.append(f"{action:8} {len(paths):3}  ({FILE_ACTIONS[action]})")
-        lines.extend(f"    {path}" for path in sorted(paths))
+        line = f"{FILE_ACTION_LABELS[action]}: {len(paths)}"
+        if verbose:
+            line += f" ({FILE_ACTIONS[action]})"
+        lines.append(line)
+        if verbose or action in {"keep", "forced"}:
+            lines.extend(f"    {path}" for path in sorted(paths))
     return lines
 
 
