@@ -644,9 +644,18 @@ def _no_prompt_env(git_ssh_executable: str | None = None) -> dict[str, str]:
       everything else - so `git ls-remote` and `git clone` inherit
       exactly the same problem the `ssh -T` check had.
 
-    `GIT_SSH_COMMAND` is left alone if it is already set: someone who has
-    configured their own ssh wrapper has a reason, and silently replacing
-    it would break a working setup to fix a hypothetical one.
+    `GIT_SSH_COMMAND` is normally left alone if it is already set: someone
+    who has configured their own ssh wrapper has a reason, and silently
+    replacing it would break a working setup to fix a hypothetical one.
+
+    The exception is pdkboot on Windows, represented here by an explicit
+    `git_ssh_executable`. pdkboot checks and configures Git to use Windows'
+    built-in OpenSSH because that is the client connected to the built-in
+    ssh-agent service. An inherited `GIT_SSH_COMMAND` has higher precedence
+    than Git's `core.sshCommand`; preserving it made `ssh -T` authenticate
+    successfully and the immediately following `git ls-remote` reject the
+    same key. When the caller supplies the validated executable, it must be
+    the effective command as well as the stored Git setting.
 
     Failing fast is the point. "Could not authenticate" is a finding
     bootstrap can report and act on; a blinking cursor is not.
@@ -656,7 +665,11 @@ def _no_prompt_env(git_ssh_executable: str | None = None) -> dict[str, str]:
     options = list(SSH_NO_PROMPT_OPTIONS)
     if git_ssh_executable:
         options[0] = git_ssh_executable
-    env.setdefault("GIT_SSH_COMMAND", " ".join(options))
+    command = " ".join(options)
+    if git_ssh_executable:
+        env["GIT_SSH_COMMAND"] = command
+    else:
+        env.setdefault("GIT_SSH_COMMAND", command)
     return env
 
 
@@ -708,6 +721,15 @@ class SubprocessRunner:
         # DEVNULL stdin. Only for a command that has to ask something no
         # environment variable can answer - `ssh-add` and the key's
         # passphrase (#246). Everything else stays unable to prompt.
+        # ``subprocess.run`` raises the same FileNotFoundError when the
+        # executable is missing and when ``cwd`` is missing. Reporting both
+        # as ``git: not found`` sent a reader to reinstall working software
+        # after a skipped clone left no project directory for a later stage.
+        if cwd is not None and not Path(cwd).is_dir():
+            return CommandResult(
+                returncode=127,
+                stderr=f"working directory does not exist: {cwd}",
+            )
         try:
             completed = subprocess.run(
                 list(command),

@@ -29,7 +29,6 @@ import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import replace
 from pathlib import Path
 
 import click
@@ -63,6 +62,7 @@ from prodockit.bootstrap import (
     project_on_host,
     question_for,
     resolve_host,
+    site_url,
     surrey,
 )
 from prodockit.bootstrap import build_context as build_bootstrap_context
@@ -130,6 +130,32 @@ _PDKBOOT_PHASES: tuple[tuple[str, frozenset[str]], ...] = (
     ),
     ("Publish", frozenset({"first-push", "site"})),
 )
+
+# Legacy bootstrap asks where contents come from before it checks or creates
+# the destination repository. pdkboot can correct that dependency without
+# changing the command users already rely on: establish the host repository
+# first, then decide whether it has usable contents, then clone. On a missing
+# repository this lets the same run create an empty destination and continue
+# from the template instead of reaching a later stage with no clone.
+_PDKBOOT_PROJECT_ORDER = (
+    "own-project",
+    "pages",
+    "clone-source",
+    "clone",
+    "fresh-history",
+    "remote",
+    "identity",
+)
+
+
+def _pdkboot_stages() -> tuple[Stage, ...]:
+    """The pdkboot-only dependency order, leaving legacy STAGES untouched."""
+    by_id = {stage.id: stage for stage in STAGES}
+    project_ids = frozenset(_PDKBOOT_PROJECT_ORDER)
+    first_project = min(i for i, stage in enumerate(STAGES) if stage.id in project_ids)
+    before = tuple(stage for stage in STAGES[:first_project] if stage.id not in project_ids)
+    after = tuple(stage for stage in STAGES[first_project:] if stage.id not in project_ids)
+    return (*before, *(by_id[stage_id] for stage_id in _PDKBOOT_PROJECT_ORDER), *after)
 
 _PDKBOOT_INSTALL_STAGES = frozenset(
     {
@@ -657,7 +683,11 @@ def _explain_existing_project(config: BootstrapConfig) -> bool:
     none of them is safe enough to be taken by pressing Enter.
     """
     try:
-        context = build_bootstrap_context(config)
+        context = (
+            build_bootstrap_context(config, pdkboot=True)
+            if _PDKBOOT_MODE.get()
+            else build_bootstrap_context(config)
+        )
     except UnsupportedHostError:
         # Nothing can be asked about a host that cannot be used. The
         # ordinary prompt runs instead, and the host stage refuses later.
@@ -713,6 +743,20 @@ def _explain_existing_project(config: BootstrapConfig) -> bool:
         click.echo("")
         config.source_url = ""
         config.history = ""
+        return True
+
+    if context.pdkboot:
+        config.source_url = name
+        config.history = "keep"
+        click.echo("")
+        click.echo(
+            _wrapped(
+                f"Option 1 selected automatically: {name} has work on {host}, so "
+                "pdkboot will clone the full repository and keep its existing commit "
+                "history and origin."
+            )
+        )
+        click.echo("")
         return True
 
     click.echo("")
@@ -1062,12 +1106,16 @@ def _work_through(
         if phase is not None and phase != shown_phase:
             phase_number, phase_name = phase
             click.echo("")
+            boundary = click.style("═" * 78, fg="bright_cyan")
+            click.echo(boundary)
             click.echo(
                 click.style(
                     f"Phase {phase_number}/{len(_PDKBOOT_PHASES)} — {phase_name}",
                     bold=True,
+                    fg="bright_cyan",
                 )
             )
+            click.echo(boundary)
             shown_phase = phase
         if not report.needs_work:
             if journal is not None:
@@ -1126,7 +1174,15 @@ def _work_through(
             )
 
         click.echo("")
-        click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))
+        if context.pdkboot:
+            # A full-width boundary survives terminals without colour and
+            # pasted logs. The old bold-only ``[15/23]`` line disappeared
+            # among instructions and command output during long installs.
+            click.echo(click.style("─" * 78, fg="cyan"))
+            heading = f"Stage [{number}/{total}] {report.stage.summary}"
+            click.echo(click.style(heading, bold=True, fg="cyan"))
+        else:
+            click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))
         if context.pdkboot:
             click.echo(f"  Action:   {action}")
             click.echo(f"  Current:  {report.result.detail or 'not yet satisfied'}")
@@ -1169,7 +1225,7 @@ def _work_through(
                 # Guide and verify. The stage's own check is the
                 # verification, and "not finished yet" is the normal
                 # answer to it, not a failure - so it asks again.
-                verified = _verify_until_done(context, report.stage, plan)
+                verified = _verify_until_done(context, report.stage, plan, config_path)
                 if journal is not None:
                     journal.stage(
                         report.stage.id,
@@ -1376,7 +1432,7 @@ def _work_through(
                         failure={"stage": report.stage.id, "message": detail},
                     )
                 sys.exit(1)
-            verified = _verify_until_done(context, report.stage, plan)
+            verified = _verify_until_done(context, report.stage, plan, config_path)
             if journal is not None:
                 journal.stage(
                     report.stage.id,
@@ -1517,7 +1573,12 @@ def _typed_yes(question: str) -> bool:
         click.echo("  type 'yes' once it is done, or 'no' to leave it for now")
 
 
-def _verify_until_done(context: Context, stage: Stage, plan: Plan) -> bool:
+def _verify_until_done(
+    context: Context,
+    stage: Stage,
+    plan: Plan,
+    config_path: Path | None = None,
+) -> bool:
     """Waits for a manual step, re-checking until it takes or you stop.
 
     Returns whether it ended up satisfied. A failed check here means "not
@@ -1533,6 +1594,7 @@ def _verify_until_done(context: Context, stage: Stage, plan: Plan) -> bool:
         forget_contacts(context)
         result = stage.check(context)
         if not result.needs_work:
+            _remember_browser_confirmation(context, stage, config_path)
             click.echo("  confirmed")
             return True
         if not result.verifiable:
@@ -1540,6 +1602,7 @@ def _verify_until_done(context: Context, stage: Stage, plan: Plan) -> bool:
             # answer from outside, whatever the reader just did (#374).
             # Their word is taken, and the stage that can prove it says
             # so at the end of the run.
+            _remember_browser_confirmation(context, stage, config_path)
             click.echo(f"  taken on trust - {result.detail}")
             return True
         if plan.needs_a_new_run:
@@ -1562,6 +1625,18 @@ def _verify_until_done(context: Context, stage: Stage, plan: Plan) -> bool:
         click.echo(f"  not there yet - {result.detail}")
         if not click.confirm("  Try again?", default=True):
             return False
+
+
+def _remember_browser_confirmation(
+    context: Context,
+    stage: Stage,
+    config_path: Path | None,
+) -> None:
+    """Persist the site URL an author has just confirmed in a browser."""
+    if not context.pdkboot or stage.id != "site" or config_path is None:
+        return
+    context.config.confirmed_site_url = site_url(context)
+    save_bootstrap_config(config_path, context.config)
 
 
 @main.command()
@@ -1671,15 +1746,26 @@ def bootstrap(
         return
 
     try:
-        context = replace(
-            build_bootstrap_context(config),
-            pdkboot=_PDKBOOT_MODE.get(),
+        # The pdkboot profile affects how the command runner itself is
+        # constructed, not only how reports are presented. On Windows the
+        # runner must give Git the built-in OpenSSH executable connected to
+        # Windows' ssh-agent. Setting ``context.pdkboot`` afterwards left
+        # the already-built runner in legacy mode: ``ssh -T`` authenticated,
+        # while ``git ls-remote`` immediately reported ``Permission denied``.
+        context = (
+            build_bootstrap_context(config, pdkboot=True)
+            if _PDKBOOT_MODE.get()
+            else build_bootstrap_context(config)
         )
     except UnsupportedHostError as error:
         click.echo(f"Error: {error}", err=True)
         sys.exit(1)
 
-    reports = check_all(context) if check_only else plan_all(context)
+    if context.pdkboot:
+        stages = _pdkboot_stages()
+        reports = check_all(context, stages) if check_only else plan_all(context, stages)
+    else:
+        reports = check_all(context) if check_only else plan_all(context)
 
     if apply_stages:
         _apply_outstanding(context, reports, path)

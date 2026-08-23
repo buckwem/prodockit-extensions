@@ -2275,6 +2275,33 @@ def test_a_readers_own_ssh_wrapper_is_left_alone(
     assert result.stdout.strip() == "ssh -i /keys/mine"
 
 
+def test_pdkboot_windows_git_uses_the_validated_system_ssh_over_an_inherited_wrapper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An environment setting outranks the Git setting pdkboot repairs.
+
+    Reported on a clean Windows VM: the interactive ``ssh -T`` stage
+    authenticated, while the following ``git ls-remote`` said
+    ``Permission denied (publickey)`` until ``GIT_SSH_COMMAND`` was set to
+    Windows OpenSSH in PowerShell. Supplying the executable means the caller
+    has deliberately selected it; a stale inherited wrapper must not undo
+    that selection for every Git probe in the run.
+    """
+    import sys
+
+    from prodockit.bootstrap.model import SubprocessRunner
+
+    monkeypatch.setenv("GIT_SSH_COMMAND", "C:/Program Files/Git/usr/bin/ssh.exe")
+    script = "import os; print(os.environ['GIT_SSH_COMMAND'])"
+    result = SubprocessRunner(
+        git_ssh_executable="C:/WINDOWS/System32/OpenSSH/ssh.exe"
+    ).run([sys.executable, "-c", script])
+
+    assert result.ok
+    assert result.stdout.startswith("C:/WINDOWS/System32/OpenSSH/ssh.exe ")
+    assert "BatchMode=yes" in result.stdout
+
+
 # ---------------------------------------------------------------------------
 # The clone commits under the identity the reader gave
 # (prodockit-extensions#222)
@@ -2365,7 +2392,7 @@ def test_the_identity_stage_waits_for_a_clone(tmp_path: Path) -> None:
     """It runs *in* the project, so before one exists there is nothing to
     report but its absence - not a failure."""
     result = _identity_check(tmp_path, FakeRunner())
-    assert result.status is Status.MISSING
+    assert result.status is Status.BLOCKED
     assert "no clone" in result.detail
 
 
@@ -3462,14 +3489,18 @@ def test_the_pdf_fonts_are_installed_with_the_graphics_stack(tmp_path: Path) -> 
         assert cask in flat
 
 
-def test_windows_is_told_to_install_the_fonts_by_hand(tmp_path: Path) -> None:
-    """There is no cask or apt on Windows, and the guide has the reader
-    download and right-click them - so it is an instruction, not a
-    silently missing step."""
+def test_pdkboot_windows_installs_pinned_verified_pdf_fonts(tmp_path: Path) -> None:
+    """The Windows font step is automated without trusting a moving URL."""
     plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
-    joined = "\n".join(plan.follow_up)
+    joined = "\n".join(" ".join(command) for command in plan.commands)
 
     assert "Inter" in joined and "JetBrains Mono" in joined
+    assert "Inter-4.1.zip" in joined
+    assert "JetBrainsMono-2.304.zip" in joined
+    assert "Get-FileHash" in joined and "SHA256" in joined
+    assert "Microsoft\\Windows\\Fonts" in joined
+    assert "CurrentVersion\\Fonts" in joined
+    assert not plan.follow_up, "the font install no longer needs a human step"
 
 
 def test_the_citation_style_is_fetched_because_the_first_build_needs_it(tmp_path: Path) -> None:
@@ -5485,6 +5516,42 @@ def test_refreshing_is_a_no_op_off_windows() -> None:
     assert os.environ.get("PATH") == before, "another platform's PATH must be left alone"
 
 
+def test_pdkboot_refreshes_windows_environment_when_a_run_starts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A later check must reload values written by the earlier apply run.
+
+    Setting a user environment variable in the registry does not update an
+    already-open PowerShell.  In particular, WeasyPrint's DLL directory was
+    present in the registry after setup but absent from the next pdkboot
+    process, so stage 16 regressed from OK to WRONG.
+    """
+    import prodockit.bootstrap as bootstrap
+
+    refreshed: list[int] = []
+    monkeypatch.setattr(bootstrap, "refresh_windows_path", lambda: refreshed.append(1))
+
+    build_context(
+        _config(host="surrey"), platform=WINDOWS, home=tmp_path, pdkboot=True
+    )
+
+    assert refreshed == [1]
+
+
+def test_legacy_bootstrap_does_not_refresh_windows_environment_at_startup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The new startup reload belongs only to the separate pdkboot path."""
+    import prodockit.bootstrap as bootstrap
+
+    refreshed: list[int] = []
+    monkeypatch.setattr(bootstrap, "refresh_windows_path", lambda: refreshed.append(1))
+
+    build_context(_config(host="surrey"), platform=WINDOWS, home=tmp_path)
+
+    assert refreshed == []
+
+
 def test_a_dropped_connection_does_not_blame_the_key(tmp_path: Path) -> None:
     """The host accepts the connection, then closes it mid-authentication
     without a verdict. That used to fall through to "could not confirm
@@ -5796,6 +5863,16 @@ def test_the_remote_stage_never_reports_the_template_as_ok(tmp_path: Path) -> No
     assert result.status is Status.BLOCKED
     assert result.needs_work, "never reads as finished"
     assert "still the template" in result.detail
+
+
+def test_the_remote_stage_waits_when_the_clone_was_skipped(tmp_path: Path) -> None:
+    """A later stage must not run with a cwd that stage 9 never created."""
+    result = next(s for s in STAGES if s.id == "remote").check(
+        _context(tmp_path, runner=FakeRunner())
+    )
+
+    assert result.status is Status.BLOCKED
+    assert "no clone" in result.detail
 
 
 def test_a_blocked_stage_gets_no_plan(tmp_path: Path) -> None:
@@ -6278,23 +6355,17 @@ def _configured(
     )
 
 
-def test_all_three_paths_are_named_in_the_question(
+def test_existing_project_automatically_selects_the_safe_path(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Including the template. It is what happens when nothing else is
-    chosen, and a reader who cannot see it among the options has to infer
-    it from the absence of anything else (#332)."""
+    """Options 2 and 3 remain hidden until their pdkboot paths are tested."""
     result = _configured(cli_bootstrap, monkeypatch, answer="1")
-    # Compared with the line breaks flattened: the text is wrapped to the
-    # terminal now, so where a phrase happens to break depends on how long
-    # the project name is, and asserting on raw output would tie these to
-    # one particular name.
     said = " ".join(result.output.split())
 
-    assert "already exists on github.com and has content in it" in said
-    assert "leave the existing git records" in said
-    assert "delete the existing git records" in said
-    assert "start from the template" in said
+    assert "Option 1 selected automatically" in said
+    assert "clone the full repository" in said
+    assert "keep its existing commit history and origin" in said
+    assert "Select 1, 2 or 3" not in said
 
 
 def test_keeping_the_history_is_recorded(
@@ -6307,37 +6378,33 @@ def test_keeping_the_history_is_recorded(
     assert config.history == "keep"
 
 
-def test_starting_again_still_clones_the_repository(
+def test_unoffered_option_two_input_cannot_reset_the_repository(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Somebody starting again still wants the contents that are already
-    there - which is what "existing project or template" got wrong."""
     _configured(cli_bootstrap, monkeypatch, answer="2")
     config = load(tmp_path / "b.toml")
 
     assert config.source_url == "buckwem/report-windows-v1"
-    assert config.history == "reset"
+    assert config.history == "keep"
 
 
-def test_choosing_the_template_records_neither(
+def test_unoffered_option_three_input_cannot_replace_the_repository(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _configured(cli_bootstrap, monkeypatch, answer="3")
     config = load(tmp_path / "b.toml")
 
-    assert config.source_url == ""
-    assert config.history == ""
+    assert config.source_url == "buckwem/report-windows-v1"
+    assert config.history == "keep"
 
 
-def test_the_question_has_no_default(
+def test_existing_project_path_does_not_prompt(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """One answer deletes commits that cannot be recovered, and none of
-    them is safe enough to be taken by pressing Enter."""
     result = _configured(cli_bootstrap, monkeypatch, answer="\n2")
 
-    assert "Select 1, 2 or 3" in result.output
-    assert result.output.count("Select 1, 2 or 3") > 1, "a blank answer asks again"
+    assert "Select 1, 2 or 3" not in result.output
+    assert "Option 1 selected automatically" in result.output
 
 
 def test_an_empty_repository_gets_the_template_and_keeps_its_permissions(
@@ -6569,7 +6636,7 @@ def test_nothing_to_decide_is_not_a_question(tmp_path: Path) -> None:
     assert "template" in result.detail
 
 
-def test_a_project_with_work_in_it_is_put_to_the_reader(tmp_path: Path) -> None:
+def test_a_project_with_work_automatically_uses_option_one(tmp_path: Path) -> None:
     machine = _before_the_clone(_ready_machine(tmp_path))
     machine["git ls-remote"] = CommandResult(0, "abc123\trefs/heads/main\n")
     machine["ls-tree"] = CommandResult(0, PROJECT_TREE)
@@ -6582,11 +6649,15 @@ def test_a_project_with_work_in_it_is_put_to_the_reader(tmp_path: Path) -> None:
         runner=FakeRunner(machine),
     )
 
-    assert stage.check(context).status is Status.MISSING
-    plan = stage.plan(context)
-    assert len(plan.choices) == 3, "three paths, not three yes/no questions"
-    assert plan.confirm == "Select 1, 2 or 3"
-    assert "delete the existing git records" in plan.choices[1]
+    result = stage.check(context)
+
+    assert result.status is Status.OK
+    assert "Option 1 selected automatically" in result.detail
+    assert "keep its existing commit history and origin" in result.detail
+    assert context.config.source_url == "buckwem/report-linux-v4"
+    assert context.config.history == "keep"
+    clone = " ".join(next(s for s in STAGES if s.id == "clone").plan(context).commands[0])
+    assert "git@github.com:buckwem/report-linux-v4.git" in clone
 
 
 def test_an_answer_already_recorded_is_not_asked_again(tmp_path: Path) -> None:
@@ -6752,14 +6823,15 @@ def test_each_stage_is_checked_when_the_loop_reaches_it(tmp_path: Path) -> None:
         f"unreachable host, so the decision must wait; got "
         f"{first.status.value}: {first.detail!r} ({context_note})"
     )
-    assert later.needs_work, (
-        f"reachable now, so the question is live; got "
+    assert later.status is Status.OK, (
+        f"reachable now, so option 1 can be selected automatically; got "
         f"{later.status.value}: {later.detail!r} ({context_note})"
     )
-    assert "choose what to do with it" in later.detail, later.detail
+    assert "Option 1 selected automatically" in later.detail, later.detail
+    assert context.config.history == "keep"
 
 
-def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
+def test_the_apply_loop_selects_option_one_after_the_host_becomes_reachable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The fix for #351 lives in the loop, so it is pinned there.
@@ -6804,14 +6876,15 @@ def test_the_apply_loop_asks_again_rather_than_trusting_the_first_pass(
     assert initial.plan is None, "there is no safe clone plan before SSH works"
 
     runner = CliRunner()
-    # Whatever the run does after the question is not this test's
+    # Whatever the run does after the decision is not this test's
     # business - it may exit or run out of answers, and either is fine.
-    with runner.isolation(input="1\n" + "n\n" * 60) as (out, _err, _):
+    with runner.isolation(input="n\n" * 60) as (out, _err, _):
         with suppress(SystemExit, RuntimeError):
             _apply_outstanding(context, reports)
         printed = out.getvalue().decode()
 
-    assert "Select 1, 2 or 3" in printed, "the question was put once the host answered"
+    assert "Select 1, 2 or 3" not in printed
+    assert "Option 1 selected automatically" in printed
 
 
 def test_pages_is_read_without_a_token_where_that_is_possible(tmp_path: Path) -> None:
@@ -7078,6 +7151,19 @@ def test_ok_says_which_reason_it_is(tmp_path: Path) -> None:
     # namespace is shared across hosts, so it travels between them (#377).
     probed = "git@github.com:comm058-2026/report-al01234.git"
     assert probed in absent.detail and probed in blind.detail
+
+
+def test_an_existing_empty_project_is_named_as_empty(tmp_path: Path) -> None:
+    machine = _before_the_clone(_ready_machine(tmp_path))
+    machine["git ls-remote"] = CommandResult(0, "")
+
+    result = next(s for s in STAGES if s.id == "clone-source").check(
+        _context(tmp_path, runner=FakeRunner(machine))
+    )
+
+    assert result.status is Status.OK
+    assert "exists and is empty" in result.detail
+    assert "the template will be cloned" in result.detail
 
 
 def test_applying_prints_why_a_stage_is_already_ok(

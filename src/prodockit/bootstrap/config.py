@@ -76,6 +76,12 @@ class BootstrapConfig:
     #: on somebody's behalf: one branch of it deletes history that cannot
     #: be recovered (prodockit-extensions#332).
     history: str = ""
+    #: The exact Pages URL an author confirmed in their browser when this
+    #: machine could not run an HTTP probe. Storing the URL rather than a
+    #: boolean invalidates the confirmation automatically if the project or
+    #: namespace changes. Used only by pdkboot; legacy bootstrap leaves it
+    #: blank and therefore keeps its existing behaviour and file contents.
+    confirmed_site_url: str = ""
 
     @property
     def is_complete(self) -> bool:
@@ -246,7 +252,11 @@ def save(path: Path, config: BootstrapConfig) -> None:
             "# nothing here reads one, and this is not a safe place for it.",
             "",
         ]
-        lines += [f'{key} = "{value}"' for key, value in asdict(config).items()]
+        lines += [
+            f'{key} = "{value}"'
+            for key, value in asdict(config).items()
+            if key != "confirmed_site_url" or value
+        ]
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     except OSError as error:
         raise BootstrapConfigError(f"could not write {path}: {error}") from error
