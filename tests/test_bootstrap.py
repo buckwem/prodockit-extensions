@@ -414,7 +414,9 @@ def test_config_path_follows_each_platform_convention(
     assert user_config_path(tmp_path).parent.parent == tmp_path / "xdg"
 
 
-def test_a_config_belongs_to_the_directory_it_was_answered_in(tmp_path: Path) -> None:
+def test_a_config_belongs_to_the_directory_it_was_answered_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """prodockit-extensions#373: one config per user meant one project.
 
     Setting up a second one overwrote the answers for the first - the
@@ -423,6 +425,7 @@ def test_a_config_belongs_to_the_directory_it_was_answered_in(tmp_path: Path) ->
     """
     from prodockit.bootstrap import LOCAL_CONFIG_NAME
 
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     first, second = tmp_path / "one", tmp_path / "two"
     for directory in (first, second):
         directory.mkdir()
@@ -471,12 +474,15 @@ def test_no_gitignore_is_written_where_there_is_no_repository(tmp_path: Path) ->
     assert not (tmp_path / ".gitignore").exists()
 
 
-def test_an_existing_user_config_is_still_read(tmp_path: Path) -> None:
+def test_an_existing_user_config_is_still_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Nothing has to be moved. A setup already answered keeps working,
     and only a directory that has its own file stops consulting it."""
     from prodockit.bootstrap import LOCAL_CONFIG_NAME
     from prodockit.bootstrap.config import user_config_path
 
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     legacy = user_config_path(tmp_path)
     legacy.parent.mkdir(parents=True)
     legacy.write_text("", encoding="utf-8")
