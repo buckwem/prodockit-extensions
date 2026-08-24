@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
+import yaml  # type: ignore[import-untyped, unused-ignore]
 from zensical.config import DEFAULT_MARKDOWN_EXTENSIONS
 
 from prodockit import __version__
@@ -258,7 +258,7 @@ def write_manifest(root: Path, options: AdoptOptions) -> Path:
     return path
 
 
-class _MarkdownConfigLoader(yaml.SafeLoader):  # type: ignore[misc]
+class _MarkdownConfigLoader(yaml.SafeLoader):  # type: ignore[misc, unused-ignore]
     """Safe YAML loader which treats MkDocs' Python-name tags as text.
 
     ``pymdownx.superfences`` commonly uses ``!!python/name:...`` for a
@@ -928,14 +928,17 @@ def install_tool(root: Path, component: str) -> list[Path]:
     """Install one selected Node renderer after writing its scaffold."""
     if component not in COMPONENT_FILES:
         raise AdoptError(f"unknown optional renderer: {component}")
-    if shutil.which("npm") is None:
+    npm = shutil.which("npm")
+    if npm is None:
         raise AdoptError(
             f"{component} was selected but npm is not available. Install Node.js, "
             "then rerun `prodockit adopt --apply`; no editor or Git setup is required."
         )
     options = AdoptOptions(mermaid=component == "mermaid", maths=component == "mathjax")
     written = ensure_tools(root, options)
-    command = ["npm", "install", "--prefix", str(root / "tools" / component)]
+    # On Windows npm is a command shim named npm.cmd. Passing the path found
+    # by shutil avoids depending on PATHEXT handling inside subprocess.
+    command = [npm, "install", "--prefix", str(root / "tools" / component)]
     try:
         completed = subprocess.run(
             command,
