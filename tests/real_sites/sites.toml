@@ -1,0 +1,272 @@
+[[site]]
+name = "pymdown-extensions"
+repository = "https://github.com/facelessuser/pymdown-extensions.git"
+revision = "b8996d7d87502176c5159d708c5d25a0e36839a9"
+config = "zensical.yml"
+output = "site"
+build = ["{python}", "-m", "zensical", "build", "-f", "zensical.yml", "--clean"]
+pages = [
+    "index.html",
+    "extensions/arithmatex/index.html",
+    "extensions/superfences/index.html",
+]
+expected_changes = [
+    ".prodockit-components.toml",
+    "docs/src/markdown/stylesheets/prodockit.css",
+    "requirements/docs.txt",
+    "zensical.yml",
+]
+mermaid = false
+maths = false
+# The sponsorship heart pulses continuously. Mask only that animated icon;
+# every other captured pixel must remain identical.
+ignore_rectangles = [[285, 5, 335, 45]]
+max_changed_pixel_ratio = 0.0
+
+[[site]]
+name = "apparmor"
+repository = "https://gitlab.com/apparmor/apparmor.net.git"
+revision = "b800293dc317525eabc4467346fb74da3034052b"
+config = "zensical.toml"
+output = "site"
+build = ["{python}", "-m", "zensical", "build", "-f", "zensical.toml", "--clean"]
+pages = [
+    "getting-started/index.html",
+    "monitoring/configure-and-fix-denial/index.html",
+    "reference/profiles-quick-reference/index.html",
+]
+expected_changes = [
+    ".prodockit-components.toml",
+    "docs/stylesheets/prodockit.css",
+    "zensical.toml",
+    "requirements.txt",
+]
+python_packages = ["mkdocstrings-python"]
+mermaid = false
+maths = false
+max_changed_pixel_ratio = 0.0
+
+[[site]]
+name = "hypershift"
+repository = "https://github.com/openshift/hypershift.git"
+revision = "8b0fbb6d5ccf1c351b36d3691514444361878109"
+working_directory = "docs"
+config = "mkdocs.yml"
+output = "site"
+build = ["{python}", "-m", "zensical", "build", "-f", "mkdocs.yml", "--clean"]
+pages = [
+    "index.html",
+    "getting-started/quick-setup/index.html",
+    "reference/api/index.html",
+]
+expected_changes = [
+    "docs/.prodockit-components.toml",
+    "docs/content/stylesheets/prodockit.css",
+    "docs/mkdocs.yml",
+    "docs/requirements.txt",
+]
+python_packages = ["mkdocs-glightbox"]
+mermaid = false
+maths = false
+max_changed_pixel_ratio = 0.0
+
+[[site]]
+name = "mingw-w64"
+repository = "https://github.com/mingw-w64/mingw-w64.github.io.git"
+revision = "34114d7e600310144ae7a7ae3f29fab734d3d9ca"
+config = "mkdocs.yml"
+output = "site"
+build = ["{python}", "-m", "zensical", "build", "-f", "mkdocs.yml", "--clean"]
+pages = [
+    "index.html",
+    "getting-started/msys2/index.html",
+    "build-systems/cmake/index.html",
+]
+expected_changes = [
+    ".prodockit-components.toml",
+    "web/stylesheets/prodockit.css",
+    "mkdocs.yml",
+    "requirements.txt",
+]
+mermaid = false
+maths = false
+max_changed_pixel_ratio = 0.0
+
+[[site]]
+name = "zensical-docs"
+repository = "https://github.com/zensical/docs.git"
+revision = "790d2ac4a69d53ed2536bc59423b62034b01f73e"
+config = "mkdocs.yml"
+output = "site"
+build = ["{python}", "-m", "zensical", "build", "-f", "mkdocs.yml", "--clean"]
+pages = [
+    "get-started/index.html",
+    "authoring/data-tables/index.html",
+    "authoring/math/index.html",
+]
+expected_changes = [
+    ".prodockit-components.toml",
+    "docs/stylesheets/prodockit.css",
+    "mkdocs.yml",
+    "requirements.txt",
+]
+python_packages = ["markdown-exec"]
+mermaid = false
+maths = false
+# The maths example's code-annotation marker pulses after page load. Mask only
+# that marker. Permit at most roughly seven Chrome anti-aliasing pixels in a
+# 1440 x 1200 capture; this is far below a visible difference.
+ignore_rectangles = [[595, 925, 620, 950]]
+max_changed_pixel_ratio = 0.000005
+
+[[site]]
+name = "fastapi"
+repository = "https://github.com/fastapi/fastapi.git"
+revision = "c3f316b7e814667e8ee81e03a7330d00ee61e45c"
+working_directory = "docs/en"
+config = "mkdocs.yml"
+output = "site"
+build = ["{python}", "-m", "zensical", "build", "-f", "mkdocs.yml", "--clean"]
+pages = [
+    "index.html",
+    "tutorial/first-steps/index.html",
+    "reference/fastapi/index.html",
+]
+expected_changes = [
+    "docs/en/.prodockit-components.toml",
+    "docs/en/docs/stylesheets/prodockit.css",
+    "docs/en/mkdocs.yml",
+    "docs/en/requirements.txt",
+]
+python_packages = [
+    "annotated-doc>=0.0.2",
+    "griffe-typingdoc>=0.3.0",
+    "griffe-warnings-deprecated>=1.1.0",
+    "httpx>=0.23.0,<1.0.0",
+    "jieba>=0.42.1",
+    "markdown-include-variants>=0.0.8",
+    "mdx-include>=1.4.1,<2.0.0",
+    "mkdocstrings[python]>=1.0.3",
+    "pydantic>=2.9.0",
+    "python-slugify>=8.0.4",
+    "starlette>=0.46.0",
+    "typing-extensions>=4.8.0",
+    "typing-inspection>=0.4.2",
+]
+mermaid = false
+maths = false
+# FastAPI deliberately rotates the announcement and sponsor banner across the
+# top strip. Every page pixel below that live content must remain identical.
+ignore_rectangles = [[0, 0, 1440, 64]]
+max_changed_pixel_ratio = 0.0
+
+[[site]]
+name = "lemonade"
+repository = "https://github.com/lemonade-sdk/lemonade.git"
+revision = "df9b90cd69bf60667feed5106f052332d052e170"
+config = "mkdocs.yml"
+output = "site"
+build = ["{python}", "-m", "zensical", "build", "-f", "mkdocs.yml", "--clean"]
+pages = [
+    "index.html",
+    "guide/install/index.html",
+    "api/openai/index.html",
+]
+expected_changes = [
+    ".prodockit-components.toml",
+    "docs/stylesheets/prodockit.css",
+    "mkdocs.yml",
+    "requirements.txt",
+]
+mermaid = false
+maths = false
+max_changed_pixel_ratio = 0.0
+
+[[site]]
+name = "ibm-business-automation"
+repository = "https://github.com/IBM/business-automation.git"
+revision = "7467906a60fb496afb33dcb7c474929f88449597"
+config = "zensical.toml"
+output = "site"
+build = ["{python}", "-m", "zensical", "build", "-f", "zensical.toml", "--clean"]
+pages = [
+    "index.html",
+    "overview.html",
+    "ibm-product/baw.html",
+]
+expected_changes = [
+    ".prodockit-components.toml",
+    "docs/stylesheets/prodockit.css",
+    "requirements.txt",
+    "zensical.toml",
+]
+mermaid = false
+maths = false
+max_changed_pixel_ratio = 0.0
+
+[[site]]
+name = "condenser"
+repository = "https://github.com/UCL-ARC/condenser-docs.git"
+revision = "12c881e1a45f2dc00d5345b9dc282840bf71ee76"
+config = "zensical.toml"
+output = "site"
+build = ["{python}", "-m", "zensical", "build", "-f", "zensical.toml", "--clean"]
+pages = [
+    "index.html",
+    "documentation/index.html",
+    "documentation/deploying_resources/deploying_terraform/index.html",
+]
+expected_changes = [
+    ".prodockit-components.toml",
+    "docs/stylesheets/prodockit.css",
+    "requirements.txt",
+    "zensical.toml",
+]
+mermaid = false
+maths = false
+max_changed_pixel_ratio = 0.0
+
+[[site]]
+name = "ibm-algorithm-nexus"
+repository = "https://github.com/IBM/algorithm-nexus.git"
+revision = "d037a460b9e6b610f86ef0cad59275ad4251337f"
+config = "zensical.toml"
+output = "site"
+build = ["{python}", "-m", "zensical", "build", "-f", "zensical.toml", "--clean"]
+pages = [
+    "index.html",
+    "getting-started/installation/index.html",
+    "design/nexus_package/index.html",
+]
+expected_changes = [
+    ".prodockit-components.toml",
+    "docs/stylesheets/prodockit.css",
+    "requirements.txt",
+    "zensical.toml",
+]
+mermaid = false
+maths = false
+max_changed_pixel_ratio = 0.0
+
+[[site]]
+name = "globus-icicle"
+repository = "https://github.com/globus-labs/icicle.git"
+revision = "b615befa988f6a5ab3e2011093d40b1fb929e93f"
+config = "mkdocs.yml"
+output = "site"
+build = ["{python}", "-m", "zensical", "build", "-f", "mkdocs.yml", "--clean"]
+pages = [
+    "index.html",
+    "ingest/00-overview/index.html",
+    "icicle/00-overview/index.html",
+]
+expected_changes = [
+    ".prodockit-components.toml",
+    "docs/stylesheets/prodockit.css",
+    "mkdocs.yml",
+    "requirements.txt",
+]
+python_packages = ["mkdocstrings-python"]
+mermaid = false
+maths = false
+max_changed_pixel_ratio = 0.0

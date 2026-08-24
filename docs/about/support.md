@@ -25,14 +25,14 @@ The future stability contract is tracked in
 
 Installing prodockit installs these Python dependencies automatically:
 
-The current test matrix covers Python 3.10, 3.11, 3.12, and Python 3.13. The
+The current test matrix covers Python 3.10, 3.11, 3.12, 3.13, and Python 3.14. The
 documentation build currently pins Zensical 0.0.55 and pymdown-extensions
 11.0.1 so changes to either renderer arrive as reviewed version changes rather
 than silently altering published output.
 
 | Requirement | Supported or tested range | Why it matters |
 |---|---|---|
-| Python | 3.10–3.13 tested | The package requires Python 3.10 or later |
+| Python | 3.10–3.14 tested | The package requires Python 3.10 or later |
 | Zensical | 0.0.55 or later | Site configuration, rendering, navigation, macros, and icons |
 | Python-Markdown | 3.10.3 or later | The extension engine used by every authoring feature |
 | pymdown-extensions | 11.0.1 or later | PyMdown Blocks is the direct foundation for `prodockit.steps` and `prodockit.tree`; the PDF pipeline also preserves PyMdown output |
@@ -65,19 +65,26 @@ Two complete document workflows were exercised:
 This is practical integration testing across the three operating systems, two
 hosts, and both common starting points. It verifies that the stages work
 together in real environments, beyond unit tests or inspection of generated
-commands. It is not an automated cross-platform regression matrix, however:
+commands. It is not an automated cross-platform full-suite regression matrix,
+however:
 
 | Platform | Regression test coverage | Manual bootstrap coverage |
 |---|---|---|
-| Ubuntu Linux | Full test suite on every push and pull request using `ubuntu-24.04` | Both repository workflows on Surrey GitLab and GitHub.com |
-| macOS | The full test suite is also run locally on macOS; there is no hosted macOS job | Both repository workflows on Surrey GitLab and GitHub.com |
-| Windows | No hosted test job | Both repository workflows on Surrey GitLab and GitHub.com |
+| Ubuntu Linux | Full test suite on every push and pull request using `ubuntu-24.04`; installed-wheel adoption on x64 and ARM64 | Both repository workflows on Surrey GitLab and GitHub.com |
+| macOS | The full test suite is also run locally; installed-wheel adoption runs on hosted ARM64 | Both repository workflows on Surrey GitLab and GitHub.com |
+| Windows | Installed-wheel adoption on Windows 2025 x64 and Windows 11 ARM64; no hosted full-suite job | Both repository workflows on Surrey GitLab and GitHub.com |
+
+The installed-wheel adoption jobs build the candidate package afresh and test
+TOML and YAML projects with the core, Mermaid-only, maths-only and combined
+component choices. They also check that a second apply changes no files. This
+narrow cross-platform matrix complements rather than replaces the full Python
+test suite.
 
 The manual matrix gives confidence in installation and first-use integration,
 but it is a point-in-time result. The locally run macOS suite adds full
 regression coverage on that platform, although it is not enforced by a hosted
-pull-request gate. Windows can still regress between manual runs because it
-does not yet run the full suite for every change.
+pull-request gate. Windows can still regress outside the adoption workflow
+because it does not yet run the full suite for every change.
 
 Windows requires native libraries for PDF generation that `pip` cannot
 install. It also uses different default text encodings. The known setup steps

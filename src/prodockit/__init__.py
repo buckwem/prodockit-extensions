@@ -48,6 +48,12 @@ Zensical doesn't provide out of the box, each usable independently:
   ``prodockit bootstrap`` to report what is set up, ``--dry-run`` to see
   the exact commands, ``--apply`` to do it. Surrey's GitLab, gitlab.com
   and github.com for now.
+- ``prodockit.adopt`` - add the standard prodockit authoring components to an
+  existing Zensical repository without configuring Git, SSH or an editor.
+  Mermaid diagrams and mathematical notation are independent opt-in stages,
+  so a project using neither is not handed either Node toolchain. Run
+  ``prodockit adopt`` to assess, ``--dry-run`` to preview and ``--apply`` to
+  change local project files.
 - ``prodockit.zensical_macros`` - Jinja variables/macros for Zensical's own
   macros plugin: a site-wide word count, the git-detected repository URL,
   the latest release tag, chapter/appendix numbering that continues across

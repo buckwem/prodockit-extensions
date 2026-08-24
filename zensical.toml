@@ -50,6 +50,7 @@ nav = [
   {"Getting started" = [
     {"Overview" = "introduction.md"},
     {"Install prodockit" = "installation.md"},
+    {"Add prodockit to an existing document" = "adopt.md"},
     {"Build your first site" = "getting-started.md"},
   ]},
   {"Authoring reference" = [

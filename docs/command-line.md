@@ -38,6 +38,7 @@ pinned by the project before assuming an option is unavailable.
 
 | Command | Use it when | Safe first run | Writes |
 |---|---|---|---|
+| [`prodockit adopt`](adopt.md) | An existing Zensical document needs selected prodockit components without machine, Git or editor setup | `prodockit adopt` | Local project files only with `--apply`; optional choices use `--configure` |
 | [`prodockit bootstrap`](devcons/bootstrap.md) | A machine or checkout is not ready to build and publish | `prodockit bootstrap` | Only with `--apply`; configuration questions use `--configure` |
 | [`prodockit init-tools`](pdf.md#mermaid-diagrams-and-tex-maths) | The project needs local Mermaid or MathJax rendering tools | `prodockit init-tools` | Tool manifests, scripts, and ignore entries; existing files require `--force` |
 | [`prodockit init-mathjax`](pdf.md#mermaid-diagrams-and-tex-maths) | The website needs the installed MathJax bundle copied into its assets | `prodockit init-mathjax` | Website JavaScript assets and, unless disabled, `.gitignore` |

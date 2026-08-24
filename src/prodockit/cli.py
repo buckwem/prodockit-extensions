@@ -35,6 +35,25 @@ import click
 
 import prodockit
 from prodockit import __version__
+from prodockit.adopt import (
+    MANIFEST as ADOPT_MANIFEST,
+)
+from prodockit.adopt import (
+    AdoptError,
+    AdoptOptions,
+)
+from prodockit.adopt import (
+    apply_step as apply_adopt_step,
+)
+from prodockit.adopt import (
+    assess as assess_adoption,
+)
+from prodockit.adopt import (
+    load_manifest as load_adopt_manifest,
+)
+from prodockit.adopt import (
+    write_manifest as write_adopt_manifest,
+)
 from prodockit.bootstrap import (
     PROMPTS,
     STAGES,
@@ -156,6 +175,7 @@ def _pdkboot_stages() -> tuple[Stage, ...]:
     before = tuple(stage for stage in STAGES[:first_project] if stage.id not in project_ids)
     after = tuple(stage for stage in STAGES[first_project:] if stage.id not in project_ids)
     return (*before, *(by_id[stage_id] for stage_id in _PDKBOOT_PROJECT_ORDER), *after)
+
 
 _PDKBOOT_INSTALL_STAGES = frozenset(
     {
@@ -2090,6 +2110,221 @@ def init_tools_command(tools_dir: str, mermaid: bool, mathjax: bool, force: bool
         )
 
 
+_ADOPT_PHASES = ("Assess", "Integrate", "Optional renderers", "Verify")
+
+
+def _adopt_phase_heading(number: int, name: str) -> None:
+    click.echo("")
+    click.echo(click.style("═" * 78, bold=True, fg="bright_cyan"))
+    click.echo(click.style(f"Phase {number}/{len(_ADOPT_PHASES)} — {name}", bold=True))
+    click.echo(click.style("═" * 78, bold=True, fg="bright_cyan"))
+
+
+def _adopt_stage_heading(number: int, total: int, summary: str) -> None:
+    click.echo("")
+    click.echo(click.style("─" * 78, fg="cyan"))
+    click.echo(click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="cyan"))
+
+
+@main.command("adopt")
+@click.option(
+    "--configure",
+    is_flag=True,
+    help="Choose optional components and save the choices for this project.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show the stages and changes without writing or installing anything.",
+)
+@click.option(
+    "--apply",
+    is_flag=True,
+    help="Apply the required stages, asking before each change.",
+)
+@click.option(
+    "--mermaid/--no-mermaid",
+    default=None,
+    help="Include or omit Mermaid diagram rendering. Omitted unless selected.",
+)
+@click.option(
+    "--maths/--no-maths",
+    default=None,
+    help="Include or omit MathJax rendering for mathematical notation. Omitted unless selected.",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Show the files and commands behind each concise stage description.",
+)
+def adopt_command(
+    configure: bool,
+    dry_run: bool,
+    apply: bool,
+    mermaid: bool | None,
+    maths: bool | None,
+    verbose: bool,
+) -> None:
+    """Add prodockit components to an existing Zensical or MkDocs document.
+
+    Run this from the directory containing zensical.toml, zensical.yml,
+    zensical.yaml, mkdocs.yml or mkdocs.yaml, with the project's virtual
+    environment active. The command
+    changes only local project files:
+    it does not configure Git, SSH, an editor, a remote repository or Pages,
+    and it never commits or pushes.
+
+    With no mode option it reports what is present. Use --configure to choose
+    the independent Mermaid and maths options, --dry-run to review the plan,
+    and --apply to perform it one prominent stage at a time.
+    """
+    if dry_run and apply:
+        raise click.UsageError("choose either --dry-run or --apply, not both")
+    root = Path.cwd()
+    try:
+        saved = load_adopt_manifest(root)
+    except AdoptError as error:
+        raise click.ClickException(str(error)) from error
+    options = AdoptOptions(
+        mermaid=saved.mermaid if mermaid is None else mermaid,
+        maths=saved.maths if maths is None else maths,
+    )
+
+    if configure:
+        # Two separate questions deliberately: a document can contain one
+        # without the other, and neither should pull Node into a project by
+        # association with the other.
+        click.echo("Choose only the optional renderers this document uses.\n")
+        options = AdoptOptions(
+            mermaid=click.confirm(
+                "Does this document contain Mermaid diagrams?",
+                default=options.mermaid,
+            ),
+            maths=click.confirm(
+                "Does this document contain mathematical notation?",
+                default=options.maths,
+            ),
+        )
+        path = write_adopt_manifest(root, options)
+        click.echo(f"\nSaved the choices to {path}.")
+        click.echo("Run `prodockit adopt --dry-run` to review the installation stages.")
+        return
+
+    try:
+        steps = assess_adoption(root, options)
+    except AdoptError as error:
+        raise click.ClickException(str(error)) from error
+
+    click.echo(click.style("prodockit adoption — existing documentation project", bold=True))
+    click.echo(f"\n  Project:  {root}")
+    click.echo("  Changes:  local project files only")
+    click.echo(
+        "  Options:  "
+        + " · ".join(
+            (
+                f"Mermaid {'on' if options.mermaid else 'off'}",
+                f"maths {'on' if options.maths else 'off'}",
+            )
+        )
+    )
+    click.echo(f"  Choices:  {root / ADOPT_MANIFEST}")
+    click.echo("  Excluded: Git, SSH, remotes, editors, commits and pushes")
+
+    current_phase = ""
+    total = len(steps)
+    failed = False
+    applied_stages = 0
+    for number, step in enumerate(steps, start=1):
+        if step.phase != current_phase:
+            current_phase = step.phase
+            _adopt_phase_heading(_ADOPT_PHASES.index(step.phase) + 1, step.phase)
+
+        # Earlier stages can make the project ready to build during this same
+        # --apply run. Refresh the final read-only readiness check so its
+        # status describes the files now on disk rather than the initial plan.
+        if apply and step.id == "verify":
+            step = next(item for item in assess_adoption(root, options) if item.id == "verify")
+
+        if not step.selected:
+            click.echo(f"{number:2}  SKIP  {step.summary} — {step.detail}")
+            continue
+        if step.status == "wait":
+            click.echo(f"{number:2}  WAIT  {step.summary} — {step.detail}")
+            continue
+        if step.status == "ok" and not verbose:
+            click.echo(f"{number:2}  ok    {step.summary} — {step.detail}")
+            continue
+
+        _adopt_stage_heading(number, total, step.summary)
+        action = "CHECK" if step.status == "ok" else "CONFIGURE"
+        click.echo(f"  Action:   {action}")
+        click.echo(f"  Current:  {step.detail}")
+        if step.id == "dependency":
+            click.echo(f"  Will do:  {step.detail}")
+        elif step.id == "core":
+            click.echo("  Will do:  enable the standard extensions and add shared website styles")
+        elif step.id == "mermaid":
+            click.echo(
+                "  Will do:  scaffold and install the project-local Mermaid renderer with npm"
+            )
+        elif step.id == "maths":
+            click.echo(
+                "  Will do:  scaffold MathJax, install it with npm, and configure the website"
+            )
+        elif step.id == "verify":
+            click.echo("  Next:     run `zensical build --clean` after this command finishes")
+
+        if step.status == "wrong":
+            failed = True
+            click.echo(
+                "\n  This stage must be corrected before project files can be changed.",
+                err=True,
+            )
+            continue
+        if not step.needs_work or not apply:
+            continue
+        if not click.confirm("\n  Apply this stage?", default=True):
+            click.echo("  skipped")
+            continue
+        try:
+            written = apply_adopt_step(root, options, step.id)
+        except AdoptError as error:
+            raise click.ClickException(str(error)) from error
+        applied_stages += 1
+        click.echo("  done")
+        if verbose:
+            for path in written:
+                click.echo(f"    changed {path}")
+
+    if failed:
+        raise click.ClickException(
+            "the assessment found a blocking stage; correct it and rerun `prodockit adopt`"
+        )
+
+    if not apply:
+        outstanding = sum(step.needs_work for step in steps)
+        if outstanding:
+            mode = "No changes made." if not dry_run else "Dry run complete; no changes made."
+            click.echo(f"\n{outstanding} selected stage(s) need work. {mode}")
+            click.echo("Run `prodockit adopt --apply` to apply them.")
+        else:
+            click.echo("\nAll selected prodockit components are configured.")
+        return
+
+    if applied_stages == 0:
+        if any(step.needs_work for step in steps):
+            click.echo("\nNo changes were applied.")
+            click.echo("Rerun `prodockit adopt --apply` when you are ready to apply them.")
+        else:
+            click.echo("\nAll selected prodockit components are already configured.")
+            click.echo("No changes made.")
+        return
+
+    click.echo("\nAdoption stages finished.")
+    click.echo("Run `zensical build --clean`, then review the local changes with `git diff`.")
+    click.echo("Nothing has been committed or pushed.")
+
+
 @main.command()
 @click.option(
     "-r",
@@ -2524,9 +2759,11 @@ def _run_template_sync(
             else None
         )
         latest_package = latest_prodockit_version()
-        package_version = latest_package if (
-            latest_package and prodockit_upgrade_required(__version__, latest_package)
-        ) else None
+        package_version = (
+            latest_package
+            if (latest_package and prodockit_upgrade_required(__version__, latest_package))
+            else None
+        )
         package_reason = "latest available"
         if (
             package_requirement
