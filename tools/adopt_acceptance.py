@@ -297,7 +297,7 @@ def exercise(
     second_output = adopt(python, project, mermaid=mermaid, maths=maths, apply=True)
     if snapshot(project) != stable:
         raise AcceptanceError(f"{name}: a second apply changed project files")
-    if "Adoption stages finished" not in second_output:
+    if "All selected prodockit components are already configured" not in second_output:
         raise AcceptanceError(f"{name}: second apply did not finish cleanly")
 
     print(f"PASS {name}: {len(modifications)} project file(s) changed as planned")
