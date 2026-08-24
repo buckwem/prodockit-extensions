@@ -2238,8 +2238,17 @@ def adopt_command(
             current_phase = step.phase
             _adopt_phase_heading(_ADOPT_PHASES.index(step.phase) + 1, step.phase)
 
+        # Earlier stages can make the project ready to build during this same
+        # --apply run. Refresh the final read-only readiness check so its
+        # status describes the files now on disk rather than the initial plan.
+        if apply and step.id == "verify":
+            step = next(item for item in assess_adoption(root, options) if item.id == "verify")
+
         if not step.selected:
             click.echo(f"{number:2}  SKIP  {step.summary} — {step.detail}")
+            continue
+        if step.status == "wait":
+            click.echo(f"{number:2}  WAIT  {step.summary} — {step.detail}")
             continue
         if step.status == "ok" and not verbose:
             click.echo(f"{number:2}  ok    {step.summary} — {step.detail}")

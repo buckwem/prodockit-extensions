@@ -227,7 +227,7 @@ class Step:
 
     @property
     def needs_work(self) -> bool:
-        return self.selected and self.status != "ok"
+        return self.selected and self.status not in {"ok", "wait"}
 
 
 def load_manifest(root: Path) -> AdoptOptions:
@@ -982,13 +982,20 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
     configured = _extensions(parsed)
     missing = [name for name in CORE_EXTENSIONS if name not in configured]
     style_path = _stylesheet_path(root, parsed)
+    core_ok = not missing and _style_ok(root, parsed) and style_path.is_file()
     core_detail = (
         "all standard extensions and the shared stylesheet are configured"
-        if not missing and _style_ok(root, parsed) and style_path.is_file()
+        if core_ok
         else "add the standard extensions and shared website styles"
     )
     mermaid_ok = _tool_installed(root, "mermaid") and "pymdownx.superfences" in configured
     maths_ok = _tool_installed(root, "mathjax") and "pymdownx.arithmatex" in configured
+    ready_to_build = (
+        _requirement_ok(root)
+        and core_ok
+        and (not options.mermaid or mermaid_ok)
+        and (not options.maths or maths_ok)
+    )
     return [
         Step(
             "project",
@@ -1019,7 +1026,7 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
             "core",
             "Integrate",
             "Standard authoring components",
-            "ok" if not missing and _style_ok(root, parsed) and style_path.is_file() else "missing",
+            "ok" if core_ok else "missing",
             core_detail,
         ),
         Step(
@@ -1041,9 +1048,13 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
         Step(
             "verify",
             "Verify",
-            "Local build check",
-            "ok",
-            "run zensical build --clean after applying the planned changes",
+            "Ready for local build",
+            "ok" if ready_to_build else "wait",
+            (
+                "selected components are configured; run zensical build --clean to verify the site"
+                if ready_to_build
+                else "apply the selected integration stages before running zensical build --clean"
+            ),
         ),
     ]
 

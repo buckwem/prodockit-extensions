@@ -71,6 +71,8 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     assert "Stage [3/7] Prodockit dependency" in result.output
     assert "Mermaid diagrams — not selected" in result.output
     assert "Mathematical notation — not selected" in result.output
+    assert "WAIT  Ready for local build" in result.output
+    assert "apply the selected integration stages" in result.output
     assert "Git, SSH, remotes, editors, commits and pushes" in result.output
 
 
@@ -258,6 +260,7 @@ def test_apply_core_never_invokes_git_or_editor_setup(tmp_path: Path, monkeypatc
     assert result.exit_code == 0, result.output
     assert (project / "requirements.txt").is_file()
     assert (project / STYLESHEET).is_file()
+    assert "ok    Ready for local build" in result.output
     assert not (project / ".vscode").exists()
     assert "Nothing has been committed or pushed" in result.output
 
