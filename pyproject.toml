@@ -67,6 +67,9 @@ dependencies = [
   "tomli>=2.0; python_version < '3.11'",
   "beautifulsoup4>=4.12",
   "click>=8.0",
+  # A direct import for `prodockit adopt`, which preserves existing MkDocs
+  # and Zensical YAML configuration as well as Zensical's TOML format.
+  "PyYAML>=6.0",
   "pypdf>=4.0",
 ]
 classifiers = [
@@ -120,6 +123,8 @@ dev = [
   "mypy",
   "types-Markdown",
   "types-beautifulsoup4",
+  "types-PyYAML",
+  "Pillow>=10",
   "pytest",
   "pytest-cov",
   "pymupdf>=1.24",
@@ -160,6 +165,7 @@ testpaths = ["tests"]
 addopts = "-m 'not built'"
 markers = [
   "built: needs this project's own built site/PDF on disk (run by docs.yml)",
+  "real_site: clones and visually compares an external documentation site when explicitly enabled",
 ]
 
 [tool.ruff]

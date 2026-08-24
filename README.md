@@ -47,6 +47,7 @@ slash-fenced block model rather than a separate, look-alike parser.
 |---|---|
 | Create and publish a document | [prodockit User Guide](https://buckwem.github.io/prodockit-userguide/) |
 | Begin with a maintained report project | [prodockit-template](https://github.com/buckwem/prodockit-template) |
+| Add prodockit to an existing Zensical or MkDocs document | [`prodockit adopt`](https://prodockit.org/adopt/) |
 | Build a small local site from scratch | [Build your first site](https://prodockit.org/getting-started/) |
 | Look up Markdown syntax and configuration | [Authoring reference](https://prodockit.org/authoring/) |
 | Build a PDF or publish with CI | [Publish a document](https://prodockit.org/publishing/) |
@@ -143,6 +144,7 @@ The `pdk` executable is an exact shorter alias for `prodockit`; `boot` aliases
 
 | Command | Purpose |
 |---|---|
+| `prodockit adopt` | Add selected prodockit components to an existing Zensical or MkDocs document |
 | `prodockit bootstrap` | Check or prepare a machine and document project |
 | `prodockit init-tools` | Install the local Node tooling for Mermaid and maths rendering |
 | `prodockit init-mathjax` | Copy the installed MathJax bundle into website assets |

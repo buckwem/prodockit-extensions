@@ -1,0 +1,74 @@
+# Planning list only. The harness never reads this file.
+# Do not browse, fetch, clone or test an entry without an explicit user request.
+
+[[site]]
+name = "zensical-docs"
+location = "https://github.com/zensical/docs"
+status = "tested-locally"
+tested_revision = "790d2ac4a69d53ed2536bc59423b62034b01f73e"
+
+[[site]]
+name = "fastapi"
+location = "https://fastapi.tiangolo.com/"
+status = "tested-locally"
+tested_revision = "c3f316b7e814667e8ee81e03a7330d00ee61e45c"
+
+[[site]]
+name = "mingw-w64"
+location = "https://www.mingw-w64.org/"
+status = "tested-locally"
+tested_revision = "34114d7e600310144ae7a7ae3f29fab734d3d9ca"
+
+[[site]]
+name = "hypershift"
+location = "https://hypershift.pages.dev/"
+status = "tested-locally"
+tested_revision = "8b0fbb6d5ccf1c351b36d3691514444361878109"
+
+[[site]]
+name = "condenser"
+location = "https://condenser.arc.ucl.ac.uk/documentation/"
+status = "tested-locally"
+tested_revision = "12c881e1a45f2dc00d5345b9dc282840bf71ee76"
+
+[[site]]
+name = "apparmor"
+location = "https://apparmor.net/getting-started/"
+status = "tested-locally"
+tested_revision = "b800293dc317525eabc4467346fb74da3034052b"
+
+[[site]]
+name = "lemonade"
+location = "https://github.com/lemonade-sdk/lemonade"
+status = "tested-locally"
+tested_revision = "df9b90cd69bf60667feed5106f052332d052e170"
+
+[[site]]
+name = "ibm-business-automation"
+location = "https://ibm.github.io/business-automation/"
+status = "tested-locally"
+tested_revision = "7467906a60fb496afb33dcb7c474929f88449597"
+
+[[site]]
+name = "ibm-algorithm-nexus"
+location = "https://ibm.github.io/algorithm-nexus/"
+status = "tested-locally"
+tested_revision = "d037a460b9e6b610f86ef0cad59275ad4251337f"
+
+[[site]]
+name = "aqarios-home"
+location = "https://docs.aqarios.com/home/intro/"
+status = "source-unavailable"
+note = "The deployed site links to aqarios/luna-docs, but that repository is not publicly accessible."
+
+[[site]]
+name = "globus-icicle"
+location = "https://labs.globus.org/icicle/"
+status = "tested-locally"
+tested_revision = "b615befa988f6a5ab3e2011093d40b1fb929e93f"
+
+[[site]]
+name = "aqarios-luna-solve"
+location = "https://docs.aqarios.com/luna-solve/get-started/"
+status = "source-unavailable"
+note = "The deployed site links to aqarios/luna-docs, but that repository is not publicly accessible."

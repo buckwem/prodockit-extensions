@@ -1,0 +1,48 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+name: Adopt installed wheel
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  x64:
+    name: ${{ matrix.name }} x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu 24.04
+            runner: ubuntu-24.04
+          - name: Windows 2025
+            runner: windows-2025
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          architecture: x64
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Build the candidate wheel
+        run: |
+          python -m pip install build
+          python -m build --wheel
+      - name: Test prodockit adopt from the installed wheel
+        run: >-
+          python tools/adopt_acceptance.py
+          --wheel dist
+          --require-x64
+          --report adopt-acceptance-report.json
+      - name: Keep the acceptance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adopt-${{ matrix.runner }}
+          path: adopt-acceptance-report.json
+          if-no-files-found: warn

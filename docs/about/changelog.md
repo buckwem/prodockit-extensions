@@ -15,6 +15,19 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
+## Unreleased
+
+- **Added:** `prodockit adopt` adds prodockit's authoring components to an
+  existing Zensical or MkDocs document without configuring Git, SSH or an
+  editor. It reports what the project needs, supports dry-run and resumable
+  apply stages, preserves existing TOML or YAML configuration, and makes the
+  Mermaid and maths toolchains independent options.
+
+- **Added:** installed-wheel acceptance tests exercise adoption independently
+  on x64 Ubuntu and Windows 2025. A companion script can make a disposable,
+  non-Git copy of a real document for local build and visual checks without
+  changing its source repository.
+
 ## 0.43.2 (2026-08-24)
 
 - **Fixed:** `pdkboot --apply` now recovers cleanly after an interrupted or

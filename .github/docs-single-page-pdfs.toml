@@ -48,6 +48,7 @@ other_page_shapes = [
 # for the cover: `--markdown-file` deliberately has no cover-page semantics.
 [covered]
 "index.md" = "complete"
+"adopt.md" = "installation.md"
 "getting-started.md" = "installation.md"
 "command-line.md" = "publishing.md"
 "prodockit-template.md" = "installation.md"
