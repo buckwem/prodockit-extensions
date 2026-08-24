@@ -7,7 +7,7 @@ hide:
 <div class="cover-hero" markdown="1">
 <div class="cover-hero-text" markdown="1">
 
-# <span class="cover-hero-title-light">prodockit</span> {: .cover-hero-title }
+# <span class="cover-hero-title-light">prodockit</span> {: .cover-hero-title .unnumbered }
 
 A docs-as-code workflow for professional and academic documentation, built on Zensical and Markdown.
 {: .cover-hero-subtitle }
