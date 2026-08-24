@@ -24,8 +24,10 @@ copyright = "Copyright © 2026 Mark Buckwell and contributors"
 extra.pdf_copyright = 'Copyright © 2026 Mark Buckwell and contributors.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://prodockit.org/">prodockit</a>.'
 
 extra_css = ["stylesheets/extra.css"]
-# This is a reference website, rather than a chapter-numbered report.
-extra.heading_numbering = false
+# The reference website uses ordinary headings, while the downloadable PDF
+# keeps chapter numbering and a numbered bookmark outline.
+extra.heading_numbering = true
+extra.website_heading_numbering = false
 
 # Client-side MathJax, for the website only - the PDF pre-renders the same
 # formulas to SVG instead (see docs/javascripts/mathjax.js, and

@@ -52,12 +52,13 @@ def test_home_page_hero_title_is_not_numbered() -> None:
     assert '{: .cover-hero-title .unnumbered }' in home
 
 
-def test_reference_site_switches_document_heading_numbering_off() -> None:
+def test_reference_site_switches_only_website_heading_numbering_off() -> None:
     config = read_config(_text("zensical.toml"))["project"]
 
-    assert config["extra"]["heading_numbering"] is False
+    assert config["extra"]["heading_numbering"] is True
+    assert config["extra"]["website_heading_numbering"] is False
     assert config["extra_css"] == ["stylesheets/extra.css"]
-    assert "config.extra.heading_numbering == false" in _text("overrides/main.html")
+    assert "config.extra.website_heading_numbering == false" in _text("overrides/main.html")
 
 
 def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
