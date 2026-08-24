@@ -109,6 +109,13 @@ def assert_x64() -> str:
     return machine
 
 
+def assert_arm64() -> str:
+    machine = platform.machine()
+    if machine.lower() not in {"aarch64", "arm64"}:
+        raise AcceptanceError(f"this job must be ARM64, but platform.machine() is {machine!r}")
+    return machine
+
+
 def find_config(project: Path) -> Path:
     found = [project / name for name in CONFIG_NAMES if (project / name).is_file()]
     if len(found) != 1:
@@ -313,8 +320,12 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--output", type=Path, help="New directory for the disposable project copy")
     result.add_argument("--mermaid", action="store_true", help="Select Mermaid for --project")
     result.add_argument("--maths", action="store_true", help="Select maths for --project")
-    result.add_argument(
+    architecture = result.add_mutually_exclusive_group()
+    architecture.add_argument(
         "--require-x64", action="store_true", help="Fail unless this machine is x64"
+    )
+    architecture.add_argument(
+        "--require-arm64", action="store_true", help="Fail unless this machine is ARM64"
     )
     result.add_argument("--report", type=Path, help="Write a JSON result report")
     return result
@@ -323,7 +334,12 @@ def parser() -> argparse.ArgumentParser:
 def main(arguments: list[str] | None = None) -> int:
     args = parser().parse_args(arguments)
     wheel = resolve_wheel(args.wheel)
-    machine = assert_x64() if args.require_x64 else platform.machine()
+    if args.require_x64:
+        machine = assert_x64()
+    elif args.require_arm64:
+        machine = assert_arm64()
+    else:
+        machine = platform.machine()
     print(f"Platform: {platform.platform()}")
     print(f"Architecture: {machine}")
     print(f"Wheel: {wheel}")

@@ -1,9 +1,9 @@
 # Installed-wheel adoption acceptance
 
 The automated workflow builds a wheel and runs `tools/adopt_acceptance.py` on
-GitHub-hosted Ubuntu x64 and Windows 2025 x64 machines. It uses disposable TOML
-and YAML projects and covers the core, Mermaid-only, maths-only and combined
-paths.
+GitHub-hosted Ubuntu and Windows x64 machines, plus Ubuntu, Windows and macOS
+ARM64 machines. It uses disposable TOML and YAML projects and covers the core,
+Mermaid-only, maths-only and combined paths.
 
 ## Create a minimal site for manual testing
 

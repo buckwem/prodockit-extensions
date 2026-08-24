@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  x64:
-    name: ${{ matrix.name }} x64
+  installed-wheel:
+    name: ${{ matrix.name }} ${{ matrix.architecture }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     strategy:
@@ -19,14 +19,30 @@ jobs:
         include:
           - name: Ubuntu 24.04
             runner: ubuntu-24.04
+            architecture: x64
+            architecture_check: --require-x64
           - name: Windows 2025
             runner: windows-2025
+            architecture: x64
+            architecture_check: --require-x64
+          - name: Ubuntu 24.04
+            runner: ubuntu-24.04-arm
+            architecture: arm64
+            architecture_check: --require-arm64
+          - name: Windows 11
+            runner: windows-11-arm
+            architecture: arm64
+            architecture_check: --require-arm64
+          - name: macOS 15
+            runner: macos-15
+            architecture: arm64
+            architecture_check: --require-arm64
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-          architecture: x64
+          architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
       - name: Build the candidate wheel
@@ -43,12 +59,12 @@ jobs:
         run: >-
           python tools/adopt_acceptance.py
           --wheel dist
-          --require-x64
+          ${{ matrix.architecture_check }}
           --report adopt-acceptance-report.json
       - name: Keep the acceptance report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adopt-${{ matrix.runner }}
+          name: adopt-${{ matrix.runner }}-${{ matrix.architecture }}
           path: adopt-acceptance-report.json
           if-no-files-found: warn

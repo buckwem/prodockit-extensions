@@ -32,6 +32,27 @@ def test_an_ambiguous_wheel_directory_is_rejected(tmp_path: Path) -> None:
         adopt_acceptance.resolve_wheel(tmp_path)
 
 
+@pytest.mark.parametrize("machine", ["arm64", "aarch64"])
+def test_arm64_architecture_names_are_accepted(monkeypatch, machine: str) -> None:
+    monkeypatch.setattr(adopt_acceptance.platform, "machine", lambda: machine)
+
+    assert adopt_acceptance.assert_arm64() == machine
+
+
+def test_x64_is_rejected_when_arm64_is_required(monkeypatch) -> None:
+    monkeypatch.setattr(adopt_acceptance.platform, "machine", lambda: "x86_64")
+
+    with pytest.raises(adopt_acceptance.AcceptanceError, match="must be ARM64"):
+        adopt_acceptance.assert_arm64()
+
+
+def test_architecture_requirements_are_mutually_exclusive() -> None:
+    with pytest.raises(SystemExit):
+        adopt_acceptance.parser().parse_args(
+            ["--wheel", "candidate.whl", "--require-x64", "--require-arm64"]
+        )
+
+
 def test_a_real_project_is_copied_without_generated_or_git_state(tmp_path: Path) -> None:
     source = tmp_path / "source"
     output = tmp_path / "output"
