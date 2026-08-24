@@ -31,6 +31,15 @@ review and more likely to combine a CI migration with a visual change.
 If you are unsure, use the first command. It is only a preview. The output tells
 you whether an update is available and which command to run next.
 
+The preview also checks the version of prodockit installed in the activated
+project environment against the latest release on PyPI and the minimum needed
+by the template. If a newer version is needed, it shows the installed and
+available versions and the exact `python -m pip install --upgrade ...` command
+to run. This is advice rather than an automatic package installation, so you
+remain in control of the project's environment. If PyPI cannot be reached, the
+template check continues and only the latest-release part of the package check
+is omitted.
+
 Use `--apply` on its own when changes normally reach `main` through a pull
 request or merge request. Use `--apply --push` only when your usual practice is
 to update `main` directly. It cannot bypass a protected branch.
@@ -161,6 +170,18 @@ you deliberately kept.
 ////
 
 ///
+
+### When only prodockit needs upgrading {: #tsync-package-only }
+
+Sometimes a release changes the prodockit package but none of the files owned
+by the template. In that case the preview says that no template files need
+changing and gives you the package upgrade command. There is no template
+change to commit or push.
+
+After upgrading, start the **Pages** or **documentation** pipeline in GitHub or
+GitLab. This manual rebuild is still necessary: it republishes the website and
+PDF using the newer prodockit package. A successful local upgrade alone does
+not replace outputs that were already published.
 
 ## What it will and will not write {: #tsync-what-it-writes }
 
