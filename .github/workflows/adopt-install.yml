@@ -26,7 +26,7 @@ jobs:
             runner: windows-2025
             architecture: x64
             architecture_check: --require-x64
-            scenario_args: --scenario all --scenario-workers 2
+            scenario_args: --scenario toml-both
           - name: Ubuntu 24.04
             runner: ubuntu-24.04-arm
             architecture: arm64
@@ -36,7 +36,7 @@ jobs:
             runner: windows-11-arm
             architecture: arm64
             architecture_check: --require-arm64
-            scenario_args: --scenario all --scenario-workers 2
+            scenario_args: --scenario toml-both
           - name: macOS 15
             runner: macos-15
             architecture: arm64
