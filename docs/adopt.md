@@ -70,6 +70,37 @@ will receive the package and run the build.
 
 ////
 
+//// step | Install or update prodockit
+
+=== "macOS"
+
+    ```bash
+    pip3 install --upgrade prodockit
+    ```
+
+=== "Ubuntu"
+
+    ```bash
+    python -m pip install --upgrade prodockit
+    ```
+
+=== "Windows PowerShell"
+
+    ```powershell
+    python -m pip install --upgrade prodockit
+    ```
+
+Confirm that the command comes from the active project environment:
+
+```bash
+prodockit --version
+```
+
+Adoption later records a `prodockit>=...` floor in the project's requirements
+file. This installation step makes the command available for the first run.
+
+////
+
 //// step | Ask for an assessment
 
 ```bash
@@ -146,9 +177,17 @@ with unrelated documents.
 
 //// step | Build the website
 
-```bash
-zensical build --clean
-```
+=== "Zensical project"
+
+    ```bash
+    zensical build --clean
+    ```
+
+=== "MkDocs project"
+
+    ```bash
+    mkdocs build --clean
+    ```
 
 This uses the document's actual pages and configuration, so it remains the
 final proof that the adopted components work with the existing project.

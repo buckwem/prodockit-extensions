@@ -6,7 +6,7 @@ icon: lucide/package-plus
 
 ## Requirements
 
-**Python 3.10 or later.** Tested on 3.10, 3.11, 3.12 and 3.13; `pip` will
+**Python 3.10 or later.** Tested on 3.10, 3.11, 3.12, 3.13 and 3.14; `pip` will
 refuse to install on anything older rather than failing later at import.
 
 Everything below is pulled in automatically by `pip install prodockit`,

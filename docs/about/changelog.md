@@ -17,6 +17,9 @@ Those are two package eras rather than duplicate releases.
 
 ## Unreleased
 
+- **Added:** Python 3.14 joins the full pull-request test matrix and the
+  package's published compatibility classifiers.
+
 - **Added:** `prodockit adopt` adds prodockit's authoring components to an
   existing Zensical or MkDocs document without configuring Git, SSH or an
   editor. It reports what the project needs, supports dry-run and resumable
@@ -24,7 +27,8 @@ Those are two package eras rather than duplicate releases.
   Mermaid and maths toolchains independent options.
 
 - **Added:** installed-wheel acceptance tests exercise adoption independently
-  on x64 Ubuntu and Windows 2025. A companion script can make a disposable,
+  on Ubuntu and Windows x64, plus Ubuntu, Windows and macOS ARM64. A companion
+  script can make a disposable,
   non-Git copy of a real document for local build and visual checks without
   changing its source repository.
 
