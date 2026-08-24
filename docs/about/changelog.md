@@ -15,6 +15,20 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
+## 0.43.1 (2026-08-23)
+
+- **Fixed:** forward references now resolve to figures and tables nested under
+  Markdown list items. The navigation pre-scan understands the required
+  four-space indentation without mistaking ordinary indented code for a
+  caption, including multiple references from an earlier page to targets on a
+  later page.
+
+- **Changed:** the `pdkboot` preview is more resilient across clean macOS,
+  Windows and Ubuntu installs. It preserves the tested history when an
+  existing repository contains work, makes phases and stages easier to see,
+  automates the Windows PDF fonts, consistently uses Windows' built-in SSH,
+  and preserves the native-library and publication checks across later runs.
+
 ## 0.43.0 (2026-08-23)
 
 - **Added:** `pdkboot` is available as an isolated preview of the next machine
