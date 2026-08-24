@@ -46,6 +46,20 @@ def test_every_navigated_page_except_home_has_an_icon() -> None:
         assert re.match(r"^---\nicon: [^\n]+\n---\n", text), relative_path
 
 
+def test_home_page_hero_title_is_not_numbered() -> None:
+    home = _text("docs/index.md")
+
+    assert '{: .cover-hero-title .unnumbered }' in home
+
+
+def test_reference_site_switches_document_heading_numbering_off() -> None:
+    config = read_config(_text("zensical.toml"))["project"]
+
+    assert config["extra"]["heading_numbering"] is False
+    assert config["extra_css"] == ["stylesheets/extra.css"]
+    assert "config.extra.heading_numbering == false" in _text("overrides/main.html")
+
+
 def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
     introduction = _text("docs/introduction.md")
 

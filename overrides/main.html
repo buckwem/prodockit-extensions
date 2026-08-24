@@ -1,0 +1,19 @@
+{# Apply project-wide presentation switches once on every page. #}
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% if config.extra.heading_numbering == false %}
+    <style>
+      .md-typeset h1::before,
+      .md-typeset h2::before,
+      .md-typeset h3::before,
+      .md-nav--secondary > .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before,
+      .md-nav--secondary > .md-nav__list > .md-nav__item .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {
+        content: "" !important;
+      }
+      .prodockit-figure-caption .caption-prefix::before { content: "Figure " !important; }
+      .prodockit-table-caption .caption-prefix::before { content: "Table " !important; }
+    </style>
+  {% endif %}
+{% endblock %}
