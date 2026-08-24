@@ -264,6 +264,13 @@ def test_apply_core_never_invokes_git_or_editor_setup(tmp_path: Path, monkeypatc
     assert not (project / ".vscode").exists()
     assert "Nothing has been committed or pushed" in result.output
 
+    repeated = CliRunner().invoke(main, ["adopt", "--apply"])
+
+    assert repeated.exit_code == 0, repeated.output
+    assert "All selected prodockit components are already configured" in repeated.output
+    assert "No changes made" in repeated.output
+    assert "Run `zensical build --clean`" not in repeated.output
+
 
 def test_report_refuses_a_directory_without_zensical_config(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)

@@ -2233,6 +2233,7 @@ def adopt_command(
     current_phase = ""
     total = len(steps)
     failed = False
+    applied_stages = 0
     for number, step in enumerate(steps, start=1):
         if step.phase != current_phase:
             current_phase = step.phase
@@ -2289,6 +2290,7 @@ def adopt_command(
             written = apply_adopt_step(root, options, step.id)
         except AdoptError as error:
             raise click.ClickException(str(error)) from error
+        applied_stages += 1
         click.echo("  done")
         if verbose:
             for path in written:
@@ -2307,6 +2309,15 @@ def adopt_command(
             click.echo("Run `prodockit adopt --apply` to apply them.")
         else:
             click.echo("\nAll selected prodockit components are configured.")
+        return
+
+    if applied_stages == 0:
+        if any(step.needs_work for step in steps):
+            click.echo("\nNo changes were applied.")
+            click.echo("Rerun `prodockit adopt --apply` when you are ready to apply them.")
+        else:
+            click.echo("\nAll selected prodockit components are already configured.")
+            click.echo("No changes made.")
         return
 
     click.echo("\nAdoption stages finished.")
