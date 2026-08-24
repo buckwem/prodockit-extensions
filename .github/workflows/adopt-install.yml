@@ -34,6 +34,12 @@ jobs:
           python -m pip install build
           python -m build --wheel
       - name: Test prodockit adopt from the installed wheel
+        # The acceptance build exercises website integration. It verifies the
+        # Mermaid CLI install, but does not render a PDF, so downloading a
+        # second browser into every disposable fixture would only lengthen the
+        # independent runner.
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
         run: >-
           python tools/adopt_acceptance.py
           --wheel dist
