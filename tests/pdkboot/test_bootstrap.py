@@ -2464,6 +2464,25 @@ def test_old_windows_pandoc_is_an_explicit_pinned_upgrade(tmp_path: Path) -> Non
     assert plan.describe.startswith("Upgrade Pandoc")
 
 
+def test_windows_pandoc_repair_does_not_reinstall_a_working_version(
+    tmp_path: Path,
+) -> None:
+    """A font-download failure happens after Pandoc has installed. The next
+    run must be able to reach the font command instead of stopping at a
+    redundant pinned install that winget reports as an error."""
+    fonts = tmp_path / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts"
+    fonts.mkdir(parents=True)
+    runner = FakeRunner({"pandoc --version": CommandResult(0, "pandoc 3.10.1\n")})
+
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+    joined = "\n".join(" ".join(command) for command in plan.commands)
+
+    assert "JohnMacFarlane.Pandoc" not in joined
+    assert "pdkboot-fonts-" in joined
+
+
 def test_pandoc_current_version_is_ok(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
@@ -5684,6 +5703,23 @@ def test_winget_saying_already_installed_is_not_a_failure() -> None:
     assert benign_outcome(["winget.exe", "install", "--id", "Git.Git"], outcome)
 
 
+def test_winget_pinned_version_already_installed_is_not_a_failure() -> None:
+    """Pinned installs use exit 1 rather than winget's no-upgrade code."""
+    from prodockit.bootstrap import benign_outcome
+
+    outcome = CommandResult(
+        1,
+        stdout=(
+            "A package version is already installed. "
+            "Installation cancelled."
+        ),
+    )
+    assert benign_outcome(
+        ["winget", "install", "--id", "JohnMacFarlane.Pandoc", "--version", "3.10.1"],
+        outcome,
+    )
+
+
 def test_the_same_code_from_anything_else_is_still_a_failure() -> None:
     """Narrow on purpose: the code means "already installed" for winget
     and nothing at all for git, so excusing it everywhere would swallow a
@@ -5768,6 +5804,7 @@ def test_pdkboot_retries_a_temporary_remote_service_failure(
     "message",
     [
         "Could not resolve host: registry.npmjs.org",
+        "The remote name could not be resolved: 'github.com'",
         "npm ERR! code ECONNRESET",
         "operation timed out",
     ],

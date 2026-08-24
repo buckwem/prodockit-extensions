@@ -589,6 +589,17 @@ def benign_outcome(command: Sequence[str], result: CommandResult) -> bool:
         return True
     if name != "winget":
         return False
+    output = f"{result.stdout}\n{result.stderr}".lower()
+    if (
+        "a package version is already installed" in output
+        and "installation cancelled" in output
+    ):
+        # A pinned `winget install --version ... --no-upgrade` uses exit 1
+        # for the requested version already being present. Unlike the
+        # unsigned App Installer code below, there is no distinctive exit
+        # code to recognise; keep the exception narrow to winget's exact
+        # two-part message.
+        return True
     # Windows reports these as large unsigned values; a signed
     # interpretation of the same bits would miss them.
     return (result.returncode & 0xFFFFFFFF) in WINGET_NOTHING_TO_DO

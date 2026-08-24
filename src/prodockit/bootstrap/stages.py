@@ -2404,7 +2404,7 @@ def _plan_pandoc(context: Context) -> Plan:
     # PowerShell process nor the host architecture reliably answers that
     # question. pdkboot asks its own Python interpreter (#393).
     pandoc_upgrade = False
-    pandoc_install = _winget(
+    pandoc_install: list[str] | None = _winget(
         "JohnMacFarlane.Pandoc",
         PANDOC_VERSION,
         resilient=context.pdkboot,
@@ -2416,6 +2416,13 @@ def _plan_pandoc(context: Context) -> Plan:
         if installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR:
             pandoc_install = _winget_upgrade("JohnMacFarlane.Pandoc", PANDOC_VERSION)
             pandoc_upgrade = True
+        elif installed_version is not None:
+            # A partial run may have installed Pandoc and Pango before a
+            # later font download lost the network. Repeating the pinned
+            # install then exits 1 with "A package version is already
+            # installed. Installation cancelled" and used to prevent the
+            # repair command from ever being reached.
+            pandoc_install = None
 
     environments = _PDKBOOT_MSYS2_ENVIRONMENTS if context.pdkboot else _MSYS2_ENVIRONMENTS
     arm, other = environments["arm64"], environments["other"]
@@ -2461,7 +2468,7 @@ def _plan_pandoc(context: Context) -> Plan:
         "'WEASYPRINT_DLL_DIRECTORIES', $bin, 'User')"
     )
     commands = [
-        pandoc_install,
+        *([pandoc_install] if pandoc_install is not None else []),
         _winget("MSYS2.MSYS2", resilient=context.pdkboot),
         ["powershell", "-NoProfile", "-Command", pango],
         ["powershell", "-NoProfile", "-Command", path_entry],
