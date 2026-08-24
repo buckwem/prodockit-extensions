@@ -52,15 +52,9 @@ Activate it as a separate step:
 .\.venv\Scripts\Activate.ps1
 ```
 
-### Add the three starting files
+### Add the two starting files
 
-Create `requirements.txt` containing:
-
-```text
-zensical>=0.0.55
-```
-
-Create `zensical.toml` alongside it containing:
+Create `zensical.toml` containing:
 
 ```toml
 [project]
@@ -84,10 +78,22 @@ print("existing highlighted code")
 ```
 ````
 
-Install the original site's requirement:
+Install Zensical on macOS:
 
 ```bash
-python -m pip install -r requirements.txt
+pip3 install zensical
+```
+
+On Ubuntu:
+
+```bash
+python -m pip install zensical
+```
+
+On Windows PowerShell:
+
+```powershell
+python -m pip install zensical
 ```
 
 Build the original site before installing the candidate wheel:
@@ -97,10 +103,24 @@ zensical build --clean
 ```
 
 Now install the candidate wheel with `--force-reinstall`, because a development
-wheel can temporarily have the same version number as the current release:
+wheel can temporarily have the same version number as the current release.
+
+On macOS:
+
+```bash
+pip3 install --force-reinstall /path/to/prodockit-0.43.2-py3-none-any.whl
+```
+
+On Ubuntu:
 
 ```bash
 python -m pip install --force-reinstall /path/to/prodockit-0.43.2-py3-none-any.whl
+```
+
+On Windows PowerShell:
+
+```powershell
+python -m pip install --force-reinstall C:\path\to\prodockit-0.43.2-py3-none-any.whl
 ```
 
 Run the manual command sequence:
