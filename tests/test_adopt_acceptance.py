@@ -5,11 +5,15 @@
 
 from __future__ import annotations
 
+import importlib
+import sys
 from pathlib import Path
 
 import pytest
 
-from tools import adopt_acceptance
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+adopt_acceptance = importlib.import_module("tools.adopt_acceptance")
 
 
 def test_a_wheel_file_or_single_wheel_directory_is_accepted(tmp_path: Path) -> None:
