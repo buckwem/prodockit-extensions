@@ -15,6 +15,20 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
+## 0.43.2 (2026-08-24)
+
+- **Fixed:** `pdkboot --apply` now recovers cleanly after an interrupted or
+  partially completed setup. It validates and resumes partial Pandoc, Pango,
+  SSH, repository, virtual-environment, Node.js and MathJax work instead of
+  assuming that the presence of one installed file means the whole stage is
+  ready. Recovery covers macOS, Windows and Ubuntu, including Windows installs
+  whose first package download or network-dependent command failed.
+
+- **Changed:** website extension styles now share one configurable CSS
+  implementation. The extensions documentation keeps website heading
+  numbering switched off while retaining PDF heading numbers, and downstream
+  sites can enable or disable the same rules through their Zensical settings.
+
 ## 0.43.1 (2026-08-23)
 
 - **Fixed:** forward references now resolve to figures and tables nested under
