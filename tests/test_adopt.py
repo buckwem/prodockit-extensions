@@ -295,9 +295,10 @@ def test_mermaid_install_uses_only_the_selected_node_project(tmp_path: Path, mon
     project = _project(tmp_path)
     monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
 
-    def npm(command, **_kwargs):
+    def npm(command, **kwargs):
         assert command[0] == "/usr/bin/npm"
-        assert command[-1].endswith("tools/mermaid")
+        assert command == ["/usr/bin/npm", "install"]
+        assert kwargs["cwd"] == project / "tools" / "mermaid"
         binary = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
         binary.parent.mkdir(parents=True)
         binary.write_text("renderer", encoding="utf-8")
@@ -317,9 +318,10 @@ def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monke
     project = _project(tmp_path)
     monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
 
-    def npm(command, **_kwargs):
+    def npm(command, **kwargs):
         assert command[0] == "/usr/bin/npm"
-        assert command[-1].endswith("tools/mathjax")
+        assert command == ["/usr/bin/npm", "install"]
+        assert kwargs["cwd"] == project / "tools" / "mathjax"
         bundle = (
             project
             / "tools"

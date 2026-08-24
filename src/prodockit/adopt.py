@@ -938,10 +938,12 @@ def install_tool(root: Path, component: str) -> list[Path]:
     written = ensure_tools(root, options)
     # On Windows npm is a command shim named npm.cmd. Passing the path found
     # by shutil avoids depending on PATHEXT handling inside subprocess.
-    command = [npm, "install", "--prefix", str(root / "tools" / component)]
+    tool_root = root / "tools" / component
+    command = [npm, "install"]
     try:
         completed = subprocess.run(
             command,
+            cwd=tool_root,
             capture_output=True,
             text=True,
             encoding="utf-8",
