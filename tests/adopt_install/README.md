@@ -5,6 +5,121 @@ GitHub-hosted Ubuntu x64 and Windows 2025 x64 machines. It uses disposable TOML
 and YAML projects and covers the core, Mermaid-only, maths-only and combined
 paths.
 
+## Create a minimal site for manual testing
+
+Use this path when you do not already have a Zensical site that you want to
+copy. Everything is created in a new disposable directory.
+
+### Create and enter the directory
+
+On macOS or Ubuntu:
+
+```bash
+mkdir -p ~/prodockit-adopt-test/docs
+cd ~/prodockit-adopt-test
+```
+
+On Windows PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$HOME\prodockit-adopt-test\docs"
+Set-Location "$HOME\prodockit-adopt-test"
+```
+
+### Create the site's virtual environment
+
+On macOS or Ubuntu:
+
+```bash
+python3 -m venv .venv
+```
+
+Activate it as a separate step:
+
+```bash
+source .venv/bin/activate
+```
+
+On Windows PowerShell:
+
+```powershell
+py -m venv .venv
+```
+
+Activate it as a separate step:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+### Add the three starting files
+
+Create `requirements.txt` containing:
+
+```text
+zensical>=0.0.55
+```
+
+Create `zensical.toml` alongside it containing:
+
+```toml
+[project]
+site_name = "Adopt manual test"
+nav = [{ Home = "index.md" }]
+```
+
+Create `docs/index.md` containing:
+
+````markdown
+# Existing Zensical document
+
+This page existed before prodockit was adopted.
+
+## Existing content
+
+The text, navigation and formatting on this page should remain intact.
+
+```python
+print("existing highlighted code")
+```
+````
+
+Install the original site's requirement:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Build the original site before installing the candidate wheel:
+
+```bash
+zensical build --clean
+```
+
+Now install the candidate wheel with `--force-reinstall`, because a development
+wheel can temporarily have the same version number as the current release:
+
+```bash
+python -m pip install --force-reinstall /path/to/prodockit-0.43.2-py3-none-any.whl
+```
+
+Run the manual command sequence:
+
+```bash
+prodockit adopt
+prodockit adopt --configure
+prodockit adopt --dry-run
+prodockit adopt --apply
+zensical build --clean
+zensical serve
+```
+
+For the first pass, answer no to both optional-renderer questions. Repeat in a
+new disposable directory with Mermaid, maths, or both when you want to inspect
+those paths. Confirm that the existing heading, prose and highlighted code are
+unchanged, and that a second `prodockit adopt --apply` reports every selected
+stage as already configured.
+
 ## Test a real project manually
 
 Change to the prodockit-extensions repository:
