@@ -785,10 +785,23 @@ def _plan_git(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
+def _ssh_key_file_is_usable(context: Context, path: Path) -> bool:
+    """Whether an existing key half is non-empty and readable by OpenSSH."""
+    if not path.is_file() or not path.stat().st_size:
+        return False
+    return context.runner.run(["ssh-keygen", "-lf", str(path)]).ok
+
+
 def _check_ssh_key(context: Context) -> CheckResult:
     private = _key_path(context)
     public = private.with_suffix(".pub")
-    if private.exists() and public.exists():
+    if context.pdkboot:
+        private_ready = _ssh_key_file_is_usable(context, private)
+        public_ready = _ssh_key_file_is_usable(context, public)
+    else:
+        private_ready = private.exists()
+        public_ready = public.exists()
+    if private_ready and public_ready:
         return _ok(str(private))
     if private.exists() or public.exists():
         return _wrong(f"only half the keypair exists at {private}")
@@ -833,19 +846,68 @@ def _create_ssh_dir(context: Context) -> list[list[str]]:
 
 def _plan_ssh_key(context: Context) -> Plan:
     private = _key_path(context)
-    return Plan(
-        commands=[
-            *_create_ssh_dir(context),
-            [
-                "ssh-keygen",
-                "-t",
-                "ed25519",
-                "-C",
-                context.config.email,
-                "-f",
-                str(private),
-            ],
+    public = private.with_suffix(".pub")
+    create = [
+        *_create_ssh_dir(context),
+        [
+            "ssh-keygen",
+            "-t",
+            "ed25519",
+            "-C",
+            context.config.email,
+            "-f",
+            str(private),
         ],
+    ]
+    if context.pdkboot and _ssh_key_file_is_usable(
+        context, private
+    ) and not _ssh_key_file_is_usable(context, public):
+        # Preserve the private key and derive its public half. `ssh-keygen -y`
+        # may ask for the existing key's passphrase, so the subprocess inherits
+        # the terminal while only its public-key stdout is captured.
+        script = (
+            "from pathlib import Path; import subprocess, sys\n"
+            "private, public, comment = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]\n"
+            "key = subprocess.run(['ssh-keygen', '-y', '-f', str(private)], "
+            "check=True, text=True, stdout=subprocess.PIPE).stdout.strip()\n"
+            "public.write_text(f'{key} {comment}\\n', encoding='utf-8')\n"
+        )
+        return Plan(
+            commands=[
+                [sys.executable, "-c", script, str(private), str(public), context.config.email]
+            ],
+            instructions=[
+                "Your private key is intact. pdkboot will recreate only its missing public "
+                "half; it will not replace the private key."
+            ],
+            confirm="Recreate the public key from the existing private key?",
+            needs_terminal=True,
+            action="REPAIR",
+        )
+    if context.pdkboot and (private.exists() or public.exists()):
+        commands: list[list[str]] = []
+        backups: list[Path] = []
+        for path in (private, public):
+            if not path.exists():
+                continue
+            backup = _numbered_backup(path, "pdk-orphaned-key-backup")
+            commands.append(_move_path_command(context, path, backup))
+            backups.append(backup)
+        commands.extend(create)
+        return Plan(
+            commands=commands,
+            instructions=[
+                "There is no usable private key to recover. The remaining key file will "
+                f"be archived as {', '.join(str(path) for path in backups)} before a new "
+                "keypair is created."
+            ],
+            confirm="Archive the incomplete key files and create a new keypair?",
+            needs_terminal=True,
+            action="REPAIR",
+            destructive=False,
+        )
+    return Plan(
+        commands=create,
         instructions=[
             "ssh-keygen will ask for a passphrase - choose a strong one and "
             "remember it; it protects the key if your machine is lost.",
@@ -1441,6 +1503,39 @@ def _plan_ssh_upload(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
+def _numbered_backup(path: Path, label: str) -> Path:
+    """An adjacent backup path that never overwrites an earlier recovery copy."""
+    backup = path.parent / f".{path.name}.{label}"
+    suffix = 2
+    while backup.exists():
+        backup = path.parent / f".{path.name}.{label}-{suffix}"
+        suffix += 1
+    return backup
+
+
+def _move_path_command(context: Context, source: Path, destination: Path) -> list[str]:
+    """Moves a path without putting a shell-interpreted path in the command."""
+    if context.platform != WINDOWS:
+        return ["mv", str(source), str(destination)]
+    escaped_source = str(source).replace("'", "''")
+    escaped_destination = str(destination).replace("'", "''")
+    return [
+        "powershell",
+        "-NoProfile",
+        "-Command",
+        f"Move-Item -LiteralPath '{escaped_source}' -Destination '{escaped_destination}'",
+    ]
+
+
+def _template_history_backups(project: Path) -> list[Path]:
+    """Recovery copies left beside a project by the fresh-history stage."""
+    return sorted(project.parent.glob(f".{project.name}.git.pdk-template-backup*"))
+
+
+def _repository_has_a_commit(context: Context, project: Path) -> bool:
+    return context.runner.run([git_command(context), "-C", str(project), "rev-parse", "HEAD"]).ok
+
+
 def _check_clone(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "project_name")) is not None:
         return unknown
@@ -1456,8 +1551,21 @@ def _check_clone(context: Context) -> CheckResult:
                 "to the host is ready"
             )
         return _missing(f"{project} does not exist")
+    backups = _template_history_backups(project) if context.pdkboot else []
     if not (project / ".git").exists():
+        if backups:
+            return _wrong(
+                "the template history was archived, but the new repository was not "
+                "initialised - the interrupted operation can be resumed"
+            )
         return _wrong(f"{project} exists but is not a git repository")
+    if context.pdkboot and not _repository_has_a_commit(context, project):
+        # A deliberately fresh repository has no commit until stage 22. The
+        # adjacent archive proves pdkboot created this state; without it, an
+        # invalid HEAD is evidence of an interrupted clone.
+        if backups:
+            return _ok(f"{project} - your own project")
+        return _wrong(f"{project} is an incomplete git clone with no readable commit")
     # Which repository this came from decides which path the rest of the
     # run takes - whether the history stage offers a reset, and whether
     # the reader's existing work is here at all. Saying only the path left
@@ -1487,6 +1595,38 @@ def _plan_clone(context: Context) -> Plan:
     reports `ok` and does nothing.
     """
     project = context.config.resolved_project_dir(context.home)
+    if (
+        context.pdkboot
+        and project.exists()
+        and not (project / ".git").exists()
+        and _template_history_backups(project)
+    ):
+        return Plan(
+            cwd=str(project),
+            commands=[
+                [git_command(context), "init", "-b", "main"],
+                [git_command(context), "config", "core.fileMode", "false"],
+            ],
+            describe="Resume creating your repository after its template history was archived",
+            action="REPAIR",
+        )
+    if context.pdkboot and project.exists() and (
+        not (project / ".git").exists() or not _repository_has_a_commit(context, project)
+    ):
+        backup = _numbered_backup(project, "pdk-incomplete-clone-backup")
+        return Plan(
+            commands=[
+                _move_path_command(context, project, backup),
+                [git_command(context), "clone", clone_source(context), str(project)],
+            ],
+            instructions=[
+                f"The existing directory is not a complete clone. It will be moved to {backup} "
+                "before cloning again, so none of its files are lost."
+            ],
+            confirm="Archive the incomplete directory and clone the project again?",
+            action="REPAIR",
+            destructive=False,
+        )
     # No prompt here. `--configure` put the choice with every path named
     # and recorded it; asking again mid-run would be the same decision in
     # worse words (#332).
@@ -1825,24 +1965,8 @@ def _plan_fresh_history(context: Context) -> Plan:
     # Outside the new repository: leaving the backup inside the project
     # would make `git add -A` include the entire archived object database in
     # the first commit.
-    backup = project.parent / f".{project.name}.git.pdk-template-backup"
-    suffix = 2
-    while backup.exists():
-        backup = project.parent / f".{project.name}.git.pdk-template-backup-{suffix}"
-        suffix += 1
-    if context.platform == WINDOWS:
-        # PowerShell escapes a literal apostrophe by doubling it inside a
-        # single-quoted string. Paths are data here, not script fragments.
-        source = str(git_dir).replace("'", "''")
-        destination = str(backup).replace("'", "''")
-        archive = [
-            "powershell",
-            "-NoProfile",
-            "-Command",
-            f"Move-Item -LiteralPath '{source}' -Destination '{destination}'",
-        ]
-    else:
-        archive = ["mv", str(git_dir), str(backup)]
+    backup = _numbered_backup(project, "git.pdk-template-backup")
+    archive = _move_path_command(context, git_dir, backup)
     return Plan(
         cwd=str(project),
         # The old history is moved aside, never deleted. The move itself is
@@ -2404,7 +2528,7 @@ def _plan_pandoc(context: Context) -> Plan:
     # PowerShell process nor the host architecture reliably answers that
     # question. pdkboot asks its own Python interpreter (#393).
     pandoc_upgrade = False
-    pandoc_install = _winget(
+    pandoc_install: list[str] | None = _winget(
         "JohnMacFarlane.Pandoc",
         PANDOC_VERSION,
         resilient=context.pdkboot,
@@ -2416,6 +2540,13 @@ def _plan_pandoc(context: Context) -> Plan:
         if installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR:
             pandoc_install = _winget_upgrade("JohnMacFarlane.Pandoc", PANDOC_VERSION)
             pandoc_upgrade = True
+        elif installed_version is not None:
+            # A partial run may have installed Pandoc and Pango before a
+            # later font download lost the network. Repeating the pinned
+            # install then exits 1 with "A package version is already
+            # installed. Installation cancelled" and used to prevent the
+            # repair command from ever being reached.
+            pandoc_install = None
 
     environments = _PDKBOOT_MSYS2_ENVIRONMENTS if context.pdkboot else _MSYS2_ENVIRONMENTS
     arm, other = environments["arm64"], environments["other"]
@@ -2461,7 +2592,7 @@ def _plan_pandoc(context: Context) -> Plan:
         "'WEASYPRINT_DLL_DIRECTORIES', $bin, 'User')"
     )
     commands = [
-        pandoc_install,
+        *([pandoc_install] if pandoc_install is not None else []),
         _winget("MSYS2.MSYS2", resilient=context.pdkboot),
         ["powershell", "-NoProfile", "-Command", pango],
         ["powershell", "-NoProfile", "-Command", path_entry],
@@ -2537,6 +2668,19 @@ def _venv_command(context: Context, name: str) -> Path:
     return venv / "bin" / name
 
 
+def _venv_activation(context: Context) -> Path:
+    venv = _project_venv(context)
+    return venv / ("Scripts/Activate.ps1" if context.platform == WINDOWS else "bin/activate")
+
+
+def _project_venv_is_structurally_complete(context: Context) -> bool:
+    """Whether the generated environment has Python, pip, and activation support."""
+    python = _venv_python(context)
+    if not python.exists() or not _venv_activation(context).exists():
+        return False
+    return context.runner.run([str(python), "-m", "pip", "--version"]).ok
+
+
 _MACOS_DYLD_MARKER = "# Added by pdkboot for WeasyPrint"
 
 
@@ -2547,10 +2691,19 @@ def _homebrew_library_path(context: Context) -> str:
     return str(Path(root) / "lib")
 
 
+def _macos_loader_line(context: Context) -> str:
+    library = _homebrew_library_path(context)
+    return (
+        f'export DYLD_FALLBACK_LIBRARY_PATH="{library}'
+        '${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"'
+    )
+
+
 def _macos_loader_is_configured(context: Context) -> bool:
     activate = _project_venv(context) / "bin" / "activate"
     try:
-        return _MACOS_DYLD_MARKER in activate.read_text(encoding="utf-8")
+        expected = f"{_MACOS_DYLD_MARKER}\n{_macos_loader_line(context)}"
+        return expected in activate.read_text(encoding="utf-8")
     except OSError:
         return False
 
@@ -2594,6 +2747,11 @@ def _check_project_env(context: Context) -> CheckResult:
         return _missing(f"no virtual environment at {_project_venv(context)}")
     if not (project / "requirements.txt").exists():
         return _wrong("the project has no requirements.txt to install")
+    if context.pdkboot and not _project_venv_is_structurally_complete(context):
+        return _wrong(
+            f"the virtual environment at {_project_venv(context)} is incomplete - "
+            "it will be archived and rebuilt"
+        )
     if not _imports_from_project_venv(context, "zensical").ok:
         return _missing("the project's dependencies are not installed")
     weasyprint = _imports_from_project_venv(context, "weasyprint")
@@ -2768,7 +2926,17 @@ def _plan_project_env(context: Context) -> Plan:
     venv = _project_venv(context)
     python = _venv_python(context)
     commands: list[list[str]] = []
-    if not python.exists():
+    rebuild = (
+        context.pdkboot and venv.exists() and not _project_venv_is_structurally_complete(context)
+    )
+    if rebuild:
+        backup = venv.parent / ".venv.pdk-incomplete-backup"
+        suffix = 2
+        while backup.exists():
+            backup = venv.parent / f".venv.pdk-incomplete-backup-{suffix}"
+            suffix += 1
+        commands.append(_move_path_command(context, venv, backup))
+    if not python.exists() or rebuild:
         commands.append([sys.executable, "-m", "venv", str(venv)])
     commands.append([str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")])
     if context.pdkboot and context.platform == MACOS:
@@ -2780,9 +2948,24 @@ def _plan_project_env(context: Context) -> Plan:
             "text = path.read_text(encoding='utf-8')\n"
             "line = 'export DYLD_FALLBACK_LIBRARY_PATH=\"' + library + "
             "'${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}\"'\n"
-            "if marker not in text:\n"
-            "    updated = text.rstrip() + '\\n\\n' + marker + '\\n' + line + '\\n'\n"
-            "    path.write_text(updated, encoding='utf-8')\n"
+            "lines = text.splitlines()\n"
+            "updated_lines = []\n"
+            "index = 0\n"
+            "while index < len(lines):\n"
+            "    if lines[index] == marker:\n"
+            "        index += 1\n"
+            "        if index < len(lines) and lines[index].startswith("
+            "'export DYLD_FALLBACK_LIBRARY_PATH='):\n"
+            "            index += 1\n"
+            "        continue\n"
+            "    updated_lines.append(lines[index])\n"
+            "    index += 1\n"
+            "updated = ('\\n'.join(updated_lines).rstrip() + '\\n\\n' + marker + "
+            "'\\n' + line + '\\n')\n"
+            "temporary = path.with_name(path.name + '.pdkboot.tmp')\n"
+            "temporary.write_text(updated, encoding='utf-8')\n"
+            "temporary.chmod(path.stat().st_mode)\n"
+            "temporary.replace(path)\n"
         )
         commands.append([sys.executable, "-c", script, str(activate), _MACOS_DYLD_MARKER, library])
     return Plan(cwd=str(project), commands=commands)
@@ -2849,7 +3032,18 @@ def _check_node(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "project_name")) is not None:
         return unknown
     project = context.config.resolved_project_dir(context.home)
-    if project.exists():
+    if project.exists() and context.pdkboot:
+        mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin"
+        mermaid_cli = mermaid / ("mmdc.cmd" if context.platform == WINDOWS else "mmdc")
+        mathjax_bundle = project.joinpath(*mathjax.SOURCE)
+        absent = []
+        if not mermaid_cli.is_file():
+            absent.append("mermaid")
+        if not mathjax_bundle.is_file() or not mathjax_bundle.stat().st_size:
+            absent.append("mathjax")
+        if absent:
+            return _wrong(f"node {raw}, but {' and '.join(absent)} is not installed")
+    elif project.exists():
         absent = [
             name
             for name in ("mermaid", "mathjax")
@@ -3386,6 +3580,34 @@ def _check_mathjax(context: Context) -> CheckResult:
     ]
     if absent:
         return _missing(f"{' and '.join(absent)} for the website is not installed")
+    if context.pdkboot:
+        try:
+            bundle_bytes = bundle.read_bytes()
+            config_text = config.read_text(encoding="utf-8")
+        except OSError:
+            return _wrong("the generated MathJax files cannot be read")
+        if not bundle_bytes:
+            return _wrong("the generated MathJax bundle is empty - installation was interrupted")
+        if source.exists():
+            try:
+                if bundle_bytes != source.read_bytes():
+                    return _wrong(
+                        "the generated MathJax bundle does not match the project's pinned copy"
+                    )
+            except OSError:
+                return _wrong("the project's pinned MathJax bundle cannot be read")
+        if config_text != mathjax.CONFIG_SOURCE:
+            return _wrong("the generated MathJax configuration is incomplete or out of date")
+        try:
+            ignored = (project / ".gitignore").read_text(encoding="utf-8").splitlines()
+        except OSError:
+            ignored = []
+        missing_ignores = [entry for entry in mathjax.IGNORED if entry not in ignored]
+        if missing_ignores:
+            return _wrong(
+                "MathJax is installed, but its generated files are not all excluded from git: "
+                + ", ".join(missing_ignores)
+            )
     if not source.exists():
         # Installed, but the pinned copy it came from is gone - so nothing
         # can say whether the two still agree.

@@ -160,6 +160,7 @@ def _temporary_network_failure(outcome: CommandResult) -> bool:
             "too many requests",
             "temporarily unavailable",
             "could not resolve host",
+            "remote name could not be resolved",
             "temporary failure in name resolution",
             "name or service not known",
             "network is unreachable",

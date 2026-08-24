@@ -23,7 +23,8 @@ from pathlib import Path, PurePath
 import pytest
 
 import prodockit as prodockit_module
-from prodockit import __version__
+import prodockit.bootstrap.stages as stages_module
+from prodockit import __version__, mathjax
 from prodockit.bootstrap import (
     HOSTS,
     PROMPTS,
@@ -132,12 +133,19 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     (project / ".git").mkdir(parents=True, exist_ok=True)
     for toolchain in ("mermaid", "mathjax"):
         (project / "tools" / toolchain / "node_modules").mkdir(parents=True, exist_ok=True)
+    mermaid_bin = project / "tools" / "mermaid" / "node_modules" / ".bin"
+    mermaid_bin.mkdir(parents=True, exist_ok=True)
+    for executable in ("mmdc", "mmdc.cmd"):
+        (mermaid_bin / executable).write_text("", encoding="utf-8")
     (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
     venv_python = project / ".venv" / "bin" / "python"
     venv_python.parent.mkdir(parents=True, exist_ok=True)
     venv_python.write_text("", encoding="utf-8")
     (venv_python.parent / "activate").write_text(
-        "# Added by pdkboot for WeasyPrint\n", encoding="utf-8"
+        "# Added by pdkboot for WeasyPrint\n"
+        'export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib'
+        '${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"\n',
+        encoding="utf-8",
     )
     (project / "harvard-cite-them-right.csl").write_text("<style/>", encoding="utf-8")
     pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
@@ -147,8 +155,9 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     vendor.mkdir(parents=True, exist_ok=True)
     (vendor / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
     (project / "docs" / "javascripts" / "mathjax.js").write_text(
-        "window.MathJax={}", encoding="utf-8"
+        mathjax.CONFIG_SOURCE, encoding="utf-8"
     )
+    (project / ".gitignore").write_text("\n".join(mathjax.IGNORED) + "\n", encoding="utf-8")
     (project / ".vscode").mkdir(exist_ok=True)
     (project / ".vscode" / "settings.json").write_text(
         '{"files.associations": {"*.md": "python-markdown"}}', encoding="utf-8"
@@ -179,6 +188,7 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         "node": CommandResult(0, "v22.14.0\n"),
         "npm": CommandResult(0, "10.9.2\n"),
         "import zensical": CommandResult(0),
+        "-m pip --version": CommandResult(0, "pip 26.0.1"),
         "fc-list": CommandResult(0, "Inter\nJetBrains Mono\nDejaVu Sans\n"),
         "config core.fileMode": CommandResult(0, "false\n"),
         # A finished project has nothing uncommitted and something on the
@@ -344,7 +354,9 @@ def test_the_keypair_check_looks_where_the_guide_says_to_create_it(tmp_path: Pat
     (tmp_path / ".ssh").mkdir()
     for suffix in ("", ".pub"):
         (tmp_path / ".ssh" / f"id_ed25519_gitlab{suffix}").write_text("k", encoding="utf-8")
-    context = _context(tmp_path)
+    context = _context(
+        tmp_path, runner=FakeRunner({"ssh-keygen -lf": CommandResult(0, "fingerprint")})
+    )
     result = next(s for s in STAGES if s.id == "ssh-key").check(context)
     assert result.status is Status.OK
     assert result.detail.endswith("id_ed25519_gitlab")
@@ -579,6 +591,57 @@ def test_half_a_keypair_is_wrong(tmp_path: Path) -> None:
     context = _context(tmp_path)
     result = next(s for s in STAGES if s.id == "ssh-key").check(context)
     assert result.status is Status.WRONG
+
+
+def test_a_missing_public_key_is_derived_without_replacing_the_private_key(
+    tmp_path: Path,
+) -> None:
+    private = tmp_path / ".ssh" / "id_ed25519_gitlab"
+    private.parent.mkdir()
+    private.write_text("PRIVATE", encoding="utf-8")
+    runner = FakeRunner({"ssh-keygen -lf": CommandResult(0, "fingerprint")})
+    plan = next(s for s in STAGES if s.id == "ssh-key").plan(
+        _context(tmp_path, runner=runner)
+    )
+    rendered = " ".join(" ".join(command) for command in plan.commands)
+
+    assert plan.action == "REPAIR"
+    assert plan.needs_terminal
+    assert "ssh-keygen', '-y'" in rendered
+    assert "-t ed25519" not in rendered
+    assert "will not replace the private key" in " ".join(plan.instructions)
+
+
+def test_an_orphaned_public_key_is_archived_before_a_new_pair_is_created(
+    tmp_path: Path,
+) -> None:
+    public = tmp_path / ".ssh" / "id_ed25519_gitlab.pub"
+    public.parent.mkdir()
+    public.write_text("PUBLIC", encoding="utf-8")
+    plan = next(s for s in STAGES if s.id == "ssh-key").plan(_context(tmp_path))
+    backup = public.parent / ".id_ed25519_gitlab.pub.pdk-orphaned-key-backup"
+
+    assert plan.commands[0] == ["mv", str(public), str(backup)]
+    assert plan.commands[1][0] == "ssh-keygen"
+    assert str(backup) in " ".join(plan.instructions)
+    assert not plan.destructive
+
+
+def test_a_truncated_private_key_is_archived_instead_of_reused(tmp_path: Path) -> None:
+    private = tmp_path / ".ssh" / "id_ed25519_gitlab"
+    private.parent.mkdir()
+    private.write_text("TRUNCATED", encoding="utf-8")
+    runner = FakeRunner({"ssh-keygen -lf": CommandResult(255, stderr="not a key file")})
+    stage = next(s for s in STAGES if s.id == "ssh-key")
+    context = _context(tmp_path, runner=runner)
+
+    result = stage.check(context)
+    plan = stage.plan(context)
+
+    assert result.status is Status.WRONG
+    assert "pdk-orphaned-key-backup" in " ".join(plan.commands[0])
+    assert plan.commands[-1][0] == "ssh-keygen"
+    assert "-y" not in plan.commands[-1]
 
 
 def test_node_without_npm_is_wrong(tmp_path: Path) -> None:
@@ -1186,6 +1249,49 @@ def test_source_url_overrides_the_template(tmp_path: Path) -> None:
     context = _context(tmp_path, source_url=own)
     plan = next(s for s in STAGES if s.id == "clone").plan(context)
     assert plan.commands[0][2] == own
+
+
+def test_an_interrupted_history_archive_resumes_without_cloning_over_the_project(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    project.mkdir(parents=True)
+    (project / "README.md").write_text("reader's files\n", encoding="utf-8")
+    (project.parent / ".report-al01234.git.pdk-template-backup").mkdir()
+    stage = next(s for s in STAGES if s.id == "clone")
+    context = _context(tmp_path)
+
+    result = stage.check(context)
+    plan = stage.plan(context)
+
+    assert result.status is Status.WRONG
+    assert "interrupted" in result.detail
+    assert plan.action == "REPAIR"
+    assert plan.commands == [
+        ["git", "init", "-b", "main"],
+        ["git", "config", "core.fileMode", "false"],
+    ]
+    assert "clone" not in " ".join(" ".join(command) for command in plan.commands)
+
+
+def test_an_interrupted_clone_is_archived_before_it_is_retried(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "downloaded-so-far.md").write_text("partial\n", encoding="utf-8")
+    runner = FakeRunner({"rev-parse HEAD": CommandResult(128, stderr="bad default revision")})
+    stage = next(s for s in STAGES if s.id == "clone")
+    context = _context(tmp_path, runner=runner)
+
+    result = stage.check(context)
+    plan = stage.plan(context)
+
+    backup = project.parent / ".report-al01234.pdk-incomplete-clone-backup"
+    assert result.status is Status.WRONG
+    assert "incomplete git clone" in result.detail
+    assert plan.commands[0] == ["mv", str(project), str(backup)]
+    assert plan.commands[1] == ["git", "clone", SURREY_GITLAB.template_remote, str(project)]
+    assert str(backup) in " ".join(plan.instructions)
+    assert not plan.destructive
 
 
 def test_building_a_plan_makes_no_network_call(tmp_path: Path) -> None:
@@ -2464,6 +2570,25 @@ def test_old_windows_pandoc_is_an_explicit_pinned_upgrade(tmp_path: Path) -> Non
     assert plan.describe.startswith("Upgrade Pandoc")
 
 
+def test_windows_pandoc_repair_does_not_reinstall_a_working_version(
+    tmp_path: Path,
+) -> None:
+    """A font-download failure happens after Pandoc has installed. The next
+    run must be able to reach the font command instead of stopping at a
+    redundant pinned install that winget reports as an error."""
+    fonts = tmp_path / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts"
+    fonts.mkdir(parents=True)
+    runner = FakeRunner({"pandoc --version": CommandResult(0, "pandoc 3.10.1\n")})
+
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+    joined = "\n".join(" ".join(command) for command in plan.commands)
+
+    assert "JohnMacFarlane.Pandoc" not in joined
+    assert "pdkboot-fonts-" in joined
+
+
 def test_pandoc_current_version_is_ok(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
@@ -3227,6 +3352,29 @@ def test_requirements_are_installed_by_the_projects_own_interpreter(tmp_path: Pa
     assert install[-1] == str(project / "requirements.txt")
 
 
+def test_an_incomplete_project_environment_is_archived_and_rebuilt(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    python = project / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    runner = FakeRunner({"-m pip --version": CommandResult(1, stderr="No module named pip")})
+    stage = next(s for s in STAGES if s.id == "project-env")
+    context = _context(tmp_path, runner=runner)
+
+    result = stage.check(context)
+    plan = stage.plan(context)
+
+    backup = project / ".venv.pdk-incomplete-backup"
+    assert result.status is Status.WRONG
+    assert "incomplete" in result.detail
+    assert plan.commands[0] == ["mv", str(project / ".venv"), str(backup)]
+    assert plan.commands[1][-3:] == ["-m", "venv", str(project / ".venv")]
+    assert plan.commands[2][0] == str(python)
+    assert plan.commands[2][1:4] == ["-m", "pip", "install"]
+
+
 def test_weasyprint_is_verified_from_the_projects_venv(tmp_path: Path) -> None:
     """#248 gap 1: the pandoc stage was *named* for WeasyPrint's
     libraries and only ever checked pandoc, so it reported ok on a
@@ -3241,11 +3389,13 @@ def test_weasyprint_is_verified_from_the_projects_venv(tmp_path: Path) -> None:
     venv_python = project / ".venv" / "bin" / "python"
     venv_python.parent.mkdir(parents=True)
     venv_python.write_text("", encoding="utf-8")
+    (venv_python.parent / "activate").write_text("", encoding="utf-8")
     save(tmp_path / "b.toml", _config())
 
     runner = FakeRunner(
         {
             "import zensical": CommandResult(0),
+            "-m pip --version": CommandResult(0, "pip 26.0.1"),
             "import weasyprint": CommandResult(1, stderr="cannot load library 'libgobject-2.0-0'"),
         }
     )
@@ -3265,9 +3415,11 @@ def test_windows_weasyprint_failure_names_msys2_not_homebrew(tmp_path: Path) -> 
     python = project / ".venv" / "Scripts" / "python.exe"
     python.parent.mkdir(parents=True)
     python.write_text("", encoding="utf-8")
+    (python.parent / "Activate.ps1").write_text("", encoding="utf-8")
     runner = FakeRunner(
         {
             "import zensical": CommandResult(0),
+            "-m pip --version": CommandResult(0, "pip 26.0.1"),
             "import weasyprint": CommandResult(1, stderr="cannot load library"),
         }
     )
@@ -3754,6 +3906,23 @@ def test_a_stage_that_installs_toolchains_notices_they_are_absent(tmp_path: Path
     assert "mermaid" in result.detail and "mathjax" in result.detail
 
 
+def test_partial_node_modules_directories_are_not_complete_toolchains(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    for toolchain in ("mermaid", "mathjax"):
+        (project / "tools" / toolchain / "node_modules").mkdir(parents=True)
+    save(tmp_path / "b.toml", _config())
+    runner = FakeRunner(
+        {"node": CommandResult(0, "v22.14.0\n"), "npm": CommandResult(0, "10.9.2\n")}
+    )
+
+    result = next(s for s in STAGES if s.id == "node").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.status is Status.WRONG
+    assert "mermaid" in result.detail and "mathjax" in result.detail
+
+
 def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> None:
     """Chromium installed but never pointed at leaves Puppeteer
     downloading its own; the exports without a Chromium point at
@@ -3761,6 +3930,14 @@ def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> 
     project = tmp_path / "GitLab" / "report-al01234"
     for toolchain in ("mermaid", "mathjax"):
         (project / "tools" / toolchain / "node_modules").mkdir(parents=True)
+    mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+    mermaid.parent.mkdir(parents=True)
+    mermaid.write_text("", encoding="utf-8")
+    mathjax_bundle = (
+        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
+    )
+    mathjax_bundle.parent.mkdir(parents=True, exist_ok=True)
+    mathjax_bundle.write_text("BUNDLE", encoding="utf-8")
     save(tmp_path / "b.toml", _config())
     stage = next(s for s in STAGES if s.id == "node")
     base = {"node": CommandResult(0, "v22.14.0\n"), "npm": CommandResult(0, "10.9.2\n")}
@@ -4878,6 +5055,17 @@ def _mathjax_project(tmp_path: Path) -> Path:
     return project
 
 
+def _complete_mathjax_install(project: Path) -> None:
+    source = project.joinpath(*mathjax.SOURCE)
+    bundle = project.joinpath(*mathjax.DEST, mathjax.BUNDLE)
+    bundle.parent.mkdir(parents=True, exist_ok=True)
+    bundle.write_bytes(source.read_bytes())
+    config = project.joinpath(*mathjax.CONFIG)
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(mathjax.CONFIG_SOURCE, encoding="utf-8")
+    (project / ".gitignore").write_text("\n".join(mathjax.IGNORED) + "\n", encoding="utf-8")
+
+
 def test_the_website_needs_both_the_config_and_the_bundle(tmp_path: Path) -> None:
     """prodockit-extensions#263: the equation showed as raw TeX because
     MathJax was loaded with no configuration.
@@ -4913,6 +5101,36 @@ def test_the_mathjax_stage_calls_the_one_installer(tmp_path: Path) -> None:
     from prodockit.bootstrap import stages
 
     assert not hasattr(stages, "MATHJAX_CONFIG_SOURCE")
+
+
+@pytest.mark.parametrize(
+    ("damage", "detail"),
+    [
+        ("empty-bundle", "bundle is empty"),
+        ("wrong-bundle", "does not match"),
+        ("wrong-config", "configuration is incomplete"),
+        ("missing-ignore", "not all excluded from git"),
+    ],
+)
+def test_partial_mathjax_installations_are_repaired(
+    tmp_path: Path, damage: str, detail: str
+) -> None:
+    project = _mathjax_project(tmp_path)
+    _complete_mathjax_install(project)
+    _source, bundle, config = stages_module._mathjax_paths(_context(tmp_path))
+    if damage == "empty-bundle":
+        bundle.write_bytes(b"")
+    elif damage == "wrong-bundle":
+        bundle.write_bytes(b"OTHER")
+    elif damage == "wrong-config":
+        config.write_text("window.MathJax = {};\n", encoding="utf-8")
+    else:
+        (project / ".gitignore").write_text("", encoding="utf-8")
+
+    result = next(s for s in STAGES if s.id == "mathjax").check(_context(tmp_path))
+
+    assert result.status is Status.WRONG
+    assert detail in result.detail
 
 
 def test_the_mathjax_stage_runs_after_the_toolchains(tmp_path: Path) -> None:
@@ -5684,6 +5902,23 @@ def test_winget_saying_already_installed_is_not_a_failure() -> None:
     assert benign_outcome(["winget.exe", "install", "--id", "Git.Git"], outcome)
 
 
+def test_winget_pinned_version_already_installed_is_not_a_failure() -> None:
+    """Pinned installs use exit 1 rather than winget's no-upgrade code."""
+    from prodockit.bootstrap import benign_outcome
+
+    outcome = CommandResult(
+        1,
+        stdout=(
+            "A package version is already installed. "
+            "Installation cancelled."
+        ),
+    )
+    assert benign_outcome(
+        ["winget", "install", "--id", "JohnMacFarlane.Pandoc", "--version", "3.10.1"],
+        outcome,
+    )
+
+
 def test_the_same_code_from_anything_else_is_still_a_failure() -> None:
     """Narrow on purpose: the code means "already installed" for winget
     and nothing at all for git, so excusing it everywhere would swallow a
@@ -5768,6 +6003,7 @@ def test_pdkboot_retries_a_temporary_remote_service_failure(
     "message",
     [
         "Could not resolve host: registry.npmjs.org",
+        "The remote name could not be resolved: 'github.com'",
         "npm ERR! code ECONNRESET",
         "operation timed out",
     ],
