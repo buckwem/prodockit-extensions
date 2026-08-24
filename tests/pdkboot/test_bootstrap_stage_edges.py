@@ -162,9 +162,11 @@ def test_project_environment_reports_dependencies_that_do_not_import(tmp_path: P
     project = tmp_path / "report"
     (project / ".venv" / "bin").mkdir(parents=True)
     (project / ".venv" / "bin" / "python").touch()
+    (project / ".venv" / "bin" / "activate").touch()
     (project / "requirements.txt").touch()
+    runner = CliFakeRunner({"-m pip --version": CommandResult(0, "pip 26.0.1")})
 
-    result = stages._check_project_env(_context(tmp_path))
+    result = stages._check_project_env(_context(tmp_path, runner=runner))
 
     assert result.status is Status.MISSING
     assert "dependencies are not installed" in result.detail
