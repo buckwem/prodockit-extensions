@@ -11,6 +11,7 @@ uses only the standard library so it runs before the candidate wheel exists.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import hashlib
 import json
 import os
@@ -33,6 +34,14 @@ ADOPTED_SITE_FILES = {
     "javascripts/mathjax.js",
     "javascripts/vendor/mathjax/tex-svg-full.js",
 }
+SCENARIOS = (
+    ("toml-core", "zensical.toml", False, False),
+    ("yaml-core", "mkdocs.yml", False, False),
+    ("toml-mermaid", "zensical.toml", True, False),
+    ("yaml-maths", "mkdocs.yml", False, True),
+    ("toml-both", "zensical.toml", True, True),
+)
+SCENARIO_NAMES = tuple(item[0] for item in SCENARIOS)
 ASSET_TAG = re.compile(
     rb"(?:<link\b[^>]*prodockit\.css[^>]*>|"
     rb"<script\b[^>]*(?:javascripts/mathjax\.js|"
@@ -114,6 +123,24 @@ def assert_arm64() -> str:
     if machine.lower() not in {"aarch64", "arm64"}:
         raise AcceptanceError(f"this job must be ARM64, but platform.machine() is {machine!r}")
     return machine
+
+
+def select_scenarios(names: list[str] | None) -> tuple[tuple[str, str, bool, bool], ...]:
+    """Return the requested built-in scenarios, preserving their declared order."""
+    if not names or names == ["all"]:
+        return SCENARIOS
+    if "all" in names:
+        raise AcceptanceError("--scenario all cannot be combined with named scenarios")
+    requested = set(names)
+    return tuple(item for item in SCENARIOS if item[0] in requested)
+
+
+def positive_integer(value: str) -> int:
+    """Return a positive command-line integer."""
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return number
 
 
 def find_config(project: Path) -> Path:
@@ -311,6 +338,26 @@ def exercise(
     return Result(name, config.name, mermaid, maths, modifications, str(project))
 
 
+def exercise_fixture(
+    python: Path,
+    root: Path,
+    scenario: tuple[str, str, bool, bool],
+) -> Result:
+    """Create and exercise one isolated built-in fixture."""
+    name, config_name, mermaid, maths = scenario
+    project = root / name
+    project.mkdir()
+    fixture(project, config_name, mermaid=mermaid, maths=maths)
+    return exercise(
+        python,
+        project,
+        name=name,
+        mermaid=mermaid,
+        maths=maths,
+        fixture_content=True,
+    )
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(
         description="Test prodockit adopt from a wheel without changing the source project."
@@ -320,6 +367,21 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--output", type=Path, help="New directory for the disposable project copy")
     result.add_argument("--mermaid", action="store_true", help="Select Mermaid for --project")
     result.add_argument("--maths", action="store_true", help="Select maths for --project")
+    result.add_argument(
+        "--scenario",
+        action="append",
+        choices=("all", *SCENARIO_NAMES),
+        help=(
+            "Built-in scenario to run; repeat to select several (default: all). "
+            "This option is ignored with --project."
+        ),
+    )
+    result.add_argument(
+        "--scenario-workers",
+        type=positive_integer,
+        default=1,
+        help="Number of isolated built-in scenarios to run concurrently (default: 1).",
+    )
     architecture = result.add_mutually_exclusive_group()
     architecture.add_argument(
         "--require-x64", action="store_true", help="Fail unless this machine is x64"
@@ -374,28 +436,27 @@ def main(arguments: list[str] | None = None) -> int:
                 raise AcceptanceError("source project changed during acceptance testing")
         else:
             install_candidate(python, wheel, None)
-            scenarios = (
-                ("toml-core", "zensical.toml", False, False),
-                ("yaml-core", "mkdocs.yml", False, False),
-                ("toml-mermaid", "zensical.toml", True, False),
-                ("yaml-maths", "mkdocs.yml", False, True),
-                ("toml-both", "zensical.toml", True, True),
-            )
-            result_items = []
-            for name, config_name, mermaid, maths in scenarios:
-                project = temporary_path / name
-                project.mkdir()
-                fixture(project, config_name, mermaid=mermaid, maths=maths)
-                result_items.append(
-                    exercise(
-                        python,
-                        project,
-                        name=name,
-                        mermaid=mermaid,
-                        maths=maths,
-                        fixture_content=True,
+            scenarios = select_scenarios(args.scenario)
+            print("Scenarios: " + ", ".join(item[0] for item in scenarios))
+            workers = min(args.scenario_workers, len(scenarios))
+            print(f"Scenario workers: {workers}")
+            if workers == 1:
+                result_items = [
+                    exercise_fixture(python, temporary_path, scenario)
+                    for scenario in scenarios
+                ]
+            else:
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=workers
+                ) as executor:
+                    result_items = list(
+                        executor.map(
+                            lambda scenario: exercise_fixture(
+                                python, temporary_path, scenario
+                            ),
+                            scenarios,
+                        )
                     )
-                )
     except Exception:
         print(f"Work directory preserved for diagnosis: {temporary_path}", file=sys.stderr)
         raise

@@ -53,6 +53,28 @@ def test_architecture_requirements_are_mutually_exclusive() -> None:
         )
 
 
+def test_all_acceptance_scenarios_are_selected_by_default() -> None:
+    assert adopt_acceptance.select_scenarios(None) == adopt_acceptance.SCENARIOS
+    assert adopt_acceptance.select_scenarios(["all"]) == adopt_acceptance.SCENARIOS
+
+
+def test_named_acceptance_scenarios_keep_the_declared_order() -> None:
+    selected = adopt_acceptance.select_scenarios(["toml-both", "toml-core"])
+
+    assert [item[0] for item in selected] == ["toml-core", "toml-both"]
+
+
+def test_all_cannot_be_combined_with_named_scenarios() -> None:
+    with pytest.raises(adopt_acceptance.AcceptanceError, match="cannot be combined"):
+        adopt_acceptance.select_scenarios(["all", "toml-core"])
+
+
+def test_scenario_workers_must_be_positive() -> None:
+    assert adopt_acceptance.positive_integer("2") == 2
+    with pytest.raises(adopt_acceptance.argparse.ArgumentTypeError, match="at least 1"):
+        adopt_acceptance.positive_integer("0")
+
+
 def test_a_real_project_is_copied_without_generated_or_git_state(tmp_path: Path) -> None:
     source = tmp_path / "source"
     output = tmp_path / "output"

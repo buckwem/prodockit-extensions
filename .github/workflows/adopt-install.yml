@@ -21,22 +21,27 @@ jobs:
             runner: ubuntu-24.04
             architecture: x64
             architecture_check: --require-x64
+            scenario_args: --scenario all
           - name: Windows 2025
             runner: windows-2025
             architecture: x64
             architecture_check: --require-x64
+            scenario_args: --scenario all --scenario-workers 2
           - name: Ubuntu 24.04
             runner: ubuntu-24.04-arm
             architecture: arm64
             architecture_check: --require-arm64
+            scenario_args: --scenario all
           - name: Windows 11
             runner: windows-11-arm
             architecture: arm64
             architecture_check: --require-arm64
+            scenario_args: --scenario all --scenario-workers 2
           - name: macOS 15
             runner: macos-15
             architecture: arm64
             architecture_check: --require-arm64
+            scenario_args: --scenario all
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
@@ -60,6 +65,7 @@ jobs:
           python tools/adopt_acceptance.py
           --wheel dist
           ${{ matrix.architecture_check }}
+          ${{ matrix.scenario_args }}
           --report adopt-acceptance-report.json
       - name: Keep the acceptance report
         if: always()
