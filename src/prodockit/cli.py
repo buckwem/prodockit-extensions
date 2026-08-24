@@ -2419,6 +2419,7 @@ def _run_template_sync(
         git_reader,
         git_runner,
         ignore_the_log,
+        latest_prodockit_version,
         leftovers,
         load_manifest,
         missing_ignores,
@@ -2426,6 +2427,8 @@ def _run_template_sync(
         now,
         pending_writes,
         plan_template_files,
+        prodockit_requirement,
+        prodockit_upgrade_required,
         publish,
         publish_blockers,
         read_config,
@@ -2514,6 +2517,38 @@ def _run_template_sync(
                 "or predates the manifest"
             )
         manifest = load_manifest(manifest_path.read_text(encoding="utf-8"))
+        requirements_path = template / "requirements.txt"
+        package_requirement = (
+            prodockit_requirement(requirements_path.read_text(encoding="utf-8"))
+            if requirements_path.exists()
+            else None
+        )
+        latest_package = latest_prodockit_version()
+        package_version = latest_package if (
+            latest_package and prodockit_upgrade_required(__version__, latest_package)
+        ) else None
+        package_reason = "latest available"
+        if (
+            package_requirement
+            and prodockit_upgrade_required(__version__, package_requirement.version)
+            and (
+                package_version is None
+                or prodockit_upgrade_required(package_version, package_requirement.version)
+            )
+        ):
+            package_version = package_requirement.version
+            package_reason = "template requires"
+        package_upgrade = package_version is not None
+        package_extras = ""
+        if package_requirement and "[" in package_requirement.specifier:
+            package_extras = package_requirement.specifier.split("]", 1)[0] + "]"
+        package_specifier = (
+            f"prodockit{package_extras}>={package_version}" if package_version else None
+        )
+        say_detail(
+            "Prodockit release check: "
+            + (f"PyPI reports {latest_package}" if latest_package else "PyPI could not be checked")
+        )
         files = subprocess.run(
             ["git", "-C", str(template), "ls-files"],
             capture_output=True,
@@ -2653,7 +2688,7 @@ def _run_template_sync(
         summary_actions = list(pending)
         summary_actions.extend(action for action in decisions if action not in summary_actions)
 
-        say("Changes available:" if work_needed else "Result:")
+        say("Changes available:" if work_needed or package_upgrade else "Result:")
         terminal_actions = plan if verbose else summary_actions
         for line in update_report(terminal_actions, verbose=verbose):
             say(f"  {line}")
@@ -2680,6 +2715,12 @@ def _run_template_sync(
                 say_detail(f"      {entry}")
         if stamp_is_stale and not (pending or seeds or added or updated or ignores):
             say("  The saved template version needs refreshing; no project content will change.")
+        if package_upgrade and package_specifier and package_version:
+            say("  Prodockit needs upgrading:")
+            say(f"      installed: {__version__}")
+            say(f"      {package_reason}: {package_version}")
+            say("      in the activated project environment, run:")
+            say(f'        python -m pip install --upgrade "{package_specifier}"')
 
         kept = [action for action in plan if action.action == "keep"]
         forced = [action for action in plan if action.action == "forced"]
@@ -2703,11 +2744,22 @@ def _run_template_sync(
             for path in stale:
                 say_detail(f"      {path}")
 
+        def explain_package_only_update() -> None:
+            """Explain the non-Git work that a package-only update needs."""
+            say("No template files need changing, so there is nothing to commit or push.")
+            say("After upgrading prodockit, rebuild the Pages or documentation pipeline.")
+            say(
+                "The rebuild is still needed: it republishes the website and PDF using "
+                "the newer package even though no template file changed."
+            )
+
         say()
         if not do_apply:
             if work_needed:
                 say("Preview only - no template changes have been made.")
                 say("Add `--apply` to the command you just ran to make these changes.")
+            elif package_upgrade:
+                explain_package_only_update()
             elif kept:
                 say("No safe changes need applying; the files you edited remain unchanged.")
             else:
@@ -2719,7 +2771,10 @@ def _run_template_sync(
             # an empty branch behind, which then blocked the next run - the
             # ordinary way to use this is to run it repeatedly, and most of
             # those runs find nothing.
-            say("Your project is already up to date with the template. Nothing was changed.")
+            if package_upgrade:
+                explain_package_only_update()
+            else:
+                say("Your project is already up to date with the template. Nothing was changed.")
             return
 
         # 10, first: the branch, before anything is written.

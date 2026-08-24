@@ -2,6 +2,8 @@
 # `prodockit template-sync`
 # ---------------------------------------------------------------------------
 
+import pytest
+
 
 def test_template_sync_refuses_outside_a_repository(tmp_path, monkeypatch) -> None:
     """Run from the project, and only from its root."""
@@ -155,6 +157,103 @@ def test_template_sync_logs_the_full_detail_even_without_verbose(tmp_path, monke
 
     assert "verbose=True" in source, "the log must take the verbose form whatever the terminal got"
     assert "logged.extend" in source
+
+
+@pytest.mark.parametrize("arguments", [[], ["--apply"]])
+def test_template_sync_explains_a_package_only_update(
+    tmp_path, monkeypatch, arguments: list[str]
+) -> None:
+    """An environment upgrade produces no Git diff, but published outputs
+    still need rebuilding with the new package."""
+    import subprocess
+
+    from click.testing import CliRunner
+
+    from prodockit import cli
+
+    template = tmp_path / "prodockit-template"
+    project = tmp_path / "report"
+    template.mkdir()
+    project.mkdir()
+    manifest = """
+[template]
+owns = ["managed.txt"]
+[project]
+owns = ["docs/**"]
+[shared]
+files = ["requirements.txt"]
+[excluded]
+paths = [".prodockit-template.toml"]
+"""
+    (template / ".prodockit-template.toml").write_text(manifest, encoding="utf-8")
+    (template / "managed.txt").write_text("current\n", encoding="utf-8")
+    (template / "requirements.txt").write_text("prodockit>=0.42.1\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(template), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(template), "add", "."], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(template),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "template",
+        ],
+        check=True,
+    )
+    version = subprocess.run(
+        ["git", "-C", str(template), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    (project / "managed.txt").write_text("current\n", encoding="utf-8")
+    (project / ".prodockit-template").write_text(f"{version}\n", encoding="utf-8")
+    (project / ".gitignore").write_text(".prodockit-template.log\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(project), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(project), "add", "."], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(project),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "project",
+        ],
+        check=True,
+    )
+
+    monkeypatch.chdir(project)
+    monkeypatch.setattr(cli, "__version__", "0.43.2")
+    monkeypatch.setattr(
+        "prodockit.template_sync.latest_prodockit_version", lambda: "0.43.3"
+    )
+    result = CliRunner().invoke(
+        cli.main,
+        ["template-sync", "--template-path", str(template), *arguments],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "installed: 0.43.2" in result.output
+    assert "latest available: 0.43.3" in result.output
+    assert 'python -m pip install --upgrade "prodockit>=0.43.3"' in result.output
+    assert "nothing to commit or push" in result.output
+    assert "rebuild the Pages or documentation pipeline" in result.output
+    assert "already up to date" not in result.output
 
 
 def test_a_sibling_checkout_without_a_manifest_is_passed_over(tmp_path, monkeypatch) -> None:

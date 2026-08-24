@@ -27,8 +27,10 @@ three that decide whether writing is safe at all:
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -72,6 +74,132 @@ LOG_FILE = ".prodockit-template.log"
 #: existing paper size, margin, duplex layout, header/footer style, or another
 #: current/future value to its default.
 PRESERVE_CONFIG_PATTERNS = ("project.extra.pdf_*",)
+
+
+@dataclass(frozen=True)
+class ProdockitRequirement:
+    """The minimum prodockit version declared by a template.
+
+    ``requirements.txt`` is shared rather than template-owned, so
+    ``template-sync`` must not rewrite it. It can still read the template's
+    declaration and tell an author when the package running the command is
+    too old for the template they are about to use.
+    """
+
+    specifier: str
+    version: str
+
+
+_PRODOCKIT_REQUIREMENT = re.compile(
+    r"^\s*prodockit(?P<extras>\[[\w.,\s-]*\])?\s*(?P<operator>>=)\s*"
+    r"(?P<version>[0-9][\w.+!-]*)\s*$",
+    re.IGNORECASE,
+)
+
+_VERSION = re.compile(
+    r"^v?(?P<release>\d+(?:\.\d+)*)"
+    r"(?:(?P<pre>a|b|rc)(?P<pre_number>\d+))?"
+    r"(?:(?:\.?post)(?P<post_number>\d+))?"
+    r"(?:(?:\.?dev)(?P<dev_number>\d+))?$",
+    re.IGNORECASE,
+)
+
+
+def prodockit_requirement(text: str) -> ProdockitRequirement | None:
+    """Find the template's active prodockit requirement.
+
+    Optional extras are deliberately accepted: ``prodockit[index]`` is the
+    form used by the User Guide. Comments are discarded before matching so
+    an old version mentioned in an explanation is not treated as a pin.
+    """
+    for raw_line in text.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        match = _PRODOCKIT_REQUIREMENT.fullmatch(line)
+        if match:
+            operator = match.group("operator")
+            version = match.group("version")
+            extras = match.group("extras") or ""
+            return ProdockitRequirement(f"prodockit{extras}{operator}{version}", version)
+    return None
+
+
+def _version_key(version: str) -> tuple[tuple[int, ...], int, int, int] | None:
+    """A comparison key for the release forms used by prodockit.
+
+    This intentionally covers stable, alpha, beta, release-candidate, dev,
+    and post releases without adding a runtime dependency merely to print a
+    warning. An unfamiliar version returns ``None``: failure to understand a
+    local build label must never stop a template update.
+    """
+    public = version.strip().split("+", 1)[0]
+    match = _VERSION.fullmatch(public)
+    if not match:
+        return None
+
+    release = tuple(int(part) for part in match.group("release").split("."))
+    release += (0,) * (8 - len(release))
+    pre = (match.group("pre") or "").lower()
+    dev_number = match.group("dev_number")
+    post_number = match.group("post_number")
+    if dev_number is not None and not pre:
+        stage = -4
+    elif pre == "a":
+        stage = -3
+    elif pre == "b":
+        stage = -2
+    elif pre == "rc":
+        stage = -1
+    elif post_number is not None:
+        stage = 1
+    else:
+        stage = 0
+    number = int(match.group("pre_number") or post_number or 0)
+    dev = int(dev_number) if dev_number is not None else sys.maxsize
+    return release, stage, number, dev
+
+
+def prodockit_upgrade_required(installed: str, required: str) -> bool:
+    """Whether ``installed`` is older than the template's minimum.
+
+    Both values come from prodockit-controlled files. If either uses an
+    unfamiliar version form, return false rather than turning advisory
+    maintenance into a blocking error.
+    """
+    installed_key = _version_key(installed)
+    required_key = _version_key(required)
+    return bool(
+        installed_key is not None and required_key is not None and installed_key < required_key
+    )
+
+
+def latest_prodockit_version(
+    read: Callable[[str], bytes] | None = None,
+) -> str | None:
+    """The latest published prodockit release, or ``None`` when offline.
+
+    The template deliberately declares a compatibility floor (``>=``), not
+    the newest package. Existing environments therefore remain valid while a
+    newer prodockit release is available, and a fresh Pages build would take
+    that newer release without any template file changing. PyPI's small JSON
+    endpoint closes that gap. Failure is advisory and never blocks a sync.
+
+    ``read`` is injectable so tests do not use the network.
+    """
+    if read is None:
+        import urllib.request
+
+        def read(url: str) -> bytes:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                return bytes(response.read())
+
+    try:
+        payload = json.loads(read("https://pypi.org/pypi/prodockit/json"))
+        version = payload["info"]["version"]
+    except (OSError, KeyError, TypeError, ValueError):
+        return None
+    if not isinstance(version, str) or _version_key(version) is None:
+        return None
+    return version
 
 
 class TemplateSyncError(ValueError):

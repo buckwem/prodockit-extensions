@@ -44,6 +44,7 @@ from prodockit.template_sync import (
     ensure_template,
     git_runner,
     ignore_the_log,
+    latest_prodockit_version,
     leftovers,
     load_manifest,
     missing_ignores,
@@ -51,6 +52,8 @@ from prodockit.template_sync import (
     now,
     pending_writes,
     plan_template_files,
+    prodockit_requirement,
+    prodockit_upgrade_required,
     publish,
     publish_blockers,
     read_config,
@@ -105,6 +108,69 @@ def test_every_group_is_read_back() -> None:
     assert manifest.owner("docs/section1.md") == "project"
     assert manifest.owner("zensical.toml") == "shared"
     assert manifest.owner("CHANGELOG.md") == "excluded"
+
+
+def test_template_prodockit_floor_is_read_from_requirements() -> None:
+    requirement = prodockit_requirement(
+        "# old example: prodockit>=0.40.0\nprodockit>=0.43.2  # current floor\n"
+    )
+
+    assert requirement is not None
+    assert requirement.specifier == "prodockit>=0.43.2"
+    assert requirement.version == "0.43.2"
+
+
+def test_template_prodockit_floor_preserves_optional_extras() -> None:
+    requirement = prodockit_requirement("prodockit[index,testing]>=0.43.2\n")
+
+    assert requirement is not None
+    assert requirement.specifier == "prodockit[index,testing]>=0.43.2"
+
+
+@pytest.mark.parametrize(
+    ("installed", "required", "upgrade"),
+    [
+        ("0.43.1", "0.43.2", True),
+        ("0.43.2a1", "0.43.2", True),
+        ("0.43.2", "0.43.2", False),
+        ("0.44.0", "0.43.2", False),
+        ("0.43.2+local.1", "0.43.2", False),
+    ],
+)
+def test_prodockit_upgrade_warning_compares_release_versions(
+    installed: str, required: str, upgrade: bool
+) -> None:
+    assert prodockit_upgrade_required(installed, required) is upgrade
+
+
+def test_an_unfamiliar_local_version_never_blocks_template_sync() -> None:
+    assert not prodockit_upgrade_required("working-tree", "0.43.2")
+
+
+def test_latest_prodockit_release_is_read_from_pypi_metadata() -> None:
+    assert (
+        latest_prodockit_version(lambda _url: b'{"info": {"version": "0.43.3"}}')
+        == "0.43.3"
+    )
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        b"not json",
+        b'{"info": {}}',
+        b'{"info": {"version": "unexpected"}}',
+    ],
+)
+def test_an_unusable_pypi_answer_does_not_block_template_sync(answer: bytes) -> None:
+    assert latest_prodockit_version(lambda _url: answer) is None
+
+
+def test_a_pypi_connection_failure_does_not_block_template_sync() -> None:
+    def offline(_url: str) -> bytes:
+        raise OSError("offline")
+
+    assert latest_prodockit_version(offline) is None
 
 
 def test_a_directory_glob_covers_every_depth_below_it() -> None:
