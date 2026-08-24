@@ -785,10 +785,23 @@ def _plan_git(context: Context) -> Plan:
 # ---------------------------------------------------------------------------
 
 
+def _ssh_key_file_is_usable(context: Context, path: Path) -> bool:
+    """Whether an existing key half is non-empty and readable by OpenSSH."""
+    if not path.is_file() or not path.stat().st_size:
+        return False
+    return context.runner.run(["ssh-keygen", "-lf", str(path)]).ok
+
+
 def _check_ssh_key(context: Context) -> CheckResult:
     private = _key_path(context)
     public = private.with_suffix(".pub")
-    if private.exists() and public.exists():
+    if context.pdkboot:
+        private_ready = _ssh_key_file_is_usable(context, private)
+        public_ready = _ssh_key_file_is_usable(context, public)
+    else:
+        private_ready = private.exists()
+        public_ready = public.exists()
+    if private_ready and public_ready:
         return _ok(str(private))
     if private.exists() or public.exists():
         return _wrong(f"only half the keypair exists at {private}")
@@ -833,19 +846,68 @@ def _create_ssh_dir(context: Context) -> list[list[str]]:
 
 def _plan_ssh_key(context: Context) -> Plan:
     private = _key_path(context)
-    return Plan(
-        commands=[
-            *_create_ssh_dir(context),
-            [
-                "ssh-keygen",
-                "-t",
-                "ed25519",
-                "-C",
-                context.config.email,
-                "-f",
-                str(private),
-            ],
+    public = private.with_suffix(".pub")
+    create = [
+        *_create_ssh_dir(context),
+        [
+            "ssh-keygen",
+            "-t",
+            "ed25519",
+            "-C",
+            context.config.email,
+            "-f",
+            str(private),
         ],
+    ]
+    if context.pdkboot and _ssh_key_file_is_usable(
+        context, private
+    ) and not _ssh_key_file_is_usable(context, public):
+        # Preserve the private key and derive its public half. `ssh-keygen -y`
+        # may ask for the existing key's passphrase, so the subprocess inherits
+        # the terminal while only its public-key stdout is captured.
+        script = (
+            "from pathlib import Path; import subprocess, sys\n"
+            "private, public, comment = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]\n"
+            "key = subprocess.run(['ssh-keygen', '-y', '-f', str(private)], "
+            "check=True, text=True, stdout=subprocess.PIPE).stdout.strip()\n"
+            "public.write_text(f'{key} {comment}\\n', encoding='utf-8')\n"
+        )
+        return Plan(
+            commands=[
+                [sys.executable, "-c", script, str(private), str(public), context.config.email]
+            ],
+            instructions=[
+                "Your private key is intact. pdkboot will recreate only its missing public "
+                "half; it will not replace the private key."
+            ],
+            confirm="Recreate the public key from the existing private key?",
+            needs_terminal=True,
+            action="REPAIR",
+        )
+    if context.pdkboot and (private.exists() or public.exists()):
+        commands: list[list[str]] = []
+        backups: list[Path] = []
+        for path in (private, public):
+            if not path.exists():
+                continue
+            backup = _numbered_backup(path, "pdk-orphaned-key-backup")
+            commands.append(_move_path_command(context, path, backup))
+            backups.append(backup)
+        commands.extend(create)
+        return Plan(
+            commands=commands,
+            instructions=[
+                "There is no usable private key to recover. The remaining key file will "
+                f"be archived as {', '.join(str(path) for path in backups)} before a new "
+                "keypair is created."
+            ],
+            confirm="Archive the incomplete key files and create a new keypair?",
+            needs_terminal=True,
+            action="REPAIR",
+            destructive=False,
+        )
+    return Plan(
+        commands=create,
         instructions=[
             "ssh-keygen will ask for a passphrase - choose a strong one and "
             "remember it; it protects the key if your machine is lost.",
@@ -2629,10 +2691,19 @@ def _homebrew_library_path(context: Context) -> str:
     return str(Path(root) / "lib")
 
 
+def _macos_loader_line(context: Context) -> str:
+    library = _homebrew_library_path(context)
+    return (
+        f'export DYLD_FALLBACK_LIBRARY_PATH="{library}'
+        '${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"'
+    )
+
+
 def _macos_loader_is_configured(context: Context) -> bool:
     activate = _project_venv(context) / "bin" / "activate"
     try:
-        return _MACOS_DYLD_MARKER in activate.read_text(encoding="utf-8")
+        expected = f"{_MACOS_DYLD_MARKER}\n{_macos_loader_line(context)}"
+        return expected in activate.read_text(encoding="utf-8")
     except OSError:
         return False
 
@@ -2877,9 +2948,24 @@ def _plan_project_env(context: Context) -> Plan:
             "text = path.read_text(encoding='utf-8')\n"
             "line = 'export DYLD_FALLBACK_LIBRARY_PATH=\"' + library + "
             "'${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}\"'\n"
-            "if marker not in text:\n"
-            "    updated = text.rstrip() + '\\n\\n' + marker + '\\n' + line + '\\n'\n"
-            "    path.write_text(updated, encoding='utf-8')\n"
+            "lines = text.splitlines()\n"
+            "updated_lines = []\n"
+            "index = 0\n"
+            "while index < len(lines):\n"
+            "    if lines[index] == marker:\n"
+            "        index += 1\n"
+            "        if index < len(lines) and lines[index].startswith("
+            "'export DYLD_FALLBACK_LIBRARY_PATH='):\n"
+            "            index += 1\n"
+            "        continue\n"
+            "    updated_lines.append(lines[index])\n"
+            "    index += 1\n"
+            "updated = ('\\n'.join(updated_lines).rstrip() + '\\n\\n' + marker + "
+            "'\\n' + line + '\\n')\n"
+            "temporary = path.with_name(path.name + '.pdkboot.tmp')\n"
+            "temporary.write_text(updated, encoding='utf-8')\n"
+            "temporary.chmod(path.stat().st_mode)\n"
+            "temporary.replace(path)\n"
         )
         commands.append([sys.executable, "-c", script, str(activate), _MACOS_DYLD_MARKER, library])
     return Plan(cwd=str(project), commands=commands)
@@ -3494,6 +3580,34 @@ def _check_mathjax(context: Context) -> CheckResult:
     ]
     if absent:
         return _missing(f"{' and '.join(absent)} for the website is not installed")
+    if context.pdkboot:
+        try:
+            bundle_bytes = bundle.read_bytes()
+            config_text = config.read_text(encoding="utf-8")
+        except OSError:
+            return _wrong("the generated MathJax files cannot be read")
+        if not bundle_bytes:
+            return _wrong("the generated MathJax bundle is empty - installation was interrupted")
+        if source.exists():
+            try:
+                if bundle_bytes != source.read_bytes():
+                    return _wrong(
+                        "the generated MathJax bundle does not match the project's pinned copy"
+                    )
+            except OSError:
+                return _wrong("the project's pinned MathJax bundle cannot be read")
+        if config_text != mathjax.CONFIG_SOURCE:
+            return _wrong("the generated MathJax configuration is incomplete or out of date")
+        try:
+            ignored = (project / ".gitignore").read_text(encoding="utf-8").splitlines()
+        except OSError:
+            ignored = []
+        missing_ignores = [entry for entry in mathjax.IGNORED if entry not in ignored]
+        if missing_ignores:
+            return _wrong(
+                "MathJax is installed, but its generated files are not all excluded from git: "
+                + ", ".join(missing_ignores)
+            )
     if not source.exists():
         # Installed, but the pinned copy it came from is gone - so nothing
         # can say whether the two still agree.

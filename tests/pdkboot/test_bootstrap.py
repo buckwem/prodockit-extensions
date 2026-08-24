@@ -23,7 +23,8 @@ from pathlib import Path, PurePath
 import pytest
 
 import prodockit as prodockit_module
-from prodockit import __version__
+import prodockit.bootstrap.stages as stages_module
+from prodockit import __version__, mathjax
 from prodockit.bootstrap import (
     HOSTS,
     PROMPTS,
@@ -141,7 +142,10 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     venv_python.parent.mkdir(parents=True, exist_ok=True)
     venv_python.write_text("", encoding="utf-8")
     (venv_python.parent / "activate").write_text(
-        "# Added by pdkboot for WeasyPrint\n", encoding="utf-8"
+        "# Added by pdkboot for WeasyPrint\n"
+        'export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib'
+        '${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"\n',
+        encoding="utf-8",
     )
     (project / "harvard-cite-them-right.csl").write_text("<style/>", encoding="utf-8")
     pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
@@ -151,8 +155,9 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     vendor.mkdir(parents=True, exist_ok=True)
     (vendor / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
     (project / "docs" / "javascripts" / "mathjax.js").write_text(
-        "window.MathJax={}", encoding="utf-8"
+        mathjax.CONFIG_SOURCE, encoding="utf-8"
     )
+    (project / ".gitignore").write_text("\n".join(mathjax.IGNORED) + "\n", encoding="utf-8")
     (project / ".vscode").mkdir(exist_ok=True)
     (project / ".vscode" / "settings.json").write_text(
         '{"files.associations": {"*.md": "python-markdown"}}', encoding="utf-8"
@@ -349,7 +354,9 @@ def test_the_keypair_check_looks_where_the_guide_says_to_create_it(tmp_path: Pat
     (tmp_path / ".ssh").mkdir()
     for suffix in ("", ".pub"):
         (tmp_path / ".ssh" / f"id_ed25519_gitlab{suffix}").write_text("k", encoding="utf-8")
-    context = _context(tmp_path)
+    context = _context(
+        tmp_path, runner=FakeRunner({"ssh-keygen -lf": CommandResult(0, "fingerprint")})
+    )
     result = next(s for s in STAGES if s.id == "ssh-key").check(context)
     assert result.status is Status.OK
     assert result.detail.endswith("id_ed25519_gitlab")
@@ -584,6 +591,57 @@ def test_half_a_keypair_is_wrong(tmp_path: Path) -> None:
     context = _context(tmp_path)
     result = next(s for s in STAGES if s.id == "ssh-key").check(context)
     assert result.status is Status.WRONG
+
+
+def test_a_missing_public_key_is_derived_without_replacing_the_private_key(
+    tmp_path: Path,
+) -> None:
+    private = tmp_path / ".ssh" / "id_ed25519_gitlab"
+    private.parent.mkdir()
+    private.write_text("PRIVATE", encoding="utf-8")
+    runner = FakeRunner({"ssh-keygen -lf": CommandResult(0, "fingerprint")})
+    plan = next(s for s in STAGES if s.id == "ssh-key").plan(
+        _context(tmp_path, runner=runner)
+    )
+    rendered = " ".join(" ".join(command) for command in plan.commands)
+
+    assert plan.action == "REPAIR"
+    assert plan.needs_terminal
+    assert "ssh-keygen', '-y'" in rendered
+    assert "-t ed25519" not in rendered
+    assert "will not replace the private key" in " ".join(plan.instructions)
+
+
+def test_an_orphaned_public_key_is_archived_before_a_new_pair_is_created(
+    tmp_path: Path,
+) -> None:
+    public = tmp_path / ".ssh" / "id_ed25519_gitlab.pub"
+    public.parent.mkdir()
+    public.write_text("PUBLIC", encoding="utf-8")
+    plan = next(s for s in STAGES if s.id == "ssh-key").plan(_context(tmp_path))
+    backup = public.parent / ".id_ed25519_gitlab.pub.pdk-orphaned-key-backup"
+
+    assert plan.commands[0] == ["mv", str(public), str(backup)]
+    assert plan.commands[1][0] == "ssh-keygen"
+    assert str(backup) in " ".join(plan.instructions)
+    assert not plan.destructive
+
+
+def test_a_truncated_private_key_is_archived_instead_of_reused(tmp_path: Path) -> None:
+    private = tmp_path / ".ssh" / "id_ed25519_gitlab"
+    private.parent.mkdir()
+    private.write_text("TRUNCATED", encoding="utf-8")
+    runner = FakeRunner({"ssh-keygen -lf": CommandResult(255, stderr="not a key file")})
+    stage = next(s for s in STAGES if s.id == "ssh-key")
+    context = _context(tmp_path, runner=runner)
+
+    result = stage.check(context)
+    plan = stage.plan(context)
+
+    assert result.status is Status.WRONG
+    assert "pdk-orphaned-key-backup" in " ".join(plan.commands[0])
+    assert plan.commands[-1][0] == "ssh-keygen"
+    assert "-y" not in plan.commands[-1]
 
 
 def test_node_without_npm_is_wrong(tmp_path: Path) -> None:
@@ -4997,6 +5055,17 @@ def _mathjax_project(tmp_path: Path) -> Path:
     return project
 
 
+def _complete_mathjax_install(project: Path) -> None:
+    source = project.joinpath(*mathjax.SOURCE)
+    bundle = project.joinpath(*mathjax.DEST, mathjax.BUNDLE)
+    bundle.parent.mkdir(parents=True, exist_ok=True)
+    bundle.write_bytes(source.read_bytes())
+    config = project.joinpath(*mathjax.CONFIG)
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(mathjax.CONFIG_SOURCE, encoding="utf-8")
+    (project / ".gitignore").write_text("\n".join(mathjax.IGNORED) + "\n", encoding="utf-8")
+
+
 def test_the_website_needs_both_the_config_and_the_bundle(tmp_path: Path) -> None:
     """prodockit-extensions#263: the equation showed as raw TeX because
     MathJax was loaded with no configuration.
@@ -5032,6 +5101,36 @@ def test_the_mathjax_stage_calls_the_one_installer(tmp_path: Path) -> None:
     from prodockit.bootstrap import stages
 
     assert not hasattr(stages, "MATHJAX_CONFIG_SOURCE")
+
+
+@pytest.mark.parametrize(
+    ("damage", "detail"),
+    [
+        ("empty-bundle", "bundle is empty"),
+        ("wrong-bundle", "does not match"),
+        ("wrong-config", "configuration is incomplete"),
+        ("missing-ignore", "not all excluded from git"),
+    ],
+)
+def test_partial_mathjax_installations_are_repaired(
+    tmp_path: Path, damage: str, detail: str
+) -> None:
+    project = _mathjax_project(tmp_path)
+    _complete_mathjax_install(project)
+    _source, bundle, config = stages_module._mathjax_paths(_context(tmp_path))
+    if damage == "empty-bundle":
+        bundle.write_bytes(b"")
+    elif damage == "wrong-bundle":
+        bundle.write_bytes(b"OTHER")
+    elif damage == "wrong-config":
+        config.write_text("window.MathJax = {};\n", encoding="utf-8")
+    else:
+        (project / ".gitignore").write_text("", encoding="utf-8")
+
+    result = next(s for s in STAGES if s.id == "mathjax").check(_context(tmp_path))
+
+    assert result.status is Status.WRONG
+    assert detail in result.detail
 
 
 def test_the_mathjax_stage_runs_after_the_toolchains(tmp_path: Path) -> None:

@@ -11,12 +11,14 @@ fall through to the workstation or network running the suite.
 from __future__ import annotations
 
 import json
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 import prodockit.bootstrap.stages as stages
+from prodockit import mathjax
 from prodockit.bootstrap import BootstrapConfig, CommandResult, Status, build_context
 from prodockit.bootstrap.model import MACOS, UBUNTU, WINDOWS
 
@@ -326,9 +328,12 @@ def test_mathjax_stage_accepts_an_install_after_its_pinned_source_is_removed(
     context = _context(tmp_path)
     _source, bundle, config = stages._mathjax_paths(context)
     bundle.parent.mkdir(parents=True)
-    bundle.touch()
+    bundle.write_text("BUNDLE", encoding="utf-8")
     config.parent.mkdir(parents=True, exist_ok=True)
-    config.touch()
+    config.write_text(mathjax.CONFIG_SOURCE, encoding="utf-8")
+    (tmp_path / "report" / ".gitignore").write_text(
+        "\n".join(mathjax.IGNORED) + "\n", encoding="utf-8"
+    )
 
     result = stages._check_mathjax(context)
 
@@ -413,6 +418,51 @@ def test_macos_project_environment_plan_persists_homebrew_library_path(
     assert "/opt/homebrew/lib" in rendered
     assert "activate" in rendered
     compile(plan.commands[-1][2], "<pdkboot macOS activation update>", "exec")
+
+
+def test_macos_loader_marker_without_the_export_is_not_complete(tmp_path: Path) -> None:
+    activate = tmp_path / "report" / ".venv" / "bin" / "activate"
+    activate.parent.mkdir(parents=True)
+    activate.write_text("# Added by pdkboot for WeasyPrint\n", encoding="utf-8")
+    context = _context(
+        tmp_path,
+        runner=CliFakeRunner({"brew --prefix": CommandResult(0, "/opt/homebrew\n")}),
+    )
+
+    assert stages._macos_loader_is_configured(context) is False
+
+
+def test_macos_loader_update_replaces_a_partial_block_atomically(tmp_path: Path) -> None:
+    project = tmp_path / "report"
+    activate = project / ".venv" / "bin" / "activate"
+    activate.parent.mkdir(parents=True)
+    activate.write_text(
+        "VIRTUAL_ENV=/old\n# Added by pdkboot for WeasyPrint\n"
+        'export DYLD_FALLBACK_LIBRARY_PATH="/wrong/lib"\n',
+        encoding="utf-8",
+    )
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    python = activate.parent / "python"
+    python.touch()
+    runner = CliFakeRunner(
+        {
+            "brew --prefix": CommandResult(0, "/opt/homebrew\n"),
+            "-m pip --version": CommandResult(0, "pip 26.0.1"),
+        }
+    )
+    plan = stages._plan_project_env(_context(tmp_path, runner=runner))
+    script = plan.commands[-1]
+
+    subprocess.run(script, check=True)
+
+    updated = activate.read_text(encoding="utf-8")
+    assert "/wrong/lib" not in updated
+    assert updated.count("# Added by pdkboot for WeasyPrint") == 1
+    assert (
+        'export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib'
+        '${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"'
+    ) in updated
+    assert not activate.with_name("activate.pdkboot.tmp").exists()
 
 
 @pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
