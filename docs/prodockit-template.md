@@ -2,6 +2,8 @@
 icon: lucide/layout-template
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Start with prodockit-template
 
 The \index{`prodockit-template`} project ([GitHub

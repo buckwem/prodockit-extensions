@@ -2,6 +2,8 @@
 icon: lucide/package-check
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Build and release
 
 This page documents the \index{release process} for taking prodockit from an accepted
@@ -25,6 +27,7 @@ flowchart TD
     branch([START<br>Release branch]):::entry --> pr[Pull request]
     pr --> ci[ci.yml<br>tests, lint, typing, strict docs]
     pr --> adopt[adopt-install.yml<br>installed-wheel tests on x64 and ARM64]
+    pr --> pdfsite[pdf-built-site-wheel.yml<br>documented build-output boundary]
     ci -->|required checks pass| merge[Merge to main]
     merge --> docs[docs.yml<br>PDF, site, built-output tests, Pages]
     merge --> mainci[ci.yml on main]
@@ -44,17 +47,20 @@ schedule. Rectangular boxes are actions or workflow stages that follow.
 
 | Workflow | Trigger | Responsibility |
 |---|---|---|
-| [`adopt-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/adopt-install.yml) | Pull requests; pushes to `main`; manual dispatch | Build and install the candidate wheel on Ubuntu and Windows x64, plus Ubuntu, Windows and macOS ARM64, then exercise TOML and YAML adoption with the optional Mermaid and maths paths |
+| [`adopt-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/adopt-install.yml) | Pull requests; pushes to `main`; manual dispatch | Build and install the wheel on Ubuntu and Windows x64, plus Ubuntu, Windows and macOS ARM64, then exercise TOML and YAML adoption with the optional Mermaid and maths paths |
+| [`pdf-built-site-wheel.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/pdf-built-site-wheel.yml) | Pull requests; pushes to `main`; manual dispatch | Build and install the wheel on the same x64 and ARM64 operating-system matrix, exercise the renderer used by public `prodockit pdf` through Zensical's documented clean build, and verify it can consume navigation, rendered extensions and page metadata without a Git host |
 | [`ci.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/ci.yml) | Pull requests; pushes to `main` | Test Python 3.10–3.14, lint, type-check, verify pins, run the suite, and strictly build the site |
 | [`docs.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/docs.yml) | Pushes to `main`; manual dispatch | Build the complete PDF and selected single-page PDFs, strictly build the website, run built-output tests, deploy Pages, then verify the live page matches the uploaded artifact |
 | [`drift.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/drift.yml) | Monday schedule; manual dispatch | Build with pinned and newest rendering dependencies, compare artifacts, run checks against the newer build, and open or update an issue rather than failing for mere availability |
 | [`publish.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/publish.yml) | Published GitHub release | Build source and wheel artifacts from the release tag, then publish them to PyPI through \index{PyPI!Trusted Publishing} |
 | [`release-redeploy.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/release-redeploy.yml) | Published GitHub release; manual dispatch | Start `docs.yml` against `main` after the new tag exists, so the cover and macros can show the new release without deploying from a tag ref |
 
-The six workflows overlap intentionally. `ci.yml` gives quick pull-request
+The seven workflows overlap intentionally. `ci.yml` gives quick pull-request
 feedback; `adopt-install.yml` tests the installed wheel independently on x64
-and ARM64 runners across Ubuntu, Windows and macOS; `docs.yml` proves and
-publishes the complete artifacts;
+and ARM64 runners across Ubuntu, Windows and macOS;
+`pdf-built-site-wheel.yml` exercises the public PDF renderer from an installed
+wheel without relying on Zensical's private Python interfaces; `docs.yml`
+proves and publishes the complete artifacts;
 `publish.yml` has the narrow permission needed for PyPI; the redeploy fixes
 release-tag timing; and `drift.yml` observes future upgrades without changing
 the current release.

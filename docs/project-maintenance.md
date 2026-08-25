@@ -2,6 +2,8 @@
 icon: lucide/wrench
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Maintain prodockit
 
 This section is for maintainers of the prodockit repository. It covers the

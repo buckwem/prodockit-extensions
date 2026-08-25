@@ -5,9 +5,8 @@
 
 Pandoc is a completely different parser from Python-Markdown/Zensical, with
 its own HTML reader/writer quirks - this module fixes up already-rendered
-HTML (the caller renders each page through Zensical's own Markdown pipeline
-first, e.g. ``zensical.markdown.render.render()``, then passes the result
-here) rather than hand-translating markdown syntax, so Pandoc's own HTML
+HTML (the caller reads each page from Zensical's completed site build and
+passes the article here) rather than hand-translating markdown syntax, so Pandoc's own HTML
 reader can read genuinely standard HTML with no per-feature translation
 needed. See each function's own docstring for the specific Pandoc/WeasyPrint
 limitation it works around.
@@ -364,7 +363,7 @@ def fix_up_page_html(
     footnote_div = soup.find("div", class_="footnote")
     if isinstance(footnote_div, Tag):
         for li in footnote_div.select('li[id^="fn:"]'):
-            ref = soup.find("sup", id=f'fnref:{li["id"][3:]}')
+            ref = soup.find("sup", id=f"fnref:{li['id'][3:]}")
             if ref is None:
                 continue
             backref = li.find("a", class_="footnote-backref")

@@ -2,6 +2,8 @@
 icon: lucide/blocks
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Extension integration
 
 The Authoring reference documents Markdown syntax and `zensical.toml` options.

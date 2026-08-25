@@ -2,6 +2,8 @@
 icon: lucide/shield-check
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Version pinning and drift {: #pinning-version-pinning-and-drift }
 
 A documentation build has more inputs than its own source, which creates
@@ -282,8 +284,9 @@ always a pip package:
     project's own PDF while the build kept reporting success.
 
     The CI variable's name keeps its case on rewrite - `PANDOC_VERSION`,
-    not `pandoc_VERSION` - since a workflow step reading `${{
-    env.PANDOC_VERSION }}` needs the name unchanged, only the value.
+    not `pandoc_VERSION` - since a workflow step reading
+    `{% raw %}${{ env.PANDOC_VERSION }}{% endraw %}` needs the name unchanged,
+    only the value.
 
 ### Pandoc version drift {: #pinning-pandoc-version-drift }
 
@@ -385,7 +388,7 @@ jobs:
 
       - name: Compare
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: {% raw %}${{ github.token }}{% endraw %}
         run: |
           cmp -s /tmp/pinned.pdf docs/site_documentation.pdf \
             && echo "PDF identical" || echo "PDF differs"

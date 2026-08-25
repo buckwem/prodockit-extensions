@@ -9,14 +9,17 @@ prodockit extensions (currently :mod:`prodockit.refs`) look entries up in.
 from __future__ import annotations
 
 import re
+import warnings
 import xml.etree.ElementTree as etree
 from collections.abc import Iterator
+from importlib.metadata import PackageNotFoundError, version
 
 from markdown import Markdown
 from markdown.extensions import Extension
 from markdown.extensions.toc import TocExtension
 from markdown.treeprocessors import Treeprocessor
 
+from prodockit._markdown_toc import MarkdownTocAPIError, toc_slugging
 from prodockit._zensical import (
     nav_signature,
     page_source,
@@ -78,6 +81,31 @@ _ZENSICAL_SHARED_REGISTRY = IdRegistry()
 _ZENSICAL_PRESEED_STATE: tuple[tuple[bool, str], tuple[tuple[str, int, int], ...] | None] | None = (
     None
 )
+
+# A moved Python-Markdown TOC representation affects every page in the same
+# process. Report it once rather than burying the build log in duplicates.
+_MARKDOWN_TOC_API_WARNED = False
+
+
+def _warn_toc_api_moved(error: MarkdownTocAPIError) -> None:
+    """Report a changed TOC compatibility contract without failing silently."""
+    global _MARKDOWN_TOC_API_WARNED
+    if _MARKDOWN_TOC_API_WARNED:
+        return
+    _MARKDOWN_TOC_API_WARNED = True
+    try:
+        installed = version("Markdown")
+    except PackageNotFoundError:
+        installed = "unknown"
+    warnings.warn(
+        "prodockit could not read Python-Markdown's active TOC slugging "
+        f"settings: {error}. Markdown {installed} appears to have moved that "
+        "representation. Cross-page references to automatically generated "
+        "heading ids may remain unresolved. Please report this at "
+        "https://github.com/buckwem/prodockit-extensions/issues.",
+        RuntimeWarning,
+        stacklevel=3,
+    )
 
 
 def _caption_text(el: etree.Element) -> Iterator[str]:
@@ -390,11 +418,12 @@ class HeadingsExtension(Extension):
         state = (settings, nav_signature())
         if state == _ZENSICAL_PRESEED_STATE:
             return
-        # Not `.get()` (which SIM401 would suggest): Python-Markdown's own
-        # Registry implements __contains__/__getitem__ but no .get().
-        toc = md.treeprocessors["toc"] if "toc" in md.treeprocessors else None  # noqa: SIM401
-        slugify = getattr(toc, "slugify", None)
-        if slugify is None:
+        try:
+            slugging = toc_slugging(md)
+        except MarkdownTocAPIError as error:
+            _warn_toc_api_moved(error)
+            return
+        if slugging is None:
             return
         if _ZENSICAL_PRESEED_STATE is not None:
             registry.clear_preseeded()
@@ -402,8 +431,8 @@ class HeadingsExtension(Extension):
             registry,
             appendix_attr=settings[1],
             continuous=settings[0],
-            slugify=slugify,
-            separator=getattr(toc, "sep", "-"),
+            slugify=slugging.slugify,
+            separator=slugging.separator,
         )
         # Only latch on a scan that actually happened - outside a Zensical
         # build (or before its config is populated) there's nothing to

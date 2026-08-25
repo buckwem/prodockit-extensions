@@ -1,0 +1,64 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+name: PDF renderer installed wheel
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  installed-wheel:
+    name: ${{ matrix.name }} ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu 24.04
+            runner: ubuntu-24.04
+            architecture: x64
+            architecture_check: --require-x64
+          - name: Windows 2025
+            runner: windows-2025
+            architecture: x64
+            architecture_check: --require-x64
+          - name: Ubuntu 24.04
+            runner: ubuntu-24.04-arm
+            architecture: arm64
+            architecture_check: --require-arm64
+          - name: Windows 11
+            runner: windows-11-arm
+            architecture: arm64
+            architecture_check: --require-arm64
+          - name: macOS 15
+            runner: macos-15
+            architecture: arm64
+            architecture_check: --require-arm64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          architecture: ${{ matrix.architecture }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Build the wheel
+        run: |
+          python -m pip install build
+          python -m build --wheel
+      - name: Test the public PDF renderer from the installed wheel
+        run: >-
+          python tools/pdf_from_site_acceptance.py
+          --wheel dist
+          ${{ matrix.architecture_check }}
+          --report pdf-built-site-report.json
+      - name: Keep the acceptance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-built-site-${{ matrix.runner }}-${{ matrix.architecture }}
+          path: pdf-built-site-report.json
+          if-no-files-found: warn

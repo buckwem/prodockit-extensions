@@ -2,6 +2,8 @@
 icon: lucide/pencil-line
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Authoring reference
 
 This section is for a document author who has built a first Zensical site and

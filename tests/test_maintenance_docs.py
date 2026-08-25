@@ -23,15 +23,15 @@ def test_publishing_holds_setup_and_template_guides() -> None:
     publishing = _nav_group("Publish a document")
     maintenance = _nav_group("Maintain prodockit")
 
-    assert {"Set up a machine": "devcons/bootstrap.md"} in publishing
+    assert {"18. Set up a machine": "devcons/bootstrap.md"} in publishing
     assert {
-        "Staying in step with the template": "devcons/template-sync.md"
+        "19. Staying in step with the template": "devcons/template-sync.md"
     } in publishing
     assert maintenance == [
-        {"Maintenance overview": "project-maintenance.md"},
-        {"Repository metadata": "devcons/repo-metadata.md"},
-        {"Version pinning and drift": "devcons/pinning-drift.md"},
-        {"Build and release": "devcons/releasing.md"},
+        {"24. Maintenance overview": "project-maintenance.md"},
+        {"25. Repository metadata": "devcons/repo-metadata.md"},
+        {"26. Version pinning and drift": "devcons/pinning-drift.md"},
+        {"27. Build and release": "devcons/releasing.md"},
     ]
 
 

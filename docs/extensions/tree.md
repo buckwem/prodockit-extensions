@@ -2,6 +2,8 @@
 icon: lucide/folder-tree
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Directory trees
 
 \index{`prodockit.tree`} turns an indented list of folders and files into a directory

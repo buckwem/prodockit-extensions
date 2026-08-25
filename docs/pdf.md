@@ -2,6 +2,8 @@
 icon: lucide/file-text
 ---
 
+{{ heading_counter_reset(page) }}
+
 # PDF generation {: #pdf-pdf-generation }
 
 `prodockit.pdf` builds a standalone PDF from your Zensical site - the kind of
@@ -19,10 +21,15 @@ From the project root—the directory containing `zensical.toml`—run the
 prodockit pdf
 ```
 
-The command reads every page in `nav`, keeps that order, and writes
-`docs/site_documentation.pdf` by default. Open the result and check its cover,
-contents, headings, page breaks, diagrams, and final page before changing any
-layout setting.
+The command first runs a documented `zensical build --clean`, then reads each
+rendered article from the generated website. It includes every page in `nav`,
+keeps that order, and writes `docs/site_documentation.pdf` by default. Open the
+result and check its cover, contents, headings, page breaks, diagrams, and final
+page before changing any layout setting.
+
+The clean website build replaces the configured `site_dir`, just as running
+`zensical build --clean` yourself does. Keep generated website output there,
+not files you maintain by hand.
 
 If the command reports a missing program or native library, install the
 requirements in the next section and repeat the same command. A project that
@@ -173,20 +180,23 @@ prodockit pdf --config-file zensical.toml   # -f for short; this is the default
 
 ### Building a single file
 
-To build a PDF from just one markdown file - a single chapter, say, rather
-than the whole site - pass `--markdown-file` (`-m` for short), a path
+To include just one Markdown file in the PDF - a single chapter, say, rather
+than the whole document - pass `--markdown-file` (`-m` for short), a path
 relative to `docs_dir`:
 
 ```bash
 prodockit pdf --markdown-file chapter1.md   # -m for short
 ```
 
-This ignores `nav` entirely and renders only that page. Everything else -
-fonts, page size, margins, `heading_numbering`, and so on - still comes
-from `zensical.toml` exactly as it would for a full build. The output
-defaults to that file's own name with a `.pdf` extension inside
-`docs_dir` (e.g. `docs/chapter1.pdf`) instead of `site_documentation.pdf`,
-unless `pdf_output` is set, in which case that always wins.
+This narrows the PDF's contents; it does not narrow the preceding website
+build. `prodockit pdf` still runs a clean build of the complete site and
+replaces `site_dir`, then reads only the requested page from that generated
+output. `nav` is therefore ignored for selecting the PDF pages, while fonts,
+page size, margins, `heading_numbering`, and the rest still come from
+`zensical.toml` exactly as they do for a full PDF. The output defaults to that
+file's own name with a `.pdf` extension inside `docs_dir` (for example,
+`docs/chapter1.pdf`) instead of `site_documentation.pdf`, unless `pdf_output`
+is set, in which case that always wins.
 
 Most of what the PDF needs, it already gets from settings your site likely
 has for other reasons: `site_name`, `copyright`, `repo_url`, `docs_dir`,
@@ -220,7 +230,8 @@ A page's own front matter `recto_title: "Short Title"` overrides its
 running header text from the *next* page onward - see
 [Double-sided (duplex) printing](#double-sided-duplex-printing). Your
 `nav`'s index page can also use `{WORDCOUNT}`/`{REPOURL}`/`{RELEASE}`/
-`{{ site_name }}` markers - see [Cover page markers](#cover-page-markers).
+`{% raw %}{{ site_name }}{% endraw %}` markers - see
+[Cover page markers](#cover-page-markers).
 
 ### Web-only / PDF-only content
 
@@ -318,10 +329,10 @@ configuration needed:
 
 | Marker | Becomes |
 |---|---|
-| `{WORDCOUNT}` | The site-wide word count (the same value a `{{ word_count }}` website [macro variable](macros.md#variables) would show), so a submission's PDF and its live website page never disagree. |
-| `{REPOURL}` | The git-detected repo URL (the same value `{{ repo_url }}` gives a website macro). |
+| `{WORDCOUNT}` | The site-wide word count (the same value a `{% raw %}{{ word_count }}{% endraw %}` website [macro variable](macros.md#variables) would show), so a submission's PDF and its live website page never disagree. |
+| `{REPOURL}` | The git-detected repo URL (the same value `{% raw %}{{ repo_url }}{% endraw %}` gives a website macro). |
 | `{RELEASE}` | The latest published GitHub/GitLab release tag (e.g. `v1.2.0`). The *whole line* containing this marker is dropped instead if there isn't one - most projects never publish a release at all, so nothing shows a bare `"Release: "` label by default. |
-| `{{ site_name }}` | Your project's own `site_name`, substituted literally - `prodockit pdf` never evaluates Jinja, so the exact same `{{ site_name }}` text a website macro variable uses works here too, one line of markdown for both outputs. |
+| `{% raw %}{{ site_name }}{% endraw %}` | Your project's own `site_name`, substituted literally - `prodockit pdf` never evaluates Jinja, so the exact same `{% raw %}{{ site_name }}{% endraw %}` text a website macro variable uses works here too, one line of markdown for both outputs. |
 
 Skipped entirely for a `--markdown-file`-scoped build, or if your `nav`
 has only one page - there's no separate "cover" vs "content" to compute a

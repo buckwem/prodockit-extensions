@@ -13,14 +13,12 @@ from typing import Any
 
 
 def flatten_nav(nav_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Flattens Zensical's own resolved nav tree (each item already
-    carrying `url`/`is_index`/`children`, as returned by
-    `zensical.config.parse_config()` or available as `env.conf["nav"]`
-    inside a Zensical macros-plugin `define_env()`) into an ordered,
-    depth-first list of real pages only - a nav group heading (`url` is
-    `None`, only `children`) contributes no entry of its own, just its
-    descendants. Shared by :mod:`prodockit.pdf.config` and
-    :mod:`prodockit.zensical_macros`, which both need the same page list."""
+    """Flatten Prodockit's normalized nav model into page order.
+
+    Each item carries ``url``/``is_index``/``children``. A group heading
+    contributes no entry of its own, only its descendants. The model is
+    produced by :mod:`prodockit.project_config`, not a Zensical Python API.
+    """
     pages = []
     for item in nav_items:
         if item.get("url"):

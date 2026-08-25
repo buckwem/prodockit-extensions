@@ -30,6 +30,11 @@ def test_topic_owner_pages_define_their_principal_index_entries() -> None:
         "docs/devcons/bootstrap-internals.md": (r"\index{bootstrap design}",),
         "docs/devcons/pdf-internals.md": (r"\index{PDF pipeline}",),
         "docs/devcons/zensical-coupling.md": (r"\index{Zensical coupling}",),
+        "docs/devcons/limitations.md": (
+            r"\index{limitations!extensions}",
+            r"\index{limitations!PDF generation}",
+            r"\index{limitations!website macros}",
+        ),
         "docs/devcons/template-sync.md": (r"\index{commands!`prodockit template-sync`}",),
         "docs/devcons/bootstrap.md": (r"\index{commands!`prodockit bootstrap`}",),
         "docs/devcons/repo-metadata.md": (r"\index{commands!`prodockit sync-repo`}",),

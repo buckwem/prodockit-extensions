@@ -18,14 +18,16 @@ def _text(relative_path: str) -> str:
 
 def test_about_navigation_is_evaluator_first() -> None:
     config = read_config(_text("zensical.toml"))
-    about = next(item["About"] for item in config["project"]["nav"] if "About" in item)
+    about = next(
+        item["35. About"] for item in config["project"]["nav"] if "35. About" in item
+    )
 
     assert about == [
-        {"About prodockit": "about/index.md"},
-        {"Support and compatibility": "about/support.md"},
-        {"Known limitations": "about/limitations.md"},
-        {"Release notes": "about/changelog.md"},
-        {"Licence": "about/license.md"},
+        {"35. About prodockit": "about/index.md"},
+        {"36. Support and compatibility": "about/support.md"},
+        {"37. Known limitations": "about/limitations.md"},
+        {"38. Release notes": "about/changelog.md"},
+        {"39. Licence": "about/license.md"},
     ]
 
 

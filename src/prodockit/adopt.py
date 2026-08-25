@@ -26,9 +26,9 @@ from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped, unused-ignore]
-from zensical.config import DEFAULT_MARKDOWN_EXTENSIONS
 
 from prodockit import __version__
+from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
 
@@ -411,7 +411,7 @@ def _toml_value(value: Any) -> str:
 def _seed_toml_markdown_defaults(source: str) -> str:
     """Materialise defaults which an explicit extension table would replace."""
     chunks: list[str] = []
-    for name, settings in DEFAULT_MARKDOWN_EXTENSIONS.items():
+    for name, settings in DOCUMENTED_MARKDOWN_DEFAULTS.items():
         if not isinstance(settings, Mapping):  # pragma: no cover - upstream contract guard
             raise AdoptError(f"Zensical's Markdown default for {name} is not a mapping")
         lines = [f'[project.markdown_extensions."{name}"]']
@@ -425,7 +425,7 @@ def _seed_yaml_markdown_defaults(source: str) -> str:
     """Materialise Zensical defaults before adding entries to YAML config."""
     defaults = {
         name: _serializable_default(settings) or None
-        for name, settings in DEFAULT_MARKDOWN_EXTENSIONS.items()
+        for name, settings in DOCUMENTED_MARKDOWN_DEFAULTS.items()
     }
     rendered = yaml.safe_dump(
         {"markdown_extensions": defaults},

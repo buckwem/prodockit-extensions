@@ -2,6 +2,8 @@
 icon: lucide/scale
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Licence
 
 prodockit is distributed under the MIT License. In plain-language summary,

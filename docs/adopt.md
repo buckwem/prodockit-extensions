@@ -2,6 +2,8 @@
 icon: lucide/package-plus
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Add prodockit to an existing document
 
 `prodockit adopt` is for an existing Zensical or MkDocs document whose normal

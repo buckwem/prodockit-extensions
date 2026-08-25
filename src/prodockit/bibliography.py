@@ -171,7 +171,9 @@ class _BibliographyCache:
                 )
             else:
                 stdout, _ = _run_pandoc_citeproc(
-                    "", bib_files=[bib_file], csl_style=self.csl_style,
+                    "",
+                    bib_files=[bib_file],
+                    csl_style=self.csl_style,
                     front_matter="---\nnocite: '@*'\n---\n\n",
                 )
             soup = BeautifulSoup(stdout, "html.parser")
@@ -193,7 +195,6 @@ class _BibliographyCache:
 # csl_style) so two differently-configured instances (unusual, but not
 # prevented) don't share a cache that doesn't apply to both.
 _ZENSICAL_SHARED_CACHES: dict[tuple[str, str], _BibliographyCache] = {}
-
 
 
 def _run_pandoc_citeproc(
@@ -413,8 +414,7 @@ class BibliographyExtension(Extension):
             ],
             "unresolved": [
                 "?",
-                "Text rendered by \\cite{id} when id doesn't resolve to a "
-                ".bib entry.",
+                "Text rendered by \\cite{id} when id doesn't resolve to a .bib entry.",
             ],
             "source": [
                 "",
@@ -430,12 +430,21 @@ class BibliographyExtension(Extension):
         bib_file: str = self.getConfig("bib_file")
         csl_style: str = self.getConfig("csl_style")
         unresolved: str = self.getConfig("unresolved")
-        source: str = self.getConfig("source") or page_source(md) or ""
+        detected_source = page_source(md)
+        source: str = self.getConfig("source") or detected_source or ""
 
         cache_key = (bib_file, csl_style)
         if cache_key not in _ZENSICAL_SHARED_CACHES:
             new_cache = _BibliographyCache(bib_file, csl_style)
-            prescanned = prescan_bibliography(CITE_RE, BIBLIOGRAPHY_RE, bib_file)
+            # A project config may exist in the current directory even when
+            # another Python-Markdown consumer is converting an isolated
+            # string.  Only pre-scan that project when Zensical's per-page
+            # context proves this conversion belongs to its build.
+            prescanned = (
+                prescan_bibliography(CITE_RE, BIBLIOGRAPHY_RE, bib_file)
+                if detected_source is not None
+                else None
+            )
             if prescanned is not None:
                 all_cited_keys, first_page_for_file = prescanned
                 new_cache.all_cited_keys = all_cited_keys

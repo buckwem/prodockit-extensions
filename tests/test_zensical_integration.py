@@ -1,17 +1,19 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Simulates Zensical's per-page render(): a fresh Markdown() instance per
-page, each carrying a zensical.extensions.context.ContextPreprocessor - see
-prodockit.headings._zensical_page_source, added to fix cross-page \\ref
-resolution not working under Zensical's per-page build."""
+"""Simulates Zensical's per-page build at Prodockit's adapter boundary.
+
+Each page gets a fresh ``Markdown`` instance and an isolated source path.
+The installed-wheel acceptance harness exercises the real documented
+Zensical CLI; these focused extension tests do not import private types.
+"""
 
 import shutil
 from pathlib import Path
 
 import markdown
 import pytest
-from zensical.extensions.context import ContextExtension, Page
+from markdown.extensions import Extension
 
 import prodockit._zensical as prodockit_zensical
 import prodockit.bibliography as prodockit_bibliography
@@ -39,16 +41,33 @@ def _isolated_zensical_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(prodockit_citations, "_ZENSICAL_SHARED_REGISTRY", CitationRegistry())
     monkeypatch.setattr(prodockit_glossary, "_ZENSICAL_SHARED_REGISTRY", GlossaryRegistry())
     monkeypatch.setattr(prodockit_bibliography, "_ZENSICAL_SHARED_CACHES", {})
+    monkeypatch.setattr(
+        prodockit_zensical,
+        "current_page_path",
+        lambda md: getattr(md, "_prodockit_test_page_path", None),
+    )
+
+
+class _PageContextExtension(Extension):
+    """Test double for the page-path API Prodockit's extensions consume."""
+
+    def __init__(self, path: str) -> None:
+        super().__init__()
+        self.path = path
+
+    def extendMarkdown(self, md: markdown.Markdown) -> None:
+        md._prodockit_test_page_path = self.path
+
+
+def _page_context(path: str) -> Extension:
+    return _PageContextExtension(path)
 
 
 def _convert_as_zensical_page(text: str, path: str) -> str:
-    """Mirrors zensical/markdown/render.py: a brand new Markdown() instance
-    per page, with a ContextExtension carrying that page's Page(path=...) -
-    and prodockit.headings/prodockit.refs configured as plain strings, exactly as
-    zensical.toml's [project.markdown_extensions."prodockit.headings"] does."""
+    """Create one fresh Markdown conversion carrying a distinct page path."""
     md = markdown.Markdown(
         extensions=[
-            ContextExtension(page=Page(url=path, path=path), config={}),
+            _page_context(path),
             "prodockit.headings",
             "prodockit.refs",
         ]
@@ -81,9 +100,7 @@ def test_each_page_gets_its_own_source_automatically() -> None:
     page's headings before this test's own assertion even runs."""
     _convert_as_zensical_page("# Introduction\n", "intro.md")
     _convert_as_zensical_page("# Setup\n", "setup.md")
-    html = _convert_as_zensical_page(
-        "See \\ref{introduction} and \\ref{setup}.\n", "summary.md"
-    )
+    html = _convert_as_zensical_page("See \\ref{introduction} and \\ref{setup}.\n", "summary.md")
     assert '<a class="prodockit-ref" href="intro.md#introduction">1 Introduction</a>' in html
     assert '<a class="prodockit-ref" href="setup.md#setup">1 Setup</a>' in html
 
@@ -92,9 +109,7 @@ def test_same_page_reference_still_uses_bare_fragment_under_zensical() -> None:
     """A reference to a heading on the *same* page keeps the simpler bare
     fragment - only a genuinely cross-page reference needs the page-prefixed
     form."""
-    html = _convert_as_zensical_page(
-        "# Introduction\n\nSee \\ref{introduction}.\n", "intro.md"
-    )
+    html = _convert_as_zensical_page("# Introduction\n\nSee \\ref{introduction}.\n", "intro.md")
     assert '<a class="prodockit-ref" href="#introduction">1 Introduction</a>' in html
 
 
@@ -112,7 +127,7 @@ def test_duplicate_heading_text_across_pages_does_not_crash_the_build() -> None:
 
 
 def test_non_zensical_use_is_unaffected() -> None:
-    """Without a ContextExtension/Page on md (i.e. not under Zensical), two
+    """Without a page context (i.e. not under Zensical), two
     independent conversions must keep behaving exactly as before this fix -
     each gets its own private registry, not the shared Zensical singleton."""
     md1 = markdown.Markdown(extensions=["prodockit.headings"])
@@ -157,8 +172,14 @@ def test_ref_resolves_for_a_page_never_rendered_in_this_context(
         "# Section Four\n\nSee \\ref{citations-example} and \\ref{acronyms-example}.\n",
         "section4.md",
     )
-    assert '<a class="prodockit-ref" href="section1.md#citations-example">1.1 Citations example</a>' in html
-    assert '<a class="prodockit-ref" href="section1.md#acronyms-example">1.2 Acronyms example</a>' in html
+    assert (
+        '<a class="prodockit-ref" href="section1.md#citations-example">1.1 Citations example</a>'
+        in html
+    )
+    assert (
+        '<a class="prodockit-ref" href="section1.md#acronyms-example">1.2 Acronyms example</a>'
+        in html
+    )
     assert "??" not in html
 
 
@@ -167,7 +188,7 @@ def _convert_as_zensical_page_with_captions(
 ) -> str:
     md = markdown.Markdown(
         extensions=[
-            ContextExtension(page=Page(url=path, path=path), config={}),
+            _page_context(path),
             "attr_list",
             "tables",
             "pymdownx.blocks.caption",
@@ -228,9 +249,7 @@ Later table
         lambda: (str(docs_dir), ["earlier.md", "later.md"]),
     )
 
-    html = _convert_as_zensical_page_with_captions(
-        earlier, "earlier.md", continuous=True
-    )
+    html = _convert_as_zensical_page_with_captions(earlier, "earlier.md", continuous=True)
 
     assert '<a class="prodockit-ref" href="later.md#fig-later">Figure 2.1</a>' in html
     assert '<a class="prodockit-ref" href="later.md#tab-later">Table 2.1</a>' in html
@@ -287,13 +306,11 @@ def test_forward_references_resolve_to_two_figures_nested_in_a_later_list_item(
 
     assert (
         '<a class="prodockit-ref" '
-        'href="test-procedure.md#fig-grafana-admin-username-config">Figure 2.1</a>'
-        in html
+        'href="test-procedure.md#fig-grafana-admin-username-config">Figure 2.1</a>' in html
     )
     assert (
         '<a class="prodockit-ref" '
-        'href="test-procedure.md#fig-grafana-admin-password-config">Figure 2.2</a>'
-        in html
+        'href="test-procedure.md#fig-grafana-admin-password-config">Figure 2.2</a>' in html
     )
     assert "??" not in html
 
@@ -387,9 +404,7 @@ Example caption syntax
         lambda: (str(docs_dir), ["guide.md", "other.md"]),
     )
 
-    html = _convert_as_zensical_page_with_captions(
-        "See \\ref{not-a-real-figure}.\n", "other.md"
-    )
+    html = _convert_as_zensical_page_with_captions("See \\ref{not-a-real-figure}.\n", "other.md")
 
     assert '<a class="prodockit-ref prodockit-ref-unresolved">??</a>' in html
 
@@ -436,9 +451,7 @@ def test_preseeded_heading_is_superseded_by_its_real_registration(
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
     (docs_dir / "intro.md").write_text("# Introduction\n", encoding="utf-8")
-    monkeypatch.setattr(
-        prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["intro.md"])
-    )
+    monkeypatch.setattr(prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["intro.md"]))
     _convert_as_zensical_page("# Introduction\n", "intro.md")
     registry = prodockit_headings._ZENSICAL_SHARED_REGISTRY
     assert registry._headings["introduction"].source == "intro.md"
@@ -456,9 +469,7 @@ def test_preseed_ignores_headings_inside_fenced_examples(
     (docs_dir / "guide.md").write_text(
         "# Guide\n\n```md\n## Not A Real Heading {: #not-real }\n```\n", encoding="utf-8"
     )
-    monkeypatch.setattr(
-        prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["guide.md"])
-    )
+    monkeypatch.setattr(prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["guide.md"]))
     html = _convert_as_zensical_page("See \\ref{not-real}.\n", "other.md")
     assert '<a class="prodockit-ref prodockit-ref-unresolved">??</a>' in html
 
@@ -470,7 +481,7 @@ def _convert_as_zensical_page_with_attr_list(text: str, path: str) -> str:
     reads those same markers straight out of raw text."""
     md = markdown.Markdown(
         extensions=[
-            ContextExtension(page=Page(url=path, path=path), config={}),
+            _page_context(path),
             "attr_list",
             "prodockit.headings",
             "prodockit.refs",
@@ -486,19 +497,11 @@ def test_preseeded_numbers_match_a_real_conversion(
     have to agree with what HeadingsTreeprocessor produces from the parsed
     tree, including a skipped level (h1 -> h3 numbers "1.1.1", not "1.0.1")
     and an .unnumbered heading consuming no counter position."""
-    page = (
-        "# Cover {: .unnumbered }\n\n"
-        "# One\n\n"
-        "### Deep\n\n"
-        "## Two\n\n"
-        "# Three\n"
-    )
+    page = "# Cover {: .unnumbered }\n\n# One\n\n### Deep\n\n## Two\n\n# Three\n"
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
     (docs_dir / "page.md").write_text(page, encoding="utf-8")
-    monkeypatch.setattr(
-        prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["page.md"])
-    )
+    monkeypatch.setattr(prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["page.md"]))
     # Preseeded only - this context never converts page.md itself.
     _convert_as_zensical_page_with_attr_list("placeholder\n", "other.md")
     preseeded = dict(prodockit_headings._ZENSICAL_SHARED_REGISTRY._preseeded)
@@ -511,9 +514,7 @@ def test_preseeded_numbers_match_a_real_conversion(
     _convert_as_zensical_page_with_attr_list(page, "page.md")
     real = prodockit_headings._ZENSICAL_SHARED_REGISTRY._headings
 
-    assert {k: v.number for k, v in preseeded.items()} == {
-        k: v.number for k, v in real.items()
-    }
+    assert {k: v.number for k, v in preseeded.items()} == {k: v.number for k, v in real.items()}
     assert real["deep"].number == "1.1.1"
     assert real["cover"].number is None
 
@@ -532,9 +533,7 @@ def test_preseeded_numbers_are_redone_when_refs_preseeds_first_with_defaults(
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
     (docs_dir / "one.md").write_text("# Page One\n", encoding="utf-8")
-    (docs_dir / "two.md").write_text(
-        "# Page Two\n\n## Target {: #target }\n", encoding="utf-8"
-    )
+    (docs_dir / "two.md").write_text("# Page Two\n\n## Target {: #target }\n", encoding="utf-8")
     monkeypatch.setattr(
         prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["one.md", "two.md"])
     )
@@ -542,7 +541,7 @@ def test_preseeded_numbers_are_redone_when_refs_preseeds_first_with_defaults(
     # makes refs build its own default HeadingsExtension first.
     md = markdown.Markdown(
         extensions=[
-            ContextExtension(page=Page(url="one.md", path="one.md"), config={}),
+            _page_context("one.md"),
             "attr_list",
             "prodockit.refs",
             "prodockit.headings",
@@ -569,7 +568,7 @@ def test_default_numbering_is_still_per_document_under_zensical() -> None:
 def _convert_as_zensical_page_with_continuous_headings(text: str, path: str) -> str:
     md = markdown.Markdown(
         extensions=[
-            ContextExtension(page=Page(url=path, path=path), config={}),
+            _page_context(path),
             prodockit_headings.HeadingsExtension(numbering="continuous"),
         ]
     )
@@ -610,9 +609,7 @@ def test_continuous_numbering_letters_appendix_pages_without_consuming_a_number(
         lambda: (str(docs_dir), ["page1.md", "appendix.md", "page2.md"]),
     )
     _convert_as_zensical_page_with_continuous_headings("# One\n", "page1.md")
-    _convert_as_zensical_page_with_continuous_headings(
-        "# App Heading\n\n## Sub\n", "appendix.md"
-    )
+    _convert_as_zensical_page_with_continuous_headings("# App Heading\n\n## Sub\n", "appendix.md")
     _convert_as_zensical_page_with_continuous_headings("# Two\n", "page2.md")
     registry = prodockit_headings._ZENSICAL_SHARED_REGISTRY
     assert registry.get("one").number == "1"  # type: ignore[union-attr]
@@ -640,7 +637,7 @@ def test_ref_to_a_continuously_numbered_heading_on_another_page_shows_the_right_
     def _convert(text: str, path: str) -> str:
         md = markdown.Markdown(
             extensions=[
-                ContextExtension(page=Page(url=path, path=path), config={}),
+                _page_context(path),
                 prodockit_headings.HeadingsExtension(numbering="continuous"),
                 "prodockit.refs",
             ]
@@ -656,7 +653,7 @@ def test_ref_to_a_continuously_numbered_heading_on_another_page_shows_the_right_
 def _convert_as_zensical_page_with_citations(text: str, path: str) -> str:
     md = markdown.Markdown(
         extensions=[
-            ContextExtension(page=Page(url=path, path=path), config={}),
+            _page_context(path),
             "attr_list",
             "prodockit.citations",
         ]
@@ -666,16 +663,16 @@ def _convert_as_zensical_page_with_citations(text: str, path: str) -> str:
 
 def test_cross_page_citation_resolves_under_zensical() -> None:
     _convert_as_zensical_page_with_citations(
-        'Skoulikari, A. (2023) *Learning Git*.\n'
-        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
+        'Skoulikari, A. (2023) *Learning Git*.\n{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
         "references.md",
     )
-    html = _convert_as_zensical_page_with_citations(
-        "See \\citeref{skou2023}.\n", "section1.md"
-    )
+    html = _convert_as_zensical_page_with_citations("See \\citeref{skou2023}.\n", "section1.md")
     # A real cross-page link (references.md#skou2023), not a bare
     # same-page fragment - the latter would 404 on the actual website.
-    assert '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>' in html
+    assert (
+        '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>'
+        in html
+    )
 
 
 def test_cross_page_citation_from_nested_page_uses_relative_path() -> None:
@@ -684,21 +681,23 @@ def test_cross_page_citation_from_nested_page_uses_relative_path() -> None:
     same "../" prefix a hand-typed relative link between the same two
     pages would need."""
     _convert_as_zensical_page_with_citations(
-        'Skoulikari, A. (2023) *Learning Git*.\n'
-        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
+        'Skoulikari, A. (2023) *Learning Git*.\n{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
         "references.md",
     )
     html = _convert_as_zensical_page_with_citations(
         "See \\citeref{skou2023}.\n", "starthere/customise.md"
     )
-    assert '<a class="prodockit-cite-resolved" href="../references.md#skou2023">Skoulikari, 2023</a>' in html
+    assert (
+        '<a class="prodockit-cite-resolved" href="../references.md#skou2023">Skoulikari, 2023</a>'
+        in html
+    )
 
 
 def test_same_page_citation_still_uses_bare_fragment_under_zensical() -> None:
     html = _convert_as_zensical_page_with_citations(
-        'Skoulikari, A. (2023) *Learning Git*.\n'
+        "Skoulikari, A. (2023) *Learning Git*.\n"
         '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n\n'
-        'See \\citeref{skou2023}.\n',
+        "See \\citeref{skou2023}.\n",
         "references.md",
     )
     assert '<a class="prodockit-cite-resolved" href="#skou2023">Skoulikari, 2023</a>' in html
@@ -706,8 +705,7 @@ def test_same_page_citation_still_uses_bare_fragment_under_zensical() -> None:
 
 def test_duplicate_citation_key_across_pages_does_not_crash_the_build() -> None:
     definition = (
-        'Skoulikari, A. (2023) *Learning Git*.\n'
-        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n'
+        'Skoulikari, A. (2023) *Learning Git*.\n{: #skou2023 data-cite-text="Skoulikari, 2023" }\n'
     )
     _convert_as_zensical_page_with_citations(definition, "page-a.md")
     # Must not raise, even though the same key is (implausibly, but
@@ -728,8 +726,7 @@ def test_forward_citation_resolves_via_nav_preseed(
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
     (docs_dir / "references.md").write_text(
-        'Skoulikari, A. (2023) *Learning Git*.\n'
-        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
+        'Skoulikari, A. (2023) *Learning Git*.\n{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
         encoding="utf-8",
     )
     monkeypatch.setattr(
@@ -737,10 +734,11 @@ def test_forward_citation_resolves_via_nav_preseed(
         "nav_pages",
         lambda: (str(docs_dir), ["section1.md", "references.md"]),
     )
-    html = _convert_as_zensical_page_with_citations(
-        "See \\citeref{skou2023}.\n", "section1.md"
+    html = _convert_as_zensical_page_with_citations("See \\citeref{skou2023}.\n", "section1.md")
+    assert (
+        '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>'
+        in html
     )
-    assert '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>' in html
 
 
 def test_nav_preseed_ignores_fenced_documentation_examples(
@@ -764,8 +762,7 @@ def test_nav_preseed_ignores_fenced_documentation_examples(
         encoding="utf-8",
     )
     (docs_dir / "references.md").write_text(
-        "Skoulikari, A. (2023) *Learning Git*.\n"
-        '{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
+        'Skoulikari, A. (2023) *Learning Git*.\n{: #skou2023 data-cite-text="Skoulikari, 2023" }\n',
         encoding="utf-8",
     )
     monkeypatch.setattr(
@@ -773,10 +770,11 @@ def test_nav_preseed_ignores_fenced_documentation_examples(
         "nav_pages",
         lambda: (str(docs_dir), ["customise.md", "section1.md", "references.md"]),
     )
-    html = _convert_as_zensical_page_with_citations(
-        "See \\citeref{skou2023}.\n", "section1.md"
+    html = _convert_as_zensical_page_with_citations("See \\citeref{skou2023}.\n", "section1.md")
+    assert (
+        '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>'
+        in html
     )
-    assert '<a class="prodockit-cite-resolved" href="references.md#skou2023">Skoulikari, 2023</a>' in html
 
 
 def test_real_definition_supersedes_preseeded_stub() -> None:
@@ -794,7 +792,7 @@ def test_real_definition_supersedes_preseeded_stub() -> None:
 def _convert_as_zensical_page_with_glossary(text: str, path: str) -> str:
     md = markdown.Markdown(
         extensions=[
-            ContextExtension(page=Page(url=path, path=path), config={}),
+            _page_context(path),
             "attr_list",
             "prodockit.glossary",
         ]
@@ -807,9 +805,7 @@ def test_cross_page_gls_resolves_under_zensical() -> None:
         '**CSS** - Cascading Style Sheets.\n{: #css data-term="CSS" }\n',
         "acronyms.md",
     )
-    html = _convert_as_zensical_page_with_glossary(
-        "This uses \\gls{css}.\n", "section1.md"
-    )
+    html = _convert_as_zensical_page_with_glossary("This uses \\gls{css}.\n", "section1.md")
     # A real cross-page link (acronyms.md#css), not a bare same-page
     # fragment - the latter would 404 on the actual website.
     assert '<a class="prodockit-gls" href="acronyms.md#css">CSS</a>' in html
@@ -847,9 +843,7 @@ def test_gls_forward_reference_resolves_via_nav_preseed(
         "nav_pages",
         lambda: (str(docs_dir), ["section1.md", "acronyms.md"]),
     )
-    html = _convert_as_zensical_page_with_glossary(
-        "This uses \\gls{css}.\n", "section1.md"
-    )
+    html = _convert_as_zensical_page_with_glossary("This uses \\gls{css}.\n", "section1.md")
     assert '<a class="prodockit-gls" href="acronyms.md#css">CSS</a>' in html
 
 
@@ -875,7 +869,7 @@ _BIB_FIXTURE = """
 def _convert_as_zensical_page_with_bibliography(text: str, path: str, bib_file: str) -> str:
     md = markdown.Markdown(
         extensions=[
-            ContextExtension(page=Page(url=path, path=path), config={}),
+            _page_context(path),
             BibliographyExtension(bib_file=bib_file),
         ]
     )
@@ -979,9 +973,7 @@ def test_bibliography_cross_links_to_the_page_whose_marker_defines_the_key(
         "}\n",
         encoding="utf-8",
     )
-    (docs_dir / "section1.md").write_text(
-        "See \\cite{skou2023}.\n", encoding="utf-8"
-    )
+    (docs_dir / "section1.md").write_text("See \\cite{skou2023}.\n", encoding="utf-8")
     (docs_dir / "references.md").write_text(
         "# References\n\n\\bibliography{}{true}\n", encoding="utf-8"
     )

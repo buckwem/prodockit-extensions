@@ -2,6 +2,8 @@
 icon: lucide/book-open
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Acronyms and glossary
 
 \index{`prodockit.glossary`} lets you define an acronym or term once and reuse

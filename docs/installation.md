@@ -2,6 +2,8 @@
 icon: lucide/package-plus
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Installation
 
 ## Requirements

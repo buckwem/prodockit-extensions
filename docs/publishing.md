@@ -2,6 +2,8 @@
 icon: lucide/cloud-upload
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Publishing overview
 
 Publishing turns the site you previewed locally into outputs other people can

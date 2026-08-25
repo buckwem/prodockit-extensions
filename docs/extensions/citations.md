@@ -2,6 +2,8 @@
 icon: lucide/quote
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Hand-written citations and references
 
 \index{`prodockit.citations`} lets you write a reference once and cite it from

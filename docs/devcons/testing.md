@@ -2,6 +2,8 @@
 icon: lucide/badge-check
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Test the built output {: #testing-testing-your-built-site }
 
 \index{`prodockit.testing`} gives a project \index{pytest} fixtures pointing at its own

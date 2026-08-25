@@ -19,6 +19,7 @@ pre-scanning ahead of time.
 from __future__ import annotations
 
 import re
+import subprocess
 import warnings
 from collections.abc import Callable
 from pathlib import Path
@@ -26,6 +27,12 @@ from typing import Protocol, TypeVar
 
 from markdown import Markdown
 from markdown.extensions.toc import unique
+
+from prodockit._zensical_page_context import (
+    ZensicalPageContextAPIError,
+    current_page_path,
+)
+from prodockit.project_config import find_project_config, load_project_config
 
 T = TypeVar("T")
 
@@ -47,11 +54,19 @@ def _installed_zensical_version() -> str:
     (prodockit-extensions#171).
     """
     try:
-        import zensical
-
-        return str(zensical.version())
-    except Exception:  # pragma: no cover - version lookup is itself best-effort
+        result = subprocess.run(
+            ["zensical", "--version"],
+            capture_output=True,
+            check=False,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
         return "unknown"
+    version = result.stdout.strip()
+    return version if result.returncode == 0 and version else "unknown"
 
 
 def _warn_api_moved(api: str, error: Exception) -> None:
@@ -102,23 +117,12 @@ def page_source(md: Markdown) -> str | None:
     Zensical isn't installed.
     """
     try:
-        from zensical.extensions.context import ContextPreprocessor
-    except ImportError:
-        # Not running under Zensical at all - a legitimate, expected state
-        # for any other Python-Markdown consumer, so no warning.
-        return None
-    try:
-        # Everything below is undocumented Zensical API, so all of it is
-        # inside the guard - not just the import. A rename of
-        # `from_markdown` or of `Page.path` raises AttributeError, and a
-        # changed signature raises TypeError; guarding only the import
-        # would let either surface as a stack trace from deep inside
-        # `zensical build`, with nothing pointing at the version bump.
-        context = ContextPreprocessor.from_markdown(md)
-        if context is None or context.page is None:
-            return None
-        return str(context.page.path)
-    except (AttributeError, TypeError) as error:
+        # This is the only place outside `_zensical_page_context` that knows
+        # the desired API is currently backed by a private Zensical contract.
+        # Feature extensions consume `page_source()` and remain independent
+        # of both representations.
+        return current_page_path(md)
+    except ZensicalPageContextAPIError as error:
         _warn_api_moved("ContextPreprocessor.from_markdown(md).page.path", error)
         return None
 
@@ -141,11 +145,11 @@ def share(md: Markdown, attr: str, value: T) -> T:
 
 
 def nav_pages() -> tuple[str, list[str]] | None:
-    """Returns (docs_dir, [nav markdown file paths]) from Zensical's own
-    already-parsed build configuration, if running under Zensical with that
-    configuration actually populated (i.e. mid-build - `zensical.config.get_config()`
-    returns an empty/absent config otherwise, e.g. under a plain script
-    import). Returns None in that case, or if Zensical isn't installed.
+    """Return ``(docs_dir, navigation Markdown paths)`` from project files.
+
+    The configuration is read directly rather than through Zensical's
+    undocumented global ``get_config()`` state. Returns ``None`` when called
+    outside a project or when no explicit navigation exists.
 
     Used to pre-scan every page's raw text for something (currently
     prodockit.citations' citation definitions) before any single page has
@@ -155,40 +159,14 @@ def nav_pages() -> tuple[str, list[str]] | None:
     point an early page might already want to resolve something defined
     there.
     """
-    try:
-        from zensical.config import get_config
-    except ImportError:
+    path = find_project_config()
+    if path is None:
         return None
-    try:
-        config = get_config()
-        if not config:
-            return None
-        docs_dir = config.get("docs_dir")
-        nav = config.get("nav")
-        if not docs_dir or not nav:
-            return None
-        return str(docs_dir), _flatten_nav(nav)
-    except (AttributeError, TypeError) as error:
-        _warn_api_moved("config.get_config()", error)
+    config = load_project_config(path)
+    pages = [page.source_path for page in config.nav_pages]
+    if not pages:
         return None
-
-
-def _flatten_nav(items: object) -> list[str]:
-    """Flattens Zensical's normalised nav structure (a list of
-    {"url": ..., "children": [...]} dicts, possibly nested) into a plain
-    list of markdown file paths, in nav order."""
-    paths: list[str] = []
-    if not isinstance(items, list):
-        return paths
-    for item in items:
-        if isinstance(item, dict):
-            url = item.get("url")
-            if url:
-                paths.append(url)
-            paths.extend(_flatten_nav(item.get("children")))
-        elif isinstance(item, list):
-            paths.extend(_flatten_nav(item))
-    return paths
+    return str(config.docs_dir), pages
 
 
 class _Preseedable(Protocol):
@@ -413,9 +391,7 @@ _CAPTION_OPEN_RE = re.compile(
 _CAPTION_CLOSE_RE = re.compile(r"^(?P<indent>[ \t]*)///[ \t]*$")
 _LIST_ITEM_RE = re.compile(r"^(?P<indent>[ \t]*)(?:[-+*]|\d+[.)])[ \t]+")
 _CAPTION_SELECTOR_ID_RE = re.compile(r"#([\w:.-]+)")
-_CAPTION_ATTR_ID_RE = re.compile(
-    r"(?:^|[, {])[\"']?id[\"']?[ \t]*:[ \t]*[\"']?([\w:.-]+)"
-)
+_CAPTION_ATTR_ID_RE = re.compile(r"(?:^|[, {])[\"']?id[\"']?[ \t]*:[ \t]*[\"']?([\w:.-]+)")
 _CAPTION_LABELS = {
     "figure-caption": "Figure",
     "table-caption": "Table",
@@ -577,9 +553,7 @@ def _scan_page_numberables(
                 unnumbered = ".unnumbered" in attrs
                 rest = rest[: attr_match.start()]
             rest = re.sub(r"\s+#+\s*$", "", rest)
-            items.append(
-                ("heading", level, _heading_display_text(rest), explicit_id, unnumbered)
-            )
+            items.append(("heading", level, _heading_display_text(rest), explicit_id, unnumbered))
         index += 1
     return items
 

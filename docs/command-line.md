@@ -2,6 +2,8 @@
 icon: lucide/terminal
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Command-line tools
 
 This page inventories the public \index{command-line interface} (CLI) for document authors and project

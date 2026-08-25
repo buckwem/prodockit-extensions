@@ -2,6 +2,8 @@
 icon: lucide/info
 ---
 
+{{ heading_counter_reset(page) }}
+
 # About prodockit
 
 This section is for anyone evaluating or using prodockit who needs to

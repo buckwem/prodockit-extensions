@@ -21,9 +21,13 @@ edit that reintroduces this mistake (in this file or a new one) fails
 here before it ever reaches the live site again.
 """
 
+import re
 from pathlib import Path
 
 import pytest
+
+from prodockit.pdf.site import build_site, page_html
+from prodockit.project_config import ProjectConfig, load_project_config
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = REPO_ROOT / "docs"
@@ -33,18 +37,47 @@ DOCS_DIR = REPO_ROOT / "docs"
 # past an early failure.
 _DOC_FILES = sorted(DOCS_DIR.rglob("*.md"))
 
+_INTENTIONAL_JINJA_BY_PAGE = {
+    "index.md": {
+        "{% if release %}",
+        '<p class="cover-hero-release">Release: {{ release }}</p>',
+        "{% endif %}",
+    },
+    "prodockit-template.md": {
+        "{% if is_surrey %}",
+        "{% else %}",
+        "{% endif %}",
+    },
+}
+
+
+@pytest.fixture(scope="module")
+def built_project() -> ProjectConfig:
+    """Build once through Zensical's documented CLI for all page checks."""
+    project = load_project_config(REPO_ROOT / "zensical.toml")
+    build_site(project)
+    return project
+
 
 @pytest.mark.parametrize("doc_path", _DOC_FILES, ids=lambda p: str(p.relative_to(DOCS_DIR)))
 def test_doc_page_has_no_stash_placeholder_leak(
-    doc_path: Path, monkeypatch: pytest.MonkeyPatch
+    doc_path: Path, built_project: ProjectConfig
 ) -> None:
-    import zensical.config as zensical_config
-    from zensical.markdown.render import render as zensical_render
-
-    monkeypatch.chdir(REPO_ROOT)
-    zensical_config.parse_config("zensical.toml")
     docs_rel_path = str(doc_path.relative_to(DOCS_DIR))
-    raw = doc_path.read_text(encoding="utf-8")
-    result = zensical_render(raw, docs_rel_path, docs_rel_path)
-    html = result["content"]
+    html = page_html(built_project, docs_rel_path)
     assert "klzzwxh" not in html
+    assert "<p>{{ heading_counter_reset(page) }}</p>" not in html
+
+
+@pytest.mark.parametrize("doc_path", _DOC_FILES, ids=lambda p: str(p.relative_to(DOCS_DIR)))
+def test_doc_page_has_no_unintended_jinja_delimiter(doc_path: Path) -> None:
+    docs_rel_path = str(doc_path.relative_to(DOCS_DIR))
+    text = doc_path.read_text(encoding="utf-8")
+    text = re.sub(r"{% raw %}.*?{% endraw %}", "", text, flags=re.DOTALL)
+    text = text.replace("{{ heading_counter_reset(page) }}", "")
+    for expression in _INTENTIONAL_JINJA_BY_PAGE.get(docs_rel_path, set()):
+        text = text.replace(expression, "")
+
+    assert "{{" not in text
+    assert "{%" not in text
+    assert "{#" not in text

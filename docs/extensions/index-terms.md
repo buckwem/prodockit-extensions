@@ -2,6 +2,8 @@
 icon: lucide/book-a
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Index (PDF only)
 
 \index{`prodockit.index`} marks important terms where they are discussed and

@@ -2,6 +2,8 @@
 icon: lucide/signpost
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Overview
 
 This section is for anyone new to prodockit. It explains what the package

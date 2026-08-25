@@ -60,8 +60,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini(
         "prodockit_config_file",
         help=(
-            "Zensical config file the prodockit_* fixtures read, relative to "
-            "the pytest rootdir."
+            "Zensical config file the prodockit_* fixtures read, relative to the pytest rootdir."
         ),
         default="zensical.toml",
     )
@@ -130,14 +129,15 @@ def prodockit_config(prodockit_paths: ProdockitPaths) -> dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def prodockit_resolved_config(prodockit_paths: ProdockitPaths) -> dict[str, Any]:
-    """The config as resolved by Zensical's own loader - `nav` here is the
-    resolved tree each entry carrying `url`/`is_index`/`children`, which is
-    the shape `prodockit.pdf.config` and `prodockit.zensical_macros` work
-    with. Use `prodockit_config` when the raw structure is what you want."""
-    import zensical.config as zensical_config
+    """Prodockit's normalized config compatibility mapping.
 
-    resolved: dict[str, Any] = zensical_config.parse_config(str(prodockit_paths.config_file))
-    return resolved
+    Navigation entries carry ``url``/``is_index``/``children`` and
+    ``mdx_configs`` contains extension options. Use ``prodockit_config`` when
+    the source file's raw structure is what a test needs.
+    """
+    from prodockit.project_config import load_project_config
+
+    return load_project_config(prodockit_paths.config_file).as_resolved_mapping()
 
 
 @pytest.fixture(scope="session")
@@ -182,9 +182,10 @@ def prodockit_pdf_page_texts(prodockit_pdf: Any) -> list[str]:
 @pytest.fixture(scope="session")
 def prodockit_site_dir(prodockit_paths: ProdockitPaths) -> Path:
     """The built site directory."""
-    if not prodockit_paths.site_dir.is_dir() or not (
-        prodockit_paths.site_dir / "index.html"
-    ).is_file():
+    if (
+        not prodockit_paths.site_dir.is_dir()
+        or not (prodockit_paths.site_dir / "index.html").is_file()
+    ):
         pytest.fail(
             f"{prodockit_paths.site_dir} is missing or has no index.html - run "
             "`zensical build` before these tests."
