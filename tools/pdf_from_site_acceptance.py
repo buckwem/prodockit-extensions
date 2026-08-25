@@ -158,7 +158,8 @@ def capture(pages, output_path, **kwargs):
     captured["output_path"] = output_path
     captured["kwargs"] = kwargs
 pdf_config.build_pdf = capture
-assert build_pdf_from_built_site("zensical.toml") == "docs/site_documentation.pdf"
+output_path = build_pdf_from_built_site("zensical.toml")
+assert Path(output_path) == Path("docs/site_documentation.pdf"), output_path
 home = page_html(config, "index.md")
 journey = page_html(config, "journey/development-journey.md")
 procedure = page_html(config, "procedure/test-procedure.md")
