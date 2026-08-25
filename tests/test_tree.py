@@ -75,9 +75,7 @@ def test_a_hyphenated_filename_is_not_split() -> None:
     """`harvard-cite-them-right.csl` is a real file in these projects.
     Requiring spaces around the separator is what keeps it whole - a bare
     hyphen would take the name apart."""
-    html = render(
-        "/// tree\nharvard-cite-them-right.csl - fetched per build\n///\n"
-    )
+    html = render("/// tree\nharvard-cite-them-right.csl - fetched per build\n///\n")
 
     assert ">harvard-cite-them-right.csl</span>" in html
     assert '<span class="tree-note">fetched per build</span>' in html
@@ -93,9 +91,7 @@ def test_an_entry_needs_no_description() -> None:
 def test_the_indent_width_can_be_stated() -> None:
     """Four spaces is common enough to be worth allowing rather than
     silently mis-reading as two levels."""
-    html = render(
-        "/// tree\n    indent: 4\n\ndocs/\n    index.md\n///\n"
-    )
+    html = render("/// tree\n    indent: 4\n\ndocs/\n    index.md\n///\n")
 
     assert html.count("<ul>") == 2, html
 
@@ -215,18 +211,17 @@ def test_the_icon_comes_from_the_projects_own_set() -> None:
     under a configured `custom_icons` directory. Emitting SVG directly
     would hard-code one project's icons into every document.
     """
-    from zensical.extensions.emoji import to_svg, twemoji
+    from pymdownx.emoji import to_svg, twemoji
 
     html = markdown.markdown(
-        "/// tree\ndocs/\n  index.md\n///\n",
+        "/// tree\n    directory_icon: ':file_folder:'\n"
+        "    file_icon: ':page_facing_up:'\n\ndocs/\n  index.md\n///\n",
         extensions=["prodockit.tree", "pymdownx.emoji"],
-        extension_configs={
-            "pymdownx.emoji": {"emoji_index": twemoji, "emoji_generator": to_svg}
-        },
+        extension_configs={"pymdownx.emoji": {"emoji_index": twemoji, "emoji_generator": to_svg}},
     )
 
-    assert html.count("<svg") == 2, "one icon per entry"
-    assert ":material-" not in html, "the shortcode should have been rendered"
+    assert html.count('class="twemoji"') == 2, "one icon per entry"
+    assert '<span class="tree-icon">:' not in html, "the emoji set rendered the shortcode"
 
 
 def test_the_icons_can_be_replaced() -> None:
@@ -250,12 +245,7 @@ def _entry_positions(extra: str = "") -> list[tuple[int, float, float]]:
     weasyprint = pytest.importorskip("weasyprint")
 
     listing = (
-        "/// tree\n"
-        "src/ - one\n"
-        "  prodockit/ - two\n"
-        "    pdf/ - three\n"
-        "      build.py - four\n"
-        "///\n"
+        "/// tree\nsrc/ - one\n  prodockit/ - two\n    pdf/ - three\n      build.py - four\n///\n"
     )
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     @page {{ size: A4; margin: 2cm; }} body {{ font-size: 11pt; }}

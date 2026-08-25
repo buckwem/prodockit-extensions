@@ -69,6 +69,87 @@ def test_pdf_command_accepts_a_config_file_option(
     assert (tmp_path / "docs" / "site_documentation.pdf").exists()
 
 
+def test_cli_registers_only_the_public_and_hidden_legacy_pdf_commands() -> None:
+    result = CliRunner().invoke(main, ["--help"])
+
+    assert result.exit_code == 0
+    assert "pdf" in main.commands
+    assert "pdf-legacy" in main.commands
+    assert main.commands["pdf-legacy"].hidden
+    assert "pdf-built-site" not in main.commands
+    assert "pdf-legacy" not in result.output
+    assert "pdf-built-site" not in result.output
+
+
+def test_hidden_legacy_command_routes_only_to_the_old_renderer(monkeypatch) -> None:
+    import prodockit.cli as cli_module
+
+    calls = []
+
+    def legacy(config_file, *, markdown_file, on_stage):
+        calls.append((config_file, markdown_file))
+        return "legacy.pdf"
+
+    def built_site(*args, **kwargs):
+        raise AssertionError("the hidden command must call only the legacy renderer")
+
+    monkeypatch.setattr(cli_module, "build_pdf_from_zensical_config", legacy)
+    monkeypatch.setattr(cli_module, "build_pdf_from_built_site", built_site)
+
+    result = CliRunner().invoke(
+        main,
+        ["pdf-legacy", "--config-file", "project.toml", "--markdown-file", "page.md"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert calls == [("project.toml", "page.md")]
+    assert "Wrote legacy.pdf" in result.output
+
+
+def test_public_pdf_command_routes_only_to_the_built_site_renderer(monkeypatch) -> None:
+    import prodockit.cli as cli_module
+
+    calls = []
+
+    def built_site(config_file, *, markdown_file, on_stage):
+        calls.append((config_file, markdown_file))
+        return "built-site.pdf"
+
+    def legacy(*args, **kwargs):
+        raise AssertionError("the public command must not use the legacy renderer")
+
+    monkeypatch.setattr(cli_module, "build_pdf_from_zensical_config", legacy)
+    monkeypatch.setattr(cli_module, "build_pdf_from_built_site", built_site)
+
+    result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 0, result.output
+    assert calls == [("zensical.toml", None)]
+    assert "Wrote built-site.pdf" in result.output
+
+
+def test_public_pdf_command_reports_built_site_boundary_errors(monkeypatch) -> None:
+    import prodockit.cli as cli_module
+
+    def fail(*args, **kwargs):
+        raise cli_module.BuiltSiteError("generated page is missing its article")
+
+    monkeypatch.setattr(cli_module, "build_pdf_from_built_site", fail)
+
+    result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 1
+    assert "Error: generated page is missing its article" in result.output
+
+
+def test_markdown_file_help_distinguishes_pdf_contents_from_the_site_build() -> None:
+    result = CliRunner().invoke(main, ["pdf", "--help"])
+
+    assert result.exit_code == 0
+    assert "Include only this Markdown file in the PDF" in result.output
+    assert "rebuilds the full site" in result.output
+
+
 def test_pdf_command_exits_non_zero_and_reports_pandoc_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -105,7 +186,7 @@ def test_pdf_command_prints_the_failing_commands_own_stderr(
         monkeypatch,
         'echo "[WARNING] Ignoring duplicate attribute role=\\"list\\"." >&2; '
         "echo \"OSError: cannot load library 'libgobject-2.0-0'\" >&2; "
-        'exit 43',
+        "exit 43",
     )
     monkeypatch.chdir(tmp_path)
 
@@ -294,7 +375,7 @@ def test_the_build_says_which_stage_it_is_on(monkeypatch, tmp_path) -> None:
         on_stage(3, 3, "Building the PDF")
         return "docs/site_documentation.pdf"
 
-    monkeypatch.setattr("prodockit.cli.build_pdf_from_zensical_config", fake_build)
+    monkeypatch.setattr("prodockit.cli.build_pdf_from_built_site", fake_build)
     result = CliRunner().invoke(main, ["pdf"])
 
     assert result.exit_code == 0, result.output
@@ -324,7 +405,7 @@ def test_the_stage_list_grows_when_an_index_is_wanted() -> None:
 
 
 def test_a_duration_is_readable_out_loud() -> None:
-    """"182.4s" makes a reader do the division themselves."""
+    """ "182.4s" makes a reader do the division themselves."""
     from prodockit.cli import _took
 
     assert _took(9.87) == "9.9s"

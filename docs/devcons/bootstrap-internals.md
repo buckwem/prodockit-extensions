@@ -2,6 +2,8 @@
 icon: lucide/list-checks
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Bootstrap design
 
 This \index{bootstrap design} page is for contributors changing `prodockit bootstrap`. The author guide

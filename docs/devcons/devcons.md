@@ -2,6 +2,8 @@
 icon: lucide/code-xml
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Contributor internals {: #devcons-introduction }
 
 These \index{contributor internals} are for developers contributing code to prodockit or reviewing a
@@ -16,13 +18,13 @@ is for maintainers of the prodockit repository reviewing its automation,
 pins, tests, and package releases.
 
 These contributor notes explain the implementation behind both audiences:
-which Zensical internals the package relies on and which limitations are
+which Zensical boundary the package retains and which limitations are
 deliberate rather than undocumented features.
 
 They are grouped together because they share a failure mode. Almost nothing
 here breaks loudly. The PDF pipeline shells out to external binaries, reads
-undocumented Zensical internals, and resolves cross-page references from a
-registry built during the render - and when any of that goes wrong, the
+generated site output, and resolves cross-page references from a registry
+built during the render - and when any of that goes wrong, the
 usual result is a build that succeeds and publishes something subtly wrong:
 a diagram that reached the PDF as raw source, a reference that resolved to
 `??`, a deploy that reported success and was never served. A green build is
@@ -42,7 +44,8 @@ itself:
    entry points, internal modules, and error boundaries.
 4. **[Bootstrap design](bootstrap-internals.md)** - the check, plan, apply,
    recheck model and the ordering constraints behind machine setup.
-5. **[Zensical coupling](zensical-coupling.md)** - undocumented Zensical APIs
-   prodockit depends on. Read it before taking a Zensical upgrade.
+5. **[Zensical coupling](zensical-coupling.md)** - the migration to documented
+   build boundaries, its hidden comparison command, and the isolated
+   compatibility adapters. Read it before taking a Zensical upgrade.
 6. **[Implementation limitations](limitations.md)** - known platform,
    extension, PDF, and macro constraints and the reason for each workaround.

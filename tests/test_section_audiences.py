@@ -17,12 +17,12 @@ def test_top_level_sections_open_with_an_introduction() -> None:
     nav = config["project"]["nav"]
 
     expected_first_items = {
-        "Getting started": {"Overview": "introduction.md"},
-        "Authoring reference": {"Overview": "authoring.md"},
-        "Publish a document": {"Publishing overview": "publishing.md"},
-        "Maintain prodockit": {"Maintenance overview": "project-maintenance.md"},
-        "Contributor internals": {"Overview": "devcons/devcons.md"},
-        "About": {"About prodockit": "about/index.md"},
+        "Getting started": {"1. Overview": "introduction.md"},
+        "Authoring reference": {"5. Overview": "authoring.md"},
+        "Publish a document": {"15. Publishing overview": "publishing.md"},
+        "Maintain prodockit": {"24. Maintenance overview": "project-maintenance.md"},
+        "Contributor internals": {"28. Overview": "devcons/devcons.md"},
+        "35. About": {"35. About prodockit": "about/index.md"},
     }
 
     groups = {next(iter(item)): next(iter(item.values())) for item in nav if isinstance(item, dict)}
@@ -53,13 +53,13 @@ def test_contributor_internals_has_focused_reference_pages() -> None:
     )
 
     assert contributor == [
-        {"Overview": "devcons/devcons.md"},
-        {"Development and code map": "devcons/development.md"},
-        {"Extension integration": "devcons/extension-internals.md"},
-        {"PDF pipeline and API": "devcons/pdf-internals.md"},
-        {"Bootstrap design": "devcons/bootstrap-internals.md"},
-        {"Zensical coupling": "devcons/zensical-coupling.md"},
-        {"Implementation limitations": "devcons/limitations.md"},
+        {"28. Overview": "devcons/devcons.md"},
+        {"29. Development and code map": "devcons/development.md"},
+        {"30. Extension integration": "devcons/extension-internals.md"},
+        {"31. PDF pipeline and API": "devcons/pdf-internals.md"},
+        {"32. Bootstrap design": "devcons/bootstrap-internals.md"},
+        {"33. Zensical coupling": "devcons/zensical-coupling.md"},
+        {"34. Implementation limitations": "devcons/limitations.md"},
     ]
 
 

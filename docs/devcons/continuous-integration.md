@@ -2,6 +2,8 @@
 icon: lucide/workflow
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Publish automatically {: #ci-continuous-integration }
 
 This page is for a document author who wants a reviewed Markdown change to
@@ -186,7 +188,7 @@ when the project requires a particular typeface.
 
 ### Fetch tags only when the document uses them {: #ci-shallow-clone }
 
-The `{{ release }}` macro reads Git tags reachable from the checked-out
+The `{% raw %}{{ release }}{% endraw %}` macro reads Git tags reachable from the checked-out
 commit. GitHub's default shallow checkout has no tags, so the value becomes an
 empty string without failing the build. Set a full checkout only when the
 document uses tag-derived macros; the template's PDF-only `{RELEASE}` marker

@@ -14,6 +14,7 @@ from prodockit.pdf.config import (
     _find_mmdc_bin,
     _find_tex2svg_script,
     _warn_if_release_sources_disagree,
+    build_pdf_from_built_site,
     build_pdf_from_zensical_config,
     build_source_bundle_from_zensical_config,
 )
@@ -38,9 +39,7 @@ def _write_project(tmp_path: Path, *, extra: str = "") -> Path:
     docs_dir.mkdir()
     (docs_dir / "index.md").write_text("# Cover\n", encoding="utf-8")
     (docs_dir / "chapter1.md").write_text("# Chapter One\n\nBody text.\n", encoding="utf-8")
-    (tmp_path / "zensical.toml").write_text(
-        _ZENSICAL_TOML.format(extra=extra), encoding="utf-8"
-    )
+    (tmp_path / "zensical.toml").write_text(_ZENSICAL_TOML.format(extra=extra), encoding="utf-8")
     return tmp_path
 
 
@@ -181,26 +180,14 @@ def test_find_tex2svg_script_relative_configured_path_resolves_against_cwd_not_t
 def test_a_renamed_render_result_key_raises_a_named_error_not_a_bare_keyerror(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`zensical.markdown.render.render` is undocumented, so a patch
-    release can rename `content`/`meta` without registering upstream as a
-    breaking change. A bare `result["content"]` surfaced that as
-    `KeyError: 'content'` raised mid-loop over nav pages, with nothing
-    naming Zensical, the installed version, or the page that broke - the
-    reader sees prodockit's own traceback and reasonably concludes
-    prodockit is broken (prodockit-extensions#171).
-
-    A plausible rename, not a stripped dict: `content` becomes `html`,
-    `meta` is untouched - the shape a real Zensical release might
-    actually ship, not an adversarial worst case.
-    """
     root = project()
-
     import zensical.markdown.render as render_module
 
-    def _renamed(*args, **kwargs):
-        return {"html": "<p>renamed</p>", "meta": {}}
-
-    monkeypatch.setattr(render_module, "render", _renamed)
+    monkeypatch.setattr(
+        render_module,
+        "render",
+        lambda *args, **kwargs: {"html": "<p>renamed</p>", "meta": {}},
+    )
 
     with pytest.raises(RuntimeError) as exc_info:
         build_pdf_from_zensical_config(str(root / "zensical.toml"))
@@ -214,10 +201,6 @@ def test_a_renamed_render_result_key_raises_a_named_error_not_a_bare_keyerror(
 def test_a_non_dict_render_result_raises_the_same_named_error(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """If `render()` starts returning an object rather than a dict,
-    `result["content"]` raises `TypeError` rather than `KeyError` - the
-    diagnosis is identical, so this must be caught and named the same
-    way."""
     root = project()
 
     class _RenamedResultType:
@@ -225,7 +208,7 @@ def test_a_non_dict_render_result_raises_the_same_named_error(
 
     import zensical.markdown.render as render_module
 
-    monkeypatch.setattr(render_module, "render", lambda *a, **kw: _RenamedResultType())
+    monkeypatch.setattr(render_module, "render", lambda *args, **kwargs: _RenamedResultType())
 
     with pytest.raises(RuntimeError) as exc_info:
         build_pdf_from_zensical_config(str(root / "zensical.toml"))
@@ -238,22 +221,59 @@ def test_a_non_dict_render_result_raises_the_same_named_error(
 def test_a_renamed_render_result_key_stops_the_build_no_pdf_written(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The half that matters, and the half `pytest.raises` alone does not
-    cover: this is deliberately not the #167 warn-and-degrade shape.
-    There is no sensible degraded PDF to produce, so the build must stop
-    - not write a PDF with the first page silently missing or broken."""
     root = project()
     output_path = root / "docs" / "site_documentation.pdf"
-    assert not output_path.exists()
-
     import zensical.markdown.render as render_module
 
-    monkeypatch.setattr(render_module, "render", lambda *a, **kw: {"html": "", "meta": {}})
+    monkeypatch.setattr(render_module, "render", lambda *args, **kwargs: {"html": "", "meta": {}})
 
     with pytest.raises(RuntimeError):
         build_pdf_from_zensical_config(str(root / "zensical.toml"))
 
     assert not output_path.exists()
+
+
+def test_built_site_candidate_uses_the_documented_build_output(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+    captured = {}
+
+    monkeypatch.setattr(
+        config,
+        "build_site",
+        lambda project_config, admonition_icons=None: (
+            captured.setdefault("built", True),
+            {},
+        )[1],
+    )
+    monkeypatch.setattr(
+        config,
+        "page_html",
+        lambda project_config, source: f"<h1>{source}</h1>",
+    )
+    metadata_paths = []
+    monkeypatch.setattr(
+        config,
+        "page_metadata",
+        lambda source: metadata_paths.append(source) or {},
+    )
+
+    def capture(pages, output_path, **kwargs):
+        captured["pages"] = pages
+        captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(config, "build_pdf", capture)
+    monkeypatch.chdir(root.parent)
+
+    output = build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    assert output == "docs/site_documentation.pdf"
+    assert captured["built"] is True
+    assert [page.docs_rel_path for page in captured["pages"]] == ["index.md", "chapter1.md"]
+    assert metadata_paths == [root / "docs" / "index.md", root / "docs" / "chapter1.md"]
+    assert captured["kwargs"]["main_font"] == "Roboto"
+    assert captured["kwargs"]["mono_font"] == "Roboto Mono"
 
 
 def test_builds_a_pdf_from_a_zensical_toml_project(project) -> None:
@@ -522,9 +542,7 @@ def test_pdf_extra_css_relative_url_is_also_inlined(
     styles_dir = root / "docs" / "stylesheets"
     styles_dir.mkdir()
     (styles_dir / "logo.png").write_bytes(b"\x89PNG\r\n")
-    (styles_dir / "print.css").write_text(
-        '.logo { content: url("logo.png"); }\n', encoding="utf-8"
-    )
+    (styles_dir / "print.css").write_text('.logo { content: url("logo.png"); }\n', encoding="utf-8")
 
     captured = {}
     import prodockit.pdf.config as config_module
@@ -718,14 +736,9 @@ def test_include_index_defaults_off(project, monkeypatch: pytest.MonkeyPatch) ->
     assert captured["index_title"] == "Index"
 
 
-def test_old_extra_index_names_are_not_read(
-    project, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_old_extra_index_names_are_not_read(project, monkeypatch: pytest.MonkeyPatch) -> None:
     root = project(
-        extra=(
-            "\n[project.extra]\npdf_include_index = true\n"
-            'pdf_index_title = "Old title"\n'
-        )
+        extra=('\n[project.extra]\npdf_include_index = true\npdf_index_title = "Old title"\n')
     )
 
     captured = {}
@@ -751,8 +764,8 @@ def test_include_index_reads_from_the_extension_and_a_custom_title(
         )
     )
 
-    config = parse_zensical_config(root / "zensical.toml")
-    assert config["mdx_configs"]["prodockit.index"] == {
+    parsed = parse_zensical_config(root / "zensical.toml")
+    assert parsed["mdx_configs"]["prodockit.index"] == {
         "include": True,
         "title": "Glossary of Terms",
     }
@@ -840,9 +853,7 @@ def test_release_marker_line_is_dropped_when_no_release_exists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = _write_project(tmp_path)
-    (root / "docs" / "index.md").write_text(
-        "Before\nRelease: {RELEASE}\nAfter\n", encoding="utf-8"
-    )
+    (root / "docs" / "index.md").write_text("Before\nRelease: {RELEASE}\nAfter\n", encoding="utf-8")
     captured = _capture_pages(monkeypatch)
     monkeypatch.chdir(root)
 
@@ -1091,10 +1102,7 @@ def test_pdf_copyright_overrides_project_copyright_for_the_pdf_only(
     monkeypatch.setattr(config_module, "build_pdf", _spy)
     build_pdf_from_zensical_config(str(root / "zensical.toml"))
 
-    assert (
-        captured["copyright_text"]
-        == "Copyright test<br>Made with Zensical and prodockit."
-    )
+    assert captured["copyright_text"] == "Copyright test<br>Made with Zensical and prodockit."
 
 
 def test_site_name_passed_to_build_pdf_is_also_css_escaped(

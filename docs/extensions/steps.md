@@ -2,6 +2,8 @@
 icon: lucide/list-ordered
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Numbered steps
 
 \index{`prodockit.steps`} presents a procedure as numbered steps that a reader works

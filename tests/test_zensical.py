@@ -9,10 +9,12 @@ skipping) points straight at the broken primitive."""
 
 import warnings
 from pathlib import Path
+from subprocess import CompletedProcess
 
 import pytest
 
 import prodockit._zensical as prodockit_zensical
+import prodockit._zensical_page_context as page_context
 from prodockit._zensical import (
     _count_top_level_headings,
     _front_matter_flag,
@@ -21,6 +23,55 @@ from prodockit._zensical import (
     preseed_attr_from_nav,
 )
 from prodockit.util import CitationRegistry
+
+
+def test_installed_zensical_version_uses_the_documented_cli(monkeypatch) -> None:
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        return CompletedProcess(command, 0, stdout="0.0.55\n", stderr="")
+
+    monkeypatch.setattr(prodockit_zensical.subprocess, "run", run)
+
+    assert prodockit_zensical._installed_zensical_version() == "0.0.55"
+    assert calls == [
+        (
+            ["zensical", "--version"],
+            {
+                "capture_output": True,
+                "check": False,
+                "text": True,
+                "encoding": "utf-8",
+                "errors": "replace",
+                "timeout": 10,
+            },
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        CompletedProcess(["zensical", "--version"], 1, stdout="", stderr="failed"),
+        CompletedProcess(["zensical", "--version"], 0, stdout="\n", stderr=""),
+    ],
+)
+def test_installed_zensical_version_is_unknown_when_the_cli_has_no_version(
+    monkeypatch, result
+) -> None:
+    monkeypatch.setattr(prodockit_zensical.subprocess, "run", lambda *a, **kw: result)
+
+    assert prodockit_zensical._installed_zensical_version() == "unknown"
+
+
+def test_installed_zensical_version_is_unknown_when_the_cli_cannot_run(monkeypatch) -> None:
+    def unavailable(*args, **kwargs):
+        raise OSError("zensical is not on PATH")
+
+    monkeypatch.setattr(prodockit_zensical.subprocess, "run", unavailable)
+
+    assert prodockit_zensical._installed_zensical_version() == "unknown"
 
 
 def test_front_matter_flag_true_when_set() -> None:
@@ -72,6 +123,7 @@ def test_count_top_level_headings_skips_unnumbered() -> None:
 # the website and leaving it one behind the PDF. Each expectation below was
 # checked against the real renderer's own output rather than assumed.
 # ---------------------------------------------------------------------------
+
 
 def test_count_top_level_headings_counts_setext_h1() -> None:
     assert _count_top_level_headings("Title\n=====\n") == 1
@@ -192,9 +244,7 @@ def test_prescan_headings_respects_a_custom_appendix_attr_name(
     (docs_dir / "appendix.md").write_text(
         "---\ncustom_flag: true\n---\n\n# Appendix\n", encoding="utf-8"
     )
-    monkeypatch.setattr(
-        prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["appendix.md"])
-    )
+    monkeypatch.setattr(prodockit_zensical, "nav_pages", lambda: (str(docs_dir), ["appendix.md"]))
     result = prescan_headings("custom_flag")
     assert result is not None
     _, appendix_letters = result
@@ -212,6 +262,7 @@ def test_prescan_headings_respects_a_custom_appendix_attr_name(
 # edited definition kept its original text - and a deleted one stayed
 # resolvable - until the dev server restarted.
 # ---------------------------------------------------------------------------
+
 
 def _nav(monkeypatch: pytest.MonkeyPatch, docs_dir: Path, pages: list[str]) -> None:
     monkeypatch.setattr(prodockit_zensical, "nav_pages", lambda: (str(docs_dir), pages))
@@ -355,11 +406,20 @@ def _reset_api_warnings():
 
 
 def _install_context(monkeypatch, cls: object) -> None:
-    """Puts a stand-in ContextPreprocessor where page_source() imports it
-    from, so the failure modes below can be provoked without a real
-    Zensical."""
-    module = pytest.importorskip("zensical.extensions.context")
-    monkeypatch.setattr(module, "ContextPreprocessor", cls, raising=False)
+    """Put a stand-in behind Prodockit's isolated page-context adapter."""
+
+    def current_page_path(md):
+        try:
+            context = cls.from_markdown(md)
+            if context is None or context.page is None:
+                return None
+            return str(context.page.path)
+        except (AttributeError, TypeError) as error:
+            raise prodockit_zensical.ZensicalPageContextAPIError(
+                "Zensical's current-page context contract changed"
+            ) from error
+
+    monkeypatch.setattr(prodockit_zensical, "current_page_path", current_page_path)
 
 
 def test_page_source_returns_the_page_path(monkeypatch) -> None:
@@ -451,27 +511,45 @@ def test_the_api_warning_fires_once_per_process_not_once_per_page(monkeypatch) -
 
 
 def test_page_source_is_silent_when_zensical_is_absent(monkeypatch) -> None:
-    """"Not running under Zensical" is a legitimate, expected state for any
-    other Python-Markdown consumer - warning there would cry wolf."""
-    import builtins
+    """Other Python-Markdown consumers legitimately have no Zensical context."""
 
-    real_import = builtins.__import__
+    def no_zensical(name):
+        raise ModuleNotFoundError("No module named 'zensical'", name="zensical")
 
-    def no_zensical(name, *args, **kwargs):
-        if name.startswith("zensical"):
-            raise ImportError("no zensical")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", no_zensical)
+    monkeypatch.setattr(page_context, "import_module", no_zensical)
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")  # any warning becomes a failure
         assert prodockit_zensical.page_source(object()) is None
 
 
-def test_nav_pages_warns_when_get_config_stops_behaving_like_a_mapping(monkeypatch) -> None:
-    module = pytest.importorskip("zensical.config")
-    monkeypatch.setattr(module, "get_config", lambda: object(), raising=False)
+def test_nav_pages_reads_the_project_file_without_zensical_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs = tmp_path / "writing"
+    docs.mkdir()
+    (tmp_path / "zensical.toml").write_text(
+        """\
+[project]
+docs_dir = "writing"
+nav = [
+    { "Home" = "index.md" },
+    { "Guide" = [{ "Details" = "guide/details.md" }] },
+]
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
 
-    with pytest.warns(RuntimeWarning, match="get_config"):
-        assert prodockit_zensical.nav_pages() is None
+    assert prodockit_zensical.nav_pages() == (
+        str(docs),
+        ["index.md", "guide/details.md"],
+    )
+
+
+def test_nav_pages_returns_none_outside_a_documentation_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    assert prodockit_zensical.nav_pages() is None

@@ -2,6 +2,8 @@
 icon: lucide/library
 ---
 
+{{ heading_counter_reset(page) }}
+
 # BibTeX bibliography
 
 \index{`prodockit.bibliography`} creates citations and a formatted reference

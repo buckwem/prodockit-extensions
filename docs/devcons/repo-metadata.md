@@ -2,6 +2,8 @@
 icon: lucide/git-fork
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Repository metadata {: #sync-repo-repository-metadata }
 
 \index{commands!`prodockit sync-repo`} keeps the repo-hosting-specific parts of your project

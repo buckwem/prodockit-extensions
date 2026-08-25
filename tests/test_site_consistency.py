@@ -38,6 +38,19 @@ def _paths(items: list[Any]) -> list[str]:
     return paths
 
 
+def _labelled_paths(items: list[Any]) -> list[tuple[str, str]]:
+    paths: list[tuple[str, str]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        label, value = next(iter(item.items()))
+        if isinstance(value, list):
+            paths.extend(_labelled_paths(value))
+        else:
+            paths.append((label, value))
+    return paths
+
+
 def test_every_navigated_page_except_home_has_an_icon() -> None:
     for relative_path in _paths(_nav()):
         if relative_path == "index.md":
@@ -52,11 +65,30 @@ def test_home_page_hero_title_is_not_numbered() -> None:
     assert '{: .cover-hero-title .unnumbered }' in home
 
 
-def test_reference_site_switches_only_website_heading_numbering_off() -> None:
+def test_every_navigated_page_resets_its_heading_counter_from_nav() -> None:
+    macro = "{{ heading_counter_reset(page) }}"
+
+    for relative_path in _paths(_nav()):
+        text = _text(f"docs/{relative_path}")
+        body = text.split("---", 2)[2]
+        assert body.startswith(f"\n\n{macro}\n\n"), relative_path
+        assert re.findall(rf"^{re.escape(macro)}$", text, re.MULTILINE) == [macro], relative_path
+
+
+def test_nav_page_labels_follow_continuous_heading_numbers() -> None:
+    labelled_paths = _labelled_paths(_nav())
+
+    assert labelled_paths[0] == ("Home", "index.md")
+    for number, (label, _relative_path) in enumerate(labelled_paths[1:], 1):
+        assert label.startswith(f"{number}. "), label
+    assert any("35. About" in item for item in _nav())
+
+
+def test_reference_site_enables_website_heading_numbering() -> None:
     config = read_config(_text("zensical.toml"))["project"]
 
     assert config["extra"]["heading_numbering"] is True
-    assert config["extra"]["website_heading_numbering"] is False
+    assert config["extra"]["website_heading_numbering"] is True
     assert config["extra_css"] == ["stylesheets/extra.css"]
     assert "config.extra.website_heading_numbering == false" in _text("overrides/main.html")
 
@@ -88,7 +120,7 @@ def test_command_line_reference_is_for_document_authors() -> None:
     publishing = next(item["Publish a document"] for item in nav if "Publish a document" in item)
     maintenance = next(item["Maintain prodockit"] for item in nav if "Maintain prodockit" in item)
 
-    assert {"Command-line reference": "command-line.md"} in publishing
+    assert {"16. Command-line reference": "command-line.md"} in publishing
     assert all("command-line.md" not in item.values() for item in maintenance)
     assert "document authors" in _text("docs/command-line.md")
 
@@ -112,7 +144,7 @@ def test_bootstrap_config_help_describes_the_real_default() -> None:
 
 def test_authoring_navigation_uses_consistent_sentence_case() -> None:
     authoring = next(item["Authoring reference"] for item in _nav() if "Authoring reference" in item)
-    labels = [next(iter(item)) for item in authoring]
+    labels = [re.sub(r"^\d+\. ", "", next(iter(item))) for item in authoring]
 
     assert labels == [
         "Overview",

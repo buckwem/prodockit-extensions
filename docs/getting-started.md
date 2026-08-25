@@ -2,6 +2,8 @@
 icon: lucide/rocket
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Build your first site
 
 This walkthrough starts with an empty directory and ends with a local Zensical

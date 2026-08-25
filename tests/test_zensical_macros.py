@@ -6,17 +6,41 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from zensical.extensions.macros import MacroEnv
 
 import prodockit.zensical_macros as zensical_macros
 from prodockit.zensical_macros import define_env
 
 
+class _MacroEnvironment:
+    """The documented macro-module contract used by ``define_env``.
+
+    Deliberately local: importing Zensical's internal ``MacroEnv`` made these
+    Prodockit tests fail when an implementation class moved, even though the
+    documented ``define_env(env)`` contract had not changed.
+    """
+
+    def __init__(self, config: dict) -> None:
+        self.variables = {"config": config}
+        self.macros: dict[str, object] = {}
+
+    def macro(self, function):
+        self.macros[function.__name__] = function
+        return function
+
+
+def _macro_env(config: dict) -> _MacroEnvironment:
+    return _MacroEnvironment(config)
+
+
 def _write_project(tmp_path: Path) -> dict:
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
-    (docs_dir / "index.md").write_text("# Cover\n\nignored, this is the cover page.\n", encoding="utf-8")
-    (docs_dir / "chapter1.md").write_text("# Chapter One\n\none two three four five\n", encoding="utf-8")
+    (docs_dir / "index.md").write_text(
+        "# Cover\n\nignored, this is the cover page.\n", encoding="utf-8"
+    )
+    (docs_dir / "chapter1.md").write_text(
+        "# Chapter One\n\none two three four five\n", encoding="utf-8"
+    )
     (docs_dir / "excluded.md").write_text(
         "---\nexclude_from_word_count: true\n---\n\n# Excluded\n\nsix seven eight\n",
         encoding="utf-8",
@@ -48,7 +72,7 @@ def _no_real_git_remote(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_define_env_sets_word_count_repo_url_release_and_site_name(tmp_path: Path) -> None:
-    env = MacroEnv(conf=_write_project(tmp_path))
+    env = _macro_env(_write_project(tmp_path))
     define_env(env)
     # chapter1.md only ("Chapter One" + "one two three four five") - the
     # cover page (index.md, first in nav) and excluded.md (flagged
@@ -95,7 +119,7 @@ def test_get_release_is_empty_with_no_tags(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_reference_style_defaults_to_the_tight_european_look(tmp_path: Path) -> None:
-    env = MacroEnv(conf=_write_project(tmp_path))
+    env = _macro_env(_write_project(tmp_path))
     define_env(env)
     css = env.macros["reference_style"]()
     assert "margin-top: -0.8em !important;" in css
@@ -105,7 +129,7 @@ def test_reference_style_defaults_to_the_tight_european_look(tmp_path: Path) -> 
 def test_reference_style_switches_to_the_global_look_when_configured(tmp_path: Path) -> None:
     conf = _write_project(tmp_path)
     conf["extra"]["reference_style"] = "global"
-    env = MacroEnv(conf=conf)
+    env = _macro_env(conf)
     define_env(env)
     css = env.macros["reference_style"]()
     assert "padding-left: 1.27cm !important;" in css
@@ -115,7 +139,7 @@ def test_reference_style_switches_to_the_global_look_when_configured(tmp_path: P
 def test_acronym_and_glossary_style_always_use_the_tight_spacing(tmp_path: Path) -> None:
     conf = _write_project(tmp_path)
     conf["extra"]["reference_style"] = "global"
-    env = MacroEnv(conf=conf)
+    env = _macro_env(conf)
     define_env(env)
     assert "margin-top: -0.8em !important;" in env.macros["acronym_style"]()
     assert "margin-top: -0.8em !important;" in env.macros["glossary_style"]()
@@ -124,7 +148,7 @@ def test_acronym_and_glossary_style_always_use_the_tight_spacing(tmp_path: Path)
 def test_heading_counter_reset_disabled_via_config(tmp_path: Path) -> None:
     conf = _write_project(tmp_path)
     conf["extra"]["heading_numbering"] = False
-    env = MacroEnv(conf=conf)
+    env = _macro_env(conf)
     define_env(env)
     css = env.macros["heading_counter_reset"](object())
     assert 'content: "" !important;' in css
@@ -134,7 +158,7 @@ def test_heading_counter_reset_falls_back_to_zero_outside_a_real_build(tmp_path:
     """prodockit.headings.prescan() returns None outside an active Zensical
     build - heading_counter_reset() should degrade to a harmless
     counter-reset-to-zero rather than raising."""
-    env = MacroEnv(conf=_write_project(tmp_path))
+    env = _macro_env(_write_project(tmp_path))
     define_env(env)
     page = type("Page", (), {"path": "chapter1.md"})()
     css = env.macros["heading_counter_reset"](page)
@@ -147,7 +171,7 @@ def test_heading_counter_reset_seeds_from_a_real_prescan(
     """The "real build, non-appendix page with n>0" branch - continuing
     the numeric sequence from earlier nav pages' own h1 count - had no
     test at all; only the "outside a build, falls back to 0" branch did."""
-    env = MacroEnv(conf=_write_project(tmp_path))
+    env = _macro_env(_write_project(tmp_path))
     define_env(env)
     monkeypatch.setattr(zensical_macros, "prescan", lambda: ({"chapter2.md": 3}, {}))
     page = type("Page", (), {"path": "chapter2.md"})()
@@ -161,7 +185,7 @@ def test_heading_counter_reset_letters_an_appendix_page(
 ) -> None:
     """The appendix-letter CSS branch had no test at all - only the
     disabled and outside-a-build fallback branches did."""
-    env = MacroEnv(conf=_write_project(tmp_path))
+    env = _macro_env(_write_project(tmp_path))
     define_env(env)
     monkeypatch.setattr(zensical_macros, "prescan", lambda: ({}, {"acronyms.md": "A"}))
     page = type("Page", (), {"path": "acronyms.md"})()

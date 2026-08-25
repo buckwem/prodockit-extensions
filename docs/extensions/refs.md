@@ -2,6 +2,8 @@
 icon: lucide/link
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Cross-references
 
 \index{`prodockit.refs`} creates links to headings elsewhere in your

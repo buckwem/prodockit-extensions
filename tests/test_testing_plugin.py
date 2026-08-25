@@ -23,6 +23,10 @@ site_dir = "public"
 nav = [
   {"Home" = "index.md"},
 ]
+
+[project.markdown_extensions."prodockit.index"]
+include = true
+title = "Subject index"
 """
 
 
@@ -68,6 +72,24 @@ def test_site_dir_falls_back_to_zensical_default(pytester: pytest.Pytester) -> N
         """
         def test_default(prodockit_paths):
             assert prodockit_paths.site_dir.name == "site"
+        """
+    )
+    pytester.runpytest().assert_outcomes(passed=1)
+
+
+def test_resolved_config_and_nav_use_prodockits_normalized_model(
+    pytester: pytest.Pytester,
+) -> None:
+    _make_project(pytester)
+    pytester.makepyfile(
+        """
+        def test_config(prodockit_resolved_config, prodockit_nav_pages):
+            assert prodockit_nav_pages == ["index.md"]
+            assert prodockit_resolved_config["nav"][0]["is_index"] is True
+            assert prodockit_resolved_config["mdx_configs"]["prodockit.index"] == {
+                "include": True,
+                "title": "Subject index",
+            }
         """
     )
     pytester.runpytest().assert_outcomes(passed=1)

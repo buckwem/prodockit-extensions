@@ -2,6 +2,8 @@
 icon: lucide/code
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Development and code map
 
 This page is for contributors changing prodockit's Python package, tests, or

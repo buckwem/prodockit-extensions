@@ -9,6 +9,7 @@ from prodockit.pdf.icons import (
     ADMONITION_ACCENT_COLORS,
     admonition_icon_svg,
     build_icon_registry,
+    build_site_icon_registry,
     discover_icon_dirs,
 )
 
@@ -61,7 +62,58 @@ def test_admonition_icon_svg_replaces_currentcolor_with_the_accent_colour(tmp_pa
     assert "currentColor" not in svg
 
 
-def test_admonition_icon_svg_shortcode_matching_is_case_and_slash_insensitive(tmp_path: Path) -> None:
+def test_admonition_icon_svg_accepts_svg_from_built_site() -> None:
+    config = {"note": "fontawesome/solid/note-sticky"}
+    registry = {"fontawesome-solid-note-sticky": '<svg><path fill="currentColor"/></svg>'}
+
+    svg = admonition_icon_svg("note", config, registry)
+
+    assert svg is not None
+    assert ADMONITION_ACCENT_COLORS["note"] in svg
+
+
+def test_build_site_icon_registry_reads_local_stylesheets_in_cascade_order(
+    tmp_path: Path,
+) -> None:
+    site = tmp_path / "site"
+    styles = site / "assets"
+    styles.mkdir(parents=True)
+    (site / "index.html").write_text(
+        '<link rel="stylesheet" href="assets/theme.css?v=1">'
+        '<link rel="stylesheet" href="https://example.test/external.css">'
+        '<link rel="stylesheet" href="assets/extra.css">',
+        encoding="utf-8",
+    )
+    (styles / "theme.css").write_text(
+        "--md-admonition-icon--note:url('data:image/svg+xml;charset=utf-8,"
+        "%3Csvg%3E%3Cpath fill=%22red%22/%3E%3C/svg%3E')",
+        encoding="utf-8",
+    )
+    (styles / "extra.css").write_text(
+        '--md-admonition-icon--note: url("data:image/svg+xml;charset=utf-8,'
+        '%3Csvg%3E%3Cpath fill=%22blue%22/%3E%3C/svg%3E")',
+        encoding="utf-8",
+    )
+
+    registry = build_site_icon_registry(site, {"note": "fontawesome/solid/note-sticky"})
+
+    assert registry == {"fontawesome-solid-note-sticky": '<svg><path fill="blue"/></svg>'}
+
+
+def test_build_site_icon_registry_ignores_unconfigured_types(tmp_path: Path) -> None:
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "theme.css").write_text(
+        "--md-admonition-icon--warning:url(data:image/svg+xml,%3Csvg%3E%3C/svg%3E)",
+        encoding="utf-8",
+    )
+
+    assert build_site_icon_registry(site, {"note": "lucide/sticky-note"}) == {}
+
+
+def test_admonition_icon_svg_shortcode_matching_is_case_and_slash_insensitive(
+    tmp_path: Path,
+) -> None:
     icons_dir = tmp_path / ".icons"
     _write_svg(icons_dir / "fontawesome" / "solid" / "note-sticky.svg")
     registry = build_icon_registry([str(icons_dir)])
@@ -126,15 +178,6 @@ def test_discover_icon_dirs_finds_project_local_dirs_in_priority_order(
 def test_discover_icon_dirs_returns_empty_when_nothing_exists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The real running environment's own site-packages (e.g. zensical's
-    bundled templates/.icons) would otherwise leak into this result, so
-    site's own lookups are stubbed out here to isolate the project-local
-    (docs_dir/overrides/venv) discovery this test actually means to
-    cover."""
-    import site
-
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(site, "getsitepackages", lambda: [], raising=False)
-    monkeypatch.setattr(site, "getusersitepackages", lambda: "", raising=False)
 
     assert discover_icon_dirs("docs") == []

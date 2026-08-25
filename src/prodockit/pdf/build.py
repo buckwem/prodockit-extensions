@@ -42,8 +42,7 @@ class Page:
     """One page to include in the PDF.
 
     `html` is this page's content already rendered to HTML by your own
-    Markdown pipeline (e.g. Zensical's `zensical.markdown.render.render()`)
-    - not yet fixed up for Pandoc; `build_pdf()` applies
+    documented site build - not yet fixed up for Pandoc; `build_pdf()` applies
     `prodockit.pdf.html.fix_up_page_html()` to it internally. `docs_rel_path`
     is this page's path relative to your docs directory (e.g.
     `"starthere/installtooling.md"`), used to resolve this page's own
@@ -448,14 +447,12 @@ def build_pdf(
         # box (confirmed directly) - the same way a string-set value stays
         # current until the next one overrides it.
         copyright_html = (
-            f'<div class="prodockit-pdf-copyright">{copyright_text}</div>'
-            if copyright_text
-            else ""
+            f'<div class="prodockit-pdf-copyright">{copyright_text}</div>' if copyright_text else ""
         )
 
         def write_concatenated_html(body: str) -> None:
             with open(concatenated_html_path, "w", encoding="utf-8") as f:
-                f.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>\n")
+                f.write('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>\n')
                 f.write(copyright_html)
                 f.write(body)
                 f.write("\n</body></html>")
@@ -501,7 +498,8 @@ def build_pdf(
         cmd = [
             "pandoc",
             concatenated_html_path,
-            "-o", output_path,
+            "-o",
+            output_path,
             "--pdf-engine=weasyprint",
             "--pdf-engine-opt=-q",
             "--mathjax",
@@ -517,11 +515,13 @@ def build_pdf(
             # line breaking, so footnotes still wrap normally in the PDF.
             "--wrap=none",
             f"--lua-filter={lua_filter_path}",
-            "-f", "html",
+            "-f",
+            "html",
             "--resource-path=.",
             f"--resource-path={docs_dir}",
             f"--css={compiled_css_path}",
         ]
+
         def run_pandoc(pass_label: str) -> None:
             try:
                 result = subprocess.run(

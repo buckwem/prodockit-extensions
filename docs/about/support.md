@@ -2,6 +2,8 @@
 icon: lucide/badge-check
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Support and compatibility
 
 This page is for anyone deciding whether prodockit fits a project or checking

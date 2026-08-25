@@ -2,6 +2,8 @@
 icon: lucide/file-cog
 ---
 
+{{ heading_counter_reset(page) }}
+
 # PDF pipeline and API
 
 This \index{PDF pipeline} page is for contributors changing `prodockit.pdf` or calling its Python
@@ -13,8 +15,9 @@ API directly. Document authors should use [Generate a PDF](../pdf.md).
 flowchart TB
     subgraph row1[" "]
         direction LR
-        config[zensical.toml and nav] --> render[Render each Markdown page]
-        render --> fixup[Normalise page HTML]
+        config[zensical.toml and nav] --> render[Run zensical build]
+        render --> extract[Read generated articles]
+        extract --> fixup[Normalise page HTML]
         fixup --> assemble[Assemble document]
     end
 
@@ -31,29 +34,41 @@ flowchart TB
     style row2 fill:none,stroke:none
 ```
 
-The configuration wrapper reads Zensical settings, renders each navigation
-page through Zensical, constructs `Page` objects, pre-renders diagrams and
-maths, and calls the lower-level builder. A generated index adds a second
+The public `prodockit pdf` command runs Zensical's documented
+`build --clean` command, reads each navigation page's generated article, and
+constructs `Page` objects from that output. It then pre-renders diagrams and
+maths and calls the lower-level builder. A generated index adds a second
 layout pass after term pages are known.
+
+The clean build replaces the project's configured `site_dir`. Passing
+`--markdown-file` narrows the pages assembled into the PDF, but deliberately
+does not narrow that website build: Zensical still rebuilds the complete site
+before Prodockit extracts the requested article.
+
+The former renderer remains available only through the hidden
+`prodockit pdf-legacy` rollback command. It imports undocumented Zensical
+Python interfaces and is not an author-facing command.
 
 ## Use the public Python surface
 
 | API | Purpose |
 |---|---|
-| `build_pdf_from_zensical_config()` | High-level build using navigation and settings from `zensical.toml` |
+| `build_pdf_from_built_site()` | High-level build using navigation, settings, and the completed Zensical site |
 | `build_pdf()` | Lower-level build from prepared `Page` objects |
 | `Page` | One rendered source page plus its path, appendix, index, and running-header metadata |
 | `PdfBuildError` | Build failure carrying the underlying command output |
 | `build_source_bundle_from_zensical_config()` | High-level Markdown/configuration source-bundle build |
 
-Prefer `build_pdf_from_zensical_config()` when a caller already has a
-Zensical project. Use `build_pdf()` only when the caller owns page rendering
-and can supply complete HTML and metadata.
+Prefer `build_pdf_from_built_site()` when a caller already has a Zensical
+project. Use `build_pdf()` only when the caller owns page rendering and can
+supply complete HTML and metadata. The older
+`build_pdf_from_zensical_config()` entry point exists for the hidden legacy
+command, not for new integrations.
 
 ```python
-from prodockit.pdf.config import build_pdf_from_zensical_config
+from prodockit.pdf.config import build_pdf_from_built_site
 
-output = build_pdf_from_zensical_config("zensical.toml")
+output = build_pdf_from_built_site("zensical.toml")
 print(output)
 ```
 
@@ -64,12 +79,14 @@ and non-zero exit status; the functions return paths or raise exceptions.
 
 | Module | Responsibility |
 |---|---|
-| `prodockit.pdf.config` | Zensical configuration, navigation flattening, page rendering, and high-level entry points |
+| `prodockit.project_config` | Direct TOML/YAML reading for the settings Prodockit consumes |
+| `prodockit.pdf.site` | Public Zensical build invocation and generated-page extraction |
+| `prodockit.pdf.config` | Navigation, metadata, optional renderers, and high-level entry points |
 | `prodockit.pdf.build` | Pipeline orchestration and external-command execution |
 | `prodockit.pdf.html` | Page fix-ups, front matter, web/PDF-only content, and heading structure |
 | `prodockit.pdf.lua` | Pandoc Lua filter generation |
 | `prodockit.pdf.css` | Page size, margins, running headers/footers, duplex layout, and shared presentation |
-| `prodockit.pdf.icons` | Icon discovery and SVG resolution |
+| `prodockit.pdf.icons` | Project icon discovery and SVG recovery from built CSS |
 | `prodockit.pdf.mermaid` | Mermaid CLI invocation and diagram assets |
 | `prodockit.pdf.source_bundle` | Markdown/configuration source PDF |
 | `prodockit.pdf.index` | Marker extraction, term-page mapping, and generated index |
@@ -102,7 +119,9 @@ intermediate HTML alone does not prove that links or line breaks survived.
 ## Preserve actionable errors
 
 `PdfBuildError` reports which external command failed and retains its captured
-output. Configuration wrappers also guard Zensical result-shape changes with a
-message naming the installed version and affected page. Do not replace these
-with an unlabelled subprocess status or raw `KeyError`; callers need to know
-which boundary changed.
+output. `BuiltSiteError` identifies a failed Zensical command, a missing
+generated article, or a generated HTML layout that no longer exposes the
+expected article. The legacy wrapper separately names a changed private
+Zensical render-result shape. Do not replace these with an unlabelled
+subprocess status or raw selector failure; callers need to know which boundary
+changed.

@@ -24,10 +24,10 @@ copyright = "Copyright © 2026 Mark Buckwell and contributors"
 extra.pdf_copyright = 'Copyright © 2026 Mark Buckwell and contributors.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://prodockit.org/">prodockit</a>.'
 
 extra_css = ["stylesheets/extra.css"]
-# The reference website uses ordinary headings, while the downloadable PDF
-# keeps chapter numbering and a numbered bookmark outline.
+# Keep chapter numbering on both the reference website and the downloadable
+# PDF, including the PDF's numbered bookmark outline.
 extra.heading_numbering = true
-extra.website_heading_numbering = false
+extra.website_heading_numbering = true
 
 # Client-side MathJax, for the website only - the PDF pre-renders the same
 # formulas to SVG instead (see docs/javascripts/mathjax.js, and
@@ -48,55 +48,55 @@ extra_javascript = [
 nav = [
   {"Home" = "index.md"},
   {"Getting started" = [
-    {"Overview" = "introduction.md"},
-    {"Install prodockit" = "installation.md"},
-    {"Add prodockit to an existing document" = "adopt.md"},
-    {"Build your first site" = "getting-started.md"},
+    {"1. Overview" = "introduction.md"},
+    {"2. Install prodockit" = "installation.md"},
+    {"3. Add prodockit to an existing document" = "adopt.md"},
+    {"4. Build your first site" = "getting-started.md"},
   ]},
   {"Authoring reference" = [
-    {"Overview" = "authoring.md"},
-    {"Headings" = "extensions/headings.md"},
-    {"Cross-references" = "extensions/refs.md"},
-    {"Hand-written citations and references" = "extensions/citations.md"},
-    {"Acronyms and glossary" = "extensions/glossary.md"},
-    {"Tables" = "extensions/tables.md"},
-    {"Directory trees" = "extensions/tree.md"},
-    {"Numbered steps" = "extensions/steps.md"},
-    {"BibTeX bibliography" = "extensions/bibliography.md"},
-    {"Index (PDF only)" = "extensions/index-terms.md"},
+    {"5. Overview" = "authoring.md"},
+    {"6. Headings" = "extensions/headings.md"},
+    {"7. Cross-references" = "extensions/refs.md"},
+    {"8. Hand-written citations and references" = "extensions/citations.md"},
+    {"9. Acronyms and glossary" = "extensions/glossary.md"},
+    {"10. Tables" = "extensions/tables.md"},
+    {"11. Directory trees" = "extensions/tree.md"},
+    {"12. Numbered steps" = "extensions/steps.md"},
+    {"13. BibTeX bibliography" = "extensions/bibliography.md"},
+    {"14. Index (PDF only)" = "extensions/index-terms.md"},
   ]},
   {"Publish a document" = [
-    {"Publishing overview" = "publishing.md"},
-    {"Command-line reference" = "command-line.md"},
-    {"Start with prodockit-template" = "prodockit-template.md"},
-    {"Set up a machine" = "devcons/bootstrap.md"},
-    {"Staying in step with the template" = "devcons/template-sync.md"},
-    {"Generate a PDF" = "pdf.md"},
-    {"Publish automatically" = "devcons/continuous-integration.md"},
-    {"Test the built output" = "devcons/testing.md"},
-    {"Website macros" = "macros.md"},
+    {"15. Publishing overview" = "publishing.md"},
+    {"16. Command-line reference" = "command-line.md"},
+    {"17. Start with prodockit-template" = "prodockit-template.md"},
+    {"18. Set up a machine" = "devcons/bootstrap.md"},
+    {"19. Staying in step with the template" = "devcons/template-sync.md"},
+    {"20. Generate a PDF" = "pdf.md"},
+    {"21. Publish automatically" = "devcons/continuous-integration.md"},
+    {"22. Test the built output" = "devcons/testing.md"},
+    {"23. Website macros" = "macros.md"},
   ]},
   {"Maintain prodockit" = [
-    {"Maintenance overview" = "project-maintenance.md"},
-    {"Repository metadata" = "devcons/repo-metadata.md"},
-    {"Version pinning and drift" = "devcons/pinning-drift.md"},
-    {"Build and release" = "devcons/releasing.md"},
+    {"24. Maintenance overview" = "project-maintenance.md"},
+    {"25. Repository metadata" = "devcons/repo-metadata.md"},
+    {"26. Version pinning and drift" = "devcons/pinning-drift.md"},
+    {"27. Build and release" = "devcons/releasing.md"},
   ]},
   {"Contributor internals" = [
-    {"Overview" = "devcons/devcons.md"},
-    {"Development and code map" = "devcons/development.md"},
-    {"Extension integration" = "devcons/extension-internals.md"},
-    {"PDF pipeline and API" = "devcons/pdf-internals.md"},
-    {"Bootstrap design" = "devcons/bootstrap-internals.md"},
-    {"Zensical coupling" = "devcons/zensical-coupling.md"},
-    {"Implementation limitations" = "devcons/limitations.md"},
+    {"28. Overview" = "devcons/devcons.md"},
+    {"29. Development and code map" = "devcons/development.md"},
+    {"30. Extension integration" = "devcons/extension-internals.md"},
+    {"31. PDF pipeline and API" = "devcons/pdf-internals.md"},
+    {"32. Bootstrap design" = "devcons/bootstrap-internals.md"},
+    {"33. Zensical coupling" = "devcons/zensical-coupling.md"},
+    {"34. Implementation limitations" = "devcons/limitations.md"},
   ]},
-  {"About" = [
-    {"About prodockit" = "about/index.md"},
-    {"Support and compatibility" = "about/support.md"},
-    {"Known limitations" = "about/limitations.md"},
-    {"Release notes" = "about/changelog.md"},
-    {"Licence" = "about/license.md"},
+  {"35. About" = [
+    {"35. About prodockit" = "about/index.md"},
+    {"36. Support and compatibility" = "about/support.md"},
+    {"37. Known limitations" = "about/limitations.md"},
+    {"38. Release notes" = "about/changelog.md"},
+    {"39. Licence" = "about/license.md"},
   ]},
 ]
 

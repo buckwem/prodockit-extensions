@@ -31,10 +31,12 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+from collections.abc import Mapping
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 from prodockit.headings import prescan
+from prodockit.project_config import find_project_config, load_project_config
 from prodockit.settings import flatten_nav, reference_style_values
 from prodockit.tools import find
 from prodockit.wordcount import compute_word_count
@@ -58,7 +60,9 @@ def _front_matter_flag(path: str, key: str) -> bool:
     parts = text.split("---", 2)
     if len(parts) < 3:
         return False
-    return bool(re.search(rf"^{re.escape(key)}:\s*true\s*$", parts[1], re.MULTILINE | re.IGNORECASE))
+    return bool(
+        re.search(rf"^{re.escape(key)}:\s*true\s*$", parts[1], re.MULTILINE | re.IGNORECASE)
+    )
 
 
 def _compute_site_word_count(config: dict[str, Any]) -> str:
@@ -95,10 +99,14 @@ def _get_repo_url() -> str:
     remote, stripped below), which in practice usually - but isn't
     guaranteed to - match the configured value."""
     try:
-        remote_url = subprocess.check_output(
-            [find("git"), "config", "--get", "remote.origin.url"],
-            stderr=subprocess.DEVNULL,
-        ).decode("utf-8").strip()
+        remote_url = (
+            subprocess.check_output(
+                [find("git"), "config", "--get", "remote.origin.url"],
+                stderr=subprocess.DEVNULL,
+            )
+            .decode("utf-8")
+            .strip()
+        )
     except Exception:
         return ""
     if not remote_url:
@@ -189,7 +197,7 @@ def _warn_if_release_lost_to_a_shallow_clone(release: str) -> bool:
     print(
         "⚠️  `release` is empty because this is a shallow clone, which fetches "
         "no git tags - any `{{ release }}` line will silently disappear. Use "
-        "`fetch-depth: 0` (GitHub Actions) or `GIT_DEPTH: \"0\"` (GitLab CI)."
+        '`fetch-depth: 0` (GitHub Actions) or `GIT_DEPTH: "0"` (GitLab CI).'
     )
     return True
 
@@ -197,7 +205,23 @@ def _warn_if_release_lost_to_a_shallow_clone(release: str) -> bool:
 def define_env(env: Any) -> None:
     """Registers this module's variables/macros on `env` - see the module
     docstring for how to wire this into `zensical.toml`."""
-    config = env.conf
+    # ``variables`` is the macros plugin's documented public surface, but it
+    # does not contain Zensical's resolved project configuration.  Read the
+    # source file with Prodockit's own narrow model instead of reaching into
+    # the plugin's private ``env.conf`` attribute.  The optional mapping is a
+    # useful explicit injection point for embedding and unit tests; normal
+    # Zensical builds take the file-backed branch.
+    config_value = getattr(env, "variables", {}).get("config")
+    if isinstance(config_value, Mapping):
+        config = dict(config_value)
+    else:
+        config_path = find_project_config()
+        if config_path is None:
+            raise RuntimeError(
+                "prodockit macros could not find zensical.toml, zensical.yml, "
+                "zensical.yaml, mkdocs.yml or mkdocs.yaml"
+            )
+        config = load_project_config(config_path).as_resolved_mapping()
 
     env.variables["word_count"] = _compute_site_word_count(config)
     env.variables["repo_url"] = _get_repo_url()
@@ -255,8 +279,8 @@ def define_env(env: Any) -> None:
         n = start_counts.get(page_path, 0)
         return (
             "<style>\n"
-            f'  .md-typeset {{ counter-reset: h1-count {n} !important; }}\n'
-            f'  .md-nav--primary {{ counter-reset: toc1 {n + 1} !important; }}\n'
+            f"  .md-typeset {{ counter-reset: h1-count {n} !important; }}\n"
+            f"  .md-nav--primary {{ counter-reset: toc1 {n + 1} !important; }}\n"
             "</style>"
         )
 

@@ -2,18 +2,25 @@
 icon: lucide/scan-search
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Implementation limitations
 
-Confirmed \index{limitations} across prodockit's three surfaces - the Python-
-Markdown extensions, `prodockit.pdf`, and `prodockit.zensical_macros` -
-and the workaround each one gets, so a project hitting unexpected output
-has somewhere to check *why* before assuming it's a bug.
+This page records confirmed \index{limitations} across prodockit's three
+surfaces - the Python-Markdown extensions, `prodockit.pdf`, and
+`prodockit.zensical_macros` - together with each available workaround, so a
+project hitting unexpected output has somewhere to check *why* before assuming
+it is a bug.
 
 This contributor reference explains implementation causes and regression
 risks. Document authors should start with the shorter, symptom-led
 [Known limitations](../about/limitations.md) page.
 
 ## Extensions {: #limitations-extensions }
+
+Prodockit's \index{limitations!extensions} have two kinds of
+constraint: behaviour no extension can control during a live Zensical build,
+and deliberately narrow syntax or presentation choices.
 
 **Cross-page resolution can go stale under `zensical serve`'s live
 reload**: every prodockit extension that resolves something defined on a
@@ -55,13 +62,45 @@ defines an indent step up to the third level → a fourth level and beyond
 is clamped to that same, deepest available indent rather than continuing
 to step outward.
 
+**Current-page identity still crosses one private Zensical boundary**:
+cross-page numbering and links need the source path represented by the active
+Python-Markdown instance, but neither Zensical nor Python-Markdown currently
+exposes that value through a documented interface. Prodockit confines
+`ContextPreprocessor.from_markdown(markdown).page.path` to a compatibility
+adapter and warns if the representation changes; the build cannot safely
+pretend that a broken contract means “no page context”, because unresolved
+cross-page references can otherwise degrade to `??`. See
+[Zensical coupling](zensical-coupling.md#coupling-remaining-api) for the tested
+alternatives and failure controls.
+
 ## PDF generation {: #limitations-pdf-generation }
 
-`prodockit.pdf` pipes your site's own rendered HTML through Pandoc and
-WeasyPrint to produce the PDF - two tools with their own reader/writer
-quirks and no JS engine, quite different from a browser rendering your
-live website. This section documents the confirmed limitations that
-shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
+The \index{limitations!PDF generation} pipeline first runs a documented, clean
+`zensical build`, then pipes the completed site's rendered articles through
+Pandoc and WeasyPrint. Those two tools have their own
+reader/writer quirks and no JS engine, quite different from a browser rendering
+the live website. This section documents the confirmed limitations that shape
+prodockit's HTML fixups, Lua filter and print CSS, and the workaround each one
+gets.
+
+**Generated HTML remains a compatibility boundary**: consuming a supported
+`zensical build` removes the PDF pipeline's need to import Zensical internals,
+but prodockit still has to locate
+`article.md-content__inner.md-typeset`, map Markdown pages to the generated URL
+layout, and remove known website-only controls from each article. A missing
+article fails with a focused compatibility error; a subtler theme or plugin
+change can alter document HTML while every command still exits successfully.
+The upgrade check therefore compares finished site and PDF output as well as
+running unit tests. See [Generated-output
+coupling](zensical-coupling.md#coupling-generated-output) for the exact shapes
+and controls.
+
+**A \index{limitations!PDF generation!single-page PDF} still rebuilds the
+complete website**: `-m` limits which
+rendered article is assembled into the PDF, not what Zensical builds first.
+`prodockit pdf -m guide/page.md` therefore runs the same clean, full-site build
+and replaces `site_dir` before selecting that page. Treat `site_dir` as
+disposable generated output rather than a place for hand-maintained files.
 
 **No JS engine (WeasyPrint can't run client-side JS)**
 
@@ -96,6 +135,7 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
     nothing having gone wrong as far as the build is concerned. Since
     0.12.0, `prodockit pdf` prints a warning naming the missing renderer
     and how to install it whenever that combination occurs.
+
 **Pandoc's HTML reader decides what is still a code block**
 
 - Zensical's highlighter emits per-token `<span>`s, a `__codelineno`
@@ -154,14 +194,15 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
 
     | | Source |
     | --- | --- |
-    | `{{ release }}` (website, and any macro-rendered page) | `git describe --tags` on the local checkout |
+    | `{% raw %}{{ release }}{% endraw %}` (website, and any macro-rendered page) | `git describe --tags` on the local checkout |
     | `{RELEASE}` (PDF cover marker) | The host's releases API |
 
-    Each is right for its own context. `{{ release }}` is re-evaluated on
+    Each is right for its own context. `{% raw %}{{ release }}{% endraw %}` is
+    re-evaluated on
     every website rebuild, including every save under `zensical serve`, so
-    it must not make a network call. `{RELEASE}` serves a cover page that
-    isn't part of a macro-rendered site at all, so a local git lookup isn't
-    always available to it.
+    it must not make a network call. `{RELEASE}` is a PDF-only marker replaced
+    after that website build; it deliberately asks the host for the latest
+    published release rather than describing only the local checkout.
 
     They diverge when a tag exists with no published release (the website
     shows a version, the PDF drops the line), when a release exists but the
@@ -171,7 +212,8 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
 
     Since 0.16.0 neither is silent about it: `prodockit pdf` warns when the
     two will show different things, and the macros pass warns when
-    `{{ release }}` came back empty *because* the clone was shallow, naming
+    `{% raw %}{{ release }}{% endraw %}` came back empty *because* the clone was
+    shallow, naming
     `fetch-depth: 0` / `GIT_DEPTH`. A project with no tags at all is a
     normal state and says nothing.
 
@@ -198,12 +240,12 @@ shape `prodockit.pdf.html`/`.lua`/`.css`, and the workaround each one gets.
   fragment left for any stylesheet to hide it by (this used to leave both
   halves of every such pair permanently visible, stacked one after the
   other).
-- A CSS `url()` reference (e.g. in your own website stylesheet, passed via
-  `extra_css`) resolved relative to wherever Pandoc runs is meaningless
-  (and can leak a local file path) to anyone reading the PDF → a project
-  passing its own CSS through `extra_css` should rewrite any such
-  reference to a stable, absolute URL (e.g. the file's canonical GitHub/
-  GitLab "blob" URL) before handing it to `build_pdf()`.
+- A CSS `url()` reference in a website stylesheet normally resolves relative
+  to that stylesheet, but the compiled PDF CSS lives in a temporary directory
+  where the same path is meaningless → the config-driven command base64-embeds
+  each relative reference that resolves to a local file. An unresolved or
+  generated reference is left unchanged and will not reliably render; use a
+  stable absolute URL for that case.
 
 **Raw `<svg>` doesn't survive Pandoc's HTML→HTML round trip through to
 WeasyPrint at all** (confirmed directly, isolated test) - affects
@@ -255,11 +297,14 @@ the iframe's `src`, and something in that response ends up parsed as real
 page content) → replaced with a link-styled reference to the video instead
 - a static PDF can't embed a live video player regardless.
 
-**No Jinja evaluation**: Pandoc/`prodockit.pdf` never evaluates Jinja - a
-`{{ site_name }}` placeholder that resolves via macro evaluation on the
-live site (see [prodockit.zensical_macros](../macros.md)) is left as literal
-text unless a project substitutes it directly in its own page HTML before
-handing it to `build_pdf()`.
+**Macros and full-build plugins are part of the PDF input**: `prodockit pdf`
+does not evaluate Jinja itself, but it consumes the completed Zensical build,
+so macros and build plugins have already transformed the page. Their generated
+article content is kept deliberately; only recognised website controls are
+removed. A plugin that inserts browser-only content inside the article must
+provide suitable print styling or another explicit PDF treatment rather than
+relying on prodockit to discard unknown content. See [Full-build plugin
+output](zensical-coupling.md#coupling-full-build-plugins).
 
 **No `.md-typeset` wrapper**: unlike a Zensical website, Pandoc's HTML
 output has no `.md-typeset` wrapper element, so website CSS rules scoped
@@ -300,14 +345,15 @@ different parser from Python-Markdown/Zensical, so a pipeline built
 around hand-translating each markdown feature into a Pandoc-compatible
 dialect needs a new bespoke translation for every extension a project
 enables (admonitions, tabs, grid cards, captions, `attr_list` spans,
-`{% if %}` conditionals, and so on) - fragile, and it grows without bound.
-`prodockit.pdf` sidesteps this by feeding Pandoc your site's own already-
-rendered HTML (via `zensical.markdown.render.render()`, the same pipeline
-that builds your live website) instead of raw markdown - Pandoc's own HTML
-reader already understands standard HTML correctly, with no per-feature
-translation needed. The fixups documented above are what's left after
-that: genuine gaps in Pandoc/WeasyPrint's own HTML handling, not gaps in
-markdown-dialect translation.
+`{% raw %}{% if %}{% endraw %}` conditionals, and so on) - fragile, and it grows without
+bound.
+`prodockit.pdf` sidesteps this by running the documented `zensical build`
+command and feeding Pandoc the already-rendered articles from that completed
+website instead of raw markdown. Pandoc's own HTML reader already understands
+standard HTML correctly, with no per-feature translation needed. The fixups
+documented above are what's left after that: genuine gaps in
+Pandoc/WeasyPrint's own HTML handling, not gaps in markdown-dialect
+translation.
 
 **`prodockit.bibliography` is a partial exception to this pattern, worth
 flagging explicitly**: resolving `\cite{id}`/`\bibliography` itself calls
@@ -324,6 +370,9 @@ unrelated reasons.
 
 ## Website macros {: #limitations-website-macros }
 
+The \index{limitations!website macros} run during Zensical's page build and
+inherit its incremental-build and theme-output boundaries.
+
 **`heading_counter_reset(page)` inherits the same `zensical serve`
 staleness bound as extensions above**: it calls
 [`prodockit.headings.prescan()`](extension-internals.md#share-definitions-across-pages)
@@ -333,7 +382,8 @@ page's displayed chapter/section number can lag behind an edit to an
 under `zensical serve`'s live reload. Not an issue for a one-shot
 `zensical build`.
 
-**`{{ repo_url }}` reflects the local checkout's own git remote, not
+**`{% raw %}{{ repo_url }}{% endraw %}` reflects the local checkout's own git remote,
+not
 `project.repo_url`**: computed from `git config --get remote.origin.url`
 directly, deliberately, so it reflects wherever *this* checkout actually
 points (e.g. a CI job's own token-embedded remote, stripped before
@@ -342,7 +392,8 @@ display) - in practice this usually, but isn't guaranteed to, match
 repository link). A fork or a differently-configured clone can show a
 different URL from the two.
 
-**`{{ word_count }}` assumes the first page in `nav` is a cover page** and
+**`{% raw %}{{ word_count }}{% endraw %}` assumes the first page in `nav` is a cover
+page** and
 unconditionally excludes it from the count, on top of any page explicitly
 flagged `exclude_from_word_count: true` - a project whose `nav` doesn't
 start with a dedicated cover page gets a word count silently short by
@@ -357,7 +408,7 @@ to - so a future Zensical theme restructuring could change or remove them
 without warning, silently breaking the numbering/spacing display with no
 error raised.
 
-These CSS-shape couplings are the theme-side counterpart to the Python
-ones - see [Zensical coupling](zensical-coupling.md) for the full list of
-undocumented Zensical APIs prodockit depends on, and what regression
-testing a Zensical upgrade actually needs.
+These CSS-shape couplings are the theme-side counterpart to the generated
+HTML boundary - see [Zensical coupling](zensical-coupling.md) for the
+remaining current-page adapter and the regression testing a Zensical upgrade
+needs.

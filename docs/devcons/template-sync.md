@@ -2,6 +2,8 @@
 icon: lucide/refresh-cw
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Staying in step with the template {: #tsync-staying-in-step }
 
 A project generated from `prodockit-template` is a copy, not a link. The

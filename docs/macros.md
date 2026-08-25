@@ -2,6 +2,8 @@
 icon: lucide/braces
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Website macros {: #macros-website-macros }
 
 \index{`prodockit.zensical_macros`} provides a handful of Jinja variables and macros
@@ -38,19 +40,40 @@ modules = ["prodockit.zensical_macros"]
 
 | Variable | Description |
 |---|---|
-| `{{ word_count }}` | Prose word count across every nav page except the first (assumed to be the cover page) and any page flagged `exclude_from_word_count: true` in its own front matter - a comma-formatted string (e.g. `"9,971"`). |
-| `{{ repo_url }}` | The fully-qualified `https://` URL for the current checkout's git `origin` remote (converted from `git@host:path.git` SSH syntax, with any embedded CI credentials stripped) - `""` if there's no git remote configured. |
-| `{{ release }}` | The latest git tag reachable from `HEAD` (e.g. `"1.2.0"`) - `""` if this checkout has no tags at all. Resolves identically for the website and for `prodockit pdf`, since both render through this same macro environment - unlike `prodockit.pdf`'s own [`{RELEASE}` cover-page marker](pdf.md#cover-page-markers), which queries the host's GitHub/GitLab API instead, for a project whose cover page isn't part of a live, macro-rendered site at all. |
-| `{{ site_name }}` | `project.site_name` from `zensical.toml`. |
+| `{% raw %}{{ word_count }}{% endraw %}` | Prose word count across every nav page except the first (assumed to be the cover page) and any page flagged `exclude_from_word_count: true` in its own front matter - a comma-formatted string (e.g. `"9,971"`). |
+| `{% raw %}{{ repo_url }}{% endraw %}` | The fully-qualified `https://` URL for the current checkout's git `origin` remote (converted from `git@host:path.git` SSH syntax, with any embedded CI credentials stripped) - `""` if there's no git remote configured. |
+| `{% raw %}{{ release }}{% endraw %}` | The latest git tag reachable from `HEAD` (e.g. `"1.2.0"`) - `""` if this checkout has no tags at all. Resolves identically for the website and for `prodockit pdf`, since both render through this same macro environment - unlike `prodockit.pdf`'s own [`{RELEASE}` cover-page marker](pdf.md#cover-page-markers), which queries the host's GitHub/GitLab API instead, for a project whose cover page isn't part of a live, macro-rendered site at all. |
+| `{% raw %}{{ site_name }}{% endraw %}` | `project.site_name` from `zensical.toml`. |
 
 ## Macros
 
 | Macro | Description |
 |---|---|
-| `{{ heading_counter_reset(page) }}` | Place near the top of every page - continues chapter/section numbering (and the matching sidebar numbering) across pages, from this page's position in nav. See below. |
-| `{{ reference_style() }}` | Place once near the top of a references page - controls `.reference` paragraph spacing. See below. |
-| `{{ acronym_style() }}` | Place once near the top of an acronyms page - matches `reference_style()`'s default spacing. |
-| `{{ glossary_style() }}` | Place once near the top of a glossary page - matches `reference_style()`'s default spacing. |
+| `{% raw %}{{ heading_counter_reset(page) }}{% endraw %}` | Place near the top of every page - continues chapter/section numbering (and the matching sidebar numbering) across pages, from this page's position in nav. See below. |
+| `{% raw %}{{ reference_style() }}{% endraw %}` | Place once near the top of a references page - controls `.reference` paragraph spacing. See below. |
+| `{% raw %}{{ acronym_style() }}{% endraw %}` | Place once near the top of an acronyms page - matches `reference_style()`'s default spacing. |
+| `{% raw %}{{ glossary_style() }}{% endraw %}` | Place once near the top of a glossary page - matches `reference_style()`'s default spacing. |
+
+## Show macro syntax as text {: #macros-literal-syntax }
+
+The macros plugin processes Jinja delimiters before Markdown code formatting.
+Backticks therefore do not protect a literal macro example. A literal
+`{% raw %}{{ word_count }}{% endraw %}`, GitHub expression, or compact
+`{% raw %}{#heading-id}{% endraw %}` example can stop every macro on that page
+from being rendered.
+
+When readers should see the syntax rather than run it, wrap the literal text
+between <code>&#123;% raw %&#125;</code> and
+<code>&#123;% endraw %&#125;</code> in the Markdown source. For example:
+
+<pre><code>&#123;% raw %&#125;
+&#123;&#123; word_count &#125;&#125;
+$&#123;&#123; github.token &#125;&#125;
+&#123;#heading-id&#125;
+&#123;% endraw %&#125;</code></pre>
+
+The raw wrapper is removed from the website and the intended braces remain.
+Use an unwrapped expression when it is meant to run.
 
 ### `heading_counter_reset(page)`
 

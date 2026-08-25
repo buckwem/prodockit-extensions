@@ -26,10 +26,11 @@ import sys
 import textwrap
 import threading
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
+from typing import ParamSpec, TypeVar
 
 import click
 
@@ -105,13 +106,17 @@ from prodockit.init_tools import (
 from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.pdf.build import PdfBuildError
 from prodockit.pdf.config import (
+    build_pdf_from_built_site,
     build_pdf_from_zensical_config,
     build_source_bundle_from_zensical_config,
 )
+from prodockit.pdf.site import BuiltSiteError
 from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
 _PDKBOOT_MODE: ContextVar[bool] = ContextVar("pdkboot_mode", default=False)
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
 # These are presentation groups, not execution units: stages still run in
@@ -1842,28 +1847,14 @@ def bootstrap(
     sys.exit(1)
 
 
-@main.command()
-@click.option(
-    "-f",
-    "--config-file",
-    default="zensical.toml",
-    show_default=True,
-    help="Path to your project's Zensical config file.",
-)
-@click.option(
-    "-m",
-    "--markdown-file",
-    default=None,
-    help=(
-        "Build the PDF from just this one markdown file (relative to "
-        "docs_dir), ignoring nav, using CONFIG_FILE for everything else."
-    ),
-)
-def pdf(config_file: str, markdown_file: str | None) -> None:
-    """Build a PDF from your project, using CONFIG_FILE for everything -
-    nav, docs directory, fonts, page size, and so on. See the PDF
-    generation docs for the full list of `zensical.toml` settings this
-    reads."""
+def _run_pdf_command(
+    config_file: str,
+    markdown_file: str | None,
+    *,
+    legacy: bool,
+) -> None:
+    """Shared presentation for the public and legacy PDF renderers."""
+    builder = build_pdf_from_zensical_config if legacy else build_pdf_from_built_site
     if markdown_file:
         click.echo(f"Building PDF from {config_file} using {markdown_file}...")
     else:
@@ -1878,14 +1869,50 @@ def pdf(config_file: str, markdown_file: str | None) -> None:
 
     started = time.monotonic()
     try:
-        output_path = build_pdf_from_zensical_config(
-            config_file, markdown_file=markdown_file, on_stage=say
-        )
-    except (PdfBuildError, SourceBundleError, ValueError, OSError) as error:
+        output_path = builder(config_file, markdown_file=markdown_file, on_stage=say)
+    except (BuiltSiteError, PdfBuildError, SourceBundleError, ValueError, OSError) as error:
         click.echo(f"Error: {error}", err=True)
         _echo_captured_stderr(error)
         sys.exit(1)
     click.echo(f"Wrote {output_path} in {_took(time.monotonic() - started)}")
+
+
+def _pdf_options(command: Callable[_P, _R]) -> Callable[_P, _R]:
+    """Apply the identical input options to the public and legacy commands."""
+    command = click.option(
+        "-m",
+        "--markdown-file",
+        default=None,
+        help=(
+            "Include only this Markdown file in the PDF (relative to docs_dir), "
+            "ignoring nav for the PDF contents. The public pdf command still "
+            "rebuilds the full site; CONFIG_FILE supplies everything else."
+        ),
+    )(command)
+    return click.option(
+        "-f",
+        "--config-file",
+        default="zensical.toml",
+        show_default=True,
+        help="Path to your project's Zensical config file.",
+    )(command)
+
+
+@main.command()
+@_pdf_options
+def pdf(config_file: str, markdown_file: str | None) -> None:
+    """Build a PDF from your project, using CONFIG_FILE for everything -
+    nav, docs directory, fonts, page size, and so on. See the PDF
+    generation docs for the full list of `zensical.toml` settings this
+    reads."""
+    _run_pdf_command(config_file, markdown_file, legacy=False)
+
+
+@main.command("pdf-legacy", hidden=True)
+@_pdf_options
+def pdf_legacy(config_file: str, markdown_file: str | None) -> None:
+    """Legacy PDF renderer using Zensical's undocumented Python APIs."""
+    _run_pdf_command(config_file, markdown_file, legacy=True)
 
 
 @main.command("source-bundle")
@@ -2632,7 +2659,7 @@ def _run_template_sync(
     stages depend on lives somewhere it can be read in one piece.
     """
     import subprocess
-    from collections.abc import Callable, Iterable
+    from collections.abc import Iterable
     from typing import Any
 
     from prodockit.template_sync import (

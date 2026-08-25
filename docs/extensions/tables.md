@@ -2,6 +2,8 @@
 icon: lucide/table
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Tables
 
 \index{`prodockit.tables`} adds layout controls to an ordinary Markdown table.

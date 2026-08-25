@@ -2,6 +2,8 @@
 icon: lucide/heading
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Headings
 
 \index{`prodockit.headings`} numbers the headings in your document as sections,
@@ -51,13 +53,17 @@ starts a section inside it (`1.1`, `1.2`, and so on):
     | Scope | `scope` | `1.2` |
     | Method | `method` | `2` |
 
-The extension calculates the section numbers, but it does not add them to the
-visible heading text on the website. [Cross-references](refs.md) uses the
-calculated numbers in links such as “1.1 Background”.
+The extension calculates the section numbers used by
+[Cross-references](refs.md). The shared prodockit website styles can also show
+those numbers beside headings and in the page navigation. This reference site
+has that presentation enabled, so the example headings on this page are
+visibly numbered.
 
-!!! note "Why the heading itself does not visibly change"
-    The section numbers appear in [Cross-references](refs.md), rather than next
-    to the website's heading text.
+!!! note "Calculation and presentation are separate"
+    A site can hide the visible numbers without changing the numbers resolved
+    by `\ref{}`. The template-level `extra.website_heading_numbering` switch
+    controls the website presentation; `extra.heading_numbering` controls
+    whether document-style numbering is enabled for the project and its PDF.
 
 ## Configure headings
 

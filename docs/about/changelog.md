@@ -2,6 +2,8 @@
 icon: lucide/history
 ---
 
+{{ heading_counter_reset(page) }}
+
 # Release notes
 
 Entries are arranged newest first. Read the Unreleased section when it is
@@ -14,6 +16,23 @@ The oldest entries record the package's earlier name, `zendoc`. Versioning
 restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
+
+## Unreleased
+
+- **Changed:** `prodockit pdf` now runs Zensical's documented clean build and
+  assembles the PDF from the completed website instead of importing Zensical's
+  private rendering APIs. The previous renderer remains temporarily available
+  through the hidden `prodockit pdf-legacy` rollback command. A single-page
+  `-m` build still rebuilds the complete website before selecting the requested
+  PDF content.
+
+- **Fixed:** the current-page compatibility adapter now reports a removed
+  Zensical context symbol, an internal import failure, or a missing page path
+  instead of silently allowing cross-page references to degrade to `??`.
+
+- **Added:** installed-wheel PDF acceptance now protects forward references to
+  two figures in a later Markdown file, including four-space-indented captions,
+  nested directories, continuous numbering and final clean website URLs.
 
 ## 0.44.0 (2026-08-25)
 
@@ -4029,7 +4048,7 @@ Documentation only - no library, CLI or CI behaviour changes.
 
 ## 0.16.0 (2026-07-28)
 
-- The website's `{{ release }}` and the PDF's `{RELEASE}` come from
+- The website's `{% raw %}{{ release }}{% endraw %}` and the PDF's `{RELEASE}` come from
   deliberately different sources - `git describe --tags` on the local
   checkout, and the host's releases API - and could disagree with nothing
   saying so
@@ -4037,15 +4056,16 @@ Documentation only - no library, CLI or CI behaviour changes.
   reader comparing a published site with its downloadable PDF could see two
   different release numbers, and neither build had failed.
 
-    Neither source changes: each is right for its own context. `{{ release }}`
-    is re-evaluated on every website rebuild, including every save under
+    Neither source changes: each is right for its own context.
+    `{% raw %}{{ release }}{% endraw %}` is re-evaluated on every website rebuild,
+    including every save under
     `zensical serve`, so it must not make a network call; `{RELEASE}` serves
     a cover page that isn't part of a macro-rendered site at all. What was
     missing is that the disagreement was invisible.
 
     `prodockit pdf` now warns when the two will show different things,
     naming both values and where each came from. The macros pass warns
-    separately when `{{ release }}` came back empty *because* the checkout
+    separately when `{% raw %}{{ release }}{% endraw %}` came back empty *because* the checkout
     is a shallow clone, which fetches no tags even from a repository that
     has them - the failure behind #122, silent because an empty value just
     renders as a missing line. The warning names `fetch-depth: 0` and
@@ -4205,7 +4225,7 @@ No code changes - fixes a regression in 0.11.0's own release:
 - The "Release: `<tag>`" cover-page line added in 0.11.0 never actually
   appeared on the deployed site or PDF - `actions/checkout`'s default
   shallow clone (`fetch-depth: 1`) fetches no tags at all, so
-  `prodockit.zensical_macros`' `{{ release }}` (`git describe --tags
+  `prodockit.zensical_macros`' `{% raw %}{{ release }}{% endraw %}` (`git describe --tags
   --abbrev=0`) always returned `""` in CI, even though it worked
   correctly in any full local checkout. Fixed by adding `fetch-depth: 0`
   to this project's own `docs.yml`/`ci.yml` checkout steps. Confirmed
@@ -4227,7 +4247,7 @@ No code changes - fixes a regression in 0.11.0's own release:
 
 ## 0.11.0 (2026-07-27)
 
-New `{{ release }}` variable in `prodockit.zensical_macros`: the latest
+New `{% raw %}{{ release }}{% endraw %}` variable in `prodockit.zensical_macros`: the latest
 git tag reachable from `HEAD` (e.g. `"1.2.0"`, `""` if the checkout has no
 tags at all), matching `word_count`/`repo_url`'s existing pattern.
 Promotes a one-off custom macro `prodockit-userguide` already had in its
@@ -4629,11 +4649,11 @@ just to fill in a cover page's word count/repo URL/release tag - found via
 except this one piece:
 
 - `{WORDCOUNT}` - the site-wide word count (the same value a
-  `{{ word_count }}` website macro shows).
+  `{% raw %}{{ word_count }}{% endraw %}` website macro shows).
 - `{REPOURL}` - the git-detected repo URL.
 - `{RELEASE}` - the latest published GitHub/GitLab release tag - the
   whole line is dropped instead if there isn't one.
-- `{{ site_name }}` - substituted literally, since `prodockit pdf` never
+- `{% raw %}{{ site_name }}{% endraw %}` - substituted literally, since `prodockit pdf` never
   evaluates Jinja.
 
 All four are opt-in by literally writing the marker in your `nav`'s index
@@ -5011,9 +5031,10 @@ PDF pipeline test suites - each paired with a new regression test.
 ## 0.10.0 (2026-07-15)
 
 - New `prodockit.zensical_macros`: Jinja variables/macros for Zensical's own
-  macros plugin - `{{ word_count }}` (site-wide prose word count, excluding
+  macros plugin - `{% raw %}{{ word_count }}{% endraw %}` (site-wide prose word count, excluding
   the cover page and any page flagged `exclude_from_word_count: true`),
-  `{{ repo_url }}` (git-detected repository URL), `{{ site_name }}`, and
+  `{% raw %}{{ repo_url }}{% endraw %}` (git-detected repository URL),
+  `{% raw %}{{ site_name }}{% endraw %}`, and
   `heading_counter_reset(page)`/`reference_style()`/`acronym_style()`/
   `glossary_style()` macros. Add it alongside a project's own `macros.py`
   via `zensical.toml`'s `modules = ["prodockit.zensical_macros"]` - or use it
@@ -5021,7 +5042,7 @@ PDF pipeline test suites - each paired with a new regression test.
 - New `prodockit.wordcount`: the generic prose word-count utility
   (`count_words()`/`compute_word_count()`) behind both `prodockit.pdf`'s
   `{WORDCOUNT}`-style cover-page use and `prodockit.zensical_macros`'
-  `{{ word_count }}` - previously duplicated independently by each
+  `{% raw %}{{ word_count }}{% endraw %}` - previously duplicated independently by each
   downstream project needing both.
 - New `prodockit.settings`: `flatten_nav()`, `heading_numbering_enabled()`, and
   `reference_style_values()` - the `project.extra.*` reading shared by
