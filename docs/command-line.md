@@ -131,7 +131,7 @@ Examples:
 
 ```bash
 prodockit sync-repo
-prodockit pins --set zensical=0.0.55
+prodockit pins --set zensical=0.0.57
 prodockit template-sync --apply
 prodockit bootstrap --apply
 ```
@@ -180,7 +180,7 @@ Automation must not wait for a prompt. Use explicit non-interactive forms:
 ```bash
 prodockit sync-repo --check
 prodockit pins --check --offline
-prodockit pins --set zensical=0.0.55
+prodockit pins --set zensical=0.0.57
 ```
 
 Important exit-status behaviour:

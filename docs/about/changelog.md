@@ -19,6 +19,11 @@ Those are two package eras rather than duplicate releases.
 
 ## Unreleased
 
+- **Changed:** Zensical's package floor and documentation-build pin move to
+  0.0.57 after regression comparisons against 0.0.55 found no authored HTML,
+  search-index, PDF text or visible PDF rendering changes. Zensical's bundled
+  CSS and JavaScript assets have their expected new content hashes.
+
 - **Changed:** `prodockit pdf` now runs Zensical's documented clean build and
   assembles the PDF from the completed website instead of importing Zensical's
   private rendering APIs. The previous renderer remains temporarily available

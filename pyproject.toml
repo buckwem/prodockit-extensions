@@ -27,8 +27,8 @@ dependencies = [
   # propagate to every consumer and hard-conflict with any project needing a
   # different Zensical.
   #
-  # 0.0.53 is the version this is developed and built against, not a minimum
-  # below which anything breaks - 0.0.50 through 0.0.52 all work. It is recorded
+  # 0.0.57 is the version this is developed and built against, not a minimum
+  # below which anything breaks - earlier releases may still work. It is recorded
   # because Zensical is pre-1.0 and prodockit reaches well past its public
   # surface (the config loader, the per-page render context prodockit.
   # headings detects, the icon set prodockit.pdf.icons resolves against), so
@@ -39,7 +39,7 @@ dependencies = [
   # committed. 0.0.52 silently redrew the GitHub brand icon (Font Awesome
   # 7.2.0 -> 7.3.1) on every page. Reproducibility needs a pin on the
   # *build* side - a constraint in docs.yml - not in library metadata.
-  "zensical>=0.0.55",
+  "zensical>=0.0.57",
   # Declared since 0.34.0, and it was deliberately absent before that.
   # The old reasoning was that prodockit never imported it - it only
   # matched the class shapes pymdownx emits, from a stylesheet and a Lua

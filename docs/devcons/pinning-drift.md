@@ -76,7 +76,7 @@ rendered artifacts for you.
 Set an reviewed version explicitly:
 
 ```bash
-prodockit pins --set zensical=0.0.55
+prodockit pins --set zensical=0.0.57
 ```
 
 The tool preserves the role of each declaration: a library floor remains a
@@ -120,8 +120,8 @@ several files at once, and nothing keeps them in step.
 
 | File | Typically declares | Why that form |
 | --- | --- | --- |
-| `pyproject.toml` | `zensical>=0.0.55` | A **floor**. An exact pin in a library's metadata propagates to every consumer and conflicts with any project needing a different Zensical. |
-| CI docs/build job | `zensical==0.0.55` | An **exact pin**. The site and PDF are artifacts; they should change deliberately. |
+| `pyproject.toml` | `zensical>=0.0.57` | A **floor**. An exact pin in a library's metadata propagates to every consumer and conflicts with any project needing a different Zensical. |
+| CI docs/build job | `zensical==0.0.57` | An **exact pin**. The site and PDF are artifacts; they should change deliberately. |
 | CI test job | `weasyprint==69.0` | An **exact pin**. Tests that assert on where things land in a rendered PDF treat the layout engine as an input, not an implementation detail. |
 | Drift job | both, exactly | The baseline it compares the newest release against. |
 
@@ -374,7 +374,7 @@ jobs:
       # ... same build tooling as your docs job ...
       - name: Build with the pinned versions
         run: |
-          pip install -e ".[testing]" "zensical==0.0.55" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
+          pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
           prodockit pdf                      # PDF first ...
           zensical build --clean --strict    # ... then the site
           cp -R site /tmp/pinned-site
@@ -412,7 +412,7 @@ drift:
   before_script:
     - apt-get update && apt-get install -y pandoc libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 jq curl
   script:
-    - pip install -e ".[testing]" "zensical==0.0.55" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
+    - pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
     - prodockit pdf                     # PDF first ...
     - zensical build --clean --strict   # ... then the site
     - cp -R site /tmp/pinned-site && cp docs/site_documentation.pdf /tmp/pinned.pdf
@@ -517,7 +517,7 @@ When drift reports something worth having, use the complete maintenance flow
 above. The short command sequence is:
 
 ```bash
-prodockit pins --set zensical=0.0.55
+prodockit pins --set zensical=0.0.57
 prodockit pdf
 zensical build --clean --strict
 pytest
@@ -534,7 +534,7 @@ your document *before* your readers do.
 See [Implementation limitations](limitations.md) for the general list.
 Specific to pinning:
 
-- **A floor still floats.** `zensical>=0.0.55` in `pyproject.toml` records
+- **A floor still floats.** `zensical>=0.0.57` in `pyproject.toml` records
   a version; it does not control one. Only the exact pin in the build job
   does. Both exist deliberately - see the table above.
 - **A pinned package's own dependencies float too**, which is the sharper
