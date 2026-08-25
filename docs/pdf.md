@@ -14,160 +14,133 @@ configure beyond a couple of optional settings.
 
 ## Build your first PDF
 
-From the project root—the directory containing `zensical.toml`—run the
-\index{commands!`prodockit pdf`} command:
+Follow these steps from the project root—the directory containing
+`zensical.toml`:
+
+/// steps
+
+//// step | Prepare the PDF tools
+
+If the project has completed `prodockit bootstrap --apply`, the required tools
+have already been installed and checked. Otherwise, follow
+[Prepare the PDF tools](#pdf-requirements), then confirm that Pandoc and
+WeasyPrint both run from the activated project environment.
+
+////
+
+//// step | Configure only what the document needs
+
+The defaults produce an A4 PDF containing every page in `nav`, in the same
+order, at `docs/site_documentation.pdf`. Continue without adding settings for
+a first build. Use [Configure the PDF](#pdf-quick-start) only when the document
+needs a different output path, page size, margins, a single-page build, or
+another optional layout feature.
+
+////
+
+//// step | Build and inspect the result
+
+Run the \index{commands!`prodockit pdf`} command:
 
 ```bash
 prodockit pdf
 ```
 
-The command first runs a documented `zensical build --clean`, then reads each
-rendered article from the generated website. It includes every page in `nav`,
-keeps that order, and writes `docs/site_documentation.pdf` by default. Open the
-result and check its cover, contents, headings, page breaks, diagrams, and final
-page before changing any layout setting.
+Open the PDF and check its cover, contents, headings, page breaks, diagrams,
+and final page before changing any layout setting.
 
-The clean website build replaces the configured `site_dir`, just as running
-`zensical build --clean` yourself does. Keep generated website output there,
-not files you maintain by hand.
+The command first runs `zensical build --clean`, then reads the rendered
+articles from that generated website. The clean build replaces the configured
+`site_dir`, just as running the Zensical command yourself does, so keep only
+generated output there rather than files maintained by hand.
 
-If the command reports a missing program or native library, install the
-requirements in the next section and repeat the same command. A project that
-already completed `prodockit bootstrap --apply` should have them.
+////
 
-## Requirements {: #pdf-requirements }
+///
 
-The PDF is built via [Pandoc](https://pandoc.org/) and
-[WeasyPrint](https://weasyprint.org/), so both need to be installed and on
-your `PATH`:
+## Prepare the PDF tools {: #pdf-requirements }
 
-```bash
-pip install weasyprint
-```
+The command uses [Pandoc](https://pandoc.org/) to assemble the document and
+[WeasyPrint](https://weasyprint.org/) to draw the pages. If this project has
+already completed `prodockit bootstrap --apply`, continue to
+[Configure the PDF](#pdf-quick-start): bootstrap installs and verifies these
+tools for you.
 
-then follow [Pandoc's own install instructions](https://pandoc.org/installing.html)
-for your platform (e.g. `brew install pandoc` on macOS).
+For a manual installation, activate the project's virtual environment and
+follow the instructions for the operating system you use:
 
-!!! warning "WeasyPrint is not a pure-Python package"
-
-    `pip install weasyprint` installs the Python half. WeasyPrint draws
-    text through \index{Pango} and a few related native libraries -
-    `libgobject-2.0`, `libpango-1.0`, `libpangoft2-1.0`, `libharfbuzz`,
-    `libharfbuzz-subset` and `libfontconfig` - which pip cannot install,
-    because they belong to the operating system.
-
-    | Platform | |
-    |---|---|
-    | macOS | `brew install pango` |
-    | Debian/Ubuntu | `sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0` |
-    | Windows | `pacman -S mingw-w64-x86_64-pango` under [MSYS2](https://www.msys2.org/), with `C:\msys64\mingw64\bin` on `PATH` |
-
-    One package covers it on macOS and Windows because glib, HarfBuzz and
-    fontconfig arrive as dependencies of Pango. On Debian,
-    `libharfbuzz-subset0` is a *separate* package from `libharfbuzz0b` and
-    is the one usually missed.
-
-    On Apple Silicon macOS, Python's dynamic loader may still not search the
-    Homebrew library directory after Pango is installed. Export the path in
-    the terminal where you run `prodockit pdf`:
+=== "macOS"
 
     ```bash
-    export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
+    brew install pandoc
+    brew install pango
+    python -m pip install weasyprint
     ```
 
-    Use `/usr/local/lib` on an Intel Mac. If
-    `cannot load library 'libgobject-2.0-0'` appears after `brew install pango`,
-    check this variable before reinstalling anything.
+=== "Windows"
 
-    Missing them looks like a Pandoc problem rather than an install one:
+    Follow the Windows tab under
+    [Manual install: Install Python and Zensical](https://docs.prodockit.org/installtooling/#install-python-and-zensical).
+    It gives the PowerShell commands for Pandoc, MSYS2 and Pango, and explains
+    how to expose the matching DLL directory to WeasyPrint. Those manual steps
+    follow the same package and architecture choices that bootstrap automates.
 
-    ```text
-    Error: pandoc exited with status 43 building 'docs/site_documentation.pdf' (only pass)
+    Return here after installing the tools and run the two verification
+    commands below from the activated project environment.
 
-    Output from the failing command:
-    ...
-    OSError: cannot load library 'libgobject-2.0-0'
+=== "Ubuntu"
+
+    ```bash
+    sudo apt install pandoc libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
+    python -m pip install weasyprint
     ```
 
-    Status 43 is Pandoc's own `PandocPDFError` - Pandoc ran, and the PDF
-    engine it handed off to did not start. The detail beneath the error is
-    WeasyPrint's, and names the library it could not load. `python -c
-    "import weasyprint"` is the quickest way to confirm the stack before
-    building.
+Confirm both programs from the same activated environment before building:
 
-[Back-of-book indexes](extensions/index-terms.md#index-terms-requirements)
-additionally need [`pymupdf`](https://pymupdf.readthedocs.io/) - `pip
-install prodockit[index]` (or plain `pip install pymupdf`) - but only if
-you set `include = true` for `prodockit.index`.
+```bash
+pandoc --version
+python -c "import weasyprint; print(weasyprint.__version__)"
+```
 
-Mermaid diagrams and TeX maths need a little Node tooling on top - see
-[below](#mermaid-diagrams-and-tex-maths). Every other feature on this page
-needs nothing beyond Pandoc/WeasyPrint.
+If either command fails, use [Fix common PDF build problems](#pdf-common-problems)
+rather than changing PDF layout settings.
 
-### Mermaid diagrams and TeX maths {: #mermaid-diagrams-and-tex-maths }
+A [back-of-book index](extensions/index-terms.md#index-terms-requirements)
+also needs `pymupdf`. Install `prodockit[index]` only when the document enables
+the PDF index:
 
-\index{WeasyPrint} has no JS engine, so neither can be rendered the way your live
-website renders them. Both are pre-rendered to static images before \index{Pandoc}
-sees them - \index{Mermaid} via [mermaid-cli](https://github.com/mermaid-js/mermaid-cli),
-maths via a small \index{TeX maths!MathJax} script.
+```bash
+python -m pip install "prodockit[index]"
+```
 
-Set both up with the \index{commands!`prodockit init-tools`} command:
+### Add Mermaid diagrams or TeX maths only when used {: #mermaid-diagrams-and-tex-maths }
+
+\index{WeasyPrint} does not run browser JavaScript. A PDF containing
+\index{Mermaid} diagrams or \index{TeX maths!MathJax} formulas therefore needs
+local Node-based renderers that turn them into static images before
+\index{Pandoc} assembles the document.
+
+From the project root, initialise the renderers the document uses with the
+\index{commands!`prodockit init-tools`} command:
 
 ```bash
 prodockit init-tools
 ```
 
-That writes `tools/mermaid/package.json`, `tools/mathjax/package.json` and
-`tools/mathjax/tex2svg.js` - the exact layout `prodockit pdf` looks for -
-then prints the `npm` commands to install them, the `.gitignore` lines you
-want, and the environment variables a CI run needs. It won't overwrite
-files you already have unless you pass `--force`, and `--no-mermaid` /
-`--no-mathjax` skip either half.
+The command creates the expected files under `tools/` and prints the `npm`
+installation commands to run next. Use `--no-mermaid` or `--no-mathjax` when
+the document needs only one renderer. Existing files are preserved unless you
+explicitly add `--force`.
 
-Once that's in place, maths is ordinary markdown - write `$...$` for an
-inline formula and `$$...$$` for a display one, and both are rendered
-wherever the page is read. The right-angle case, inline: $c = \sqrt{a^2 +
-b^2}$, and as a display formula:
+Once installed, ordinary Markdown maths works in both outputs. For example,
+the inline formula $c = \sqrt{a^2 + b^2}$ and the display formula below are
+rendered by MathJax on the website and embedded as static SVG in the PDF:
 
 $$c = \sqrt{a^2 + b^2}$$
 
-Those are live rather than illustrative, and are the only maths in these
-docs. They earn their place: without a real formula somewhere, this
-project's own [rendering checks](devcons/testing.md) cannot tell a working
-MathJax toolchain from a missing one - `assert_no_unrendered_tex` passes
-trivially on a document with no maths to leave unrendered. Read them in the
-PDF and they are static SVG; read them on the website and MathJax typeset
-them in your browser.
-
-Deliberately shown *rendered* rather than as a fenced markdown sample: a
-code block's LaTeX and an unrendered formula are the same characters once
-both are plain text in a PDF, so quoting the source here would fail this
-project's own check - the same trap that made the "contains TeX maths"
-warning fire on
-[prose describing it](https://github.com/buckwem/prodockit-extensions/issues/176).
-`assert_no_unrendered_tex` matches the handful of TeX command sequences
-listed in `prodockit.testing.checks`, so keep literal LaTeX out of any page
-a `-m built` run inspects - naming even one of them in this sentence was
-enough to fail the check.
-
-!!! warning "The failure here is quiet by default"
-
-    If a renderer isn't found, the content is left exactly as it is rather
-    than failing the build - the right default for a project using neither
-    feature. A project that *does* use them would otherwise get a PDF full
-    of raw `flowchart LR ...` source or literal LaTeX with nothing having
-    gone wrong as far as the build is concerned, so since 0.12.0
-    `prodockit pdf` prints a warning naming the missing renderer whenever
-    that combination occurs.
-
-!!! tip "In CI, use `PUPPETEER_SKIP_DOWNLOAD`"
-
-    mermaid-cli drives Chrome through Puppeteer. The older
-    `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` is the one most people reach for,
-    and puppeteer 25.x - what mermaid-cli 11.x resolves to - ignores it,
-    so a full Chrome build is downloaded on every run before being
-    discarded in favour of `PUPPETEER_EXECUTABLE_PATH`. `init-tools`
-    prints the correct pair.
+Build the PDF and inspect at least one real diagram or formula. If source text
+appears instead of rendered output, see
+[A diagram or formula remains as source](#pdf-unrendered-source).
 
 ## Configure the PDF {: #pdf-quick-start }
 
@@ -541,6 +514,56 @@ two-pass implementation in
 Contributors calling the Python API or changing the HTML, Lua, CSS,
 Mermaid, source-bundle, or index stages should use
 [PDF pipeline and API](devcons/pdf-internals.md).
+
+## Fix common PDF build problems {: #pdf-common-problems }
+
+### WeasyPrint cannot load a graphics library
+
+Installing the WeasyPrint Python package does not install the operating
+system's \index{Pango}, GLib, HarfBuzz, or fontconfig libraries. This usually
+appears as `cannot load library 'libgobject-2.0-0'`, sometimes beneath Pandoc
+status 43. Pandoc has started successfully in that case; the PDF engine it
+called could not start.
+
+First repeat the import check from the activated project environment:
+
+```bash
+python -c "import weasyprint; print(weasyprint.__version__)"
+```
+
+Then check the platform-specific library location:
+
+- On Apple Silicon macOS, Homebrew installs the libraries under
+  `/opt/homebrew/lib`. Export that path in the terminal used for the build:
+
+    ```bash
+    export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
+    ```
+
+  Use `/usr/local/lib` on an Intel Mac.
+- On Ubuntu, confirm that `libpango-1.0-0`, `libpangoft2-1.0-0`, and the
+  separate `libharfbuzz-subset0` package are installed.
+- On Windows, confirm that `WEASYPRINT_DLL_DIRECTORIES` names the MSYS2 Pango
+  `bin` directory whose DLL architecture matches the Python executable.
+  An ARM computer can still be running an x86-64 Python and therefore need
+  the x86-64 DLLs.
+
+Repeat the import check before retrying `prodockit pdf`.
+
+### A diagram or formula remains as source {: #pdf-unrendered-source }
+
+Run `prodockit init-tools`, follow the `npm` commands it prints, and then build
+again. `prodockit pdf` warns when it finds Mermaid or maths source but cannot
+find its renderer; a project using neither feature does not need the Node
+tools.
+
+In continuous integration, use the `PUPPETEER_SKIP_DOWNLOAD` and
+`PUPPETEER_EXECUTABLE_PATH` variables printed by `init-tools`. The similarly
+named older Chromium variable is not honoured by current Puppeteer releases.
+
+After the build, open a page containing a real diagram or formula. Automated
+[output checks](devcons/testing.md) can also detect raw Mermaid or TeX left in
+the finished PDF.
 
 ## Limitations and workarounds {: #pdf-limitations-and-workarounds }
 
