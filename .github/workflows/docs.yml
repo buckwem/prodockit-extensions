@@ -257,7 +257,7 @@ jobs:
       # arithmatex's `<div|span class="arithmatex">` - so the renderer is an
       # input to the PDF's own correctness, not just to the website's
       # appearance.
-      - run: pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
+      - run: pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.2"
       # Two pandoc+WeasyPrint passes when a selected document contains index
       # terms: the back-of-book index can only be built once WeasyPrint has
       # laid the document out (see prodockit.pdf.index). The reviewed matrix

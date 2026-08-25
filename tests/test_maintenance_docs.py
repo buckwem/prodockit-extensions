@@ -79,6 +79,7 @@ def test_command_map_lists_every_public_command() -> None:
         "init-tools",
         "pdf",
         "pins",
+        "shared-files",
         "source-bundle",
         "sync-repo",
         "template-sync",

@@ -17,6 +17,25 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
+## Unreleased
+
+- **Added:** the canonical shared website stylesheet is carried inside the
+  wheel. Repositories can declare its local destination in
+  `.prodockit-shared-files.toml`, preview or restore it with `prodockit
+  shared-files`, and make `prodockit pins --check` reject a missing or
+  different copy without consulting another repository or the network.
+
+- **Fixed:** `prodockit pins` now includes the compact
+  `testrequirements.txt` filename used by the template, so testing extras no
+  longer escape a version update or consistency check.
+
+- **Changed:** the reviewed documentation pin for `pymdown-extensions` moves
+  to 11.0.2 after the scheduled drift comparison reported the upstream
+  release. Isolated clean builds against 11.0.1 and 11.0.2 produced identical
+  website files once the embedded PDF was excluded. The PDF bytes differ, but
+  both contain 269 pages and identical extracted text; the focused and full
+  source regression suites pass with 11.0.2.
+
 ## 0.45.0 (2026-08-25)
 
 - **Changed:** Zensical's package floor and documentation-build pin move to

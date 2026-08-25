@@ -1,0 +1,5 @@
+version = 1
+
+[[files]]
+source = "extra.css"
+target = "docs/stylesheets/extra.css"

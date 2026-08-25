@@ -156,9 +156,9 @@ markdown
   newest on PyPI: 3.10.3
 
 pymdown-extensions
-  .github/workflows/docs.yml:164  pymdown-extensions==11.0.1
-  .github/workflows/drift.yml:69  pymdown-extensions==11.0.1
-  newest on PyPI: 11.0.1
+  .github/workflows/docs.yml:164  pymdown-extensions==11.0.2
+  .github/workflows/drift.yml:69  pymdown-extensions==11.0.2
+  newest on PyPI: 11.0.2
 
 zensical: version to set [0.0.53]:
 ```
@@ -177,10 +177,51 @@ pinned - so one answer updates every file correctly.
 | Option | What it does |
 | --- | --- |
 | `-r`, `--root` | Project root to scan. Defaults to the current directory. |
-| `-p`, `--package` | Package to manage, repeatable. Defaults to `zensical`, `weasyprint`, `Markdown`, `pymdown-extensions` and `pandoc`. |
+| `-p`, `--package` | Package to manage, repeatable. Defaults to `zensical`, `weasyprint`, `prodockit`, `Markdown`, `pymdown-extensions` and `pandoc`. |
 | `--set PACKAGE=VERSION` | Set a version without prompting, repeatable. Implies `--no-input`. |
 | `--latest` | Take PyPI's newest for every package without prompting. Implies `--no-input`. |
 | `--no-input` | Never prompt. Packages given a version are updated; the rest are reported and left untouched. |
+
+## Keep shared files with the pinned release {: #pinning-shared-files }
+
+Some documentation assets belong to the Prodockit release rather than to one
+site. The full `extra.css` is one of them: extensions, template and user-guide
+use identical CSS, then select site-specific behaviour through configuration
+switches. Copying it by hand allowed one site to retain a duplicated older
+rule without any build failing.
+
+Prodockit therefore carries the canonical file in its wheel. A repository opts
+in with `.prodockit-shared-files.toml`:
+
+```toml
+version = 1
+
+[[files]]
+source = "extra.css"
+target = "docs/stylesheets/extra.css"
+```
+
+Check without writing:
+
+```bash
+prodockit shared-files --check
+```
+
+Restore a missing or different file, then review it:
+
+```bash
+prodockit shared-files --apply
+git diff -- docs/stylesheets/extra.css
+```
+
+When the manifest is present, `prodockit pins --check --offline` performs the
+same content check after checking version declarations. This makes the normal
+CI gate protect the versions and the shared files supplied by that installed
+version. It reads only the installed wheel and local project: no sibling
+checkout, GitHub branch, checksum list or network request is involved.
+
+Use `prodockit shared-files --verbose` when investigating a mismatch; it adds
+the expected and actual SHA-256 values to the ordinary author-facing report.
 | `--check` | Report and exit non-zero if anything is behind or inconsistent. Writes nothing. |
 | `--offline` | Skip the PyPI lookup and only report what the files declare. |
 
@@ -374,7 +415,7 @@ jobs:
       # ... same build tooling as your docs job ...
       - name: Build with the pinned versions
         run: |
-          pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
+          pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.2"
           prodockit pdf                      # PDF first ...
           zensical build --clean --strict    # ... then the site
           cp -R site /tmp/pinned-site
@@ -412,7 +453,7 @@ drift:
   before_script:
     - apt-get update && apt-get install -y pandoc libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 jq curl
   script:
-    - pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.1"
+    - pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.2"
     - prodockit pdf                     # PDF first ...
     - zensical build --clean --strict   # ... then the site
     - cp -R site /tmp/pinned-site && cp docs/site_documentation.pdf /tmp/pinned.pdf
