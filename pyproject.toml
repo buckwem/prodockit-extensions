@@ -56,7 +56,7 @@ dependencies = [
   # and weasyprint above: `prodockit pins --check` reads a floor behind
   # the exact pin as drift rather than a wider allowance, and it is right
   # to - the two are one decision written twice.
-  "pymdown-extensions>=11.0.1",
+  "pymdown-extensions>=11.0.2",
   #
   # Markdown itself is declared at the top of this list, and is a direct
   # import rather than a transitive convenience.
@@ -155,6 +155,9 @@ prodockit = "prodockit.testing.plugin"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/prodockit"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"docs/stylesheets/extra.css" = "prodockit/assets/extra.css"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

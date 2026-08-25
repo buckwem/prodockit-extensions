@@ -751,7 +751,7 @@ def test_no_alias_shadows_a_command() -> None:
     it, and the help would still list one name."""
     from prodockit.cli import COMMAND_ALIASES
 
-    real = {"bootstrap", "source-bundle", "pdf", "pins", "sync-repo",
+    real = {"bootstrap", "source-bundle", "pdf", "pins", "shared-files", "sync-repo",
             "init-tools", "init-mathjax"}
 
     assert not (set(COMMAND_ALIASES) & real), "an alias may not take a command's own name"
@@ -781,5 +781,5 @@ def test_the_long_names_all_survive() -> None:
     use - an alias adds a name, it never replaces one."""
     from prodockit.cli import main
 
-    for name in ("bootstrap", "source-bundle", "pdf", "pins", "sync-repo"):
+    for name in ("bootstrap", "source-bundle", "pdf", "pins", "shared-files", "sync-repo"):
         assert name in main.commands, name

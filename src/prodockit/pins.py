@@ -353,11 +353,16 @@ def _candidate_files(root: str) -> list[str]:
                 if filename.endswith((".yml", ".yaml")):
                     found.append(os.path.relpath(os.path.join(dirpath, filename), root))
 
-    # requirements.txt / requirements-dev.txt / constraints.txt, top level
-    # only - deeper ones belong to something else (a docs example, a
-    # vendored package) more often than to this project's own build.
+    # requirements.txt / testrequirements.txt / requirements-dev.txt /
+    # constraints.txt, top level only - deeper ones belong to something
+    # else (a docs example, a vendored package) more often than to this
+    # project's own build.  `testrequirements.txt` is an established
+    # compact spelling in the sibling repositories; requiring the name to
+    # begin with `requirements` made pins silently miss it (#565).
     for filename in sorted(os.listdir(root)):
-        if re.fullmatch(r"(requirements|constraints)[\w.-]*\.txt", filename):
+        if re.fullmatch(
+            r"(?:requirements|testrequirements|constraints)[\w.-]*\.txt", filename
+        ):
             found.append(filename)
 
     return found

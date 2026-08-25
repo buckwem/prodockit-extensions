@@ -67,6 +67,46 @@ def test_discover_finds_every_declaration_across_both_ci_layouts(tmp_path: Path)
     }
 
 
+def test_discover_includes_compact_testrequirements_filename(tmp_path: Path) -> None:
+    """The template uses testrequirements.txt rather than a hyphenated
+    requirements-test.txt. It is still a top-level requirements file and
+    must move with every other declaration (#565)."""
+    _project(
+        tmp_path,
+        {
+            "requirements.txt": "prodockit[index]>=0.45.0\n",
+            "testrequirements.txt": "prodockit[testing]>=0.45.0\n",
+        },
+    )
+
+    state = discover(str(tmp_path))["prodockit"]
+
+    assert [site.path for site in state.sites] == ["requirements.txt", "testrequirements.txt"]
+    apply_version(str(tmp_path), state, "0.46.0")
+    assert (tmp_path / "testrequirements.txt").read_text(encoding="utf-8") == (
+        "prodockit[testing]>=0.46.0\n"
+    )
+
+
+def test_check_offline_detects_testrequirements_drift(tmp_path: Path) -> None:
+    _project(
+        tmp_path,
+        {
+            "requirements.txt": "prodockit>=0.45.0\n",
+            "testrequirements.txt": "prodockit[testing]>=0.15.2\n",
+        },
+    )
+
+    result = CliRunner().invoke(
+        main, ["pins", "--root", str(tmp_path), "--check", "--offline"]
+    )
+
+    assert result.exit_code == 1
+    assert "testrequirements.txt:1" in result.output
+    assert "declared inconsistently" in result.output
+    assert "Every managed package is current and consistent" not in result.output
+
+
 def test_discover_records_the_operator_as_written(tmp_path: Path) -> None:
     """A floor and an exact pin are both correct in their own place - the
     library floor must not be flattened into a pin on rewrite."""

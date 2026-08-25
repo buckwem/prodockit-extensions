@@ -48,6 +48,7 @@ pinned by the project before assuming an option is unavailable.
 | [`prodockit source-bundle`](pdf.md#bundling-source-into-a-pdf) | A submission needs the Markdown and configuration as a separate PDF | `prodockit source-bundle` | The configured source-bundle output |
 | [`prodockit sync-repo`](devcons/repo-metadata.md) | Repository links or badges must match the current remote | `prodockit sync-repo --check` | `zensical.toml` and the managed README badge block without `--check` |
 | [`prodockit pins`](devcons/pinning-drift.md) | Build-input versions disagree or need a reviewed upgrade | `prodockit pins --check --offline` | Matching version declarations when a version is selected |
+| [`prodockit shared-files`](devcons/pinning-drift.md#pinning-shared-files) | A shared site asset may have missed a cascade | `prodockit shared-files --check` | Missing or different declared files, only with `--apply` |
 | [`prodockit template-sync`](devcons/template-sync.md) | A generated project needs later template fixes | `prodockit template-sync` | With `--apply`, template-owned/shared files on a new branch; always appends its ignored log |
 
 The \index{commands!`prodockit init-mathjax`} command is the narrower website
@@ -101,6 +102,7 @@ Begin with report-only forms:
 ```bash
 prodockit sync-repo --check
 prodockit pins --check --offline
+prodockit shared-files --check
 prodockit template-sync
 prodockit bootstrap
 ```
@@ -108,9 +110,10 @@ prodockit bootstrap
 These answer four different questions:
 
 1. Does repository metadata match `origin`?
-2. Do declared build versions agree across files?
-3. Has the source template changed files it owns?
-4. Is this machine and checkout ready to build?
+2. Do declared build versions and shared files agree with the installed release?
+3. Do the shared files agree when checked directly?
+4. Has the source template changed files it owns?
+5. Is this machine and checkout ready to build?
 
 Do not replace one with another merely because they all use the word “check”.
 
@@ -190,6 +193,7 @@ Important exit-status behaviour:
 | `sync-repo --check` | Managed repository metadata is already current |
 | `pins --check --offline` | Every discovered declaration agrees; no network comparison was attempted |
 | `pins --check` | Declarations agree and none of the selected PyPI packages is behind |
+| `shared-files --check` | Every file declared in `.prodockit-shared-files.toml` matches the installed release |
 | `zensical build --clean --strict` | The site built without a strict validation error |
 | `pytest` | The selected source or built-output checks passed |
 

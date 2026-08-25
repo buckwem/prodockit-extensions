@@ -30,7 +30,7 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
-from typing import ParamSpec, TypeVar
+from typing import Any, ParamSpec, TypeVar
 
 import click
 
@@ -1664,6 +1664,92 @@ def _remember_browser_confirmation(
     save_bootstrap_config(config_path, context.config)
 
 
+def _shared_file_report(states: Sequence[Any], *, verbose: bool = False) -> None:
+    """Print shared-file states without making pins depend on CLI internals."""
+
+    click.echo("\nShared files")
+    for state in states:
+        # Imported lazily by each command; keeping this display helper
+        # structural avoids importing a maintenance-only module at startup.
+        target = state.file.target
+        status = state.status
+        label = {"current": "ok", "missing": "MISS", "different": "WRONG"}[status]
+        click.echo(f"  {label:<5} {target}")
+        if verbose:
+            click.echo(
+                f"        expected sha256 {state.expected_sha256}"
+            )
+            actual = state.actual_sha256
+            click.echo(f"        actual   sha256 {actual or 'missing'}")
+
+
+@main.command("shared-files")
+@click.option(
+    "-r",
+    "--root",
+    default=".",
+    show_default=True,
+    help="Project root containing .prodockit-shared-files.toml.",
+)
+@click.option(
+    "--check",
+    is_flag=True,
+    help="Exit non-zero if a managed file is missing or differs.",
+)
+@click.option("--apply", "apply_changes", is_flag=True, help="Replace missing or different files.")
+@click.option("--verbose", is_flag=True, help="Also show expected and actual SHA-256 hashes.")
+def shared_files(root: str, check: bool, apply_changes: bool, verbose: bool) -> None:
+    """Check or restore files shared by the prodockit documentation sites.
+
+    The installed prodockit release supplies the canonical content. A
+    repository opts in through `.prodockit-shared-files.toml`; no sibling
+    checkout or network request is used.
+    """
+
+    from prodockit.shared_files import SharedFileError, apply, drift, inspect
+
+    if check and apply_changes:
+        raise click.UsageError("--check and --apply cannot be used together")
+    try:
+        states = inspect(root)
+    except SharedFileError as error:
+        raise click.ClickException(str(error)) from error
+
+    if not states:
+        click.echo("No shared-file manifest found. Nothing to check.")
+        return
+
+    _shared_file_report(states, verbose=verbose)
+    problems = drift(states)
+    if check:
+        if problems:
+            click.echo("\nShared-file drift detected.", err=True)
+            click.echo("Run `prodockit shared-files --apply`, review the changes, and commit them.")
+            raise click.exceptions.Exit(1)
+        click.echo("\nEvery managed shared file matches the installed prodockit release.")
+        return
+
+    if not apply_changes:
+        if problems:
+            click.echo("\nNo changes made.")
+            click.echo("Run `prodockit shared-files --apply` to replace the files shown above.")
+        else:
+            click.echo("\nEvery managed shared file is already current.")
+        return
+
+    try:
+        changed = apply(root, states)
+    except SharedFileError as error:
+        raise click.ClickException(str(error)) from error
+    if not changed:
+        click.echo("\nEvery managed shared file is already current. No changes made.")
+        return
+    click.echo("\nUpdated:")
+    for path in changed:
+        click.echo(f"  {path}")
+    click.echo("\nReview the local changes before committing them.")
+
+
 @main.command()
 @click.option(
     "--check",
@@ -2406,8 +2492,8 @@ def adopt_command(
     is_flag=True,
     help=(
         "Report and exit non-zero if any package is behind PyPI or "
-        "declared inconsistently across files, without writing. For a "
-        "scheduled drift job."
+        "declared inconsistently across files, or any declared shared "
+        "file differs from this prodockit release, without writing."
     ),
 )
 @click.option(
@@ -2484,7 +2570,19 @@ def pins(
         if not state.is_consistent:
             click.echo(f"  ⚠ declared inconsistently: {', '.join(state.versions)}")
 
-    if not any_sites:
+    shared_states: list[Any] = []
+    if check:
+        from prodockit.shared_files import SharedFileError, inspect
+
+        try:
+            shared_states = list(inspect(root))
+        except SharedFileError as error:
+            click.echo(f"Error: {error}", err=True)
+            raise click.exceptions.Exit(1) from error
+        if shared_states:
+            _shared_file_report(shared_states)
+
+    if not any_sites and not shared_states:
         click.echo("\nNo version declarations found. Nothing to do.")
         return
 
@@ -2499,12 +2597,25 @@ def pins(
             for s in states.values()
             if not s.is_consistent
         ]
-        if problems:
+        shared_problems = [state for state in shared_states if state.status != "current"]
+        if problems or shared_problems:
             click.echo("")
             for problem in problems:
                 click.echo(f"Drift: {problem}", err=True)
-            sys.exit(1)
-        click.echo("\nEvery managed package is current and consistent.")
+            for state in shared_problems:
+                click.echo(
+                    f"Drift: {state.file.target} is {state.status}",
+                    err=True,
+                )
+            if shared_problems:
+                click.echo(
+                    "Run `prodockit shared-files --apply`, review the changes, and commit them."
+                )
+            raise click.exceptions.Exit(1)
+        if shared_states:
+            click.echo("\nEvery managed package and shared file is current and consistent.")
+        else:
+            click.echo("\nEvery managed package is current and consistent.")
         return
 
     # --- decide -----------------------------------------------------------
@@ -2660,7 +2771,6 @@ def _run_template_sync(
     """
     import subprocess
     from collections.abc import Iterable
-    from typing import Any
 
     from prodockit.template_sync import (
         MANIFEST_FILE,
