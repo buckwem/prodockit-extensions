@@ -17,7 +17,7 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
-## Unreleased
+## 0.46.0 (2026-08-25)
 
 - **Changed:** artifact builds now take Python 3.14 from `.python-version`;
   `prodockit pins` keeps that file aligned with Python container images, and
