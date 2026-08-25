@@ -387,9 +387,11 @@ history and requires explicit confirmation; uploading an SSH key and creating
 the remote project are guided and then verified.
 
 Use `--dry-run` before `--apply` to see which stages are outstanding and
-which commands will run. Contributors changing stage ordering, check/plan
-behaviour, subprocess prompting, or destructive-action safeguards should read
-[Bootstrap design](bootstrap-internals.md).
+which commands will run. Use only one of `--check`, `--dry-run`, `--apply`, or
+`--configure` in an invocation; conflicting modes are rejected before
+configuration is read or any host is contacted. Contributors changing stage
+ordering, check/plan behaviour, subprocess prompting, or destructive-action
+safeguards should read [Bootstrap design](bootstrap-internals.md).
 
 ## Checking without changing anything {: #bootstrap-check }
 

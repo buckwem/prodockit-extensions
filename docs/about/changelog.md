@@ -19,6 +19,11 @@ Those are two package eras rather than duplicate releases.
 
 ## Unreleased
 
+- **Fixed:** `pdk boot` and `prodockit bootstrap` reject combinations of
+  `--check`, `--dry-run`, `--apply`, and `--configure` before reading
+  configuration or contacting a host. In particular, `--dry-run --apply` can
+  no longer reach confirmation prompts or execute setup commands.
+
 - **Added:** the canonical shared website stylesheet is carried inside the
   wheel. Repositories can declare its local destination in
   `.prodockit-shared-files.toml`, preview or restore it with `prodockit
