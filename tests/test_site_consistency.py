@@ -108,6 +108,8 @@ def test_introduction_offers_an_optional_tracking_free_support_link() -> None:
 
     assert "## Support prodockit" in introduction
     assert "https://buymeacoffee.com/buckwem" in introduction
+    assert "software and online services used to" in introduction
+    assert "develop, test, and publish prodockit" in introduction
     assert ".md-button .md-button--primary" in introduction
     assert "<script" not in introduction
     assert "cdn.buymeacoffee.com" not in introduction

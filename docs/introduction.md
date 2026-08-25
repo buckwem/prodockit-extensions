@@ -71,7 +71,8 @@ other required versions, platform coverage, and known constraints. Read the
 
 prodockit is free and open-source software. If it helps your work and you
 would like to support its continued development, you can buy the maintainer a
-coffee. Your contribution helps fund the time spent maintaining the project
-and developing new features.
+coffee. Your contribution helps fund the software and online services used to
+develop, test, and publish prodockit, as well as the time spent maintaining the
+project and developing new features.
 
 [Buy me a coffee](https://buymeacoffee.com/buckwem){ .md-button .md-button--primary target="_blank" rel="noopener" }
