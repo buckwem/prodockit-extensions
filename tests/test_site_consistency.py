@@ -131,10 +131,10 @@ def test_public_documentation_links_use_the_custom_domain() -> None:
 
 def test_command_line_reference_is_for_document_authors() -> None:
     nav = _nav()
-    publishing = next(item["Publish a document"] for item in nav if "Publish a document" in item)
+    authoring = next(item["Authoring reference"] for item in nav if "Authoring reference" in item)
     maintenance = next(item["Maintain prodockit"] for item in nav if "Maintain prodockit" in item)
 
-    assert {"16. Command-line reference": "command-line.md"} in publishing
+    assert {"19. Command-line reference": "command-line.md"} in authoring
     assert all("command-line.md" not in item.values() for item in maintenance)
     assert "document authors" in _text("docs/command-line.md")
 
@@ -171,6 +171,9 @@ def test_authoring_navigation_uses_consistent_sentence_case() -> None:
         "Numbered steps",
         "BibTeX bibliography",
         "Index (PDF only)",
+        "Website macros",
+        "Generate a PDF",
+        "Command-line reference",
     ]
 
 

@@ -18,8 +18,8 @@ def test_top_level_sections_open_with_an_introduction() -> None:
 
     expected_first_items = {
         "Getting started": {"1. Overview": "introduction.md"},
-        "Authoring reference": {"5. Overview": "authoring.md"},
-        "Publish a document": {"15. Publishing overview": "publishing.md"},
+        "Authoring reference": {"7. Overview": "authoring.md"},
+        "Publish a document": {"20. Publishing overview": "publishing.md"},
         "Maintain prodockit": {"24. Maintenance overview": "project-maintenance.md"},
         "Contributor internals": {"28. Overview": "devcons/devcons.md"},
         "About": {"35. About prodockit": "about/index.md"},

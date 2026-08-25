@@ -10,10 +10,11 @@ Publishing turns the site you previewed locally into outputs other people can
 open: a website on GitHub Pages or GitLab Pages and, when the project needs
 one, a downloadable PDF.
 
-This section is for a document author. It covers the template, machine setup,
-local deliverables, \index{continuous integration} (CI), automated Pages
-deployment, and checks on the published
-result. Maintainers changing the prodockit package itself should use
+This section is for a document author with a working local project. It covers
+template updates, \index{continuous integration} (CI), automated Pages
+deployment, and checks on the published result. For a new project, first
+choose [adoption or template bootstrap](introduction.md). Maintainers changing
+the prodockit package itself should use
 [Maintain prodockit](project-maintenance.md).
 
 Start here after [building your first site](getting-started.md). This section
