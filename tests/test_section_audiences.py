@@ -22,7 +22,7 @@ def test_top_level_sections_open_with_an_introduction() -> None:
         "Publish a document": {"15. Publishing overview": "publishing.md"},
         "Maintain prodockit": {"24. Maintenance overview": "project-maintenance.md"},
         "Contributor internals": {"28. Overview": "devcons/devcons.md"},
-        "35. About": {"35. About prodockit": "about/index.md"},
+        "About": {"35. About prodockit": "about/index.md"},
     }
 
     groups = {next(iter(item)): next(iter(item.values())) for item in nav if isinstance(item, dict)}

@@ -91,7 +91,7 @@ nav = [
     {"33. Zensical coupling" = "devcons/zensical-coupling.md"},
     {"34. Implementation limitations" = "devcons/limitations.md"},
   ]},
-  {"35. About" = [
+  {"About" = [
     {"35. About prodockit" = "about/index.md"},
     {"36. Support and compatibility" = "about/support.md"},
     {"37. Known limitations" = "about/limitations.md"},

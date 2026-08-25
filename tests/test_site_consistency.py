@@ -77,11 +77,13 @@ def test_every_navigated_page_resets_its_heading_counter_from_nav() -> None:
 
 def test_nav_page_labels_follow_continuous_heading_numbers() -> None:
     labelled_paths = _labelled_paths(_nav())
+    top_level_labels = [next(iter(item)) for item in _nav() if isinstance(item, dict)]
 
     assert labelled_paths[0] == ("Home", "index.md")
     for number, (label, _relative_path) in enumerate(labelled_paths[1:], 1):
         assert label.startswith(f"{number}. "), label
-    assert any("35. About" in item for item in _nav())
+    assert "About" in top_level_labels
+    assert not any(re.match(r"^\d+\. ", label) for label in top_level_labels)
 
 
 def test_reference_site_enables_website_heading_numbering() -> None:
