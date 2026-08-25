@@ -277,6 +277,7 @@ files invites.
 Both CI hosts, so the same command works either way:
 
 - `pyproject.toml`, `setup.cfg`
+- `.python-version` — the exact Python used for artifact builds
 - `.github/workflows/*.yml` — GitHub Actions
 - `.gitlab-ci.yml` and `.gitlab/**/*.yml` — GitLab CI
 - `requirements*.txt`, `constraints*.txt` at the project root
@@ -285,15 +286,29 @@ Build output and virtualenvs (`site/`, `public/`, `.venv/`,
 `node_modules/`, …) are skipped, so a stale copy of a workflow inside one
 is not mistaken for a declaration.
 
-Four shapes of declaration are recognised, because a build input is not
+Five shapes of declaration are recognised, because a build input is not
 always a pip package:
 
 | Shape | Example | Where |
 | --- | --- | --- |
 | pip specifier | `zensical==0.0.52`, `zensical>=0.0.52` | anywhere |
 | runner label | `runs-on: ubuntu-24.04` | GitHub Actions |
-| image tag | `image: python:3.13` | GitLab CI, or any container |
+| image tag | `image: python:3.14` | GitLab CI, or any container |
 | CI variable | `PANDOC_VERSION: "3.10.1"` | a GitHub `env:` block, a GitLab `variables:` block |
+| version file | `3.14` | `.python-version` |
+
+!!! info "Why Python is managed without a release check"
+
+    `.python-version` gives local tooling and non-matrix CI jobs one exact
+    build interpreter. A GitLab `image: python:...` declaration is checked
+    against the same value and moves with it when you run, for example,
+    `prodockit pins --set python=3.14`.
+
+    Python is not looked up on PyPI: its release lifecycle is not represented
+    by the unrelated package with that name. `pins` checks that the repository
+    agrees with itself; choosing a newer Python remains a deliberate project
+    decision. A library's supported-version test matrix is separate and is not
+    rewritten from `.python-version`.
 
 !!! info "Why prodockit is managed by default"
     It was not, for a long time, and the omission had exactly the
@@ -446,7 +461,7 @@ running weekly, and a project access token with the `api` scope exposed as
 
 ```yaml
 drift:
-  image: python:3.13
+  image: python:3.14
   rules:
     # Only on the schedule - never on a normal push pipeline.
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -512,14 +527,15 @@ jobs:
 ```
 
 GitLab's equivalent is the job `image:`, which most projects already pin by
-habit - `python:3.13` rather than `python:latest`.
+habit - `python:3.14` rather than `python:latest`.
 
 `prodockit pins` manages both, so the image is inventoried and moved the
-same way as everything else - name it with `-p`:
+same way as everything else. Python is in the default managed set; `-p`
+narrows a run to one named input:
 
 ```bash
 prodockit pins -p ubuntu       # runs-on: ubuntu-24.04, across every workflow
-prodockit pins -p python       # image: python:3.13, in GitLab CI
+prodockit pins -p python       # .python-version and image: python:3.14
 ```
 
 ```text

@@ -452,6 +452,43 @@ def test_discover_finds_container_image_tags(tmp_path: Path) -> None:
     assert {s.kind for s in state.sites} == {"image"}
 
 
+def test_python_version_file_and_container_are_one_managed_pin(tmp_path: Path) -> None:
+    _project(
+        tmp_path,
+        {
+            ".python-version": "3.14\n",
+            ".gitlab-ci.yml": "build:\n  image: python:3.13\n",
+        },
+    )
+
+    state = discover(str(tmp_path), ["python"])["python"]
+
+    assert [(site.path, site.kind, site.version) for site in state.sites] == [
+        (".python-version", "version-file", "3.14"),
+        (".gitlab-ci.yml", "image", "3.13"),
+    ]
+    assert state.is_consistent is False
+    assert state.on_pypi is False
+
+
+def test_apply_python_version_rewrites_file_and_container_together(tmp_path: Path) -> None:
+    _project(
+        tmp_path,
+        {
+            ".python-version": "3.13\n",
+            ".gitlab-ci.yml": "build:\n  image: python:3.13\n",
+        },
+    )
+    state = discover(str(tmp_path), ["python"])["python"]
+
+    apply_version(str(tmp_path), state, "3.14")
+
+    assert (tmp_path / ".python-version").read_text(encoding="utf-8") == "3.14\n"
+    assert "image: python:3.14" in (tmp_path / ".gitlab-ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+
 def test_runner_and_image_states_are_not_looked_up_on_pypi(tmp_path: Path) -> None:
     """Asking PyPI for "ubuntu" would either miss or, worse, find an
     unrelated package of that name and report a nonsense upgrade."""
@@ -751,6 +788,17 @@ def test_prodockit_is_watched_like_every_other_build_input() -> None:
     directly as Zensical's does.
     """
     assert "prodockit" in pins.DEFAULT_PACKAGES
+
+
+def test_python_build_version_is_watched_by_default() -> None:
+    assert "python" in pins.DEFAULT_PACKAGES
+
+
+def test_python_is_never_looked_up_as_an_unrelated_pypi_package(tmp_path: Path) -> None:
+    state = discover(str(tmp_path), ["python"])["python"]
+
+    assert state.sites == []
+    assert state.on_pypi is False
 
 
 def test_this_projects_own_metadata_is_not_a_pin(tmp_path: Path) -> None:

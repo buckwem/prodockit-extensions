@@ -106,8 +106,8 @@ def test_a_step_can_hold_content_tabs() -> None:
     """
     text = (
         "/// steps\n\n//// step | Install Python\nPick your platform.\n\n"
-        '=== "macOS"\n\n    ```bash\n    brew install python@3.13\n    ```\n\n'
-        '=== "Windows"\n\n    ```powershell\n    winget install Python.Python.3.13\n    ```\n'
+        '=== "macOS"\n\n    ```bash\n    brew install python@3.14\n    ```\n\n'
+        '=== "Windows"\n\n    ```powershell\n    winget install Python.Python.3.14\n    ```\n'
         "////\n\n///\n"
     )
     html = markdown.markdown(

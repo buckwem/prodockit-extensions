@@ -70,7 +70,7 @@ Zensical doesn't provide out of the box, each usable independently:
   ``.gitlab-ci.yml``, requirements/constraints files) and move them
   together, keeping each site's own operator so a library floor stays a
   floor and a build pin stays exact. Handles runner labels
-  (``runs-on: ubuntu-24.04``), container tags (``image: python:3.13``) and
+  (``runs-on: ubuntu-24.04``), container tags (``image: python:3.14``) and
   ``<PACKAGE>_VERSION`` CI variables (``PANDOC_VERSION: "3.10.1"``) as well
   as pip specifiers - pandoc is managed by default alongside Zensical and
   WeasyPrint. Run ``prodockit pins`` from your project root.

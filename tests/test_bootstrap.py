@@ -3024,6 +3024,33 @@ def test_requirements_are_installed_by_the_projects_own_interpreter(tmp_path: Pa
     assert install[-1] == str(project / "requirements.txt")
 
 
+def test_project_environment_reports_a_different_build_python_without_blocking(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    (project / ".python-version").write_text("3.14\n", encoding="utf-8")
+    python = project / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    runner = FakeRunner(
+        {
+            "import zensical": CommandResult(0),
+            "import weasyprint": CommandResult(0),
+            "platform.python_version": CommandResult(0, "3.13.9\n"),
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "project-env").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.status is Status.OK
+    assert "Python 3.13.9" in result.detail
+    assert "build with Python 3.14" in result.detail
+
+
 def test_weasyprint_is_verified_from_the_projects_venv(tmp_path: Path) -> None:
     """#248 gap 1: the pandoc stage was *named* for WeasyPrint's
     libraries and only ever checked pandoc, so it reported ok on a
@@ -3377,8 +3404,8 @@ def test_the_venv_steps_are_the_exact_commands_for_the_platform(tmp_path: Path) 
     stage = next(s for s in STAGES if s.id == "own-venv")
     installers = {
         UBUNTU: "python3-venv",
-        MACOS: "python@3.13",
-        WINDOWS: "Python.Python.3.13",
+        MACOS: "python@3.14",
+        WINDOWS: "Python.Python.3.14",
     }
     for platform, package in installers.items():
         plan = stage.plan(_context(tmp_path, platform=platform))
@@ -3394,9 +3421,9 @@ def test_the_venv_steps_are_the_exact_commands_for_the_platform(tmp_path: Path) 
             assert "%USERPROFILE%" not in said
         if platform is MACOS:
             # Homebrew does not relink `python3` for a versioned formula,
-            # so after installing python@3.13 the recipe has to name it -
+            # so after installing python@3.14 the recipe has to name it -
             # `python3` would be the interpreter just worked around.
-            assert "python3.13 -m venv" in said
+            assert "python3.14 -m venv" in said
 
 
 PLAN_EFFECTS: dict[str, tuple[str, ...] | None] = {

@@ -95,6 +95,7 @@ DEFAULT_PACKAGES = (
     "markdown",
     "pymdown-extensions",
     "pandoc",
+    "python",
 )
 
 #: Directories never worth scanning - build output, virtualenvs, caches.
@@ -118,7 +119,13 @@ SKIP_DIRS = frozenset(
 )
 
 #: Files scanned by name, relative to the project root.
-ROOT_FILES = ("pyproject.toml", ".gitlab-ci.yml", ".gitlab-ci.yaml", "setup.cfg")
+ROOT_FILES = (
+    "pyproject.toml",
+    ".python-version",
+    ".gitlab-ci.yml",
+    ".gitlab-ci.yaml",
+    "setup.cfg",
+)
 
 #: Directories scanned wholesale for CI job definitions - GitHub Actions
 #: and GitLab's own `include:` layout respectively.
@@ -188,9 +195,9 @@ def comment_start(text: str) -> int:
 #: can reach - so it belongs in the same inventory.
 _RUNNER_RE_TEMPLATE = r"runs-on:\s*[\"']?(?P<name>{names})(?P<extras>)(?P<op>-)(?P<version>[\w.]+)"
 
-#: A container image tag - GitLab CI's `image: python:3.13`, and the same
+#: A container image tag - GitLab CI's `image: python:3.14`, and the same
 #: shape in any workflow that names one. An optional registry/namespace
-#: prefix is skipped so `image: docker.io/library/python:3.13` matches on
+#: prefix is skipped so `image: docker.io/library/python:3.14` matches on
 #: `python`.
 _IMAGE_RE_TEMPLATE = (
     r"image:\s*[\"']?(?:[\w.-]+(?:/[\w.-]+)*/)?(?P<name>{names})(?P<extras>)(?P<op>:)(?P<version>[\w.-]+)"
@@ -247,9 +254,10 @@ class PinSite:
     extras: str = ""
     #: How this declaration is written: a pip specifier (`zensical==0.0.52`),
     #: a GitHub runner label (`runs-on: ubuntu-24.04`), a container image
-    #: tag (`image: python:3.13`), or a `<PACKAGE>_VERSION` CI variable
-    #: (`PANDOC_VERSION: "3.10.1"`). Decides whether PyPI can say what the
-    #: newest release is - for everything but a pip specifier, nothing can.
+    #: tag (`image: python:3.14`), or a `<PACKAGE>_VERSION` CI variable
+    #: (`PANDOC_VERSION: "3.10.1"`), or a root version file. Decides whether
+    #: PyPI can say what the newest release is - for everything but a pip
+    #: specifier, nothing can.
     kind: str = "pip"
     #: The declaration's own name, exactly as written - `"PANDOC"` for
     #: `PANDOC_VERSION: "3.10.1"`. Only set for `kind == "env"`, where a
@@ -262,6 +270,8 @@ class PinSite:
 
     @property
     def spec(self) -> str:
+        if self.kind == "version-file":
+            return self.version
         name = self.name_as_written or self.package
         return f"{name}{self.extras}{self.op}{self.version}"
 
@@ -309,9 +319,12 @@ class PackageState:
     @property
     def on_pypi(self) -> bool:
         """Whether PyPI can answer what the newest release is. A runner
-        label or an image tag is still worth inventorying and rewriting -
-        it is a build input like any other - but there is no package index
-        to ask, so the current value is the only sensible default."""
+        label, image tag or Python version file is still worth inventorying
+        and rewriting - it is a build input like any other - but there is no
+        package index to ask, so the current value is the only sensible
+        default."""
+        if self.package == "python":
+            return False
         return any(site.kind == "pip" for site in self.sites) or not self.sites
 
 
@@ -396,6 +409,20 @@ def discover(
         except (OSError, UnicodeDecodeError):
             # Unreadable or binary - not a declaration site anyone edits.
             continue
+        if rel_path == ".python-version":
+            version = "".join(lines).strip()
+            if "python" in states and re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,2}", version):
+                states["python"].sites.append(
+                    PinSite(
+                        path=rel_path,
+                        line=1,
+                        package="python",
+                        op="",
+                        version=version,
+                        kind="version-file",
+                    )
+                )
+            continue
         for number, text in enumerate(lines, start=1):
             # Anything from here on is prose about a version, not a
             # declaration of one - see comment_start().
@@ -453,9 +480,9 @@ def resolve_latest(
     already say."""
     for state in states.values():
         if not state.on_pypi:
-            # A runner label or image tag. Asking PyPI for "ubuntu" would
-            # either miss or, worse, find an unrelated package of that name
-            # and report a nonsense upgrade.
+            # A runner label, image tag or Python version file. Asking PyPI
+            # for "ubuntu" or "python" would either miss or, worse, find an
+            # unrelated package and report a nonsense upgrade.
             state.latest_error = "not a PyPI package - set the version yourself"
             continue
         if offline:
@@ -492,6 +519,16 @@ def apply_version(root: str, state: PackageState, version: str) -> list[PinSite]
             if index >= len(lines):
                 raise PinError(f"{rel_path}:{site.line} no longer exists - re-run discovery")
             old = site.spec
+            if site.kind == "version-file":
+                if lines[index].strip() != site.version:
+                    raise PinError(
+                        f"{rel_path}:{site.line} no longer contains {old!r} - re-run discovery"
+                    )
+                leading = lines[index][: len(lines[index]) - len(lines[index].lstrip())]
+                trailing = lines[index][len(lines[index].rstrip()) :]
+                lines[index] = f"{leading}{version}{trailing}"
+                changed.append(site)
+                continue
             # A CI variable name (`PANDOC_VERSION`) keeps the case it was
             # declared in - `site.package` is always lower-cased, for
             # lookup against the packages a caller asked to manage, so
