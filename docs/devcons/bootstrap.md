@@ -214,21 +214,21 @@ stage already done is left alone.
 //// step | Install Python
 prodockit is a Python program, so this is the one thing that cannot be
 automated - there is nothing to run it with yet. Any version from 3.10
-works; 3.13 is what the template's CI uses.
+works; 3.14 is what the template's CI uses.
 
 === "macOS"
 
     Install [Homebrew](https://brew.sh) if you do not have it, then:
 
     ```bash
-    brew install python@3.13
+    brew install python@3.14
     python3 --version
     ```
 
 === "Windows"
 
     ```powershell
-    winget install --id Python.Python.3.13 -e
+    winget install --id Python.Python.3.14 -e
     py --version
     ```
 

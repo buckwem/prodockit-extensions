@@ -19,6 +19,11 @@ Those are two package eras rather than duplicate releases.
 
 ## Unreleased
 
+- **Changed:** artifact builds now take Python 3.14 from `.python-version`;
+  `prodockit pins` keeps that file aligned with Python container images, and
+  bootstrap reports when the local project environment uses a different
+  Python without preventing setup ([#363](https://github.com/buckwem/prodockit-extensions/issues/363)).
+
 - **Fixed:** `pdk boot` and `prodockit bootstrap` reject combinations of
   `--check`, `--dry-run`, `--apply`, and `--configure` before reading
   configuration or contacting a host. In particular, `--dry-run --apply` can

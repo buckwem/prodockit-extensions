@@ -35,7 +35,7 @@ system, then close and reopen the terminal so the new command is on `PATH`.
     Open PowerShell and run:
 
     ```powershell
-    winget install --exact --id Python.Python.3.13
+    winget install --exact --id Python.Python.3.14
     python --version
     ```
 

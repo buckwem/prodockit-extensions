@@ -2675,7 +2675,11 @@ def pins(
             # case (PANDOC_VERSION, not pandoc_VERSION) and must be used
             # here too, or this progress line shows a rewrite that isn't
             # the one apply_version() actually performed.
-            new_spec = f"{site.name_as_written or site.package}{site.extras}{site.op}{version}"
+            new_spec = (
+                version
+                if site.kind == "version-file"
+                else f"{site.name_as_written or site.package}{site.extras}{site.op}{version}"
+            )
             click.echo(f"  {site.path}:{site.line}  {site.spec} -> {new_spec}")
             updated += 1
 

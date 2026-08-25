@@ -2720,6 +2720,31 @@ def _imports_from_project_venv(context: Context, module: str) -> CommandResult:
     return context.runner.run(command)
 
 
+_PYTHON_VERSION_PROBE = "import platform; print(platform.python_version())"
+
+
+def _project_build_python(project: Path) -> str | None:
+    """The Python release the project and its non-matrix CI builds use."""
+    try:
+        version = (project / ".python-version").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return version if re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,2}", version) else None
+
+
+def _project_environment_python(context: Context) -> str | None:
+    """The actual interpreter version inside the generated environment."""
+    result = context.runner.run(
+        [str(_venv_python(context)), "-c", _PYTHON_VERSION_PROBE]
+    )
+    return result.stdout.strip() if result.ok and result.stdout.strip() else None
+
+
+def _python_minor(version: str) -> tuple[int, int] | None:
+    match = re.match(r"^(\d+)\.(\d+)", version)
+    return (int(match.group(1)), int(match.group(2))) if match else None
+
+
 def _check_project_env(context: Context) -> CheckResult:
     """Whether the project can actually build, asked of the project itself.
 
@@ -2772,6 +2797,18 @@ def _check_project_env(context: Context) -> CheckResult:
         return _wrong(
             "WeasyPrint works in this run, but the project environment does not yet "
             "preserve Homebrew's library path for future shells"
+        )
+    build_python = _project_build_python(project)
+    environment_python = _project_environment_python(context) if build_python else None
+    if (
+        build_python
+        and environment_python
+        and _python_minor(build_python) != _python_minor(environment_python)
+    ):
+        return _ok(
+            f"the project's own environment, {_project_venv(context)}, is ready - "
+            f"built with Python {environment_python}, while the project and CI build "
+            f"with Python {build_python}"
         )
     # Says whose environment it is. There are two in a finished setup -
     # prodockit's own and this one - and a reader who has just been asked
@@ -2880,8 +2917,8 @@ def _plan_own_venv(context: Context) -> Plan:
     """
     installers = {
         UBUNTU: _apt("install", "-y", "python3-venv"),
-        MACOS: ["brew", "install", "python@3.13"],
-        WINDOWS: _winget("Python.Python.3.13", resilient=context.pdkboot),
+        MACOS: ["brew", "install", "python@3.14"],
+        WINDOWS: _winget("Python.Python.3.14", resilient=context.pdkboot),
     }
     missing_machinery = not _can_build_environments(context)
     return Plan(
@@ -2900,7 +2937,7 @@ def _plan_own_venv(context: Context) -> Plan:
             # interpreter this stage was working around.
             *_venv_recipe(
                 context,
-                "python3.13" if missing_machinery and context.platform == MACOS else "",
+                "python3.14" if missing_machinery and context.platform == MACOS else "",
             ),
         ],
         confirm="Is prodockit running from its own environment now?",
