@@ -90,20 +90,51 @@ def test_each_execution_mode_uses_only_its_own_path(
     assert called == expected
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="issue #540: conflicting modes are accepted and --dry-run --apply applies",
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("--check", "--dry-run"),
+        ("--check", "--apply"),
+        ("--check", "--configure"),
+        ("--dry-run", "--apply"),
+        ("--dry-run", "--configure"),
+        ("--apply", "--configure"),
+        ("--check", "--dry-run", "--apply", "--configure"),
+    ],
 )
-def test_dry_run_cannot_reach_the_apply_path(
+def test_conflicting_modes_are_rejected_before_any_bootstrap_work(
+    bootstrap_cli: BootstrapCliHarness,
+    monkeypatch: pytest.MonkeyPatch,
+    args: tuple[str, ...],
+) -> None:
+    called: list[str] = []
+    monkeypatch.setattr(
+        "prodockit.cli.load_bootstrap_config",
+        lambda path: called.append("load") or _complete_config(),
+    )
+
+    result = bootstrap_cli.invoke(*args)
+
+    assert result.exit_code == 2
+    assert "Choose only one operating mode" in result.output
+    assert called == []
+
+
+def test_pdk_boot_alias_rejects_conflicting_modes_before_reading_config(
     bootstrap_cli: BootstrapCliHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    called = _prepare_mode_test(bootstrap_cli, monkeypatch)
+    called: list[str] = []
+    monkeypatch.setattr(
+        "prodockit.cli.load_bootstrap_config",
+        lambda path: called.append("load") or _complete_config(),
+    )
 
-    result = bootstrap_cli.invoke("--dry-run", "--apply")
+    result = bootstrap_cli.invoke("--dry-run", "--apply", command="boot")
 
     assert result.exit_code == 2
-    assert "apply" not in called
+    assert "Choose only one operating mode; got --dry-run, --apply" in result.output
+    assert called == []
 
 
 def test_a_malformed_config_is_a_clean_cli_error(

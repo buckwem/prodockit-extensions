@@ -1804,16 +1804,15 @@ def bootstrap(
     safe default, and the question most people are actually asking. Phase
     1 installs nothing either way.
     """
-    if _PDKBOOT_MODE.get():
-        modes = {
-            "--check": check_only,
-            "--dry-run": dry_run,
-            "--apply": apply_stages,
-            "--configure": configure,
-        }
-        selected = [name for name, enabled in modes.items() if enabled]
-        if len(selected) > 1:
-            raise click.UsageError(f"Choose only one operating mode; got {', '.join(selected)}.")
+    modes = {
+        "--check": check_only,
+        "--dry-run": dry_run,
+        "--apply": apply_stages,
+        "--configure": configure,
+    }
+    selected = [name for name, enabled in modes.items() if enabled]
+    if len(selected) > 1:
+        raise click.UsageError(f"Choose only one operating mode; got {', '.join(selected)}.")
 
     # Bare `prodockit bootstrap` is a checking run. Defaulting to the
     # read-only behaviour matters more than usual here: the alternative
