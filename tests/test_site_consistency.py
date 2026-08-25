@@ -103,6 +103,18 @@ def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
     assert "[Publish a document](publishing.md)" in introduction
 
 
+def test_introduction_offers_an_optional_tracking_free_support_link() -> None:
+    introduction = _text("docs/introduction.md")
+
+    assert "## Support prodockit" in introduction
+    assert "https://buymeacoffee.com/buckwem" in introduction
+    assert "software and online services used to" in introduction
+    assert "develop, test, and publish prodockit" in introduction
+    assert ".md-button .md-button--primary" in introduction
+    assert "<script" not in introduction
+    assert "cdn.buymeacoffee.com" not in introduction
+
+
 def test_public_documentation_links_use_the_custom_domain() -> None:
     for relative_path in (
         "README.md",
