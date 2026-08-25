@@ -19,13 +19,16 @@ def _nav_group(title: str) -> list[dict[str, str]]:
     return next(item[title] for item in nav if title in item)
 
 
-def test_publishing_holds_setup_and_template_guides() -> None:
+def test_getting_started_holds_installation_routes() -> None:
+    getting_started = _nav_group("Getting started")
     publishing = _nav_group("Publish a document")
     maintenance = _nav_group("Maintain prodockit")
 
-    assert {"18. Set up a machine": "devcons/bootstrap.md"} in publishing
+    assert {"3. Add prodockit to an existing document": "adopt.md"} in getting_started
+    assert {"4. Set up a template project": "devcons/bootstrap.md"} in getting_started
+    assert {"5. Start with prodockit-template": "prodockit-template.md"} in getting_started
     assert {
-        "19. Staying in step with the template": "devcons/template-sync.md"
+        "21. Staying in step with the template": "devcons/template-sync.md"
     } in publishing
     assert maintenance == [
         {"24. Maintenance overview": "project-maintenance.md"},

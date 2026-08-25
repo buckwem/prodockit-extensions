@@ -19,6 +19,21 @@ If you want to see it working before reading the reference pages, follow
 [Build your first site](getting-started.md). It starts with a new Zensical
 project and ends at a live local preview.
 
+## Choose an installation route
+
+Install the prodockit package first, then choose the route that matches the
+document you have:
+
+| Starting point | Installation route |
+|---|---|
+| An existing Zensical or MkDocs document with its own design, Git setup, editor, and publishing workflow | [Add prodockit to an existing document](adopt.md) integrates selected authoring components without replacing those choices |
+| No existing document, or a project that should start from the maintained report template | [Set up a template project](devcons/bootstrap.md) prepares the machine, repository, build tools, and template-based project |
+
+[Start with prodockit-template](prodockit-template.md) explains what the
+template supplies and which files become part of your own project. Adoption
+and bootstrap are alternatives: you do not need to run bootstrap on a project
+that you are adopting.
+
 ## Choose what you need
 
 ### Authoring extensions
@@ -53,8 +68,9 @@ prodockit also provides commands and integrations rather than Markdown syntax:
 | [Maintain prodockit](project-maintenance.md) | Maintain the package repository, build pins, automation, and releases |
 
 Go to the [Authoring reference](authoring.md) when you want to add document
-features. Go to [Publish a document](publishing.md) when you are ready to use
-the template, build a PDF, or publish with continuous integration. The
+features, use website macros, build a PDF, or look up a command. Go to
+[Publish a document](publishing.md) when you are ready to update a
+template-derived project or publish with continuous integration. The
 [command-line reference](command-line.md) says which commands change files and
 which only report.
 

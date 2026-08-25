@@ -7,9 +7,10 @@ icon: lucide/pencil-line
 # Authoring reference
 
 This section is for a document author who has built a first Zensical site and
-wants to add structure or specialist content to its \index{Markdown} pages. You do not
-need to read every page: choose the feature the document needs, enable that
-extension, and copy its smallest complete example.
+wants to add structure or specialist content to its \index{Markdown} pages,
+use values calculated across the document, or produce a PDF. You do not need
+to read every page: choose the feature or tool the document needs and start
+with its smallest complete example.
 
 ## Build on PyMdown Blocks
 
@@ -73,9 +74,25 @@ same broad task. A small document can define sources directly in Markdown;
 a report with an existing `.bib` library normally uses the bibliography
 extension. You do not need to enable both.
 
-## Keep publishing concerns separate
+## Use features beyond Markdown extensions
 
-The authoring pages explain what to write. When the content is ready to become
-a complete PDF or hosted website, continue to [Publish a document](publishing.md).
-Machine setup, template updates, CI, Pages deployment, and output tests live
-there so they do not interrupt the Markdown reference.
+Some authoring features are commands or Zensical template helpers rather than
+Python-Markdown extensions:
+
+| Document need | Reference |
+|---|---|
+| Insert calculated values such as word counts, repository details, or document-wide layout settings | [Website macros](macros.md) |
+| Produce a complete PDF, a single-page PDF, or a source bundle | [PDF generation](pdf.md) |
+| Find the safe first form, write behaviour, and options for every public command | [Command-line tools](command-line.md) |
+
+These features are part of the same authoring reference because they affect
+what the document contains or produces. Installation, repository maintenance,
+continuous integration, and deployment remain in their task-based sections.
+
+## Keep deployment concerns separate
+
+The authoring pages explain what to write, how to configure its rendered
+features, and how to build local outputs. When those outputs are ready for a
+hosted website, continue to [Publish a document](publishing.md). Template
+updates, CI, Pages deployment, and output tests live there so they do not
+interrupt the authoring reference.

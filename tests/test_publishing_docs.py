@@ -22,15 +22,10 @@ def _publishing_nav() -> list[dict[str, str]]:
 
 def test_publishing_nav_follows_the_reader_workflow() -> None:
     assert _publishing_nav() == [
-        {"15. Publishing overview": "publishing.md"},
-        {"16. Command-line reference": "command-line.md"},
-        {"17. Start with prodockit-template": "prodockit-template.md"},
-        {"18. Set up a machine": "devcons/bootstrap.md"},
-        {"19. Staying in step with the template": "devcons/template-sync.md"},
-        {"20. Generate a PDF": "pdf.md"},
-        {"21. Publish automatically": "devcons/continuous-integration.md"},
-        {"22. Test the built output": "devcons/testing.md"},
-        {"23. Website macros": "macros.md"},
+        {"20. Publishing overview": "publishing.md"},
+        {"21. Staying in step with the template": "devcons/template-sync.md"},
+        {"22. Publish automatically": "devcons/continuous-integration.md"},
+        {"23. Test the built output": "devcons/testing.md"},
     ]
 
 

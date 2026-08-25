@@ -45,8 +45,8 @@ prodockit package documented here.
 | Page | Use it for |
 |---|---|
 | [Get started](../introduction.md) | Install prodockit and build a first local site |
-| [Authoring reference](../authoring.md) | Add document features to Markdown pages |
-| [Publish a document](../publishing.md) | Produce and deploy a website and PDF |
+| [Authoring reference](../authoring.md) | Add document features, macros, PDFs, and command-line tools |
+| [Publish a document](../publishing.md) | Update and deploy a website and its outputs |
 | [Support and compatibility](support.md) | Check maturity, supported versions, platforms, and known constraints |
 | [Release notes](changelog.md) | See new features, fixes, and upgrade actions by version |
 | [Licence](license.md) | Read the MIT License governing use, modification, and redistribution |

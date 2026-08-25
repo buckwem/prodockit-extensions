@@ -10,8 +10,9 @@ This page inventories the public \index{command-line interface} (CLI) for docume
 maintainers. It keeps command names, aliases, safe defaults, write behaviour,
 and automation semantics visible in one place.
 
-Start with [Publish a document](publishing.md) to see each command in the task
-that needs it. Run a command from the project
+Start with the [Authoring reference](authoring.md) to choose a document feature,
+or [Publish a document](publishing.md) to see deployment commands in their
+workflow. Run a command from the project
 root—the directory containing `zensical.toml`—unless an option explicitly
 names another location.
 
