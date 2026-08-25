@@ -17,7 +17,7 @@ except where noted:
 | Requirement | Needed for |
 | --- | --- |
 | [`Markdown`](https://python-markdown.github.io/) (>= 3.10.3) | every extension |
-| [`zensical`](https://zensical.org/) (>= 0.0.55) | Zensical integration and `prodockit.zensical_macros` |
+| [`zensical`](https://zensical.org/) (>= 0.0.57) | Zensical integration and `prodockit.zensical_macros` |
 | [PyMdown Extensions](https://facelessuser.github.io/pymdown-extensions/) (>= 11.0.1) | `prodockit.steps` and `prodockit.tree` are built directly on the PyMdown Blocks API; `prodockit.pdf` also preserves the output of PyMdown features |
 | [`beautifulsoup4`](https://www.crummy.com/software/BeautifulSoup/) (>= 4.12) | `prodockit.pdf` |
 | \index{dependencies!`click`} (>= 8.0) | the `prodockit` command-line tool |

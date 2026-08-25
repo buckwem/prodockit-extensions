@@ -28,14 +28,14 @@ The future stability contract is tracked in
 Installing prodockit installs these Python dependencies automatically:
 
 The current test matrix covers Python 3.10, 3.11, 3.12, 3.13, and Python 3.14. The
-documentation build currently pins Zensical 0.0.55 and pymdown-extensions
+documentation build currently pins Zensical 0.0.57 and pymdown-extensions
 11.0.1 so changes to either renderer arrive as reviewed version changes rather
 than silently altering published output.
 
 | Requirement | Supported or tested range | Why it matters |
 |---|---|---|
 | Python | 3.10–3.14 tested | The package requires Python 3.10 or later |
-| Zensical | 0.0.55 or later | Site configuration, rendering, navigation, macros, and icons |
+| Zensical | 0.0.57 or later | Site configuration, rendering, navigation, macros, and icons |
 | Python-Markdown | 3.10.3 or later | The extension engine used by every authoring feature |
 | pymdown-extensions | 11.0.1 or later | PyMdown Blocks is the direct foundation for `prodockit.steps` and `prodockit.tree`; the PDF pipeline also preserves PyMdown output |
 
