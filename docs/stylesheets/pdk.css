@@ -242,7 +242,7 @@
 /* ==================== Cover page hero ========================= */
 /* ============================================================= */
 
-/* Full-bleed, full-height split hero (title/release/download left,
+/* Full-bleed split hero (title/release/download left,
    the abstract-flow graphic right) - the same wide, bold treatment as
    zensical.org's own homepage. Breaks out of the theme's centred content
    column via the negative-margin/100vw trick, since Zensical has no
@@ -252,23 +252,25 @@
    own foreground colour with no override needed. */
 .cover-hero {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 4rem;
+  gap: 3rem;
   width: 100vw;
   position: relative;
   left: 50%;
   right: 50%;
+  margin-top: -1.5rem;
   margin-left: -50vw;
   margin-right: -50vw;
-  min-height: calc(100vh - 8rem);
-  padding: 2rem 6vw;
+  min-height: 0;
+  padding: 0.75rem 6vw 1.25rem;
   box-sizing: border-box;
 }
 
 .cover-hero-text {
   flex: 1 1 420px;
   max-width: 640px;
+  padding-top: 0.25rem;
 }
 
 .cover-hero-title {
@@ -345,8 +347,8 @@
 }
 
 .cover-hero-graphic {
-  flex: 1 1 480px;
-  max-width: 640px;
+  flex: 0 1 540px;
+  max-width: min(540px, 44vw);
 }
 
 .cover-hero-graphic img {
@@ -360,10 +362,17 @@
     flex-direction: column;
     text-align: center;
     min-height: auto;
+    margin-top: -1rem;
     padding: 2rem 4vw;
   }
   .cover-hero-text {
+    flex: 0 1 auto;
     max-width: 100%;
+  }
+  .cover-hero-graphic {
+    flex: 0 1 auto;
+    max-width: min(520px, 88vw);
+    margin: 0 auto;
   }
 }
 
@@ -385,6 +394,7 @@
   .cover-hero-text,
   .cover-hero-graphic {
     max-width: 100%;
+    padding-top: 0;
   }
   /* clamp()/vw sizing (used for the live website, where the viewport is
      known) has no meaning on a paginated PDF page, and isn't supported by

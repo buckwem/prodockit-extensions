@@ -71,6 +71,17 @@ def test_home_page_hero_title_is_not_numbered() -> None:
     assert '{: .cover-hero-title .unnumbered }' in home
 
 
+def test_home_page_hero_does_not_force_a_full_viewport() -> None:
+    stylesheet = _text("docs/stylesheets/pdk.css")
+    hero = stylesheet.split(".cover-hero {", 1)[1].split("}", 1)[0]
+    graphic = stylesheet.split(".cover-hero-graphic {", 1)[1].split("}", 1)[0]
+
+    assert "align-items: flex-start" in hero
+    assert "min-height: 0" in hero
+    assert "100vh" not in hero
+    assert "max-width: min(540px, 44vw)" in graphic
+
+
 def test_every_navigated_page_resets_its_heading_counter_from_nav() -> None:
     macro = "{{ heading_counter_reset(page) }}"
 
