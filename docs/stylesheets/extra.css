@@ -1,1 +1,39 @@
 /* Add project-specific website and PDF styles below this line. */
+
+/* Place the website and PDF stylesheet cascades beside one another without
+   presenting the layout as a data table. */
+.md-typeset table.stylesheet-cascade-diagrams,
+table.stylesheet-cascade-diagrams {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: transparent;
+  border: 0 !important;
+  box-shadow: none;
+}
+.md-typeset table.stylesheet-cascade-diagrams tr,
+.md-typeset table.stylesheet-cascade-diagrams td,
+table.stylesheet-cascade-diagrams tr,
+table.stylesheet-cascade-diagrams td {
+  border: 0 !important;
+}
+.md-typeset table.stylesheet-cascade-diagrams td,
+table.stylesheet-cascade-diagrams td {
+  width: 50%;
+  padding: 0 0.5rem;
+  vertical-align: top;
+  text-align: center;
+  background: transparent;
+  border: 0;
+}
+.md-typeset table.stylesheet-cascade-diagrams .mermaid,
+table.stylesheet-cascade-diagrams .mermaid {
+  margin: 0;
+}
+.md-typeset table.stylesheet-cascade-diagrams .mermaid svg,
+table.stylesheet-cascade-diagrams .mermaid svg {
+  display: block;
+  margin-inline: auto;
+}

@@ -19,6 +19,7 @@ def test_topic_owner_pages_define_their_principal_index_entries() -> None:
         "docs/publishing.md": (r"\index{publishing workflow}", r"\index{continuous integration}"),
         "docs/prodockit-template.md": (r"\index{`prodockit-template`}", r"\index{`is_surrey`}"),
         "docs/command-line.md": (r"\index{command-line interface}",),
+        "docs/stylesheets.md": (r"\index{stylesheets!stylesheet ownership}",),
         "docs/pdf.md": (
             r"\index{commands!`prodockit pdf`}",
             r"\index{commands!`prodockit init-tools`}",

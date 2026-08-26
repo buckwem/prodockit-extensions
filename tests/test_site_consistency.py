@@ -194,6 +194,7 @@ def test_authoring_navigation_uses_consistent_sentence_case() -> None:
         "Website macros",
         "Generate a PDF",
         "Command-line reference",
+        "Stylesheets",
     ]
 
 
