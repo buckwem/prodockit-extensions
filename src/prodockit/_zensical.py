@@ -42,7 +42,7 @@ T = TypeVar("T")
 _warned_apis: set[str] = set()
 
 
-def _installed_zensical_version() -> str:
+def _installed_zensical_version(command: str = "zensical") -> str:
     """The installed Zensical's own version string, or `"unknown"` if it
     can't be determined - best-effort, since this exists only to name a
     version in a diagnostic message, and a failure here must never be the
@@ -55,7 +55,7 @@ def _installed_zensical_version() -> str:
     """
     try:
         result = subprocess.run(
-            ["zensical", "--version"],
+            [command, "--version"],
             capture_output=True,
             check=False,
             text=True,

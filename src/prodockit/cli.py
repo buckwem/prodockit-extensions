@@ -93,6 +93,7 @@ from prodockit.bootstrap.recovery import (
     bootstrap_report_path,
     recovery_advice,
 )
+from prodockit.environment import BuildEnvironmentError, check_pdf_environment
 from prodockit.init_tools import (
     COMPONENT_PURPOSE,
     InitToolsError,
@@ -2147,6 +2148,10 @@ def pdf(config_file: str, markdown_file: str | None) -> None:
     nav, docs directory, fonts, page size, and so on. See the PDF
     generation docs for the full list of `zensical.toml` settings this
     reads."""
+    try:
+        check_pdf_environment(config_file)
+    except BuildEnvironmentError as error:
+        raise click.ClickException(str(error)) from error
     _run_pdf_command(config_file, markdown_file, legacy=False)
 
 

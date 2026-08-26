@@ -12,6 +12,7 @@ import pytest
 from click.testing import CliRunner
 
 from prodockit import __version__
+from prodockit.environment import BuildEnvironmentError
 from prodockit.pdf.cli import main
 
 _ZENSICAL_TOML = """
@@ -137,6 +138,27 @@ def test_public_pdf_command_routes_only_to_the_built_site_renderer(monkeypatch) 
     assert result.exit_code == 0, result.output
     assert calls == [("zensical.toml", None)]
     assert "Wrote built-site.pdf" in result.output
+
+
+def test_public_pdf_stops_before_building_when_the_active_environment_is_old(monkeypatch) -> None:
+    import prodockit.cli as cli_module
+
+    def mismatch(_config_file):
+        raise BuildEnvironmentError(
+            "zensical 0.0.53 is active, but requirements.txt requires zensical>=0.0.57"
+        )
+
+    def built_site(*args, **kwargs):
+        raise AssertionError("the renderer must not start after a failed environment preflight")
+
+    monkeypatch.setattr(cli_module, "check_pdf_environment", mismatch)
+    monkeypatch.setattr(cli_module, "build_pdf_from_built_site", built_site)
+
+    result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 1
+    assert "zensical 0.0.53 is active" in result.output
+    assert "requires zensical>=0.0.57" in result.output
 
 
 def test_public_pdf_command_reports_built_site_boundary_errors(monkeypatch) -> None:
