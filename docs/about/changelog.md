@@ -19,6 +19,10 @@ Those are two package eras rather than duplicate releases.
 
 ## Unreleased
 
+- **Fixed:** PDF body content now uses the configured page margins exactly,
+  aligned with the running header and footer rules, instead of retaining
+  Zensical's website-only horizontal margin on the inner article wrapper.
+
 - **Changed:** pull requests run a risk-selected CI tier: Python 3.14 and the
   strict documentation build always run; executable-code changes also test
   the oldest supported Python; and installed-wheel adoption or PDF matrices

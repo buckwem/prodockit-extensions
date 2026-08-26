@@ -136,7 +136,8 @@ pre, code { font-size: 10pt !important; }
 /* ==========================================================================
    CRITICAL WEASYPRINT STRUCTURAL CANVAS RESET
    ========================================================================== */
-html, body, main, div, article, section, .md-container, .md-main, .md-content {
+html, body, main, div, article, section, .md-container, .md-main, .md-content,
+.md-content__inner {
     display: block !important;
     height: auto !important;
     min-height: 0 !important;
@@ -145,6 +146,19 @@ html, body, main, div, article, section, .md-container, .md-main, .md-content {
     position: static !important;
     float: none !important;
     background: transparent !important;
+}
+/* Zensical gives the article wrapper `margin: 0 .8rem 1.2rem` for its
+   website layout. The built-site renderer deliberately retains that class,
+   while a bare HTML body also carries a user-agent margin. Reset only the
+   horizontal canvas spacing here: PDF body content must use the same
+   configured page edges as the running header and footer rules. Keep the
+   vertical spacing, which is independent of this alignment. */
+html, body, main, .md-container, .md-main, .md-main__inner, .md-content,
+.md-content__inner {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
 }
 header, nav, footer, .md-sidebar, .md-header, .md-footer, .md-search, #search {
     display: none !important;
