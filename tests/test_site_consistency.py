@@ -95,6 +95,16 @@ def test_reference_site_enables_website_heading_numbering() -> None:
     assert "config.extra.website_heading_numbering == false" in _text("overrides/main.html")
 
 
+def test_reference_site_fails_when_a_macro_cannot_render() -> None:
+    config = read_config(_text("zensical.toml"))["project"]
+    macros = config["markdown_extensions"]["zensical"]["extensions"]["macros"]
+
+    assert macros["on_error_fail"] is True
+    guide = _text("docs/macros.md")
+    assert guide.count("on_error_fail = true") == 3
+    assert "allowing a broken site to be published" in guide
+
+
 def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
     introduction = _text("docs/introduction.md")
 
