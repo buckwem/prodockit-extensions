@@ -472,7 +472,7 @@ def _build_pdf_from_config(
         # exists by the time the Lua filter needs it.
         os.makedirs(math_dir, exist_ok=True)
 
-    page_objects = []
+    page_objects: list[Page] = []
     for nav_page in nav_pages:
         docs_rel_path = nav_page["url"]
         full_path = os.path.join(source_docs_dir, docs_rel_path)
