@@ -111,3 +111,17 @@ def test_ci_runs_static_render_and_coverage_work_once() -> None:
     assert workflow.count("run: mypy src") == 1
     assert workflow.count("run: pytest --cov=prodockit") == 1
     assert "if: matrix.python-version != '3.14'\n        run: pytest" in workflow
+
+
+def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_coverage(
+) -> None:
+    workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "cache: npm" in workflow
+    assert "src/prodockit/_tools_template/mermaid/package-lock.json" in workflow
+    assert "src/prodockit/_tools_template/mathjax/package-lock.json" in workflow
+    assert workflow.count("scenario_args: --scenario toml-both") == 2
+    assert "runner: windows-2025" in workflow
+    assert "runner: windows-11-arm" in workflow
