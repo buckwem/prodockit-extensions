@@ -8,8 +8,35 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      relevant: ${{ steps.scope.outputs.adopt }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: scope
+        name: Check whether adoption or packaging changed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            git diff --name-only --diff-filter=ACDMR "$BASE_SHA" "$HEAD_SHA" |
+              python tools/ci_scope.py >> "$GITHUB_OUTPUT"
+          else
+            python tools/ci_scope.py --all >> "$GITHUB_OUTPUT"
+          fi
+
   installed-wheel:
+    needs: scope
+    if: needs.scope.outputs.relevant == 'true'
     name: ${{ matrix.name }} ${{ matrix.architecture }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
@@ -74,3 +101,27 @@ jobs:
           name: adopt-${{ matrix.runner }}-${{ matrix.architecture }}
           path: adopt-acceptance-report.json
           if-no-files-found: warn
+
+  result:
+    name: Adopt installed-wheel result
+    if: always()
+    needs: [scope, installed-wheel]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Report the selected scope
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          RELEVANT: ${{ needs.scope.outputs.relevant }}
+          MATRIX_RESULT: ${{ needs.installed-wheel.result }}
+        run: |
+          if [ "$SCOPE_RESULT" != success ]; then
+            echo "The changed-file classifier failed."
+            exit 1
+          fi
+          if [ "$RELEVANT" = true ] && [ "$MATRIX_RESULT" != success ]; then
+            echo "The adoption installed-wheel matrix did not pass."
+            exit 1
+          fi
+          if [ "$RELEVANT" != true ]; then
+            echo "No adoption, packaging or shared integration files changed."
+          fi
