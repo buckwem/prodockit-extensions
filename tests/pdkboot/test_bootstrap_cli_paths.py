@@ -10,6 +10,7 @@ the hermetic harness from ``bootstrap_cli_harness.py``.
 
 from pathlib import Path
 
+import click
 import pytest
 
 from prodockit import __version__
@@ -66,6 +67,27 @@ def _prepare_mode_test(
 def test_pdkboot_is_separate_from_the_legacy_bootstrap_command() -> None:
     assert main is not legacy_main.commands["bootstrap"]
     assert legacy_main.commands["boot"] is legacy_main.commands["bootstrap"]
+
+
+def test_pdkboot_copies_legacy_options_without_mutating_them() -> None:
+    """Recent Click sentinels cannot be deep-copied on Python 3.10."""
+    legacy = legacy_main.commands["bootstrap"]
+    copied_by_name = {parameter.name: parameter for parameter in main.params}
+
+    for parameter in legacy.params:
+        copied = copied_by_name[parameter.name]
+        assert copied is not parameter
+        if isinstance(parameter, click.Option):
+            assert copied.opts == parameter.opts
+            assert copied.opts is not parameter.opts
+            assert copied.secondary_opts == parameter.secondary_opts
+            assert copied.secondary_opts is not parameter.secondary_opts
+
+    legacy_config = copied_by_name["config_file"]
+    source_config = next(
+        parameter for parameter in legacy.params if parameter.name == "config_file"
+    )
+    assert legacy_config.help != source_config.help
 
 
 def test_distribution_registers_the_standalone_command() -> None:
