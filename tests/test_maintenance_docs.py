@@ -100,3 +100,10 @@ def test_template_sync_guide_covers_package_only_updates() -> None:
     assert "When only prodockit needs upgrading" in guide
     assert "Pages" in guide and "documentation" in guide
     assert "manual rebuild is still necessary" in guide
+
+
+def test_template_sync_links_managed_stylesheet_warnings_to_the_style_guide() -> None:
+    guide = (ROOT / "docs" / "devcons" / "template-sync.md").read_text(encoding="utf-8")
+
+    assert "Warning - managed stylesheet changes found" in guide
+    assert "[Stylesheets](../stylesheets.md)" in guide

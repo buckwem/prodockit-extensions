@@ -360,11 +360,12 @@ version is written beside it as `<name>.new` for you to compare. Nothing
 is overwritten silently.
 
 If either managed stylesheet differs, the report adds a separate
-**“Warning - managed stylesheet changes found”** message. Move deliberate
-website rules from `pdk.css` to `extra.css`, and deliberate PDF-only rules
-from `pdk-pdf.css` to `print.css`. You can then use `--force` for each managed
-file to restore Prodockit's current version without losing the rules you
-moved.
+**“Warning - managed stylesheet changes found”** message. [Stylesheets](../stylesheets.md)
+explains the managed and author-owned files and their loading order. Move
+deliberate website rules from `pdk.css` to `extra.css`, and deliberate PDF-only
+rules from `pdk-pdf.css` to `print.css`. You can then use `--force` for each
+managed file to restore Prodockit's current version without losing the rules
+you moved.
 
 **"Edited" does not always mean you changed it.** A file counts as edited
 when it does not match the baseline the run settled on - which is equally
