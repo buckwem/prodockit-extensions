@@ -25,7 +25,7 @@ The standard installation adds:
 - The standard prodockit Markdown extensions to the existing
     `zensical.toml`, `zensical.yml`, `zensical.yaml`, `mkdocs.yml` or
     `mkdocs.yaml`.
-- `docs/stylesheets/prodockit.css`, loaded before any project stylesheet so
+- `docs/stylesheets/pdk.css`, loaded before any project stylesheet so
     the project's own rules can override it.
 - `.prodockit-components.toml`, recording whether this project selected
     Mermaid diagrams or mathematical notation.

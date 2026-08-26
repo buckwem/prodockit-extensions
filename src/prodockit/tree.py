@@ -17,7 +17,8 @@ on - so the body is the listing itself::
     docs/ - the documentation source tree
       index.md - the cover page
       stylesheets/ - CSS for both outputs
-        extra.css - website customisations
+        pdk.css - managed defaults
+        extra.css - project customisations
     zensical.toml - project configuration
     ///
 

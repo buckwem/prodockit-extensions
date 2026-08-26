@@ -12,7 +12,7 @@ pages = [
 ]
 expected_changes = [
     ".prodockit-components.toml",
-    "docs/src/markdown/stylesheets/prodockit.css",
+    "docs/src/markdown/stylesheets/pdk.css",
     "requirements/docs.txt",
     "zensical.yml",
 ]
@@ -37,7 +37,7 @@ pages = [
 ]
 expected_changes = [
     ".prodockit-components.toml",
-    "docs/stylesheets/prodockit.css",
+    "docs/stylesheets/pdk.css",
     "zensical.toml",
     "requirements.txt",
 ]
@@ -61,7 +61,7 @@ pages = [
 ]
 expected_changes = [
     "docs/.prodockit-components.toml",
-    "docs/content/stylesheets/prodockit.css",
+    "docs/content/stylesheets/pdk.css",
     "docs/mkdocs.yml",
     "docs/requirements.txt",
 ]
@@ -84,7 +84,7 @@ pages = [
 ]
 expected_changes = [
     ".prodockit-components.toml",
-    "web/stylesheets/prodockit.css",
+    "web/stylesheets/pdk.css",
     "mkdocs.yml",
     "requirements.txt",
 ]
@@ -106,7 +106,7 @@ pages = [
 ]
 expected_changes = [
     ".prodockit-components.toml",
-    "docs/stylesheets/prodockit.css",
+    "docs/stylesheets/pdk.css",
     "mkdocs.yml",
     "requirements.txt",
 ]
@@ -134,7 +134,7 @@ pages = [
 ]
 expected_changes = [
     "docs/en/.prodockit-components.toml",
-    "docs/en/docs/stylesheets/prodockit.css",
+    "docs/en/docs/stylesheets/pdk.css",
     "docs/en/mkdocs.yml",
     "docs/en/requirements.txt",
 ]
@@ -174,7 +174,7 @@ pages = [
 ]
 expected_changes = [
     ".prodockit-components.toml",
-    "docs/stylesheets/prodockit.css",
+    "docs/stylesheets/pdk.css",
     "mkdocs.yml",
     "requirements.txt",
 ]
@@ -196,7 +196,7 @@ pages = [
 ]
 expected_changes = [
     ".prodockit-components.toml",
-    "docs/stylesheets/prodockit.css",
+    "docs/stylesheets/pdk.css",
     "requirements.txt",
     "zensical.toml",
 ]
@@ -218,7 +218,7 @@ pages = [
 ]
 expected_changes = [
     ".prodockit-components.toml",
-    "docs/stylesheets/prodockit.css",
+    "docs/stylesheets/pdk.css",
     "requirements.txt",
     "zensical.toml",
 ]
@@ -240,7 +240,7 @@ pages = [
 ]
 expected_changes = [
     ".prodockit-components.toml",
-    "docs/stylesheets/prodockit.css",
+    "docs/stylesheets/pdk.css",
     "requirements.txt",
     "zensical.toml",
 ]
@@ -262,7 +262,7 @@ pages = [
 ]
 expected_changes = [
     ".prodockit-components.toml",
-    "docs/stylesheets/prodockit.css",
+    "docs/stylesheets/pdk.css",
     "mkdocs.yml",
     "requirements.txt",
 ]

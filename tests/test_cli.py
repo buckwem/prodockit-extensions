@@ -159,6 +159,19 @@ def test_template_sync_logs_the_full_detail_even_without_verbose(tmp_path, monke
     assert "logged.extend" in source
 
 
+def test_template_sync_warns_before_replacing_managed_stylesheets() -> None:
+    """A generic edited-file report does not tell an author where CSS belongs."""
+    import inspect
+
+    from prodockit import cli
+
+    source = inspect.getsource(cli._run_template_sync)
+
+    assert "edited_managed_stylesheets(plan)" in source
+    assert "Warning - managed stylesheet changes found" in source
+    assert "Move website changes to extra.css and PDF-only changes to print.css" in source
+
+
 @pytest.mark.parametrize("arguments", [[], ["--apply"]])
 def test_template_sync_explains_a_package_only_update(
     tmp_path, monkeypatch, arguments: list[str]

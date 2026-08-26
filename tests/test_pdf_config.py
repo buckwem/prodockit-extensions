@@ -552,8 +552,8 @@ def test_pdf_extra_css_is_concatenated_after_extra_css(
 ) -> None:
     """pdf_extra_css is for a PDF-only override - concatenated *after*
     extra_css so it wins the cascade against a same-specificity rule
-    there, matching what build_pdf()'s own generated CSS beneath both
-    already promises for extra_css itself."""
+    there. build_pdf() places the generated renderer foundation beneath
+    this complete project stylesheet sequence."""
     root = project(
         extra=(
             '\nextra_css = ["stylesheets/extra.css"]\n'

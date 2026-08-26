@@ -1,0 +1,58 @@
+/* Copyright (c) 2026 Mark Buckwell and contributors - managed by prodockit */
+/* SPDX-License-Identifier: MIT */
+
+/* PDF table of contents. Pandoc writes level 2 and level 3 as the second
+   and third nested list respectively. A project's print.css is loaded after
+   this file and can replace any of these presentation choices. */
+#TOC ul {
+  list-style-type: none !important;
+  margin-inline: 0 !important;
+  padding-inline-start: 0 !important;
+}
+
+#TOC > ul > li {
+  margin-block: 0 0.45em !important;
+}
+
+#TOC li > ul {
+  margin-block: 0.15em 0 !important;
+  padding-inline-start: 1.5em !important;
+}
+
+#TOC a,
+#TOC a:visited {
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
+#TOC li > a {
+  display: block !important;
+  margin-inline-end: -1.25em !important;
+  padding-inline-start: 1.25em !important;
+  text-indent: -1.25em !important;
+}
+
+#TOC li > a::after {
+  color: #555555 !important;
+  content: " " leader(dotted) " " target-counter(attr(href), page);
+  font-variant-numeric: tabular-nums !important;
+  font-weight: normal !important;
+}
+
+#TOC > ul > li > a {
+  font-weight: bold !important;
+}
+
+#TOC > ul > li > ul > li {
+  line-height: 1.1 !important;
+  margin-block: 0 !important;
+}
+
+#TOC > ul > li > ul > li > ul {
+  margin-block: 0 !important;
+}
+
+#TOC > ul > li > ul > li > ul > li {
+  line-height: 1 !important;
+  margin-block: 0 !important;
+}

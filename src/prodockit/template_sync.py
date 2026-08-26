@@ -650,6 +650,29 @@ FILE_ACTION_LABELS = {
     "forced": "Your edited files to replace",
 }
 
+#: Managed presentation files whose local edits deserve a more explicit
+#: warning than an ordinary template file. Authors put deliberate changes in
+#: ``extra.css`` or ``print.css``; edits here are usually an older project
+#: customisation made before that ownership boundary existed.
+MANAGED_STYLESHEETS = frozenset(
+    {"docs/stylesheets/pdk.css", "docs/stylesheets/pdk-pdf.css"}
+)
+
+
+def edited_managed_stylesheets(actions: Sequence[FileAction]) -> list[str]:
+    """Managed stylesheets protected because the project differs.
+
+    Both ``keep`` and ``forced`` are decisions about a local edit.  The CLI
+    uses this list to explain where future author CSS belongs before the user
+    decides whether to keep or replace the managed copy.
+    """
+    return sorted(
+        action.project_path
+        for action in actions
+        if action.action in {"keep", "forced"}
+        and action.project_path in MANAGED_STYLESHEETS
+    )
+
 
 def blocking_changes(manifest: Manifest, dirty: Iterable[str]) -> list[str]:
     """Uncommitted changes that must be dealt with before an update runs.

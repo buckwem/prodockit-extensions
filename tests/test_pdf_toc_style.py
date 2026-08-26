@@ -1,21 +1,22 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""The PDF contents page is deliberately styled by the shared stylesheet.
+"""The PDF contents page is deliberately styled by the managed PDF stylesheet.
 
 Keeping these checks outside the generated renderer CSS protects the public
-customisation point: projects receive ``extra.css`` through the normal shared
-file cascade and can change the presentation there.
+customisation point: projects receive ``pdk-pdf.css`` through the normal
+shared-file cascade and can override its presentation in ``print.css``.
 """
 
 from pathlib import Path
 
-EXTRA_CSS = Path(__file__).resolve().parents[1] / "docs" / "stylesheets" / "extra.css"
+PDK_PDF_CSS = (
+    Path(__file__).resolve().parents[1] / "docs" / "stylesheets" / "pdk-pdf.css"
+)
 
 
 def test_pdf_contents_links_use_document_text_styling() -> None:
-    css = EXTRA_CSS.read_text(encoding="utf-8")
-    contents = css.split("/* PDF table of contents.", 1)[1].split("prodockit.steps", 1)[0]
+    contents = PDK_PDF_CSS.read_text(encoding="utf-8")
 
     assert "#TOC a," in contents
     assert "#TOC a:visited" in contents
@@ -30,8 +31,7 @@ def test_pdf_contents_links_use_document_text_styling() -> None:
 
 
 def test_pdf_contents_nested_levels_have_compact_configurable_spacing() -> None:
-    css = EXTRA_CSS.read_text(encoding="utf-8")
-    contents = css.split("/* PDF table of contents.", 1)[1].split("prodockit.steps", 1)[0]
+    contents = PDK_PDF_CSS.read_text(encoding="utf-8")
 
     level_one = contents.split("#TOC > ul > li > a {", 1)[1].split("}", 1)[0]
     level_two = contents.split("#TOC > ul > li > ul > li {", 1)[1].split("}", 1)[0]

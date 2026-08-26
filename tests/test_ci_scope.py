@@ -62,7 +62,8 @@ def test_shared_packaging_and_command_files_select_both_matrices() -> None:
         "pyproject.toml",
         "src/prodockit/cli.py",
         "src/prodockit/project_config.py",
-        "docs/stylesheets/extra.css",
+        "docs/stylesheets/pdk.css",
+        "docs/stylesheets/pdk-pdf.css",
     ):
         scope = classify([path])
         assert scope.adopt, path

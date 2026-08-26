@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-from prodockit.pdf.css import build_css
+from prodockit.pdf.css import build_css, build_structural_guard_css
 
 
 def test_font_family_placeholders_are_substituted() -> None:
@@ -37,7 +37,7 @@ def test_web_only_content_is_always_hidden() -> None:
 
 def test_zensical_inner_content_uses_the_pdf_page_edges() -> None:
     """Website chrome must not inset the body from the running rules."""
-    css = build_css("Inter", "Fira Code", "My Site")
+    css = build_structural_guard_css()
 
     assert (
         "html, body, main, .md-container, .md-main, .md-main__inner, .md-content,\n"

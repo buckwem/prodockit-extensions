@@ -22,15 +22,27 @@ from prodockit.shared_files import (
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def _manifest(root: Path, *, source: str = "extra.css", target: str = "docs/stylesheets/extra.css") -> None:
+def _manifest(root: Path, *, source: str = "pdk.css", target: str = "docs/stylesheets/pdk.css") -> None:
     (root / MANIFEST).write_text(
         f'version = 1\n\n[[files]]\nsource = "{source}"\ntarget = "{target}"\n',
         encoding="utf-8",
     )
 
 
-def test_canonical_resource_is_the_extensions_stylesheet() -> None:
-    assert resource_bytes("extra.css") == (ROOT / "docs/stylesheets/extra.css").read_bytes()
+@pytest.mark.parametrize("name", ["pdk.css", "pdk-pdf.css"])
+def test_canonical_resources_are_the_extensions_stylesheets(name: str) -> None:
+    assert resource_bytes(name) == (ROOT / "docs/stylesheets" / name).read_bytes()
+
+
+def test_manifest_manages_only_prodockit_owned_stylesheets() -> None:
+    declared = load_manifest(ROOT)
+
+    assert [(item.source, item.target) for item in declared] == [
+        ("pdk.css", "docs/stylesheets/pdk.css"),
+        ("pdk-pdf.css", "docs/stylesheets/pdk-pdf.css"),
+    ]
+    assert (ROOT / "docs/stylesheets/extra.css").is_file()
+    assert (ROOT / "docs/stylesheets/print.css").is_file()
 
 
 def test_absent_manifest_opts_out() -> None:
@@ -40,13 +52,13 @@ def test_absent_manifest_opts_out() -> None:
 
 def test_inspect_distinguishes_current_different_and_missing(tmp_path: Path) -> None:
     _manifest(tmp_path)
-    target = tmp_path / "docs/stylesheets/extra.css"
+    target = tmp_path / "docs/stylesheets/pdk.css"
 
     assert inspect(tmp_path)[0].status == "missing"
     target.parent.mkdir(parents=True)
     target.write_text("old copy\n", encoding="utf-8")
     assert inspect(tmp_path)[0].status == "different"
-    target.write_bytes(resource_bytes("extra.css"))
+    target.write_bytes(resource_bytes("pdk.css"))
     state = inspect(tmp_path)[0]
     assert state.status == "current"
     assert state.actual_sha256 == state.expected_sha256
@@ -56,8 +68,8 @@ def test_apply_replaces_only_drifted_files(tmp_path: Path) -> None:
     _manifest(tmp_path)
     states = inspect(tmp_path)
 
-    assert apply(tmp_path, states) == ["docs/stylesheets/extra.css"]
-    assert (tmp_path / "docs/stylesheets/extra.css").read_bytes() == resource_bytes("extra.css")
+    assert apply(tmp_path, states) == ["docs/stylesheets/pdk.css"]
+    assert (tmp_path / "docs/stylesheets/pdk.css").read_bytes() == resource_bytes("pdk.css")
     assert apply(tmp_path, inspect(tmp_path)) == []
 
 
@@ -81,12 +93,12 @@ def test_manifest_rejects_a_duplicated_destination(tmp_path: Path) -> None:
         """version = 1
 
 [[files]]
-source = "extra.css"
-target = "docs/stylesheets/extra.css"
+source = "pdk.css"
+target = "docs/stylesheets/pdk.css"
 
 [[files]]
-source = "extra.css"
-target = "docs/stylesheets/extra.css"
+source = "pdk.css"
+target = "docs/stylesheets/pdk.css"
 """,
         encoding="utf-8",
     )
@@ -98,7 +110,7 @@ target = "docs/stylesheets/extra.css"
 def test_inspect_rejects_a_symlinked_target_outside_the_project(tmp_path: Path) -> None:
     outside = tmp_path.parent / "outside.css"
     outside.write_text("do not replace\n", encoding="utf-8")
-    target = tmp_path / "docs/stylesheets/extra.css"
+    target = tmp_path / "docs/stylesheets/pdk.css"
     target.parent.mkdir(parents=True)
     target.symlink_to(outside)
     _manifest(tmp_path)
@@ -116,7 +128,7 @@ def test_shared_files_default_is_a_non_writing_preview(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "MISS" in result.output
     assert "No changes made" in result.output
-    assert not (tmp_path / "docs/stylesheets/extra.css").exists()
+    assert not (tmp_path / "docs/stylesheets/pdk.css").exists()
 
 
 def test_shared_files_check_fails_with_a_clear_recovery_command(tmp_path: Path) -> None:
@@ -167,7 +179,7 @@ def test_pins_check_also_guards_declared_shared_files(tmp_path: Path) -> None:
     )
 
     assert failed.exit_code == 1
-    assert "docs/stylesheets/extra.css is missing" in failed.output
+    assert "docs/stylesheets/pdk.css is missing" in failed.output
     assert "prodockit shared-files --apply" in failed.output
     assert passed.exit_code == 0, passed.output
     assert "Every managed package and shared file is current and consistent" in passed.output

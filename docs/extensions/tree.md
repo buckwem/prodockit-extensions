@@ -24,8 +24,10 @@ tree. Use it to show readers where files belong in a project.
     docs/ - the documentation source tree
       index.md - the home page
       stylesheets/ - style sheets for the website and PDF
-        extra.css - website style sheet
-        print.css - PDF style sheet
+        pdk.css - managed website and PDF defaults
+        extra.css - project website and PDF changes
+        pdk-pdf.css - managed PDF defaults
+        print.css - project PDF changes
     zensical.toml - project configuration
     ///
     ```
@@ -36,8 +38,10 @@ tree. Use it to show readers where files belong in a project.
     docs/ - the documentation source tree
       index.md - the home page
       stylesheets/ - style sheets for the website and PDF
-        extra.css - website style sheet
-        print.css - PDF style sheet
+        pdk.css - managed website and PDF defaults
+        extra.css - project website and PDF changes
+        pdk-pdf.css - managed PDF defaults
+        print.css - project PDF changes
     zensical.toml - project configuration
     ///
 
@@ -114,8 +118,10 @@ docs/
   glossary.md - glossary definitions
   references.md - generated reference list
   stylesheets/
-    extra.css - website style sheet
-    print.css - PDF style sheet
+    pdk.css - managed website and PDF defaults
+    extra.css - project website and PDF changes
+    pdk-pdf.css - managed PDF defaults
+    print.css - project PDF changes
 tools/
   mermaid/ - diagram renderer
   mathjax/ - maths renderer
@@ -144,8 +150,9 @@ The `tree` block follows the same fence, option, and nesting rules as
 ## Customise the appearance {: #tree-what-it-produces }
 
 The extension adds stable class names that you can target in your project's
-CSS style sheet. This repository's `docs/stylesheets/extra.css` contains the
-styles used by the examples on this page.
+CSS style sheet. Prodockit's managed `docs/stylesheets/pdk.css` contains the
+default styles used by the examples on this page. Put project-specific
+changes in `docs/stylesheets/extra.css`, which is loaded afterwards.
 
 ### Generated HTML {: #tree-generated-html }
 
@@ -172,7 +179,8 @@ The extension provides structure; your project supplies the appearance:
 Stable class names include `.prodockit-tree`, `.tree-directory`, `.tree-file`,
 `.tree-icon`, `.tree-name`, and `.tree-note`.
 
-`docs/stylesheets/extra.css` in this repository carries a CSS style sheet to start
-from. Keep the rail and stub positioned from one shared measurement, so
-changing indentation cannot pull them apart, and stop the last child's rail at
-its own stub rather than continuing past the final entry.
+`docs/stylesheets/pdk.css` carries the maintained starting point. When
+overriding it in `docs/stylesheets/extra.css`, keep the rail and stub
+positioned from one shared measurement, so changing indentation cannot pull
+them apart, and stop the last child's rail at its own stub rather than
+continuing past the final entry.

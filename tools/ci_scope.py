@@ -38,7 +38,8 @@ class Scope:
 
 _SHARED_INSTALLED_WHEEL_FILES = {
     "pyproject.toml",
-    "docs/stylesheets/extra.css",
+    "docs/stylesheets/pdk.css",
+    "docs/stylesheets/pdk-pdf.css",
     "src/prodockit/__init__.py",
     "src/prodockit/__main__.py",
     "src/prodockit/cli.py",

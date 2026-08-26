@@ -23,7 +23,14 @@ copyright = "Copyright © 2026 Mark Buckwell and contributors"
 # touching the copyright text itself.
 extra.pdf_copyright = 'Copyright © 2026 Mark Buckwell and contributors.<br>Made with <a href="https://zensical.org/">Zensical</a> and <a href="https://prodockit.org/">prodockit</a>.'
 
-extra_css = ["stylesheets/extra.css"]
+extra_css = [
+  "stylesheets/pdk.css",
+  "stylesheets/extra.css",
+]
+extra.pdf_extra_css = [
+  "stylesheets/pdk-pdf.css",
+  "stylesheets/print.css",
+]
 # Keep chapter numbering on both the reference website and the downloadable
 # PDF, including the PDF's numbered bookmark outline.
 extra.heading_numbering = true

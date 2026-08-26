@@ -113,7 +113,8 @@ language = "en-GB"
     assert 'site_name = "Mine"' in config
     assert 'language = "en-GB"' in config
     assert '"stylesheets/mine.css"' in config
-    assert '"stylesheets/prodockit.css"' in config
+    assert '"stylesheets/pdk.css"' in config
+    assert config.index('"stylesheets/pdk.css"') < config.index('"stylesheets/mine.css"')
     for extension in CORE_EXTENSIONS:
         assert f'[project.markdown_extensions."{extension}"]' in config
     assert (project / STYLESHEET).is_file()
@@ -373,7 +374,7 @@ markdown_extensions:
     config = path.read_text(encoding="utf-8")
     assert "site_name: Existing MkDocs document" in config
     assert "    - stylesheets/mine.css" in config
-    assert "  - stylesheets/prodockit.css" in config
+    assert "  - stylesheets/pdk.css" in config
     for extension in CORE_EXTENSIONS:
         assert f"  - {extension}" in config
     assert not (project / "zensical.toml").exists()
@@ -414,7 +415,7 @@ def test_stylesheet_follows_a_custom_docs_directory(tmp_path: Path) -> None:
 
     path = ensure_stylesheet(project)
 
-    assert path == project / "docs" / "src" / "markdown" / "stylesheets" / "prodockit.css"
+    assert path == project / "docs" / "src" / "markdown" / "stylesheets" / "pdk.css"
     assert path.is_file()
     assert not (project / STYLESHEET).exists()
 
@@ -479,7 +480,7 @@ def test_mkdocs_inline_css_list_is_extended_without_a_duplicate_key(tmp_path: Pa
 
     config = (project / "mkdocs.yml").read_text(encoding="utf-8")
     assert config.count("extra_css:") == 1
-    assert "stylesheets/mine.css, stylesheets/prodockit.css" in config
+    assert "stylesheets/pdk.css, stylesheets/mine.css" in config
 
 
 def test_mkdocs_indentless_css_list_keeps_its_valid_yaml_style(tmp_path: Path) -> None:
@@ -492,7 +493,7 @@ def test_mkdocs_indentless_css_list_keeps_its_valid_yaml_style(tmp_path: Path) -
     ensure_zensical_config(project, AdoptOptions())
 
     config = (project / "mkdocs.yml").read_text(encoding="utf-8")
-    assert "extra_css:\n- stylesheets/prodockit.css\n- css/termynal.css" in config
+    assert "extra_css:\n- stylesheets/pdk.css\n- css/termynal.css" in config
 
 
 def test_mkdocs_extension_mapping_is_extended_as_a_mapping(tmp_path: Path) -> None:

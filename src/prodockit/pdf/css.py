@@ -5,8 +5,9 @@
 website stylesheet.
 
 A live Zensical site and a compiled PDF share the same authored content and
-CSS (the caller is expected to layer its own website stylesheet - Zensical's
-theme CSS plus any project ``extra.css``/``print.css`` - underneath this),
+CSS (the caller layers the generated renderer foundation first, followed by
+managed ``pdk.css``/``pdk-pdf.css`` and author-owned
+``extra.css``/``print.css``),
 but a paginated, single-document PDF has structural needs no website page
 does: page-break behaviour tuned to real WeasyPrint quirks (see each rule's
 own comment below for the specific bug it works around), running
@@ -22,6 +23,39 @@ own string formatting.
 """
 
 from __future__ import annotations
+
+
+def build_structural_guard_css() -> str:
+    """Return non-customisable rules that keep the PDF canvas valid.
+
+    These rules are appended after project styles. They remove website shell
+    geometry that cannot survive in a paginated document; presentation stays
+    earlier in the cascade and remains author-overridable.
+    """
+
+    return """
+html, body, main, div, article, section, .md-container, .md-main, .md-content,
+.md-content__inner {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    float: none !important;
+    background: transparent !important;
+}
+html, body, main, .md-container, .md-main, .md-main__inner, .md-content,
+.md-content__inner {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+header, nav, footer, .md-sidebar, .md-header, .md-footer, .md-search, #search {
+    display: none !important;
+}
+"""
 
 
 def build_css(
@@ -132,37 +166,6 @@ pre, code {
    the monospace face otherwise appears optically larger than the surrounding
    proportional face at the same nominal size. */
 pre, code { font-size: 10pt !important; }
-
-/* ==========================================================================
-   CRITICAL WEASYPRINT STRUCTURAL CANVAS RESET
-   ========================================================================== */
-html, body, main, div, article, section, .md-container, .md-main, .md-content,
-.md-content__inner {
-    display: block !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-    position: static !important;
-    float: none !important;
-    background: transparent !important;
-}
-/* Zensical gives the article wrapper `margin: 0 .8rem 1.2rem` for its
-   website layout. The built-site renderer deliberately retains that class,
-   while a bare HTML body also carries a user-agent margin. Reset only the
-   horizontal canvas spacing here: PDF body content must use the same
-   configured page edges as the running header and footer rules. Keep the
-   vertical spacing, which is independent of this alignment. */
-html, body, main, .md-container, .md-main, .md-main__inner, .md-content,
-.md-content__inner {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-}
-header, nav, footer, .md-sidebar, .md-header, .md-footer, .md-search, #search {
-    display: none !important;
-}
 
 /* ==========================================================================
    WEB-ONLY / PDF-ONLY CONTENT
@@ -739,7 +742,7 @@ pre code { padding: 0 !important; }
 
 /* pymdownx.keys (++key+combo++) box styling - reproduces a common
    --md-typeset-kbd-* look, since a caller's own website theme CSS may not
-   reach a standalone PDF (e.g. only extra.css/print.css are pulled in, not
+   reach a standalone PDF (e.g. only configured project CSS is pulled in, not
    the theme's own main/palette CSS). */
 kbd {
     background-color: #fafafa !important;

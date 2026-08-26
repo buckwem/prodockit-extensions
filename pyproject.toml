@@ -157,7 +157,8 @@ prodockit = "prodockit.testing.plugin"
 packages = ["src/prodockit"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"docs/stylesheets/extra.css" = "prodockit/assets/extra.css"
+"docs/stylesheets/pdk.css" = "prodockit/assets/pdk.css"
+"docs/stylesheets/pdk-pdf.css" = "prodockit/assets/pdk-pdf.css"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

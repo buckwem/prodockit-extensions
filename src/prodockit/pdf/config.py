@@ -442,12 +442,11 @@ def _build_pdf_from_config(
         icon_registry = built_icons
 
     extra_css = ""
-    # project.extra_css - the website's own stylesheet(s) - first, then
-    # extra.pdf_extra_css - stylesheet(s) meant *only* for the PDF (e.g. an
-    # override that would look wrong on the live website) - concatenated
-    # after, so a pdf_extra_css rule can still override one from extra_css
-    # the same way `extra_css` docs promise for build_pdf()'s own generated
-    # CSS beneath both.
+    # project.extra_css - shared website/PDF stylesheets - first, then
+    # extra.pdf_extra_css - stylesheets meant only for the PDF. build_pdf()
+    # places its generated renderer foundation before this complete string,
+    # so pdk.css -> extra.css -> pdk-pdf.css -> print.css is a real cascade
+    # in which the author-owned files can override equal-specificity defaults.
     for css_rel_path in (config.get("extra_css") or []) + list(extra.get("pdf_extra_css") or []):
         full_css_path = os.path.join(source_docs_dir, css_rel_path)
         with open(full_css_path, encoding="utf-8") as f:

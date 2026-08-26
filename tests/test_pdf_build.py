@@ -221,7 +221,10 @@ def test_table_of_contents_entries_remain_clickable_pdf_hotspots(tmp_path: Path)
         ],
         str(output_path),
         extra_css=(
-            Path(__file__).resolve().parents[1] / "docs" / "stylesheets" / "extra.css"
+            Path(__file__).resolve().parents[1]
+            / "docs"
+            / "stylesheets"
+            / "pdk-pdf.css"
         ).read_text(encoding="utf-8"),
     )
 
@@ -237,7 +240,9 @@ def test_table_of_contents_entries_remain_clickable_pdf_hotspots(tmp_path: Path)
     assert any("section" in destination for destination in internal_links)
 
 
-def test_extra_css_is_included_before_the_generated_css(tmp_path: Path, fake_pandoc_on_path) -> None:
+def test_project_css_is_included_after_the_renderer_foundation(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
     work_dir = tmp_path / "work"
     fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
     build_pdf(
@@ -248,7 +253,26 @@ def test_extra_css_is_included_before_the_generated_css(tmp_path: Path, fake_pan
         keep_work_dir=True,
     )
     css = (work_dir / "_prodockit_pdf_compiled.css").read_text(encoding="utf-8")
-    assert css.index(".my-custom-class") < css.index("@page")
+    assert css.index("@page") < css.index(".my-custom-class")
+
+
+def test_project_css_can_override_a_generated_rule_at_equal_specificity(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    work_dir = tmp_path / "work"
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+        str(tmp_path / "out.pdf"),
+        extra_css="body { font-size: 13pt !important; }",
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    css = (work_dir / "_prodockit_pdf_compiled.css").read_text(encoding="utf-8")
+    assert css.index("body {\n    font-family:") < css.index(
+        "body { font-size: 13pt !important; }"
+    )
 
 
 @real_pandoc_and_weasyprint_required
