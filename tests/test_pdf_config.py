@@ -313,6 +313,51 @@ def test_appendix_front_matter_flag_is_read_from_the_page(
     assert pages_by_path["index.md"].is_appendix is False
 
 
+@pytest.mark.parametrize(
+    "renderer",
+    [build_pdf_from_built_site, build_pdf_from_zensical_config],
+)
+def test_complete_pdf_omits_a_website_only_navigation_page(
+    project, monkeypatch: pytest.MonkeyPatch, renderer
+) -> None:
+    root = project()
+    (root / "docs" / "chapter1.md").write_text(
+        "---\npdf_include: false\n---\n\n# Website only\n", encoding="utf-8"
+    )
+
+    captured = {}
+
+    if renderer is build_pdf_from_built_site:
+        monkeypatch.setattr(config, "build_site", lambda *_args, **_kwargs: {})
+        monkeypatch.setattr(config, "page_html", lambda _config, source: f"<h1>{source}</h1>")
+
+    def _spy(pages, output_path, **kwargs):
+        captured["pages"] = pages
+
+    monkeypatch.setattr(config, "build_pdf", _spy)
+    renderer(str(root / "zensical.toml"))
+
+    assert [page.docs_rel_path for page in captured["pages"]] == ["index.md"]
+
+
+def test_single_page_pdf_ignores_the_website_only_flag(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+    (root / "docs" / "chapter1.md").write_text(
+        "---\npdf_include: false\n---\n\n# Website only\n", encoding="utf-8"
+    )
+    captured = {}
+
+    def _spy(pages, output_path, **kwargs):
+        captured["pages"] = pages
+
+    monkeypatch.setattr(config, "build_pdf", _spy)
+    build_pdf_from_zensical_config(str(root / "zensical.toml"), markdown_file="chapter1.md")
+
+    assert [page.docs_rel_path for page in captured["pages"]] == ["chapter1.md"]
+
+
 def test_only_the_first_navigation_index_is_the_pdf_cover(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:

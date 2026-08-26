@@ -54,10 +54,10 @@ FILL_TOLERANCE = 0.02
 #: incidental: the equivalent synthetic test in `test_pdf_build.py` can
 #: assert the far blunter `"prodockit-index" not in full_text`, but these
 #: docs would fail that check while being entirely correct.
-#: `about/changelog.md`'s own 0.17.0 entry quotes `⟦prodockit-index-N⟧`
-#: verbatim (with a literal "N") while explaining the fix, and an earlier
-#: entry names the `h2.prodockit-index-letter` CSS class - both are prose
-#: about the feature, and both legitimately reach the text layer.
+#: Generated examples may legitimately quote `⟦prodockit-index-N⟧`
+#: verbatim (with a literal "N") or name the
+#: `h2.prodockit-index-letter` CSS class. Both are prose about the feature
+#: and legitimately reach the text layer.
 INDEX_MARKER_LEAK_PATTERNS = (
     re.compile(re.escape(MARKER_ID_PREFIX) + r"\d+"),
     re.compile(r"⟦\s*prodockit-index-\d+\s*⟧"),
@@ -130,9 +130,7 @@ def documents_own_chapters(prodockit_paths, prodockit_resolved_config) -> list[s
     appendix because it is lettered instead of numbered.
     """
     chapters = []
-    for page_position, page in enumerate(
-        flatten_nav(prodockit_resolved_config.get("nav") or [])
-    ):
+    for page_position, page in enumerate(flatten_nav(prodockit_resolved_config.get("nav") or [])):
         if page_position == 0 and page.get("is_index"):
             continue
         text = (prodockit_paths.docs_dir / page["url"]).read_text(encoding="utf-8")
@@ -216,7 +214,9 @@ def test_code_blocks_kept_their_preformatted_layout(prodockit_pdf):
                     # more than kerning noise and far less than a space.
                     if gap > s1["size"] * 0.6 * 0.5:
                         text = "".join(c["c"] for c, _ in chars)
-                        offenders.append(f"page {pno + 1}: {gap:.1f}pt after {c1['c']!r} in {text[:60]!r}")
+                        offenders.append(
+                            f"page {pno + 1}: {gap:.1f}pt after {c1['c']!r} in {text[:60]!r}"
+                        )
     assert not offenders, "monospace runs with justification holes:\n" + "\n".join(offenders[:10])
 
 
@@ -316,9 +316,7 @@ def _parse_index_entries(index_text: str) -> list[tuple[str, list[int]]]:
 
 @pytest.fixture(scope="session")
 def index_title(prodockit_resolved_config: dict[str, Any]) -> str:
-    index_config = (prodockit_resolved_config.get("mdx_configs") or {}).get(
-        "prodockit.index"
-    ) or {}
+    index_config = (prodockit_resolved_config.get("mdx_configs") or {}).get("prodockit.index") or {}
     assert index_config.get("include"), (
         "prodockit.index include=true is not set in zensical.toml - the index "
         "checks below would pass vacuously against a PDF that never had an "

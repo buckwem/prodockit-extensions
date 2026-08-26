@@ -92,8 +92,15 @@ def test_page_html_fails_clearly_when_article_layout_changes(tmp_path: Path) -> 
 
 def test_page_metadata_reads_pdf_fields(tmp_path: Path) -> None:
     page = tmp_path / "page.md"
-    page.write_text('---\nis_appendix: true\nrecto_title: "Short"\n---\n# Page\n', encoding="utf-8")
-    assert page_metadata(page) == {"is_appendix": True, "recto_title": "Short"}
+    page.write_text(
+        '---\nis_appendix: true\nrecto_title: "Short"\npdf_include: false\n---\n# Page\n',
+        encoding="utf-8",
+    )
+    assert page_metadata(page) == {
+        "is_appendix": True,
+        "recto_title": "Short",
+        "pdf_include": False,
+    }
 
 
 def test_build_site_uses_only_the_documented_cli(tmp_path: Path, monkeypatch) -> None:

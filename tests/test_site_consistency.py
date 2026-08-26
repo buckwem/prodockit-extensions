@@ -9,6 +9,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import yaml  # type: ignore[import-untyped, unused-ignore]
 from click.testing import CliRunner
 
 from prodockit.cli import main
@@ -56,7 +57,12 @@ def test_every_navigated_page_except_home_has_an_icon() -> None:
         if relative_path == "index.md":
             continue
         text = _text(f"docs/{relative_path}")
-        assert re.match(r"^---\nicon: [^\n]+\n---\n", text), relative_path
+        parts = text.split("---", 2)
+        assert len(parts) == 3 and not parts[0], relative_path
+        metadata = yaml.safe_load(parts[1])
+        assert isinstance(metadata, dict), relative_path
+        icon = metadata.get("icon")
+        assert isinstance(icon, str) and icon.strip(), relative_path
 
 
 def test_home_page_hero_title_is_not_numbered() -> None:

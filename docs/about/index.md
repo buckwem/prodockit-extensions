@@ -48,7 +48,7 @@ prodockit package documented here.
 | [Authoring reference](../authoring.md) | Add document features, macros, PDFs, and command-line tools |
 | [Publish a document](../publishing.md) | Update and deploy a website and its outputs |
 | [Support and compatibility](support.md) | Check maturity, supported versions, platforms, and known constraints |
-| [Release notes](changelog.md) | See new features, fixes, and upgrade actions by version |
+| [Release notes](changelog.md) | See the implemented capability summary and short, user-relevant upgrade notes |
 | [Licence](license.md) | Read the MIT License governing use, modification, and redistribution |
 
 Repository maintainers should use [Maintain prodockit](../project-maintenance.md).

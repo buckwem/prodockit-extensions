@@ -1,11 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Checks on `docs/about/changelog.md` itself.
-
-The release notes are edited by every change and read by nobody until a
-release, which is the shape of file that drifts quietly.
-"""
+"""Checks on the concise, website-only release notes."""
 
 from __future__ import annotations
 
@@ -19,6 +15,12 @@ CHANGELOG = Path(__file__).resolve().parents[1] / "docs" / "about" / "changelog.
 #: `## 0.31.1 (2026-08-16)`, and the one heading with no version.
 _RELEASE = re.compile(r"^## (\d+\.\d+\.\d+) \(\d{4}-\d{2}-\d{2}\)$", flags=re.MULTILINE)
 _UNRELEASED = re.compile(r"^## Unreleased$", flags=re.MULTILINE)
+
+
+def test_release_notes_are_excluded_from_the_complete_pdf() -> None:
+    introduction = CHANGELOG.read_text(encoding="utf-8").split("---", 2)[1]
+
+    assert re.search(r"^pdf_include:\s*false$", introduction, flags=re.MULTILINE)
 
 
 def test_there_is_at_most_one_unreleased_section() -> None:
@@ -60,16 +62,7 @@ def test_unreleased_comes_before_every_released_version() -> None:
 
 
 def test_released_entries_are_newest_first() -> None:
-    """By date, not by version number.
-
-    The version numbers restart part-way down: this package was `zendoc`
-    before it was `prodockit`, and the rename began again at 0.1.0 - so
-    `0.1.1 (2026-07-17)` is followed by `0.10.0 (2026-07-15)`, which is
-    correct and would fail any check written on the numbers.
-
-    The dates are what stayed monotonic, and an entry inserted in the
-    wrong place breaks them.
-    """
+    """Keep the short user-facing entries in date order."""
     text = CHANGELOG.read_text(encoding="utf-8")
     dates = [
         tuple(int(part) for part in raw.split("-"))
