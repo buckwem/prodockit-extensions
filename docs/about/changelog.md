@@ -39,6 +39,15 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## 0.48.0 (2026-08-26)
+
+- Separated managed website and PDF styles into `pdk.css` and `pdk-pdf.css`,
+  leaving `extra.css` and `print.css` for document-specific overrides.
+- Added managed-file protection to template synchronisation and shared-file
+  checks so local edits to Prodockit styles are reported before replacement.
+- Moved PDF contents-page presentation into the stylesheet cascade, allowing
+  a document's `print.css` to customise it without changing renderer code.
+
 ## 0.47.0 (2026-08-26)
 
 - Added `pdf_include: false` page front matter for website pages that should
