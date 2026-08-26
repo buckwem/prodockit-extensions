@@ -107,3 +107,31 @@ def test_template_sync_links_managed_stylesheet_warnings_to_the_style_guide() ->
 
     assert "Warning - managed stylesheet changes found" in guide
     assert "[Stylesheets](../stylesheets.md)" in guide
+
+
+def test_contributor_guide_records_the_managed_stylesheet_release_contract() -> None:
+    guide = (ROOT / "docs" / "devcons" / "extension-internals.md").read_text(
+        encoding="utf-8"
+    )
+
+    for phrase in (
+        "[Stylesheets](../stylesheets.md)",
+        "force-include",
+        "src/prodockit/shared_files.py",
+        "prodockit-template",
+        "prodockit-userguide",
+        "prodockit pins --check",
+    ):
+        assert phrase in guide
+
+    code_map = (ROOT / "docs" / "devcons" / "development.md").read_text(encoding="utf-8")
+    for phrase in (
+        "stylesheet-delivery-code-map",
+        "docs/stylesheets/pdk.css",
+        "docs/stylesheets/pdk-pdf.css",
+        "src/prodockit/shared_files.py",
+        "src/prodockit/template_sync.py",
+        "src/prodockit/pdf/config.py",
+        "tests/test_shared_file_wheel.py",
+    ):
+        assert phrase in code_map

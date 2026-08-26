@@ -109,6 +109,35 @@ background, and dark-mode colours. Rotation also needs an explicit width
 because CSS transforms do not participate in layout. Keep website and PDF
 fixture coverage together when changing any of these contracts.
 
+## Maintain the stylesheet contract
+
+The public [Stylesheets](../stylesheets.md) page explains the author-facing
+cascade. Contributors must preserve the implementation behind it:
+
+1. `pdk.css` supplies managed component defaults shared by the website and
+   PDF. `pdk-pdf.css` supplies managed PDF-only presentation defaults.
+2. `extra.css` and `print.css` belong to the document author. They must never
+   be packaged as shared files or replaced by `template-sync`.
+3. The effective order remains renderer or theme foundations → `pdk.css` →
+   `extra.css` → `pdk-pdf.css` → `print.css`. The PDF's final structural guard
+   may protect the page canvas, but must not become a second presentation
+   stylesheet that authors cannot override.
+
+The canonical managed files live in `docs/stylesheets/`. Hatch's
+`force-include` mappings package them as `prodockit/assets/` resources in the
+wheel, while `src/prodockit/shared_files.py` exposes only those finite resource
+names to `pins` and `shared-files`. Keep those mappings and their tests aligned
+when adding or renaming a managed file.
+
+The [stylesheet delivery code map](development.md#stylesheet-delivery-code-map)
+lists every source, packaging, update, rendering, and test boundary involved.
+
+A managed stylesheet change is not complete until the same release has been
+cascaded to `prodockit-template` and `prodockit-userguide`. Check both
+repositories with `prodockit pins --check`; do not copy `extra.css` or
+`print.css` between them because those files intentionally hold each site's
+own choices.
+
 ## Preserve inline index content
 
 The index inline processor runs early enough to retain nested Markdown such as
