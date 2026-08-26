@@ -105,6 +105,22 @@ def test_reference_site_enables_website_heading_numbering() -> None:
     assert "config.extra.website_heading_numbering == false" in _text("overrides/main.html")
 
 
+def test_reference_site_uses_consent_gated_google_analytics() -> None:
+    config = read_config(_text("zensical.toml"))["project"]
+    extra = config["extra"]
+
+    assert extra["analytics"] == {
+        "provider": "google",
+        "property": "G-BCDJ2LWJT3",
+    }
+    assert extra["consent"]["actions"] == ["accept", "reject", "manage"]
+    assert extra["consent"]["cookies"]["analytics"] == {
+        "name": "Google Analytics",
+        "checked": False,
+    }
+    assert 'href="#__consent"' in config["copyright"]
+
+
 def test_reference_site_fails_when_a_macro_cannot_render() -> None:
     config = read_config(_text("zensical.toml"))["project"]
     macros = config["markdown_extensions"]["zensical"]["extensions"]["macros"]
