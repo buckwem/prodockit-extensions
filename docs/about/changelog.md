@@ -39,12 +39,17 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
-## Unreleased
+## 0.48.1 (2026-08-26)
 
+- Added consent-gated Google Analytics to `prodockit.org`; analytics remains
+  disabled until a visitor explicitly accepts it.
 - Made optional Mermaid and maths adoption deterministic and faster by
   supplying canonical npm lockfiles, using `npm ci`, and reusing the package
   cache in installed-wheel CI. Custom Node manifests remain author-owned and
   continue to use `npm install` when they have no matching lockfile.
+- Made the shared home-page hero more compact by top-aligning its content,
+  reducing the illustration, and allowing the footer to follow the content
+  instead of forcing the hero to fill the viewport.
 
 ## 0.48.0 (2026-08-26)
 
