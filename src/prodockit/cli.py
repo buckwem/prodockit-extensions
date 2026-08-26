@@ -308,7 +308,7 @@ class _PdkbootCommandProgress:
         self._thread: threading.Thread | None = None
         self._started = 0.0
         self._label = ""
-        self._interactive = bool(click.get_text_stream("stdout").isatty())
+        self._interactive = bool(sys.stdout.isatty())
 
     def __call__(self, event: str, number: int, total: int, command: list[str]) -> None:
         if event == "start":
