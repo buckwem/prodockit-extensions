@@ -95,24 +95,9 @@ are not shared, pinned, or replaced by `template-sync`.
 
 ### Load the cascade in order
 
-List the files in this order in `zensical.toml`:
-
-```toml
-[project]
-extra_css = [
-  "stylesheets/pdk.css",
-  "stylesheets/extra.css",
-]
-
-[project.extra]
-pdf_extra_css = [
-  "stylesheets/pdk-pdf.css",
-  "stylesheets/print.css",
-]
-```
-
-The PDF renderer first supplies the structural rules needed to construct a
-paginated document. It then loads the files above in order. A rule in
+The website theme and PDF renderer provide the foundations for their respective
+outputs. Prodockit's managed styles and the author's styles then load in the
+order shown below. A rule in
 `extra.css` therefore changes both outputs, while a rule in `print.css`
 changes only the PDF and has the final say when selectors have equal
 specificity. A final internal guard protects only the page canvas and removes
@@ -144,10 +129,28 @@ flowchart TB
         pdkpdf --> print[print.css<br/>Author-owned]
     end
 
+    wextra ~~~ renderer
+
     classDef managed fill:#e8f0fe,stroke:#3559a8,color:#15213a
     classDef author fill:#e9f7ef,stroke:#2f7d4a,color:#173a24
     class wpdk,ppdk,pdkpdf managed
     class wextra,pextra,print author
+```
+
+Implement the cascade by listing the files in this order in `zensical.toml`:
+
+```toml
+[project]
+extra_css = [
+  "stylesheets/pdk.css",
+  "stylesheets/extra.css",
+]
+
+[project.extra]
+pdf_extra_css = [
+  "stylesheets/pdk-pdf.css",
+  "stylesheets/print.css",
+]
 ```
 
 ### Put a change in the narrowest file
