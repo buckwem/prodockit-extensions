@@ -219,6 +219,34 @@ def test_extra_css_is_included_before_the_generated_css(tmp_path: Path, fake_pan
     assert css.index(".my-custom-class") < css.index("@page")
 
 
+@real_pandoc_and_weasyprint_required
+def test_zensical_article_content_aligns_with_the_running_rules(tmp_path: Path) -> None:
+    """The website's inner margin must not survive into the built-site PDF."""
+    import pymupdf
+
+    output_path = tmp_path / "out.pdf"
+    build_pdf(
+        [
+            Page(
+                docs_rel_path="chapter.md",
+                html=(
+                    '<article class="md-content__inner md-typeset">'
+                    "<h1>Chapter</h1><p>Aligned body text.</p></article>"
+                ),
+            )
+        ],
+        str(output_path),
+        extra_css=".md-content__inner { margin: 0 .8rem 1.2rem; }",
+        include_table_of_contents=False,
+    )
+
+    with pymupdf.open(str(output_path)) as pdf:
+        word = next(word for word in pdf[0].get_text("words") if word[4] == "Aligned")
+        page_margin_pt = 2 / 2.54 * 72
+
+    assert word[0] == pytest.approx(page_margin_pt, abs=0.2)
+
+
 def test_generated_css_reflects_the_given_typography_and_layout(tmp_path: Path, fake_pandoc_on_path) -> None:
     work_dir = tmp_path / "work"
     fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
@@ -1444,13 +1472,17 @@ def test_an_image_wider_than_the_text_column_is_held_to_the_page(
         page_width = pdf[0].rect.width
 
     drawn = _drawn_width(str(output_path))
-    # The A4 page is 595pt and the margins take 2cm a side, leaving about
-    # 470pt of column. Asserting against the page is the weaker check and
-    # the one that still catches running off the paper.
+    page_margin_pt = 2 / 2.54 * 72
+    content_width = page_width - 2 * page_margin_pt
+    # The A4 page is about 595pt and the configured 2cm margins leave a
+    # 481.9pt text column. Calculate that boundary rather than baking in
+    # the former, incorrect website-wrapper inset.
     assert drawn <= page_width, (
         f"image drawn {drawn:.0f}pt wide on a {page_width:.0f}pt page - off the paper"
     )
-    assert drawn <= 480, f"image drawn {drawn:.0f}pt, wider than the ~470pt text column"
+    assert drawn <= content_width + 0.2, (
+        f"image drawn {drawn:.1f}pt, wider than the {content_width:.1f}pt text column"
+    )
 
 
 @real_pandoc_and_weasyprint_required

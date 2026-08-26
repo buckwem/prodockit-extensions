@@ -35,6 +35,21 @@ def test_web_only_content_is_always_hidden() -> None:
     assert "display: none !important;" in rule
 
 
+def test_zensical_inner_content_uses_the_pdf_page_edges() -> None:
+    """Website chrome must not inset the body from the running rules."""
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    assert (
+        "html, body, main, .md-container, .md-main, .md-main__inner, .md-content,\n"
+        ".md-content__inner {\n"
+        "    margin-left: 0 !important;\n"
+        "    margin-right: 0 !important;\n"
+        "    padding-left: 0 !important;\n"
+        "    padding-right: 0 !important;\n"
+        "}" in css
+    )
+
+
 def test_page_size_and_margins_are_substituted() -> None:
     css = build_css(
         "Inter", "Fira Code", "My Site",
@@ -118,8 +133,9 @@ def test_rotated_table_class_forces_a_break_before_and_after() -> None:
 def test_default_reference_style_is_european_tight_spacing_only() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
     assert "p.reference + p.reference {" in css
-    assert "padding-left" not in css
-    assert "text-indent" not in css
+    reference_rule = css.split("p.reference {")[1].split("}")[0]
+    assert "padding-left" not in reference_rule
+    assert "text-indent" not in reference_rule
 
 
 def test_global_reference_style_adds_hanging_indent_and_wider_spacing() -> None:
