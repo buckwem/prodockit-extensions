@@ -229,3 +229,4 @@ alternate_style = true
 # define_env() instead of being listed here as a second `modules` entry -
 # see macros.py's docstring for why (zensical/zensical#823).
 module_name = "macros"
+on_error_fail = true

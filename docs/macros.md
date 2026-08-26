@@ -24,6 +24,7 @@ on):
 [project.markdown_extensions.zensical.extensions.macros]
 module_name = "macros"
 modules = ["prodockit.zensical_macros"]
+on_error_fail = true
 ```
 
 Zensical's macros plugin loads `module_name` and every entry in `modules`,
@@ -34,7 +35,12 @@ entirely and just use:
 ```toml
 [project.markdown_extensions.zensical.extensions.macros]
 modules = ["prodockit.zensical_macros"]
+on_error_fail = true
 ```
+
+Keep `on_error_fail = true` in automated and local builds. If Jinja cannot
+render a page variable or macro call, Zensical then stops the build instead of
+returning the unrendered page and allowing a broken site to be published.
 
 ## Variables
 
