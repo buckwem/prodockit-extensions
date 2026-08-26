@@ -34,6 +34,12 @@ Mermaid and mathematics are independent options and are off by default. A
 document using neither does not need Node.js, MathJax, Mermaid CLI or a browser
 renderer.
 
+When either option is selected, adoption writes the component's `package.json`
+and `package-lock.json` before installing it. The lockfile records the tested
+dependency set, while npm's download cache makes later reinstalls quicker. If
+the project already has an author-maintained Node manifest, adoption leaves it
+unchanged and uses its existing lockfile when one is present.
+
 The command never commits, pushes, changes a remote, or writes editor settings.
 
 ## Review the existing project

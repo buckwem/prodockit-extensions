@@ -834,7 +834,18 @@ def install_tool(root: Path, component: str) -> list[Path]:
     # On Windows npm is a command shim named npm.cmd. Passing the path found
     # by shutil avoids depending on PATHEXT handling inside subprocess.
     tool_root = root / "tools" / component
-    command = [npm, "install"]
+    # New scaffolds contain prodockit's canonical lockfile, so npm can reuse
+    # its download cache without resolving the dependency graph again.  Keep
+    # the fallback for a project whose author supplied a custom package.json
+    # without a matching lockfile; init_tools deliberately does not pair that
+    # manifest with prodockit's unrelated lock.
+    command = [
+        npm,
+        "ci" if (tool_root / "package-lock.json").is_file() else "install",
+        "--no-audit",
+        "--no-fund",
+        "--prefer-offline",
+    ]
     try:
         completed = subprocess.run(
             command,
@@ -850,7 +861,7 @@ def install_tool(root: Path, component: str) -> list[Path]:
         detail = (completed.stderr or completed.stdout).strip()
         raise AdoptError(f"npm could not install {component}: {detail}")
     lock = root / "tools" / component / "package-lock.json"
-    if lock.is_file():
+    if lock.is_file() and lock not in written:
         written.append(lock)
     if component == "mathjax":
         try:

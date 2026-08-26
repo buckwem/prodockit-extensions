@@ -39,6 +39,13 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## Unreleased
+
+- Made optional Mermaid and maths adoption deterministic and faster by
+  supplying canonical npm lockfiles, using `npm ci`, and reusing the package
+  cache in installed-wheel CI. Custom Node manifests remain author-owned and
+  continue to use `npm install` when they have no matching lockfile.
+
 ## 0.48.0 (2026-08-26)
 
 - Separated managed website and PDF styles into `pdk.css` and `pdk-pdf.css`,

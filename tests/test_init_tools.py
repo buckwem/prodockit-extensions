@@ -28,7 +28,9 @@ def test_scaffolds_both_components_by_default(tmp_path: Path) -> None:
 
     assert result.wrote_anything
     assert (tmp_path / "tools/mermaid/package.json").is_file()
+    assert (tmp_path / "tools/mermaid/package-lock.json").is_file()
     assert (tmp_path / "tools/mathjax/package.json").is_file()
+    assert (tmp_path / "tools/mathjax/package-lock.json").is_file()
     assert (tmp_path / "tools/mathjax/tex2svg.js").is_file()
     assert result.skipped == []
 
@@ -62,6 +64,19 @@ def test_does_not_overwrite_an_existing_file(tmp_path: Path) -> None:
     assert edited not in result.written
 
 
+def test_does_not_pair_the_canonical_lock_with_a_custom_manifest(tmp_path: Path) -> None:
+    tools = tmp_path / "tools"
+    manifest = tools / "mermaid" / "package.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text('{"name": "author-owned"}\n', encoding="utf-8")
+
+    result = init_tools(tools, components=("mermaid",))
+
+    lock = tools / "mermaid" / "package-lock.json"
+    assert not lock.exists()
+    assert lock in result.skipped
+
+
 def test_force_overwrites(tmp_path: Path) -> None:
     init_tools(tmp_path / "tools")
     edited = tmp_path / "tools/mermaid/package.json"
@@ -86,6 +101,15 @@ def test_scaffolded_manifests_are_valid_json_with_the_expected_dependency(
     # Both are private scaffolds, never published.
     assert mermaid["private"] is True
     assert mathjax["private"] is True
+
+    mermaid_lock = json.loads(
+        (tmp_path / "tools/mermaid/package-lock.json").read_text(encoding="utf-8")
+    )
+    mathjax_lock = json.loads(
+        (tmp_path / "tools/mathjax/package-lock.json").read_text(encoding="utf-8")
+    )
+    assert mermaid_lock["packages"][""]["dependencies"] == mermaid["dependencies"]
+    assert mathjax_lock["packages"][""]["dependencies"] == mathjax["dependencies"]
 
 
 def test_scaffold_lands_exactly_where_the_pdf_build_looks_for_it(
@@ -144,7 +168,10 @@ def test_install_commands_target_each_scaffolded_component(tmp_path: Path) -> No
     commands = install_commands(result)
     assert len(commands) == 1
     assert "--prefix" in commands[0]
-    assert commands[0].endswith("tools/mermaid")
+    assert " ci " in commands[0]
+    assert commands[0].startswith("npm --prefix ")
+    assert "--no-audit --no-fund --prefer-offline" in commands[0]
+    assert "/tools/mermaid ci " in commands[0]
 
 
 def test_ci_environment_uses_the_variable_puppeteer_actually_honours() -> None:

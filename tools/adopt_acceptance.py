@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import venv
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -62,6 +63,7 @@ class Result:
     maths: bool
     changed_files: tuple[str, ...]
     output: str
+    duration_seconds: float
     passed: bool = True
 
 
@@ -296,6 +298,7 @@ def exercise(
     maths: bool,
     fixture_content: bool = False,
 ) -> Result:
+    started = time.perf_counter()
     config = find_config(project)
     source_before = snapshot(project)
     build(python, project, config, fixture_content=fixture_content)
@@ -335,7 +338,15 @@ def exercise(
         raise AcceptanceError(f"{name}: second apply did not finish cleanly")
 
     print(f"PASS {name}: {len(modifications)} project file(s) changed as planned")
-    return Result(name, config.name, mermaid, maths, modifications, str(project))
+    return Result(
+        name,
+        config.name,
+        mermaid,
+        maths,
+        modifications,
+        str(project),
+        round(time.perf_counter() - started, 3),
+    )
 
 
 def exercise_fixture(
@@ -394,6 +405,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(arguments: list[str] | None = None) -> int:
+    acceptance_started = time.perf_counter()
     args = parser().parse_args(arguments)
     wheel = resolve_wheel(args.wheel)
     if args.require_x64:
@@ -467,12 +479,27 @@ def main(arguments: list[str] | None = None) -> int:
         "wheel": str(wheel),
         "platform": platform.platform(),
         "architecture": machine,
+        "duration_seconds": round(time.perf_counter() - acceptance_started, 3),
         "results": [asdict(item) for item in result_items],
     }
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(f"Report: {args.report.resolve()}")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        lines = [
+            "### Adopt installed-wheel timing",
+            "",
+            f"- Total: {report['duration_seconds']:.3f} seconds",
+            *(
+                f"- `{item.name}`: {item.duration_seconds:.3f} seconds"
+                for item in result_items
+            ),
+            "",
+        ]
+        with Path(summary).open("a", encoding="utf-8") as stream:
+            stream.write("\n".join(lines))
     print(f"\nAll {len(result_items)} adoption acceptance scenario(s) passed.")
     return 0
 

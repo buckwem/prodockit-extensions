@@ -10,8 +10,8 @@ website renders them - `prodockit.pdf` shells out to `mermaid-cli` and a
 `prodockit.pdf.config` looks for those in a specific place
 (`tools/mermaid/node_modules/.bin/mmdc` and `tools/mathjax/tex2svg.js`),
 and until now the library required that layout without providing it - every
-consuming project hand-wrote the same two `package.json` files and the same
-`tex2svg.js`.
+consuming project hand-wrote the same two `package.json` files, their
+lockfiles, and the same `tex2svg.js`.
 
 That went wrong independently in all three projects using it: one had no
 `tools/` directory at all and shipped PDFs full of raw `flowchart LR ...`
@@ -19,7 +19,8 @@ source, two set the pre-rename `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` (which
 puppeteer 25.x, what mermaid-cli 11.x resolves to, ignores - so every CI
 run downloaded a Chrome build it then discarded), and one committed two
 config files nothing reads. Hence `prodockit init-tools`: the canonical
-copies live here, pinned in one place.
+copies live here, pinned in one place. Shipping the matching lockfiles lets
+callers use deterministic `npm ci` installs and reuse npm's download cache.
 
 The scaffold stops at writing files. Running `npm ci` is left to the
 caller - it is the step that needs the network, and a build tool silently
@@ -36,8 +37,8 @@ from pathlib import Path
 
 #: Files copied for each component, relative to that component's directory.
 COMPONENT_FILES: dict[str, tuple[str, ...]] = {
-    "mermaid": ("package.json",),
-    "mathjax": ("package.json", "tex2svg.js"),
+    "mermaid": ("package.json", "package-lock.json"),
+    "mathjax": ("package.json", "package-lock.json", "tex2svg.js"),
 }
 
 #: What each component is for, in the words the CLI reports.
@@ -98,9 +99,23 @@ def init_tools(
         except OSError as exc:
             raise InitToolsError(f"could not create {target_dir}: {exc}") from exc
 
+        package_source = source_dir / "package.json"
+        package_target = target_dir / "package.json"
+        package_is_canonical = (
+            not package_target.exists()
+            or package_target.read_bytes() == package_source.read_bytes()
+        )
         for filename in COMPONENT_FILES[component]:
             source = source_dir / filename
             target = target_dir / filename
+            # A lockfile is coupled to package.json.  Do not put prodockit's
+            # canonical lock beside an author's customised manifest: npm ci
+            # would quite correctly reject that mismatched pair.  A new
+            # scaffold, or an existing unmodified scaffold left by a partial
+            # run, can safely receive both files.
+            if filename == "package-lock.json" and not package_is_canonical and not force:
+                result.skipped.append(target)
+                continue
             if target.exists() and not force:
                 result.skipped.append(target)
                 continue
@@ -126,7 +141,8 @@ def gitignore_lines(result: InitToolsResult) -> list[str]:
 def install_commands(result: InitToolsResult) -> list[str]:
     """The `npm` commands that turn the scaffold into a working install."""
     return [
-        f"npm install --prefix {result.tools_dir.as_posix()}/{component}"
+        f"npm --prefix {result.tools_dir.as_posix()}/{component} "
+        "ci --no-audit --no-fund --prefer-offline"
         for component in result.components
     ]
 

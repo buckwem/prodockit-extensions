@@ -308,19 +308,25 @@ def test_mermaid_install_uses_only_the_selected_node_project(tmp_path: Path, mon
 
     def npm(command, **kwargs):
         assert command[0] == "/usr/bin/npm"
-        assert command == ["/usr/bin/npm", "install"]
+        assert command == [
+            "/usr/bin/npm",
+            "ci",
+            "--no-audit",
+            "--no-fund",
+            "--prefer-offline",
+        ]
         assert kwargs["cwd"] == project / "tools" / "mermaid"
         binary = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
         binary.parent.mkdir(parents=True)
         binary.write_text("renderer", encoding="utf-8")
-        (project / "tools" / "mermaid" / "package-lock.json").write_text("{}", encoding="utf-8")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
 
     written = install_tool(project, "mermaid")
 
-    assert any(path.name == "package-lock.json" for path in written)
+    lock = project / "tools" / "mermaid" / "package-lock.json"
+    assert written.count(lock) == 1
     assert (project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc").is_file()
     assert not (project / "tools" / "mathjax").exists()
 
@@ -331,7 +337,13 @@ def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monke
 
     def npm(command, **kwargs):
         assert command[0] == "/usr/bin/npm"
-        assert command == ["/usr/bin/npm", "install"]
+        assert command == [
+            "/usr/bin/npm",
+            "ci",
+            "--no-audit",
+            "--no-fund",
+            "--prefer-offline",
+        ]
         assert kwargs["cwd"] == project / "tools" / "mathjax"
         bundle = (
             project
@@ -353,6 +365,35 @@ def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monke
     assert (project / "docs" / "javascripts" / "mathjax.js").is_file()
     assert (project / "docs" / "javascripts" / "vendor" / "mathjax" / "tex-svg-full.js").is_file()
     assert not (project / "tools" / "mermaid").exists()
+
+
+def test_custom_node_manifest_without_a_lock_uses_npm_install(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _project(tmp_path)
+    manifest = project / "tools" / "mermaid" / "package.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text('{"name": "author-owned"}\n', encoding="utf-8")
+    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
+
+    def npm(command, **kwargs):
+        assert command == [
+            "/usr/bin/npm",
+            "install",
+            "--no-audit",
+            "--no-fund",
+            "--prefer-offline",
+        ]
+        binary = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+        binary.parent.mkdir(parents=True)
+        binary.write_text("renderer", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+
+    install_tool(project, "mermaid")
+
+    assert not (manifest.parent / "package-lock.json").exists()
 
 
 def test_mkdocs_yaml_gets_the_same_core_components_without_conversion(tmp_path: Path) -> None:
