@@ -13,7 +13,7 @@ edit_uri = "edit/main/docs/"
 # content: element(), not a generated CSS content string), matching how
 # Zensical's own website-side copyright already works. A literal "©"
 # character or the "&copy;" HTML entity both work equally well here.
-copyright = "Copyright © 2026 Mark Buckwell and contributors"
+copyright = 'Copyright © 2026 Mark Buckwell and contributors – <a href="#__consent">Change cookie settings</a>'
 
 # Overrides `copyright` for the PDF's own footer only (the live website's
 # footer instead gets its own "Made with Zensical and prodockit" credit
@@ -107,6 +107,29 @@ nav = [
     {"40. Licence" = "about/license.md"},
   ]},
 ]
+
+# Measure how the public documentation is used without loading Google
+# Analytics until a visitor has actively consented. Keep analytics unticked
+# initially, offer an equally direct reject action, and leave the footer link
+# above in place so that consent can be changed later. These nested tables
+# follow all top-level [project] keys so later settings cannot accidentally
+# become part of a nested analytics or consent table.
+[project.extra.analytics]
+provider = "google"
+property = "G-BCDJ2LWJT3"
+
+[project.extra.consent]
+title = "Cookie consent"
+description = """
+  We use optional analytics cookies to understand which documentation is
+  useful and improve prodockit. Google Analytics remains disabled unless you
+  choose to accept it.
+"""
+actions = ["accept", "reject", "manage"]
+
+[project.extra.consent.cookies]
+analytics.name = "Google Analytics"
+analytics.checked = false
 
 [project.theme]
 logo = "assets/logo_black.png"
