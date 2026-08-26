@@ -2791,6 +2791,7 @@ def _run_template_sync(
         config_changes,
         default_branch,
         derive_baseline,
+        edited_managed_stylesheets,
         git_reader,
         git_runner,
         ignore_the_log,
@@ -3101,6 +3102,15 @@ def _run_template_sync(
 
         kept = [action for action in plan if action.action == "keep"]
         forced = [action for action in plan if action.action == "forced"]
+        stylesheet_edits = edited_managed_stylesheets(plan)
+        if stylesheet_edits:
+            say()
+            say("Warning - managed stylesheet changes found:")
+            for path in stylesheet_edits:
+                say(f"    {path}")
+            say("  pdk.css and pdk-pdf.css are supplied and updated by prodockit.")
+            say("  Move website changes to extra.css and PDF-only changes to print.css.")
+            say("  Then use --force FILE-PATH if you want the managed copy restored.")
         if kept:
             say()
             say("Your edited files are protected:")

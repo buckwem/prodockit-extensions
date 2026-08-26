@@ -205,7 +205,44 @@ def test_table_of_contents_title_is_configurable(tmp_path: Path, fake_pandoc_on_
     assert "<h1 class=\"unnumbered unlisted\">Contents</h1>" in compiled
 
 
-def test_extra_css_is_included_before_the_generated_css(tmp_path: Path, fake_pandoc_on_path) -> None:
+@real_pandoc_and_weasyprint_required
+def test_table_of_contents_entries_remain_clickable_pdf_hotspots(tmp_path: Path) -> None:
+    """Presentation rules may restyle an entry but must not flatten its anchor."""
+    from pypdf import PdfReader
+
+    output_path = tmp_path / "out.pdf"
+    build_pdf(
+        [
+            Page(docs_rel_path="index.md", html="<h1>Cover</h1>", is_index=True),
+            Page(
+                docs_rel_path="chapter.md",
+                html='<h1 id="chapter">Chapter</h1><h2 id="section">Section</h2>',
+            ),
+        ],
+        str(output_path),
+        extra_css=(
+            Path(__file__).resolve().parents[1]
+            / "docs"
+            / "stylesheets"
+            / "pdk-pdf.css"
+        ).read_text(encoding="utf-8"),
+    )
+
+    reader = PdfReader(output_path)
+    internal_links = []
+    for page in reader.pages:
+        for annotation_ref in page.get("/Annots") or []:
+            annotation = annotation_ref.get_object()
+            if annotation.get("/Subtype") == "/Link" and annotation.get("/Dest"):
+                internal_links.append(str(annotation["/Dest"]))
+
+    assert any("chapter" in destination for destination in internal_links)
+    assert any("section" in destination for destination in internal_links)
+
+
+def test_project_css_is_included_after_the_renderer_foundation(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
     work_dir = tmp_path / "work"
     fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
     build_pdf(
@@ -216,7 +253,26 @@ def test_extra_css_is_included_before_the_generated_css(tmp_path: Path, fake_pan
         keep_work_dir=True,
     )
     css = (work_dir / "_prodockit_pdf_compiled.css").read_text(encoding="utf-8")
-    assert css.index(".my-custom-class") < css.index("@page")
+    assert css.index("@page") < css.index(".my-custom-class")
+
+
+def test_project_css_can_override_a_generated_rule_at_equal_specificity(
+    tmp_path: Path, fake_pandoc_on_path
+) -> None:
+    work_dir = tmp_path / "work"
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [Page(docs_rel_path="index.md", html="<h1>Report</h1>", is_index=True)],
+        str(tmp_path / "out.pdf"),
+        extra_css="body { font-size: 13pt !important; }",
+        work_dir=str(work_dir),
+        keep_work_dir=True,
+    )
+
+    css = (work_dir / "_prodockit_pdf_compiled.css").read_text(encoding="utf-8")
+    assert css.index("body {\n    font-family:") < css.index(
+        "body { font-size: 13pt !important; }"
+    )
 
 
 @real_pandoc_and_weasyprint_required

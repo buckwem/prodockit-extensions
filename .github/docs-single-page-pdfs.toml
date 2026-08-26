@@ -34,12 +34,13 @@ authoring_extensions = [
 ]
 
 # Materially different shapes outside the overview and extension families:
-# setup instructions, the PDF reference, macro examples, a very long page,
-# and a page assembled from an external snippet.
+# setup instructions, the PDF reference, macro examples, stylesheet diagrams,
+# a very long page, and a page assembled from an external snippet.
 other_page_shapes = [
   "installation.md",
   "pdf.md",
   "macros.md",
+  "stylesheets.md",
   "about/changelog.md",
   "about/license.md",
 ]

@@ -31,6 +31,7 @@ from prodockit import __version__
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
+from prodockit.shared_files import resource_bytes
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -39,7 +40,7 @@ else:  # pragma: no cover - exercised by the Python 3.10 CI job
 
 
 MANIFEST = ".prodockit-components.toml"
-STYLESHEET = Path("docs/stylesheets/prodockit.css")
+STYLESHEET = Path("docs/stylesheets/pdk.css")
 CONFIG_NAMES = (
     "zensical.toml",
     "zensical.yml",
@@ -71,139 +72,6 @@ CORE_EXTENSIONS = (
 MERMAID_FENCE = (
     '{ name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }'
 )
-
-# A project-owned stylesheet remains free to override this file because
-# adoption adds this one before any existing extra_css entries.
-STYLE_SOURCE = """\
-/* Written by `prodockit adopt`. Project CSS loaded after this may override it. */
-.pdf-only { display: none !important; }
-@media print { .web-only { display: none !important; } }
-
-.md-typeset table.prodockit-table-sized,
-.md-typeset table.prodockit-table-compact {
-  table-layout: fixed;
-  width: 100%;
-  border-collapse: collapse;
-  background-color: var(--md-default-bg-color);
-  border: 0.05rem solid var(--md-typeset-table-color);
-  font-size: 0.64rem;
-}
-.md-typeset table.prodockit-table-sized th,
-.md-typeset table.prodockit-table-sized td,
-.md-typeset table.prodockit-table-compact th,
-.md-typeset table.prodockit-table-compact td {
-  border: 0.05rem solid var(--md-typeset-table-color);
-  padding: 0.9375em 1.25em;
-  vertical-align: top;
-}
-.md-typeset table.prodockit-table-compact th,
-.md-typeset table.prodockit-table-compact td { padding: 0.4em 0.5em; }
-.md-typeset table.prodockit-table-compact th { min-width: 0; }
-:root { --prodockit-table-shade-rgb: 0, 0, 0; }
-[data-md-color-scheme="slate"] { --prodockit-table-shade-rgb: 255, 255, 255; }
-.md-typeset table.prodockit-table-sized th,
-.md-typeset table.prodockit-table-compact th {
-  background-color: rgba(var(--prodockit-table-shade-rgb), 0.05);
-}
-.md-typeset table.prodockit-table-sized th.prodockit-table-cell-unshaded,
-.md-typeset table.prodockit-table-sized td.prodockit-table-cell-unshaded,
-.md-typeset table.prodockit-table-compact th.prodockit-table-cell-unshaded,
-.md-typeset table.prodockit-table-compact td.prodockit-table-cell-unshaded {
-  background-color: transparent;
-}
-.md-typeset table.prodockit-table-sized th.prodockit-table-cell-shaded,
-.md-typeset table.prodockit-table-sized td.prodockit-table-cell-shaded,
-.md-typeset table.prodockit-table-compact th.prodockit-table-cell-shaded,
-.md-typeset table.prodockit-table-compact td.prodockit-table-cell-shaded {
-  background-color: rgba(var(--prodockit-table-shade-rgb), var(--prodockit-table-cell-shade));
-}
-.md-typeset th.prodockit-rotate { vertical-align: bottom; text-align: center; }
-.md-typeset span.prodockit-rotate { display: inline-block; transform-origin: center; }
-
-.md-typeset ol.prodockit-steps {
-  --step-size: 1.65rem;
-  --step-gap: 0.75rem;
-  --step-line: 2px;
-  --step-line-gap: 0.3rem;
-  --step-ink: var(--md-primary-fg-color, #1f2937);
-  --step-rule: var(--md-default-fg-color--lighter, #d1d5db);
-  list-style: none;
-  margin: 0 0 1rem;
-  padding-left: 0;
-}
-.md-typeset ol.prodockit-steps > li {
-  position: relative;
-  margin: 0;
-  padding-left: calc(var(--step-size) + var(--step-gap));
-  padding-bottom: 1.15rem;
-  min-height: var(--step-size);
-}
-.md-typeset ol.prodockit-steps > li::before {
-  content: counter(list-item);
-  position: absolute;
-  left: 0;
-  width: var(--step-size);
-  height: var(--step-size);
-  line-height: var(--step-size);
-  text-align: center;
-  border-radius: 50%;
-  background: var(--step-ink);
-  color: var(--md-primary-bg-color, #fff);
-  font-weight: 700;
-}
-.md-typeset ol.prodockit-steps > li::after {
-  content: "";
-  position: absolute;
-  left: calc(var(--step-size) / 2 - var(--step-line) / 2);
-  top: calc(var(--step-size) + var(--step-line-gap));
-  bottom: var(--step-line-gap);
-  width: var(--step-line);
-  background: var(--step-rule);
-}
-.md-typeset ol.prodockit-steps > li:last-child::after { content: none; }
-.md-typeset ol.prodockit-steps p.prodockit-step-title { font-weight: 700; }
-
-.prodockit-tree {
-  --tree-indent: 1.5rem;
-  --tree-stub: 0.9rem;
-  --tree-row: 1.45em;
-  --tree-line: 1.2px;
-  --tree-line-color: var(--md-default-fg-color--light, #9b9b9b);
-  --tree-icon-gap: 0.45em;
-  --tree-hang: calc(1.1em + var(--tree-icon-gap));
-  font-size: 0.833em;
-}
-.prodockit-tree ul { list-style: none; margin: 0; padding-left: var(--tree-indent); }
-.prodockit-tree > ul { padding-left: 0; }
-.prodockit-tree li { position: relative; margin: 0; line-height: var(--tree-row); }
-.prodockit-tree li > ul {
-  padding-left: 0;
-  margin-left: calc(var(--tree-indent) - var(--tree-stub) - 0.35rem - var(--tree-hang));
-}
-.prodockit-tree ul ul li {
-  padding-left: calc(var(--tree-stub) + 0.35rem + var(--tree-hang));
-  text-indent: calc(-1 * var(--tree-hang));
-}
-.prodockit-tree ul ul li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  border-left: var(--tree-line) solid var(--tree-line-color);
-}
-.prodockit-tree ul ul li::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: calc(var(--tree-row) / 2);
-  width: var(--tree-stub);
-  border-top: var(--tree-line) solid var(--tree-line-color);
-}
-.prodockit-tree .tree-icon { margin-right: var(--tree-icon-gap); }
-.prodockit-tree .tree-note { color: var(--md-default-fg-color--light, #666); }
-.prodockit-tree .tree-note::before { content: " — "; }
-"""
 
 
 class AdoptError(Exception):
@@ -447,7 +315,7 @@ def _docs_dir(parsed: dict[str, Any]) -> Path:
 
 
 def _stylesheet_path(root: Path, parsed: dict[str, Any]) -> Path:
-    return root / _docs_dir(parsed) / "stylesheets" / "prodockit.css"
+    return root / _docs_dir(parsed) / "stylesheets" / "pdk.css"
 
 
 def _core_ok(parsed: dict[str, Any]) -> bool:
@@ -458,7 +326,7 @@ def _core_ok(parsed: dict[str, Any]) -> bool:
 def _style_ok(root: Path, parsed: dict[str, Any]) -> bool:
     project = parsed.get("project", parsed)
     extra_css = project.get("extra_css", []) if isinstance(project, dict) else []
-    return _stylesheet_path(root, parsed).is_file() and "stylesheets/prodockit.css" in extra_css
+    return _stylesheet_path(root, parsed).is_file() and "stylesheets/pdk.css" in extra_css
 
 
 def _section(source: str, table: str) -> tuple[int, int] | None:
@@ -503,7 +371,14 @@ def _matching_bracket(source: str, start: int) -> int:
     raise AdoptError("could not find the end of a TOML array")
 
 
-def _add_array_value(source: str, table: str, key: str, rendered: str) -> str:
+def _add_array_value(
+    source: str,
+    table: str,
+    key: str,
+    rendered: str,
+    *,
+    prepend: bool = False,
+) -> str:
     located = _section(source, table)
     if located is None:
         source = _append_tables(source, (table,))
@@ -519,6 +394,9 @@ def _add_array_value(source: str, table: str, key: str, rendered: str) -> str:
     array_end = _matching_bracket(source, array_start)
     if rendered in source[array_start : array_end + 1]:
         return source
+    if prepend:
+        addition = f"\n  {rendered},"
+        return source[: array_start + 1] + addition + source[array_start + 1 :]
     body = source[array_start + 1 : array_end]
     separator = "" if not body.strip() or body.rstrip().endswith(",") else ","
     addition = f"{separator}\n  {rendered},\n"
@@ -597,7 +475,8 @@ def ensure_zensical_config(root: Path, options: AdoptOptions) -> Path:
         source,
         "project",
         "extra_css",
-        '"stylesheets/prodockit.css"',
+        '"stylesheets/pdk.css"',
+        prepend=True,
     )
     if options.mermaid:
         if extension_array:
@@ -688,15 +567,26 @@ def _yaml_extension_layout(source: str, located: tuple[int, int]) -> tuple[str, 
     return "sequence", "  "
 
 
-def _yaml_add_top_list_value(source: str, key: str, rendered: str) -> str:
+def _yaml_add_top_list_value(
+    source: str,
+    key: str,
+    rendered: str,
+    *,
+    prepend: bool = False,
+) -> str:
     located = _yaml_block(source, key)
     if located is None:
         inline = re.search(rf"(?m)^{re.escape(key)}:[ \t]*\[(?P<body>[^\]\n]*)\][ \t]*$", source)
         if inline:
             if rendered.strip("\"'") in inline.group("body"):
                 return source
-            insert = inline.start("body") + len(inline.group("body"))
-            separator = ", " if inline.group("body").strip() else ""
+            body = inline.group("body")
+            if prepend:
+                insert = inline.start("body")
+                separator = ", " if body.strip() else ""
+                return source[:insert] + rendered + separator + source[insert:]
+            insert = inline.start("body") + len(body)
+            separator = ", " if body.strip() else ""
             return source[:insert] + separator + rendered + source[insert:]
         if re.search(rf"(?m)^{re.escape(key)}:", source):
             raise AdoptError(
@@ -860,7 +750,12 @@ def _ensure_mkdocs_config(
     for name in CORE_EXTENSIONS:
         if name not in configured:
             source = _yaml_add_extension(source, name)
-    source = _yaml_add_top_list_value(source, "extra_css", "stylesheets/prodockit.css")
+    source = _yaml_add_top_list_value(
+        source,
+        "extra_css",
+        "stylesheets/pdk.css",
+        prepend=True,
+    )
     if options.mermaid:
         source = _yaml_ensure_mermaid(source)
     if options.maths:
@@ -883,7 +778,7 @@ def ensure_stylesheet(root: Path) -> Path:
     _config_path, _source, parsed = _config(root)
     path = _stylesheet_path(root, parsed)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(STYLE_SOURCE, encoding="utf-8")
+    path.write_bytes(resource_bytes("pdk.css"))
     return path
 
 
@@ -1087,7 +982,6 @@ __all__ = [
     "CORE_EXTENSIONS",
     "MANIFEST",
     "STYLESHEET",
-    "STYLE_SOURCE",
     "AdoptError",
     "AdoptOptions",
     "Step",

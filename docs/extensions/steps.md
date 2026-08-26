@@ -198,9 +198,9 @@ HTML to be a valid ordered list.
 
 ## Customise the appearance {: #steps-generated-html }
 
-Add the numbered-step styles to your project's CSS style sheet. This
-repository's `docs/stylesheets/extra.css` contains the styles used by the
-examples on this page.
+Prodockit's managed `docs/stylesheets/pdk.css` contains the numbered-step
+defaults used by the examples on this page. Put project-specific changes in
+`docs/stylesheets/extra.css`, which is loaded afterwards.
 
 ### Generated HTML {: #steps-generated-html-structure }
 
@@ -229,8 +229,7 @@ The two stable class names are:
 The title is an element rather than bold text, so it can be styled separately
 from emphasis used in the step body.
 
-If you adapt the CSS style-sheet rules in `docs/stylesheets/extra.css`, retain
-these details:
+If you override the rules from `pdk.css` in `extra.css`, retain these details:
 
 - the joining line is positioned from the number's own size, so changing
   `--step-size` does not move the line away from the number;

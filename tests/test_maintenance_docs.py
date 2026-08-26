@@ -28,13 +28,13 @@ def test_getting_started_holds_installation_routes() -> None:
     assert {"4. Set up a template project": "devcons/bootstrap.md"} in getting_started
     assert {"5. Start with prodockit-template": "prodockit-template.md"} in getting_started
     assert {
-        "21. Staying in step with the template": "devcons/template-sync.md"
+        "22. Staying in step with the template": "devcons/template-sync.md"
     } in publishing
     assert maintenance == [
-        {"24. Maintenance overview": "project-maintenance.md"},
-        {"25. Repository metadata": "devcons/repo-metadata.md"},
-        {"26. Version pinning and drift": "devcons/pinning-drift.md"},
-        {"27. Build and release": "devcons/releasing.md"},
+        {"25. Maintenance overview": "project-maintenance.md"},
+        {"26. Repository metadata": "devcons/repo-metadata.md"},
+        {"27. Version pinning and drift": "devcons/pinning-drift.md"},
+        {"28. Build and release": "devcons/releasing.md"},
     ]
 
 
@@ -100,3 +100,38 @@ def test_template_sync_guide_covers_package_only_updates() -> None:
     assert "When only prodockit needs upgrading" in guide
     assert "Pages" in guide and "documentation" in guide
     assert "manual rebuild is still necessary" in guide
+
+
+def test_template_sync_links_managed_stylesheet_warnings_to_the_style_guide() -> None:
+    guide = (ROOT / "docs" / "devcons" / "template-sync.md").read_text(encoding="utf-8")
+
+    assert "Warning - managed stylesheet changes found" in guide
+    assert "[Stylesheets](../stylesheets.md)" in guide
+
+
+def test_contributor_guide_records_the_managed_stylesheet_release_contract() -> None:
+    guide = (ROOT / "docs" / "devcons" / "extension-internals.md").read_text(
+        encoding="utf-8"
+    )
+
+    for phrase in (
+        "[Stylesheets](../stylesheets.md)",
+        "force-include",
+        "src/prodockit/shared_files.py",
+        "prodockit-template",
+        "prodockit-userguide",
+        "prodockit pins --check",
+    ):
+        assert phrase in guide
+
+    code_map = (ROOT / "docs" / "devcons" / "development.md").read_text(encoding="utf-8")
+    for phrase in (
+        "stylesheet-delivery-code-map",
+        "docs/stylesheets/pdk.css",
+        "docs/stylesheets/pdk-pdf.css",
+        "src/prodockit/shared_files.py",
+        "src/prodockit/template_sync.py",
+        "src/prodockit/pdf/config.py",
+        "tests/test_shared_file_wheel.py",
+    ):
+        assert phrase in code_map

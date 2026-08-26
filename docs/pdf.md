@@ -194,7 +194,7 @@ lives under `[project.extra]`, all optional:
 | \index{PDF settings!`pdf_table_of_contents_title`} | `"Table of Contents"` | That page's own heading text. |
 | \index{PDF settings!`pdf_mmdc_bin`} | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
 | \index{PDF settings!`pdf_tex2svg_script`} / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
-| \index{PDF settings!`pdf_extra_css`} | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF - e.g. a rule that would look wrong on the live website, or one overriding something `extra_css` itself sets (concatenated after it, so it wins the cascade). |
+| \index{PDF settings!`pdf_extra_css`} | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF. The standard order is managed `pdk-pdf.css` followed by author-owned `print.css`; both are loaded after the renderer foundations and the website styles, so `print.css` has the final say at equal specificity. |
 
 A page's own front matter
 \index{PDF settings!`pdf_include`}`pdf_include: false` keeps that page on the
@@ -247,7 +247,7 @@ so add this one line to your project's own website stylesheet:
 }
 ```
 
-(see this project's own `docs/stylesheets/extra.css` for a working
+(see this project's managed `docs/stylesheets/pdk.css` for a working
 example). If your project doesn't yet use `.pdf-only` for anything, there's
 nothing to add until it does.
 

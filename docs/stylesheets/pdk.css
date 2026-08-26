@@ -1,0 +1,668 @@
+/* Copyright (c) 2026 Mark Buckwell and contributors - managed by prodockit */
+/* SPDX-License-Identifier: MIT */
+
+/* .web-only content (e.g. the "Download PDF" link/button on every docs
+   page) needs no rule here at all - the PDF renderer hides it
+   automatically in every PDF build, and it's meant to show normally here
+   on the live website. .pdf-only is the other half: content meant only
+   for the PDF (this site has none yet, but a project with e.g. an
+   automated cover-page word count would add its own here) - prodockit
+   cannot alter a live website after it is built, so this managed file is
+   the website-side part of the convention - see the "Web-only / PDF-only
+   content" section in the PDF generation docs. */
+.pdf-only {
+  display: none !important;
+}
+@media print {
+  .web-only {
+    display: none !important;
+  }
+}
+
+/* prodockit.tables' own <colgroup>-based column widths only take effect
+   under table-layout: fixed - scoped to its own marker class so a plain
+   table's existing auto-layout/content-driven column sizing is unaffected.
+   The rule lives in this managed stylesheet so every consuming website and
+   its PDF use the same component contract.
+
+   The theme's own default table styling (border, padding, alternating
+   presentation) is scoped ".md-typeset table:not([class])" - confirmed
+   directly in Zensical's bundled CSS - so a table carrying
+   prodockit-table-sized (or any other class) gets none of it at all, not
+   just no width control. It has to be rebuilt here rather than left
+   bare.
+
+   What is rebuilt is the theme's own appearance, copied from those
+   rules. It used to be the PDF's instead - a full grey grid at body text
+   size - which meant a table changed how it looked because somebody set
+   a column width, and sat beside an ordinary table looking like a
+   different component (prodockit-extensions#490).
+
+   The colour matters as much as the shape: the theme's
+   --md-typeset-table-color follows the colour scheme, and the #555555
+   this used to hard-code did not, so a sized table was wrong in dark
+   mode by construction.
+
+   Only two declarations are the class's own - table-layout: fixed, and
+   width: 100% so a percentage column resolves against a full-width
+   table. Everything else here exists to leave the table looking exactly
+   as it would have without a width on it. */
+.md-typeset table:not([class]),
+.md-typeset table.prodockit-table-sized,
+.md-typeset table.prodockit-table-compact {
+  /* One shared border at every cell boundary. Without collapse, adjoining
+     0.05rem cell borders render twice as wide as the table's outer rule. */
+  border-collapse: collapse;
+}
+.md-typeset table.prodockit-table-sized,
+.md-typeset table.prodockit-table-compact {
+  /* The class's own reason to exist. */
+  table-layout: fixed;
+  width: 100%;
+  /* The theme's appearance, from `table:not([class])`. */
+  background-color: var(--md-default-bg-color);
+  border: 0.05rem solid var(--md-typeset-table-color);
+  border-radius: 0.1rem;
+  font-size: 0.64rem;
+}
+.md-typeset table.prodockit-table-sized th,
+.md-typeset table.prodockit-table-sized td,
+.md-typeset table.prodockit-table-compact th,
+.md-typeset table.prodockit-table-compact td {
+  padding: 0.9375em 1.25em;
+  vertical-align: top;
+}
+.md-typeset table.prodockit-table-sized th,
+.md-typeset table.prodockit-table-compact th {
+  font-weight: 700;
+}
+/* The same subtle shaded header band as the PDF. Keep its opacity separate
+   from the 12% grid colour so headings can be lighter without weakening cell
+   boundaries. A specific cell can override or remove it through the stable
+   classes emitted for `shade="<percentage>"` and `shade="off"`. */
+:root {
+  --prodockit-table-shade-rgb: 0, 0, 0;
+}
+[data-md-color-scheme="slate"] {
+  --prodockit-table-shade-rgb: 255, 255, 255;
+}
+.md-typeset table:not([class]) th,
+.md-typeset table.prodockit-table-sized th,
+.md-typeset table.prodockit-table-compact th {
+  background-color: rgba(var(--prodockit-table-shade-rgb), 0.05);
+}
+.md-typeset table th.prodockit-table-cell-shaded,
+.md-typeset table td.prodockit-table-cell-shaded {
+  background-color: rgba(
+    var(--prodockit-table-shade-rgb),
+    var(--prodockit-table-cell-shade)
+  );
+}
+.md-typeset table th.prodockit-table-cell-unshaded,
+.md-typeset table td.prodockit-table-cell-unshaded {
+  background-color: transparent;
+}
+/* A complete grid makes merged-cell boundaries visible. Use the theme's
+   own table colour so the grid follows light and dark colour schemes. */
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td,
+.md-typeset table.prodockit-table-sized th,
+.md-typeset table.prodockit-table-sized td,
+.md-typeset table.prodockit-table-compact th,
+.md-typeset table.prodockit-table-compact td {
+  border: 0.05rem solid var(--md-typeset-table-color);
+}
+.md-typeset table.prodockit-table-sized tbody tr,
+.md-typeset table.prodockit-table-compact tbody tr {
+  transition: background-color 125ms;
+}
+.md-typeset table.prodockit-table-sized tbody tr:hover,
+.md-typeset table.prodockit-table-compact tbody tr:hover {
+  background-color: var(--md-typeset-table-color--light);
+  box-shadow: 0 0.05rem 0 var(--md-default-bg-color) inset;
+}
+
+/* A dense table: many columns, most of them short.
+
+   The theme holds every header cell to `min-width: 5rem` and pads each
+   cell 1.25em either side. On a wide table that is most of the width,
+   and it is spent on the columns that need it least - a column holding
+   `H` is held as wide as one holding a sentence, so the table overflows
+   whatever its content is.
+
+   Measured on a real 14-column table, against 1009px of A4 landscape:
+
+       as shipped                     1586.7px   (57% over)
+       min-width dropped              1190.7px
+       and the padding tightened       993.1px   (fits)
+
+   So the two go together: neither is enough on its own, which is why
+   this is one class rather than two (prodockit-extensions#489).
+
+   Opt-in, written as `{: .compact }` on any header cell, because a table
+   that is comfortable at its default should stay that way - and because
+   a table changing shape on its own, as a column is added, is the kind
+   of surprise this project tries not to spring. */
+.md-typeset table.prodockit-table-compact th {
+  min-width: 0;
+}
+.md-typeset table.prodockit-table-compact th,
+.md-typeset table.prodockit-table-compact td {
+  padding: 0.4em 0.5em;
+}
+
+/* A header turned on its side, from `{: rotate=270 width="..." }`.
+
+   `transform` rather than `writing-mode`, and deliberately the same
+   mechanism the PDF uses: WeasyPrint ignores `writing-mode` entirely and
+   silently, so a heading set that way is horizontal in the PDF while the
+   column still narrows - it looks merely wrapped rather than broken. One
+   mechanism that behaves the same in both outputs is worth more than two
+   that have to agree (prodockit-extensions#474).
+
+   `transform` never affects layout, which is why the column has to carry
+   a width of its own: a rotated box still occupies the space it would
+   have occupied unrotated. The extension refuses `rotate` without
+   `width` for that reason. */
+.md-typeset th.prodockit-rotate {
+  vertical-align: bottom;
+  text-align: center;
+  padding: 0.4em 0.2em;
+}
+.md-typeset span.prodockit-rotate {
+  display: inline-block;
+  transform-origin: center center;
+  white-space: normal;
+}
+
+/* ============================================================= */
+/* ================ Style for slate theme logo ================ */
+/* ============================================================= */
+
+/* Keep these as relative files so projects can replace their active
+   logo_black.png/logo_white.png pair without editing this shared stylesheet.
+   prodockit.pdf inlines local CSS assets while assembling the PDF, so the
+   relative website URLs do not make the PDF build depend on this directory. */
+[data-md-color-scheme="slate"] .md-logo img {
+  content: url("../assets/logo_white.png");
+}
+[data-md-color-scheme="default"] .md-logo img {
+  content: url("../assets/logo_black.png");
+}
+
+/* ============================================================= */
+/* ======= Fix for the bundled theme's #only-light/dark bug ===== */
+/* ============================================================= */
+
+/* Zensical's own theme CSS hides #only-dark images in light (default)
+   mode and #only-light images in dark (slate) mode, but neither rule
+   uses !important, so attr_list-style inline `style="display: block"`
+   silently wins over both of them - both the light and dark image end up
+   visible at once, in both modes. Reassert both directions here, with
+   !important, to actually win (see zensicalbasics.md's own "Images"
+   section, which demonstrates this hash-fragment syntax live). */
+[data-md-color-scheme="default"] img[src$="#gh-dark-mode-only"],
+[data-md-color-scheme="default"] img[src$="#only-dark"] {
+  display: none !important;
+}
+[data-md-color-scheme="slate"] img[src$="#gh-light-mode-only"],
+[data-md-color-scheme="slate"] img[src$="#only-light"] {
+  display: none !important;
+}
+
+/* ============================================================= */
+/* =============== Site header title weight ===================== */
+/* ============================================================= */
+
+/* Matches the regular (non-bold) weight "prodockit" already renders at on
+   the cover page's own hero title (see ".cover-hero-title-light" below) -
+   the theme's own header title is bold by default, which otherwise reads
+   inconsistently against the cover page directly beneath it. */
+.md-header__topic .md-ellipsis {
+  font-weight: normal;
+}
+
+/* Framed screenshots and single-column card grids are author-facing
+   helpers used by the template and its User Guide. They belong in the
+   managed stylesheet so an example has the same presentation everywhere. */
+.md-typeset img.screenshot {
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+[data-md-color-scheme="slate"] .md-typeset img.screenshot {
+  border-color: #4a4a4a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.grid.cards.one-column {
+  grid-template-columns: 1fr;
+}
+
+/* ============================================================= */
+/* ==================== Cover page hero ========================= */
+/* ============================================================= */
+
+/* Full-bleed, full-height split hero (title/release/download left,
+   the abstract-flow graphic right) - the same wide, bold treatment as
+   zensical.org's own homepage. Breaks out of the theme's centred content
+   column via the negative-margin/100vw trick, since Zensical has no
+   built-in "full width section" primitive. Respects the site's own
+   light/dark toggle rather than forcing one scheme, unlike zensical.org's
+   own always-dark hero - text colour here already matches the theme's
+   own foreground colour with no override needed. */
+.cover-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4rem;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  min-height: calc(100vh - 8rem);
+  padding: 2rem 6vw;
+  box-sizing: border-box;
+}
+
+.cover-hero-text {
+  flex: 1 1 420px;
+  max-width: 640px;
+}
+
+.cover-hero-title {
+  font-size: clamp(2.5rem, 5vw, 4rem) !important;
+  font-weight: 800 !important;
+  line-height: 1.05 !important;
+  margin: 0 0 1rem !important;
+}
+
+/* The site's own wordmark - kept regular weight rather than the bold
+   ".cover-hero-title" default, matching the header logo/title elsewhere on
+   the page. Same rule for both the website and the PDF, since both share
+   this markup and CSS. */
+.cover-hero-title-light {
+  font-weight: 400 !important;
+}
+
+/* Our own explicit fallback for --md-default-fg-color--light (Zensical's
+   own bundled theme CSS defines it, currently rgba(0, 0, 0, 0.55) in light
+   mode) - used only where that variable is undefined, e.g.
+   prodockit.pdf's own generated CSS, which doesn't include Zensical's
+   theme stylesheet at all (confirmed directly: .cover-hero-subtitle/
+   .cover-hero-release both rendered pure black in a real built PDF
+   instead of this lighter grey, prodockit-extensions#120). Defining our
+   own copy here - rather than depending on Zensical's variable resolving
+   *somewhere*, with no fallback - means a future Zensical theme change
+   (renaming or dropping the variable) can't silently break this
+   project's own PDF-visible text again (prodockit-extensions#121); the
+   live website still gets the real, theme-adaptive value whenever it's
+   actually defined, via the var() fallback below. */
+:root {
+  --prodockit-fg-color-light: rgba(0, 0, 0, 0.55);
+}
+
+/* Given its own class (rather than staying a bare, unstyled <p>) for the
+   same reason .cover-hero-release needs one: prodockit.pdf's Pandoc-based
+   PDF pipeline resolved a class-less paragraph placed directly after an h1
+   at a wrong, inflated size (a Pandoc HTML round-trip quirk, confirmed by
+   comparison against the identical sentence rendering at the correct size
+   elsewhere in the document, outside a "div > h1 + p" position) - a class
+   here sidesteps it entirely. */
+.cover-hero-subtitle {
+  font-size: 1.15rem;
+  font-weight: 400;
+  color: var(--md-default-fg-color--light, var(--prodockit-fg-color-light));
+  margin: 0 0 1rem;
+}
+
+/* font-weight: 400 for the same reason .cover-hero-subtitle needs it above
+   - without it, prodockit.pdf's Pandoc-based pipeline renders this
+   paragraph in a bold weight (confirmed directly: Inter-Ultra-Bold
+   instead of Inter, via a real PDF's own extracted font info) instead of
+   regular. */
+.cover-hero-release {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--md-default-fg-color--light, var(--prodockit-fg-color-light));
+  margin: 0 0 1.5rem;
+}
+
+/* Matches the hero graphic's own innermost, most saturated stroke colour
+   (docs/assets/cover-hero-*.svg - both light and dark variants use the
+   same green now) rather than the theme's default primary colour, which
+   .md-button--primary would otherwise use unmodified. Scoped to the hero's
+   own "Download PDF" button, not the bare ".md-button--primary" class, so
+   any other primary button elsewhere keeps the theme's default colour. */
+.cover-hero-text .md-button--primary {
+  background-color: #22c55e !important;
+  border-color: #22c55e !important;
+}
+.cover-hero-text .md-button--primary:hover {
+  background-color: #16a34a !important;
+  border-color: #16a34a !important;
+}
+
+.cover-hero-graphic {
+  flex: 1 1 480px;
+  max-width: 640px;
+}
+
+.cover-hero-graphic img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+@media (max-width: 960px) {
+  .cover-hero {
+    flex-direction: column;
+    text-align: center;
+    min-height: auto;
+    padding: 2rem 4vw;
+  }
+  .cover-hero-text {
+    max-width: 100%;
+  }
+}
+
+/* The PDF build reuses this same stylesheet (see "PDF-only / web-only
+   content markers" below) - reset the breakout/flex/100vh sizing back to
+   plain block flow for print, since WeasyPrint paginates rather than
+   scrolls and has no concept of a viewport height to fill. */
+@media print {
+  .cover-hero {
+    display: block;
+    width: auto;
+    position: static;
+    left: auto;
+    right: auto;
+    margin: 0;
+    min-height: 0;
+    padding: 0;
+  }
+  .cover-hero-text,
+  .cover-hero-graphic {
+    max-width: 100%;
+  }
+  /* clamp()/vw sizing (used for the live website, where the viewport is
+     known) has no meaning on a paginated PDF page, and isn't supported by
+     WeasyPrint anyway - fall back to a plain point size. */
+  .cover-hero-title {
+    font-size: 32pt !important;
+  }
+  /* The live website picks light/dark between these two images via
+     [data-md-color-scheme] (see "#only-light/dark" below) - meaningless in
+     a static PDF with no theme toggle, so both would otherwise render at
+     once. Keep only the light version, matching the PDF's white page
+     background. Selectors below need the extra ".cover-hero-graphic"/
+     ".off-glb" qualifier to out-specificity (rather than just out-!important)
+     prodockit.pdf's own ".cover-page img" rule (display/max-height, etc,
+     also !important) - equal-or-lower specificity loses to it regardless of
+     !important or source order, since that rule is appended after this
+     stylesheet. */
+  .cover-hero-graphic img.hero-dark {
+    display: none !important;
+  }
+  .cover-hero-graphic img.off-glb {
+    width: 70% !important;
+    max-width: 70% !important;
+    max-height: none !important;
+    margin: 0 auto !important;
+  }
+}
+
+
+/* Simple emphasis colours documented by the template. */
+.bg-blue,
+.bg-green,
+.bg-grey {
+  color: #ffffff;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+.bg-blue { background-color: #0078d4; }
+.bg-green { background-color: #029e50; }
+.bg-grey { background-color: #6e6d6dca; }
+
+/* Continuous chapter numbering across pages. A project's
+   heading_counter_reset(page) macro supplies the starting value for each
+   page; project.extra.heading_numbering can switch the visible numbering
+   off for a site that does not use document-style chapter numbers. */
+.md-typeset { counter-reset: h1-count 0; }
+.md-typeset h1 { counter-increment: h1-count; counter-reset: h2-count; }
+.md-typeset h1::before { content: counter(h1-count) ". "; }
+.md-typeset h2 { counter-increment: h2-count; counter-reset: h3-count; }
+.md-typeset h2::before { content: counter(h1-count) "." counter(h2-count) " "; }
+.md-typeset h3 { counter-increment: h3-count; }
+.md-typeset h3::before { content: counter(h1-count) "." counter(h2-count) "." counter(h3-count) " "; }
+.md-typeset h1.unnumbered::before,
+.md-typeset h2.unnumbered::before,
+.md-typeset h3.unnumbered::before { content: none; }
+.md-nav--secondary > .md-nav__list > .md-nav__item {
+  counter-increment: toc2;
+  counter-reset: toc3 0;
+}
+.md-nav--secondary > .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {
+  content: counter(toc1) "." counter(toc2) " ";
+}
+.md-nav--secondary > .md-nav__list > .md-nav__item .md-nav__list > .md-nav__item {
+  counter-increment: toc3;
+}
+.md-nav--secondary > .md-nav__list > .md-nav__item .md-nav__list > .md-nav__item > .md-nav__link .md-ellipsis::before {
+  content: counter(toc1) "." counter(toc2) "." counter(toc3) " ";
+}
+.md-typeset .prodockit-figure-caption .caption-prefix::before {
+  content: "Figure " counter(h1-count) ".";
+}
+.md-typeset .prodockit-table-caption .caption-prefix::before {
+  content: "Table " counter(h1-count) ".";
+}
+
+/* prodockit.steps - numbered steps a reader works through in order.
+   ---------------------------------------------------------------------
+   Two things here are worth keeping, because both fail silently and only
+   in the PDF (prodockit-extensions#378).
+
+   1. The line joining the steps is positioned from the number's own
+      size - half a circle, less half a line - so the two cannot drift
+      apart. Change --step-size to any value in any unit and it stays
+      centred.
+
+   2. ::after carries the same font-size as ::before. The number sets its
+      own size so the digits fit, so an `em` means one thing inside the
+      circle and another in the line's `left` - measured at -8.8pt adrift
+      once the text was scaled. Matching the basis holds every case at
+      zero. */
+.md-typeset ol.prodockit-steps {
+  --step-size: 1.65rem;        /* diameter of the number */
+  --step-gap: 0.75rem;         /* number to text */
+  --step-line: 2px;            /* thickness of the joining line */
+  --step-line-gap: 0.3rem;     /* 0 makes the line touch the numbers */
+  --step-ink: var(--md-primary-fg-color, #1f2937);
+  --step-rule: var(--md-default-fg-color--lighter, #d1d5db);
+  list-style: none;
+  margin: 0 0 1rem;
+  padding-left: 0;
+}
+.md-typeset ol.prodockit-steps > li {
+  position: relative;
+  margin: 0;
+  padding-left: calc(var(--step-size) + var(--step-gap));
+  padding-bottom: 1.15rem;
+  min-height: var(--step-size);
+}
+.md-typeset ol.prodockit-steps > li:last-child { padding-bottom: 0; }
+.md-typeset ol.prodockit-steps > li::before {          /* the number */
+  content: counter(list-item);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--step-size);
+  height: var(--step-size);
+  line-height: var(--step-size);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  border-radius: 50%;
+  background: var(--step-ink);
+  color: var(--md-primary-bg-color, #fff);
+}
+.md-typeset ol.prodockit-steps > li::after {           /* the line between */
+  content: "";
+  position: absolute;
+  font-size: 0.8rem;                                   /* same basis as the number */
+  left: calc(var(--step-size) / 2 - var(--step-line) / 2);
+  top: calc(var(--step-size) + var(--step-line-gap));
+  bottom: var(--step-line-gap);
+  width: var(--step-line);
+  background: var(--step-rule);
+}
+.md-typeset ol.prodockit-steps > li:last-child::after { content: none; }
+.md-typeset ol.prodockit-steps p.prodockit-step-title {
+  font-weight: 700;
+  margin: 0 0 0.35rem;
+}
+
+/* prodockit.tree - a directory listing that looks like one.
+   ---------------------------------------------------------------------
+   The icons are chosen by the class the extension set from a trailing
+   "/", so an author never types one and two rows cannot disagree about
+   which to use. The extension emits a shortcode and the project's own
+   icon extension renders it, so a tree uses whatever set that project
+   already has - Material's here, or anything under a configured
+   custom_icons directory. Only the size and spacing are set here.
+
+   The rail and its stub are positioned from one measurement, so changing
+   the indentation cannot leave them disagreeing about where a level
+   begins - the same discipline prodockit.steps needed, and for the same
+   reason: the drift is invisible at one size and obvious at another.
+
+   The last child's rail stops at its own stub, so a rail never runs past
+   the last entry pointing at nothing (prodockit-extensions#379). */
+.prodockit-tree {
+  /* The same size as a table's cells: a listing is a dense grid of short
+     entries and reads the same way, and the two sit next to each other on
+     a page often enough that a difference shows. Relative rather than
+     10pt, so the website follows its own table size and the PDF follows
+     its own - measured: the PDF body is 12pt and `table th, table td` in
+     the PDF renderer uses 10pt, which is this ratio. */
+  font-size: 0.833em;
+  --tree-indent: 1.5rem;       /* one level */
+  --tree-stub: 0.9rem;         /* horizontal run into an entry */
+  --tree-line: 1.2px;
+  --tree-line-color: var(--md-default-fg-color--light, #9b9b9b);
+  --tree-icon-gap: 0.45em;
+  /* The line box the rails are measured against, and so the row's own
+     height. 1.9em left the listing looking airier than the prose beside
+     it - a tree is a dense index, not body copy, and reads better set
+     tighter. At 1.45em the same 44-entry listing is a fifth shorter and
+     a wrapped description still separates clearly from the next entry
+     (prodockit-extensions#486). */
+  --tree-row: 1.45em;
+}
+.prodockit-tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: var(--tree-indent);
+}
+.prodockit-tree > ul {
+  padding-left: 0;
+}
+/* One level in is `--tree-indent`, measured icon to icon - and nothing
+   else contributes to it.
+
+   It was 98px a level on the published page against the 30px this sets.
+   Two thirds of that was accidental: the theme's own list margins were
+   never reset (23px), and a row's inset - the stub, and the hanging
+   indent that keeps a wrapped description clear of its icon -
+   accumulated into every level below it (44px), because a child list
+   lives inside its parent's <li> and so starts from that <li>'s text
+   rather than from its name.
+
+   Subtracting a row's whole inset puts the child's rail a fixed
+   distance from its parent's *icon* instead, which is the second thing
+   this fixes: the rail now drops from under the icon above it at every
+   depth. It did not before - a top-level row carries only the hang,
+   having no rail to its left, while every row below it also carries the
+   stub, so a rule written for one was wrong for the other and the first
+   level stepped differently from the rest.
+
+   One rule covers both depths because the difference cancels: the same
+   inset that is subtracted here is the one the child adds back, so the
+   step is `--tree-indent` wherever it is measured. A project that wants
+   a wider or narrower tree sets that one number and gets exactly what it
+   asked for (prodockit-extensions#486). */
+.prodockit-tree ul,
+.prodockit-tree li {
+  margin-left: 0;
+}
+.prodockit-tree li > ul {
+  padding-left: 0;
+  margin-left: calc(
+    var(--tree-indent) - var(--tree-stub) - 0.35rem - var(--tree-hang)
+  );
+}
+/* A hanging indent, so a description that wraps continues under the name
+   rather than back at the margin. Without it a long entry's second line
+   starts to the left of its own icon and runs under the rails, which the
+   User Guide's real listing - 29 entries, several of them a sentence
+   long - showed immediately.
+   --tree-hang is the icon's own width plus its gap, so the two cannot
+   drift apart: change the gap and the wrap follows it. */
+.prodockit-tree {
+  --tree-hang: calc(1.1em + var(--tree-icon-gap));
+}
+.prodockit-tree li {
+  position: relative;
+  margin: 0;
+  padding-left: calc(var(--tree-stub) + 0.35rem + var(--tree-hang));
+  text-indent: calc(-1 * var(--tree-hang));
+  line-height: var(--tree-row);
+}
+/* Top level sits flush: there is no parent to hang a rail from, but the
+   hanging indent still applies. */
+.prodockit-tree > ul > li {
+  padding-left: var(--tree-hang);
+}
+/* The rail down from this entry's parent. */
+.prodockit-tree ul ul li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-left: var(--tree-line) solid var(--tree-line-color);
+}
+.prodockit-tree ul ul li:last-child::before {
+  bottom: auto;
+  height: calc(var(--tree-row) / 2);
+}
+/* The stub into the entry, meeting the rail at its midpoint. */
+.prodockit-tree ul ul li::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(var(--tree-row) / 2);
+  width: var(--tree-stub);
+  border-top: var(--tree-line) solid var(--tree-line-color);
+}
+/* The icon is whatever the project's icon extension rendered from the
+   shortcode - Material's here, or a custom set. Its *size* is already
+   settled by the rule that sizes every inline icon in the document, on
+   the website and in the PDF renderer alike, so only the gap after it
+   belongs here. Setting a width on this wrapper instead made the SVG
+   size itself against a span with no dimensions, and it rendered as a
+   tall blob on its own line. */
+.prodockit-tree .tree-icon {
+  margin-right: var(--tree-icon-gap);
+}
+.prodockit-tree .tree-note {
+  color: var(--md-default-fg-color--light, #666);
+}
+.prodockit-tree .tree-note::before {
+  content: " — ";
+  color: var(--md-default-fg-color--lighter, #999);
+}

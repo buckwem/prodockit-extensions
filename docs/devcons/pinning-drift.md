@@ -185,10 +185,12 @@ pinned - so one answer updates every file correctly.
 ## Keep shared files with the pinned release {: #pinning-shared-files }
 
 Some documentation assets belong to the Prodockit release rather than to one
-site. The full `extra.css` is one of them: extensions, template and user-guide
-use identical CSS, then select site-specific behaviour through configuration
-switches. Copying it by hand allowed one site to retain a duplicated older
-rule without any build failing.
+site. The managed `pdk.css` and `pdk-pdf.css` files are two of them:
+extensions, template and user-guide use identical defaults, then select
+site-specific behaviour through configuration switches. Author-owned
+`extra.css` and `print.css` are deliberately absent from this manifest and
+remain free for local customisation. Copying managed files by hand allowed one
+site to retain a duplicated older rule without any build failing.
 
 Prodockit therefore carries the canonical file in its wheel. A repository opts
 in with `.prodockit-shared-files.toml`:
@@ -197,8 +199,12 @@ in with `.prodockit-shared-files.toml`:
 version = 1
 
 [[files]]
-source = "extra.css"
-target = "docs/stylesheets/extra.css"
+source = "pdk.css"
+target = "docs/stylesheets/pdk.css"
+
+[[files]]
+source = "pdk-pdf.css"
+target = "docs/stylesheets/pdk-pdf.css"
 ```
 
 Check without writing:
@@ -211,14 +217,15 @@ Restore a missing or different file, then review it:
 
 ```bash
 prodockit shared-files --apply
-git diff -- docs/stylesheets/extra.css
+git diff -- docs/stylesheets/pdk.css docs/stylesheets/pdk-pdf.css
 ```
 
 When the manifest is present, `prodockit pins --check --offline` performs the
 same content check after checking version declarations. This makes the normal
-CI gate protect the versions and the shared files supplied by that installed
-version. It reads only the installed wheel and local project: no sibling
-checkout, GitHub branch, checksum list or network request is involved.
+CI gate protect the versions and managed files supplied by that installed
+version without treating author-owned `extra.css` or `print.css` as drift. It
+reads only the installed wheel and local project: no sibling checkout, GitHub
+branch, checksum list or network request is involved.
 
 Use `prodockit shared-files --verbose` when investigating a mismatch; it adds
 the expected and actual SHA-256 values to the ordinary author-facing report.

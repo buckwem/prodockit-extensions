@@ -21,7 +21,7 @@ import pytest
 from prodockit.tree import TreeError
 
 REPO = Path(__file__).resolve().parents[1]
-EXTRA_CSS = REPO / "docs" / "stylesheets" / "extra.css"
+EXTRA_CSS = REPO / "docs" / "stylesheets" / "pdk.css"
 
 LISTING = """/// tree
 {options}

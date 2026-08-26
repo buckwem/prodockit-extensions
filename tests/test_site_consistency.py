@@ -97,7 +97,11 @@ def test_reference_site_enables_website_heading_numbering() -> None:
 
     assert config["extra"]["heading_numbering"] is True
     assert config["extra"]["website_heading_numbering"] is True
-    assert config["extra_css"] == ["stylesheets/extra.css"]
+    assert config["extra_css"] == ["stylesheets/pdk.css", "stylesheets/extra.css"]
+    assert config["extra"]["pdf_extra_css"] == [
+        "stylesheets/pdk-pdf.css",
+        "stylesheets/print.css",
+    ]
     assert "config.extra.website_heading_numbering == false" in _text("overrides/main.html")
 
 
@@ -190,6 +194,7 @@ def test_authoring_navigation_uses_consistent_sentence_case() -> None:
         "Website macros",
         "Generate a PDF",
         "Command-line reference",
+        "Stylesheets",
     ]
 
 

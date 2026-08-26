@@ -24,7 +24,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from prodockit.pdf.css import build_css
+from prodockit.pdf.css import build_css, build_structural_guard_css
 from prodockit.pdf.html import build_page_anchor_map, fix_up_page_html
 from prodockit.pdf.index import (
     INDEX_CONTENT_ID,
@@ -493,7 +493,11 @@ def build_pdf(
         )
         compiled_css_path = os.path.join(resolved_work_dir, "_prodockit_pdf_compiled.css")
         with open(compiled_css_path, "w", encoding="utf-8") as f:
-            f.write(extra_css + "\n\n" + css)
+            # Renderer foundations come first. Project styles follow so
+            # extra.css can customise both outputs and print.css can override
+            # PDF presentation at equal specificity. The final guard protects
+            # only the page canvas and removes website chrome.
+            f.write(css + "\n\n" + extra_css + "\n\n" + build_structural_guard_css())
 
         cmd = [
             "pandoc",

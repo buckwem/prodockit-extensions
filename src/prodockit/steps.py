@@ -43,8 +43,8 @@ failure is silent and PDF-only.
 
 The stylesheet is the project's own - the same arrangement
 ``prodockit.tables`` has - and `docs/extensions/steps.md` describes the
-two traps that make it worth copying from this repository's own
-`docs/stylesheets/extra.css` rather than writing from scratch.
+two traps protected by the managed `docs/stylesheets/pdk.css` defaults.
+Projects put their own later overrides in `docs/stylesheets/extra.css`.
 """
 
 from __future__ import annotations

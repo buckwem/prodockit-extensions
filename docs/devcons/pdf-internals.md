@@ -85,7 +85,8 @@ and non-zero exit status; the functions return paths or raise exceptions.
 | `prodockit.pdf.build` | Pipeline orchestration and external-command execution |
 | `prodockit.pdf.html` | Page fix-ups, front matter, web/PDF-only content, and heading structure |
 | `prodockit.pdf.lua` | Pandoc Lua filter generation |
-| `prodockit.pdf.css` | Page size, margins, running headers/footers, duplex layout, and shared presentation |
+| `prodockit.pdf.css` | Renderer foundations, dynamic page settings, running headers/footers, and duplex layout |
+| `docs/stylesheets/pdk-pdf.css` | Managed PDF presentation defaults that authors can override in `print.css` |
 | `prodockit.pdf.icons` | Project icon discovery and SVG recovery from built CSS |
 | `prodockit.pdf.mermaid` | Mermaid CLI invocation and diagram assets |
 | `prodockit.pdf.source_bundle` | Markdown/configuration source PDF |

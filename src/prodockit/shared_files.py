@@ -31,13 +31,20 @@ MANIFEST_VERSION = 1
 # Logical resource names are deliberately finite.  A manifest can select a
 # shipped file, but cannot turn this command into an arbitrary package-file
 # reader.  The source path is where hatch places the canonical file in a wheel.
-RESOURCES = {"extra.css": ("assets", "extra.css")}
+RESOURCES = {
+    "pdk.css": ("assets", "pdk.css"),
+    "pdk-pdf.css": ("assets", "pdk-pdf.css"),
+}
 
 # An editable install imports directly from src/ and therefore does not see
 # hatch's wheel-only force-include mapping.  This fallback points at the same
 # canonical source file that the wheel build maps into prodockit/assets.
 DEVELOPMENT_SOURCES = {
-    "extra.css": Path(__file__).resolve().parents[2] / "docs" / "stylesheets" / "extra.css"
+    "pdk.css": Path(__file__).resolve().parents[2] / "docs" / "stylesheets" / "pdk.css",
+    "pdk-pdf.css": Path(__file__).resolve().parents[2]
+    / "docs"
+    / "stylesheets"
+    / "pdk-pdf.css",
 }
 
 

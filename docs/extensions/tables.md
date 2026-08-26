@@ -421,8 +421,10 @@ Add at least this rule for sized and compact website tables:
 }
 ```
 
-The complete light- and dark-mode rules used by this site are in
-`docs/stylesheets/extra.css`. PDF builds already include equivalent layout
-rules with the light website scheme's line colour and the same width.
+The complete maintained light- and dark-mode rules used by this site are in
+`docs/stylesheets/pdk.css`. Add project-specific changes to
+`docs/stylesheets/extra.css`. PDF builds include equivalent layout rules with
+the light website scheme's line colour and the same width; use
+`docs/stylesheets/print.css` for PDF-only overrides.
 Contributors changing the generated table structure should read
 [Extension integration](../devcons/extension-internals.md#table-layout-contracts).

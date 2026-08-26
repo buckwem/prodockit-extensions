@@ -10,7 +10,7 @@ import pytest
 from prodockit.tables import TableError, TablesExtension
 
 REPO = Path(__file__).resolve().parents[1]
-EXTRA_CSS = REPO / "docs" / "stylesheets" / "extra.css"
+EXTRA_CSS = REPO / "docs" / "stylesheets" / "pdk.css"
 
 PLAIN_TABLE = "| Name | Description |\n|---|---|\n| a | b |\n"
 

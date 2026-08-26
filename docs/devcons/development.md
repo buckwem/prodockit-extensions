@@ -68,6 +68,8 @@ src/
     tree.py - directory-tree block
     steps.py - numbered-steps block
     index.py - inline index markers
+    shared_files.py - packaged managed styles and shared-file checks
+    template_sync.py - template updates and managed-style safeguards
     pdf/ - PDF build and source-bundle pipeline
     bootstrap/ - machine setup stages and host model
     testing/ - pytest plugin, fixtures, and output checks
@@ -77,6 +79,27 @@ tools/ - Mermaid and MathJax tooling used by PDF builds
 pyproject.toml - package metadata, dependencies, and extension entry points
 zensical.toml - this documentation site's configuration
 ///
+
+### Stylesheet delivery code map {: #stylesheet-delivery-code-map }
+
+Managed styles cross the documentation, package, maintenance commands, and
+renderers. Use this map when changing that contract:
+
+| Path | Responsibility |
+|---|---|
+| `docs/stylesheets/pdk.css` | Canonical website and shared PDF component defaults |
+| `docs/stylesheets/pdk-pdf.css` | Canonical PDF-only presentation defaults |
+| `docs/stylesheets/extra.css` and `print.css` | This site's author-owned overrides; never packaged as shared files |
+| `pyproject.toml` | `force-include` mappings that place the two managed files under `prodockit/assets/` in a wheel |
+| `src/prodockit/shared_files.py` | Finite resource inventory used by `pins` and `shared-files` |
+| `src/prodockit/template_sync.py` | Detection and preservation of locally edited managed stylesheets |
+| `src/prodockit/pdf/config.py` | Website and PDF stylesheet loading order used by PDF builds |
+| `tests/test_shared_files.py` and `tests/test_shared_file_wheel.py` | Source, manifest, installed-wheel, and byte-for-byte delivery checks |
+| `tests/test_template_sync.py` | Managed-style warning and preservation behaviour |
+| `tests/test_pdf_config.py` and `tests/test_site_consistency.py` | Cascade order and reference-site configuration |
+
+The author-facing ownership and override rules are in [Stylesheets](../stylesheets.md);
+the contributor release obligations are in [Extension integration](extension-internals.md#maintain-the-stylesheet-contract).
 
 Each Markdown extension is registered in `pyproject.toml`. A new public
 extension normally needs its module, entry point, tests, Authoring reference

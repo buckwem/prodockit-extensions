@@ -111,7 +111,7 @@ def test_site_snapshot_ignores_only_assets_added_by_adoption(tmp_path: Path) -> 
     after.mkdir()
     original = b"<html><head></head><body><p>Same</p></body></html>"
     adopted = (
-        b'<html><head><link rel="stylesheet" href="./stylesheets/prodockit.css">'
+        b'<html><head><link rel="stylesheet" href="./stylesheets/pdk.css">'
         b"</head><body><p>Same</p>"
         b'<script src="./javascripts/mathjax.js"></script></body></html>'
     )

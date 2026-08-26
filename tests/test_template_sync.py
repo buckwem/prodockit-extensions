@@ -41,6 +41,7 @@ from prodockit.template_sync import (
     config_changes,
     default_branch,
     derive_baseline,
+    edited_managed_stylesheets,
     ensure_template,
     git_runner,
     ignore_the_log,
@@ -72,11 +73,13 @@ MANIFEST = """
 version = 1
 
 [template]
-owns = [".github/workflows/**", "docs/javascripts/**", "docs/stylesheets/**",
+owns = [".github/workflows/**", "docs/javascripts/**",
+        "docs/stylesheets/pdk.css", "docs/stylesheets/pdk-pdf.css",
         "macros.py", "test/**"]
 
 [project]
-owns = ["docs/*.md", "docs/assets/**", "LICENSE.md", ".vscode/**"]
+owns = ["docs/*.md", "docs/assets/**", "docs/stylesheets/extra.css",
+        "docs/stylesheets/print.css", "LICENSE.md", ".vscode/**"]
 seed = ["LICENSE.md"]
 ignore = [".vscode/"]
 
@@ -173,16 +176,16 @@ def test_a_pypi_connection_failure_does_not_block_template_sync() -> None:
     assert latest_prodockit_version(offline) is None
 
 
-def test_a_directory_glob_covers_every_depth_below_it() -> None:
-    """`docs/stylesheets/**` means the whole directory, however deep, and
-    stops at its own name - a sibling that merely starts the same way is
-    not inside it."""
+def test_stylesheet_ownership_separates_managed_defaults_from_author_overrides() -> None:
     manifest = load_manifest(MANIFEST)
 
-    assert manifest.owner("docs/stylesheets/extra.css") == "template"
+    assert manifest.owner("docs/stylesheets/pdk.css") == "template"
+    assert manifest.owner("docs/stylesheets/pdk-pdf.css") == "template"
+    assert manifest.owner("docs/stylesheets/extra.css") == "project"
+    assert manifest.owner("docs/stylesheets/print.css") == "project"
     assert manifest.owner(".github/workflows/docs.yml") == "template"
     assert manifest.owner("test/fixtures/deep/nested/case.py") == "template"
-    # Not below it, despite the shared prefix.
+    # No broad stylesheet glob should claim an unrelated file.
     assert manifest.owner("docs/stylesheets-old/extra.css") == "unclassified"
 
 
@@ -345,11 +348,11 @@ def _fixture_history():
     second and then edited one file - the shape the real assignment
     turned out to have."""
     history = {
-        "v3": {"macros.py": "c", "docs/stylesheets/extra.css": "z", ".vscode/x": "s3"},
-        "v2": {"macros.py": "b", "docs/stylesheets/extra.css": "y", ".vscode/x": "s2"},
-        "v1": {"macros.py": "a", "docs/stylesheets/extra.css": "x", ".vscode/x": "s1"},
+        "v3": {"macros.py": "c", "docs/stylesheets/pdk.css": "z", ".vscode/x": "s3"},
+        "v2": {"macros.py": "b", "docs/stylesheets/pdk.css": "y", ".vscode/x": "s2"},
+        "v1": {"macros.py": "a", "docs/stylesheets/pdk.css": "x", ".vscode/x": "s1"},
     }
-    project = {"macros.py": "b", "docs/stylesheets/extra.css": "y", ".vscode/x": "MINE"}
+    project = {"macros.py": "b", "docs/stylesheets/pdk.css": "y", ".vscode/x": "MINE"}
     return history, project
 
 
@@ -394,7 +397,7 @@ def test_a_file_the_project_does_not_have_is_not_counted_against_it() -> None:
     has never seen it. Counting it as disagreement would drag the
     baseline backwards past the version it really matches."""
     history, project = _fixture_history()
-    project.pop("docs/stylesheets/extra.css")
+    project.pop("docs/stylesheets/pdk.css")
 
     result = derive_baseline(
         [*history["v2"]], project.get, list(history), lambda v, p: history[v].get(p)
@@ -458,6 +461,7 @@ def test_ownership_is_decided_on_the_template_s_own_spelling() -> None:
 
 FILES = [
     "macros.py",
+    "docs/stylesheets/pdk.css",
     "docs/stylesheets/extra.css",
     "docs/index.md",
     "docs/section1.md",
@@ -472,7 +476,7 @@ def test_the_summary_counts_every_file_exactly_once() -> None:
     lines = classification_report(load_manifest(MANIFEST), FILES)
 
     counts = [int(re.search(r": (\d+) \(", line).group(1)) for line in lines]
-    assert counts == [2, 2, 1, 1]
+    assert counts == [2, 3, 1, 1]
     assert sum(counts) == len(FILES)
 
 
@@ -596,7 +600,7 @@ def test_blocking_is_what_makes_force_safe() -> None:
     uncommitted changes must always block."""
     manifest = load_manifest(MANIFEST)
 
-    for path in ("macros.py", "docs/stylesheets/extra.css", ".github/workflows/docs.yml"):
+    for path in ("macros.py", "docs/stylesheets/pdk.css", ".github/workflows/docs.yml"):
         assert blocking_changes(manifest, [path]) == [path], path
 
 
@@ -650,13 +654,31 @@ def test_an_edited_file_can_be_overwritten_on_request() -> None:
 def test_force_does_not_reach_a_file_it_was_not_given() -> None:
     """Forcing one file must not quietly force its neighbours."""
     plan = _plan(
-        {"macros.py": "mine", "docs/stylesheets/extra.css": "mine"},
-        {"macros.py": "new", "docs/stylesheets/extra.css": "new"},
-        edited=["macros.py", "docs/stylesheets/extra.css"],
+        {"macros.py": "mine", "docs/stylesheets/pdk.css": "mine"},
+        {"macros.py": "new", "docs/stylesheets/pdk.css": "new"},
+        edited=["macros.py", "docs/stylesheets/pdk.css"],
         force=["macros.py"],
     )
 
-    assert plan == {"macros.py": "forced", "docs/stylesheets/extra.css": "keep"}
+    assert plan == {"macros.py": "forced", "docs/stylesheets/pdk.css": "keep"}
+
+
+def test_edited_managed_stylesheets_are_named_separately() -> None:
+    actions = [
+        FileAction("docs/stylesheets/pdk.css", "docs/stylesheets/pdk.css", "keep", "edited"),
+        FileAction(
+            "docs/stylesheets/pdk-pdf.css",
+            "docs/stylesheets/pdk-pdf.css",
+            "forced",
+            "edited",
+        ),
+        FileAction("macros.py", "macros.py", "keep", "edited"),
+    ]
+
+    assert edited_managed_stylesheets(actions) == [
+        "docs/stylesheets/pdk-pdf.css",
+        "docs/stylesheets/pdk.css",
+    ]
 
 
 def test_a_renamed_file_is_matched_against_what_the_project_calls_it() -> None:

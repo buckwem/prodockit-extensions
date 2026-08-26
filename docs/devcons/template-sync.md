@@ -193,8 +193,8 @@ that is in neither list stops the run rather than being guessed at.
 
 | Group | Examples | What happens |
 | --- | --- | --- |
-| Template-owned | `.github/workflows/`, `docs/stylesheets/extra.css`, `macros.py`, `tools/` | Replaced, unless you have edited it |
-| Project-owned | `docs/*.md`, `bibliography.bib`, `docs/assets/` | Never written, never read |
+| Template-owned | `.github/workflows/`, `docs/stylesheets/pdk.css`, `docs/stylesheets/pdk-pdf.css`, `macros.py`, `tools/` | Replaced, unless you have edited it |
+| Project-owned | `docs/*.md`, `docs/assets/`, `docs/stylesheets/extra.css`, `docs/stylesheets/print.css`, `bibliography.bib` | Never written, never read |
 | Seeds | `.vale.ini`, starter pages | Written only if absent |
 | Shared | `.gitignore`, `zensical.toml` | Merged line by line, never replaced |
 | Excluded | `CONTRIBUTING.md`, issue templates | Not delivered at all |
@@ -358,6 +358,14 @@ or pushing only the `template-update-...` branch, does not republish it.
 A template-owned file you have changed is *kept*, and the template's
 version is written beside it as `<name>.new` for you to compare. Nothing
 is overwritten silently.
+
+If either managed stylesheet differs, the report adds a separate
+**“Warning - managed stylesheet changes found”** message. [Stylesheets](../stylesheets.md)
+explains the managed and author-owned files and their loading order. Move
+deliberate website rules from `pdk.css` to `extra.css`, and deliberate PDF-only
+rules from `pdk-pdf.css` to `print.css`. You can then use `--force` for each
+managed file to restore Prodockit's current version without losing the rules
+you moved.
 
 **"Edited" does not always mean you changed it.** A file counts as edited
 when it does not match the baseline the run settled on - which is equally
