@@ -467,38 +467,57 @@
    contents-page presentation without changing the renderer. Pandoc writes
    level 2 and level 3 as the second and third nested list respectively. */
 @media print {
+  #TOC ul {
+    list-style-type: none !important;
+    margin-inline: 0 !important;
+    padding-inline-start: 0 !important;
+  }
+
+  #TOC > ul > li {
+    margin-block: 0 0.45em !important;
+  }
+
+  #TOC li > ul {
+    margin-block: 0.15em 0 !important;
+    padding-inline-start: 1.5em !important;
+  }
+
   #TOC a,
   #TOC a:visited {
-    color: inherit;
-    text-decoration: none;
+    color: inherit !important;
+    text-decoration: none !important;
   }
 
   #TOC li > a {
-    display: block;
-    margin-inline-end: -1.25em;
-    padding-inline-start: 1.25em;
-    text-indent: -1.25em;
+    display: block !important;
+    margin-inline-end: -1.25em !important;
+    padding-inline-start: 1.25em !important;
+    text-indent: -1.25em !important;
   }
 
   #TOC li > a::after {
-    font-variant-numeric: tabular-nums;
+    color: #555555 !important;
+    content: " " leader(dotted) " " target-counter(attr(href), page);
+    font-variant-numeric: tabular-nums !important;
+    font-weight: normal !important;
   }
 
   #TOC > ul > li > a {
-    font-weight: bold;
+    font-weight: bold !important;
   }
 
   #TOC > ul > li > ul > li {
-    line-height: 1;
+    line-height: 1 !important;
+    margin-block: 0 !important;
   }
 
   #TOC > ul > li > ul > li > ul {
-    margin-block: 0;
+    margin-block: 0 !important;
   }
 
   #TOC > ul > li > ul > li > ul > li {
-    line-height: 0.9;
-    margin-block: 0;
+    line-height: 0.9 !important;
+    margin-block: 0 !important;
   }
 }
 

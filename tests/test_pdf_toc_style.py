@@ -19,12 +19,14 @@ def test_pdf_contents_links_use_document_text_styling() -> None:
 
     assert "#TOC a," in contents
     assert "#TOC a:visited" in contents
-    assert "color: inherit;" in contents
-    assert "text-decoration: none;" in contents
-    assert "margin-inline-end: -1.25em;" in contents
-    assert "padding-inline-start: 1.25em;" in contents
-    assert "text-indent: -1.25em;" in contents
-    assert "font-variant-numeric: tabular-nums;" in contents
+    assert "list-style-type: none !important;" in contents
+    assert "color: inherit !important;" in contents
+    assert "text-decoration: none !important;" in contents
+    assert "margin-inline-end: -1.25em !important;" in contents
+    assert "padding-inline-start: 1.25em !important;" in contents
+    assert "text-indent: -1.25em !important;" in contents
+    assert 'content: " " leader(dotted) " " target-counter(attr(href), page);' in contents
+    assert "font-variant-numeric: tabular-nums !important;" in contents
 
 
 def test_pdf_contents_nested_levels_have_compact_configurable_spacing() -> None:
@@ -37,7 +39,7 @@ def test_pdf_contents_nested_levels_have_compact_configurable_spacing() -> None:
         "}", 1
     )[0]
 
-    assert "font-weight: bold;" in level_one
-    assert "line-height: 1;" in level_two
-    assert "line-height: 0.9;" in level_three
-    assert "margin-block: 0;" in level_three
+    assert "font-weight: bold !important;" in level_one
+    assert "line-height: 1 !important;" in level_two
+    assert "line-height: 0.9 !important;" in level_three
+    assert "margin-block: 0 !important;" in level_three
