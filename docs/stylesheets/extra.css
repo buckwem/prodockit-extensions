@@ -507,7 +507,7 @@
   }
 
   #TOC > ul > li > ul > li {
-    line-height: 1 !important;
+    line-height: 1.1 !important;
     margin-block: 0 !important;
   }
 
@@ -516,7 +516,7 @@
   }
 
   #TOC > ul > li > ul > li > ul > li {
-    line-height: 0.9 !important;
+    line-height: 0.95 !important;
     margin-block: 0 !important;
   }
 }

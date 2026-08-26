@@ -40,6 +40,6 @@ def test_pdf_contents_nested_levels_have_compact_configurable_spacing() -> None:
     )[0]
 
     assert "font-weight: bold !important;" in level_one
-    assert "line-height: 1 !important;" in level_two
-    assert "line-height: 0.9 !important;" in level_three
+    assert "line-height: 1.1 !important;" in level_two
+    assert "line-height: 0.95 !important;" in level_three
     assert "margin-block: 0 !important;" in level_three
