@@ -51,6 +51,12 @@ APPENDIX_FRONT_MATTER_KEY = "is_appendix"
 # `fix_up_page_html()`'s own docstring in prodockit.pdf.html.
 RECTO_TITLE_FRONT_MATTER_KEY = "recto_title"
 
+# Front matter flag excluding one navigation page from a complete PDF while
+# leaving it in the website. An explicit ``false`` is required; omission keeps
+# every existing project unchanged. A ``-m`` single-page build deliberately
+# ignores this flag because the author has requested that page directly.
+PDF_INCLUDE_FRONT_MATTER_KEY = "pdf_include"
+
 
 def _inline_css_urls(css_text: str, css_dir: str) -> str:
     """Rewrites every relative `url(...)` reference in `css_text` (e.g. a
@@ -346,7 +352,10 @@ def _build_pdf_from_config(
       lives in its own temporary directory, not wherever your stylesheet
       does.
 
-    A page's own front matter `is_appendix: true` flag gives it letter-
+    A page's own front matter `pdf_include: false` keeps it on the website but
+    omits it from a complete, navigation-driven PDF. An explicit single-page
+    build with `-m` still includes the requested page. A page's own front
+    matter `is_appendix: true` flag gives it letter-
     based numbering, matching `prodockit.headings`' own `appendix_attr`
     default. A page's own front matter `recto_title: "Short Title"`
     overrides that page's running header text - see `fix_up_page_html()`'s
@@ -464,12 +473,15 @@ def _build_pdf_from_config(
         os.makedirs(math_dir, exist_ok=True)
 
     page_objects = []
-    for page_position, nav_page in enumerate(nav_pages):
+    for nav_page in nav_pages:
         docs_rel_path = nav_page["url"]
         full_path = os.path.join(source_docs_dir, docs_rel_path)
+        source_meta = page_metadata(Path(full_path))
+        if not markdown_file and source_meta.get(PDF_INCLUDE_FRONT_MATTER_KEY, True) is False:
+            continue
         if project_config is not None:
             html = page_html(project_config, docs_rel_path)
-            meta = page_metadata(Path(full_path))
+            meta = source_meta
         else:
             assert zensical_render is not None
             with open(full_path, encoding="utf-8") as f:
@@ -494,7 +506,7 @@ def _build_pdf_from_config(
                 # can be this compiled document's cover; treating a nested
                 # `about/index.md` as another cover strips its chapter number
                 # and bookmark from the PDF.
-                is_index=page_position == 0 and bool(nav_page.get("is_index")),
+                is_index=not page_objects and bool(nav_page.get("is_index")),
                 is_appendix=bool(meta.get(APPENDIX_FRONT_MATTER_KEY, False)),
                 recto_title=meta.get(RECTO_TITLE_FRONT_MATTER_KEY) or None,
             )

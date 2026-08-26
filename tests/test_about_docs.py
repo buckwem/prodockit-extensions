@@ -90,47 +90,25 @@ def test_pymdown_blocks_dependency_is_visible_to_evaluators_and_authors() -> Non
         assert "prodockit.tree" in text
 
 
-def test_release_notes_explain_the_legacy_version_sequence() -> None:
+def test_release_notes_are_a_concise_website_only_capability_record() -> None:
     changelog = _text("docs/about/changelog.md")
-
-    assert "zendoc" in changelog[:1500]
-    assert "newest first" in changelog[:1500]
-
-
-def test_041_notes_cover_the_public_changes_since_040() -> None:
-    changelog = _text("docs/about/changelog.md")
-    notes = changelog.split("\n## 0.41.0 ", 1)[1].split("\n## ", 1)[0]
+    prose = " ".join(changelog.split())
 
     for phrase in (
-        'project.markdown_extensions."prodockit.index"',
-        "pdf_include_index",
-        "PyMdown Blocks",
-        ".pdk-bootstrap.toml",
-        "nested `index.md`",
-        "11pt",
-        "pdf-keep-tab-pages",
-        "information architecture",
-    ):
-        assert phrase in notes
-
-
-def test_042_notes_cover_the_public_changes_since_041() -> None:
-    changelog = _text("docs/about/changelog.md")
-    notes = changelog.split("\n## 0.42.0 ", 1)[1].split("\n## ", 1)[0]
-    prose = " ".join(notes.split())
-
-    for phrase in (
-        'shade="off"',
-        "numbered menu",
-        "forward cross-page references",
-        "permalink",
-        "pipe table",
-        "project.extra.pdf_*",
-        "PDF source bundle",
-        "prodockit.org",
-        "LICENSE.md",
+        "pdf_include: false",
+        "complete historical record",
+        "Implemented functionality",
+        "Authoring",
+        "Website integration",
+        "PDF output",
+        "Project setup",
+        "Project maintenance",
+        "Publishing",
     ):
         assert phrase in prose
+
+    assert "zendoc" not in changelog.lower()
+    assert len(changelog.splitlines()) < 100
 
 
 def test_licence_page_explains_but_does_not_replace_the_legal_text() -> None:

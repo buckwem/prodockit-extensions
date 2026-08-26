@@ -79,8 +79,9 @@ Use semantic versioning as a decision aid:
 | New backward-compatible commands, options, or extension features | Minor |
 | An intentional incompatible public change | Major—or the repository's agreed pre-1.0 policy |
 
-Read every change since the previous `prodockit-v...` tag, not only the pull
-requests carrying a changelog entry:
+Read every change since the previous `prodockit-v...` tag. The Git history is
+the complete record; the website release notes intentionally contain only
+short changes that matter to package users:
 
 ```bash
 git fetch --tags origin
@@ -134,12 +135,15 @@ In `docs/about/changelog.md`, replace the one `## Unreleased` heading with:
 ```
 
 Review every merged change since the previous tag. Add missing entries and
-write for a user deciding whether to upgrade: what changed, why it matters,
-and any action required. Do not paste commit subjects without context.
+write short bullets for a user deciding whether to upgrade: added or changed
+behaviour and any action required. Do not reproduce defects, pull-request
+detail, or commit subjects; Git commits, issues, pull requests, tags, and
+GitHub Releases retain that history.
 
-The changelog tests enforce one Unreleased section at most, its position, and
-newest-first released versions. They do not know whether a human-readable
-change was omitted, so the comparison with `git log` is still required.
+The changelog tests enforce one Unreleased section at most, its position,
+newest-first released versions, and its website-only policy. They do not know
+whether a user-relevant change was omitted, so the comparison with `git log`
+is still required.
 
 ////
 

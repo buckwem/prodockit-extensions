@@ -196,6 +196,18 @@ lives under `[project.extra]`, all optional:
 | \index{PDF settings!`pdf_tex2svg_script`} / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
 | \index{PDF settings!`pdf_extra_css`} | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF - e.g. a rule that would look wrong on the live website, or one overriding something `extra_css` itself sets (concatenated after it, so it wins the cascade). |
 
+A page's own front matter
+\index{PDF settings!`pdf_include`}`pdf_include: false` keeps that page on the
+website but omits it from a complete, navigation-driven PDF. A single-page
+`-m` build still includes the page because it was requested explicitly. For
+example:
+
+```yaml
+---
+pdf_include: false
+---
+```
+
 A page's own front matter `is_appendix: true` gives it letter-based
 numbering ("A", "A.1", ...) instead of numeric, matching
 [prodockit.headings](extensions/headings.md)' own `appendix_attr` convention.
