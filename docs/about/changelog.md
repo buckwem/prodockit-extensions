@@ -17,6 +17,17 @@ restarted at `prodockit` 0.1.0 after that rename, so the historical sequence
 near the bottom appears to move from prodockit 0.1.1 back to zendoc 0.10.0.
 Those are two package eras rather than duplicate releases.
 
+## Unreleased
+
+- **Changed:** pull requests run a risk-selected CI tier: Python 3.14 and the
+  strict documentation build always run; executable-code changes also test
+  the oldest supported Python; and installed-wheel adoption or PDF matrices
+  run only when their integration can change. Pushes to `main` retain the
+  complete Python 3.10–3.14 and operating-system/processor matrices. Static
+  analysis, pin checks, native rendering and coverage are no longer repeated
+  for every Python version, and a newer commit cancels its superseded pull
+  request runs.
+
 ## 0.46.0 (2026-08-25)
 
 - **Changed:** artifact builds now take Python 3.14 from `.python-version`;
