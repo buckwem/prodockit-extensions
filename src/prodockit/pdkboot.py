@@ -10,7 +10,7 @@ the phased behaviour profile only for the duration of its invocation.
 
 from __future__ import annotations
 
-from copy import deepcopy
+from copy import copy
 from typing import Any
 
 import click
@@ -49,6 +49,22 @@ def _show_version(
         context.exit()
 
 
+def _copy_parameter(parameter: click.Parameter) -> click.Parameter:
+    """Copy a Click parameter without deep-copying Click's sentinels.
+
+    Click parameter types and callbacks are deliberately shared.  Only the
+    parameter object and its option-name lists need to be independent here,
+    because pdkboot changes the copied ``--config`` help text below.  A deep
+    copy fails on Python 3.10 when recent Click releases contain an enum whose
+    value is an identity sentinel.
+    """
+    copied = copy(parameter)
+    if isinstance(parameter, click.Option):
+        copied.opts = list(parameter.opts)
+        copied.secondary_opts = list(parameter.secondary_opts)
+    return copied
+
+
 main = click.Command(
     name="pdkboot",
     callback=_run,
@@ -61,7 +77,7 @@ main = click.Command(
             callback=_show_version,
             help="Show the installed pdkboot package version and exit.",
         ),
-        *deepcopy(_legacy_command.params),
+        *(_copy_parameter(parameter) for parameter in _legacy_command.params),
     ],
     help=_HELP,
     epilog=_legacy_command.epilog,
