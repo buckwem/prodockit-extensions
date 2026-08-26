@@ -39,11 +39,15 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
-## Unreleased
+## 0.47.0 (2026-08-26)
 
-- Replaced the historical change transcript with a capability summary and
-  concise user-facing updates. GitHub retains the full record, and this page
-  is no longer included in the PDF.
+- Added `pdf_include: false` page front matter for website pages that should
+  be omitted from the complete PDF; an explicit single-page build can still
+  include them.
+- Replaced the historical change transcript with a concise capability summary
+  and user-facing updates. GitHub retains the full record.
+- Macro rendering errors now stop the documentation build instead of allowing
+  a page containing broken macro output to be published.
 - Pull requests now run a smaller risk-selected test set; pushes to `main`
   retain the complete supported-Python and installed-wheel matrices.
 

@@ -32,6 +32,7 @@ import pytest
 
 from prodockit._zensical import _front_matter_flag, _scan_page_headings
 from prodockit.pdf.index import DEFAULT_INDEX_TITLE, MARKER_ID_PREFIX
+from prodockit.pdf.site import page_metadata
 from prodockit.settings import flatten_nav
 from prodockit.testing import assert_no_unrendered_mermaid, assert_no_unrendered_tex
 
@@ -127,13 +128,17 @@ def documents_own_chapters(prodockit_paths, prodockit_resolved_config) -> list[s
 
     The cover page is excluded because `prodockit.pdf` forces every heading
     on it unnumbered (see `prodockit.pdf.html.fix_page_html`), and an
-    appendix because it is lettered instead of numbered.
+    appendix because it is lettered instead of numbered. A page carrying
+    `pdf_include: false` is website-only and therefore not a PDF chapter.
     """
     chapters = []
     for page_position, page in enumerate(flatten_nav(prodockit_resolved_config.get("nav") or [])):
         if page_position == 0 and page.get("is_index"):
             continue
-        text = (prodockit_paths.docs_dir / page["url"]).read_text(encoding="utf-8")
+        source = prodockit_paths.docs_dir / page["url"]
+        text = source.read_text(encoding="utf-8")
+        if page_metadata(source).get("pdf_include", True) is False:
+            continue
         if _front_matter_flag(text, APPENDIX_ATTR):
             continue
         first_h1 = next(
