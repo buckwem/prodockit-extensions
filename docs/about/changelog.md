@@ -39,7 +39,7 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
-## Unreleased
+## 0.49.0 (2026-08-27)
 
 - Added `prodockit update-dates`, which adds per-page update dates to completed
   site HTML from full Git history without modifying source Markdown or calling
