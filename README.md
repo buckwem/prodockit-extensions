@@ -167,9 +167,11 @@ prodockit build --strict
 The PDF comes first because the site build copies the completed PDF into its
 output. `prodockit build` runs Zensical's documented clean build after adding
 Git revision dates to temporary Markdown copies; it does not edit the files
-you author. The maintained template includes annotated GitHub Actions and
-GitLab CI workflows that perform the same build, test the generated files,
-and deploy Pages.
+you author. It is also a standalone capability: an existing Zensical or
+MkDocs project can use it after installing the package, without running
+`prodockit adopt` or enabling any other Prodockit component. The maintained
+template includes annotated GitHub Actions and GitLab CI workflows that
+perform the same build, test the generated files, and deploy Pages.
 
 ## Package integrations
 

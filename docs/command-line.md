@@ -74,6 +74,11 @@ broken links, missing anchors, and other validation warnings as failures.
 Neither generated dates nor the temporary configuration are written into the
 author's files.
 
+`prodockit build` is independent of adoption. It can build an existing
+Zensical or MkDocs project without adding Prodockit extensions, shared
+stylesheets, macros, template files, or publishing workflows. Only the
+Prodockit package itself must be installed in the active environment.
+
 Prodockit builds the additional artifacts:
 
 ```bash

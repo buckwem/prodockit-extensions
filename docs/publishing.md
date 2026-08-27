@@ -166,6 +166,12 @@ update” fact without putting generated fields into tracked Markdown:
 prodockit build --strict
 ```
 
+This command is usable on its own. Install the Prodockit package in the
+project's active Python environment and run it from an existing Zensical or
+MkDocs project. You do **not** need to run `prodockit adopt`, enable the
+Prodockit Markdown extensions, copy its stylesheets, or use its template and
+publishing workflows.
+
 For a tracked page, the newest Git **author date** is used. A project outside
 Git, or a new page that has no Git history yet, uses the source file's
 modification timestamp, converted to a calendar date in UTC, and names that

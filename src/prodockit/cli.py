@@ -2023,6 +2023,8 @@ def pdf_legacy(config_file: str, markdown_file: str | None) -> None:
 def build(config_file: str, creation_dates: bool, strict: bool) -> None:
     """Build the website with per-page revision dates.
 
+    This works in an existing Zensical or MkDocs project without adopting
+    Prodockit's extensions, styles, template, or publishing setup.
     Git supplies the last-update date when full history is available. A
     non-Git project or untracked page uses the source file's modification
     date. Generated metadata is added only to temporary copies: Markdown

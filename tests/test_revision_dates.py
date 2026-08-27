@@ -424,8 +424,12 @@ def test_build_cli_reports_revision_errors(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="Git harness needs the local Git CLI")
-def test_real_zensical_build_renders_revision_and_creation_facts(tmp_path: Path) -> None:
+def test_standalone_build_needs_no_adoption_or_prodockit_components(tmp_path: Path) -> None:
     config = _write_project(tmp_path)
+    config_text = config.read_text(encoding="utf-8")
+    assert "prodockit" not in config_text
+    assert not (tmp_path / ".prodockit-components.toml").exists()
+    assert not (tmp_path / "docs" / "stylesheets").exists()
     _init_git(tmp_path)
     _commit(
         tmp_path,
