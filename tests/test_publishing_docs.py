@@ -49,7 +49,8 @@ def test_publishing_overview_covers_the_end_to_end_commands() -> None:
 def test_authoring_explains_page_dates_and_links_to_the_build() -> None:
     guide = (ROOT / "docs" / "authoring.md").read_text(encoding="utf-8")
     required = (
-        "You do not add a placeholder",
+        "<!-- prodockit-update-date -->",
+        "The text before or after the marker",
         "revision_date: 2026-08-27",
         "Updated on YYYY-MM-DD",
         "publishing.md#build-with-revision-dates",

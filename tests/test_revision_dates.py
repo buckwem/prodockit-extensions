@@ -214,6 +214,31 @@ def test_repeated_update_replaces_its_marker_without_duplication(tmp_path: Path)
     assert first.count(b"prodockit:update-date:start") == 1
 
 
+def test_author_places_an_inline_date_after_their_own_text(tmp_path: Path) -> None:
+    config = _write_project(tmp_path)
+    page = tmp_path / "docs" / "index.md"
+    timestamp = datetime(2022, 7, 8, tzinfo=timezone.utc).timestamp()
+    os.utime(page, (timestamp, timestamp))
+    output = _write_built_page(
+        tmp_path,
+        html=HTML.replace(
+            "</article>",
+            "<p>Document reviewed: <!-- prodockit-update-date --></p>\n</article>",
+        ),
+    )
+
+    update_built_site_revision_dates(config)
+    first = output.read_text(encoding="utf-8")
+    update_built_site_revision_dates(config)
+
+    assert (
+        'Document reviewed: <span class="prodockit-update-date-value">'
+        "2022-07-08</span>" in first
+    )
+    assert "prodockit:update-date:start" not in first
+    assert output.read_text(encoding="utf-8") == first
+
+
 @pytest.mark.skipif(shutil.which("git") is None, reason="Git harness needs the local Git CLI")
 def test_untracked_file_uses_mtime_without_weakening_tracked_dates(tmp_path: Path) -> None:
     config = _write_project(tmp_path)

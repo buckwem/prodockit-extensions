@@ -11,6 +11,7 @@ configured ``site_dir``; it does not edit source files or invoke Zensical.
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -220,6 +221,11 @@ def _front_matter(text: str, source: Path) -> tuple[dict[str, Any], int | None]:
 
 _MARKER_START = "<!-- prodockit:update-date:start -->"
 _MARKER_END = "<!-- prodockit:update-date:end -->"
+_INLINE_PLACEHOLDER = "<!-- prodockit-update-date -->"
+_INLINE_VALUE = re.compile(
+    r'<span class="prodockit-update-date-value">.*?</span>',
+    flags=re.DOTALL,
+)
 _ARTICLE_END = "</article>"
 _EXISTING_UPDATE_TITLES = ('title="Last update"', 'title="Updated"')
 _CLOCK_ICON_PATH = (
@@ -266,6 +272,10 @@ def _update_fact(date: str, newline: str) -> str:
     )
 
 
+def _inline_update_value(date: str) -> str:
+    return f'<span class="prodockit-update-date-value">{escape(date)}</span>'
+
+
 def _write_update_fact(output: Path, date: str) -> bool:
     try:
         text = output.read_bytes().decode("utf-8")
@@ -273,7 +283,12 @@ def _write_update_fact(output: Path, date: str) -> bool:
         raise RevisionDateError(f"could not read built page {output}: {error}") from error
     newline = "\r\n" if "\r\n" in text else "\n"
     fact = _update_fact(date, newline)
-    if _MARKER_START in text:
+    inline = _inline_update_value(date)
+    if _INLINE_PLACEHOLDER in text:
+        updated = text.replace(_INLINE_PLACEHOLDER, inline)
+    elif _INLINE_VALUE.search(text):
+        updated = _INLINE_VALUE.sub(inline, text)
+    elif _MARKER_START in text:
         start = text.index(_MARKER_START)
         try:
             end = text.index(_MARKER_END, start) + len(_MARKER_END)
