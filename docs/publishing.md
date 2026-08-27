@@ -162,20 +162,88 @@ proves that a reader can retrieve the intended version.
 The \index{commands!`prodockit build`} command gives the final site a “Last
 update” fact without putting generated fields into tracked Markdown:
 
+### Use the command without adoption
+
+`prodockit build` is a standalone command. It needs an existing Zensical or
+MkDocs project, but it does **not** require that project to adopt Prodockit's
+extensions, stylesheets, macros, template, or publishing workflows.
+
+1. Change to the directory containing `zensical.toml`, `mkdocs.yml`, or
+    `mkdocs.yaml`:
+
+    ```bash
+    cd /path/to/your-document
+    ```
+
+2. Activate the Python environment that normally builds the document:
+
+    === "macOS"
+
+        ```bash
+        source .venv/bin/activate
+        ```
+
+    === "Windows PowerShell"
+
+        ```powershell
+        .\.venv\Scripts\Activate.ps1
+        ```
+
+    === "Ubuntu"
+
+        ```bash
+        source .venv/bin/activate
+        ```
+
+3. Install the latest Prodockit package into that environment:
+
+    ```bash
+    python -m pip install --upgrade prodockit
+    ```
+
+4. Build the site:
+
+    ```bash
+    prodockit build --strict
+    ```
+
+The command writes the configured website output, normally `site/`. It does
+not edit the source Markdown or configuration. You do not need to run
+`prodockit adopt` before or after these steps.
+
+### Use the command without Git
+
+Git is optional. When the project is not inside a Git repository,
+`prodockit build` uses each Markdown file's modification timestamp as its
+update date. It converts the timestamp to a calendar date in UTC and reports
+that fallback while building. Saving a file changes its modification time, so
+the next build updates that page's date.
+
+Run exactly the same command:
+
 ```bash
 prodockit build --strict
 ```
 
-This command is usable on its own. Install the Prodockit package in the
-project's active Python environment and run it from an existing Zensical or
-MkDocs project. You do **not** need to run `prodockit adopt`, enable the
-Prodockit Markdown extensions, copy its stylesheets, or use its template and
-publishing workflows.
+The optional `--creation-dates` switch is not useful outside Git because a
+file modification timestamp does not establish when the page was created.
+If a page needs a fixed, reviewed date instead, put it in that page's front
+matter:
 
-For a tracked page, the newest Git **author date** is used. A project outside
-Git, or a new page that has no Git history yet, uses the source file's
-modification timestamp, converted to a calendar date in UTC, and names that
-fallback in the command output. A manually written `revision_date` or
+```yaml
+---
+revision_date: 2026-08-27
+---
+```
+
+This manually supplied value takes priority in both Git and non-Git projects.
+
+### Understand dates in a Git project
+
+For a tracked page, the newest Git **author date** is used. A new or untracked
+page that has no Git history yet uses the source file's modification
+timestamp, converted to a calendar date in UTC, and names that fallback in
+the command output. A manually written `revision_date` or
 `git_revision_date_localized` in page front matter always wins.
 
 Creation dates are deliberately optional because they require the complete
