@@ -690,6 +690,36 @@ def test_copyright_text_with_a_line_break_and_a_real_link_renders_correctly(
 
 
 @real_pandoc_and_weasyprint_required
+def test_each_source_section_has_its_own_update_date_below_the_page_number(
+    tmp_path: Path,
+) -> None:
+    pymupdf = pytest.importorskip("pymupdf")
+    output_path = tmp_path / "revision-footers.pdf"
+    pages = [
+        Page(
+            docs_rel_path="one.md",
+            html="<h1>First section</h1><p>Unique first body.</p>",
+            revision_date="2024-02-03",
+        ),
+        Page(
+            docs_rel_path="two.md",
+            html="<h1>Second section</h1><p>Unique second body.</p>",
+            revision_date="2026-07-08",
+        ),
+    ]
+
+    build_pdf(pages, str(output_path), site_name="Revision footer test")
+
+    with pymupdf.open(str(output_path)) as document:
+        first = next(page.get_text() for page in document if "Unique first body" in page.get_text())
+        second = next(page.get_text() for page in document if "Unique second body" in page.get_text())
+    assert "Updates on 2024-02-03" in first
+    assert "Updates on 2026-07-08" not in first
+    assert "Updates on 2026-07-08" in second
+    assert "Updates on 2024-02-03" not in second
+
+
+@real_pandoc_and_weasyprint_required
 @pytest.mark.parametrize(
     ("filler_html", "case"),
     [

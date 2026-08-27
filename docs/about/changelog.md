@@ -44,7 +44,8 @@ requests rather than here.
 - Added `prodockit build`, which supplies per-page last-update dates from full
   Git history during a clean Zensical build without modifying source
   Markdown. Non-Git and untracked pages use their file modification time;
-  optional creation dates remain Git-only.
+  optional creation dates remain Git-only. The PDF carries the same date in
+  each source section's page-number footer.
 
 ## 0.48.1 (2026-08-26)
 

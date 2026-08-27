@@ -50,7 +50,9 @@ class Page:
     `recto_title`, if given, overrides the running header's auto-detected
     chapter title from the next page onward (this page itself still shows
     the heading's own full title) - see `fix_up_page_html()`'s own
-    docstring.
+    docstring. `revision_date` supplies the page's running “Updates on” PDF
+    footer; it remains current across every output page in this source
+    section until the next source page replaces it.
     """
 
     docs_rel_path: str
@@ -58,6 +60,7 @@ class Page:
     is_index: bool = False
     is_appendix: bool = False
     recto_title: str | None = None
+    revision_date: str | None = None
 
 
 class PdfBuildError(RuntimeError):
@@ -369,6 +372,7 @@ def build_pdf(
                     is_appendix=page.is_appendix,
                     appendix_letter=appendix_letters.get(page.docs_rel_path, ""),
                     recto_title=page.recto_title,
+                    revision_date=page.revision_date,
                     repo_url=repo_url,
                     admonition_icon_config=admonition_icon_config,
                     icon_registry=icon_registry,
@@ -432,6 +436,7 @@ def build_pdf(
                 # every index page (see prodockit.pdf.css's own rule).
                 body_html += (
                     '<div class="page-break"></div>'
+                    '<div class="prodockit-revision-date"></div>'
                     f'<h1 class="unnumbered {INDEX_TITLE_CLASS}">{index_title}</h1>'
                     f'<div id="{INDEX_CONTENT_ID}"></div>'
                 )

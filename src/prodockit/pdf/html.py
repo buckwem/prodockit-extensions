@@ -155,6 +155,7 @@ def fix_up_page_html(
     is_appendix: bool = False,
     appendix_letter: str = "",
     recto_title: str | None = None,
+    revision_date: str | None = None,
     repo_url: str = "",
     admonition_icon_config: dict[str, Any] | None = None,
     icon_registry: dict[str, str] | None = None,
@@ -195,6 +196,10 @@ def fix_up_page_html(
     last value from the previous page - shows the override. Meaningful
     whether or not `pdf_double_sided` is enabled - the running chapter
     title appears in both layouts, just in different corners.
+
+    `revision_date`, when present, is carried by a hidden marker immediately
+    after the page's first heading. The compiled stylesheet turns that value
+    into the running “Updates on” footer for this source section.
 
     `admonition_icon_config`/`icon_registry` (see :mod:`prodockit.pdf.icons`)
     are needed to insert an admonition's own icon; omit either to skip icon
@@ -623,5 +628,14 @@ def fix_up_page_html(
         override["class"] = "prodockit-recto-title"
         override.string = recto_title
         first_heading.insert_after(override)
+
+    if revision_date and not is_index:
+        marker = soup.new_tag("div")
+        marker["class"] = "prodockit-revision-date"
+        marker.string = f"Updates on {revision_date}"
+        if isinstance(first_heading, Tag):
+            first_heading.insert_after(marker)
+        else:
+            soup.insert(0, marker)
 
     return str(soup)

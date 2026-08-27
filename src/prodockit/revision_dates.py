@@ -57,6 +57,15 @@ class RevisionBuildResult:
 
 
 @dataclass(frozen=True)
+class ResolvedRevisionDates:
+    """Automatic dates resolved for one Markdown source file."""
+
+    updated: str
+    updated_source: str
+    created: str | None = None
+
+
+@dataclass(frozen=True)
 class _GitHistory:
     executable: str
     repository: Path
@@ -178,6 +187,28 @@ def _mtime_date(source: Path) -> str:
             f"could not read the modification time of {source}: {error}"
         ) from error
     return datetime.fromtimestamp(modified, tz=timezone.utc).date().isoformat()
+
+
+def resolve_revision_dates(
+    root: Path,
+    sources: list[Path],
+    *,
+    include_creation: bool = False,
+) -> dict[Path, ResolvedRevisionDates]:
+    """Resolve automatic revision dates once for a collection of pages."""
+    history = _git_history(root)
+    resolved: dict[Path, ResolvedRevisionDates] = {}
+    for source in sources:
+        git_updated, git_created = (
+            history.dates(source, include_creation=include_creation)
+            if history is not None
+            else (None, None)
+        )
+        if git_updated is not None:
+            resolved[source] = ResolvedRevisionDates(git_updated, "git", git_created)
+        else:
+            resolved[source] = ResolvedRevisionDates(_mtime_date(source), "mtime")
+    return resolved
 
 
 def _front_matter(text: str, source: Path) -> tuple[dict[str, Any], int | None]:
@@ -353,8 +384,13 @@ def build_site_with_revision_dates(
     config = load_project_config(config_path)
     if not config.docs_dir.is_dir():
         raise RevisionDateError(f"documentation directory not found: {config.docs_dir}")
-    history = _git_history(config.root)
     pages: list[PageRevision] = []
+    sources = sorted(config.docs_dir.rglob("*.md"))
+    automatic_dates = resolve_revision_dates(
+        config.root,
+        sources,
+        include_creation=include_creation,
+    )
 
     # Zensical requires docs_dir to remain inside the project root.  The
     # hidden staging tree is transient and the context manager removes it on
@@ -368,7 +404,7 @@ def build_site_with_revision_dates(
         # author-owned source outside the staging directory.
         shutil.copytree(config.docs_dir, staged_docs, symlinks=False)
 
-        for source in sorted(config.docs_dir.rglob("*.md")):
+        for source in sources:
             relative = source.relative_to(config.docs_dir)
             destination = staged_docs / relative
             text = source.read_bytes().decode("utf-8")
@@ -385,20 +421,12 @@ def build_site_with_revision_dates(
             created_source = "manual" if include_creation and created_is_manual else None
 
             if needs_updated or needs_created:
-                git_updated, git_created = (
-                    history.dates(source, include_creation=needs_created)
-                    if history is not None
-                    else (None, None)
-                )
+                automatic = automatic_dates[source]
                 if needs_updated:
-                    if git_updated is not None:
-                        updated = git_updated
-                        updated_source = "git"
-                    else:
-                        updated = _mtime_date(source)
-                        updated_source = "mtime"
-                if needs_created and git_created is not None:
-                    created = git_created
+                    updated = automatic.updated
+                    updated_source = automatic.updated_source
+                if needs_created and automatic.created is not None:
+                    created = automatic.created
                     created_source = "git"
 
             values: dict[str, str] = {}
@@ -417,7 +445,9 @@ def build_site_with_revision_dates(
 __all__ = [
     "CONFIG_OVERRIDE_ENV",
     "PageRevision",
+    "ResolvedRevisionDates",
     "RevisionBuildResult",
     "RevisionDateError",
     "build_site_with_revision_dates",
+    "resolve_revision_dates",
 ]

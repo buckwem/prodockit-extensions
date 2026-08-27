@@ -208,6 +208,15 @@ def test_double_sided_verso_page_swaps_all_four_header_footer_corners() -> None:
     )
 
 
+def test_page_number_footer_includes_the_current_section_update_date() -> None:
+    css = build_css("Inter", "Fira Code", "My Site")
+    footer = css.split("@bottom-right {")[1].split("}")[0]
+    assert '"Page " counter(page) " of " counter(pages)' in footer
+    assert '"\\A " string(revision-date)' in footer
+    assert "white-space: pre-line !important;" in footer
+    assert "string-set: revision-date content() !important;" in css
+
+
 def test_double_sided_recto_title_string_set_rule_always_present() -> None:
     css_single = build_css("Inter", "Fira Code", "My Site")
     css_double = build_css("Inter", "Fira Code", "My Site", double_sided=True)
