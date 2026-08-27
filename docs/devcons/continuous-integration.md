@@ -49,7 +49,8 @@ Review and apply the result using
 
 ```bash
 prodockit pdf
-prodockit build --strict
+zensical build --clean --strict
+prodockit update-dates
 python -m pytest
 ```
 
@@ -122,8 +123,9 @@ retrieve the intended version; these are three separate checks.
 ```mermaid
 flowchart LR
     source[Markdown and zensical.toml] --> pdf[prodockit pdf]
-    pdf --> site[prodockit build]
-    site --> tests[Built-output tests]
+    pdf --> site[zensical build]
+    site --> dates[prodockit update-dates]
+    dates --> tests[Built-output tests]
     tests --> deploy[Pages deployment]
     deploy --> verify[Public verification]
 ```

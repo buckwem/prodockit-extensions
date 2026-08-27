@@ -218,4 +218,5 @@ jobs:
         with:
           python-version-file: .python-version
       - run: pip install -e .
-      - run: prodockit build --strict
+      - run: zensical build --clean --strict
+      - run: prodockit update-dates

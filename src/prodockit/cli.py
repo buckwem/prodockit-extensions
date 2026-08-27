@@ -113,7 +113,7 @@ from prodockit.pdf.config import (
 from prodockit.pdf.site import BuiltSiteError
 from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.project_config import ProjectConfigError
-from prodockit.revision_dates import RevisionDateError, build_site_with_revision_dates
+from prodockit.revision_dates import RevisionDateError, update_built_site_revision_dates
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
 _PDKBOOT_MODE: ContextVar[bool] = ContextVar("pdkboot_mode", default=False)
@@ -2002,7 +2002,7 @@ def pdf_legacy(config_file: str, markdown_file: str | None) -> None:
     _run_pdf_command(config_file, markdown_file, legacy=True)
 
 
-@main.command("build")
+@main.command("update-dates")
 @click.option(
     "-f",
     "--config-file",
@@ -2011,31 +2011,25 @@ def pdf_legacy(config_file: str, markdown_file: str | None) -> None:
     help="Path to the project's Zensical or MkDocs configuration file.",
 )
 @click.option(
-    "--creation-dates",
+    "--modification-dates",
     is_flag=True,
-    help="Also show the oldest Git author date as each tracked page's creation date.",
+    help="Use source-file modification dates instead of Git author dates.",
 )
-@click.option(
-    "--strict",
-    is_flag=True,
-    help="Pass --strict to Zensical so warnings make the build fail.",
-)
-def build(config_file: str, creation_dates: bool, strict: bool) -> None:
-    """Build the website with per-page revision dates.
+def update_dates(config_file: str, modification_dates: bool) -> None:
+    """Add per-page update dates to an already-built website.
 
     This works in an existing Zensical or MkDocs project without adopting
     Prodockit's extensions, styles, template, or publishing setup.
     Git supplies the last-update date when full history is available. A
     non-Git project or untracked page uses the source file's modification
-    date. Generated metadata is added only to temporary copies: Markdown
-    and configuration files in the project are never changed.
+    date. Run Zensical or MkDocs first; this command changes only generated
+    HTML and never invokes the site builder or edits source files.
     """
-    click.echo(f"Building site from {config_file} with revision dates...")
+    click.echo(f"Updating dates in the site built from {config_file}...")
     try:
-        result = build_site_with_revision_dates(
+        result = update_built_site_revision_dates(
             config_file,
-            include_creation=creation_dates,
-            strict=strict,
+            use_modification_dates=modification_dates,
         )
     except (ProjectConfigError, RevisionDateError, OSError) as error:
         click.echo(f"Error: {error}", err=True)
@@ -2044,38 +2038,19 @@ def build(config_file: str, creation_dates: bool, strict: bool) -> None:
 
     counts = {
         source: sum(page.updated_source == source for page in result.pages)
-        for source in ("git", "mtime", "manual")
+        for source in ("git", "mtime", "manual", "existing")
     }
     click.echo(
         "Revision dates: "
         f"{counts['git']} from Git · "
         f"{counts['mtime']} from file modification times · "
-        f"{counts['manual']} already set"
+        f"{counts['manual']} manually set · "
+        f"{counts['existing']} already present in built HTML"
     )
     for page in result.pages:
         if page.updated_source == "mtime":
             click.echo(f"  Note: {page.source_path} uses its file modification time")
-    if creation_dates:
-        creation_counts = {
-            source: sum(page.created_source == source for page in result.pages)
-            for source in ("git", "manual")
-        }
-        unavailable = [page.source_path for page in result.pages if page.created_source is None]
-        click.echo(
-            "Creation dates: "
-            f"{creation_counts['git']} from Git · "
-            f"{creation_counts['manual']} already set · "
-            f"{len(unavailable)} unavailable without Git history"
-        )
-        for source_path in unavailable:
-            click.echo(f"  Note: {source_path} has no Git creation date")
-    output = result.stdout.strip()
-    if output:
-        click.echo(output)
-    warnings = result.stderr.strip()
-    if warnings:
-        click.echo(warnings, err=True)
-    click.echo(f"Built {result.site_dir}")
+    click.echo(f"Updated {result.site_dir}")
 
 
 @main.command("source-bundle")

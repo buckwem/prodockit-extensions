@@ -34,7 +34,8 @@ def test_publishing_overview_covers_the_end_to_end_commands() -> None:
     required = (
         "prodockit-template",
         "prodockit pdf",
-        "prodockit build --strict",
+        "zensical build --clean --strict",
+        "prodockit update-dates",
         "python -m pytest",
         "GitHub Pages",
         "GitLab Pages",
@@ -97,7 +98,7 @@ def test_repository_site_builds_supply_revision_dates_from_full_history() -> Non
     )
     for path in workflows:
         text = path.read_text(encoding="utf-8")
-        assert "prodockit build --strict" in text, f"{path.name} bypasses revision dates"
+        assert "prodockit update-dates" in text, f"{path.name} bypasses revision dates"
         assert "fetch-depth: 0" in text, f"{path.name} can publish shallow-history dates"
 
 

@@ -148,7 +148,7 @@ The `pdk` executable is an exact shorter alias for `prodockit`; `boot` aliases
 | `prodockit bootstrap` | Check or prepare a machine and document project |
 | `prodockit init-tools` | Install the local Node tooling for Mermaid and maths rendering |
 | `prodockit init-mathjax` | Copy the installed MathJax bundle into website assets |
-| `prodockit build` | Build the website with per-page revision dates without changing Markdown source |
+| `prodockit update-dates` | Add per-page revision dates to a completed website without changing Markdown source |
 | `prodockit pdf` | Build one PDF from the pages in the Zensical navigation |
 | `prodockit source-bundle` | Bundle the Markdown source and configuration into a separate PDF |
 | `prodockit sync-repo` | Match repository links, branding, and managed README badges to `origin` |
@@ -161,15 +161,15 @@ When publishing both outputs locally, build in this order:
 
 ```bash
 prodockit pdf
-prodockit build --strict
+zensical build --clean --strict
+prodockit update-dates
 ```
 
 The PDF comes first because the site build copies the completed PDF into its
-output. `prodockit build` runs Zensical's documented clean build after adding
-Git revision dates to temporary Markdown copies; it does not edit the files
-you author. It is also a standalone capability: an existing Zensical or
-MkDocs project can use it after installing the package, without running
-`prodockit adopt` or enabling any other Prodockit component. The maintained
+output. `prodockit update-dates` post-processes the generated HTML and does
+not edit the files you author or call the site builder. It is also a standalone
+capability: an existing Zensical or MkDocs project can use it after installing
+the package, without running `prodockit adopt` or enabling any other Prodockit component. The maintained
 template includes annotated GitHub Actions and GitLab CI workflows that
 perform the same build, test the generated files, and deploy Pages.
 
