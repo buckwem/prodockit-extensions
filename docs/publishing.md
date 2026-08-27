@@ -166,11 +166,11 @@ The \index{commands!`prodockit update-dates`} command gives the final site an
 ### Use the command without adoption
 
 `prodockit update-dates` is a standalone command. It needs a website already
-built from an existing Zensical or MkDocs project, but it does **not** require that project to adopt Prodockit's
-extensions, stylesheets, macros, template, or publishing workflows.
+built from an existing Zensical project, but it does **not** require that
+project to adopt Prodockit's extensions, stylesheets, macros, template, or
+publishing workflows.
 
-1. Change to the directory containing `zensical.toml`, `mkdocs.yml`, or
-    `mkdocs.yaml`:
+1. Change to the directory containing `zensical.toml`:
 
     ```bash
     cd /path/to/your-document
@@ -209,17 +209,10 @@ extensions, stylesheets, macros, template, or publishing workflows.
     prodockit update-dates
     ```
 
-    For an MkDocs project, name its configuration in both commands:
-
-    ```bash
-    mkdocs build --clean --strict --config-file mkdocs.yml
-    prodockit update-dates --config-file mkdocs.yml
-    ```
-
 The second command changes only the configured website output, normally
-`site/`. It does not call Zensical or MkDocs and does not edit the source
-Markdown or configuration. You do not need to run `prodockit adopt` before or
-after these steps.
+`site/`. It does not call Zensical and does not edit the source Markdown or
+configuration. You do not need to run `prodockit adopt` before or after these
+steps.
 
 ### Use the command without Git
 
@@ -273,8 +266,8 @@ different date.
 
 Prodockit inserts the facts into the generated HTML only. It deliberately does
 not invoke a site builder, so this post-processing step composes with other
-tools that run before or after Zensical or MkDocs. Run it again after every
-clean site build because that build replaces the generated HTML.
+tools that run before or after Zensical. Run it again after every clean site
+build because that build replaces the generated HTML.
 
 A normal `zensical serve` preview rebuilds pages continuously and therefore
 does not retain automatically generated dates. Pages that declare a date in

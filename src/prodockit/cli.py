@@ -2008,7 +2008,7 @@ def pdf_legacy(config_file: str, markdown_file: str | None) -> None:
     "--config-file",
     default="zensical.toml",
     show_default=True,
-    help="Path to the project's Zensical or MkDocs configuration file.",
+    help="Path to the project's Zensical configuration file.",
 )
 @click.option(
     "--modification-dates",
@@ -2018,11 +2018,11 @@ def pdf_legacy(config_file: str, markdown_file: str | None) -> None:
 def update_dates(config_file: str, modification_dates: bool) -> None:
     """Add per-page update dates to an already-built website.
 
-    This works in an existing Zensical or MkDocs project without adopting
+    This works in an existing Zensical project without adopting
     Prodockit's extensions, styles, template, or publishing setup.
     Git supplies the last-update date when full history is available. A
     non-Git project or untracked page uses the source file's modification
-    date. Run Zensical or MkDocs first; this command changes only generated
+    date. Run Zensical first; this command changes only generated
     HTML and never invokes the site builder or edits source files.
     """
     click.echo(f"Updating dates in the site built from {config_file}...")

@@ -148,18 +148,6 @@ def test_non_git_project_uses_controlled_file_modification_time(tmp_path: Path) 
     assert not (tmp_path / ".git").exists()
 
 
-def test_mkdocs_yaml_project_is_supported_when_its_config_is_named(
-    tmp_path: Path,
-) -> None:
-    config = _write_project(tmp_path, config_name="mkdocs.yml")
-    output = _write_built_page(tmp_path)
-
-    result = update_built_site_revision_dates(config)
-
-    assert "prodockit:update-date:start" in output.read_text(encoding="utf-8")
-    assert result.pages[0].source_path == "index.md"
-
-
 @pytest.mark.skipif(shutil.which("git") is None, reason="Git harness needs the local Git CLI")
 def test_modification_dates_option_overrides_git_author_date(tmp_path: Path) -> None:
     config = _write_project(tmp_path)

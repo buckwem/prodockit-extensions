@@ -168,7 +168,7 @@ prodockit update-dates
 The PDF comes first because the site build copies the completed PDF into its
 output. `prodockit update-dates` post-processes the generated HTML and does
 not edit the files you author or call the site builder. It is also a standalone
-capability: an existing Zensical or MkDocs project can use it after installing
+capability: an existing Zensical project can use it after installing
 the package, without running `prodockit adopt` or enabling any other Prodockit component. The maintained
 template includes annotated GitHub Actions and GitLab CI workflows that
 perform the same build, test the generated files, and deploy Pages.

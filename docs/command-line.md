@@ -75,7 +75,7 @@ the generated HTML. It does not invoke Zensical or write dates into the
 author's files.
 
 `prodockit update-dates` is independent of adoption. It can post-process an
-existing Zensical or MkDocs project without adding Prodockit extensions, shared
+existing Zensical project without adding Prodockit extensions, shared
 stylesheets, macros, template files, or publishing workflows. Only the
 Prodockit package itself must be installed in the active environment.
 

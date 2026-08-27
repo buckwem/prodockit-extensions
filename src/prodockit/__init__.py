@@ -43,7 +43,7 @@ Zensical doesn't provide out of the box, each usable independently:
   submission needing the underlying source alongside the rendered
   document, without paying for both PDFs on every build.
 - ``prodockit.revision_dates`` - add per-page last-update dates to a completed
-  Zensical or MkDocs website from complete Git history, or file modification
+  Zensical website from complete Git history, or file modification
   times where no Git history exists. Run ``prodockit update-dates`` after the
   site's normal build command; it changes generated HTML, not source files.
 - ``prodockit.bootstrap`` - set a new machine up from scratch, as twenty-three
