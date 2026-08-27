@@ -22,10 +22,10 @@ def _publishing_nav() -> list[dict[str, str]]:
 
 def test_publishing_nav_follows_the_reader_workflow() -> None:
     assert _publishing_nav() == [
-        {"21. Publishing overview": "publishing.md"},
-        {"22. Staying in step with the template": "devcons/template-sync.md"},
-        {"23. Publish automatically": "devcons/continuous-integration.md"},
-        {"24. Test the built output": "devcons/testing.md"},
+        {"22. Publishing overview": "publishing.md"},
+        {"23. Staying in step with the template": "devcons/template-sync.md"},
+        {"24. Publish automatically": "devcons/continuous-integration.md"},
+        {"25. Test the built output": "devcons/testing.md"},
     ]
 
 
@@ -36,7 +36,7 @@ def test_publishing_overview_covers_the_end_to_end_commands() -> None:
         "prodockit pdf",
         "zensical build --clean --strict",
         "prodockit update-dates",
-        "authoring.md#page-update-dates",
+        "update-dates.md",
         "python -m pytest",
         "GitHub Pages",
         "GitLab Pages",
@@ -47,7 +47,7 @@ def test_publishing_overview_covers_the_end_to_end_commands() -> None:
 
 
 def test_authoring_explains_page_dates_and_links_to_the_build() -> None:
-    guide = (ROOT / "docs" / "authoring.md").read_text(encoding="utf-8")
+    guide = (ROOT / "docs" / "update-dates.md").read_text(encoding="utf-8")
     required = (
         "<!-- prodockit-update-date -->",
         "The text before or after the marker",
@@ -58,6 +58,15 @@ def test_authoring_explains_page_dates_and_links_to_the_build() -> None:
 
     missing = [item for item in required if item not in guide]
     assert not missing, f"page-date authoring guidance is incomplete: {missing}"
+
+    authoring = (ROOT / "docs" / "authoring.md").read_text(encoding="utf-8")
+    macros = (ROOT / "docs" / "macros.md").read_text(encoding="utf-8")
+    publishing = (ROOT / "docs" / "publishing.md").read_text(encoding="utf-8")
+
+    assert "[Page update dates](update-dates.md)" in authoring
+    assert "Page dates are not macros" in macros
+    assert "[Page update dates](update-dates.md)" in macros
+    assert "[Page update dates](update-dates.md)" in publishing
 
 
 def test_template_introduction_explains_contents_and_ownership() -> None:

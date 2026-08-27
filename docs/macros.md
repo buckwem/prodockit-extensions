@@ -111,3 +111,9 @@ one configured value:
 
 For supported versions and the pre-1.0 stability boundary, see
 [Support and compatibility](about/support.md).
+
+## Page dates are not macros
+
+Build-derived dates do not require the macros plugin. Use
+[Page update dates](update-dates.md) to choose where a website date appears,
+write its accompanying text, or override one page's automatic date.

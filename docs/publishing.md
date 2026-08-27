@@ -163,7 +163,7 @@ proves that a reader can retrieve the intended version.
 The \index{commands!`prodockit update-dates`} command gives the final site an
 “Updated” fact without putting generated fields into tracked Markdown:
 
-See [Page update dates](authoring.md#page-update-dates) for where the date is
+See [Page update dates](update-dates.md) for where the date is
 inserted and how an author can override it for one page. The rest of this
 section covers building and publication.
 

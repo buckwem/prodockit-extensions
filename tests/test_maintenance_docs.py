@@ -28,13 +28,13 @@ def test_getting_started_holds_installation_routes() -> None:
     assert {"4. Set up a template project": "devcons/bootstrap.md"} in getting_started
     assert {"5. Start with prodockit-template": "prodockit-template.md"} in getting_started
     assert {
-        "22. Staying in step with the template": "devcons/template-sync.md"
+        "23. Staying in step with the template": "devcons/template-sync.md"
     } in publishing
     assert maintenance == [
-        {"25. Maintenance overview": "project-maintenance.md"},
-        {"26. Repository metadata": "devcons/repo-metadata.md"},
-        {"27. Version pinning and drift": "devcons/pinning-drift.md"},
-        {"28. Build and release": "devcons/releasing.md"},
+        {"26. Maintenance overview": "project-maintenance.md"},
+        {"27. Repository metadata": "devcons/repo-metadata.md"},
+        {"28. Version pinning and drift": "devcons/pinning-drift.md"},
+        {"29. Build and release": "devcons/releasing.md"},
     ]
 
 

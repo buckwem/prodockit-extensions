@@ -19,10 +19,10 @@ def test_top_level_sections_open_with_an_introduction() -> None:
     expected_first_items = {
         "Getting started": {"1. Overview": "introduction.md"},
         "Authoring reference": {"7. Overview": "authoring.md"},
-        "Publish a document": {"21. Publishing overview": "publishing.md"},
-        "Maintain prodockit": {"25. Maintenance overview": "project-maintenance.md"},
-        "Contributor internals": {"29. Overview": "devcons/devcons.md"},
-        "About": {"36. About prodockit": "about/index.md"},
+        "Publish a document": {"22. Publishing overview": "publishing.md"},
+        "Maintain prodockit": {"26. Maintenance overview": "project-maintenance.md"},
+        "Contributor internals": {"30. Overview": "devcons/devcons.md"},
+        "About": {"37. About prodockit": "about/index.md"},
     }
 
     groups = {next(iter(item)): next(iter(item.values())) for item in nav if isinstance(item, dict)}
@@ -53,13 +53,13 @@ def test_contributor_internals_has_focused_reference_pages() -> None:
     )
 
     assert contributor == [
-        {"29. Overview": "devcons/devcons.md"},
-        {"30. Development and code map": "devcons/development.md"},
-        {"31. Extension integration": "devcons/extension-internals.md"},
-        {"32. PDF pipeline and API": "devcons/pdf-internals.md"},
-        {"33. Bootstrap design": "devcons/bootstrap-internals.md"},
-        {"34. Zensical coupling": "devcons/zensical-coupling.md"},
-        {"35. Implementation limitations": "devcons/limitations.md"},
+        {"30. Overview": "devcons/devcons.md"},
+        {"31. Development and code map": "devcons/development.md"},
+        {"32. Extension integration": "devcons/extension-internals.md"},
+        {"33. PDF pipeline and API": "devcons/pdf-internals.md"},
+        {"34. Bootstrap design": "devcons/bootstrap-internals.md"},
+        {"35. Zensical coupling": "devcons/zensical-coupling.md"},
+        {"36. Implementation limitations": "devcons/limitations.md"},
     ]
 
 
