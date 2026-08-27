@@ -112,6 +112,8 @@ from prodockit.pdf.config import (
 )
 from prodockit.pdf.site import BuiltSiteError
 from prodockit.pdf.source_bundle import SourceBundleError
+from prodockit.project_config import ProjectConfigError
+from prodockit.revision_dates import RevisionDateError, build_site_with_revision_dates
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
 _PDKBOOT_MODE: ContextVar[bool] = ContextVar("pdkboot_mode", default=False)
@@ -1998,6 +2000,80 @@ def pdf(config_file: str, markdown_file: str | None) -> None:
 def pdf_legacy(config_file: str, markdown_file: str | None) -> None:
     """Legacy PDF renderer using Zensical's undocumented Python APIs."""
     _run_pdf_command(config_file, markdown_file, legacy=True)
+
+
+@main.command("build")
+@click.option(
+    "-f",
+    "--config-file",
+    default="zensical.toml",
+    show_default=True,
+    help="Path to the project's Zensical or MkDocs configuration file.",
+)
+@click.option(
+    "--creation-dates",
+    is_flag=True,
+    help="Also show the oldest Git author date as each tracked page's creation date.",
+)
+@click.option(
+    "--strict",
+    is_flag=True,
+    help="Pass --strict to Zensical so warnings make the build fail.",
+)
+def build(config_file: str, creation_dates: bool, strict: bool) -> None:
+    """Build the website with per-page revision dates.
+
+    Git supplies the last-update date when full history is available. A
+    non-Git project or untracked page uses the source file's modification
+    date. Generated metadata is added only to temporary copies: Markdown
+    and configuration files in the project are never changed.
+    """
+    click.echo(f"Building site from {config_file} with revision dates...")
+    try:
+        result = build_site_with_revision_dates(
+            config_file,
+            include_creation=creation_dates,
+            strict=strict,
+        )
+    except (ProjectConfigError, RevisionDateError, OSError) as error:
+        click.echo(f"Error: {error}", err=True)
+        _echo_captured_stderr(error)
+        sys.exit(1)
+
+    counts = {
+        source: sum(page.updated_source == source for page in result.pages)
+        for source in ("git", "mtime", "manual")
+    }
+    click.echo(
+        "Revision dates: "
+        f"{counts['git']} from Git · "
+        f"{counts['mtime']} from file modification times · "
+        f"{counts['manual']} already set"
+    )
+    for page in result.pages:
+        if page.updated_source == "mtime":
+            click.echo(f"  Note: {page.source_path} uses its file modification time")
+    if creation_dates:
+        creation_counts = {
+            source: sum(page.created_source == source for page in result.pages)
+            for source in ("git", "manual")
+        }
+        unavailable = [page.source_path for page in result.pages if page.created_source is None]
+        click.echo(
+            "Creation dates: "
+            f"{creation_counts['git']} from Git · "
+            f"{creation_counts['manual']} already set · "
+            f"{len(unavailable)} unavailable without Git history"
+        )
+        for source_path in unavailable:
+            click.echo(f"  Note: {source_path} has no Git creation date")
+    output = result.stdout.strip()
+    if output:
+        click.echo(output)
+    warnings = result.stderr.strip()
+    if warnings:
+        click.echo(warnings, err=True)
+    click.echo(f"Built {result.site_dir}")
 
 
 @main.command("source-bundle")

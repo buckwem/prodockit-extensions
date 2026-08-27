@@ -39,6 +39,13 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## Unreleased
+
+- Added `prodockit build`, which supplies per-page last-update dates from full
+  Git history during a clean Zensical build without modifying source
+  Markdown. Non-Git and untracked pages use their file modification time;
+  optional creation dates remain Git-only.
+
 ## 0.48.1 (2026-08-26)
 
 - Added consent-gated Google Analytics to `prodockit.org`; analytics remains

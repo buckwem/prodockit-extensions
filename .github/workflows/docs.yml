@@ -278,7 +278,7 @@ jobs:
                   subprocess.run(["prodockit", "pdf", "-m", path], check=True)
                   print("::endgroup::", flush=True)
           PY
-      - run: zensical build --clean --strict
+      - run: prodockit build --strict
       # Checks what the builds above actually produced, using this project's
       # own pytest plugin - deselected from the normal unit run, which needs
       # no build. Catches a Mermaid diagram or formula reaching the PDF as

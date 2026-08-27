@@ -45,6 +45,7 @@ pinned by the project before assuming an option is unavailable.
 | [`prodockit bootstrap`](devcons/bootstrap.md) | A machine or checkout is not ready to build and publish | `prodockit bootstrap` | Only with `--apply`; configuration questions use `--configure` |
 | [`prodockit init-tools`](pdf.md#mermaid-diagrams-and-tex-maths) | The project needs local Mermaid or MathJax rendering tools | `prodockit init-tools` | Tool manifests, scripts, and ignore entries; existing files require `--force` |
 | [`prodockit init-mathjax`](pdf.md#mermaid-diagrams-and-tex-maths) | The website needs the installed MathJax bundle copied into its assets | `prodockit init-mathjax` | Website JavaScript assets and, unless disabled, `.gitignore` |
+| [`prodockit build`](publishing.md#build-with-revision-dates) | The final website should show when each page was last updated | `prodockit build --strict` | The configured `site_dir`; source Markdown and configuration remain unchanged |
 | [`prodockit pdf`](pdf.md) | You need one PDF containing the pages in `nav` | `prodockit pdf` | The configured PDF output |
 | [`prodockit source-bundle`](pdf.md#bundling-source-into-a-pdf) | A submission needs the Markdown and configuration as a separate PDF | `prodockit source-bundle` | The configured source-bundle output |
 | [`prodockit sync-repo`](devcons/repo-metadata.md) | Repository links or badges must match the current remote | `prodockit sync-repo --check` | `zensical.toml` and the managed README badge block without `--check` |
@@ -58,16 +59,20 @@ output.
 
 ## Build and preview {: #publish-and-verify }
 
-Zensical owns the live website commands:
+Zensical owns the live preview. Prodockit's website build wraps Zensical's
+documented clean build and adds per-page revision dates:
 
 ```bash
 zensical serve
-zensical build --clean --strict
+prodockit build --strict
 ```
 
-`serve` watches the source and rebuilds a local preview. The strict build is
-the final website check: it starts clean and treats broken links, missing
-anchors, and other validation warnings as failures.
+`serve` watches the source and rebuilds a local preview. `prodockit build`
+stages temporary Markdown containing revision metadata, runs
+`zensical build --clean`, and removes the staging files. `--strict` treats
+broken links, missing anchors, and other validation warnings as failures.
+Neither generated dates nor the temporary configuration are written into the
+author's files.
 
 Prodockit builds the additional artifacts:
 
@@ -80,7 +85,7 @@ When building both the complete PDF and site, keep this order:
 
 ```bash
 prodockit pdf
-zensical build --clean --strict
+prodockit build --strict
 ```
 
 Zensical copies the finished PDF into the site directory. Reversing the order
@@ -164,7 +169,7 @@ treat a changed file as proof that the intended state was reached.
 
 ```bash
 prodockit pdf
-zensical build --clean --strict
+prodockit build --strict
 git diff --check
 git status --short
 ```
@@ -195,7 +200,7 @@ Important exit-status behaviour:
 | `pins --check --offline` | Every discovered declaration agrees; no network comparison was attempted |
 | `pins --check` | Declarations agree and none of the selected PyPI packages is behind |
 | `shared-files --check` | Every file declared in `.prodockit-shared-files.toml` matches the installed release |
-| `zensical build --clean --strict` | The site built without a strict validation error |
+| `prodockit build --strict` | Revision dates were resolved and the site built without a strict validation error |
 | `pytest` | The selected source or built-output checks passed |
 
 The ordinary interactive `prodockit pins` command is for a terminal, not CI.

@@ -34,7 +34,7 @@ def test_publishing_overview_covers_the_end_to_end_commands() -> None:
     required = (
         "prodockit-template",
         "prodockit pdf",
-        "zensical build --clean --strict",
+        "prodockit build --strict",
         "python -m pytest",
         "GitHub Pages",
         "GitLab Pages",
@@ -87,6 +87,18 @@ def test_ci_page_links_to_workflows_instead_of_copying_them() -> None:
     missing = [item for item in required if item not in guide]
     assert not missing, f"maintained automation files absent from CI guide: {missing}"
     assert "```yaml" not in guide, "CI guide embeds workflow YAML that can drift"
+
+
+def test_repository_site_builds_supply_revision_dates_from_full_history() -> None:
+    workflows = (
+        ROOT / ".github" / "workflows" / "docs.yml",
+        ROOT / ".github" / "workflows" / "ci.yml",
+        ROOT / ".github" / "workflows" / "drift.yml",
+    )
+    for path in workflows:
+        text = path.read_text(encoding="utf-8")
+        assert "prodockit build --strict" in text, f"{path.name} bypasses revision dates"
+        assert "fetch-depth: 0" in text, f"{path.name} can publish shallow-history dates"
 
 
 def test_publishing_and_maintenance_state_different_audiences() -> None:

@@ -85,12 +85,14 @@ cover, diagram, maths, and index settings.
 //// step | Build the website strictly
 
 ```bash
-zensical build --clean --strict
+prodockit build --strict
 ```
 
-`--clean` removes output from an earlier run. `--strict` turns validation
-warnings such as broken internal links into failures. The result is written to
-`site/` unless the project configures another `site_dir`.
+Prodockit adds each page's revision date to a temporary source copy, then runs
+`zensical build --clean`. `--strict` turns validation warnings such as broken
+internal links into failures. The result is written to `site/` unless the
+project configures another `site_dir`; the source Markdown and configuration
+remain unchanged.
 
 ////
 
@@ -151,9 +153,46 @@ proves that a reader can retrieve the intended version.
 | Output | Built by | Typical location | Final check |
 |---|---|---|---|
 | Local preview | `zensical serve` | Address printed in the terminal | Edit a page and see it refresh |
-| Static website | `zensical build --clean --strict` | `site/` | Open pages, navigation, links, search, and downloadable files |
+| Static website | `prodockit build --strict` | `site/` | Open pages, revision dates, navigation, links, search, and downloadable files |
 | Complete PDF | `prodockit pdf` | `docs/site_documentation.pdf` by default | Inspect cover, contents, page breaks, diagrams, fonts, and index |
 | Hosted website | GitHub Pages or GitLab Pages workflow | Project Pages URL | Confirm the public page contains the reviewed change |
+
+## Build with revision dates {: #build-with-revision-dates }
+
+The \index{commands!`prodockit build`} command gives the final site a “Last
+update” fact without putting generated fields into tracked Markdown:
+
+```bash
+prodockit build --strict
+```
+
+For a tracked page, the newest Git **author date** is used. A project outside
+Git, or a new page that has no Git history yet, uses the source file's
+modification timestamp, converted to a calendar date in UTC, and names that
+fallback in the command output. A manually written `revision_date` or
+`git_revision_date_localized` in page front matter always wins.
+
+Creation dates are deliberately optional because they require the complete
+rename history of every page:
+
+```bash
+prodockit build --strict --creation-dates
+```
+
+This adds the oldest Git author date for tracked pages. File modification
+times are never described as creation dates.
+
+The command refuses a shallow repository because Git can return its oldest
+available boundary commit as a believable but incorrect page date. In GitHub
+Actions use `fetch-depth: 0`; in GitLab CI use `GIT_DEPTH: "0"`. A repository
+that exists but cannot be read also fails instead of silently substituting a
+different date.
+
+Revision metadata exists only in a temporary copy below the project root.
+Prodockit points a temporary configuration at that copy, invokes the public
+Zensical CLI, then removes both temporary paths on success or failure. A
+normal `zensical serve` preview therefore does not show generated dates unless
+the page already declares one manually.
 
 ## Use the detailed guides when needed
 

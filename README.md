@@ -148,6 +148,7 @@ The `pdk` executable is an exact shorter alias for `prodockit`; `boot` aliases
 | `prodockit bootstrap` | Check or prepare a machine and document project |
 | `prodockit init-tools` | Install the local Node tooling for Mermaid and maths rendering |
 | `prodockit init-mathjax` | Copy the installed MathJax bundle into website assets |
+| `prodockit build` | Build the website with per-page revision dates without changing Markdown source |
 | `prodockit pdf` | Build one PDF from the pages in the Zensical navigation |
 | `prodockit source-bundle` | Bundle the Markdown source and configuration into a separate PDF |
 | `prodockit sync-repo` | Match repository links, branding, and managed README badges to `origin` |
@@ -160,13 +161,15 @@ When publishing both outputs locally, build in this order:
 
 ```bash
 prodockit pdf
-zensical build --clean --strict
+prodockit build --strict
 ```
 
 The PDF comes first because the site build copies the completed PDF into its
-output. The maintained template includes annotated GitHub Actions and GitLab
-CI workflows that perform the same clean build, test the generated files, and
-deploy Pages.
+output. `prodockit build` runs Zensical's documented clean build after adding
+Git revision dates to temporary Markdown copies; it does not edit the files
+you author. The maintained template includes annotated GitHub Actions and
+GitLab CI workflows that perform the same build, test the generated files,
+and deploy Pages.
 
 ## Package integrations
 

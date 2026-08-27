@@ -49,7 +49,7 @@ Review and apply the result using
 
 ```bash
 prodockit pdf
-zensical build --clean --strict
+prodockit build --strict
 python -m pytest
 ```
 
@@ -122,7 +122,7 @@ retrieve the intended version; these are three separate checks.
 ```mermaid
 flowchart LR
     source[Markdown and zensical.toml] --> pdf[prodockit pdf]
-    pdf --> site[zensical build]
+    pdf --> site[prodockit build]
     site --> tests[Built-output tests]
     tests --> deploy[Pages deployment]
     deploy --> verify[Public verification]
@@ -132,7 +132,7 @@ The PDF is built before the website because it lives under `docs/` by default.
 Zensical copies it into the static site together with other downloadable
 files. Reversing the commands can publish the PDF left by an earlier run.
 
-Some projects also run `prodockit source-bundle` before Zensical. That creates
+Some projects also run `prodockit source-bundle` before the site build. That creates
 a second downloadable PDF containing the Markdown and configuration rather
 than the rendered report.
 
