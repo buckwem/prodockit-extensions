@@ -15,7 +15,21 @@ When enabled, \index{page update dates} record when each source page was last
 changed. After the publication build, Prodockit finds the HTML page produced
 from each Markdown file and supplies its update date. It uses the latest Git
 author date when history is available and the Markdown file's modification
-date otherwise.
+date otherwise. Every automatic timestamp is converted to UTC before its
+`YYYY-MM-DD` calendar date is selected, so the result does not depend on the
+time zone of the computer running the build.
+
+### How time zones are handled
+
+- **Git history:** the author timestamp includes its recorded UTC offset.
+  Prodockit converts that instant to UTC, then selects its calendar date.
+- **File modification time:** the filesystem timestamp is converted directly
+  to UTC before its calendar date is selected.
+- **Manual front matter:** a `revision_date` is already a calendar date, so
+  Prodockit uses the author's value exactly as written.
+
+Only the resulting `YYYY-MM-DD` value is displayed; no time or time-zone label
+appears. The website and PDF use the same resolved date.
 
 ## Place the website date
 

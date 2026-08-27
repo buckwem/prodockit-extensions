@@ -167,7 +167,10 @@ def _date_part(timestamp: str, source: Path) -> str:
     # meaning and is accepted by every supported Python version.
     normalized = f"{timestamp[:-1]}+00:00" if timestamp.endswith("Z") else timestamp
     try:
-        return datetime.fromisoformat(normalized).date().isoformat()
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            raise ValueError("timestamp has no UTC offset")
+        return parsed.astimezone(timezone.utc).date().isoformat()
     except ValueError as error:
         raise RevisionDateError(
             f"git returned an invalid author timestamp for {source}: {timestamp!r}"

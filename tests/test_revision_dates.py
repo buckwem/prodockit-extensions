@@ -36,7 +36,7 @@ HTML = """<!doctype html>
     (
         ("2023-02-03T00:00:00Z", "2023-02-03"),
         ("2023-02-03T00:00:00+00:00", "2023-02-03"),
-        ("2023-02-03T23:00:00-05:00", "2023-02-03"),
+        ("2023-02-03T23:00:00-05:00", "2023-02-04"),
     ),
 )
 def test_git_author_date_accepts_supported_iso_8601_offsets(
@@ -48,6 +48,9 @@ def test_git_author_date_accepts_supported_iso_8601_offsets(
 def test_git_author_date_rejects_invalid_timestamp() -> None:
     with pytest.raises(RevisionDateError, match="invalid author timestamp"):
         revision_dates._date_part("not-a-date", Path("docs/index.md"))
+
+    with pytest.raises(RevisionDateError, match="invalid author timestamp"):
+        revision_dates._date_part("2023-02-03T00:00:00", Path("docs/index.md"))
 
 
 def _write_project(

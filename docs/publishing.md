@@ -250,8 +250,10 @@ projects.
 
 For a tracked page, the newest Git **author date** is used. A new or untracked
 page that has no Git history yet uses the source file's modification
-timestamp, converted to a calendar date in UTC, and names that fallback in
-the command output. A manually written `revision_date` or
+timestamp. Prodockit converts either automatic timestamp to UTC before taking
+its calendar date, so authors and CI runners in different time zones get the
+same result. The command names a modification-time fallback in its output. A
+manually written `revision_date` or
 `git_revision_date_localized` in page front matter always wins.
 
 If the project is in Git but you deliberately want filesystem dates rather

@@ -53,6 +53,7 @@ def test_authoring_explains_page_dates_and_links_to_the_build() -> None:
         "<!-- prodockit-update-date -->",
         "Page update dates are optional",
         "do not run `prodockit update-dates`",
+        "converted to UTC",
         "The text before or after the marker",
         "revision_date: 2026-08-27",
         "Updated on YYYY-MM-DD",

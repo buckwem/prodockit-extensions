@@ -45,6 +45,8 @@ requests rather than here.
   site HTML from full Git history without modifying source Markdown or calling
   the site builder. Non-Git and untracked pages use their file modification
   time, and `--modification-dates` selects those timestamps for every page.
+  Automatic timestamps are converted to UTC before selecting the calendar
+  date, making output independent of the build machine's time zone.
   The PDF carries the same date in each source section's page-number footer.
 
 ## 0.48.1 (2026-08-26)
