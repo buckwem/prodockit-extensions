@@ -50,7 +50,7 @@ class Page:
     `recto_title`, if given, overrides the running header's auto-detected
     chapter title from the next page onward (this page itself still shows
     the heading's own full title) - see `fix_up_page_html()`'s own
-    docstring. `revision_date` supplies the page's running “Updates on” PDF
+    docstring. `revision_date` supplies the page's running “Updated on” PDF
     footer; it remains current across every output page in this source
     section until the next source page replaces it.
     """

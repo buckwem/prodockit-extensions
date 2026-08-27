@@ -496,7 +496,7 @@ def test_revision_date_marker_follows_the_heading_without_changing_its_text() ->
     heading = soup.find("h1")
     marker = heading.find_next_sibling(class_="prodockit-revision-date")
     assert heading.get_text() == "Chapter"
-    assert marker.get_text() == "Updates on 2026-08-27"
+    assert marker.get_text() == "Updated on 2026-08-27"
 
 
 def test_cover_page_has_no_revision_date_marker() -> None:

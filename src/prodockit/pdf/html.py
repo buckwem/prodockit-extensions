@@ -199,7 +199,7 @@ def fix_up_page_html(
 
     `revision_date`, when present, is carried by a hidden marker immediately
     after the page's first heading. The compiled stylesheet turns that value
-    into the running “Updates on” footer for this source section.
+    into the running “Updated on” footer for this source section.
 
     `admonition_icon_config`/`icon_registry` (see :mod:`prodockit.pdf.icons`)
     are needed to insert an admonition's own icon; omit either to skip icon
@@ -632,7 +632,7 @@ def fix_up_page_html(
     if revision_date and not is_index:
         marker = soup.new_tag("div")
         marker["class"] = "prodockit-revision-date"
-        marker.string = f"Updates on {revision_date}"
+        marker.string = f"Updated on {revision_date}"
         if isinstance(first_heading, Tag):
             first_heading.insert_after(marker)
         else:

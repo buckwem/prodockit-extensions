@@ -713,10 +713,10 @@ def test_each_source_section_has_its_own_update_date_below_the_page_number(
     with pymupdf.open(str(output_path)) as document:
         first = next(page.get_text() for page in document if "Unique first body" in page.get_text())
         second = next(page.get_text() for page in document if "Unique second body" in page.get_text())
-    assert "Updates on 2024-02-03" in first
-    assert "Updates on 2026-07-08" not in first
-    assert "Updates on 2026-07-08" in second
-    assert "Updates on 2024-02-03" not in second
+    assert "Updated on 2024-02-03" in first
+    assert "Updated on 2026-07-08" not in first
+    assert "Updated on 2026-07-08" in second
+    assert "Updated on 2024-02-03" not in second
 
 
 @real_pandoc_and_weasyprint_required

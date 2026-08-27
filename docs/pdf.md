@@ -283,7 +283,7 @@ Links and line breaks remain real PDF content rather than being flattened to
 plain text. Contributors changing the footer implementation should read
 [PDF pipeline and API](devcons/pdf-internals.md#preserve-real-footer-markup).
 
-The outer footer prints the page count followed by `Updates on YYYY-MM-DD`.
+The outer footer prints the page count followed by `Updated on YYYY-MM-DD`.
 Each source section carries its own date across all of its PDF pages. A
 manually supplied `revision_date` or `git_revision_date_localized` takes
 priority; otherwise Prodockit uses the newest Git author date, or the source
