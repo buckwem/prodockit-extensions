@@ -86,14 +86,21 @@ cover, diagram, maths, and index settings.
 
 ```bash
 zensical build --clean --strict
-prodockit update-dates
 ```
 
 Zensical builds the site first. `--strict` turns validation warnings such as
-broken internal links into failures. Prodockit then adds each page's revision
-date to the completed HTML. The result is written to `site/` unless the project
-configures another `site_dir`; the source Markdown and configuration remain
-unchanged.
+broken internal links into failures. The result is written to `site/` unless
+the project configures another `site_dir`.
+
+If the website should display page update dates, add this optional second
+command after the build:
+
+```bash
+prodockit update-dates
+```
+
+It adds each page's date to the completed HTML; the source Markdown and
+configuration remain unchanged. Omit it when dates are not required.
 
 ////
 
@@ -154,14 +161,16 @@ proves that a reader can retrieve the intended version.
 | Output | Built by | Typical location | Final check |
 |---|---|---|---|
 | Local preview | `zensical serve` | Address printed in the terminal | Edit a page and see it refresh |
-| Static website | `zensical build --clean --strict`, then `prodockit update-dates` | `site/` | Open pages, revision dates, navigation, links, search, and downloadable files |
+| Static website | `zensical build --clean --strict`; optionally `prodockit update-dates` | `site/` | Open pages, optional revision dates, navigation, links, search, and downloadable files |
 | Complete PDF | `prodockit pdf` | `docs/site_documentation.pdf` by default | Inspect cover, contents, page breaks, diagrams, fonts, and index |
 | Hosted website | GitHub Pages or GitLab Pages workflow | Project Pages URL | Confirm the public page contains the reviewed change |
 
 ## Build with revision dates {: #build-with-revision-dates }
 
-The \index{commands!`prodockit update-dates`} command gives the final site an
-“Updated” fact without putting generated fields into tracked Markdown:
+The optional \index{commands!`prodockit update-dates`} command gives the final
+site an “Updated” fact without putting generated fields into tracked Markdown.
+Run it only when the published website should display page dates. Without it,
+the Zensical build and publication workflow remain complete and valid.
 
 See [Page update dates](update-dates.md) for where the date is
 inserted and how an author can override it for one page. The rest of this

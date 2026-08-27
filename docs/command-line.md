@@ -59,8 +59,8 @@ output.
 
 ## Build and preview {: #publish-and-verify }
 
-Zensical owns both the live preview and static build. Prodockit can add
-per-page revision dates after the static build:
+Zensical owns both the live preview and static build. Prodockit can optionally
+add per-page revision dates after the static build:
 
 ```bash
 zensical serve
@@ -72,7 +72,8 @@ prodockit update-dates
 creates the static site and treats broken links, missing anchors, and other
 validation warnings as failures. `prodockit update-dates` then changes only
 the generated HTML. It does not invoke Zensical or write dates into the
-author's files.
+author's files. Omit that final command when the website does not need page
+dates; the Zensical build is already complete.
 
 `prodockit update-dates` is independent of adoption. It can post-process an
 existing Zensical project without adding Prodockit extensions, shared
@@ -96,7 +97,8 @@ prodockit update-dates
 
 Zensical copies the finished PDF into the site directory. Reversing the order
 can publish the PDF from the previous build while every command exits
-successfully.
+successfully. The final `update-dates` line remains optional and can be left
+out when dates are not displayed.
 
 To render one page while developing PDF styles, use:
 

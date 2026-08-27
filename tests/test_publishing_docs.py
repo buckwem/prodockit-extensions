@@ -48,15 +48,18 @@ def test_publishing_overview_covers_the_end_to_end_commands() -> None:
 
 def test_authoring_explains_page_dates_and_links_to_the_build() -> None:
     guide = (ROOT / "docs" / "update-dates.md").read_text(encoding="utf-8")
+    guide_prose = " ".join(guide.split())
     required = (
         "<!-- prodockit-update-date -->",
+        "Page update dates are optional",
+        "do not run `prodockit update-dates`",
         "The text before or after the marker",
         "revision_date: 2026-08-27",
         "Updated on YYYY-MM-DD",
         "publishing.md#build-with-revision-dates",
     )
 
-    missing = [item for item in required if item not in guide]
+    missing = [item for item in required if item not in guide_prose]
     assert not missing, f"page-date authoring guidance is incomplete: {missing}"
 
     authoring = (ROOT / "docs" / "authoring.md").read_text(encoding="utf-8")
@@ -67,6 +70,7 @@ def test_authoring_explains_page_dates_and_links_to_the_build() -> None:
     assert "Page dates are not macros" in macros
     assert "[Page update dates](update-dates.md)" in macros
     assert "[Page update dates](update-dates.md)" in publishing
+    assert "Omit it when dates are not required" in publishing
 
 
 def test_template_introduction_explains_contents_and_ownership() -> None:

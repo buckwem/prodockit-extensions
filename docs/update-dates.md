@@ -6,10 +6,16 @@ icon: lucide/calendar-clock
 
 # Page update dates
 
-\index{page update dates} records when each source page was last changed. During
-the publication build, Prodockit finds the HTML page produced from each
-Markdown file and supplies its update date. It uses the latest Git author date
-when history is available and the Markdown file's modification date otherwise.
+Page update dates are optional. Use this feature only when readers need to see
+when individual pages changed. If dates are not required, do not run
+`prodockit update-dates`; an ordinary Zensical build needs no replacement
+command or other configuration.
+
+When enabled, \index{page update dates} record when each source page was last
+changed. After the publication build, Prodockit finds the HTML page produced
+from each Markdown file and supplies its update date. It uses the latest Git
+author date when history is available and the Markdown file's modification
+date otherwise.
 
 ## Place the website date
 
@@ -64,4 +70,3 @@ This page was updated: <!-- prodockit-update-date -->
 Continue to [Build with revision dates](publishing.md#build-with-revision-dates)
 for the two publication commands, Git and non-Git behaviour, and CI history
 requirements.
-

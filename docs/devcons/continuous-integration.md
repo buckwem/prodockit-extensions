@@ -54,6 +54,10 @@ prodockit update-dates
 python -m pytest
 ```
 
+This repository publishes page update dates, so its workflow includes
+`prodockit update-dates`. A different project can omit that optional command
+when its website does not display dates.
+
 Fix a local failure before pushing. CI starts from a clean machine, so it
 cannot repair a missing page, broken link, or failing test that is already
 reproducible in the checkout.
