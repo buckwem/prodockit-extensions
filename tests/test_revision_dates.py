@@ -139,6 +139,25 @@ def test_non_git_project_uses_controlled_file_modification_time(
     assert result.pages == (PageRevision("index.md", "mtime"),)
 
 
+def test_real_non_git_zensical_site_renders_file_modification_date(tmp_path: Path) -> None:
+    config = _write_project(tmp_path)
+    page = tmp_path / "docs" / "index.md"
+    timestamp = datetime(2022, 7, 8, 12, 0, tzinfo=timezone.utc).timestamp()
+    os.utime(page, (timestamp, timestamp))
+    original = page.read_bytes()
+
+    result = build_site_with_revision_dates(config, include_creation=True, strict=True)
+
+    html = (tmp_path / "site" / "index.html").read_text(encoding="utf-8")
+    assert "2022-07-08" in html
+    assert 'title="Last update"' in html
+    assert 'title="Created"' not in html
+    assert result.pages == (PageRevision("index.md", "mtime"),)
+    assert page.read_bytes() == original
+    assert not (tmp_path / ".git").exists()
+    assert not list(tmp_path.glob(".prodockit-revision-dates-*"))
+
+
 @pytest.mark.skipif(shutil.which("git") is None, reason="Git harness needs the local Git CLI")
 def test_untracked_file_uses_mtime_without_weakening_tracked_dates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
