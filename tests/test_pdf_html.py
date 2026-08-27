@@ -487,6 +487,23 @@ def test_recto_title_empty_string_inserts_nothing() -> None:
     assert soup.find(class_="prodockit-recto-title") is None
 
 
+def test_revision_date_marker_follows_the_heading_without_changing_its_text() -> None:
+    html = _fix(
+        "<h1>Chapter</h1><p>Body text.</p>",
+        revision_date="2026-08-27",
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    heading = soup.find("h1")
+    marker = heading.find_next_sibling(class_="prodockit-revision-date")
+    assert heading.get_text() == "Chapter"
+    assert marker.get_text() == "Updated on 2026-08-27"
+
+
+def test_cover_page_has_no_revision_date_marker() -> None:
+    html = _fix("<h1>Cover</h1>", revision_date="2026-08-27", is_index=True)
+    assert BeautifulSoup(html, "html.parser").find(class_="prodockit-revision-date") is None
+
+
 def test_first_heading_keeps_its_own_id_and_gains_the_page_anchor() -> None:
     """prodockit-extensions#163: the page anchor used to *replace* the first
     heading's id, so every `\\ref{}`/`\\autoref{}` pointing at a page's title

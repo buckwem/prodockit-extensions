@@ -13,6 +13,7 @@ command.
 
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -38,6 +39,11 @@ CONFIG_FILENAMES = (
     "mkdocs.yml",
     "mkdocs.yaml",
 )
+
+# A staged build must let the Markdown extensions find the exact temporary
+# configuration Zensical was given, rather than rediscovering the author's
+# original file from the current directory.  Ordinary builds leave this unset.
+CONFIG_OVERRIDE_ENV = "PRODOCKIT_CONFIG_FILE"
 
 
 @dataclass(frozen=True)
@@ -221,6 +227,9 @@ def load_project_config(path: str | Path = "zensical.toml") -> ProjectConfig:
 
 def find_project_config(root: str | Path = ".") -> Path | None:
     """Return the first conventional project config below ``root``."""
+    if override := os.environ.get(CONFIG_OVERRIDE_ENV):
+        candidate = Path(override).resolve()
+        return candidate if candidate.is_file() else None
     directory = Path(root).resolve()
     return next(
         (candidate for name in CONFIG_FILENAMES if (candidate := directory / name).is_file()),

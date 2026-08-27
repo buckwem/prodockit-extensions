@@ -45,6 +45,7 @@ pinned by the project before assuming an option is unavailable.
 | [`prodockit bootstrap`](devcons/bootstrap.md) | A machine or checkout is not ready to build and publish | `prodockit bootstrap` | Only with `--apply`; configuration questions use `--configure` |
 | [`prodockit init-tools`](pdf.md#mermaid-diagrams-and-tex-maths) | The project needs local Mermaid or MathJax rendering tools | `prodockit init-tools` | Tool manifests, scripts, and ignore entries; existing files require `--force` |
 | [`prodockit init-mathjax`](pdf.md#mermaid-diagrams-and-tex-maths) | The website needs the installed MathJax bundle copied into its assets | `prodockit init-mathjax` | Website JavaScript assets and, unless disabled, `.gitignore` |
+| [`prodockit update-dates`](publishing.md#build-with-revision-dates) | A completed website should show when each page was last updated | `prodockit update-dates` after the normal site build | The configured `site_dir`; source Markdown and configuration remain unchanged |
 | [`prodockit pdf`](pdf.md) | You need one PDF containing the pages in `nav` | `prodockit pdf` | The configured PDF output |
 | [`prodockit source-bundle`](pdf.md#bundling-source-into-a-pdf) | A submission needs the Markdown and configuration as a separate PDF | `prodockit source-bundle` | The configured source-bundle output |
 | [`prodockit sync-repo`](devcons/repo-metadata.md) | Repository links or badges must match the current remote | `prodockit sync-repo --check` | `zensical.toml` and the managed README badge block without `--check` |
@@ -58,16 +59,26 @@ output.
 
 ## Build and preview {: #publish-and-verify }
 
-Zensical owns the live website commands:
+Zensical owns both the live preview and static build. Prodockit can optionally
+add per-page revision dates after the static build:
 
 ```bash
 zensical serve
 zensical build --clean --strict
+prodockit update-dates
 ```
 
-`serve` watches the source and rebuilds a local preview. The strict build is
-the final website check: it starts clean and treats broken links, missing
-anchors, and other validation warnings as failures.
+`serve` watches the source and rebuilds a local preview. The second command
+creates the static site and treats broken links, missing anchors, and other
+validation warnings as failures. `prodockit update-dates` then changes only
+the generated HTML. It does not invoke Zensical or write dates into the
+author's files. Omit that final command when the website does not need page
+dates; the Zensical build is already complete.
+
+`prodockit update-dates` is independent of adoption. It can post-process an
+existing Zensical project without adding Prodockit extensions, shared
+stylesheets, macros, template files, or publishing workflows. Only the
+Prodockit package itself must be installed in the active environment.
 
 Prodockit builds the additional artifacts:
 
@@ -81,11 +92,13 @@ When building both the complete PDF and site, keep this order:
 ```bash
 prodockit pdf
 zensical build --clean --strict
+prodockit update-dates
 ```
 
 Zensical copies the finished PDF into the site directory. Reversing the order
 can publish the PDF from the previous build while every command exits
-successfully.
+successfully. The final `update-dates` line remains optional and can be left
+out when dates are not displayed.
 
 To render one page while developing PDF styles, use:
 
@@ -165,6 +178,7 @@ treat a changed file as proof that the intended state was reached.
 ```bash
 prodockit pdf
 zensical build --clean --strict
+prodockit update-dates
 git diff --check
 git status --short
 ```
@@ -195,7 +209,7 @@ Important exit-status behaviour:
 | `pins --check --offline` | Every discovered declaration agrees; no network comparison was attempted |
 | `pins --check` | Declarations agree and none of the selected PyPI packages is behind |
 | `shared-files --check` | Every file declared in `.prodockit-shared-files.toml` matches the installed release |
-| `zensical build --clean --strict` | The site built without a strict validation error |
+| `prodockit update-dates` | Revision dates were resolved and added to the completed site |
 | `pytest` | The selected source or built-output checks passed |
 
 The ordinary interactive `prodockit pins` command is for a terminal, not CI.

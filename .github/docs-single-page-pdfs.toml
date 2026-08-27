@@ -40,6 +40,7 @@ other_page_shapes = [
   "installation.md",
   "pdf.md",
   "macros.md",
+  "update-dates.md",
   "stylesheets.md",
   "about/changelog.md",
   "about/license.md",

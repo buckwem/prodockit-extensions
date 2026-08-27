@@ -50,8 +50,13 @@ Review and apply the result using
 ```bash
 prodockit pdf
 zensical build --clean --strict
+prodockit update-dates
 python -m pytest
 ```
+
+This repository publishes page update dates, so its workflow includes
+`prodockit update-dates`. A different project can omit that optional command
+when its website does not display dates.
 
 Fix a local failure before pushing. CI starts from a clean machine, so it
 cannot repair a missing page, broken link, or failing test that is already
@@ -123,7 +128,8 @@ retrieve the intended version; these are three separate checks.
 flowchart LR
     source[Markdown and zensical.toml] --> pdf[prodockit pdf]
     pdf --> site[zensical build]
-    site --> tests[Built-output tests]
+    site --> dates[prodockit update-dates]
+    dates --> tests[Built-output tests]
     tests --> deploy[Pages deployment]
     deploy --> verify[Public verification]
 ```
@@ -132,7 +138,7 @@ The PDF is built before the website because it lives under `docs/` by default.
 Zensical copies it into the static site together with other downloadable
 files. Reversing the commands can publish the PDF left by an earlier run.
 
-Some projects also run `prodockit source-bundle` before Zensical. That creates
+Some projects also run `prodockit source-bundle` before the site build. That creates
 a second downloadable PDF containing the Markdown and configuration rather
 than the rendered report.
 

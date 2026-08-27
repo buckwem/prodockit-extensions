@@ -240,16 +240,13 @@ pre, code { font-size: 10pt !important; }
         border-top: 1px solid __PDF_HEADER_FOOTER_DIVIDER_COLOR__ !important;
         padding-top: 8px !important;
         margin-top: 3mm !important;
-        width: 80% !important;
+        width: 70% !important;
         text-align: left !important;
     }
-    /* 20% (not 15%) so "Page X of Y" has room to stay on one line once the
-       page count reaches 3 digits - at 15% wide, e.g. "Page 98 of 999"
-       already wrapped onto two lines (digit glyph widths vary, so this
-       isn't a clean "3 digits" cutoff - some 2-digit page numbers hit it
-       too). Verified up to a 999-page document at this width. */
+    /* 30% gives both the page count and its section update date enough room
+       to remain on their own lines, including a 3-digit page count. */
     @bottom-right {
-        content: "Page " counter(page) " of " counter(pages) !important;
+        content: "Page " counter(page) " of " counter(pages) "\\A " string(revision-date) !important;
         font-family: "__MAIN_FONT__", sans-serif !important;
         font-size: __PDF_HEADER_FOOTER_FONT_SIZE__ !important;
         color: __PDF_HEADER_FOOTER_COLOR__ !important;
@@ -257,8 +254,10 @@ pre, code { font-size: 10pt !important; }
         border-top: 1px solid __PDF_HEADER_FOOTER_DIVIDER_COLOR__ !important;
         padding-top: 8px !important;
         margin-top: 3mm !important;
-        width: 20% !important;
+        width: 30% !important;
         text-align: right !important;
+        white-space: pre-line !important;
+        line-height: 1.25 !important;
     }
 }
 
@@ -366,6 +365,19 @@ p {
    class the numbering Lua filter already uses to identify non-chapter
    headings, so the running title only starts once real content begins. */
 h1:not(.unnumbered) { string-set: chapter-title content() !important; }
+/* One hidden marker per source page supplies the date used by the running
+   page-number footer. It follows the first heading, so an h1's forced page
+   break cannot leave the marker at the foot of the previous section. */
+.prodockit-revision-date {
+    string-set: revision-date content() !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+}
 /* A page's own `recto_title` front matter (see prodockit.pdf.html and
    prodockit.pdf.build) inserts one of these directly after that page's
    real h1 - later in document order, so its own string-set here
@@ -1021,7 +1033,7 @@ div.prodockit-index-level-3 {
         text-align: right !important;
     }
     @bottom-left {
-        content: "Page " counter(page) " of " counter(pages) !important;
+        content: "Page " counter(page) " of " counter(pages) "\\A " string(revision-date) !important;
         font-family: "__MAIN_FONT__", sans-serif !important;
         font-size: __PDF_HEADER_FOOTER_FONT_SIZE__ !important;
         color: __PDF_HEADER_FOOTER_COLOR__ !important;
@@ -1029,8 +1041,10 @@ div.prodockit-index-level-3 {
         border-top: 1px solid __PDF_HEADER_FOOTER_DIVIDER_COLOR__ !important;
         padding-top: 8px !important;
         margin-top: 3mm !important;
-        width: 20% !important;
+        width: 30% !important;
         text-align: left !important;
+        white-space: pre-line !important;
+        line-height: 1.25 !important;
     }
     @bottom-right {
         /* See the single-sided @bottom-left rule above for why this is
@@ -1041,7 +1055,7 @@ div.prodockit-index-level-3 {
         border-top: 1px solid __PDF_HEADER_FOOTER_DIVIDER_COLOR__ !important;
         padding-top: 8px !important;
         margin-top: 3mm !important;
-        width: 80% !important;
+        width: 70% !important;
         text-align: right !important;
     }
 }

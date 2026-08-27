@@ -34,6 +34,7 @@ from prodockit.pdf.release import get_latest_release_tag
 from prodockit.pdf.site import build_site, page_html, page_metadata
 from prodockit.pdf.source_bundle import build_source_bundle, discover_markdown_and_config_files
 from prodockit.project_config import load_project_config
+from prodockit.revision_dates import resolve_revision_dates
 from prodockit.settings import flatten_nav, heading_numbering_enabled, reference_style_values
 from prodockit.zensical_macros import (
     _compute_site_word_count,
@@ -472,6 +473,11 @@ def _build_pdf_from_config(
         os.makedirs(math_dir, exist_ok=True)
 
     page_objects: list[Page] = []
+    source_paths = [Path(source_docs_dir) / page["url"] for page in nav_pages]
+    revision_dates = resolve_revision_dates(
+        project_config.root if project_config is not None else Path(config_path).resolve().parent,
+        source_paths,
+    )
     for nav_page in nav_pages:
         docs_rel_path = nav_page["url"]
         full_path = os.path.join(source_docs_dir, docs_rel_path)
@@ -508,6 +514,11 @@ def _build_pdf_from_config(
                 is_index=not page_objects and bool(nav_page.get("is_index")),
                 is_appendix=bool(meta.get(APPENDIX_FRONT_MATTER_KEY, False)),
                 recto_title=meta.get(RECTO_TITLE_FRONT_MATTER_KEY) or None,
+                revision_date=str(
+                    meta.get("revision_date")
+                    or meta.get("git_revision_date_localized")
+                    or revision_dates[Path(full_path)].updated
+                ),
             )
         )
 

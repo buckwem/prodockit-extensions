@@ -39,6 +39,16 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## Unreleased
+
+- Added `prodockit update-dates`, which adds per-page update dates to completed
+  site HTML from full Git history without modifying source Markdown or calling
+  the site builder. Non-Git and untracked pages use their file modification
+  time, and `--modification-dates` selects those timestamps for every page.
+  Automatic timestamps are converted to UTC before selecting the calendar
+  date, making output independent of the build machine's time zone.
+  The PDF carries the same date in each source section's page-number footer.
+
 ## 0.48.1 (2026-08-26)
 
 - Added consent-gated Google Analytics to `prodockit.org`; analytics remains

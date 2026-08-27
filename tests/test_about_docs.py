@@ -21,11 +21,11 @@ def test_about_navigation_is_evaluator_first() -> None:
     about = next(item["About"] for item in config["project"]["nav"] if "About" in item)
 
     assert about == [
-        {"36. About prodockit": "about/index.md"},
-        {"37. Support and compatibility": "about/support.md"},
-        {"38. Known limitations": "about/limitations.md"},
-        {"39. Release notes": "about/changelog.md"},
-        {"40. Licence": "about/license.md"},
+        {"37. About prodockit": "about/index.md"},
+        {"38. Support and compatibility": "about/support.md"},
+        {"39. Known limitations": "about/limitations.md"},
+        {"40. Release notes": "about/changelog.md"},
+        {"41. Licence": "about/license.md"},
     ]
 
 

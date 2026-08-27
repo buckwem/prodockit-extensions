@@ -112,6 +112,8 @@ from prodockit.pdf.config import (
 )
 from prodockit.pdf.site import BuiltSiteError
 from prodockit.pdf.source_bundle import SourceBundleError
+from prodockit.project_config import ProjectConfigError
+from prodockit.revision_dates import RevisionDateError, update_built_site_revision_dates
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
 _PDKBOOT_MODE: ContextVar[bool] = ContextVar("pdkboot_mode", default=False)
@@ -1998,6 +2000,57 @@ def pdf(config_file: str, markdown_file: str | None) -> None:
 def pdf_legacy(config_file: str, markdown_file: str | None) -> None:
     """Legacy PDF renderer using Zensical's undocumented Python APIs."""
     _run_pdf_command(config_file, markdown_file, legacy=True)
+
+
+@main.command("update-dates")
+@click.option(
+    "-f",
+    "--config-file",
+    default="zensical.toml",
+    show_default=True,
+    help="Path to the project's Zensical configuration file.",
+)
+@click.option(
+    "--modification-dates",
+    is_flag=True,
+    help="Use source-file modification dates instead of Git author dates.",
+)
+def update_dates(config_file: str, modification_dates: bool) -> None:
+    """Add per-page update dates to an already-built website.
+
+    This works in an existing Zensical project without adopting
+    Prodockit's extensions, styles, template, or publishing setup.
+    Git supplies the last-update date when full history is available. A
+    non-Git project or untracked page uses the source file's modification
+    date. Run Zensical first; this command changes only generated
+    HTML and never invokes the site builder or edits source files.
+    """
+    click.echo(f"Updating dates in the site built from {config_file}...")
+    try:
+        result = update_built_site_revision_dates(
+            config_file,
+            use_modification_dates=modification_dates,
+        )
+    except (ProjectConfigError, RevisionDateError, OSError) as error:
+        click.echo(f"Error: {error}", err=True)
+        _echo_captured_stderr(error)
+        sys.exit(1)
+
+    counts = {
+        source: sum(page.updated_source == source for page in result.pages)
+        for source in ("git", "mtime", "manual", "existing")
+    }
+    click.echo(
+        "Revision dates: "
+        f"{counts['git']} from Git · "
+        f"{counts['mtime']} from file modification times · "
+        f"{counts['manual']} manually set · "
+        f"{counts['existing']} already present in built HTML"
+    )
+    for page in result.pages:
+        if page.updated_source == "mtime":
+            click.echo(f"  Note: {page.source_path} uses its file modification time")
+    click.echo(f"Updated {result.site_dir}")
 
 
 @main.command("source-bundle")

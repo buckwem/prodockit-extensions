@@ -42,6 +42,10 @@ Zensical doesn't provide out of the box, each usable independently:
   content and config, one file per page, into ``docs_dir`` - for a
   submission needing the underlying source alongside the rendered
   document, without paying for both PDFs on every build.
+- ``prodockit.revision_dates`` - add per-page last-update dates to a completed
+  Zensical website from complete Git history, or file modification
+  times where no Git history exists. Run ``prodockit update-dates`` after the
+  site's normal build command; it changes generated HTML, not source files.
 - ``prodockit.bootstrap`` - set a new machine up from scratch, as twenty-three
   stages that can each be checked and repaired individually rather than a
   long sequence of instructions followed once and hoped over. Run

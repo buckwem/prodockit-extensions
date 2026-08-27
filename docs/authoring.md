@@ -82,6 +82,7 @@ Python-Markdown extensions:
 | Document need | Reference |
 |---|---|
 | Insert calculated values such as word counts, repository details, or document-wide layout settings | [Website macros](macros.md) |
+| Show when each source page was last updated | [Page update dates](update-dates.md) |
 | Produce a complete PDF, a single-page PDF, or a source bundle | [PDF generation](pdf.md) |
 | Find the safe first form, write behaviour, and options for every public command | [Command-line tools](command-line.md) |
 

@@ -391,6 +391,34 @@ nav = [
     assert pages_by_path["about/index.md"].is_index is False
 
 
+def test_built_site_pdf_uses_manual_then_file_revision_dates(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+    chapter = root / "docs" / "chapter1.md"
+    chapter.write_text(
+        "---\nrevision_date: 2020-01-02\n---\n\n# Chapter One\n",
+        encoding="utf-8",
+    )
+    index = root / "docs" / "index.md"
+    timestamp = 1_726_012_800  # 2024-09-11T00:00:00Z
+    os.utime(index, (timestamp, timestamp))
+    captured = {}
+
+    monkeypatch.setattr(config, "build_site", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(config, "page_html", lambda _config, source: f"<h1>{source}</h1>")
+
+    def _spy(pages, output_path, **kwargs):
+        captured["pages"] = pages
+
+    monkeypatch.setattr(config, "build_pdf", _spy)
+    build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    pages = {page.docs_rel_path: page for page in captured["pages"]}
+    assert pages["index.md"].revision_date == "2024-09-11"
+    assert pages["chapter1.md"].revision_date == "2020-01-02"
+
+
 def test_recto_title_front_matter_is_read_from_the_page(
     project, monkeypatch: pytest.MonkeyPatch
 ) -> None:

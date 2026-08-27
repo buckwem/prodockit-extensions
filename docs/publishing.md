@@ -88,9 +88,19 @@ cover, diagram, maths, and index settings.
 zensical build --clean --strict
 ```
 
-`--clean` removes output from an earlier run. `--strict` turns validation
-warnings such as broken internal links into failures. The result is written to
-`site/` unless the project configures another `site_dir`.
+Zensical builds the site first. `--strict` turns validation warnings such as
+broken internal links into failures. The result is written to `site/` unless
+the project configures another `site_dir`.
+
+If the website should display page update dates, add this optional second
+command after the build:
+
+```bash
+prodockit update-dates
+```
+
+It adds each page's date to the completed HTML; the source Markdown and
+configuration remain unchanged. Omit it when dates are not required.
 
 ////
 
@@ -151,9 +161,126 @@ proves that a reader can retrieve the intended version.
 | Output | Built by | Typical location | Final check |
 |---|---|---|---|
 | Local preview | `zensical serve` | Address printed in the terminal | Edit a page and see it refresh |
-| Static website | `zensical build --clean --strict` | `site/` | Open pages, navigation, links, search, and downloadable files |
+| Static website | `zensical build --clean --strict`; optionally `prodockit update-dates` | `site/` | Open pages, optional revision dates, navigation, links, search, and downloadable files |
 | Complete PDF | `prodockit pdf` | `docs/site_documentation.pdf` by default | Inspect cover, contents, page breaks, diagrams, fonts, and index |
 | Hosted website | GitHub Pages or GitLab Pages workflow | Project Pages URL | Confirm the public page contains the reviewed change |
+
+## Build with revision dates {: #build-with-revision-dates }
+
+The optional \index{commands!`prodockit update-dates`} command gives the final
+site an “Updated” fact without putting generated fields into tracked Markdown.
+Run it only when the published website should display page dates. Without it,
+the Zensical build and publication workflow remain complete and valid.
+
+See [Page update dates](update-dates.md) for where the date is
+inserted and how an author can override it for one page. The rest of this
+section covers building and publication.
+
+### Use the command without adoption
+
+`prodockit update-dates` is a standalone command. It needs a website already
+built from an existing Zensical project, but it does **not** require that
+project to adopt Prodockit's extensions, stylesheets, macros, template, or
+publishing workflows.
+
+1. Change to the directory containing `zensical.toml`:
+
+    ```bash
+    cd /path/to/your-document
+    ```
+
+2. Activate the Python environment that normally builds the document:
+
+    === "macOS"
+
+        ```bash
+        source .venv/bin/activate
+        ```
+
+    === "Windows PowerShell"
+
+        ```powershell
+        .\.venv\Scripts\Activate.ps1
+        ```
+
+    === "Ubuntu"
+
+        ```bash
+        source .venv/bin/activate
+        ```
+
+3. Install the latest Prodockit package into that environment:
+
+    ```bash
+    python -m pip install --upgrade prodockit
+    ```
+
+4. Build the site with its usual command, then add the dates:
+
+    ```bash
+    zensical build --clean --strict
+    prodockit update-dates
+    ```
+
+The second command changes only the configured website output, normally
+`site/`. It does not call Zensical and does not edit the source Markdown or
+configuration. You do not need to run `prodockit adopt` before or after these
+steps.
+
+### Use the command without Git
+
+Git is optional. When the project is not inside a Git repository,
+`prodockit update-dates` uses each Markdown file's modification timestamp as its
+update date. It converts the timestamp to a calendar date in UTC and reports
+that fallback while building. Saving a file changes its modification time, so
+the next build updates that page's date.
+
+Run the same two-command sequence:
+
+```bash
+zensical build --clean --strict
+prodockit update-dates
+```
+
+You do not need an option to enable this fallback. A manually supplied
+`revision_date`, as shown above, takes priority in both Git and non-Git
+projects.
+
+### Understand dates in a Git project
+
+For a tracked page, the newest Git **author date** is used. A new or untracked
+page that has no Git history yet uses the source file's modification
+timestamp. Prodockit converts either automatic timestamp to UTC before taking
+its calendar date, so authors and CI runners in different time zones get the
+same result. The command names a modification-time fallback in its output. A
+manually written `revision_date` or
+`git_revision_date_localized` in page front matter always wins.
+
+If the project is in Git but you deliberately want filesystem dates rather
+than Git author dates, select them explicitly:
+
+```bash
+prodockit update-dates --modification-dates
+```
+
+This applies modification dates to tracked and untracked Markdown files alike.
+Prodockit does not calculate or inject creation dates.
+
+The command refuses a shallow repository because Git can return its oldest
+available boundary commit as a believable but incorrect page date. In GitHub
+Actions use `fetch-depth: 0`; in GitLab CI use `GIT_DEPTH: "0"`. A repository
+that exists but cannot be read also fails instead of silently substituting a
+different date.
+
+Prodockit inserts the facts into the generated HTML only. It deliberately does
+not invoke a site builder, so this post-processing step composes with other
+tools that run before or after Zensical. Run it again after every clean site
+build because that build replaces the generated HTML.
+
+A normal `zensical serve` preview rebuilds pages continuously and therefore
+does not retain automatically generated dates. Pages that declare a date in
+front matter can still show it in the preview; use the completed static build
+to inspect automatic Git or modification dates.
 
 ## Use the detailed guides when needed
 
