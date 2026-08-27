@@ -163,6 +163,10 @@ proves that a reader can retrieve the intended version.
 The \index{commands!`prodockit update-dates`} command gives the final site an
 “Updated” fact without putting generated fields into tracked Markdown:
 
+See [Page update dates](authoring.md#page-update-dates) for where the date is
+inserted and how an author can override it for one page. The rest of this
+section covers building and publication.
+
 ### Use the command without adoption
 
 `prodockit update-dates` is a standalone command. It needs a website already
@@ -229,16 +233,9 @@ zensical build --clean --strict
 prodockit update-dates
 ```
 
-You do not need an option to enable this fallback. If a page needs a fixed,
-reviewed date instead, put it in that page's front matter:
-
-```yaml
----
-revision_date: 2026-08-27
----
-```
-
-This manually supplied value takes priority in both Git and non-Git projects.
+You do not need an option to enable this fallback. A manually supplied
+`revision_date`, as shown above, takes priority in both Git and non-Git
+projects.
 
 ### Understand dates in a Git project
 
