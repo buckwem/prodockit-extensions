@@ -1,19 +1,18 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Read document content from Zensical's documented build output.
+"""Read and publish document content around Zensical's built output.
 
-Zensical remains responsible for Markdown rendering.  Prodockit invokes its
-public CLI, then extracts the already-rendered article from each generated
-HTML page.  No Zensical Python package internals are imported here.
+Zensical remains responsible for Markdown rendering. Prodockit validates and
+extracts the already-rendered articles from a completed website; it neither
+invokes Zensical nor imports its Python package internals.
 """
 
 from __future__ import annotations
 
-import re
+import os
 import shutil
-import subprocess
-import sys
+import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -27,121 +26,68 @@ class BuiltSiteError(RuntimeError):
     """A documented Zensical build or its output cannot be consumed."""
 
 
-_ICON_PROBE_SOURCE = ".prodockit-pdf-icon-probe.md"
-_ICON_PROBE_HEADING_PREFIX = "prodockit-icon-"
+def validate_built_site(config: ProjectConfig, source_paths: list[str]) -> None:
+    """Validate the completed Zensical output needed by a PDF build.
 
-
-def _zensical_cli() -> str:
-    """Return the Zensical CLI from Prodockit's active Python environment."""
-    scripts = Path(sys.executable).parent
-    names = ("zensical.exe", "zensical") if sys.platform == "win32" else ("zensical",)
-    for name in names:
-        candidate = scripts / name
-        if candidate.is_file():
-            return str(candidate)
-    return shutil.which("zensical") or "zensical"
-
-
-def _icon_key(shortcode: str) -> str:
-    """Return the registry spelling used for a Zensical icon shortcode."""
-    return shortcode.strip().strip(":/").lower().replace("/", "-")
-
-
-def _icon_probe_source(admonition_icons: dict[str, Any]) -> str:
-    """Build a temporary Markdown page that asks Zensical to render icons."""
-    sections = ["# Prodockit PDF icon probe", ""]
-    for adm_type, shortcode in admonition_icons.items():
-        if not isinstance(shortcode, str) or not shortcode.strip():
-            continue
-        sections.extend(
-            [
-                f"## {_ICON_PROBE_HEADING_PREFIX}{str(adm_type).lower()}",
-                "",
-                f":{_icon_key(shortcode)}:",
-                "",
-            ]
-        )
-    return "\n".join(sections)
-
-
-def _read_icon_probe(path: Path, admonition_icons: dict[str, Any]) -> dict[str, str]:
-    """Extract the SVGs Zensical rendered on the temporary probe page."""
-    if not path.is_file():
-        raise BuiltSiteError(f"zensical build did not create the icon probe page: {path}")
-    html = path.read_text(encoding="utf-8")
-    registry: dict[str, str] = {}
-    missing: list[str] = []
-    for adm_type, shortcode in admonition_icons.items():
-        if not isinstance(shortcode, str) or not shortcode.strip():
-            continue
-        heading_id = re.escape(f"{_ICON_PROBE_HEADING_PREFIX}{str(adm_type).lower()}")
-        section = re.search(
-            rf'<h2\b[^>]*\bid=["\']{heading_id}["\'][^>]*>.*?'
-            r"(?P<svg><svg\b.*?</svg>)",
-            html,
-            flags=re.DOTALL | re.IGNORECASE,
-        )
-        if section is None:
-            missing.append(str(shortcode))
-            continue
-        # Keep the generated SVG verbatim. Parsing it through an HTML parser
-        # lowercases case-sensitive SVG attributes such as ``viewBox``;
-        # Pandoc then rejects the otherwise valid image.
-        registry[_icon_key(shortcode)] = section.group("svg")
-    if missing:
-        raise BuiltSiteError(
-            "zensical built the icon probe but did not render the configured "
-            f"icon shortcode(s): {', '.join(missing)}"
-        )
-    return registry
-
-
-def build_site(
-    config: ProjectConfig,
-    admonition_icons: dict[str, Any] | None = None,
-) -> dict[str, str]:
-    """Run Zensical's public clean build and return its configured icon SVGs.
-
-    The temporary probe is ordinary Markdown containing the configured icon
-    shortcodes.  Zensical therefore remains responsible for resolving theme
-    icons; Prodockit neither imports its icon loader nor reads its private
-    package directories.
+    This deliberately checks existence and structure, not freshness. A macro
+    may depend on Git or external state, so source/output mtimes cannot prove
+    that an arbitrary static build is current.
     """
-    configured_icons = admonition_icons or {}
-    probe_source = config.docs_dir / _ICON_PROBE_SOURCE
+    instruction = "run `zensical build --clean --strict` first"
+    if not config.site_dir.is_dir():
+        raise BuiltSiteError(f"built site not found: {config.site_dir}; {instruction}")
+    index = config.site_dir / "index.html"
+    if not index.is_file():
+        raise BuiltSiteError(f"built site has no index page: {index}; {instruction}")
+
     directory_urls = bool(config.project.get("use_directory_urls", True))
-    probe_output = output_path(_ICON_PROBE_SOURCE, config.site_dir, directory_urls=directory_urls)
-    if configured_icons and probe_source.exists():
-        raise BuiltSiteError(
-            f"temporary PDF icon probe would overwrite an existing file: {probe_source}"
-        )
-    if configured_icons:
-        probe_source.write_text(_icon_probe_source(configured_icons), encoding="utf-8")
+    missing = []
+    for source in source_paths:
+        generated = output_path(source, config.site_dir, directory_urls=directory_urls)
+        if not generated.is_file():
+            missing.append(generated)
+    if missing:
+        rendered = ", ".join(str(path) for path in missing)
+        raise BuiltSiteError(f"built site is incomplete; missing {rendered}; {instruction}")
+
+
+def published_pdf_path(config: ProjectConfig, pdf_path: str | Path) -> Path | None:
+    """Return the matching built-site path for an author PDF, if any.
+
+    Only files inside ``docs_dir`` are website assets. An explicitly
+    configured output elsewhere remains outside the built website.
+    """
+    source = Path(pdf_path)
+    source = source.resolve() if source.is_absolute() else (config.root / source).resolve()
     try:
-        try:
-            result = subprocess.run(
-                [_zensical_cli(), "build", "--clean", "--config-file", str(config.path)],
-                cwd=config.root,
-                capture_output=True,
-                check=False,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
-        except OSError as error:
-            raise BuiltSiteError(f"could not run zensical build: {error}") from error
-        if result.returncode:
-            detail = (result.stderr or result.stdout).strip()
-            suffix = f": {detail}" if detail else ""
-            raise BuiltSiteError(f"zensical build exited with status {result.returncode}{suffix}")
-        return _read_icon_probe(probe_output, configured_icons) if configured_icons else {}
+        relative = source.relative_to(config.docs_dir)
+    except ValueError:
+        return None
+    return (config.site_dir / relative).resolve()
+
+
+def publish_pdf_to_built_site(config: ProjectConfig, pdf_path: str | Path) -> Path | None:
+    """Atomically mirror an author PDF below ``docs_dir`` into ``site_dir``."""
+    source = Path(pdf_path)
+    source = source.resolve() if source.is_absolute() else (config.root / source).resolve()
+    destination = published_pdf_path(config, source)
+    if destination is None or destination == source:
+        return destination
+    if not source.is_file():
+        raise BuiltSiteError(f"PDF renderer did not create the expected output: {source}")
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        shutil.copyfile(source, temporary)
+        os.replace(temporary, destination)
     finally:
-        if configured_icons:
-            probe_source.unlink(missing_ok=True)
-            if directory_urls:
-                shutil.rmtree(probe_output.parent, ignore_errors=True)
-            else:
-                probe_output.unlink(missing_ok=True)
+        temporary.unlink(missing_ok=True)
+    return destination
 
 
 def output_path(source_path: str, site_dir: Path, *, directory_urls: bool = True) -> Path:

@@ -3,6 +3,7 @@
 
 import os
 import re
+import shutil
 import stat
 import subprocess
 from pathlib import Path
@@ -28,6 +29,12 @@ def _write_project(tmp_path: Path) -> None:
     docs_dir.mkdir()
     (docs_dir / "index.md").write_text("# Cover\n", encoding="utf-8")
     (tmp_path / "zensical.toml").write_text(_ZENSICAL_TOML, encoding="utf-8")
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
+    (site_dir / "index.html").write_text(
+        '<article class="md-content__inner md-typeset"><h1>Cover</h1></article>',
+        encoding="utf-8",
+    )
 
 
 def _install_fake_pandoc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: str) -> None:
@@ -49,8 +56,12 @@ def test_pdf_command_builds_using_the_default_config_file(
     result = CliRunner().invoke(main, ["pdf"])
 
     assert result.exit_code == 0
+    assert "Using the completed Zensical build in site" in result.output
     assert "Wrote docs/site_documentation.pdf" in result.output
     assert (tmp_path / "docs" / "site_documentation.pdf").exists()
+    assert (tmp_path / "site" / "site_documentation.pdf").read_bytes() == (
+        tmp_path / "docs" / "site_documentation.pdf"
+    ).read_bytes()
 
 
 def test_pdf_command_accepts_a_config_file_option(
@@ -142,12 +153,28 @@ def test_public_pdf_command_reports_built_site_boundary_errors(monkeypatch) -> N
     assert "Error: generated page is missing its article" in result.output
 
 
+def test_public_pdf_command_requires_an_explicit_prior_site_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_project(tmp_path)
+    shutil.rmtree(tmp_path / "site")
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, ["pdf"])
+
+    assert result.exit_code == 1
+    assert "built site not found" in result.output
+    assert "zensical build --clean --strict" in result.output
+    assert not (tmp_path / "site").exists(), "prodockit pdf must not build the website"
+
+
 def test_markdown_file_help_distinguishes_pdf_contents_from_the_site_build() -> None:
     result = CliRunner().invoke(main, ["pdf", "--help"])
 
     assert result.exit_code == 0
-    assert "Include only this Markdown file in the PDF" in result.output
-    assert "rebuilds the full site" in result.output
+    help_text = " ".join(result.output.split())
+    assert "Include only this Markdown file in the PDF" in help_text
+    assert "reads that page from the completed site" in help_text
 
 
 def test_pdf_command_exits_non_zero_and_reports_pandoc_failures(
@@ -310,6 +337,12 @@ def test_pdf_command_accepts_a_markdown_file_option(
 ) -> None:
     _write_project(tmp_path)
     (tmp_path / "docs" / "chapter1.md").write_text("# Chapter One\n", encoding="utf-8")
+    chapter = tmp_path / "site" / "chapter1" / "index.html"
+    chapter.parent.mkdir()
+    chapter.write_text(
+        '<article class="md-content__inner md-typeset"><h1>Chapter One</h1></article>',
+        encoding="utf-8",
+    )
     _install_fake_pandoc(tmp_path, monkeypatch, 'echo "%PDF-1.4 stub" > "$3"')
     monkeypatch.chdir(tmp_path)
 

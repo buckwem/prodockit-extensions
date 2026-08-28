@@ -40,6 +40,12 @@ def environment_python(environment: Path) -> Path:
     return environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 
+def environment_command(environment: Path, name: str) -> Path:
+    suffix = ".exe" if os.name == "nt" else ""
+    directory = "Scripts" if os.name == "nt" else "bin"
+    return environment / directory / f"{name}{suffix}"
+
+
 def run(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
@@ -157,9 +163,11 @@ def capture(pages, output_path, **kwargs):
     captured["pages"] = pages
     captured["output_path"] = output_path
     captured["kwargs"] = kwargs
+    Path(output_path).write_bytes(b"%PDF-1.7 installed-wheel acceptance")
 pdf_config.build_pdf = capture
 output_path = build_pdf_from_built_site("zensical.toml")
 assert Path(output_path) == Path("docs/site_documentation.pdf"), output_path
+assert Path("site/site_documentation.pdf").read_bytes() == Path(output_path).read_bytes()
 home = page_html(config, "index.md")
 journey = page_html(config, "journey/development-journey.md")
 procedure = page_html(config, "procedure/test-procedure.md")
@@ -219,6 +227,13 @@ def main() -> None:
         python = environment_python(environment)
         run([str(python), "-m", "pip", "install", str(wheel)], root)
         write_project(project)
+        zensical = environment_command(environment, "zensical")
+        run(
+            [str(zensical), "build", "--clean", "--strict", "--config-file", "zensical.toml"],
+            project,
+        )
+        if (project / "site" / "site_documentation.pdf").exists():
+            raise AcceptanceError("the first Zensical build unexpectedly contained a PDF")
         run([str(python), "-c", CHECK], project)
 
     report = {

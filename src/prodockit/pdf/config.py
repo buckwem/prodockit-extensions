@@ -6,8 +6,8 @@ that doesn't want to write any Python at all - see `prodockit.pdf.cli` for the
 command-line tool built on top of this.
 
 `build_pdf_from_built_site()` powers the public command: it reads the project
-settings, invokes Zensical's documented build command, then assembles the PDF
-from the completed site. `build_pdf_from_zensical_config()` retains the old
+settings and assembles the PDF from a completed Zensical site.
+`build_pdf_from_zensical_config()` retains the old
 Zensical Python rendering path for the hidden legacy command. Both call
 `prodockit.pdf.build.build_pdf()` with icon, Mermaid and MathJax detection
 wired up.
@@ -31,7 +31,12 @@ from prodockit.pdf.icons import (
 )
 from prodockit.pdf.mermaid import render_mermaid_diagram
 from prodockit.pdf.release import get_latest_release_tag
-from prodockit.pdf.site import build_site, page_html, page_metadata
+from prodockit.pdf.site import (
+    page_html,
+    page_metadata,
+    publish_pdf_to_built_site,
+    validate_built_site,
+)
 from prodockit.pdf.source_bundle import build_source_bundle, discover_markdown_and_config_files
 from prodockit.project_config import load_project_config
 from prodockit.revision_dates import resolve_revision_dates
@@ -385,19 +390,8 @@ def _build_pdf_from_config(
     """
     project_config = None
     zensical_render = None
-    rendered_site_icons: dict[str, str] = {}
     if built_site:
         project_config = load_project_config(config_path)
-        project_theme = project_config.project.get("theme") or {}
-        project_icon_config = (
-            project_theme.get("icon") or {} if isinstance(project_theme, dict) else {}
-        )
-        project_admonition_icons = (
-            project_icon_config.get("admonition") or {}
-            if isinstance(project_icon_config, dict)
-            else {}
-        )
-        rendered_site_icons = build_site(project_config, project_admonition_icons)
         config = project_config.as_resolved_mapping()
         # Preserve the command's user-facing relative output paths and build
         # arguments. The extractor itself uses ProjectConfig's resolved paths,
@@ -425,20 +419,19 @@ def _build_pdf_from_config(
         nav_pages = flatten_nav(config.get("nav") or [])
         if not nav_pages:
             raise ValueError(f"No pages found in {config_path}'s nav - nothing to build")
+    if project_config is not None:
+        validate_built_site(project_config, [str(page["url"]) for page in nav_pages])
 
     icon_dirs = (
-        discover_icon_dirs(source_docs_dir)
+        discover_icon_dirs(source_docs_dir, project_root=project_config.root)
         if project_config is not None
         else discover_legacy_icon_dirs(str(docs_dir))
     )
     icon_registry = build_icon_registry(icon_dirs)
     if project_config is not None:
-        # The public path recovers bundled theme icons from the completed
-        # site rather than the installed Zensical package layout. The CSS is
-        # a fallback for defaults; the temporary Markdown probe is
-        # authoritative for explicitly configured icon shortcodes.
+        # The completed website is authoritative for bundled theme icons.
+        # Project-owned icon files retain priority over the compiled CSS.
         built_icons = build_site_icon_registry(project_config.site_dir, admonition_icon_config)
-        built_icons.update(rendered_site_icons)
         built_icons.update(icon_registry)
         icon_registry = built_icons
 
@@ -577,10 +570,14 @@ def _build_pdf_from_config(
 
     index_config = (config.get("mdx_configs") or {}).get("prodockit.index") or {}
 
+    build_output_path = output_path
+    if project_config is not None and not Path(output_path).is_absolute():
+        build_output_path = str(project_config.root / output_path)
+
     build_pdf(
         page_objects,
-        output_path,
-        docs_dir=docs_dir,
+        build_output_path,
+        docs_dir=source_docs_dir if project_config is not None else docs_dir,
         extra_css=extra_css,
         repo_url=config.get("repo_url") or "",
         admonition_icon_config=admonition_icon_config,
@@ -624,6 +621,9 @@ def _build_pdf_from_config(
         index_title=index_config.get("title") or "Index",
         on_stage=on_stage,
     )
+
+    if project_config is not None:
+        publish_pdf_to_built_site(project_config, build_output_path)
 
     return output_path
 

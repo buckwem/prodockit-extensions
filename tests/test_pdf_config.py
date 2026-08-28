@@ -40,6 +40,19 @@ def _write_project(tmp_path: Path, *, extra: str = "") -> Path:
     (docs_dir / "index.md").write_text("# Cover\n", encoding="utf-8")
     (docs_dir / "chapter1.md").write_text("# Chapter One\n\nBody text.\n", encoding="utf-8")
     (tmp_path / "zensical.toml").write_text(_ZENSICAL_TOML.format(extra=extra), encoding="utf-8")
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
+    (site_dir / "index.html").write_text(
+        '<article class="md-content__inner md-typeset"><h1>Cover</h1></article>',
+        encoding="utf-8",
+    )
+    chapter = site_dir / "chapter1" / "index.html"
+    chapter.parent.mkdir()
+    chapter.write_text(
+        '<article class="md-content__inner md-typeset"><h1>Chapter One</h1>'
+        '<p>Body text.</p></article>',
+        encoding="utf-8",
+    )
     return tmp_path
 
 
@@ -241,11 +254,8 @@ def test_built_site_candidate_uses_the_documented_build_output(
 
     monkeypatch.setattr(
         config,
-        "build_site",
-        lambda project_config, admonition_icons=None: (
-            captured.setdefault("built", True),
-            {},
-        )[1],
+        "validate_built_site",
+        lambda project_config, source_paths: captured.setdefault("built", True),
     )
     monkeypatch.setattr(
         config,
@@ -264,6 +274,7 @@ def test_built_site_candidate_uses_the_documented_build_output(
         captured["kwargs"] = kwargs
 
     monkeypatch.setattr(config, "build_pdf", capture)
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
     monkeypatch.chdir(root.parent)
 
     output = build_pdf_from_built_site(str(root / "zensical.toml"))
@@ -274,6 +285,125 @@ def test_built_site_candidate_uses_the_documented_build_output(
     assert metadata_paths == [root / "docs" / "index.md", root / "docs" / "chapter1.md"]
     assert captured["kwargs"]["main_font"] == "Roboto"
     assert captured["kwargs"]["mono_font"] == "Roboto Mono"
+
+
+def test_built_site_pdf_is_written_to_author_and_published_paths(project) -> None:
+    root = project(pandoc_script='printf "%s" "%PDF-1.4 exact" > "$3"')
+
+    output = build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    author_pdf = root / output
+    published_pdf = root / "site" / "site_documentation.pdf"
+    assert author_pdf.read_bytes() == b"%PDF-1.4 exact"
+    assert published_pdf.read_bytes() == author_pdf.read_bytes()
+
+
+def test_built_site_pdf_outside_docs_is_not_published(project) -> None:
+    root = project(
+        extra='\n[project.extra]\npdf_output = "dist/out.pdf"\n',
+        pandoc_script='printf "%s" "%PDF-1.4 external" > "$3"',
+    )
+    (root / "dist").mkdir()
+
+    output = build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    assert output == "dist/out.pdf"
+    assert (root / output).read_bytes() == b"%PDF-1.4 external"
+    assert list((root / "site").rglob("*.pdf")) == []
+
+
+def test_built_site_single_page_pdf_is_published(project) -> None:
+    root = project(pandoc_script='printf "%s" "%PDF-1.4 single" > "$3"')
+
+    output = build_pdf_from_built_site(
+        str(root / "zensical.toml"), markdown_file="chapter1.md"
+    )
+
+    assert output == "docs/chapter1.pdf"
+    assert (root / "site" / "chapter1.pdf").read_bytes() == (root / output).read_bytes()
+
+
+def test_built_site_pdf_resolves_custom_directories_from_the_config_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "project"
+    docs = root / "writing"
+    site = root / "public"
+    docs.mkdir(parents=True)
+    site.mkdir()
+    (docs / "index.md").write_text("# Home\n", encoding="utf-8")
+    (docs / "chapter.md").write_text("# Chapter\n", encoding="utf-8")
+    article = '<article class="md-content__inner md-typeset"><h1>Page</h1></article>'
+    (site / "index.html").write_text(article, encoding="utf-8")
+    (site / "chapter.html").write_text(article, encoding="utf-8")
+    config_path = root / "zensical.toml"
+    config_path.write_text(
+        """[project]
+site_name = "Custom paths"
+docs_dir = "writing"
+site_dir = "public"
+use_directory_urls = false
+nav = [
+    { "Home" = "index.md" },
+    { "Chapter" = "chapter.md" },
+]
+""",
+        encoding="utf-8",
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _fake_pandoc(bin_dir, 'printf "%s" "%PDF-1.4 custom" > "$3"')
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.chdir(tmp_path)
+
+    output = build_pdf_from_built_site(str(config_path))
+
+    assert output == os.path.join("writing", "site_documentation.pdf")
+    assert (docs / "site_documentation.pdf").read_bytes() == b"%PDF-1.4 custom"
+    assert (site / "site_documentation.pdf").read_bytes() == b"%PDF-1.4 custom"
+
+
+@pytest.mark.parametrize("project_override", [False, True])
+def test_built_site_icons_follow_compiled_css_then_project_overrides(
+    project, monkeypatch: pytest.MonkeyPatch, project_override: bool
+) -> None:
+    root = project(
+        extra=(
+            '\n[project.theme.icon.admonition]\n'
+            'note = "fontawesome/solid/note-sticky"\n'
+        )
+    )
+    assets = root / "site" / "assets"
+    assets.mkdir()
+    (assets / "theme.css").write_text(
+        '--md-admonition-icon--note:url("data:image/svg+xml,'
+        '%3Csvg%3E%3Cpath fill=%22compiled-site%22/%3E%3C/svg%3E")',
+        encoding="utf-8",
+    )
+    (root / "site" / "index.html").write_text(
+        '<link rel="stylesheet" href="assets/theme.css">'
+        '<article class="md-content__inner md-typeset"><h1>Cover</h1></article>',
+        encoding="utf-8",
+    )
+    override = root / "docs" / ".icons" / "fontawesome" / "solid" / "note-sticky.svg"
+    if project_override:
+        override.parent.mkdir(parents=True)
+        override.write_text('<svg><path fill="project-owned"/></svg>', encoding="utf-8")
+    captured = {}
+
+    def capture(_pages, _output_path, **kwargs):
+        captured["registry"] = kwargs["icon_registry"]
+
+    monkeypatch.setattr(config, "build_pdf", capture)
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
+
+    build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    icon = captured["registry"]["fontawesome-solid-note-sticky"]
+    if project_override:
+        assert icon == str(override)
+    else:
+        assert 'fill="compiled-site"' in icon
 
 
 def test_builds_a_pdf_from_a_zensical_toml_project(project) -> None:
@@ -328,8 +458,9 @@ def test_complete_pdf_omits_a_website_only_navigation_page(
     captured = {}
 
     if renderer is build_pdf_from_built_site:
-        monkeypatch.setattr(config, "build_site", lambda *_args, **_kwargs: {})
+        monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
         monkeypatch.setattr(config, "page_html", lambda _config, source: f"<h1>{source}</h1>")
+        monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
 
     def _spy(pages, output_path, **kwargs):
         captured["pages"] = pages
@@ -405,8 +536,9 @@ def test_built_site_pdf_uses_manual_then_file_revision_dates(
     os.utime(index, (timestamp, timestamp))
     captured = {}
 
-    monkeypatch.setattr(config, "build_site", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(config, "validate_built_site", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(config, "page_html", lambda _config, source: f"<h1>{source}</h1>")
+    monkeypatch.setattr(config, "publish_pdf_to_built_site", lambda *_args: None)
 
     def _spy(pages, output_path, **kwargs):
         captured["pages"] = pages

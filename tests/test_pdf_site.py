@@ -7,13 +7,12 @@ import pytest
 
 from prodockit.pdf.site import (
     BuiltSiteError,
-    _icon_probe_source,
-    _read_icon_probe,
-    _zensical_cli,
-    build_site,
     output_path,
     page_html,
     page_metadata,
+    publish_pdf_to_built_site,
+    published_pdf_path,
+    validate_built_site,
 )
 from prodockit.project_config import load_project_config
 
@@ -103,92 +102,97 @@ def test_page_metadata_reads_pdf_fields(tmp_path: Path) -> None:
     }
 
 
-def test_build_site_uses_only_the_documented_cli(tmp_path: Path, monkeypatch) -> None:
+def test_validate_built_site_accepts_all_selected_pages(tmp_path: Path) -> None:
     config = _config(tmp_path)
-    seen = {}
+    (config.site_dir / "index.html").write_text("index", encoding="utf-8")
+    page = config.site_dir / "guide" / "start" / "index.html"
+    page.parent.mkdir(parents=True)
+    page.write_text("page", encoding="utf-8")
 
-    def run(command, **kwargs):
-        seen["command"] = command
-        seen["kwargs"] = kwargs
-        return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-
-    monkeypatch.setattr("prodockit.pdf.site.subprocess.run", run)
-    monkeypatch.setattr("prodockit.pdf.site._zensical_cli", lambda: "zensical")
-    build_site(config)
-
-    assert seen["command"] == [
-        "zensical",
-        "build",
-        "--clean",
-        "--config-file",
-        str(config.path),
-    ]
-    assert seen["kwargs"]["cwd"] == config.root
+    validate_built_site(config, ["index.md", "guide/start.md"])
 
 
-def test_zensical_cli_comes_from_the_active_python_environment(tmp_path: Path, monkeypatch) -> None:
-    scripts = tmp_path / "bin"
-    scripts.mkdir()
-    python = scripts / "python"
-    zensical = scripts / "zensical"
-    zensical.touch()
-    monkeypatch.setattr("prodockit.pdf.site.sys.executable", str(python))
+def test_validate_built_site_requires_the_site_directory(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    config.site_dir.rmdir()
 
-    assert _zensical_cli() == str(zensical)
+    with pytest.raises(BuiltSiteError, match=r"zensical build --clean --strict"):
+        validate_built_site(config, ["index.md"])
 
 
-def test_icon_probe_uses_configured_shortcodes_and_reads_rendered_svgs(tmp_path: Path) -> None:
-    icons = {
-        "note": "fontawesome/solid/note-sticky",
-        "warning": "fontawesome/solid/triangle-exclamation",
-    }
-    source = _icon_probe_source(icons)
-    assert ":fontawesome-solid-note-sticky:" in source
-    assert "## prodockit-icon-warning" in source
+def test_validate_built_site_requires_the_root_index(tmp_path: Path) -> None:
+    config = _config(tmp_path)
 
-    built = tmp_path / "probe.html"
-    built.write_text(
-        '<h2 id="prodockit-icon-note">note</h2>'
-        '<p><span><svg viewBox="0 0 1 1"><path d="M0 0"/></svg></span></p>'
-        '<h2 id="prodockit-icon-warning">warning</h2>'
-        '<p><svg viewBox="0 0 2 2"><path d="M1 1"/></svg></p>',
-        encoding="utf-8",
+    with pytest.raises(BuiltSiteError, match="has no index page"):
+        validate_built_site(config, ["guide/start.md"])
+
+
+@pytest.mark.parametrize(
+    ("directory_urls", "missing"),
+    [(True, "guide/start/index.html"), (False, "guide/start.html")],
+)
+def test_validate_built_site_names_missing_pages_for_both_url_layouts(
+    tmp_path: Path, directory_urls: bool, missing: str
+) -> None:
+    config = _config(tmp_path)
+    config.project["use_directory_urls"] = directory_urls
+    (config.site_dir / "index.html").write_text("index", encoding="utf-8")
+
+    with pytest.raises(BuiltSiteError, match="built site is incomplete") as exc_info:
+        validate_built_site(config, ["index.md", "guide/start.md"])
+
+    assert missing in str(exc_info.value)
+
+
+def test_published_pdf_path_maps_only_docs_assets(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+
+    assert published_pdf_path(config, "docs/site_documentation.pdf") == (
+        config.site_dir / "site_documentation.pdf"
     )
+    assert published_pdf_path(config, "docs/chapters/one.pdf") == (
+        config.site_dir / "chapters" / "one.pdf"
+    )
+    assert published_pdf_path(config, "dist/site_documentation.pdf") is None
 
-    registry = _read_icon_probe(built, icons)
 
-    assert '<svg viewBox="0 0 1 1">' in registry["fontawesome-solid-note-sticky"]
-    assert '<svg viewBox="0 0 2 2">' in registry["fontawesome-solid-triangle-exclamation"]
-
-
-def test_build_site_icon_probe_is_removed_after_the_build(tmp_path: Path, monkeypatch) -> None:
+def test_publish_pdf_to_built_site_copies_identical_bytes(tmp_path: Path) -> None:
     config = _config(tmp_path)
-    icons = {"note": "fontawesome/solid/note-sticky"}
+    source = config.docs_dir / "site_documentation.pdf"
+    source.write_bytes(b"%PDF-1.7\x00same bytes")
 
-    def run(_command, **_kwargs):
-        output = config.site_dir / ".prodockit-pdf-icon-probe" / "index.html"
-        output.parent.mkdir(parents=True)
-        output.write_text(
-            '<h2 id="prodockit-icon-note">note</h2><p><svg><path/></svg></p>',
-            encoding="utf-8",
-        )
-        return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+    destination = publish_pdf_to_built_site(config, source)
 
-    monkeypatch.setattr("prodockit.pdf.site.subprocess.run", run)
-
-    registry = build_site(config, icons)
-
-    assert "fontawesome-solid-note-sticky" in registry
-    assert not (config.docs_dir / ".prodockit-pdf-icon-probe.md").exists()
-    assert not (config.site_dir / ".prodockit-pdf-icon-probe").exists()
+    assert destination == config.site_dir / "site_documentation.pdf"
+    assert destination.read_bytes() == source.read_bytes()
 
 
-def test_build_site_refuses_to_overwrite_an_existing_probe(tmp_path: Path) -> None:
+def test_publish_pdf_to_built_site_does_not_publish_external_output(tmp_path: Path) -> None:
     config = _config(tmp_path)
-    probe = config.docs_dir / ".prodockit-pdf-icon-probe.md"
-    probe.write_text("author's file", encoding="utf-8")
+    source = tmp_path / "dist" / "out.pdf"
+    source.parent.mkdir()
+    source.write_bytes(b"outside docs")
 
-    with pytest.raises(BuiltSiteError, match="would overwrite"):
-        build_site(config, {"note": "fontawesome/solid/note-sticky"})
+    assert publish_pdf_to_built_site(config, source) is None
+    assert list(config.site_dir.rglob("*.pdf")) == []
 
-    assert probe.read_text(encoding="utf-8") == "author's file"
+
+def test_publish_pdf_to_built_site_keeps_existing_file_if_replace_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path)
+    source = config.docs_dir / "site_documentation.pdf"
+    destination = config.site_dir / "site_documentation.pdf"
+    source.write_bytes(b"new complete PDF")
+    destination.write_bytes(b"old complete PDF")
+
+    def fail_replace(_source: Path, _destination: Path) -> None:
+        raise OSError("interrupted")
+
+    monkeypatch.setattr("prodockit.pdf.site.os.replace", fail_replace)
+
+    with pytest.raises(OSError, match="interrupted"):
+        publish_pdf_to_built_site(config, source)
+
+    assert destination.read_bytes() == b"old complete PDF"
+    assert not list(config.site_dir.glob(".*.tmp"))
