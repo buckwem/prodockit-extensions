@@ -27,9 +27,9 @@ requests rather than here.
 - **Website integration:** Zensical macros, shared styles, configurable
   heading numbering, and optional Mermaid and MathJax support integrate the
   components into an existing or template-based documentation website.
-- **PDF output:** `prodockit pdf` performs a clean Zensical build and creates a
-  styled PDF with navigation-order chapters, cross-page links, figures,
-  tables, references, running headers and footers, and an optional index.
+- **PDF output:** `prodockit pdf` consumes a completed Zensical website and
+  creates a styled PDF with chapters, cross-page links, figures, tables,
+  references, headers, footers, and an optional index.
 - **Project setup:** `prodockit adopt` adds selected components to an existing
   Zensical or MkDocs project; `pdkboot` automates a complete template-based
   environment on supported macOS, Windows, and Ubuntu systems.
@@ -38,6 +38,10 @@ requests rather than here.
   keep projects reproducible and publishable.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
+
+## 0.49.1 (2026-08-28)
+
+- Changed `prodockit pdf` to consume and validate a prior strict Zensical build, then atomically add the finished PDF to the published site.
 
 ## 0.49.0 (2026-08-27)
 
