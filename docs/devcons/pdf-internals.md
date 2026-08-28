@@ -11,6 +11,16 @@ API directly. Document authors should use [Generate a PDF](../pdf.md).
 
 ## Follow the pipeline
 
+The PDF build starts only after Zensical has produced a complete website.
+Prodockit reads those generated articles in navigation order, removes
+website-only structure, and assembles one HTML document. Pandoc and the Lua
+filter then prepare that document for WeasyPrint, which lays out the pages;
+the optional final step extracts the index before the PDF is written.
+
+\ref{fig-pdf-pipeline} shows this sequence across the top row and then the
+bottom row. Each box names either the form of the document at that point or
+the component responsible for the next change.
+
 ![Pipeline from the Zensical project through generated HTML, Pandoc and WeasyPrint to the final PDF](../assets/diagrams/33.1-pdf-pipeline.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-pdf-pipeline}
@@ -18,16 +28,17 @@ API directly. Document authors should use [Generate a PDF](../pdf.md).
 PDF generation pipeline
 ///
 
-The public `prodockit pdf` command runs Zensical's documented
-`build --clean` command, reads each navigation page's generated article, and
-constructs `Page` objects from that output. It then pre-renders diagrams and
-maths and calls the lower-level builder. A generated index adds a second
-layout pass after term pages are known.
+The public `prodockit pdf` command validates the completed Zensical site, reads
+each navigation page's generated article, and constructs `Page` objects from
+that output. It then pre-renders diagrams and maths and calls the lower-level
+builder. A generated index adds a second layout pass after term pages are
+known.
 
-The clean build replaces the project's configured `site_dir`. Passing
-`--markdown-file` narrows the pages assembled into the PDF, but deliberately
-does not narrow that website build: Zensical still rebuilds the complete site
-before Prodockit extracts the requested article.
+The command never invokes Zensical or cleans the configured `site_dir`.
+Passing `--markdown-file` narrows only the pages assembled into the PDF; the
+requested article must already exist in the completed site. This keeps a
+single-page PDF quick without allowing it to conceal an incomplete website
+build.
 
 The former renderer remains available only through the hidden
 `prodockit pdf-legacy` rollback command. It imports undocumented Zensical
@@ -35,7 +46,10 @@ Python interfaces and is not an author-facing command.
 
 ## Use the public Python surface
 
-| API | Purpose |
+Choose the public entry point that matches the caller's available input from
+\ref{tab-devcons-pdf-internals-use-the-public-python-surface}.
+
+| API {: width="42%" } | Purpose |
 |---|---|
 | `build_pdf_from_built_site()` | High-level build using navigation, settings, and the completed Zensical site |
 | `build_pdf()` | Lower-level build from prepared `Page` objects |
@@ -48,7 +62,9 @@ Python interfaces and is not an author-facing command.
 Use the public Python surface
 ///
 
-Prefer `build_pdf_from_built_site()` when a caller already has a Zensical
+Of the entry points in
+\ref{tab-devcons-pdf-internals-use-the-public-python-surface}, prefer
+`build_pdf_from_built_site()` when a caller already has a Zensical
 project. Use `build_pdf()` only when the caller owns page rendering and can
 supply complete HTML and metadata. The older
 `build_pdf_from_zensical_config()` entry point exists for the hidden legacy
@@ -66,10 +82,13 @@ and non-zero exit status; the functions return paths or raise exceptions.
 
 ## Know the internal modules
 
-| Module | Responsibility |
+\ref{tab-devcons-pdf-internals-know-the-internal-modules} maps each internal
+module to the transformation it owns.
+
+| Module {: width="36%" } | Responsibility |
 |---|---|
 | `prodockit.project_config` | Direct TOML/YAML reading for the settings Prodockit consumes |
-| `prodockit.pdf.site` | Public Zensical build invocation and generated-page extraction |
+| `prodockit.pdf.site` | Completed-site validation and generated-page extraction |
 | `prodockit.pdf.config` | Navigation, metadata, optional renderers, and high-level entry points |
 | `prodockit.pdf.build` | Pipeline orchestration and external-command execution |
 | `prodockit.pdf.html` | Page fix-ups, front matter, web/PDF-only content, and heading structure |
@@ -87,7 +106,9 @@ and non-zero exit status; the functions return paths or raise exceptions.
 Know the internal modules
 ///
 
-Keep transformation stages narrow. A change to HTML normalisation, CSS, the
+Use \ref{tab-devcons-pdf-internals-know-the-internal-modules} to locate the
+owner of a transformation before changing it. Keep transformation stages
+narrow. A change to HTML normalisation, CSS, the
 Lua filter, or an external tool can affect every page, so verify the complete
 PDF and built-output tests rather than relying on a unit test of the changed
 module alone.

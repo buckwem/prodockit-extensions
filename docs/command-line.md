@@ -21,6 +21,8 @@ Use the shorter `pdk` executable when you prefer it; it is an exact alias.
 
 ## Check the installation
 
+Confirm which prodockit release is active and inspect the commands it provides:
+
 ```bash
 prodockit --version
 prodockit --help
@@ -39,7 +41,10 @@ pinned by the project before assuming an option is unavailable.
 
 ## Choose a command
 
-| Command | Use it when | Safe first run | Writes |
+\ref{tab-command-line-choose-a-command} identifies the safe starting form and
+write behaviour of each public command.
+
+| Command {: width="34%" } | Use it when | Safe first run | Writes |
 |---|---|---|---|
 | [`prodockit config`](#check-resolved-configuration) | You need to see the Prodockit settings that will actually be used, or check that the source project is complete | `prodockit config` | Nothing; add `--check` for a CI-friendly non-zero exit when problems exist |
 | [`prodockit adopt`](adopt.md) | An existing Zensical document needs selected prodockit components without machine, Git or editor setup | `prodockit adopt` | Local project files only with `--apply`; optional choices use `--configure` |
@@ -59,7 +64,9 @@ pinned by the project before assuming an option is unavailable.
 Choose a command
 ///
 
-The \index{commands!`prodockit init-mathjax`} command is the narrower website
+\ref{tab-command-line-choose-a-command} is the quickest way to select a safe
+starting form. The \index{commands!`prodockit init-mathjax`} command is the
+narrower website
 asset command; use `init-tools` when preparing both Mermaid and maths for PDF
 output.
 
@@ -152,7 +159,8 @@ complete build.
 
 ## Maintain without changing files
 
-Begin with report-only forms:
+Each maintenance command answers a different question. Begin with their
+report-only forms so you can inspect the result before changing the project:
 
 ```bash
 prodockit sync-repo --check
@@ -175,6 +183,9 @@ These answer six different questions:
 Do not replace one with another merely because they all use the word “check”.
 
 ## Apply and verify a maintenance change
+
+Treat every maintenance change as a short review cycle: understand the report,
+apply only that change, inspect the diff, and rebuild the outputs.
 
 /// steps
 
@@ -247,7 +258,9 @@ prodockit pins --set zensical=0.0.57
 
 Important exit-status behaviour:
 
-| Command | Exit zero means |
+\ref{tab-command-line-use-commands-in-automation} records the success and failure exit statuses that automation can rely on.
+
+| Command {: width="35%" } | Exit zero means |
 |---|---|
 | `sync-repo --check` | Managed repository metadata is already current |
 | `config --check` | Prodockit settings are valid, local project inputs exist, configured renderers are available, and any enabled PDF index has its optional dependency |
@@ -262,12 +275,16 @@ Important exit-status behaviour:
 Use commands in automation
 ///
 
-The ordinary interactive `prodockit pins` command is for a terminal, not CI.
+The exit-zero meanings in \ref{tab-command-line-use-commands-in-automation}
+are the automation contract. The ordinary interactive `prodockit pins` command
+is for a terminal, not CI.
 Likewise, `template-sync --push` asks before committing, merging, and pushing;
 it is an assisted maintainer operation rather than an unattended deployment
 step.
 
 ## Find the next guide
+
+Use the guide that matches the task you are about to perform:
 
 - [Maintain prodockit](project-maintenance.md) provides the complete recurring cycle.
 - [Add prodockit to an existing document](adopt.md) explains adoption.

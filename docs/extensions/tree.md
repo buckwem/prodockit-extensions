@@ -11,11 +11,16 @@ tree. Use it to show readers where files belong in a project.
 
 ## Enable the extension {: #tree-enabling-it }
 
+Add an empty extension table to `zensical.toml` when the defaults are suitable:
+
 ```toml
 [project.markdown_extensions."prodockit.tree"]
 ```
 
 ## Write a tree {: #tree-writing-one }
+
+Write an indented file and folder list inside a `tree` block. The result tab
+shows how the same source is presented to a reader.
 
 === "Markdown"
 
@@ -62,7 +67,9 @@ Configure each tree inside its Markdown block. Put the options directly below
 `/// tree`, indent them by at least four spaces, and leave a blank line before
 the listing:
 
-| Option | Default | What it does |
+\ref{tab-extensions-tree-configure-indentation-and-icons} shows the tree options for indentation and file or folder icons.
+
+| Option {: width="32%" } | Default | What it does |
 |---|---|---|
 | \index{prodockit.tree!`indent`} | `2` | How many spaces one level costs. Set `4` for a listing written that way. |
 | `directory_icon` | `':lucide-folder:'` | Icon shortcode placed before every directory. |
@@ -138,6 +145,9 @@ The package's own source-code map now lives under
 [Contributor internals](../devcons/development.md#find-the-code).
 
 ## Reference {: #tree-reference }
+
+Use \ref{tab-extensions-tree-reference} to look up the block syntax, options,
+and nesting markers.
 
 | Syntax or option | Purpose |
 | --- | --- |

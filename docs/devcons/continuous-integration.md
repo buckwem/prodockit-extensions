@@ -20,6 +20,9 @@ pipeline is \index{GitLab CI}.
 
 ## Use the maintained automation files {: #ci-github-actions }
 
+The host-specific workflow files and the outputs they build are mapped in
+\ref{tab-devcons-continuous-integration-use-the-maintained-automation-files}.
+
 | Host | Maintained source | What runs |
 |---|---|---|
 | GitHub Pages | [`docs.yml`](https://github.com/buckwem/prodockit-template/blob/main/.github/workflows/docs.yml) | Builds the outputs, uploads the site, deploys Pages, and verifies the public site |
@@ -30,7 +33,9 @@ pipeline is \index{GitLab CI}.
 Use the maintained automation files
 ///
 
-The comments in those files explain settings that must remain beside the
+\ref{tab-devcons-continuous-integration-use-the-maintained-automation-files}
+maps each host to its maintained workflow and build. The comments in those
+files explain settings that must remain beside the
 commands they control: pinned system tools, browser variables, fonts, build
 order, Pages permissions, and artifact paths. Refer to the files for exact
 YAML rather than copying a workflow from this guide.
@@ -48,13 +53,16 @@ Review and apply the result using
 
 ## Publish the first change
 
+The first publication proves the same source locally before GitHub or GitLab
+builds and deploys it. Follow the steps in order.
+
 /// steps
 
 //// step | Prove the project builds locally
 
 ```bash
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 prodockit update-dates
 python -m pytest
 ```
@@ -129,6 +137,15 @@ retrieve the intended version; these are three separate checks.
 
 ## Understand the build order
 
+A publication run performs one ordered chain rather than a set of independent
+builds. It first creates the website because the PDF command reads that
+generated HTML. It then builds the PDF, adds optional page dates to the
+website, tests the completed outputs, deploys Pages, and checks the live site.
+
+\ref{fig-publication-pipeline} shows that order. Follow the arrows across the
+top row and then continue from the page-date step to the lower row. A failure
+stops the chain before an incomplete output can be deployed.
+
 ![Build order from authored source through PDF and website builds to public verification](../assets/diagrams/24.1-publication-pipeline.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-publication-pipeline}
@@ -136,9 +153,10 @@ retrieve the intended version; these are three separate checks.
 Publication build and verification order
 ///
 
-The PDF is built before the website because it lives under `docs/` by default.
-Zensical copies it into the static site together with other downloadable
-files. Reversing the commands can publish the PDF left by an earlier run.
+The PDF command validates the completed website, builds the document, and adds
+it to that site only after the PDF has finished successfully. It does not call
+Zensical or clean the generated website. Reversing the commands would make the
+PDF read an absent or stale site and is rejected.
 
 Some projects also run `prodockit source-bundle` before the site build. That creates
 a second downloadable PDF containing the Markdown and configuration rather
@@ -146,7 +164,10 @@ than the rendered report.
 
 ## Know what the hosted machine needs {: #ci-what-the-build-needs }
 
-| Requirement | Used for | Failure when absent |
+\ref{tab-devcons-continuous-integration-know-what-the-hosted-machine-needs}
+connects each runner requirement to the build feature that needs it.
+
+| Requirement {: width="32%" } | Used for | Failure when absent |
 |---|---|---|
 | Python requirements | Zensical, prodockit, WeasyPrint, and tests | The command normally fails |
 | Pandoc | PDF conversion and `prodockit.bibliography` | The build fails |
@@ -162,11 +183,17 @@ than the rendered report.
 Know what the hosted machine needs
 ///
 
-The maintained workflow files install these in dependency order. A document
+The maintained workflow files install the requirements in
+\ref{tab-devcons-continuous-integration-know-what-the-hosted-machine-needs} in
+dependency order. A document
 author normally changes the content and requirements, not the operating-system
 recipe.
 
 ## Catch failures that still produce output {: #ci-the-traps }
+
+Some failed dependencies leave behind plausible but incomplete output. The
+following checks make those silent degradations fail the workflow instead of
+publishing them.
 
 ### Render diagrams and maths {: #ci-puppeteer-variable }
 
@@ -229,13 +256,16 @@ which must gate publication. See [Test the built output](testing.md).
 
 ## Troubleshoot a publishing run
 
-| Symptom | Start with |
+Start with the symptom-to-check map in
+\ref{tab-devcons-continuous-integration-troubleshoot-a-publishing-run}.
+
+| Symptom {: width="35%" } | Start with |
 |---|---|
 | The same command fails locally | Fix the source or local configuration before investigating CI |
 | A tool is absent only in CI | Compare the workflow with the maintained template file and its pinned requirements |
 | The PDF contains raw Mermaid or TeX | Check the Node installs, Chrome path, and built-output tests |
 | The PDF uses the wrong font | Check the operating-system font packages and inspect embedded fonts |
-| The website builds but the PDF link is stale | Confirm the PDF command runs before Zensical and both use the same artifact directory |
+| The website builds but the PDF link is stale | Confirm the strict Zensical build runs before the PDF command and both use the same artifact directory |
 | GitHub deploys but the public page is old | Inspect the workflow's live-verification job and rerun the maintained workflow against the default branch |
 | GitLab succeeds but no site is visible | Open **Deploy > Pages**, then check project/instance Pages visibility and the `public/` artifact |
 /// table-caption | <

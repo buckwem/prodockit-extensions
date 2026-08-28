@@ -16,7 +16,9 @@ The \index{stylesheets!stylesheet ownership} rules separate styles Prodockit
 maintains from styles that belong to the document author. Keep that separation
 when changing colours, spacing, fonts, or the PDF presentation:
 
-| File | Owner | Applies to |
+\ref{tab-stylesheets-keep-managed-and-author-styles-separate} assigns each stylesheet to either prodockit or the document author.
+
+| File {: width="34%" } | Owner | Applies to |
 |---|---|---|
 | `docs/stylesheets/pdk.css` | Prodockit | Website and PDF component defaults |
 | `docs/stylesheets/extra.css` | Document author | Website and PDF additions or overrides |
@@ -44,6 +46,8 @@ have equal specificity. A final internal guard protects only the page canvas
 and removes website navigation from the PDF; it does not set the document's
 colours, typography, tables, contents presentation, or component spacing.
 
+\ref{tab-stylesheets-load-the-cascade-in-order} shows the order in which the website and PDF stylesheets are loaded and which output uses each file.
+
 | Output | Styles loaded, from first to last |
 |---|---|
 | Website | Theme → `pdk.css` → `extra.css` |
@@ -60,6 +64,9 @@ continues through its two PDF-only files:
 
 **Website stylesheet cascade**
 
+The website stops at the author override shown in
+\ref{fig-website-stylesheet-cascade}.
+
 ![Website stylesheet cascade: the Zensical theme, then Prodockit's managed pdk.css, then the author's extra.css](assets/diagrams/21.1-website-stylesheet-cascade.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-website-stylesheet-cascade}
@@ -68,6 +75,9 @@ Website stylesheet cascade
 ///
 
 **PDF stylesheet cascade**
+
+\ref{fig-pdf-stylesheet-cascade} continues the same cascade through the two
+print-only layers.
 
 ![PDF stylesheet cascade: renderer foundations, pdk.css, extra.css, pdk-pdf.css, then print.css](assets/diagrams/21.2-pdf-stylesheet-cascade.png){ .documentation-diagram }
 /// figure-caption
@@ -93,6 +103,9 @@ pdf_extra_css = [
 ```
 
 ## Put a change in the narrowest file
+
+Choose the author-owned stylesheet whose scope matches the output being
+changed:
 
 - Use `extra.css` when the website and PDF should look alike.
 - Use `print.css` when the change applies only to paginated output.

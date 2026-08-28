@@ -54,6 +54,10 @@ The extension replaces `\citeref{skou-example}` with the linked citation
 
 ## Configure citations
 
+The citation extension has a small set of project-wide choices: unresolved
+text, source definitions, and the generated reference-list heading. The
+following subsections explain when each setting is needed.
+
 ### Choose the missing-citation text
 
 An unresolved citation displays `?` by default. Set `unresolved` if your
@@ -111,6 +115,9 @@ Check the id that produced `?` against the id on the full reference.
 
 ## Reference {: #citations-reference }
 
+Use the reference subsections for the exact definition and citation syntax,
+then check the settings and cross-page rules when definitions are shared.
+
 ### Syntax {: #citations-syntax }
 
 Defining and citing are bundled into one extension, unlike
@@ -134,6 +141,9 @@ be visible), while `id` stays, since citations link straight to it.
 
 #### Citing a source
 
+Choose narrative or parenthetical citation syntax from
+\ref{tab-extensions-citations-citing-a-source}.
+
 | Syntax | Purpose |
 | --- | --- |
 | `\citeref{<id>}` | Cite one defined source |
@@ -144,7 +154,9 @@ be visible), while `id` stays, since citations link straight to it.
 Citing a source
 ///
 
-Like [prodockit.refs](refs.md), `\citeref{...}` is recognised the same way
+The forms in \ref{tab-extensions-citations-citing-a-source} cover narrative and
+parenthetical use. Like [prodockit.refs](refs.md), `\citeref{...}` is recognised
+the same way
 Python-Markdown's own inline syntax is, so it's protected inside inline
 code spans and fenced code blocks:
 
@@ -160,7 +172,10 @@ Neither of the two shown above is resolved; both render the literal text.
 
 ### Zensical settings {: #citations-options }
 
-| Setting | Default | What it controls |
+\ref{tab-extensions-citations-zensical-settings} lists the configurable source
+file and unresolved-citation behaviour.
+
+| Setting {: width="32%" } | Default | What it controls |
 |---|---|---|
 | \index{prodockit.citations!`unresolved`} | `"?"` | Text shown for a citation id that cannot be found. |
 | \index{prodockit.citations!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
@@ -171,6 +186,9 @@ Zensical settings
 ///
 
 ### Cross-page citations {: #citations-multi-page-builds }
+
+The settings in \ref{tab-extensions-citations-zensical-settings} apply to the
+whole build, including the cross-page behaviour described here.
 
 Under Zensical, a citation can refer to a source defined on another page,
 including a references page later in navigation. Prodockit reads definitions
@@ -199,6 +217,8 @@ style - and for the tradeoffs between the two approaches.
 `prodockit.citations` emits three hooks - one on the outer wrapper, one on
 each individual key's own link:
 
+\ref{tab-extensions-citations-customise-with-a-css-style-sheet} lists the citation wrapper and link classes available to a custom stylesheet.
+
 | Element | State | Class |
 |---|---|---|
 | Outer `<span>` wrapping the whole `\citeref{...}` citation | always | `prodockit-cite` |
@@ -210,7 +230,9 @@ each individual key's own link:
 Customise with a CSS style sheet
 ///
 
-An unresolved key's `<a>` has no `href` (see
+The selectors in
+\ref{tab-extensions-citations-customise-with-a-css-style-sheet} distinguish the
+resolved and unresolved states. An unresolved key's `<a>` has no `href` (see
 [Unresolved citations](#citations-unresolved-citations) above) - style
 `prodockit-cite-unresolved` distinctly (e.g. a muted colour, no underline)
 to make a missing citation visually obvious.

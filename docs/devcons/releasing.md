@@ -22,6 +22,15 @@ the tagged source, while the documentation redeploy is deliberately run from
 
 ## Understand the workflow chain
 
+Two independent events start the automation. A release branch opens the pull
+request path: scoped and core checks run before the branch is merged, after
+which the package and documentation are published from `main`. A weekly timer
+starts only the drift comparison and never publishes a release.
+
+\ref{fig-release-workflow} shows those entry points in solid green. Follow the
+release branch down the centre and left of the diagram; the separate scheduled
+path is on the right.
+
 ![Prodockit pull-request, publication and weekly drift-check workflows](../assets/diagrams/29.1-release-workflow.png){ .documentation-diagram .release-workflow-diagram }
 /// figure-caption
     attrs: {id: fig-release-workflow}
@@ -33,7 +42,9 @@ The solid green boxes are entry points: a maintainer starts the release path
 from a release branch, while GitHub starts the drift path on its weekly
 schedule. The other boxes are actions or workflow stages that follow.
 
-| Workflow | Trigger | Responsibility |
+\ref{tab-devcons-releasing-understand-the-workflow-chain} maps each workflow file to its trigger and responsibility.
+
+| Workflow {: width="42%" } | Trigger | Responsibility |
 |---|---|---|
 | [`adopt-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/adopt-install.yml) | Relevant pull requests; every push to `main`; manual dispatch | Build and install the wheel on Ubuntu and Windows x64, plus Ubuntu, Windows and macOS ARM64. Both Windows architectures run one complete TOML scenario with Mermaid and maths; Ubuntu and macOS retain the wider TOML/YAML option coverage. Canonical npm lockfiles and the hosted cache avoid resolving and downloading the same Node packages afresh on every run. |
 | [`pdf-built-site-wheel.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/pdf-built-site-wheel.yml) | Relevant pull requests; every push to `main`; manual dispatch | Build and install the wheel on the same x64 and ARM64 operating-system matrix, exercise the renderer used by public `prodockit pdf` through Zensical's documented clean build, and verify it can consume navigation, rendered extensions and page metadata without a Git host |
@@ -48,7 +59,8 @@ schedule. The other boxes are actions or workflow stages that follow.
 Understand the workflow chain
 ///
 
-The seven workflows overlap intentionally. `ci.yml` gives quick pull-request
+The workflow roles in \ref{tab-devcons-releasing-understand-the-workflow-chain}
+overlap intentionally. `ci.yml` gives quick pull-request
 feedback and makes `main` the complete supported-Python backstop. A
 repository-owned changed-file classifier selects expensive pull-request
 checks conservatively: shared command, configuration, packaging or asset code
@@ -65,6 +77,8 @@ the current release.
 
 Use semantic versioning as a decision aid:
 
+\ref{tab-devcons-releasing-1-choose-the-release-version} maps patch, minor, and major versions to the kind of change being released.
+
 | Change | Version |
 |---|---|
 | Backward-compatible fixes or documentation corrections | Patch |
@@ -76,7 +90,9 @@ Use semantic versioning as a decision aid:
 1. Choose the release version
 ///
 
-Read every change since the previous `prodockit-v...` tag. The Git history is
+Use \ref{tab-devcons-releasing-1-choose-the-release-version} to translate the
+reviewed change into a version increment. Read every change since the previous
+`prodockit-v...` tag. The Git history is
 the complete record; the website release notes intentionally contain only
 short changes that matter to package users:
 
@@ -89,6 +105,9 @@ The tag prefix matters. Historic tags named only `vX.Y.Z` exist, but current
 package releases use `prodockit-vX.Y.Z`, such as `prodockit-v0.41.0`.
 
 ## 2. Prepare the release branch
+
+Create the release metadata on a branch based on the latest `main`, then let
+the repository checks validate that exact change.
 
 /// steps
 
@@ -184,12 +203,12 @@ pytest
 zensical build --clean --strict
 ```
 
-Because this repository publishes a PDF as part of its documentation, also
-build it before the strict website build:
+Because this repository publishes a PDF as part of its documentation, build
+the strict website first and then let the PDF command consume it:
 
 ```bash
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 python -m pytest tests/test_built_docs.py -m built -v
 ```
 
@@ -347,6 +366,8 @@ gh run list --workflow docs.yml --limit 5
 
 Automation has separate success conditions, so perform separate public checks:
 
+\ref{tab-devcons-releasing-7-verify-the-release-as-a-user} separates package, documentation, and PDF checks so each public artifact is verified.
+
 | Check | What it proves |
 |---|---|
 | GitHub release page shows `prodockit-v0.42.0` | The release and tag are public |
@@ -361,7 +382,10 @@ Automation has separate success conditions, so perform separate public checks:
 7. Verify the release as a user
 ///
 
-A clean installation check can use a temporary virtual environment:
+The public checks in
+\ref{tab-devcons-releasing-7-verify-the-release-as-a-user} prove different
+parts of the release. A clean installation check can use a temporary virtual
+environment:
 
 ```bash
 python -m venv /tmp/prodockit-release-check
@@ -372,6 +396,9 @@ python -m venv /tmp/prodockit-release-check
 Use the platform's corresponding activation or executable path on Windows.
 
 ## Recover from a failed stage
+
+Use \ref{tab-devcons-releasing-recover-from-a-failed-stage} to resume from the
+last completed boundary without repeating publication work unnecessarily.
 
 | Failure | Resume from |
 |---|---|
@@ -397,6 +424,11 @@ release ceremony; the changelog test permits it to be absent between releases.
 Downstream repositories that pin prodockit—especially `prodockit-template`
 and the userguide—should update deliberately, rebuild their own site and PDF,
 and use their own tests before adopting the release.
+
+\ref{fig-downstream-release-cascade} shows the downstream sequence. Each
+repository first updates its version pin and shared files, then builds and
+tests its own outputs before making a separate release. A successful prodockit
+release starts this review; it does not bypass it.
 
 ![A prodockit release is followed by deliberate pin, shared-file, build, test and release updates in the template and userguide](../assets/diagrams/29.2-downstream-release-cascade.png){ .documentation-diagram }
 /// figure-caption

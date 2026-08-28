@@ -20,6 +20,8 @@ Enable it in `zensical.toml`:
 
 Choose the feature that solves the table's problem:
 
+\ref{tab-extensions-tables-enable-the-extension} maps common table-layout problems to the attribute that solves each one.
+
 | Need | Attribute |
 | --- | --- |
 | Set a column width | `width="30%"` or a fixed width such as `8rem` |
@@ -38,6 +40,10 @@ The next examples show each feature in isolation before combining them.
 
 ## Set column widths {: #tables-quick-start }
 
+Choose percentage widths when columns should share the available page and
+fixed widths when an element must retain a physical size. The examples progress
+from one sizing system to combinations of both.
+
 ### Percentages that add up to 100%
 
 Give every column an explicit percentage and they're used exactly as
@@ -53,6 +59,8 @@ written:
     ```
 
 === "Result"
+
+    The rendered table in \ref{tab-extensions-tables-percentages-that-add-up-to-100} shows three columns using their exact percentage widths.
 
     | Name {: width="25%" } | Description {: width="50%" } | Due {: width="25%" } |
     |---|---|---|
@@ -79,6 +87,8 @@ columns have no width, they share that space evenly:
     ```
 
 === "Result"
+
+    The rendered table in \ref{tab-extensions-tables-percentages-that-don-t-add-up-to-100} shows the browser preserving the requested proportions when the percentages do not total 100%.
 
     | Name {: width="20%" } | Description | Due {: width="15%" } |
     |---|---|---|
@@ -111,6 +121,8 @@ page becomes wider or narrower. You can give every column a fixed width:
 
 === "Result"
 
+    The rendered table in \ref{tab-extensions-tables-fixed-widths-for-every-column} shows fixed-width columns alongside their content.
+
     | Icon {: width="60px" } | Description {: width="200px" } | Format {: width="100px" } |
     |---|---|---|
     | :material-file-pdf-box: | A downloadable PDF | PDF |
@@ -136,6 +148,8 @@ still be left without a width and use the remaining space:
     ```
 
 === "Result"
+
+    The rendered table in \ref{tab-extensions-tables-mixing-percentages-and-fixed-widths} shows percentage and fixed widths used together.
 
     | # {: width="40px" } | Name {: width="50%" } | Description |
     |---|---|---|
@@ -167,6 +181,8 @@ header cell with no conflict:
     ```
 
 === "Result"
+
+    The rendered table in \ref{tab-extensions-tables-left-aligning-a-header} shows a selected heading aligned differently from the others.
 
     | Name {: width="30%" } | Description |
     |:---|---|
@@ -207,6 +223,8 @@ Mark it `{: .compact }` on any header cell:
 
 === "Result"
 
+    The rendered table in \ref{tab-extensions-tables-use-a-compact-layout} shows the reduced spacing produced by the compact layout.
+
     | Threat {: .compact } | Likelihood | Impact | Risk |
     |---|---|---|---|
     | Credential theft | H | H | H |
@@ -236,6 +254,8 @@ Mark it `{: .header }`:
     ```
 
 === "Result"
+
+    The rendered table in \ref{tab-extensions-tables-use-more-than-one-header-row} shows two rows retained as table headings.
 
     | Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |
     |---|---|---|---|
@@ -272,6 +292,8 @@ below.
     ```
 
 === "Result"
+
+    The rendered table in \ref{tab-extensions-tables-merge-cells} shows horizontal and vertical cell spans.
 
     | Target {: rowspan=2 } | Measured {: colspan=2 } | | Note {: rowspan=2 } |
     |---|---|---|---|
@@ -325,6 +347,8 @@ Header cells have a subtle 5% shade by default. Remove it from one cell with
 
 === "Result"
 
+    The rendered table in \ref{tab-extensions-tables-adjust-cell-shading} shows shading applied to selected cells.
+
     | Unshaded {: shade="off" } | Grouped heading {: colspan=2 shade="8%" } | |
     |---|---|---|
     | Normal | Highlighted {: shade="5%" } | Normal |
@@ -354,6 +378,8 @@ on their side:
 
 === "Result"
 
+    The rendered table in \ref{tab-extensions-tables-rotate-headings} shows long headings rotated to preserve horizontal space.
+
     | Control | Availability requirement {: rotate=270 width="1.8em" height="105pt" } |
     |---|---|
     | Backups | H |
@@ -373,6 +399,9 @@ needs more room.
 
 ## Reference {: #tables-reference }
 
+Use this section after the worked examples when you need the exact attribute
+location, accepted value, or generated CSS hook.
+
 ### Syntax {: #tables-syntax }
 
 Builds on Python-Markdown's own `tables` extension (auto-enabled if not
@@ -381,6 +410,9 @@ already present, the same way [prodockit.refs](refs.md) auto-enables
 
 Attach table attributes to header cells. A column's width is a property of the
 whole column, so declare it once on the heading rather than on a body cell.
+
+\ref{tab-extensions-tables-syntax} lists every supported attribute and where it
+belongs.
 
 | Attribute | Where to put it | Effect |
 | --- | --- | --- |
@@ -415,6 +447,8 @@ value behaves exactly as it would in any other hand-written CSS, since
 ## Customise with a CSS style sheet {: #tables-css-hooks }
 
 The extension adds stable classes that a website CSS style sheet can target:
+
+\ref{tab-extensions-tables-customise-with-a-css-style-sheet} lists the stable table classes available to a custom stylesheet.
 
 | Element | Condition | Hook |
 |---|---|---|

@@ -30,6 +30,9 @@ Zensical authors. Start with [Numbered steps](../extensions/steps.md) or
 
 ## Know the project family
 
+\ref{tab-about-index-know-the-project-family} distinguishes the role of each
+repository and published document.
+
 | Project | Role |
 |---|---|
 | [prodockit-extensions](https://github.com/buckwem/prodockit-extensions) | The Python package, command-line tools, implementation, tests, and this technical reference |
@@ -41,11 +44,16 @@ Zensical authors. Start with [Numbered steps](../extensions/steps.md) or
 Know the project family
 ///
 
-The template is maintained on GitHub and synchronised to the University of
+The project roles in \ref{tab-about-index-know-the-project-family} separate the
+package, its starter project, and its longer guide. The template is maintained
+on GitHub and synchronised to the University of
 Surrey's GitLab for student use. Projects created from it use the same
 prodockit package documented here.
 
 ## Choose where to continue
+
+Use \ref{tab-about-index-choose-where-to-continue} to select the next page for
+the task you have in mind.
 
 | Page | Use it for |
 |---|---|

@@ -7,7 +7,7 @@
         <mxCell id="config" value="zensical.toml&lt;br&gt;and nav" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
           <mxGeometry x="40" y="110" width="220" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="render" value="Run&lt;br&gt;zensical build" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+        <mxCell id="render" value="Build website&lt;br&gt;with Zensical" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
           <mxGeometry x="294" y="110" width="220" height="90" as="geometry" />
         </mxCell>
         <mxCell id="extract" value="Read generated&lt;br&gt;articles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">

@@ -12,6 +12,11 @@ use values calculated across the document, or produce a PDF. You do not need
 to read every page: choose the feature or tool the document needs and start
 with its smallest complete example.
 
+\ref{fig-authoring-feature-map} starts with the document's need and groups the
+available features into three paths. Use the top path for structure and
+layout, the middle path for evidence and navigation, and the bottom path for
+calculated values or generated outputs.
+
 ![Prodockit authoring features grouped by structure and layout, evidence and navigation, and calculated values and outputs](assets/diagrams/7.1-authoring-feature-map.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-authoring-feature-map}
@@ -64,6 +69,9 @@ changes visible output.
 
 ## Choose a feature
 
+Match the document outcome you need to its authoring feature in
+\ref{tab-authoring-choose-a-feature}.
+
 | Document need | Reference |
 |---|---|
 | Number sections and give headings stable links | [Headings](extensions/headings.md) |
@@ -81,7 +89,8 @@ changes visible output.
 Choose a feature
 ///
 
-`prodockit.citations` and `prodockit.bibliography` are two approaches to the
+The two citation choices in \ref{tab-authoring-choose-a-feature} are approaches
+to the
 same broad task. A small document can define sources directly in Markdown;
 a report with an existing `.bib` library normally uses the bibliography
 extension. You do not need to enable both.
@@ -90,6 +99,8 @@ extension. You do not need to enable both.
 
 Some authoring features are commands or Zensical template helpers rather than
 Python-Markdown extensions:
+
+\ref{tab-authoring-use-features-beyond-markdown-extensions} identifies the authoring features provided by commands or template helpers rather than Markdown syntax.
 
 | Document need | Reference |
 |---|---|
@@ -103,7 +114,9 @@ Python-Markdown extensions:
 Use features beyond Markdown extensions
 ///
 
-These features are part of the same authoring reference because they affect
+The non-extension features in
+\ref{tab-authoring-use-features-beyond-markdown-extensions} are part of the
+same authoring reference because they affect
 what the document contains or produces. Installation, repository maintenance,
 continuous integration, and deployment remain in their task-based sections.
 

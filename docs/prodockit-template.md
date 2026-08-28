@@ -157,12 +157,20 @@ After creation, the repository is your project. The template manifest,
 `prodockit template-sync` can update shared publishing infrastructure without
 guessing about ownership.
 
+\ref{fig-template-file-ownership} separates the repository into managed or
+shared files, author-owned content, and generated local output. Follow the
+first group through template-sync; the other two remain under the author's or
+the build's control.
+
 ![Template files are classified as managed or shared, author-owned, or generated and local so later updates preserve the author's work](assets/diagrams/5.1-template-file-ownership.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-template-file-ownership}
 
 Template file ownership
 ///
+
+\ref{tab-prodockit-template-know-what-becomes-yours} then gives concrete file
+examples and explains how a later template update treats each classification.
 
 | Classification | Examples | Later template update |
 |---|---|---|

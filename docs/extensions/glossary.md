@@ -46,6 +46,10 @@ it to the definition. Select the link to jump to the definition.
 
 ## Configure glossary terms
 
+The glossary can change the placeholder for an unknown term, the generated
+section title, and the source used for shared definitions. Configure only the
+behaviour your document needs.
+
 ### Choose the missing-term text
 
 An unresolved term displays `?` by default. Set `unresolved` if your project
@@ -141,6 +145,9 @@ you want to choose different words for the link.
 
 ## Reference {: #glossary-reference }
 
+The following subsections collect the exact inline forms, Zensical settings,
+and cross-page behaviour used by the earlier examples.
+
 ### Syntax {: #glossary-syntax }
 
 Like [prodockit.citations](citations.md), defining and inserting are bundled
@@ -162,6 +169,9 @@ visible), while `id` stays, since references link straight to it.
 
 #### Using a term
 
+The term, plural, and definition forms are compared in
+\ref{tab-extensions-glossary-using-a-term}.
+
 | Syntax | Purpose |
 | --- | --- |
 | `\gls{<id>}` | Insert one term's registered display text and link it to its definition |
@@ -171,7 +181,9 @@ visible), while `id` stays, since references link straight to it.
 Using a term
 ///
 
-Unlike `\citeref{...}`, `\gls{...}` only ever takes a single id - there's no
+The glossary forms are summarised in
+\ref{tab-extensions-glossary-using-a-term}. Unlike `\citeref{...}`,
+`\gls{...}` only ever takes a single id - there's no
 multi-term/bracketed form, since inserting a term's own text doesn't
 compose the way a citation list does.
 
@@ -191,7 +203,10 @@ Neither of the two shown above is resolved; both render the literal text.
 
 ### Zensical settings {: #glossary-options }
 
-| Setting | Default | What it controls |
+\ref{tab-extensions-glossary-zensical-settings} lists the glossary's
+configurable title and unresolved-term text.
+
+| Setting {: width="32%" } | Default | What it controls |
 |---|---|---|
 | \index{prodockit.glossary!`unresolved`} | `"?"` | Text shown for a term id that cannot be found. |
 | \index{prodockit.glossary!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
@@ -202,6 +217,9 @@ Zensical settings
 ///
 
 ### Cross-page terms {: #glossary-multi-page-builds }
+
+The settings in \ref{tab-extensions-glossary-zensical-settings} apply to terms
+collected across the complete navigation.
 
 Under Zensical, a term can be used on a different page from its definition,
 including an Acronyms or Glossary appendix later in navigation. Prodockit reads
@@ -219,6 +237,8 @@ For integration with another Markdown renderer, see
 `prodockit.glossary` always sets a class on the `\gls{id}` link it renders -
 resolved or not - so a stylesheet has a stable hook either way:
 
+\ref{tab-extensions-glossary-customise-with-a-css-style-sheet} lists the glossary link classes available to a custom stylesheet.
+
 | State | Class |
 |---|---|
 | Resolved | `prodockit-gls` |
@@ -229,7 +249,9 @@ resolved or not - so a stylesheet has a stable hook either way:
 Customise with a CSS style sheet
 ///
 
-An unresolved id's `<a>` has no `href` (see
+The selectors in
+\ref{tab-extensions-glossary-customise-with-a-css-style-sheet} distinguish the
+resolved and unresolved states. An unresolved id's `<a>` has no `href` (see
 [Unresolved references](#glossary-unresolved-references) above) - style
 `prodockit-gls-unresolved` distinctly (e.g. a warning colour) to make a
 missing term visually obvious.

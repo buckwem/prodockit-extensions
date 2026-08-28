@@ -15,6 +15,9 @@ prodockit adds the document features that professional and academic
 cross-references, citations, glossaries, richer tables, and a printable PDF.
 Install one Python package, then enable only the parts your project uses.
 
+\ref{fig-prodockit-output-relationship} shows how the shared authoring input
+becomes a website and a matching printable document.
+
 ![Markdown and project configuration pass through Prodockit's authoring and style components and Zensical to produce a website, while Prodockit's PDF pipeline and styles produce the matching printable document](assets/diagrams/1.1-prodockit-output-relationship.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-prodockit-output-relationship}
@@ -30,6 +33,8 @@ project and ends at a live local preview.
 
 Install the prodockit package first, then choose the route that matches the
 document you have:
+
+\ref{tab-introduction-choose-an-installation-route} compares the three installation routes by starting point and result.
 
 | Starting point | Installation route |
 |---|---|
@@ -50,11 +55,17 @@ installed or adopted project later needs a PDF.
 
 ## Choose what you need
 
+Prodockit separates features that change authored Markdown from tools that
+build, inspect, or maintain the complete project. Start with the group that
+matches the outcome you need.
+
 ### Authoring extensions
 
 These are standard Python-Markdown extensions configured in `zensical.toml`:
 
-| Extension | Use it for |
+\ref{tab-introduction-authoring-extensions} links each authoring need to the extension that provides it.
+
+| Extension {: width="40%" } | Use it for |
 | --- | --- |
 | [`prodockit.headings`](extensions/headings.md) | Numbered headings |
 | [`prodockit.refs`](extensions/refs.md) | Cross-references to headings, figures, and tables |
@@ -77,6 +88,8 @@ needs it.
 ### Publishing and project tools
 
 prodockit also provides commands and integrations rather than Markdown syntax:
+
+\ref{tab-introduction-publishing-and-project-tools} links each publishing or maintenance task to its prodockit command.
 
 | Feature | Use it for |
 | --- | --- |

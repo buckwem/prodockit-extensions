@@ -46,6 +46,8 @@ starts a section inside it (`1.1`, `1.2`, and so on):
 
 === "Result"
 
+    The rendered result in \ref{tab-extensions-headings-number-headings} shows the number and identifier assigned to each heading.
+
     | Heading | id | number |
     |---|---|---|
     | Introduction | `introduction` | `1` |
@@ -58,7 +60,8 @@ starts a section inside it (`1.1`, `1.2`, and so on):
     Number headings
     ///
 
-The extension calculates the section numbers used by
+The result in \ref{tab-extensions-headings-number-headings} shows the numbering
+the extension also supplies to
 [Cross-references](refs.md). The shared prodockit website styles can also show
 those numbers beside headings and in the page navigation. This reference site
 has that presentation enabled, so the example headings on this page are
@@ -72,9 +75,15 @@ visibly numbered.
 
 ## Configure headings
 
+Configuration decides whether numbering continues across pages, where a page's
+counter starts, and which headings are deliberately excluded. The following
+subsections cover those choices in that order.
+
 ### Choose how numbering continues {: #continuous-numbering-across-pages-zensical }
 
 The `numbering` setting accepts two values:
+
+\ref{tab-extensions-headings-choose-how-numbering-continues} compares page-by-page numbering with numbering that continues across the site.
 
 | Value | Result |
 | --- | --- |
@@ -86,7 +95,9 @@ The `numbering` setting accepts two values:
 Choose how numbering continues
 ///
 
-For a multi-page documentation site, set the option in `zensical.toml`:
+Choose the continuation behaviour from
+\ref{tab-extensions-headings-choose-how-numbering-continues}, then set it in
+`zensical.toml`:
 
 ```toml
 [project.markdown_extensions."prodockit.headings"]
@@ -126,6 +137,8 @@ For example:
 
 === "Result"
 
+    The rendered result in \ref{tab-extensions-headings-number-appendices} shows letters used for appendix headings and decimal numbers retained beneath them.
+
     | Heading | Number |
     | --- | --- |
     | Glossary | A |
@@ -136,7 +149,8 @@ For example:
     Number appendices
     ///
 
-a [prodockit.refs](refs.md) reference to `Terms` from another page:
+The appendix result in \ref{tab-extensions-headings-number-appendices} is also
+used by a [prodockit.refs](refs.md) reference to `Terms` from another page:
 
 ```md
 <!-- references.md -->
@@ -174,6 +188,8 @@ doesn't consume a counter position:
 
 === "Result"
 
+    The rendered result in \ref{tab-extensions-headings-leave-a-heading-unnumbered} shows how an unnumbered heading affects the headings that follow it.
+
     | Heading | Number |
     | --- | --- |
     | Cover Page | none |
@@ -184,7 +200,8 @@ doesn't consume a counter position:
     Leave a heading unnumbered
     ///
 
-`Introduction` above is still numbered `1`, as if `Cover Page` weren't
+In \ref{tab-extensions-headings-leave-a-heading-unnumbered}, `Introduction` is
+still numbered `1`, as if `Cover Page` weren't
 there at all.
 
 ### Hide a heading from PDF navigation {: #unlisted-and-unbookmarked-headings-pdf-only }
@@ -218,6 +235,9 @@ for the underlying stylesheet rule and worked example.
 
 ## Reference {: #headings-reference }
 
+Use this section to look up id generation and the complete Zensical settings
+after choosing the numbering behaviour in the worked examples.
+
 ### Ids
 
 An id comes from one of, in order of precedence:
@@ -236,7 +256,10 @@ An id comes from one of, in order of precedence:
 
 ### Zensical settings {: #headings-options }
 
-| Setting | Default | What it controls |
+The numbering modes and their defaults are collected in
+\ref{tab-extensions-headings-zensical-settings}.
+
+| Setting {: width="32%" } | Default | What it controls |
 |---|---|---|
 | \index{prodockit.headings!`numbering`} | `"per-document"` | Use `"continuous"` to carry main section numbers across pages in Zensical navigation order. |
 | \index{prodockit.headings!`appendix_attr`} | `"is_appendix"` | Name of the front matter setting that marks an appendix page. Change this only if your project uses another name. |

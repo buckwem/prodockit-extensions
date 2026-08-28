@@ -13,6 +13,9 @@ keeps the checkout connected to the environment.
 
 ## Create a development environment
 
+Clone the repository and install it in editable mode inside a dedicated virtual
+environment:
+
 ```bash
 git clone https://github.com/buckwem/prodockit-extensions
 cd prodockit-extensions
@@ -88,9 +91,11 @@ zensical.toml - this documentation site's configuration
 ### Stylesheet delivery code map {: #stylesheet-delivery-code-map }
 
 Managed styles cross the documentation, package, maintenance commands, and
-renderers. Use this map when changing that contract:
+renderers. Use
+\ref{tab-devcons-development-stylesheet-delivery-code-map} when changing that
+contract:
 
-| Path | Responsibility |
+| Path {: width="38%" } | Responsibility |
 |---|---|
 | `docs/stylesheets/pdk.css` | Canonical website and shared PDF component defaults |
 | `docs/stylesheets/pdk-pdf.css` | Canonical PDF-only presentation defaults |

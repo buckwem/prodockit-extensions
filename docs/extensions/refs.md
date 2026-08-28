@@ -48,6 +48,10 @@ update automatically if the document changes.
 
 ## Configure cross-references
 
+Most documents use the defaults. The following settings are for changing the
+visible unresolved marker or integrating a renderer that cannot identify the
+current source page automatically.
+
 ### Choose the missing-reference text
 
 An unresolved reference displays `??` by default. Set `unresolved` if your
@@ -163,7 +167,14 @@ sent, so that keeps its name.
 
 ## Reference {: #refs-reference }
 
+Use the following subsections when you need the exact inline forms or settings
+rather than the worked examples above. They cover the two reference commands,
+the Zensical options, and how destinations are resolved across pages.
+
 ### Syntax {: #refs-syntax }
+
+The two reference forms and their rendered results are compared in
+\ref{tab-extensions-refs-syntax}.
 
 | Syntax | Result |
 | --- | --- |
@@ -198,7 +209,10 @@ Neither of the two shown above is resolved; both render the literal text.
 
 ### Zensical settings {: #refs-options }
 
-| Setting | Default | What it controls |
+\ref{tab-extensions-refs-zensical-settings} lists the settings that control
+unresolved text and advanced source identification.
+
+| Setting {: width="32%" } | Default | What it controls |
 |---|---|---|
 | \index{prodockit.refs!`unresolved`} | `"??"` | Text shown when an id cannot be found. |
 | \index{prodockit.refs!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
@@ -225,6 +239,8 @@ For integration with another Markdown renderer, see
 
 `prodockit.refs` always sets a class on the `\ref{id}` link it renders -
 resolved or not - so a stylesheet has a stable hook either way:
+
+\ref{tab-extensions-refs-customise-with-a-css-style-sheet} lists the resolved and unresolved reference classes available to a custom stylesheet.
 
 | Syntax | State | Class |
 |---|---|---|

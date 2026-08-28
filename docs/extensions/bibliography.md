@@ -99,6 +99,10 @@ The citation links to the matching entry on the References page. Keep the
 
 ## Configure the reference list
 
+Configuration connects the extension to a bibliography file, selects an
+optional CSL style, and controls the generated reference-list heading. The
+following subsections separate those project choices from citation syntax.
+
 ### Choose the bibliography settings {: #bibliography-options }
 
 These are the usual project settings:
@@ -110,7 +114,10 @@ csl_style = "harvard-cite-them-right.csl"
 unresolved = "?"
 ```
 
-| Setting | Default | What it controls |
+The effect and default of each setting are listed in
+\ref{tab-extensions-bibliography-choose-the-bibliography-settings}.
+
+| Setting {: width="32%" } | Default | What it controls |
 |---|---|---|
 | \index{prodockit.bibliography!`bib_file`} | `"references.bib"` | Path to the `.bib` file, relative to the directory where you run `zensical build` or `zensical serve`. |
 | \index{prodockit.bibliography!`csl_style`} | `""` (Pandoc's default) | Path to the `.csl` file that controls citation and reference-list formatting. Leave it out to use Pandoc's default style. |
@@ -122,7 +129,9 @@ unresolved = "?"
 Choose the bibliography settings
 ///
 
-Only `bib_file` is normally required. Add `csl_style` when you need a
+Of the settings in
+\ref{tab-extensions-bibliography-choose-the-bibliography-settings}, only
+`bib_file` is normally required. Add `csl_style` when you need a
 particular citation style, and change `unresolved` only when you want another
 missing-citation marker.
 
@@ -261,7 +270,13 @@ renders `?`, with no link.
 
 ## Reference {: #bibliography-reference }
 
+Use this section to look up the exact citation forms and their constraints
+after configuring the bibliography source above.
+
 ### Syntax {: #bibliography-syntax }
+
+The inline forms and the part of a citation they produce are listed in
+\ref{tab-extensions-bibliography-syntax}.
 
 | Syntax | Purpose |
 | --- | --- |
@@ -276,7 +291,8 @@ renders `?`, with no link.
 Syntax
 ///
 
-Only a single key is supported - unlike `prodockit.citations`'
+The forms in \ref{tab-extensions-bibliography-syntax} take only a single key -
+unlike `prodockit.citations`'
 `\citeref{id1,id2,...}`, a multi-key citation isn't matched by this
 extension's own syntax at all (falls through as literal text, a visible,
 honest "not supported" rather than a silently wrong result) - see
@@ -304,6 +320,8 @@ the same build without conflict (this project's own docs do, to
 demonstrate both side by side), though a typical single project only
 needs one.
 
+\ref{tab-extensions-bibliography-comparing-the-two-approaches} compares the bibliography extension with the Pandoc citation route.
+
 | | [prodockit.citations](citations.md) | prodockit.bibliography |
 |---|---|---|
 | Source of truth | A hand-typed paragraph, once, tagged `data-cite-text` | A `.bib` file entry |
@@ -319,7 +337,8 @@ needs one.
 Comparing the two approaches
 ///
 
-**Where `prodockit.citations` fits best**: a short reference list, a house
+\ref{tab-extensions-bibliography-comparing-the-two-approaches} summarises the
+choice. **Where `prodockit.citations` fits best**: a short reference list, a house
 style unlikely to ever change, or a project that doesn't want a `pandoc`
 dependency for its website build at all (only for its optional PDF, via
 [prodockit.pdf](../pdf.md), which already needs `pandoc` anyway).
@@ -363,6 +382,9 @@ is built for, as prodockit-template's own adoption shows.
 
 ## Customise with a CSS style sheet {: #bibliography-css-hooks }
 
+\ref{tab-extensions-bibliography-customise-with-a-css-style-sheet} maps each
+bibliography element to its stable CSS hook.
+
 | Element | Condition | Hook |
 |---|---|---|
 | `<span>` wrapping a resolved `\cite{id}` | always | `class="prodockit-bib-cite"` |
@@ -374,7 +396,9 @@ is built for, as prodockit-template's own adoption shows.
 Customise with a CSS style sheet
 ///
 
-Every generated reference-list entry also gets `class="reference"` (in
+The stable hooks are listed in
+\ref{tab-extensions-bibliography-customise-with-a-css-style-sheet}. Every
+generated reference-list entry also gets `class="reference"` (in
 addition to Pandoc's own `csl-entry`) - matching the class
 `prodockit.citations`' own hand-authored entries already use, so
 [`prodockit.zensical_macros`](../macros.md)' `reference_style()`/

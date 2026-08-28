@@ -63,6 +63,23 @@ def test_release_diagram_distinguishes_entry_points_from_steps() -> None:
     assert "fillColor=#19c866" in source
 
 
+def test_documentation_builds_the_website_before_the_pdf() -> None:
+    """The PDF consumes a completed Zensical build; examples must preserve that."""
+
+    documentation_paths = [ROOT / "README.md", *(ROOT / "docs").rglob("*.md")]
+    for path in documentation_paths:
+        contents = path.read_text(encoding="utf-8")
+        assert not re.search(
+            r"prodockit pdf\s*\n\s*zensical build",
+            contents,
+        ), path
+
+    source = (
+        ROOT / "tools" / "documentation-diagrams" / "24.1-publication-pipeline.drawio"
+    ).read_text(encoding="utf-8")
+    assert source.index('value="Build website"') < source.index('value="Build PDF"')
+
+
 def test_adoption_diagram_stays_independent_of_the_site_generator() -> None:
     source = (
         ROOT / "tools" / "documentation-diagrams" / "3.1-adoption-workflow.drawio"
@@ -199,6 +216,209 @@ def test_every_documentation_table_has_a_numbered_caption_above_it() -> None:
 
     assert table_count, "documentation table audit did not find any tables"
     assert not missing, "tables without leading numbered captions: " + ", ".join(missing)
+
+
+def test_tables_and_figures_are_introduced_before_they_appear() -> None:
+    """Introduce every numbered table and figure in the preceding narrative."""
+
+    missing: list[str] = []
+
+    for guide_path in sorted((ROOT / "docs").rglob("*.md")):
+        lines = guide_path.read_text(encoding="utf-8").splitlines()
+        in_fence = False
+
+        for line_number, line in enumerate(lines):
+            stripped = line.lstrip()
+            if stripped.startswith(("```", "~~~")):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+
+            is_table = (
+                stripped.startswith("|")
+                and line_number + 1 < len(lines)
+                and TABLE_DELIMITER.match(lines[line_number + 1].strip()) is not None
+            )
+            is_figure = ".documentation-diagram" in line
+            if not (is_table or is_figure):
+                continue
+
+            previous = line_number - 1
+            while previous >= 0 and not lines[previous].strip():
+                previous -= 1
+            if previous < 0 or lines[previous].lstrip().startswith("#"):
+                relative = guide_path.relative_to(ROOT)
+                missing.append(f"{relative}:{line_number + 1}")
+
+            introduction = "\n".join(lines[max(0, line_number - 12) : line_number])
+
+            if is_table:
+                following = line_number + 2
+                while (
+                    following < len(lines)
+                    and lines[following].lstrip().startswith("|")
+                ):
+                    following += 1
+                caption = "\n".join(lines[following : following + 6])
+                match = re.search(r"attrs: \{id: (tab-[^}]+)", caption)
+                if match is None or f"\\ref{{{match.group(1)}}}" not in introduction:
+                    relative = guide_path.relative_to(ROOT)
+                    missing.append(f"{relative}:{line_number + 1} (no table reference)")
+
+            if is_figure:
+                caption = "\n".join(lines[line_number + 1 : line_number + 7])
+                match = re.search(r"attrs: \{id: (fig-[^}]+)", caption)
+                if match is None or f"\\ref{{{match.group(1)}}}" not in introduction:
+                    relative = guide_path.relative_to(ROOT)
+                    missing.append(f"{relative}:{line_number + 1} (no figure reference)")
+
+    assert not missing, "tables or figures without preceding narrative: " + ", ".join(
+        missing
+    )
+
+
+def test_parent_sections_introduce_their_subsections() -> None:
+    """A parent heading should orient the reader before the first child heading."""
+
+    missing: list[str] = []
+
+    for guide_path in sorted((ROOT / "docs").rglob("*.md")):
+        lines = guide_path.read_text(encoding="utf-8").splitlines()
+        in_fence = False
+
+        for line_number, line in enumerate(lines):
+            stripped = line.lstrip()
+            if stripped.startswith(("```", "~~~")):
+                in_fence = not in_fence
+                continue
+            if in_fence or not line.startswith("#"):
+                continue
+
+            level = len(line) - len(line.lstrip("#"))
+            following = line_number + 1
+            while following < len(lines) and not lines[following].strip():
+                following += 1
+            if following >= len(lines) or not lines[following].startswith("#"):
+                continue
+            next_level = len(lines[following]) - len(lines[following].lstrip("#"))
+            if next_level > level:
+                relative = guide_path.relative_to(ROOT)
+                missing.append(f"{relative}:{line_number + 1}")
+
+    assert not missing, "parent sections without introductory narrative: " + ", ".join(
+        missing
+    )
+
+
+def test_sections_introduce_structured_content() -> None:
+    """Explain a procedure, command, list, or example before presenting it."""
+
+    structural_starts = (
+        "```",
+        "~~~",
+        "|",
+        "- ",
+        "* ",
+        "!!!",
+        "???",
+        "///",
+        '=== "',
+        "<",
+    )
+    missing: list[str] = []
+
+    for guide_path in sorted((ROOT / "docs").rglob("*.md")):
+        # A changelog is intentionally a sequence of release headings and bullets.
+        if guide_path.name == "changelog.md":
+            continue
+
+        lines = guide_path.read_text(encoding="utf-8").splitlines()
+        in_fence = False
+
+        for line_number, line in enumerate(lines):
+            stripped = line.lstrip()
+            if stripped.startswith(("```", "~~~")):
+                in_fence = not in_fence
+                continue
+            if in_fence or not line.startswith("#"):
+                continue
+
+            following = line_number + 1
+            while following < len(lines) and not lines[following].strip():
+                following += 1
+            if following >= len(lines):
+                continue
+
+            first_content = lines[following].lstrip()
+            is_numbered_list = re.match(r"\d+\.\s", first_content) is not None
+            if first_content.startswith(structural_starts) or is_numbered_list:
+                relative = guide_path.relative_to(ROOT)
+                missing.append(f"{relative}:{line_number + 1}")
+
+    assert not missing, "sections without introductory narrative: " + ", ".join(
+        missing
+    )
+
+
+def test_visual_introductions_do_not_use_placeholder_prose() -> None:
+    """A numbered reference must tell the reader what the object contributes."""
+
+    documentation = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "docs").rglob("*.md"))
+    )
+    assert "The relevant details are summarised in" not in documentation
+
+
+def test_reference_tables_reserve_space_for_identifier_columns() -> None:
+    """Do not let a wide prose column collapse short labels or identifiers."""
+
+    documentation = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "docs").rglob("*.md"))
+    )
+    identifier_headers = (
+        "Variable",
+        "Macro",
+        "Setting",
+        "File",
+        "Workflow",
+        "Extension",
+        "Command",
+        "Requirement",
+        "Surface",
+        "Option",
+        "Fixture",
+        "Function",
+        "API",
+        "Module",
+        "Alternative",
+        "Symptom",
+        "Path",
+        "Marker",
+    )
+
+    missing_width = [
+        header
+        for header in identifier_headers
+        if re.search(rf"^\| {re.escape(header)} \|", documentation, re.MULTILINE)
+    ]
+    assert not missing_width, (
+        "reference-table identifier columns without an explicit width: "
+        + ", ".join(missing_width)
+    )
+
+
+def test_pdf_platform_tabs_use_the_standard_labels_and_icons() -> None:
+    guide = (ROOT / "docs" / "pdf.md").read_text(encoding="utf-8")
+
+    for label in (
+        '=== ":material-apple: macOS"',
+        '=== ":fontawesome-brands-windows: Windows"',
+        '=== ":material-linux: Linux (Ubuntu)"',
+    ):
+        assert guide.count(label) == 2
 
 
 def test_release_guide_covers_the_version_sources_and_release_gates() -> None:

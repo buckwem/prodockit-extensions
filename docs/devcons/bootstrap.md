@@ -14,8 +14,8 @@ route](../installation.md) when you want to choose every component yourself.
 
 Bootstrap turns the User Guide's install sequence into a list of stages that
 can be checked individually and repaired one at a time, rather than followed
-top to bottom and hoped over. It reports how many there are; the table below
-names them.
+top to bottom and hoped over. It reports how many there are;
+\ref{tab-bootstrap-stages} names them.
 
 The install is long, sequential, and easy to get half-right in ways that
 only surface much later - a missing Pango that looks fine until the first
@@ -25,6 +25,9 @@ actually set up?", which is the question a written instruction cannot
 answer for its reader.
 
 ## Before you start {: #bootstrap-prerequisites }
+
+Bootstrap can prepare the tooling around an existing Python installation, but
+it cannot install the interpreter or environment from which it is running.
 
 !!! warning "This cannot be the first thing you run"
     `prodockit bootstrap` is a prodockit subcommand, so Python and
@@ -186,6 +189,8 @@ You can tell it worked because the prompt gains a `(.venv)` prefix. If it
 is not there, nothing you install or run is going where you think it is.
 
 ### Check what you actually got {: #bootstrap-verify-install }
+
+Verify both the installed version and the executable selected by the shell:
 
 ```bash
 prodockit --version
@@ -357,10 +362,10 @@ and why - and running `--apply` again does only that stage.
 
 ## What it covers {: #bootstrap-stages }
 
-The six quick-start steps above describe what you do. The table below is about
-the [`--apply` phase](#bootstrap-apply), which is discussed later: Bootstrap
-groups its 23 setup stages into seven phases while it sets up the machine and
-project.
+The six quick-start steps above describe what you do.
+\ref{tab-bootstrap-stages} is about the
+[`--apply` phase](#bootstrap-apply), which is discussed later: Bootstrap groups
+its 23 setup stages into seven phases while it sets up the machine and project.
 
 | Phase {: width="18%" } | # {: width="3rem" } | Stage | Automated? {: width="22%" } |
 | --- | --- | --- | --- |
@@ -393,7 +398,8 @@ project.
 Bootstrap stages grouped into the seven apply phases
 ///
 
-Stages 8 to 14, 18, 19, 21 and 23 do the same thing on every operating
+In \ref{tab-bootstrap-stages}, stages 8 to 14, 18, 19, 21 and 23 do the same
+thing on every operating
 system - they are about your project and your host rather than about the
 machine. The rest differ, because installing software does.
 
@@ -436,6 +442,8 @@ somebody typed it to see what it did.
 
 Four states, and the difference between them matters:
 
+\ref{tab-devcons-bootstrap-checking-without-changing-anything} explains the four stage states reported by a read-only bootstrap check.
+
 | | Meaning |
 | --- | --- |
 | `ok` | Set up correctly. A rerun leaves it alone. |
@@ -455,6 +463,9 @@ script - the same convention as
 
 ## Seeing what it would do {: #bootstrap-dry-run }
 
+Use the dry run to inspect every outstanding command and manual action without
+changing the machine:
+
 ```bash
 prodockit bootstrap --dry-run
 ```
@@ -468,6 +479,9 @@ under test.
 
 ## Setting it up {: #bootstrap-apply }
 
+Configuration records the project choices; apply then works through only the
+stages that still need attention:
+
 ```bash
 prodockit bootstrap --configure   # answer the questions, then stop
 prodockit bootstrap --apply       # set up what needs it, asking first
@@ -476,6 +490,8 @@ prodockit bootstrap --apply       # set up what needs it, asking first
 `--apply` walks the stages in \ref{tab-bootstrap-stages} that need work,
 showing what it will run before it runs it, and asks each time. The defaults
 differ by state, and deliberately:
+
+\ref{tab-devcons-bootstrap-setting-it-up} shows which proposed changes are accepted by default and which require an explicit decision.
 
 | What the plan does | Prompt |
 | --- | --- |
@@ -487,7 +503,8 @@ differ by state, and deliberately:
 Setting it up
 ///
 
-One rule, and a visible one. The default used to follow the *check's
+The two prompts in \ref{tab-devcons-bootstrap-setting-it-up} make one rule
+visible. The default used to follow the *check's
 status* - `MISS` meant yes, `WRONG` meant no - which is a rule you cannot
 see from the prompt, so the same key press meant different things at
 different stages for reasons that were never on screen.
@@ -509,6 +526,8 @@ several confusing ones.
 Some stages are part automated and part yours, and *when* your part
 happens is not cosmetic - it is whether the stage can work at all:
 
+\ref{tab-devcons-bootstrap-where-your-part-comes-in-the-order} places each manual action before or after the automated work that depends on it.
+
 | | Example |
 | --- | --- |
 | **Before** the commands, because they depend on you | The keypair stage: the advice on choosing a passphrase is no use once `ssh-keygen` has already asked for one. |
@@ -519,7 +538,8 @@ happens is not cosmetic - it is whether the stage can work at all:
 Where your part comes in the order
 ///
 
-Both orderings have been wrong in a shipped release - the install
+Both orderings in \ref{tab-devcons-bootstrap-where-your-part-comes-in-the-order}
+have been wrong in a shipped release - the install
 skipped entirely in one direction (#230), and the run stopped dead at the
 SSH key stage in the other (#234) - so each stage now states which it
 needs rather than leaving it to be inferred.
@@ -630,6 +650,8 @@ carries on, rather than blocking on a question nobody is there to
 answer.
 
 The file is stored per **directory**, beside whatever is being set up:
+
+\ref{tab-devcons-bootstrap-configuration} lists the configuration files stored in a setup directory and the purpose of each one.
 
 | Where | Path |
 | --- | --- |

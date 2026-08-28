@@ -25,6 +25,9 @@ serves.
 
 ## Choose your starting point
 
+\ref{tab-publishing-choose-your-starting-point} directs each project state to
+the appropriate publishing guide.
+
 | Starting point | First guide |
 |---|---|
 | You want a ready-made report project | [Start with prodockit-template](prodockit-template.md) explains what it provides and which files become yours |
@@ -45,6 +48,9 @@ project-owned; later template fixes arrive only when you review and apply a
 template sync.
 
 ## Follow the publishing path
+
+Build and inspect the complete outputs locally before asking the hosting service
+to publish the same commit.
 
 /// steps
 
@@ -171,6 +177,9 @@ proves that a reader can retrieve the intended version.
 ///
 
 ## Know which output you are checking
+
+Use \ref{tab-publishing-know-which-output-you-are-checking} to distinguish
+local intermediates from the website and PDF readers finally receive.
 
 | Output | Built by | Typical location | Final check |
 |---|---|---|---|
@@ -302,6 +311,8 @@ front matter can still show it in the preview; use the completed static build
 to inspect automatic Git or modification dates.
 
 ## Use the detailed guides when needed
+
+Open the detailed guide for the part of the workflow that needs attention:
 
 - [Set up a machine](devcons/bootstrap.md) prepares a computer and checkout.
 - [Start with prodockit-template](prodockit-template.md) introduces the starter

@@ -116,6 +116,9 @@ additional gates described in [Build and release](devcons/releasing.md).
 
 ## Choose the right maintenance tool
 
+Match the maintenance need to its safest starting tool in
+\ref{tab-project-maintenance-choose-the-right-maintenance-tool}.
+
 | Need | Start with | What changes |
 |---|---|---|
 | A fork, mirror, or renamed repository points at the wrong place | `prodockit sync-repo --check` | Repository URLs, edit links, host icon, and managed README badges |
@@ -132,7 +135,9 @@ Choose the right maintenance tool
 
 The workflows deliberately divide responsibility:
 
-| Workflow | Trigger | Answer |
+\ref{tab-project-maintenance-what-automation-does-and-does-not-prove} separates the checks performed by automation from the decisions that still need a person.
+
+| Workflow {: width="30%" } | Trigger | Answer |
 |---|---|---|
 | `ci.yml` | Pull requests and pushes to `main` | Does the code work across supported Python versions, and do the docs build strictly? |
 | `docs.yml` | Pushes to `main` and manual dispatch | Can the complete website and PDF be built, tested, deployed, and verified live? |
@@ -145,12 +150,17 @@ The workflows deliberately divide responsibility:
 What automation does—and does not—prove
 ///
 
-A green workflow proves the question in its own row, not every row. In
+A green workflow proves the question in its own row in
+\ref{tab-project-maintenance-what-automation-does-and-does-not-prove}, not every
+row. In
 particular, a passing pull request does not publish PyPI, and a successful
 Pages deployment does not by itself prove the public URL serves the new bytes.
 The deployment workflow performs that final delivery check separately.
 
 ## Suggested cadence
+
+\ref{tab-project-maintenance-suggested-cadence} turns the maintenance tools
+into a practical event-based routine.
 
 | When | Maintenance |
 |---|---|

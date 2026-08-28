@@ -111,7 +111,10 @@ unchanged for the next run.
 
 ## Options {: #sync-repo-options }
 
-| Option | Default | What it does |
+\ref{tab-devcons-repo-metadata-options} separates the read-only checks from
+the options that write repository metadata.
+
+| Option {: width="32%" } | Default | What it does |
 | --- | --- | --- |
 | `-f`, `--config-file` | `zensical.toml` | Which Zensical config to update. |
 | \index{commands!prodockit sync-repo!`--readme`} | `README.md` | README to update the badge block in. Pass an empty value to skip it. |
@@ -125,6 +128,10 @@ Options
 ///
 
 ## What it does, and why {: #sync-repo-what-it-does }
+
+The options in \ref{tab-devcons-repo-metadata-options} select how much of the
+following repository update is performed; the underlying metadata rules remain
+the same.
 
 ### `edit_uri` {: #sync-repo-edit-uri }
 

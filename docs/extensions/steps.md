@@ -184,6 +184,9 @@ list. This complete example combines an id with continued numbering:
 
 ## Reference {: #steps-reference }
 
+The block markers and options accepted by a steps block are summarised in
+\ref{tab-extensions-steps-reference}.
+
 | Syntax | Purpose |
 | --- | --- |
 | `/// steps` | Open or close the ordered procedure |
@@ -225,6 +228,8 @@ The first example produces this structure:
 ```
 
 The two stable class names are:
+
+\ref{tab-extensions-steps-generated-html} identifies the stable HTML classes emitted for a procedure and its individual steps.
 
 | Selector | Element |
 | --- | --- |

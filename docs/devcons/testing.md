@@ -16,14 +16,27 @@ Install it with:
 pip install prodockit[testing]
 ```
 
-The fixtures test artifacts that already exist; they never build anything.
-Run your builds first:
+The fixtures inspect artifacts that already exist; they never build anything.
+Create a clean website first, derive the PDF from that generated HTML, and only
+then run the artifact assertions:
 
 ```bash
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 python -m pytest
 ```
+
+Testing is most useful when it follows the same order as the build. First,
+check the source files and configuration. Next, build a clean website and PDF.
+Then inspect those finished files for broken links, missing pages, unrendered
+diagrams or mathematics, and incorrect PDF content. Finally, check the
+published site as a reader would see it. Passing a later check does not make
+the earlier checks unnecessary.
+
+\ref{fig-output-testing-layers} shows these four layers. The fixtures described
+on this page belong to layer 3: they inspect the website and PDF after those
+files have been built. The publishing workflow performs the final delivery
+check.
 
 ![Testing progresses from source checks through clean builds and artifact tests to the final delivery check](../assets/diagrams/25.1-output-testing-layers.png){ .documentation-diagram }
 /// figure-caption
@@ -100,7 +113,9 @@ Mermaid's own link syntax follows shortly after it.
 All are session-scoped and prefixed `prodockit_`, so they can't collide
 with names in your own `conftest.py`.
 
-| Fixture | What it gives you |
+\ref{tab-devcons-testing-fixtures} lists the supplied pytest fixtures and the built artifact exposed by each one.
+
+| Fixture {: width="42%" } | What it gives you |
 | --- | --- |
 | \index{prodockit.testing!fixtures!`prodockit_paths`} | Resolved `root`, `config_file`, `docs_dir`, `site_dir`, `pdf` |
 | \index{prodockit.testing!fixtures!`prodockit_config`} | Your Zensical config as plain parsed TOML |
@@ -117,7 +132,8 @@ with names in your own `conftest.py`.
 Fixtures
 ///
 
-Paths come from your config rather than an assumed layout: `site_dir`
+The fixtures in \ref{tab-devcons-testing-fixtures} take paths from your config
+rather than an assumed layout: `site_dir`
 defaults to `site` but is commonly set to `public`, and the PDF follows
 `pdf_output` when you set it.
 
@@ -125,7 +141,9 @@ defaults to `site` but is commonly set to `public`, and the PDF follows
 
 Two `pytest` ini options, both usually unnecessary:
 
-| Option | Default | Purpose |
+\ref{tab-devcons-testing-configuration} explains the two optional pytest settings and their defaults.
+
+| Option {: width="32%" } | Default | Purpose |
 | --- | --- | --- |
 | `prodockit_config_file` | `zensical.toml` | Your Zensical config, relative to the pytest rootdir. |
 | `prodockit_pdf` | from the config | Override the PDF location. |
@@ -150,7 +168,9 @@ prodockit_pdf = dist/report.pdf
 
 From `prodockit.testing`:
 
-| Function | Purpose |
+\ref{tab-devcons-testing-checks} lists the built-output assertions and the defect each one detects.
+
+| Function {: width="38%" } | Purpose |
 | --- | --- |
 | `assert_project_integrity(config_file="zensical.toml")` | Fails once with every missing source input or disabled extension. |
 | `find_project_problems(config_file="zensical.toml")` | Returns the individual project integrity problems for custom assertions. |
@@ -166,7 +186,8 @@ From `prodockit.testing`:
 Checks
 ///
 
-Both assertions name the fix (`prodockit init-tools`) in their failure
+The assertions in \ref{tab-devcons-testing-checks} name the fix
+(`prodockit init-tools`) in their failure
 message rather than only reporting the symptom.
 
 Contributor guidance for keeping the automatically discovered plugin

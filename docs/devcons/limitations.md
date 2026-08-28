@@ -75,9 +75,10 @@ alternatives and failure controls.
 
 ## PDF generation {: #limitations-pdf-generation }
 
-The \index{limitations!PDF generation} pipeline first runs a documented, clean
-`zensical build`, then pipes the completed site's rendered articles through
-Pandoc and WeasyPrint. Those two tools have their own
+The \index{limitations!PDF generation} pipeline requires a documented, clean
+`zensical build` to have completed first, then pipes that site's rendered
+articles through Pandoc and WeasyPrint. The PDF command does not invoke
+Zensical itself. Pandoc and WeasyPrint have their own
 reader/writer quirks and no JS engine, quite different from a browser rendering
 the live website. This section documents the confirmed limitations that shape
 prodockit's HTML fixups, Lua filter and print CSS, and the workaround each one
@@ -95,12 +96,12 @@ running unit tests. See [Generated-output
 coupling](zensical-coupling.md#coupling-generated-output) for the exact shapes
 and controls.
 
-**A \index{limitations!PDF generation!single-page PDF} still rebuilds the
-complete website**: `-m` limits which
-rendered article is assembled into the PDF, not what Zensical builds first.
-`prodockit pdf -m guide/page.md` therefore runs the same clean, full-site build
-and replaces `site_dir` before selecting that page. Treat `site_dir` as
-disposable generated output rather than a place for hand-maintained files.
+**A \index{limitations!PDF generation!single-page PDF} still requires a
+complete website**: `-m` limits which rendered article is assembled into the
+PDF, but it does not build a missing page. Run the same clean, full-site
+Zensical build first; `prodockit pdf -m guide/page.md` then selects the
+requested article without replacing `site_dir`. Treat `site_dir` as disposable
+generated output rather than a place for hand-maintained files.
 
 **No JS engine (WeasyPrint can't run client-side JS)**
 
@@ -192,6 +193,8 @@ disposable generated output rather than a place for hand-maintained files.
     The two release values come from deliberately different sources, and
     they can disagree:
 
+    \ref{tab-devcons-limitations-pdf-generation} compares the source used for the website release value with the source used for the PDF cover value.
+
     | | Source |
     | --- | --- |
     | `{% raw %}{{ release }}{% endraw %}` (website, and any macro-rendered page) | `git describe --tags` on the local checkout |
@@ -202,7 +205,8 @@ disposable generated output rather than a place for hand-maintained files.
     PDF generation
     ///
 
-    Each is right for its own context. `{% raw %}{{ release }}{% endraw %}` is
+The two sources in \ref{tab-devcons-limitations-pdf-generation} are each right
+for their own context. `{% raw %}{{ release }}{% endraw %}` is
     re-evaluated on
     every website rebuild, including every save under `zensical serve`, so
     it must not make a network call. `{RELEASE}` is a PDF-only marker replaced

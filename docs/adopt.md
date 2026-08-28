@@ -15,6 +15,12 @@ Use [machine bootstrap](devcons/bootstrap.md) for a new computer or a new
 repository. Adoption assumes that Git, SSH and the editor you prefer already
 work. It does not configure or change any of them.
 
+\ref{fig-adoption-workflow} shows the existing project entering the outlined
+adoption process. Inside that boundary, prodockit assesses the project, adds
+the standard components, and either installs or skips each optional renderer.
+The author then builds and reviews the local changes before accepting the
+updated project.
+
 ![Adoption assesses an existing site, adds standard components, installs only the selected renderers, then leaves the author to build and review](assets/diagrams/3.1-adoption-workflow.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-adoption-workflow}
@@ -55,6 +61,10 @@ existing working environment. Follow the adoption row under
 [Prepare the PDF tools](pdf.md#pdf-requirements) before building a PDF.
 
 ## Review the existing project
+
+Start with a read-only assessment from the project's own virtual environment.
+The following steps establish that context before asking prodockit what it
+would change.
 
 /// steps
 
@@ -136,7 +146,7 @@ that Git, SSH, remotes and editors are outside its scope.
 
 ## Choose optional renderers
 
-Run:
+Choose Mermaid and mathematics only when the existing document uses them. Run:
 
 ```bash
 prodockit adopt --configure
@@ -164,6 +174,9 @@ prodockit adopt --no-mermaid --maths --dry-run
 ```
 
 ## Preview and apply
+
+Preview the complete plan before allowing any file or package change, then
+build the result yourself so the review remains under your control.
 
 /// steps
 

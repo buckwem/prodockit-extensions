@@ -12,6 +12,9 @@ commonly need alongside the website itself. It reads the same
 `zensical.toml` your site already has, so there's nothing new to learn or
 configure beyond a couple of optional settings.
 
+\ref{fig-website-and-pdf-example} shows the same authored table in the two
+outputs.
+
 ![The same Prodockit tables page displayed as a printable PDF and as a responsive website](assets/diagrams/19.1-website-and-pdf-example.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-website-and-pdf-example}
@@ -83,7 +86,9 @@ The command uses [Pandoc](https://pandoc.org/) to assemble the document and
 [WeasyPrint](https://weasyprint.org/) to draw the pages. What remains to be
 installed depends on the route used to prepare the project:
 
-| Setup route | PDF preparation |
+\ref{tab-pdf-prepare-the-pdf-tools} shows which installation route supplies the PDF tools and what, if anything, remains to be installed manually.
+
+| Setup route {: width="28%" } | PDF preparation |
 |---|---|
 | [Bootstrap](devcons/bootstrap.md) | `prodockit bootstrap --apply` installs and verifies the required PDF tools. Continue with the verification commands below. |
 | [Adoption](adopt.md) | Adoption installs project-local Mermaid or maths renderers only when selected. Install Pandoc, WeasyPrint, its native Pango libraries, and any fonts this document requires by following the operating-system instructions below. |
@@ -97,7 +102,7 @@ Prepare the PDF tools
 Activate the project's virtual environment, then use the instructions for its
 operating system when the route above requires them:
 
-=== "macOS"
+=== ":material-apple: macOS"
 
     ```bash
     brew install pandoc
@@ -105,7 +110,7 @@ operating system when the route above requires them:
     python -m pip install weasyprint
     ```
 
-=== "Windows"
+=== ":fontawesome-brands-windows: Windows"
 
     Follow the Windows tab under
     [Manual install: Install Python and Zensical](https://docs.prodockit.org/installtooling/#install-python-and-zensical).
@@ -116,7 +121,7 @@ operating system when the route above requires them:
     Return here after installing the tools and run the two verification
     commands below from the activated project environment.
 
-=== "Ubuntu"
+=== ":material-linux: Linux (Ubuntu)"
 
     ```bash
     sudo apt install pandoc libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
@@ -214,7 +219,9 @@ settings and missing local project inputs instead of letting a successful
 build conceal a fallback or incomplete document. The complete project checks
 are described under [Test the built output](devcons/testing.md#testing-quick-start).
 
-| Setting | Default | What it does |
+\ref{tab-pdf-building-a-single-file} compares a single-page diagnostic build with the checks performed for a complete document.
+
+| Setting {: width="35%" } | Default | What it does |
 |---|---|---|
 | \index{PDF settings!`pdf_output`} | `"<docs_dir>/site_documentation.pdf"` | Where the PDF is written. |
 | \index{PDF settings!`pdf_copyright`} | falls back to `copyright` | Overrides `copyright` for the PDF's own footer only - see [Copyright text](#copyright-text). |
@@ -359,7 +366,9 @@ a \index{cover page}, e.g. wrapped in `{.pdf-only}` as in the example above - an
 `prodockit pdf` substitutes a real value once that page's HTML exists, no
 configuration needed:
 
-| Marker | Becomes |
+\ref{tab-pdf-cover-page-markers} lists the cover-page placeholders and the values substituted for them.
+
+| Marker {: width="25%" } | Becomes |
 |---|---|
 | `{WORDCOUNT}` | The site-wide word count (the same value a `{% raw %}{{ word_count }}{% endraw %}` website [macro variable](macros.md#variables) would show), so a submission's PDF and its live website page never disagree. |
 | `{REPOURL}` | The git-detected repo URL (the same value `{% raw %}{{ repo_url }}{% endraw %}` gives a website macro). |
@@ -581,6 +590,10 @@ Mermaid, source-bundle, or index stages should use
 
 ## Fix common PDF build problems {: #pdf-common-problems }
 
+Start with the symptom shown by the failed command. The following subsections
+cover missing native libraries, browser-rendered components, and output that is
+valid but laid out unexpectedly.
+
 ### WeasyPrint cannot load a graphics library
 
 Installing the WeasyPrint Python package does not install the operating
@@ -595,22 +608,31 @@ First repeat the import check from the activated project environment:
 python -c "import weasyprint; print(weasyprint.__version__)"
 ```
 
-Then check the platform-specific library location:
+Then open the tab for the operating system used for the build and check its
+library location.
 
-- On Apple Silicon macOS, Homebrew installs the libraries under
-  `/opt/homebrew/lib`. Export that path in the terminal used for the build:
+=== ":material-apple: macOS"
+
+    On Apple Silicon, Homebrew installs the libraries under
+    `/opt/homebrew/lib`. Export that path in the terminal used for the build:
 
     ```bash
     export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
     ```
 
-  Use `/usr/local/lib` on an Intel Mac.
-- On Ubuntu, confirm that `libpango-1.0-0`, `libpangoft2-1.0-0`, and the
-  separate `libharfbuzz-subset0` package are installed.
-- On Windows, confirm that `WEASYPRINT_DLL_DIRECTORIES` names the MSYS2 Pango
-  `bin` directory whose DLL architecture matches the Python executable.
-  An ARM computer can still be running an x86-64 Python and therefore need
-  the x86-64 DLLs.
+    Use `/usr/local/lib` instead on an Intel Mac.
+
+=== ":fontawesome-brands-windows: Windows"
+
+    Confirm that `WEASYPRINT_DLL_DIRECTORIES` names the MSYS2 Pango `bin`
+    directory whose DLL architecture matches the Python executable. An ARM
+    computer can still be running an x86-64 Python and therefore need the
+    x86-64 DLLs.
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    Confirm that `libpango-1.0-0`, `libpangoft2-1.0-0`, and the separate
+    `libharfbuzz-subset0` package are installed.
 
 Repeat the import check before retrying `prodockit pdf`.
 
