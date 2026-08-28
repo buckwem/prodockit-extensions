@@ -280,7 +280,10 @@ def define_env(env: Any) -> None:
         return (
             "<style>\n"
             f"  .md-typeset {{ counter-reset: h1-count {n} !important; }}\n"
-            f"  .md-nav--primary {{ counter-reset: toc1 {n + 1} !important; }}\n"
+            "  .md-nav--primary,\n"
+            "  .md-nav--secondary {\n"
+            f"    counter-reset: toc1 {n + 1} !important;\n"
+            "  }\n"
             "</style>"
         )
 

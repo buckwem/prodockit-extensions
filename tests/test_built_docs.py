@@ -24,8 +24,13 @@ plugin resolves a real config correctly.
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import shutil
+import subprocess
 from itertools import pairwise
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -37,6 +42,8 @@ from prodockit.settings import flatten_nav
 from prodockit.testing import assert_no_unrendered_mermaid, assert_no_unrendered_tex
 
 pytestmark = pytest.mark.built
+
+ROOT = Path(__file__).resolve().parent.parent
 
 #: Mermaid's default node fill (#ECECFF). Every node shape in a rendered
 #: diagram is painted with it, and nothing else in these docs uses it, so it
@@ -114,6 +121,54 @@ def _mermaid_node_shapes(page):
 
 def test_the_pdf_built_and_has_pages(prodockit_pdf):
     assert prodockit_pdf.page_count > 5
+
+
+def test_desktop_on_this_page_uses_the_rendered_chapter_number(prodockit_paths) -> None:
+    """The desktop secondary nav is a sibling of the primary nav.
+
+    A string-only macro test missed that CSS counters do not inherit between
+    those siblings. Chrome's accessibility tree contains generated
+    ``::before`` content, so this checks the number a reader actually sees.
+    """
+    node = shutil.which("node")
+    puppeteer = ROOT / "tools" / "mermaid" / "node_modules" / "puppeteer"
+    probe = ROOT / "tests" / "browser" / "rendered_text.js"
+    page = prodockit_paths.site_dir / "installation" / "index.html"
+    browser_candidates = (
+        os.environ.get("PUPPETEER_EXECUTABLE_PATH"),
+        shutil.which("google-chrome-stable"),
+        shutil.which("google-chrome"),
+        shutil.which("chromium-browser"),
+        shutil.which("chromium"),
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    )
+    browser = next(
+        (candidate for candidate in browser_candidates if candidate and Path(candidate).exists()),
+        None,
+    )
+    if node is None or not puppeteer.exists() or browser is None:
+        pytest.skip("the rendered navigation check needs Node, Puppeteer and Chrome")
+
+    heading_selector = ".md-typeset h1"
+    toc_selector = (
+        ".md-nav--secondary > .md-nav__list > .md-nav__item > "
+        ".md-nav__link .md-ellipsis"
+    )
+    environment = dict(os.environ, PUPPETEER_EXECUTABLE_PATH=str(browser))
+    completed = subprocess.run(
+        [node, str(probe), page.as_uri(), heading_selector, toc_selector],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    rendered = json.loads(completed.stdout)
+    heading = re.match(r"(?P<chapter>\d+)\. Installation", rendered[heading_selector])
+
+    assert heading is not None, rendered
+    chapter = heading.group("chapter")
+    assert chapter != "0"
+    assert rendered[toc_selector] == f"{chapter}.1 Requirements"
 
 
 @pytest.fixture(scope="session")
