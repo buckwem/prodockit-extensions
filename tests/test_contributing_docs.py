@@ -27,7 +27,7 @@ def test_contributing_setup_is_copyable_and_names_external_pdf_tools() -> None:
         "Pandoc",
         "WeasyPrint",
         "brew install pango",
-        "export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib",
+        'export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib',
         "cannot load library 'libgobject-2.0-0'",
     ):
         assert phrase in GUIDE

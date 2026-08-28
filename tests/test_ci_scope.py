@@ -20,6 +20,26 @@ output_lines = _MODULE.output_lines
 ROOT = Path(__file__).parents[1]
 
 
+def _setup_python_steps(workflow: str) -> list[str]:
+    """Return each complete ``actions/setup-python`` step in a workflow."""
+    lines = workflow.splitlines()
+    steps: list[str] = []
+    for index, line in enumerate(lines):
+        stripped = line.lstrip()
+        if not stripped.startswith("- uses: actions/setup-python@"):
+            continue
+        indent = len(line) - len(stripped)
+        block = [line]
+        for following in lines[index + 1 :]:
+            following_stripped = following.lstrip()
+            following_indent = len(following) - len(following_stripped)
+            if following_indent == indent and following_stripped.startswith("- "):
+                break
+            block.append(following)
+        steps.append("\n".join(block))
+    return steps
+
+
 def test_documentation_only_change_uses_the_fast_pr_scope() -> None:
     scope = classify(["docs/macros.md", "zensical.toml"])
 
@@ -111,6 +131,27 @@ def test_ci_runs_static_render_and_coverage_work_once() -> None:
     assert workflow.count("run: mypy src") == 1
     assert workflow.count("run: pytest --cov=prodockit") == 1
     assert "if: matrix.python-version != '3.14'\n        run: pytest" in workflow
+
+
+def test_every_artifact_workflow_uses_the_python_314_project_pin() -> None:
+    """Only the compatibility matrix may choose more than one Python (#363)."""
+    assert (ROOT / ".python-version").read_text(encoding="utf-8").strip() == "3.14"
+
+    workflows = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+    steps = [
+        (workflow.name, step)
+        for workflow in workflows
+        for step in _setup_python_steps(workflow.read_text(encoding="utf-8"))
+    ]
+    assert steps, "no actions/setup-python steps were inspected"
+
+    unpinned = [
+        name
+        for name, step in steps
+        if "python-version-file: .python-version" not in step
+        and "python-version: ${{ matrix.python-version }}" not in step
+    ]
+    assert not unpinned, f"setup-python does not use the 3.14 project pin: {unpinned}"
 
 
 def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_coverage(
