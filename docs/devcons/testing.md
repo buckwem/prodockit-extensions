@@ -25,7 +25,7 @@ zensical build --clean --strict
 python -m pytest
 ```
 
-![Testing progresses from source checks through clean builds and artifact tests to the final delivery check](../assets/diagrams/output-testing-layers.png){ .documentation-diagram }
+![Testing progresses from source checks through clean builds and artifact tests to the final delivery check](../assets/diagrams/25.1-output-testing-layers.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-output-testing-layers}
 

@@ -22,7 +22,7 @@ the tagged source, while the documentation redeploy is deliberately run from
 
 ## Understand the workflow chain
 
-![Prodockit pull-request, publication and weekly drift-check workflows](../assets/diagrams/release-workflow.png){ .documentation-diagram .release-workflow-diagram }
+![Prodockit pull-request, publication and weekly drift-check workflows](../assets/diagrams/29.1-release-workflow.png){ .documentation-diagram .release-workflow-diagram }
 /// figure-caption
     attrs: {id: fig-release-workflow}
 
@@ -378,7 +378,7 @@ Downstream repositories that pin prodockit—especially `prodockit-template`
 and the userguide—should update deliberately, rebuild their own site and PDF,
 and use their own tests before adopting the release.
 
-![A prodockit release is followed by deliberate pin, shared-file, build, test and release updates in the template and userguide](../assets/diagrams/downstream-release-cascade.png){ .documentation-diagram }
+![A prodockit release is followed by deliberate pin, shared-file, build, test and release updates in the template and userguide](../assets/diagrams/29.2-downstream-release-cascade.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-downstream-release-cascade}
 

@@ -12,7 +12,7 @@ commonly need alongside the website itself. It reads the same
 `zensical.toml` your site already has, so there's nothing new to learn or
 configure beyond a couple of optional settings.
 
-![The same Prodockit tables page displayed as a printable PDF and as a responsive website](assets/diagrams/website-and-pdf-example.png){ .documentation-diagram }
+![The same Prodockit tables page displayed as a printable PDF and as a responsive website](assets/diagrams/19.1-website-and-pdf-example.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-website-and-pdf-example}
 

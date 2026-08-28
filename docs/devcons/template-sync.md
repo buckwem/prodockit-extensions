@@ -16,7 +16,7 @@ document that looks slightly unlike everyone else's.
 The \index{commands!`prodockit template-sync`} command closes that gap without touching a word of your
 writing.
 
-![Template sync previews changes first, updates unchanged managed files automatically, and leaves author-edited files for an explicit decision](../assets/diagrams/template-sync-decision.png){ .documentation-diagram }
+![Template sync previews changes first, updates unchanged managed files automatically, and leaves author-edited files for an explicit decision](../assets/diagrams/23.1-template-sync-decision.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-template-sync-decision}
 

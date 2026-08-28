@@ -37,7 +37,7 @@ work together:
 2. **Watch for newer releases**, so pinning does not mean going quietly
    stale.
 
-![Version declarations are checked for agreement while scheduled drift checks compare pinned and newer rendered outputs before a deliberate upgrade](../assets/diagrams/version-pinning-drift.png){ .documentation-diagram }
+![Version declarations are checked for agreement while scheduled drift checks compare pinned and newer rendered outputs before a deliberate upgrade](../assets/diagrams/28.1-version-pinning-drift.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-version-pinning-drift}
 

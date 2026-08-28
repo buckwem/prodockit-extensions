@@ -49,10 +49,10 @@ def test_release_guide_covers_every_github_actions_workflow() -> None:
 def test_release_diagram_distinguishes_entry_points_from_steps() -> None:
     guide = (ROOT / "docs" / "devcons" / "releasing.md").read_text(encoding="utf-8")
     source = (
-        ROOT / "tools" / "documentation-diagrams" / "release-workflow.drawio"
+        ROOT / "tools" / "documentation-diagrams" / "29.1-release-workflow.drawio"
     ).read_text(encoding="utf-8")
 
-    assert "release-workflow.png" in guide
+    assert "29.1-release-workflow.png" in guide
     assert "Release branch" in source
     assert "SCHEDULED TRIGGER" in source
     assert "Every Monday" in source
@@ -61,7 +61,7 @@ def test_release_diagram_distinguishes_entry_points_from_steps() -> None:
 
 def test_adoption_diagram_stays_independent_of_the_site_generator() -> None:
     source = (
-        ROOT / "tools" / "documentation-diagrams" / "adoption-workflow.drawio"
+        ROOT / "tools" / "documentation-diagrams" / "3.1-adoption-workflow.drawio"
     ).read_text(encoding="utf-8")
 
     assert "Existing documentation&lt;br&gt;project" in source
@@ -78,8 +78,8 @@ def test_documentation_flow_diagrams_have_editable_drawio_sources() -> None:
 
     for image in (ROOT / "docs" / "assets" / "diagrams").glob("*.png"):
         if image.name in {
-            "prodockit-output-relationship.png",
-            "website-and-pdf-example.png",
+            "1.1-prodockit-output-relationship.png",
+            "19.1-website-and-pdf-example.png",
         }:
             continue
         source = diagram_dir / f"{image.stem}.drawio"
@@ -93,31 +93,31 @@ def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
     """Architecture diagrams stay identical in the website and PDF."""
 
     expected = {
-        "docs/adopt.md": ("adoption-workflow.png",),
-        "docs/authoring.md": ("authoring-feature-map.png",),
+        "docs/adopt.md": ("3.1-adoption-workflow.png",),
+        "docs/authoring.md": ("7.1-authoring-feature-map.png",),
         "docs/stylesheets.md": (
-            "website-stylesheet-cascade.png",
-            "pdf-stylesheet-cascade.png",
+            "21.1-website-stylesheet-cascade.png",
+            "21.2-pdf-stylesheet-cascade.png",
         ),
-        "docs/update-dates.md": ("page-update-dates.png",),
-        "docs/prodockit-template.md": ("template-file-ownership.png",),
-        "docs/devcons/bootstrap.md": ("bootstrap-journey.png",),
-        "docs/devcons/continuous-integration.md": ("publication-pipeline.png",),
+        "docs/update-dates.md": ("18.1-page-update-dates.png",),
+        "docs/prodockit-template.md": ("5.1-template-file-ownership.png",),
+        "docs/devcons/bootstrap.md": ("4.1-bootstrap-journey.png",),
+        "docs/devcons/continuous-integration.md": ("24.1-publication-pipeline.png",),
         "docs/devcons/extension-internals.md": (
-            "extension-integration-flow.png",
-            "cross-reference-resolution.png",
-            "bibliography-pipeline.png",
+            "32.1-extension-integration-flow.png",
+            "32.2-cross-reference-resolution.png",
+            "32.3-bibliography-pipeline.png",
         ),
-        "docs/devcons/pdf-internals.md": ("pdf-pipeline.png",),
-        "docs/devcons/pinning-drift.md": ("version-pinning-drift.png",),
+        "docs/devcons/pdf-internals.md": ("33.1-pdf-pipeline.png",),
+        "docs/devcons/pinning-drift.md": ("28.1-version-pinning-drift.png",),
         "docs/devcons/releasing.md": (
-            "release-workflow.png",
-            "downstream-release-cascade.png",
+            "29.1-release-workflow.png",
+            "29.2-downstream-release-cascade.png",
         ),
-        "docs/devcons/template-sync.md": ("template-sync-decision.png",),
-        "docs/devcons/testing.md": ("output-testing-layers.png",),
-        "docs/introduction.md": ("prodockit-output-relationship.png",),
-        "docs/pdf.md": ("website-and-pdf-example.png",),
+        "docs/devcons/template-sync.md": ("23.1-template-sync-decision.png",),
+        "docs/devcons/testing.md": ("25.1-output-testing-layers.png",),
+        "docs/introduction.md": ("1.1-prodockit-output-relationship.png",),
+        "docs/pdf.md": ("19.1-website-and-pdf-example.png",),
     }
     png_signature = b"\x89PNG\r\n\x1a\n"
 
@@ -129,7 +129,8 @@ def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
         guide = (ROOT / relative_path).read_text(encoding="utf-8")
         for image_name in image_names:
             assert image_name in guide, f"{relative_path} does not use {image_name}"
-            caption_id = f"attrs: {{id: fig-{Path(image_name).stem}}}"
+            semantic_name = image_name.split("-", 1)[1]
+            caption_id = f"attrs: {{id: fig-{Path(semantic_name).stem}}}"
             assert caption_id in guide, (
                 f"{relative_path} does not caption {image_name} with {caption_id}"
             )

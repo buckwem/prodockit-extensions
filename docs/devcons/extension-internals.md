@@ -10,7 +10,7 @@ The Authoring reference documents Markdown syntax and `zensical.toml` options.
 This page explains the integration machinery used when changing an extension
 or embedding it in a renderer other than Zensical.
 
-![Markdown and configuration pass through the extension layer and Zensical before the shared website and PDF style paths produce their outputs](../assets/diagrams/extension-integration-flow.png){ .documentation-diagram }
+![Markdown and configuration pass through the extension layer and Zensical before the shared website and PDF style paths produce their outputs](../assets/diagrams/32.1-extension-integration-flow.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-extension-integration-flow}
 
@@ -33,7 +33,7 @@ registry across the build. A pre-scan reads definitions from every navigation
 page before conversion so a page can refer forward to a definition rendered
 later.
 
-![A build-wide scan collects labels before references are resolved across Markdown files for both the website and PDF](../assets/diagrams/cross-reference-resolution.png){ .documentation-diagram }
+![A build-wide scan collects labels before references are resolved across Markdown files for both the website and PDF](../assets/diagrams/32.2-cross-reference-resolution.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-cross-reference-resolution}
 
@@ -77,7 +77,7 @@ disambiguation. It passes each distinct citation or reference-list request to
 `pandoc --citeproc` with the configured `.bib` and `.csl` files, then memoizes
 the formatted HTML for the rest of the build.
 
-![Bibliography formatting pipeline from authored inputs through Pandoc to the website and PDF](../assets/diagrams/bibliography-pipeline.png){ .documentation-diagram }
+![Bibliography formatting pipeline from authored inputs through Pandoc to the website and PDF](../assets/diagrams/32.3-bibliography-pipeline.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-bibliography-pipeline}
 

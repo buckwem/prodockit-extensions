@@ -105,9 +105,18 @@ def test_the_pdf_built_and_has_pages(prodockit_pdf):
     assert prodockit_pdf.page_count > 5
 
 
+def test_pdf_figure_captions_use_chapter_and_figure_numbers(prodockit_pdf):
+    text = " ".join(
+        " ".join(page.get_text().split()) for page in prodockit_pdf
+    )
+
+    assert "Figure 3.1. Adopting Prodockit into an existing document" in text
+    assert "Figure 21.2. PDF stylesheet cascade" in text
+
+
 def test_documentation_diagrams_have_rendered_figure_captions(prodockit_paths):
     expected = {
-        f"fig-{image.stem}"
+        f"fig-{image.stem.split('-', 1)[1]}"
         for image in (ROOT / "docs" / "assets" / "diagrams").glob("*.png")
     }
     rendered: dict[str, str] = {}
@@ -120,13 +129,19 @@ def test_documentation_diagrams_have_rendered_figure_captions(prodockit_paths):
                 continue
             caption = figure.find("figcaption")
             assert caption is not None, figure_id
+            assert "prodockit-figure-caption" in (figure.get("class") or []), figure_id
+            prefix = caption.select_one(".caption-prefix")
+            assert prefix is not None, figure_id
+            assert re.match(r"^\d+\.$", prefix.get_text(strip=True)), figure_id
             rendered[figure_id] = caption.get_text(" ", strip=True)
 
     assert set(rendered) == expected
-    assert all(caption.startswith("Figure ") for caption in rendered.values())
+    assert all(re.match(r"^\d+\.\s", caption) for caption in rendered.values()), rendered
 
 
-def test_desktop_on_this_page_uses_the_rendered_chapter_number(prodockit_paths) -> None:
+def test_desktop_numbers_headings_and_figures_with_the_rendered_chapter(
+    prodockit_paths,
+) -> None:
     """The desktop secondary nav is a sibling of the primary nav.
 
     A string-only macro test missed that CSS counters do not inherit between
@@ -172,6 +187,18 @@ def test_desktop_on_this_page_uses_the_rendered_chapter_number(prodockit_paths) 
     chapter = heading.group("chapter")
     assert chapter != "0"
     assert rendered[toc_selector] == f"{chapter}.1 Requirements"
+
+    caption_selector = "#fig-adoption-workflow figcaption"
+    caption_page = prodockit_paths.site_dir / "adopt" / "index.html"
+    completed = subprocess.run(
+        [node, str(probe), caption_page.as_uri(), caption_selector],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    rendered = json.loads(completed.stdout)
+    assert rendered[caption_selector].startswith("Figure 3.1. "), rendered
 
 
 @pytest.fixture(scope="session")

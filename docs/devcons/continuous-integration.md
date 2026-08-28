@@ -124,7 +124,7 @@ retrieve the intended version; these are three separate checks.
 
 ## Understand the build order
 
-![Build order from authored source through PDF and website builds to public verification](../assets/diagrams/publication-pipeline.png){ .documentation-diagram }
+![Build order from authored source through PDF and website builds to public verification](../assets/diagrams/24.1-publication-pipeline.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-publication-pipeline}
 

@@ -50,7 +50,7 @@ continues through its two PDF-only files:
 
 **Website stylesheet cascade**
 
-![Website stylesheet cascade: the Zensical theme, then Prodockit's managed pdk.css, then the author's extra.css](assets/diagrams/website-stylesheet-cascade.png){ .documentation-diagram }
+![Website stylesheet cascade: the Zensical theme, then Prodockit's managed pdk.css, then the author's extra.css](assets/diagrams/21.1-website-stylesheet-cascade.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-website-stylesheet-cascade}
 
@@ -59,7 +59,7 @@ Website stylesheet cascade
 
 **PDF stylesheet cascade**
 
-![PDF stylesheet cascade: renderer foundations, pdk.css, extra.css, pdk-pdf.css, then print.css](assets/diagrams/pdf-stylesheet-cascade.png){ .documentation-diagram }
+![PDF stylesheet cascade: renderer foundations, pdk.css, extra.css, pdk-pdf.css, then print.css](assets/diagrams/21.2-pdf-stylesheet-cascade.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-pdf-stylesheet-cascade}
 
