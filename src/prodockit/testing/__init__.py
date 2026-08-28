@@ -21,6 +21,10 @@ Nothing here is imported by the rest of prodockit - a production install
 that never runs pytest pays nothing for it.
 """
 
+from prodockit.project_integrity import (
+    assert_project_integrity,
+    find_project_problems,
+)
 from prodockit.testing.checks import (
     assert_no_unrendered_mermaid,
     assert_no_unrendered_tex,
@@ -33,8 +37,10 @@ from prodockit.testing.checks import (
 __all__ = [
     "assert_no_unrendered_mermaid",
     "assert_no_unrendered_tex",
+    "assert_project_integrity",
     "contains_unrendered_mermaid",
     "contains_unrendered_tex",
+    "find_project_problems",
     "find_unrendered_mermaid_pages",
     "find_unrendered_tex_pages",
 ]

@@ -32,6 +32,11 @@ through pytest's plugin entry point:
 
 ```python
 from prodockit.testing import assert_no_unrendered_mermaid, assert_no_unrendered_tex
+from prodockit.testing import assert_project_integrity
+
+
+def test_the_source_project_is_complete():
+    assert_project_integrity()
 
 
 def test_the_pdf_built(prodockit_pdf):
@@ -42,6 +47,23 @@ def test_diagrams_and_maths_actually_rendered(prodockit_pdf_page_texts):
     assert_no_unrendered_mermaid(prodockit_pdf_page_texts)
     assert_no_unrendered_tex(prodockit_pdf_page_texts)
 ```
+
+`assert_project_integrity()` checks the source project before a successful
+build can conceal missing inputs. It verifies local website and PDF style
+sheets and scripts, navigation pages, Markdown images, an explicitly selected
+CSL file, configured Mermaid and maths renderers, and Prodockit syntax whose
+extension has been switched off. Remote CSS, JavaScript and images are outside
+this local check; URL fragments such as `#only-light` are removed before a
+local image path is checked.
+
+The same checks are available without pytest:
+
+```bash
+prodockit config --check
+```
+
+This also rejects stale, misspelled or invalid Prodockit settings. It reads the
+project only; it does not build, commit or change anything.
 
 ## Why the rendering checks exist {: #testing-why-rendering-checks }
 
@@ -113,6 +135,8 @@ From `prodockit.testing`:
 
 | Function | Purpose |
 | --- | --- |
+| `assert_project_integrity(config_file="zensical.toml")` | Fails once with every missing source input or disabled extension. |
+| `find_project_problems(config_file="zensical.toml")` | Returns the individual project integrity problems for custom assertions. |
 | `assert_no_unrendered_mermaid(page_texts)` | Fails if any page carries raw Mermaid source. |
 | `assert_no_unrendered_tex(page_texts)` | Fails if any page carries raw TeX. |
 | `find_unrendered_mermaid_pages(page_texts)` | The offending page indexes, for a custom message. |

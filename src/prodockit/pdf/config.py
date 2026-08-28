@@ -45,6 +45,7 @@ from prodockit.settings import (
     flatten_nav,
     heading_numbering_enabled,
     reference_style_values,
+    resolve_index_settings,
 )
 from prodockit.zensical_macros import (
     _compute_site_word_count,
@@ -575,7 +576,9 @@ def _build_pdf_from_config(
         reference_spacing_global,
     ) = reference_style_values(extra)
 
-    index_config = (config.get("mdx_configs") or {}).get("prodockit.index") or {}
+    index_settings = resolve_index_settings(
+        (config.get("mdx_configs") or {}).get("prodockit.index") or {}
+    )
 
     build_output_path = output_path
     if project_config is not None and not Path(output_path).is_absolute():
@@ -635,8 +638,8 @@ def _build_pdf_from_config(
         ),
         table_of_contents_title=extra.get("pdf_table_of_contents_title")
         or extra_default("pdf_table_of_contents_title"),
-        include_index=bool(index_config.get("include", False)),
-        index_title=index_config.get("title") or "Index",
+        include_index=index_settings.include,
+        index_title=index_settings.title,
         on_stage=on_stage,
     )
 

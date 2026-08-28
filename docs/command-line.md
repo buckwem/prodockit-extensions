@@ -41,7 +41,7 @@ pinned by the project before assuming an option is unavailable.
 
 | Command | Use it when | Safe first run | Writes |
 |---|---|---|---|
-| [`prodockit config`](#check-resolved-configuration) | You need to see the Prodockit settings that will actually be used, or reject stale and misspelled names | `prodockit config` | Nothing; add `--check` for a CI-friendly non-zero exit when problems exist |
+| [`prodockit config`](#check-resolved-configuration) | You need to see the Prodockit settings that will actually be used, or check that the source project is complete | `prodockit config` | Nothing; add `--check` for a CI-friendly non-zero exit when problems exist |
 | [`prodockit adopt`](adopt.md) | An existing Zensical document needs selected prodockit components without machine, Git or editor setup | `prodockit adopt` | Local project files only with `--apply`; optional choices use `--configure` |
 | [`prodockit bootstrap`](devcons/bootstrap.md) | A machine or checkout is not ready to build and publish | `prodockit bootstrap` | Only with `--apply`; configuration questions use `--configure` |
 | [`prodockit init-tools`](pdf.md#mermaid-diagrams-and-tex-maths) | The project needs local Mermaid or MathJax rendering tools | `prodockit init-tools` | Tool manifests, scripts, and ignore entries; existing files require `--force` |
@@ -73,7 +73,10 @@ prodockit config
 The report separates explicit values from defaults, shows every enabled
 `prodockit.*` extension option, and reports whether the optional package for a
 back-of-book index is installed. It also identifies obsolete names such as
-`pdf_include_index` and suggests close matches for misspellings.
+`pdf_include_index` and suggests close matches for misspellings. The report
+also checks local style sheets and scripts, navigation pages, Markdown images,
+an explicitly selected CSL file, configured renderers, and Prodockit syntax
+whose extension has been switched off.
 
 Use the strict form in a local check or CI job:
 
@@ -81,10 +84,11 @@ Use the strict form in a local check or CI job:
 prodockit config --check
 ```
 
-It exits non-zero for obsolete or unknown Prodockit settings and when index
-generation is enabled without `prodockit[index]`. It validates only names
-owned by Prodockit. Other Zensical `[project.extra]` values and third-party
-Markdown extensions are deliberately left alone.
+It exits non-zero for obsolete, unknown or invalid Prodockit settings, missing
+project inputs, unavailable configured renderers, and index generation enabled
+without `prodockit[index]`. It validates only names owned by Prodockit. Other
+Zensical `[project.extra]` values and third-party Markdown extension settings
+are deliberately left alone.
 
 The command reads the same source configuration model as the public PDF
 renderer. Zensical still owns the website build; this check does not invoke
@@ -241,7 +245,7 @@ Important exit-status behaviour:
 | Command | Exit zero means |
 |---|---|
 | `sync-repo --check` | Managed repository metadata is already current |
-| `config --check` | No obsolete or unknown Prodockit setting was found, and any enabled PDF index has its optional dependency |
+| `config --check` | Prodockit settings are valid, local project inputs exist, configured renderers are available, and any enabled PDF index has its optional dependency |
 | `pins --check --offline` | Every discovered declaration agrees; no network comparison was attempted |
 | `pins --check` | Declarations agree and none of the selected PyPI packages is behind |
 | `shared-files --check` | Every file declared in `.prodockit-shared-files.toml` matches the installed release |

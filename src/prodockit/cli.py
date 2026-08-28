@@ -1717,13 +1717,14 @@ def _echo_config_setting(key: str, value: object, source: str) -> None:
 @click.option(
     "--check",
     is_flag=True,
-    help="Exit non-zero for obsolete or unknown Prodockit settings.",
+    help="Exit non-zero for invalid settings or missing project inputs.",
 )
 def config_command(config_file: str, check: bool) -> None:
     """Show the Prodockit settings the project actually resolves to.
 
-    Only settings owned by Prodockit are validated. Unrelated Zensical
-    ``project.extra`` values and other Markdown extensions are left alone.
+    Prodockit-owned settings are validated, then local files, navigation,
+    images and configured renderers are checked without building the site.
+    Unrelated Zensical ``project.extra`` values are left alone.
     """
     from prodockit.config_diagnostics import inspect_config
 
@@ -1758,7 +1759,7 @@ def config_command(config_file: str, check: bool) -> None:
         click.echo("\nRun `prodockit config --check` in automation to reject these problems.")
         return
 
-    click.echo("\nConfiguration check passed; no obsolete or unknown Prodockit settings found.")
+    click.echo("\nConfiguration check passed; project integrity checks passed.")
 
 
 @main.command("shared-files")

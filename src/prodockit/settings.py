@@ -9,8 +9,40 @@ its own copy that only stays in sync by coincidence (or a test)."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
+
+INDEX_INCLUDE_DEFAULT = False
+INDEX_TITLE_DEFAULT = "Index"
+
+
+class SettingError(ValueError):
+    """A Prodockit-owned setting has a value that cannot be interpreted safely."""
+
+
+@dataclass(frozen=True)
+class IndexSettings:
+    """Typed settings shared by the index extension and PDF builder."""
+
+    include: bool = INDEX_INCLUDE_DEFAULT
+    title: str = INDEX_TITLE_DEFAULT
+
+
+def resolve_index_settings(options: Mapping[str, Any] | None) -> IndexSettings:
+    """Resolve ``prodockit.index`` without truthiness or string coercion."""
+    options = options or {}
+    include = options.get("include", INDEX_INCLUDE_DEFAULT)
+    if not isinstance(include, bool):
+        raise SettingError(
+            'project.markdown_extensions."prodockit.index".include must be true or false'
+        )
+    title = options.get("title", INDEX_TITLE_DEFAULT)
+    if not isinstance(title, str) or not title.strip():
+        raise SettingError(
+            'project.markdown_extensions."prodockit.index".title must be a non-empty string'
+        )
+    return IndexSettings(include=include, title=title.strip())
 
 
 @dataclass(frozen=True)
@@ -34,6 +66,7 @@ EXTRA_SETTINGS = (
     ExtraSetting("reference_spacing_european", "-0.8em", "Shared rendering"),
     ExtraSetting("reference_indent_global", "1.27cm", "Shared rendering"),
     ExtraSetting("reference_spacing_global", "2em", "Shared rendering"),
+    ExtraSetting("website_heading_numbering", True, "Website"),
     ExtraSetting("pdf_output", None, "PDF"),
     ExtraSetting("pdf_copyright", None, "PDF"),
     ExtraSetting("pdf_page_size", "A4", "PDF"),

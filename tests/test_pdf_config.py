@@ -989,6 +989,19 @@ def test_include_index_reads_from_the_extension_and_a_custom_title(
     assert captured["index_title"] == "Glossary of Terms"
 
 
+@pytest.mark.parametrize(
+    "setting",
+    ['include = "false"', "include = 1", 'title = ""', 'title = "   "', "title = 1"],
+)
+def test_invalid_index_configuration_is_rejected_by_pdf_build(project, setting: str) -> None:
+    root = project(
+        extra=f'\n[project.markdown_extensions."prodockit.index"]\n{setting}\n'
+    )
+
+    with pytest.raises(ValueError, match=r"prodockit\.index"):
+        build_pdf_from_zensical_config(str(root / "zensical.toml"))
+
+
 # ---------------------------------------------------------------------------
 # Cover page markers
 # ---------------------------------------------------------------------------

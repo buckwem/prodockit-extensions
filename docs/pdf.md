@@ -197,8 +197,10 @@ lives under `[project.extra]`, all optional:
 
 Run `prodockit config` to see these values resolved for the current project,
 including which came from `zensical.toml` and which use a default. Use
-`prodockit config --check` to reject obsolete or misspelled Prodockit settings
-instead of letting a successful build conceal a fallback to the default.
+`prodockit config --check` to reject obsolete, misspelled or invalid Prodockit
+settings and missing local project inputs instead of letting a successful
+build conceal a fallback or incomplete document. The complete project checks
+are described under [Test the built output](devcons/testing.md#testing-quick-start).
 
 | Setting | Default | What it does |
 |---|---|---|

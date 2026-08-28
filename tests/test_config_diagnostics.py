@@ -131,6 +131,39 @@ def test_check_passes_valid_prodockit_configuration(tmp_path: Path) -> None:
     assert "Configuration check passed" in result.output
 
 
+def test_check_rejects_invalid_index_value_types(tmp_path: Path) -> None:
+    path = _config(
+        tmp_path,
+        '\n[project.markdown_extensions."prodockit.index"]\ninclude = "false"\n',
+    )
+
+    result = _run(path, check=True)
+
+    assert result.exit_code == 1
+    assert "include must be true or false" in result.output
+
+
+def test_check_rejects_empty_index_title(tmp_path: Path) -> None:
+    path = _config(
+        tmp_path,
+        '\n[project.markdown_extensions."prodockit.index"]\ntitle = "   "\n',
+    )
+
+    result = _run(path, check=True)
+
+    assert result.exit_code == 1
+    assert "title must be a non-empty string" in result.output
+
+
+def test_check_reports_missing_project_inputs(tmp_path: Path) -> None:
+    path = _config(tmp_path, '\nextra_css = ["styles/missing.css"]\n')
+
+    result = _run(path, check=True)
+
+    assert result.exit_code == 1
+    assert "styles/missing.css" in result.output
+
+
 def test_diagnostic_registry_covers_every_registered_prodockit_extension() -> None:
     root = Path(__file__).resolve().parent.parent
     package = read_config((root / "pyproject.toml").read_text(encoding="utf-8"))

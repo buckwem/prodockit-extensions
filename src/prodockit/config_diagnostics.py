@@ -20,8 +20,9 @@ from prodockit.glossary import GlossaryExtension
 from prodockit.headings import HeadingsExtension
 from prodockit.index import IndexExtension
 from prodockit.project_config import ProjectConfig
+from prodockit.project_integrity import inspect_project
 from prodockit.refs import RefsExtension
-from prodockit.settings import EXTRA_SETTINGS
+from prodockit.settings import EXTRA_SETTINGS, SettingError, resolve_index_settings
 from prodockit.steps import StepsExtension
 from prodockit.tables import TablesExtension
 from prodockit.tree import TreeExtension
@@ -176,8 +177,13 @@ def inspect_config(config: ProjectConfig) -> ConfigReport:
     if "prodockit.index" not in config.markdown_extensions:
         for key, default in index_defaults.items():
             settings.append(ResolvedSetting("Extension prodockit.index", key, default, "default"))
-    index_enabled = bool(index_options.get("include", index_defaults["include"]))
-    index_title = str(index_options.get("title", index_defaults["title"]))
+    try:
+        index_settings = resolve_index_settings(index_options)
+    except SettingError as error:
+        diagnostics.append(Diagnostic("prodockit.index", str(error)))
+        index_settings = resolve_index_settings(None)
+    index_enabled = index_settings.include
+    index_title = index_settings.title
     available = index_support_available()
     if index_enabled and not available:
         diagnostics.append(
@@ -187,6 +193,10 @@ def inspect_config(config: ProjectConfig) -> ConfigReport:
                 "install `prodockit[index]`",
             )
         )
+
+    diagnostics.extend(
+        Diagnostic(problem.path, problem.message) for problem in inspect_project(config)
+    )
 
     return ConfigReport(
         path=config.path,
