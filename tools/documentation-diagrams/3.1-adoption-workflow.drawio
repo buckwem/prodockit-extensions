@@ -1,62 +1,65 @@
-<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/26.2.15 Chrome/134.0.6998.205 Electron/35.2.1 Safari/537.36" version="26.2.15">
-  <diagram id="adoption-workflow" name="Page-1">
-    <mxGraphModel dx="2066" dy="1168" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="760" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-        <mxCell id="adoption-workflow-existing" value="Existing documentation&lt;br&gt;project" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
-          <mxGeometry x="80" y="70" width="220" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="adoption-workflow-assess" value="Assess project&lt;br&gt;and environment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
-          <mxGeometry x="420" y="70" width="220" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="adoption-workflow-standard" value="Add standard&lt;br&gt;authoring components" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
-          <mxGeometry x="760" y="70" width="220" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="adoption-workflow-choose" value="Choose optional&lt;br&gt;renderers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
-          <mxGeometry x="1100" y="70" width="220" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="adoption-workflow-skip" value="Not selected:&lt;br&gt;leave toolchains out" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
-          <mxGeometry x="730" y="270" width="220" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="adoption-workflow-optional" value="Selected:&lt;br&gt;add Mermaid and/or maths" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
-          <mxGeometry x="1100" y="450" width="220" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="adoption-workflow-verify" value="Build and review&lt;br&gt;local changes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
-          <mxGeometry x="420" y="450" width="220" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="adoption-workflow-adopted" value="Existing project&lt;br&gt;with prodockit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
-          <mxGeometry x="80" y="450" width="220" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="edge-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-existing" target="adoption-workflow-assess" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="edge-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-assess" target="adoption-workflow-standard" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="edge-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-standard" target="adoption-workflow-choose" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="edge-4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-choose" target="adoption-workflow-optional" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="edge-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="adoption-workflow-choose" target="adoption-workflow-skip" edge="1">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="1210" y="325" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="edge-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-optional" target="adoption-workflow-verify" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="edge-7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-skip" target="adoption-workflow-verify" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="edge-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-verify" target="adoption-workflow-adopted" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-      </root>
-    </mxGraphModel>
-  </diagram>
+<mxfile host="65bd71144e">
+    <diagram id="adoption-workflow" name="Page-1">
+        <mxGraphModel dx="1424" dy="1102" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="760" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="2" value="Adoption Workflow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=25;fontFamily=Inter;shadow=1;arcSize=3;imageHeight=24;verticalAlign=top;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="380" y="10" width="940" height="600" as="geometry"/>
+                </mxCell>
+                <mxCell id="adoption-workflow-existing" value="Existing documentation&lt;br&gt;project" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="70" width="220" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="adoption-workflow-assess" value="Assess project&lt;br&gt;and environment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="420" y="70" width="220" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="adoption-workflow-standard" value="Add standard&lt;br&gt;authoring components" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="741" y="70" width="220" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="adoption-workflow-choose" value="Choose optional&lt;br&gt;renderers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="1061" y="70" width="220" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="adoption-workflow-skip" value="Not selected:&lt;br&gt;leave toolchains out" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="740" y="255" width="220" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="adoption-workflow-optional" value="Selected:&lt;br&gt;add Mermaid and/or maths" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="1061" y="450" width="220" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="adoption-workflow-verify" value="Build and review&lt;br&gt;local changes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="420" y="450" width="220" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="adoption-workflow-adopted" value="Existing project&lt;br&gt;with prodockit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="450" width="220" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-existing" target="adoption-workflow-assess" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-assess" target="adoption-workflow-standard" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-standard" target="adoption-workflow-choose" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge-4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-choose" target="adoption-workflow-optional" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="adoption-workflow-choose" target="adoption-workflow-skip" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1171" y="325"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="edge-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-optional" target="adoption-workflow-verify" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge-7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-skip" target="adoption-workflow-verify" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="adoption-workflow-verify" target="adoption-workflow-adopted" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>
