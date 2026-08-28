@@ -357,15 +357,8 @@ and why - and running `--apply` again does only that stage.
 
 ## What it covers {: #bootstrap-stages }
 
-The six quick-start steps above describe what you do. Bootstrap itself groups
-its 23 setup stages into the seven phases shown below.
-
-![The seven bootstrap phases progress from preflight and core tools through Git, the project, build tooling, the editor and publication](../assets/diagrams/4.1-bootstrap-journey.png){ .documentation-diagram }
-/// figure-caption
-    attrs: {id: fig-bootstrap-journey}
-
-The seven phases that group Prodockit's 23 bootstrap stages
-///
+The six quick-start steps above describe what you do. The table below shows
+how Bootstrap groups its 23 setup stages into seven phases.
 
 | Phase {: width="18%" } | # {: width="5%" } | Stage | Automated? {: width="22%" } |
 | --- | --- | --- | --- |

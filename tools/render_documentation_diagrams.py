@@ -32,7 +32,6 @@ DIAGRAMS = (
     "23.1-template-sync-decision",
     "5.1-template-file-ownership",
     "28.1-version-pinning-drift",
-    "4.1-bootstrap-journey",
     "18.1-page-update-dates",
     "32.1-extension-integration-flow",
     "7.1-authoring-feature-map",

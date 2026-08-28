@@ -101,7 +101,6 @@ def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
         ),
         "docs/update-dates.md": ("18.1-page-update-dates.png",),
         "docs/prodockit-template.md": ("5.1-template-file-ownership.png",),
-        "docs/devcons/bootstrap.md": ("4.1-bootstrap-journey.png",),
         "docs/devcons/continuous-integration.md": ("24.1-publication-pipeline.png",),
         "docs/devcons/extension-internals.md": (
             "32.1-extension-integration-flow.png",
