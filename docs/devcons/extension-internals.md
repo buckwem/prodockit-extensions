@@ -11,6 +11,11 @@ This page explains the integration machinery used when changing an extension
 or embedding it in a renderer other than Zensical.
 
 ![Markdown and configuration pass through the extension layer and Zensical before the shared website and PDF style paths produce their outputs](../assets/diagrams/extension-integration-flow.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-extension-integration-flow}
+
+Extension integration flow
+///
 
 ## Share definitions across pages {: #share-definitions-across-pages }
 
@@ -29,6 +34,11 @@ page before conversion so a page can refer forward to a definition rendered
 later.
 
 ![A build-wide scan collects labels before references are resolved across Markdown files for both the website and PDF](../assets/diagrams/cross-reference-resolution.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-cross-reference-resolution}
+
+Cross-file reference resolution
+///
 
 Outside Zensical, the caller supplies the registry and source explicitly:
 
@@ -68,6 +78,11 @@ disambiguation. It passes each distinct citation or reference-list request to
 the formatted HTML for the rest of the build.
 
 ![Bibliography formatting pipeline from authored inputs through Pandoc to the website and PDF](../assets/diagrams/bibliography-pipeline.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-bibliography-pipeline}
+
+Bibliography formatting pipeline
+///
 
 Pandoc formats only the requested citation or list. Zensical still renders the
 surrounding page.

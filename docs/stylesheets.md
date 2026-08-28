@@ -51,10 +51,20 @@ continues through its two PDF-only files:
 **Website stylesheet cascade**
 
 ![Website stylesheet cascade: the Zensical theme, then Prodockit's managed pdk.css, then the author's extra.css](assets/diagrams/website-stylesheet-cascade.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-website-stylesheet-cascade}
+
+Website stylesheet cascade
+///
 
 **PDF stylesheet cascade**
 
 ![PDF stylesheet cascade: renderer foundations, pdk.css, extra.css, pdk-pdf.css, then print.css](assets/diagrams/pdf-stylesheet-cascade.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-pdf-stylesheet-cascade}
+
+PDF stylesheet cascade
+///
 
 Implement the cascade by listing the files in this order in `zensical.toml`:
 

@@ -59,6 +59,20 @@ def test_release_diagram_distinguishes_entry_points_from_steps() -> None:
     assert "fillColor=#19c866" in source
 
 
+def test_adoption_diagram_stays_independent_of_the_site_generator() -> None:
+    source = (
+        ROOT / "tools" / "documentation-diagrams" / "adoption-workflow.drawio"
+    ).read_text(encoding="utf-8")
+
+    assert "Existing documentation&lt;br&gt;project" in source
+
+
+def test_adoption_guide_is_for_zensical_projects() -> None:
+    guide = (ROOT / "docs" / "adopt.md").read_text(encoding="utf-8")
+
+    assert "mkdocs" not in guide.lower()
+
+
 def test_documentation_flow_diagrams_have_editable_drawio_sources() -> None:
     diagram_dir = ROOT / "tools" / "documentation-diagrams"
 
@@ -115,6 +129,10 @@ def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
         guide = (ROOT / relative_path).read_text(encoding="utf-8")
         for image_name in image_names:
             assert image_name in guide, f"{relative_path} does not use {image_name}"
+            caption_id = f"attrs: {{id: fig-{Path(image_name).stem}}}"
+            assert caption_id in guide, (
+                f"{relative_path} does not caption {image_name} with {caption_id}"
+            )
             image = ROOT / "docs" / "assets" / "diagrams" / image_name
             assert image.read_bytes().startswith(png_signature), image
 

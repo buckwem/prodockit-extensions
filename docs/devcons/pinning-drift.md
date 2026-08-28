@@ -38,6 +38,11 @@ work together:
    stale.
 
 ![Version declarations are checked for agreement while scheduled drift checks compare pinned and newer rendered outputs before a deliberate upgrade](../assets/diagrams/version-pinning-drift.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-version-pinning-drift}
+
+Version pinning and drift workflow
+///
 
 ## Maintain a dependency safely
 

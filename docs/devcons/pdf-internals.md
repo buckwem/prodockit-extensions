@@ -12,6 +12,11 @@ API directly. Document authors should use [Generate a PDF](../pdf.md).
 ## Follow the pipeline
 
 ![Pipeline from the Zensical project through generated HTML, Pandoc and WeasyPrint to the final PDF](../assets/diagrams/pdf-pipeline.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-pdf-pipeline}
+
+PDF generation pipeline
+///
 
 The public `prodockit pdf` command runs Zensical's documented
 `build --clean` command, reads each navigation page's generated article, and

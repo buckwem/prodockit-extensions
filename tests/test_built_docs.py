@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from bs4 import BeautifulSoup
 
 from prodockit._zensical import _front_matter_flag, _scan_page_headings
 from prodockit.pdf.index import DEFAULT_INDEX_TITLE, MARKER_ID_PREFIX
@@ -102,6 +103,27 @@ APPENDIX_ATTR = "is_appendix"
 
 def test_the_pdf_built_and_has_pages(prodockit_pdf):
     assert prodockit_pdf.page_count > 5
+
+
+def test_documentation_diagrams_have_rendered_figure_captions(prodockit_paths):
+    expected = {
+        f"fig-{image.stem}"
+        for image in (ROOT / "docs" / "assets" / "diagrams").glob("*.png")
+    }
+    rendered: dict[str, str] = {}
+
+    for page in prodockit_paths.site_dir.rglob("*.html"):
+        soup = BeautifulSoup(page.read_text(encoding="utf-8"), "html.parser")
+        for figure in soup.select("figure[id]"):
+            figure_id = str(figure.get("id"))
+            if figure_id not in expected:
+                continue
+            caption = figure.find("figcaption")
+            assert caption is not None, figure_id
+            rendered[figure_id] = caption.get_text(" ", strip=True)
+
+    assert set(rendered) == expected
+    assert all(caption.startswith("Figure ") for caption in rendered.values())
 
 
 def test_desktop_on_this_page_uses_the_rendered_chapter_number(prodockit_paths) -> None:

@@ -125,6 +125,11 @@ retrieve the intended version; these are three separate checks.
 ## Understand the build order
 
 ![Build order from authored source through PDF and website builds to public verification](../assets/diagrams/publication-pipeline.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-publication-pipeline}
+
+Publication build and verification order
+///
 
 The PDF is built before the website because it lives under `docs/` by default.
 Zensical copies it into the static site together with other downloadable

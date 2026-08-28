@@ -158,6 +158,11 @@ After creation, the repository is your project. The template manifest,
 guessing about ownership.
 
 ![Template files are classified as managed or shared, author-owned, or generated and local so later updates preserve the author's work](assets/diagrams/template-file-ownership.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-template-file-ownership}
+
+Template file ownership
+///
 
 | Classification | Examples | Later template update |
 |---|---|---|

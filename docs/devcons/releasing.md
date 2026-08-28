@@ -23,6 +23,11 @@ the tagged source, while the documentation redeploy is deliberately run from
 ## Understand the workflow chain
 
 ![Prodockit pull-request, publication and weekly drift-check workflows](../assets/diagrams/release-workflow.png){ .documentation-diagram .release-workflow-diagram }
+/// figure-caption
+    attrs: {id: fig-release-workflow}
+
+Release and continuous-integration workflow
+///
 
 The solid green boxes are entry points: a maintainer starts the release path
 from a release branch, while GitHub starts the drift path on its weekly
@@ -374,3 +379,8 @@ and the userguide—should update deliberately, rebuild their own site and PDF,
 and use their own tests before adopting the release.
 
 ![A prodockit release is followed by deliberate pin, shared-file, build, test and release updates in the template and userguide](../assets/diagrams/downstream-release-cascade.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-downstream-release-cascade}
+
+Downstream release cascade
+///

@@ -358,6 +358,11 @@ and why - and running `--apply` again does only that stage.
 ## What it covers {: #bootstrap-stages }
 
 ![The seven bootstrap phases progress from preflight and core tools through Git, the project, build tooling, the editor and publication](../assets/diagrams/bootstrap-journey.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-bootstrap-journey}
+
+Prodockit bootstrap journey
+///
 
 | # | Stage | Automated? |
 | --- | --- | --- |

@@ -17,6 +17,11 @@ The \index{commands!`prodockit template-sync`} command closes that gap without t
 writing.
 
 ![Template sync previews changes first, updates unchanged managed files automatically, and leaves author-edited files for an explicit decision](../assets/diagrams/template-sync-decision.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-template-sync-decision}
+
+Template-sync decision flow
+///
 
 Use it periodically while a project is active and before a final release. A
 long gap is supported, but it produces a larger change that is harder to

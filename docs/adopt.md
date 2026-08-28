@@ -6,8 +6,8 @@ icon: lucide/package-plus
 
 # Add prodockit to an existing document
 
-`prodockit adopt` is for an existing Zensical or MkDocs document whose normal
-working environment is already established. It adds prodockit's authoring
+`prodockit adopt` is for an existing Zensical document whose normal working
+environment is already established. It adds prodockit's authoring
 extensions and their website styles without turning the project into a copy
 of prodockit-template.
 
@@ -16,6 +16,11 @@ repository. Adoption assumes that Git, SSH and the editor you prefer already
 work. It does not configure or change any of them.
 
 ![Adoption assesses an existing site, adds standard components, installs only the selected renderers, then leaves the author to build and review](assets/diagrams/adoption-workflow.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-adoption-workflow}
+
+Adopting Prodockit into an existing document
+///
 
 ## What the command changes
 
@@ -25,8 +30,7 @@ The standard installation adds:
     `requirements.txt`, `requirements/docs.txt` or `docs/requirements.txt`, in
     that order, and creates `requirements.txt` when none exists.
 - The standard prodockit Markdown extensions to the existing
-    `zensical.toml`, `zensical.yml`, `zensical.yaml`, `mkdocs.yml` or
-    `mkdocs.yaml`.
+    `zensical.toml`, `zensical.yml` or `zensical.yaml`.
 - `docs/stylesheets/pdk.css`, loaded before any project stylesheet so
     the project's own rules can override it.
 - `.prodockit-components.toml`, recording whether this project selected
@@ -56,9 +60,8 @@ existing working environment. Follow the adoption row under
 
 //// step | Change to the repository directory
 
-Use the directory containing the project's `zensical.toml`, Zensical YAML file
-(`zensical.yml` or `zensical.yaml`), or MkDocs YAML file (`mkdocs.yml` or
-`mkdocs.yaml`):
+Use the directory containing the project's `zensical.toml` or Zensical YAML
+file (`zensical.yml` or `zensical.yaml`):
 
 ```bash
 cd /path/to/your-document
@@ -193,17 +196,9 @@ with unrelated documents.
 
 //// step | Build the website
 
-=== "Zensical project"
-
-    ```bash
-    zensical build --clean
-    ```
-
-=== "MkDocs project"
-
-    ```bash
-    mkdocs build --clean
-    ```
+```bash
+zensical build --clean
+```
 
 This uses the document's actual pages and configuration, so it remains the
 final proof that the adopted components work with the existing project.
@@ -234,5 +229,5 @@ prodockit adopt --apply
 ```
 
 It reassesses the files and continues with stages that still need work. It does
-not overwrite an existing project stylesheet or remove existing Zensical or
-MkDocs configuration.
+not overwrite an existing project stylesheet or remove existing Zensical
+configuration.

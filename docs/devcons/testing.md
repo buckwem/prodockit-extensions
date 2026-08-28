@@ -26,6 +26,11 @@ python -m pytest
 ```
 
 ![Testing progresses from source checks through clean builds and artifact tests to the final delivery check](../assets/diagrams/output-testing-layers.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-output-testing-layers}
+
+Built-output testing layers
+///
 
 ## Quick start {: #testing-quick-start }
 

@@ -13,6 +13,11 @@ commonly need alongside the website itself. It reads the same
 configure beyond a couple of optional settings.
 
 ![The same Prodockit tables page displayed as a printable PDF and as a responsive website](assets/diagrams/website-and-pdf-example.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-website-and-pdf-example}
+
+The same source rendered as a website and PDF
+///
 
 ## Build your first PDF
 
