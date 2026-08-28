@@ -19,12 +19,13 @@ Follow these steps from the project root—the directory containing
 
 /// steps
 
-//// step | Prepare the PDF tools
+//// step | Check how the project was prepared
 
-If the project has completed `prodockit bootstrap --apply`, the required tools
-have already been installed and checked. Otherwise, follow
-[Prepare the PDF tools](#pdf-requirements), then confirm that Pandoc and
-WeasyPrint both run from the activated project environment.
+There are three valid setup routes. Bootstrap installs and checks the PDF
+toolchain. Adoption adds prodockit to an established document but leaves
+machine-level PDF dependencies to that environment. Manual installation gives
+the author direct control of every dependency. Use the matching row under
+[Prepare the PDF tools](#pdf-requirements) before continuing.
 
 ////
 
@@ -35,6 +36,18 @@ order, at `docs/site_documentation.pdf`. Continue without adding settings for
 a first build. Use [Configure the PDF](#pdf-quick-start) only when the document
 needs a different output path, page size, margins, a single-page build, or
 another optional layout feature.
+
+////
+
+//// step | Build the website strictly
+
+```bash
+zensical build --clean --strict
+```
+
+The PDF command consumes this completed website. Building it first also makes
+broken links, missing anchors, and other Zensical validation failures stop the
+process before a PDF is produced.
 
 ////
 
@@ -49,10 +62,9 @@ prodockit pdf
 Open the PDF and check its cover, contents, headings, page breaks, diagrams,
 and final page before changing any layout setting.
 
-The command first runs `zensical build --clean`, then reads the rendered
-articles from that generated website. The clean build replaces the configured
-`site_dir`, just as running the Zensical command yourself does, so keep only
-generated output there rather than files maintained by hand.
+The command reads the rendered articles from the configured `site_dir`; it
+does not invoke or clean Zensical. Rebuild the website first whenever its
+Markdown, configuration, templates, or assets have changed.
 
 ////
 
@@ -61,13 +73,17 @@ generated output there rather than files maintained by hand.
 ## Prepare the PDF tools {: #pdf-requirements }
 
 The command uses [Pandoc](https://pandoc.org/) to assemble the document and
-[WeasyPrint](https://weasyprint.org/) to draw the pages. If this project has
-already completed `prodockit bootstrap --apply`, continue to
-[Configure the PDF](#pdf-quick-start): bootstrap installs and verifies these
-tools for you.
+[WeasyPrint](https://weasyprint.org/) to draw the pages. What remains to be
+installed depends on the route used to prepare the project:
 
-For a manual installation, activate the project's virtual environment and
-follow the instructions for the operating system you use:
+| Setup route | PDF preparation |
+|---|---|
+| [Bootstrap](devcons/bootstrap.md) | `prodockit bootstrap --apply` installs and verifies the required PDF tools. Continue with the verification commands below. |
+| [Adoption](adopt.md) | Adoption installs project-local Mermaid or maths renderers only when selected. Install Pandoc, WeasyPrint, its native Pango libraries, and any fonts this document requires by following the operating-system instructions below. |
+| [Manual installation](installation.md) | Install the PDF dependencies the document uses by following the operating-system instructions below. |
+
+Activate the project's virtual environment, then use the instructions for its
+operating system when the route above requires them:
 
 === "macOS"
 
@@ -161,11 +177,11 @@ relative to `docs_dir`:
 prodockit pdf --markdown-file chapter1.md   # -m for short
 ```
 
-This narrows the PDF's contents; it does not narrow the preceding website
-build. `prodockit pdf` still runs a clean build of the complete site and
-replaces `site_dir`, then reads only the requested page from that generated
-output. `nav` is therefore ignored for selecting the PDF pages, while fonts,
-page size, margins, `heading_numbering`, and the rest still come from
+This narrows the PDF's contents; it does not rebuild or narrow the website.
+Run the complete strict Zensical build first, then `prodockit pdf` reads only
+the requested page from that generated output. `nav` is therefore ignored for
+selecting the PDF pages, while fonts, page size, margins,
+`heading_numbering`, and the rest still come from
 `zensical.toml` exactly as they do for a full PDF. The output defaults to that
 file's own name with a `.pdf` extension inside `docs_dir` (for example,
 `docs/chapter1.pdf`) instead of `site_documentation.pdf`, unless `pdf_output`

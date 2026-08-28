@@ -26,13 +26,15 @@ document you have:
 
 | Starting point | Installation route |
 |---|---|
-| An existing Zensical or MkDocs document with its own design, Git setup, editor, and publishing workflow | [Add prodockit to an existing document](adopt.md) integrates selected authoring components without replacing those choices |
-| No existing document, or a project that should start from the maintained report template | [Set up a template project](devcons/bootstrap.md) prepares the machine, repository, build tools, and template-based project |
+| An existing Zensical or MkDocs document whose working environment is already established | [Adoption](adopt.md) integrates selected authoring components without replacing the document's design, Git setup, editor, or publishing workflow |
+| No existing document, or a project that should start from the maintained report template | [Bootstrap](devcons/bootstrap.md) prepares the machine, repository, build tools, and template-based project |
+| A project whose author wants to choose and install every dependency directly | [Manual installation](installation.md) explains the Python package, PDF tools, optional renderers, and extension configuration without running adoption or bootstrap |
 
 [Start with prodockit-template](prodockit-template.md) explains what the
-template supplies and which files become part of your own project. Adoption
-and bootstrap are alternatives: you do not need to run bootstrap on a project
-that you are adopting.
+template supplies and which files become part of your own project. Adoption,
+bootstrap, and manual installation are alternative setup routes. Choose one
+as the starting point; do not run bootstrap merely because a manually
+installed or adopted project later needs a PDF.
 
 ## Choose what you need
 
