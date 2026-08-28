@@ -65,6 +65,8 @@ def test_release_guide_covers_the_version_sources_and_release_gates() -> None:
         "ruff check .",
         "mypy src",
         "zensical build --clean --strict",
+        'python -m pip install "twine==7.0.0"',
+        "python -m twine check --strict dist/*.whl dist/*.tar.gz",
         "GitHub release",
         "PyPI",
         "Trusted Publishing",
@@ -72,6 +74,26 @@ def test_release_guide_covers_the_version_sources_and_release_gates() -> None:
 
     missing = [item for item in required if item not in guide]
     assert not missing, f"release steps or gates absent from the guide: {missing}"
+
+
+def test_package_artifacts_are_strictly_checked_before_they_can_be_published() -> None:
+    publish = (ROOT / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    install = 'pip install build "twine==7.0.0"'
+    build = "python -m build"
+    check = "python -m twine check --strict dist/*.whl dist/*.tar.gz"
+    upload = "uses: actions/upload-artifact@v4"
+
+    for workflow in (publish, ci):
+        assert install in workflow
+        assert build in workflow
+        assert check in workflow
+        assert workflow.index(install) < workflow.index(build) < workflow.index(check)
+
+    assert publish.index(check) < publish.index(upload)
+    assert "needs: build" in publish
 
 
 def test_command_map_lists_every_public_command() -> None:

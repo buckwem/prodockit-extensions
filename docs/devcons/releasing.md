@@ -33,7 +33,7 @@ flowchart TD
     merge --> docs[docs.yml<br>PDF, site, built-output tests, Pages]
     merge --> mainci[ci.yml on main]
     merge --> release[Publish GitHub release<br>prodockit-vX.Y.Z]
-    release --> pypi[publish.yml<br>build and Trusted Publishing to PyPI]
+    release --> pypi[publish.yml<br>build, Twine check, Trusted Publishing to PyPI]
     release --> redeploy[release-redeploy.yml]
     redeploy --> dispatch[Dispatch docs.yml against main]
     dispatch --> live[Pages deploy and live fingerprint check]
@@ -50,10 +50,10 @@ schedule. Rectangular boxes are actions or workflow stages that follow.
 |---|---|---|
 | [`adopt-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/adopt-install.yml) | Relevant pull requests; every push to `main`; manual dispatch | Build and install the wheel on Ubuntu and Windows x64, plus Ubuntu, Windows and macOS ARM64. Both Windows architectures run one complete TOML scenario with Mermaid and maths; Ubuntu and macOS retain the wider TOML/YAML option coverage. Canonical npm lockfiles and the hosted cache avoid resolving and downloading the same Node packages afresh on every run. |
 | [`pdf-built-site-wheel.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/pdf-built-site-wheel.yml) | Relevant pull requests; every push to `main`; manual dispatch | Build and install the wheel on the same x64 and ARM64 operating-system matrix, exercise the renderer used by public `prodockit pdf` through Zensical's documented clean build, and verify it can consume navigation, rendered extensions and page metadata without a Git host |
-| [`ci.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/ci.yml) | Pull requests; pushes to `main` | On a pull request, test Python 3.14 and add the oldest supported Python when executable code can change; on `main`, test Python 3.10–3.14. Lint, type-check, verify pins and collect coverage once, and strictly build the site on every run |
+| [`ci.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/ci.yml) | Pull requests; pushes to `main` | On a pull request, test Python 3.14 and add the oldest supported Python when executable code can change; on `main`, test Python 3.10–3.14. Lint, type-check, verify pins and collect coverage once, strictly build the site, and validate both package artifacts on every run |
 | [`docs.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/docs.yml) | Pushes to `main`; manual dispatch | Build the complete PDF and selected single-page PDFs, strictly build the website, run built-output tests, deploy Pages, then verify the live page matches the uploaded artifact |
 | [`drift.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/drift.yml) | Monday schedule; manual dispatch | Build with pinned and newest rendering dependencies, compare artifacts, run checks against the newer build, and open or update an issue rather than failing for mere availability |
-| [`publish.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/publish.yml) | Published GitHub release | Build source and wheel artifacts from the release tag, then publish them to PyPI through \index{PyPI!Trusted Publishing} |
+| [`publish.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/publish.yml) | Published GitHub release | Build source and wheel artifacts from the release tag, validate their metadata and rendered README with Twine, then publish them to PyPI through \index{PyPI!Trusted Publishing} |
 | [`release-redeploy.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/release-redeploy.yml) | Published GitHub release; manual dispatch | Start `docs.yml` against `main` after the new tag exists, so the cover and macros can show the new release without deploying from a tag ref |
 
 The seven workflows overlap intentionally. `ci.yml` gives quick pull-request
@@ -199,10 +199,17 @@ python -m pytest tests/test_built_docs.py -m built -v
 Then verify the release identity directly:
 
 ```bash
+python -m pip install "twine==7.0.0"
 python -m build
+python -m twine check --strict dist/*.whl dist/*.tar.gz
 python -m zipfile --list dist/prodockit-0.42.0-py3-none-any.whl
 prodockit --version
 ```
+
+Twine validates the metadata and renders the `README.md` description from both
+the wheel and source distribution using PyPI's rules. `--strict` turns a
+rendering warning into a failed release gate. Twine is installed only for this
+package check; it is not a dependency for authors using Prodockit.
 
 The wheel filename and command output should both say `0.42.0`. Do not upload
 the locally built `dist/`; `publish.yml` rebuilds from the immutable release
@@ -282,11 +289,13 @@ Two workflows start from the published release.
 
 ### PyPI: `publish.yml`
 
-The `build` job checks out the tag, installs `build`, runs `python -m build`,
-and uploads `dist/` as a workflow artifact. The `publish` job downloads that
-exact artifact in the protected `pypi` environment and uses PyPI Trusted
-Publishing (`id-token: write`), so no long-lived API token is stored in the
-repository.
+The `build` job checks out the tag, installs `build` and the reviewed Twine
+version, and runs `python -m build`. Before anything can be uploaded, Twine
+strictly validates both the wheel and source distribution, including how
+PyPI will render `README.md`. The job then uploads `dist/` as a workflow
+artifact. The `publish` job downloads that exact artifact in the protected
+`pypi` environment and uses PyPI Trusted Publishing (`id-token: write`), so no
+long-lived API token is stored in the repository.
 
 Watch it with:
 

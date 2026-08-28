@@ -237,3 +237,19 @@ jobs:
           prodockit update-dates --config-file .zensical-canonical.toml
           grep -RFlq --include='*.html' 'G-TEST123' site
           grep -RFlq --include='*.html' 'href="#__consent"' site
+
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      # Keep package validation isolated from the development dependencies:
+      # document authors do not need Twine, while a pull request that breaks
+      # the PyPI README should fail before it can become a release (#518).
+      - run: pip install build "twine==7.0.0"
+      - run: python -m build
+      - name: Validate the wheel, source distribution and PyPI README
+        run: python -m twine check --strict dist/*.whl dist/*.tar.gz

@@ -14,8 +14,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
-      - run: pip install build
+      # Twine is deliberately a release-only dependency. Pinning the reviewed
+      # validator makes a change to PyPI's rendering gate explicit rather than
+      # inheriting a new checker on the day a release is published (#518).
+      - run: pip install build "twine==7.0.0"
       - run: python -m build
+      - name: Validate the wheel, source distribution and PyPI README
+        run: python -m twine check --strict dist/*.whl dist/*.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: dist
