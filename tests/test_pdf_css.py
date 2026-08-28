@@ -357,6 +357,12 @@ _IMAGE = (
     "<rect width='400' height='200' fill='%23888'/></svg>"
 )
 
+_TALL_IMAGE = (
+    "data:image/svg+xml;utf8,"
+    "<svg xmlns='http://www.w3.org/2000/svg' width='400' height='800'>"
+    "<rect width='400' height='800' fill='%23888'/></svg>"
+)
+
 
 def _image_offsets(classes: str) -> tuple[float, float]:
     """The gap either side of the image, inside its own figure.
@@ -435,8 +441,98 @@ def test_a_pdf_only_image_is_not_flush_against_one_edge() -> None:
     assert abs(left - right) < 5, f"lopsided: {left}pt vs {right}pt"
 
 
+def _caption_box_metrics(body: str) -> dict[str, tuple[float, float, float]]:
+    """Lay out one caption fixture and return x, width and height by id."""
+    import pytest
+
+    weasyprint = pytest.importorskip("weasyprint")
+    css = build_css("Inter", "Fira Code", "My Site")
+    page = weasyprint.HTML(
+        string=f'<style>{css}</style><main>{body}</main>'
+    ).render().pages[0]
+    found: dict[str, tuple[float, float, float]] = {}
+
+    def walk(box: object) -> None:
+        element = getattr(box, "element", None)
+        element_id = element.get("id") if element is not None else None
+        if element_id and element_id not in found:
+            found[element_id] = (
+                box.position_x,  # type: ignore[attr-defined]
+                box.width,  # type: ignore[attr-defined]
+                box.height,  # type: ignore[attr-defined]
+            )
+        for child in getattr(box, "children", []):
+            walk(child)
+
+    walk(page._page_box)
+    return found
+
+
+def _assert_caption_matches_image(metrics: dict[str, tuple[float, float, float]]) -> None:
+    import pytest
+
+    image_x, image_width, _image_height = metrics["image"]
+    caption_x, caption_width, _caption_height = metrics["caption"]
+    assert caption_x == pytest.approx(image_x, abs=0.01)
+    assert caption_width == pytest.approx(image_width, abs=0.01)
+
+
+def test_pdf_caption_matches_an_authored_percentage_figure_width() -> None:
+    """#606: the normalized width remains relative to the page column."""
+    metrics = _caption_box_metrics(
+        f'<figure class="prodockit-figure-caption" style="width:35%">'
+        f'<p><img id="image" src="{_IMAGE}" style="width:100%"></p>'
+        '<figcaption id="caption"><p>A long caption that wraps at the image edge.</p>'
+        "</figcaption></figure>"
+    )
+
+    _assert_caption_matches_image(metrics)
+
+
+def test_pdf_caption_matches_a_tall_image_after_max_height_scales_it() -> None:
+    """The reported PDF case: height scaling also narrows the caption."""
+    metrics = _caption_box_metrics(
+        f'<figure class="prodockit-figure-caption">'
+        f'<p><img id="image" src="{_TALL_IMAGE}" style="max-height:200px"></p>'
+        '<figcaption id="caption"><p>A long caption that must wrap within the narrow image.'
+        "</p></figcaption></figure>"
+    )
+
+    _assert_caption_matches_image(metrics)
+    assert metrics["image"][2] == pytest_approx_scalar(200)
+    assert metrics["caption"][2] > 17, "the long caption should wrap, not clip"
+
+
+def test_pdf_prepend_caption_matches_the_scaled_image_width() -> None:
+    metrics = _caption_box_metrics(
+        '<div class="prodockit-figure-caption">'
+        '<p id="caption">A long prepended caption that wraps at the image edge.</p>'
+        f'<p><img id="image" src="{_TALL_IMAGE}" style="max-height:200px"></p>'
+        "</div>"
+    )
+
+    _assert_caption_matches_image(metrics)
+
+
+def test_pdf_full_width_caption_remains_full_width() -> None:
+    metrics = _caption_box_metrics(
+        f'<figure class="prodockit-figure-caption" style="width:100%">'
+        f'<p><img id="image" src="{_IMAGE}" style="width:100%"></p>'
+        '<figcaption id="caption"><p>Full-width caption.</p></figcaption></figure>'
+    )
+
+    _assert_caption_matches_image(metrics)
+    assert metrics["image"][1] > 600
+
+
 def pytest_approx(value: tuple[float, float]) -> object:
     """`pytest.approx` for a pair, imported lazily like the renderer."""
+    import pytest
+
+    return pytest.approx(value, abs=0.01)
+
+
+def pytest_approx_scalar(value: float) -> object:
     import pytest
 
     return pytest.approx(value, abs=0.01)

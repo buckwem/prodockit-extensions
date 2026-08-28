@@ -333,11 +333,15 @@ via CSS `float: footnote` instead (see
 side-by-side multi-column layout** → a Zensical grid-cards block renders
 as one full-width stacked box per row instead of a real grid.
 
-**`<figcaption>` centering doesn't extend to its sibling `<img>`**:
-WeasyPrint's UA stylesheet centers `<figcaption>` text by default via
-`text-align`, but that doesn't affect the sibling image, which stays
-left-aligned and visibly misaligned under its own caption → explicit CSS
-centers the whole figure/wrapping element instead.
+**`<figcaption>` neither centres nor sizes its sibling `<img>`**:
+WeasyPrint's UA stylesheet centres the caption text by default, but that does
+not affect the sibling image; a narrow or height-constrained image can remain
+left-aligned beneath a page-width caption. Numbered figures therefore use a
+shrink-wrapped CSS table and its caption uses `display: table-caption`, giving
+both the image's final laid-out width. An explicit Markdown image width is
+normalized onto the containing figure first, with the image filling it, so a
+percentage still resolves against the document column rather than circularly
+against its own shrink-wrapped parent.
 
 **Two-space vs. four-space nested-list indentation discrepancy**:
 Pandoc's markdown reader nests a sub-list at just 2-space indentation (no

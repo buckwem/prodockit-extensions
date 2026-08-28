@@ -207,6 +207,123 @@ def test_desktop_numbers_headings_and_figures_with_the_rendered_chapter(
     assert rendered[caption_selector].startswith("Figure 3.1. "), rendered
 
 
+def test_numbered_figure_captions_follow_rendered_image_widths(
+    prodockit_paths, tmp_path: Path
+) -> None:
+    """#606: test the deployed CSS and Markdown output in a real browser."""
+    import markdown
+
+    node = shutil.which("node")
+    puppeteer = ROOT / "tools" / "mermaid" / "node_modules" / "puppeteer"
+    probe = ROOT / "tests" / "browser" / "box_metrics.js"
+    browser_candidates = (
+        os.environ.get("PUPPETEER_EXECUTABLE_PATH"),
+        shutil.which("google-chrome-stable"),
+        shutil.which("google-chrome"),
+        shutil.which("chromium-browser"),
+        shutil.which("chromium"),
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    )
+    browser = next(
+        (candidate for candidate in browser_candidates if candidate and Path(candidate).exists()),
+        None,
+    )
+    if node is None or not puppeteer.exists() or browser is None:
+        pytest.skip("the figure layout check needs Node, Puppeteer and Chrome")
+
+    wide = tmp_path / "wide.svg"
+    wide.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400">'
+        '<rect width="800" height="400" fill="#888"/></svg>',
+        encoding="utf-8",
+    )
+    tall = tmp_path / "tall.svg"
+    tall.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="800">'
+        '<rect width="400" height="800" fill="#888"/></svg>',
+        encoding="utf-8",
+    )
+    source = f'''# Layout fixture
+
+![Percentage]({wide.as_uri()}){{ width="35%" }}
+/// figure-caption
+    attrs: {{id: fig-percentage}}
+
+A long appended caption that wraps at the image edge without clipping.
+///
+
+![Prepend]({wide.as_uri()}){{ width="45%" }}
+/// figure-caption | <
+    attrs: {{id: fig-prepend}}
+
+A long prepended caption that wraps at the image edge without clipping.
+///
+
+![Tall]({tall.as_uri()}){{ style="max-height: 120px" }}
+/// figure-caption
+    attrs: {{id: fig-tall}}
+
+Tall image caption text.
+///
+
+![Full]({wide.as_uri()}){{ width="100%" }}
+/// figure-caption
+    attrs: {{id: fig-full}}
+
+Full-width caption.
+///
+'''
+    rendered_html = markdown.markdown(
+        source,
+        extensions=["attr_list", "pymdownx.blocks.caption", "prodockit.headings"],
+        extension_configs={
+            "pymdownx.blocks.caption": {
+                "types": [
+                    {
+                        "name": "figure-caption",
+                        "prefix": "{}.",
+                        "classes": "prodockit-figure-caption",
+                    }
+                ]
+            }
+        },
+    )
+    stylesheet = (prodockit_paths.site_dir / "stylesheets" / "pdk.css").as_uri()
+    fixture = tmp_path / "figure-caption-layout.html"
+    fixture.write_text(
+        '<!doctype html><meta charset="utf-8">'
+        f'<link rel="stylesheet" href="{stylesheet}">'
+        '<style>.md-typeset { width: 800px; }</style>'
+        f'<article class="md-typeset">{rendered_html}</article>',
+        encoding="utf-8",
+    )
+    figure_ids = ("fig-percentage", "fig-prepend", "fig-tall", "fig-full")
+    selectors = [
+        selector
+        for figure_id in figure_ids
+        for selector in (f"#{figure_id} img", f"#{figure_id} figcaption")
+    ]
+    environment = dict(os.environ, PUPPETEER_EXECUTABLE_PATH=str(browser))
+    completed = subprocess.run(
+        [node, str(probe), fixture.as_uri(), *selectors],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    metrics = json.loads(completed.stdout)
+
+    for figure_id in figure_ids:
+        image = metrics[f"#{figure_id} img"]
+        caption = metrics[f"#{figure_id} figcaption"]
+        assert caption["x"] == pytest.approx(image["x"], abs=0.5)
+        assert caption["width"] == pytest.approx(image["width"], abs=0.5)
+    assert metrics["#fig-percentage img"]["width"] == pytest.approx(280, abs=0.5)
+    assert metrics["#fig-prepend img"]["width"] == pytest.approx(360, abs=0.5)
+    assert metrics["#fig-tall img"]["width"] == pytest.approx(60, abs=0.5)
+    assert metrics["#fig-full img"]["width"] == pytest.approx(800, abs=0.5)
+
+
 @pytest.fixture(scope="session")
 def documents_own_chapters(prodockit_paths, prodockit_resolved_config) -> list[str]:
     """Each nav page's own first numbered h1, in nav order - what the PDF's

@@ -809,6 +809,43 @@ div.prodockit-figure-caption {
     break-inside: avoid-page !important;
     text-align: center !important;
 }
+/* A CSS table shrink-wraps to the image after every constraint has been
+   applied - including max-height reducing both height and width - while a
+   table-caption receives exactly that final width. prodockit.headings moves
+   an explicit image width onto the figure, so percentages keep resolving
+   against the document column rather than against their own shrink-wrapped
+   parent. The prepend form is a div because Pandoc otherwise moves a leading
+   figcaption to the end (see prodockit.pdf.html). */
+figure.prodockit-figure-caption,
+div.prodockit-figure-caption {
+    display: table !important;
+    max-width: 100% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+figure.prodockit-figure-caption > p,
+div.prodockit-figure-caption > p:not(:first-child) {
+    display: table-row !important;
+}
+figure.prodockit-figure-caption > p > img,
+div.prodockit-figure-caption > p > img,
+figure.prodockit-figure-caption > img,
+div.prodockit-figure-caption > img {
+    display: block !important;
+    max-width: 100% !important;
+}
+figure.prodockit-figure-caption > figcaption,
+div.prodockit-figure-caption > p:first-child {
+    display: table-caption !important;
+    width: auto !important;
+}
+figure.prodockit-figure-caption > figcaption:first-child,
+div.prodockit-figure-caption > p:first-child {
+    caption-side: top !important;
+}
+figure.prodockit-figure-caption > figcaption:last-child {
+    caption-side: bottom !important;
+}
 /* Unlike a figure-caption, a table-caption's content (the table itself)
    routinely runs longer than one page - inheriting "figure {}"'s
    page-break-inside: avoid (or copying it verbatim to the div case above)

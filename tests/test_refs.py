@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import markdown
+import pytest
 
 from prodockit.headings import HeadingsExtension
 from prodockit.refs import RefsExtension
@@ -251,6 +252,55 @@ Referring to \\ref{fig-one} and \\ref{fig-two}.
 def test_a_figure_can_be_referenced_by_number() -> None:
     """The sentence this exists for: "the components in Figure 3.1"."""
     assert _refs(_render(FIGURES)) == ["Figure 1.1", "Figure 1.2"]
+
+
+@pytest.mark.parametrize("position", ["", " | <"])
+def test_one_authored_image_width_sizes_the_whole_numbered_figure(position: str) -> None:
+    """#606: caption and image share one effective width in either order."""
+    source = f'''# Page
+
+![Diagram](diagram.png){{ width="35%" }}
+/// figure-caption{position}
+    attrs: {{id: fig-diagram}}
+
+A caption long enough to wrap at the diagram edge.
+///
+'''
+
+    html = _render(source)
+
+    assert 'class="prodockit-figure-caption"' in html
+    assert 'style="width: 35%;"' in html
+    assert '<img alt="Diagram" src="diagram.png" style="width: 100%;"' in html
+
+
+def test_a_unitless_image_width_becomes_an_explicit_pixel_figure_width() -> None:
+    html = _render("""# Page
+
+![Diagram](diagram.png){ width=240 }
+/// figure-caption
+
+Caption.
+///
+""")
+
+    assert 'style="width: 240px;"' in html
+    assert 'style="width: 100%;"' in html
+
+
+def test_an_ordinary_implicit_figure_keeps_its_image_width() -> None:
+    """Only the configured numbered figure type owns this normalization."""
+    html = _render("""# Page
+
+![Diagram](diagram.png){ width="35%" }
+/// figure-caption
+
+Caption.
+///
+""", configs={})
+
+    assert 'style="width: 35%;"' not in html
+    assert 'width="35%"' in html
 
 
 def test_a_reference_to_a_figure_links_to_it() -> None:
