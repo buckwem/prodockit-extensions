@@ -70,17 +70,20 @@ where practical. A complete local verification requires the real tools.
 
 ### Configure the macOS library path
 
-On Apple Silicon macOS, export Homebrew's library path in the same terminal
-that will run pytest or build the PDF:
+On macOS, export Homebrew's library path in the same terminal that will run
+pytest or build the PDF:
 
 ```bash
-export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
+export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
 ```
 
-Use `/usr/local/lib` on an Intel Mac. Without this variable, many PDF tests can
-fail with `cannot load library 'libgobject-2.0-0'` even though
-`brew install pango` completed. Check the environment before treating a group
-of identical renderer failures as a code regression.
+`brew --prefix` selects `/opt/homebrew` on Apple Silicon and `/usr/local` on an
+Intel Mac, while the remainder preserves any fallback path already set.
+Without this variable, many PDF tests can fail with
+`cannot load library 'libgobject-2.0-0'` even though `brew install pango`
+completed. This is an environment problem, not evidence that the named PDF
+feature regressed. Check the environment before investigating a group of
+identical renderer failures.
 
 ## Make the change
 

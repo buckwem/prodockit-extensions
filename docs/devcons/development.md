@@ -28,17 +28,22 @@ from `src/`.
 !!! note "On macOS, expose Homebrew's Pango libraries"
 
     WeasyPrint's Python package still needs the native libraries installed by
-    `brew install pango`. On Apple Silicon, export
+    `brew install pango`. Export
     \index{macOS!`DYLD_FALLBACK_LIBRARY_PATH`} in the same terminal before
     running the PDF-backed tests:
 
     ```bash
-    export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
+    export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
     ```
+
+    `brew --prefix` selects the correct Homebrew location on both Apple
+    Silicon and Intel Macs and the rest preserves any fallback path already
+    set.
 
     Without it, tests that import or invoke WeasyPrint fail with
     `cannot load library 'libgobject-2.0-0'`, even when Pango is installed.
-    On an Intel Mac, use `/usr/local/lib` instead.
+    This is an environment problem rather than a regression in the PDF feature
+    named by the failing test.
 
 Run the ordinary contributor gates before opening a pull request:
 
