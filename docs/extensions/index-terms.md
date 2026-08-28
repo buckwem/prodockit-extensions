@@ -24,6 +24,11 @@ Install the optional index support before generating a PDF index:
 python -m pip install 'prodockit[index]'
 ```
 
+Run `prodockit config` afterwards to confirm whether index generation is
+enabled and the optional support is available. Its strict
+`prodockit config --check` form fails when `include = true` but that package is
+missing.
+
 ## Enable the extension {: #index-terms-enable }
 
 Enable it in `zensical.toml`:

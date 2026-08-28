@@ -9,7 +9,92 @@ its own copy that only stays in sync by coincidence (or a test)."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
+
+INDEX_INCLUDE_DEFAULT = False
+INDEX_TITLE_DEFAULT = "Index"
+
+
+class SettingError(ValueError):
+    """A Prodockit-owned setting has a value that cannot be interpreted safely."""
+
+
+@dataclass(frozen=True)
+class IndexSettings:
+    """Typed settings shared by the index extension and PDF builder."""
+
+    include: bool = INDEX_INCLUDE_DEFAULT
+    title: str = INDEX_TITLE_DEFAULT
+
+
+def resolve_index_settings(options: Mapping[str, Any] | None) -> IndexSettings:
+    """Resolve ``prodockit.index`` without truthiness or string coercion."""
+    options = options or {}
+    include = options.get("include", INDEX_INCLUDE_DEFAULT)
+    if not isinstance(include, bool):
+        raise SettingError(
+            'project.markdown_extensions."prodockit.index".include must be true or false'
+        )
+    title = options.get("title", INDEX_TITLE_DEFAULT)
+    if not isinstance(title, str) or not title.strip():
+        raise SettingError(
+            'project.markdown_extensions."prodockit.index".title must be a non-empty string'
+        )
+    return IndexSettings(include=include, title=title.strip())
+
+
+@dataclass(frozen=True)
+class ExtraSetting:
+    """One Prodockit-owned ``project.extra`` setting.
+
+    Runtime readers and configuration diagnostics both use this registry, so
+    adding or renaming a setting cannot leave a separate validator list stale.
+    ``None`` means the final value depends on other project context or is
+    auto-detected.
+    """
+
+    key: str
+    default: object
+    group: str
+
+
+EXTRA_SETTINGS = (
+    ExtraSetting("heading_numbering", True, "Shared rendering"),
+    ExtraSetting("reference_style", "european", "Shared rendering"),
+    ExtraSetting("reference_spacing_european", "-0.8em", "Shared rendering"),
+    ExtraSetting("reference_indent_global", "1.27cm", "Shared rendering"),
+    ExtraSetting("reference_spacing_global", "2em", "Shared rendering"),
+    ExtraSetting("website_heading_numbering", True, "Website"),
+    ExtraSetting("pdf_output", None, "PDF"),
+    ExtraSetting("pdf_copyright", None, "PDF"),
+    ExtraSetting("pdf_page_size", "A4", "PDF"),
+    ExtraSetting("pdf_margin_top", "2cm", "PDF"),
+    ExtraSetting("pdf_margin_right", "2cm", "PDF"),
+    ExtraSetting("pdf_margin_bottom", "2.5cm", "PDF"),
+    ExtraSetting("pdf_margin_left", "2cm", "PDF"),
+    ExtraSetting("pdf_double_sided", False, "PDF"),
+    ExtraSetting("pdf_margin_inner", "2cm", "PDF"),
+    ExtraSetting("pdf_margin_outer", "2cm", "PDF"),
+    ExtraSetting("pdf_header_footer_font_size", "10pt", "PDF"),
+    ExtraSetting("pdf_header_footer_color", "#555555", "PDF"),
+    ExtraSetting("pdf_header_footer_divider_color", "#e2e8f0", "PDF"),
+    ExtraSetting("pdf_include_table_of_contents", True, "PDF"),
+    ExtraSetting("pdf_table_of_contents_title", "Table of Contents", "PDF"),
+    ExtraSetting("pdf_mmdc_bin", None, "PDF"),
+    ExtraSetting("pdf_tex2svg_script", None, "PDF"),
+    ExtraSetting("pdf_math_dir", None, "PDF"),
+    ExtraSetting("pdf_extra_css", (), "PDF"),
+    ExtraSetting("pdf_source_bundle_output", None, "PDF"),
+)
+
+EXTRA_SETTING_BY_KEY = {setting.key: setting for setting in EXTRA_SETTINGS}
+
+
+def extra_default(key: str) -> Any:
+    """Return the one declared default for a Prodockit-owned extra setting."""
+    return EXTRA_SETTING_BY_KEY[key].default
 
 
 def flatten_nav(nav_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -33,7 +118,7 @@ def heading_numbering_enabled(extra: dict[str, Any] | None) -> bool:
     """Whether `project.extra.heading_numbering` (default `True`) enables
     chapter/appendix numbering on headings and captions, on both the
     website and the PDF."""
-    return bool((extra or {}).get("heading_numbering", True))
+    return bool((extra or {}).get("heading_numbering", extra_default("heading_numbering")))
 
 
 def reference_style_values(extra: dict[str, Any] | None) -> tuple[str, str, str, str]:
@@ -56,9 +141,15 @@ def reference_style_values(extra: dict[str, Any] | None) -> tuple[str, str, str,
       `"2em"`) - the `global` style's margin-top between entries.
     """
     extra = extra or {}
-    style = str(extra.get("reference_style", "european")).strip().lower()
+    style = str(extra.get("reference_style", extra_default("reference_style"))).strip().lower()
     style = "global" if style == "global" else "european"
-    spacing_european = str(extra.get("reference_spacing_european", "-0.8em"))
-    indent_global = str(extra.get("reference_indent_global", "1.27cm"))
-    spacing_global = str(extra.get("reference_spacing_global", "2em"))
+    spacing_european = str(
+        extra.get("reference_spacing_european", extra_default("reference_spacing_european"))
+    )
+    indent_global = str(
+        extra.get("reference_indent_global", extra_default("reference_indent_global"))
+    )
+    spacing_global = str(
+        extra.get("reference_spacing_global", extra_default("reference_spacing_global"))
+    )
     return style, spacing_european, indent_global, spacing_global

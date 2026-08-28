@@ -1685,6 +1685,83 @@ def _shared_file_report(states: Sequence[Any], *, verbose: bool = False) -> None
             click.echo(f"        actual   sha256 {actual or 'missing'}")
 
 
+def _config_value(value: object) -> str:
+    """Keep resolved configuration values readable in a plain terminal."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value == []:
+        return "[]"
+    return str(value) if value != "" else '""'
+
+
+def _echo_config_setting(key: str, value: object, source: str) -> None:
+    """Render one setting without letting long HTML or file lists collide."""
+    rendered = _config_value(value)
+    if len(rendered) <= 28:
+        click.echo(f"  {key:<36} {rendered:<28} {source}")
+        return
+    click.echo(f"  {key}")
+    for line in textwrap.wrap(rendered, width=92) or [rendered]:
+        click.echo(f"      {line}")
+    click.echo(f"      Source: {source}")
+
+
+@main.command("config")
+@click.option(
+    "-f",
+    "--config-file",
+    default="zensical.toml",
+    show_default=True,
+    help="Path to the project's Zensical configuration file.",
+)
+@click.option(
+    "--check",
+    is_flag=True,
+    help="Exit non-zero for invalid settings or missing project inputs.",
+)
+def config_command(config_file: str, check: bool) -> None:
+    """Show the Prodockit settings the project actually resolves to.
+
+    Prodockit-owned settings are validated, then local files, navigation,
+    images and configured renderers are checked without building the site.
+    Unrelated Zensical ``project.extra`` values are left alone.
+    """
+    from prodockit.config_diagnostics import inspect_config
+
+    try:
+        report = inspect_config(load_project_config(config_file))
+    except ProjectConfigError as error:
+        raise click.ClickException(str(error)) from error
+
+    click.echo("Prodockit configuration")
+    click.echo(f"  File: {report.path}")
+    current_group = ""
+    for setting in report.settings:
+        if setting.group != current_group:
+            current_group = setting.group
+            click.echo(f"\n{current_group}")
+            click.echo(f"  {'Setting':<36} {'Resolved value':<28} Source")
+        _echo_config_setting(setting.key, setting.value, setting.source)
+
+    index_state = "enabled" if report.index_enabled else "disabled"
+    dependency = "installed" if report.index_dependency_available else "not installed"
+    click.echo("\nIndex generation")
+    click.echo(f"  State: {index_state}")
+    click.echo(f"  Title: {report.index_title}")
+    click.echo(f"  Optional support: {dependency}")
+
+    if report.diagnostics:
+        click.echo("\nProblems")
+        for diagnostic in report.diagnostics:
+            click.echo(f"  ERROR {diagnostic.path}: {diagnostic.message}")
+        if check:
+            raise click.exceptions.Exit(1)
+        click.echo("\nRun `prodockit config --check` in automation to reject these problems.")
+        return
+
+    click.echo("\nConfiguration check passed; project integrity checks passed.")
+
+
 @main.command("shared-files")
 @click.option(
     "-r",

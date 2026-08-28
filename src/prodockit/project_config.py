@@ -141,7 +141,28 @@ def _markdown_extensions(value: object) -> dict[str, dict[str, Any]]:
     extensions: dict[str, dict[str, Any]] = {}
     if isinstance(value, Mapping):
         for name, options in value.items():
-            extensions[str(name)] = dict(options) if isinstance(options, Mapping) else {}
+            text_name = str(name)
+            if text_name == "pymdownx" and isinstance(options, Mapping):
+                for child, child_options in options.items():
+                    extensions[f"pymdownx.{child}"] = (
+                        dict(child_options) if isinstance(child_options, Mapping) else {}
+                    )
+            elif text_name == "zensical" and isinstance(options, Mapping):
+                zensical_extensions = options.get("extensions")
+                if isinstance(zensical_extensions, Mapping):
+                    for child, child_options in zensical_extensions.items():
+                        extensions[f"zensical.extensions.{child}"] = (
+                            dict(child_options) if isinstance(child_options, Mapping) else {}
+                        )
+                else:
+                    extensions[text_name] = dict(options)
+            elif text_name == "prodockit" and isinstance(options, Mapping):
+                for child, child_options in options.items():
+                    extensions[f"prodockit.{child}"] = (
+                        dict(child_options) if isinstance(child_options, Mapping) else {}
+                    )
+            else:
+                extensions[text_name] = dict(options) if isinstance(options, Mapping) else {}
         return extensions
     if value is None:
         return extensions

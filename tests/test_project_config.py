@@ -71,6 +71,34 @@ markdown_extensions:
     )
 
 
+def test_toml_dotted_extension_tables_are_normalised_to_extension_names(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "zensical.toml"
+    path.write_text(
+        """\
+[project]
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [{name = "mermaid"}]
+[project.markdown_extensions.zensical.extensions.macros]
+module_name = "macros"
+""",
+        encoding="utf-8",
+    )
+
+    config = load_project_config(path)
+
+    assert config.markdown_extensions["pymdownx.arithmatex"] == {"generic": True}
+    assert config.markdown_extensions["pymdownx.superfences"] == {
+        "custom_fences": [{"name": "mermaid"}]
+    }
+    assert config.markdown_extensions["zensical.extensions.macros"] == {
+        "module_name": "macros"
+    }
+
+
 def test_paths_are_relative_to_the_config_not_the_callers_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

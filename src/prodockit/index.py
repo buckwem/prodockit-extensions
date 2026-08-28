@@ -72,6 +72,8 @@ from markdown import Markdown, util
 from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
 
+from prodockit.settings import INDEX_INCLUDE_DEFAULT, INDEX_TITLE_DEFAULT
+
 #: The class prodockit.pdf.index's own mark_index_terms() looks for.
 INDEX_TERM_CLASS = "index"
 
@@ -202,12 +204,12 @@ class IndexExtension(Extension):
     def __init__(self, **kwargs: object) -> None:
         self.config = {
             "include": [
-                False,
+                INDEX_INCLUDE_DEFAULT,
                 "Generate a back-of-book index when prodockit.pdf builds "
                 "the complete document.",
             ],
             "title": [
-                "Index",
+                INDEX_TITLE_DEFAULT,
                 "Heading shown on the generated back-of-book index page.",
             ],
         }

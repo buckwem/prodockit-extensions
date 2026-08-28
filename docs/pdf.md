@@ -195,6 +195,13 @@ rule (e.g. hiding a website-only "Download PDF" link/button, since
 WeasyPrint always renders in print mode) applies in the PDF too. The rest
 lives under `[project.extra]`, all optional:
 
+Run `prodockit config` to see these values resolved for the current project,
+including which came from `zensical.toml` and which use a default. Use
+`prodockit config --check` to reject obsolete, misspelled or invalid Prodockit
+settings and missing local project inputs instead of letting a successful
+build conceal a fallback or incomplete document. The complete project checks
+are described under [Test the built output](devcons/testing.md#testing-quick-start).
+
 | Setting | Default | What it does |
 |---|---|---|
 | \index{PDF settings!`pdf_output`} | `"<docs_dir>/site_documentation.pdf"` | Where the PDF is written. |
