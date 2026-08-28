@@ -152,6 +152,8 @@ def test_heading_counter_reset_disabled_via_config(tmp_path: Path) -> None:
     define_env(env)
     css = env.macros["heading_counter_reset"](object())
     assert 'content: "" !important;' in css
+    assert ".md-typeset h1::before" in css
+    assert ".md-nav--secondary" in css
 
 
 def test_heading_counter_reset_falls_back_to_zero_outside_a_real_build(tmp_path: Path) -> None:
@@ -178,6 +180,8 @@ def test_heading_counter_reset_seeds_from_a_real_prescan(
     css = env.macros["heading_counter_reset"](page)
     assert "counter-reset: h1-count 3 !important;" in css
     assert "counter-reset: toc1 4 !important;" in css
+    assert ".md-nav--primary," in css
+    assert ".md-nav--secondary {" in css
 
 
 def test_heading_counter_reset_letters_an_appendix_page(
@@ -193,6 +197,7 @@ def test_heading_counter_reset_letters_an_appendix_page(
     assert 'content: "Appendix A. " !important;' in css
     assert 'content: "A." counter(h2-count) " " !important;' in css
     assert 'content: "A." counter(h2-count) "." counter(h3-count) " " !important;' in css
+    assert "counter-reset: toc1" not in css
     assert 'content: "Figure A." !important;' in css
     assert 'content: "Table A." !important;' in css
 
