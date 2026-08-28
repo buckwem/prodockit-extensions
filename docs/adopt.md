@@ -42,6 +42,12 @@ unchanged and uses its existing lockfile when one is present.
 
 The command never commits, pushes, changes a remote, or writes editor settings.
 
+Adoption is not a whole-machine PDF installer. Selecting Mermaid or
+mathematics installs those project-local Node renderers, but Pandoc,
+WeasyPrint, its native Pango libraries, and document fonts remain part of the
+existing working environment. Follow the adoption row under
+[Prepare the PDF tools](pdf.md#pdf-requirements) before building a PDF.
+
 ## Review the existing project
 
 /// steps

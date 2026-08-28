@@ -90,15 +90,14 @@ prodockit source-bundle
 When building both the complete PDF and site, keep this order:
 
 ```bash
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 prodockit update-dates
 ```
 
-Zensical copies the finished PDF into the site directory. Reversing the order
-can publish the PDF from the previous build while every command exits
-successfully. The final `update-dates` line remains optional and can be left
-out when dates are not displayed.
+The PDF command consumes the completed site and does not invoke Zensical.
+The final `update-dates` line remains optional and can be left out when dates
+are not displayed.
 
 To render one page while developing PDF styles, use:
 
@@ -176,8 +175,8 @@ treat a changed file as proof that the intended state was reached.
 //// step | Build and inspect
 
 ```bash
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 prodockit update-dates
 git diff --check
 git status --short
@@ -220,7 +219,9 @@ step.
 ## Find the next guide
 
 - [Maintain prodockit](project-maintenance.md) provides the complete recurring cycle.
+- [Add prodockit to an existing document](adopt.md) explains adoption.
 - [Set up a machine](devcons/bootstrap.md) takes a new computer through its first successful publish.
+- [Manual installation](installation.md) covers direct package and tool setup.
 - [Repository metadata](devcons/repo-metadata.md) explains every derived link and badge.
 - [Version pinning and drift](devcons/pinning-drift.md) covers controlled upgrades and scheduled comparisons.
 - [Staying in step with the template](devcons/template-sync.md) protects project-owned writing while updating shared infrastructure.

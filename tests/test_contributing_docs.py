@@ -46,8 +46,9 @@ def test_contributing_lists_the_complete_source_gates() -> None:
 
 
 def test_contributing_lists_the_pdf_and_built_output_gates_in_order() -> None:
-    pdf = GUIDE.index("prodockit pdf")
-    site = GUIDE.index("zensical build --clean --strict", pdf)
-    built = GUIDE.index("python -m pytest tests/test_built_docs.py -m built -v", site)
+    section = GUIDE.index("## Verify documentation and PDF changes")
+    site = GUIDE.index("zensical build --clean --strict", section)
+    pdf = GUIDE.index("prodockit pdf", site)
+    built = GUIDE.index("python -m pytest tests/test_built_docs.py -m built -v", pdf)
 
-    assert pdf < site < built
+    assert section < site < pdf < built

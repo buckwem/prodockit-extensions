@@ -46,6 +46,57 @@ def test_publishing_overview_covers_the_end_to_end_commands() -> None:
     assert not missing, f"publishing stages absent from the overview: {missing}"
 
 
+def test_reader_guides_present_all_three_setup_routes() -> None:
+    guides = {
+        name: (ROOT / name).read_text(encoding="utf-8")
+        for name in (
+            "README.md",
+            "docs/introduction.md",
+            "docs/pdf.md",
+            "docs/publishing.md",
+        )
+    }
+    routes = ("Adoption", "Bootstrap", "Manual installation")
+
+    for name, guide in guides.items():
+        missing = [route for route in routes if route.lower() not in guide.lower()]
+        assert not missing, f"{name} omits setup routes: {missing}"
+
+
+def test_documented_combined_builds_create_the_site_before_the_pdf() -> None:
+    guides = (
+        ROOT / "README.md",
+        ROOT / "CONTRIBUTING.md",
+        ROOT / "docs" / "command-line.md",
+        ROOT / "docs" / "pdf.md",
+        ROOT / "docs" / "project-maintenance.md",
+        ROOT / "docs" / "publishing.md",
+    )
+
+    for path in guides:
+        guide = path.read_text(encoding="utf-8")
+        site = re.search(r"^zensical build --clean --strict$", guide, re.MULTILINE)
+        pdf = re.search(r"^prodockit pdf$", guide, re.MULTILINE)
+        assert site is not None, f"{path.name} omits the strict site build"
+        assert pdf is not None, f"{path.name} omits the PDF build"
+        assert site.start() < pdf.start(), f"{path.name} builds the PDF before the site"
+
+    publishing = (ROOT / "docs" / "publishing.md").read_text(encoding="utf-8")
+    commands = [
+        match.group(0)
+        for match in re.finditer(
+            r"^(?:zensical build --clean --strict|prodockit pdf|prodockit update-dates)$",
+            publishing,
+            re.MULTILINE,
+        )
+    ]
+    assert commands[:3] == [
+        "zensical build --clean --strict",
+        "prodockit pdf",
+        "prodockit update-dates",
+    ]
+
+
 def test_authoring_explains_page_dates_and_links_to_the_build() -> None:
     guide = (ROOT / "docs" / "update-dates.md").read_text(encoding="utf-8")
     guide_prose = " ".join(guide.split())

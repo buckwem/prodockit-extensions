@@ -12,8 +12,9 @@ one, a downloadable PDF.
 
 This section is for a document author with a working local project. It covers
 template updates, \index{continuous integration} (CI), automated Pages
-deployment, and checks on the published result. For a new project, first
-choose [adoption or template bootstrap](introduction.md). Maintainers changing
+deployment, and checks on the published result. For a new project, first choose
+[adoption, bootstrap, or manual installation](introduction.md#choose-an-installation-route).
+Maintainers changing
 the prodockit package itself should use
 [Maintain prodockit](project-maintenance.md).
 
@@ -27,7 +28,9 @@ serves.
 | Starting point | First guide |
 |---|---|
 | You want a ready-made report project | [Start with prodockit-template](prodockit-template.md) explains what it provides and which files become yours |
-| A new computer or an incomplete checkout | [Set up a machine](devcons/bootstrap.md) checks and prepares Python, Git, Node, Pandoc, fonts, and the project environment |
+| A new computer or an incomplete template-based checkout | [Bootstrap](devcons/bootstrap.md) checks and prepares Python, Git, Node, Pandoc, fonts, and the project environment |
+| An established documentation project that should keep its existing design and workflow | [Adoption](adopt.md) integrates selected prodockit components without replacing those choices |
+| A project whose dependencies are managed directly | [Manual installation](installation.md) explains the Python package, PDF tools, optional renderers, and configuration |
 | An existing template-derived project | [Staying in step with the template](devcons/template-sync.md) brings shared workflows and publishing files up to date without replacing your writing |
 | A working project that already previews with `zensical serve` | Continue with the publishing path below |
 | A prodockit package release rather than a documentation project | Use the maintainer [Build and release](devcons/releasing.md) runbook instead |
@@ -49,12 +52,15 @@ publish:
 git status --short
 ```
 
-If this machine has not built the project before, run the report-only setup
-check:
+For a project prepared through bootstrap, run its report-only setup check:
 
 ```bash
 prodockit bootstrap
 ```
+
+For an adopted or manually installed project, activate its environment and
+verify the dependencies described by its chosen route instead. A first build
+on a machine does not, by itself, mean that bootstrap should be run.
 
 For a template-derived project, also preview upstream publishing changes:
 
@@ -67,33 +73,36 @@ reports work to do.
 
 ////
 
-//// step | Build the PDF first
-
-```bash
-prodockit pdf
-```
-
-The PDF uses the pages and order in `zensical.toml`. Build it before the
-website because Zensical copies the finished PDF into the site output. Skip
-this step only when the project deliberately publishes no PDF.
-
-See [Generate a PDF](pdf.md) for the required system tools and optional page,
-cover, diagram, maths, and index settings.
-
-////
-
 //// step | Build the website strictly
 
 ```bash
 zensical build --clean --strict
 ```
 
-Zensical builds the site first. `--strict` turns validation warnings such as
+`--strict` turns validation warnings such as
 broken internal links into failures. The result is written to `site/` unless
 the project configures another `site_dir`.
 
-If the website should display page update dates, add this optional second
-command after the build:
+////
+
+//// step | Build the PDF from the completed website
+
+```bash
+prodockit pdf
+```
+
+The PDF uses the rendered website pages and the order in `zensical.toml`.
+The command does not invoke Zensical, so build the website first. Skip this
+step only when the project deliberately publishes no PDF.
+
+See [Generate a PDF](pdf.md) for the three preparation routes, required system
+tools, and optional page, cover, diagram, maths, and index settings.
+
+////
+
+//// step | Add optional page dates
+
+If the website should display page update dates, run:
 
 ```bash
 prodockit update-dates

@@ -6,6 +6,12 @@ icon: lucide/package-plus
 
 # Installation
 
+This is the manual setup route. Use it when you want to choose and install the
+package, external tools, and enabled extensions directly. The alternatives are
+[adoption](adopt.md), which integrates prodockit into an established document,
+and [bootstrap](devcons/bootstrap.md), which prepares a machine and a project
+based on the maintained template.
+
 ## Requirements
 
 **Python 3.10 or later.** Tested on 3.10, 3.11, 3.12, 3.13 and 3.14; `pip` will
@@ -55,7 +61,9 @@ curl -fsSL -o harvard-cite-them-right.csl "https://www.zotero.org/styles/harvard
 It is deliberately **not** committed: it is third-party content with its
 own licence and its own release cadence, and a vendored copy would go
 stale silently while every build kept succeeding. `prodockit bootstrap`
-fetches it for you, and `.gitignore` keeps a local copy out of commits.
+fetches it for a bootstrapped project. An adopted or manually installed
+project can fetch it in its own build workflow, and `.gitignore` should keep a
+local copy out of commits.
 
 `weasyprint` is worth separating from `pandoc` rather than filing both as
 "external binaries": one is a `pip install` away and the other is not,

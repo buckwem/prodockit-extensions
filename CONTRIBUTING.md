@@ -116,12 +116,12 @@ repository's generated site and PDF and are run separately below.
 
 ## Verify documentation and PDF changes
 
-For a documentation or PDF change, build in publication order. The PDF comes
-first because the Zensical build copies it into the site:
+For a documentation or PDF change, build in publication order. The PDF
+consumes the completed Zensical site:
 
 ```bash
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 python -m pytest tests/test_built_docs.py -m built -v
 ```
 

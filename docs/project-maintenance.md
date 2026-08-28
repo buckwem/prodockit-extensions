@@ -73,12 +73,12 @@ first. See [Version pinning and drift](devcons/pinning-drift.md).
 
 //// step | Build the deliverables locally
 
-Build in the same order as GitHub Actions. The PDF comes first because
-`zensical build` copies it into the published site:
+Build in the same order as GitHub Actions. The PDF consumes the completed
+Zensical site, so the website comes first:
 
 ```bash
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 ```
 
 Then run the checks appropriate to the repository. For prodockit itself:

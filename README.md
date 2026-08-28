@@ -47,7 +47,8 @@ slash-fenced block model rather than a separate, look-alike parser.
 |---|---|
 | Create and publish a document | [prodockit User Guide](https://buckwem.github.io/prodockit-userguide/) |
 | Begin with a maintained report project | [prodockit-template](https://github.com/buckwem/prodockit-template) |
-| Add prodockit to an existing Zensical or MkDocs document | [`prodockit adopt`](https://prodockit.org/adopt/) |
+| Use Adoption to add prodockit to an existing Zensical or MkDocs document | [`prodockit adopt`](https://prodockit.org/adopt/) |
+| Choose and install each dependency directly | [Manual installation](https://prodockit.org/installation/) |
 | Build a small local site from scratch | [Build your first site](https://prodockit.org/getting-started/) |
 | Look up Markdown syntax and configuration | [Authoring reference](https://prodockit.org/authoring/) |
 | Build a PDF or publish with CI | [Publish a document](https://prodockit.org/publishing/) |
@@ -160,13 +161,13 @@ The command-line reference documents
 When publishing both outputs locally, build in this order:
 
 ```bash
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 prodockit update-dates
 ```
 
-The PDF comes first because the site build copies the completed PDF into its
-output. `prodockit update-dates` post-processes the generated HTML and does
+The PDF consumes the completed Zensical site and does not invoke the site
+builder. `prodockit update-dates` post-processes the generated HTML and does
 not edit the files you author or call the site builder. It is also a standalone
 capability: an existing Zensical project can use it after installing
 the package, without running `prodockit adopt` or enabling any other Prodockit component. The maintained
