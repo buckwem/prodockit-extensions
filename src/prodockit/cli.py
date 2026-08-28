@@ -991,7 +991,8 @@ def _announce_apply(
     click.echo("")
     click.echo(
         click.style(
-            f"prodockit {__version__} - setting up your development environment",
+            f"prodockit {__version__} - setting up this machine and a "
+            "prodockit-template project",
             bold=True,
         )
     )
@@ -1868,7 +1869,7 @@ def bootstrap(
     configure: bool,
     config_file: str | None,
 ) -> None:
-    """Set up this machine and your project from scratch.
+    """Set up this machine and a project based on prodockit-template.
 
     Checks all 23 stages - prodockit's own environment, editor, git, SSH
     key/config/agent/upload, clone, history, remote, commit identity, the
@@ -1876,7 +1877,9 @@ def bootstrap(
     which are already done. Rerunnable: a stage that is set up correctly
     is left alone.
 
-    This cannot be the first thing you run: it is a prodockit command, so
+    This is specifically for projects based on prodockit-template, not a
+    general Zensical installer. This cannot be the first thing you run: it
+    is a prodockit command, so
     Python and `pip install prodockit` necessarily come first.
 
     With no options this reports what it finds and changes nothing - the

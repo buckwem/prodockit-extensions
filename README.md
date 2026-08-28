@@ -147,7 +147,7 @@ The `pdk` executable is an exact shorter alias for `prodockit`; `boot` aliases
 |---|---|
 | `prodockit config` | Show resolved Prodockit settings and check source-project integrity |
 | `prodockit adopt` | Add selected prodockit components to an existing Zensical or MkDocs document |
-| `prodockit bootstrap` | Check or prepare a machine and document project |
+| `prodockit bootstrap` | Check or prepare a machine and a project based on `prodockit-template` |
 | `prodockit init-tools` | Install the local Node tooling for Mermaid and maths rendering |
 | `prodockit init-mathjax` | Copy the installed MathJax bundle into website assets |
 | `prodockit update-dates` | Add per-page revision dates to a completed website without changing Markdown source |

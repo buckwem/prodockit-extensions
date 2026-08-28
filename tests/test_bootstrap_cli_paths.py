@@ -63,6 +63,7 @@ def test_boot_alias_exposes_the_complete_option_set(bootstrap_cli: BootstrapCliH
     result = bootstrap_cli.invoke("--help", command="boot")
 
     assert result.exit_code == 0
+    assert "project based on prodockit-template" in result.output
     for option in ("--check", "--dry-run", "--apply", "--configure", "--config"):
         assert option in result.output
 

@@ -63,6 +63,23 @@ def test_reader_guides_present_all_three_setup_routes() -> None:
         assert not missing, f"{name} omits setup routes: {missing}"
 
 
+def test_bootstrap_is_described_as_the_prodockit_template_route() -> None:
+    """Bootstrap is not a general Zensical installer (#380)."""
+    guides = (
+        ROOT / "README.md",
+        ROOT / "docs" / "command-line.md",
+        ROOT / "docs" / "installation.md",
+        ROOT / "docs" / "devcons" / "bootstrap.md",
+    )
+
+    for path in guides:
+        guide = path.read_text(encoding="utf-8")
+        assert "prodockit-template" in guide, f"{path.name} obscures bootstrap's scope"
+
+    bootstrap = guides[-1].read_text(encoding="utf-8")
+    assert "not a general Zensical installer" in bootstrap
+
+
 def test_documented_combined_builds_create_the_site_before_the_pdf() -> None:
     guides = (
         ROOT / "README.md",

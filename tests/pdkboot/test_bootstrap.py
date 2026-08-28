@@ -4769,7 +4769,7 @@ def test_apply_says_what_it_is_doing_before_it_starts(
     result = cli_bootstrap("--apply", input="n\n" * 40)
 
     assert f"prodockit {__version__}" in result.output
-    assert "setting up your development environment" in result.output
+    assert "setting up this machine and a prodockit-template project" in result.output
     assert "gitlab.surrey.ac.uk" in result.output, "which host it will use"
     assert "report-al01234" in result.output, "and where the project will land"
     assert f"of {len(STAGES)} stages" in result.output
@@ -4779,7 +4779,7 @@ def test_apply_says_what_it_is_doing_before_it_starts(
     # already running in, so on this machine it has nothing to do (#381).
     first_stage = re.search(rf"\[\d+/{len(STAGES)}\]", result.output)
     assert first_stage is not None
-    assert result.output.index("setting up your") < first_stage.start()
+    assert result.output.index("setting up this machine") < first_stage.start()
 
 
 def test_the_heading_is_not_printed_when_there_is_nothing_to_do(
@@ -4790,7 +4790,7 @@ def test_the_heading_is_not_printed_when_there_is_nothing_to_do(
 
     result = cli_bootstrap("--apply", responses=_ready_machine(tmp_path), fetch=_ready_fetch())
 
-    assert "setting up your development environment" not in result.output
+    assert "setting up this machine and a prodockit-template project" not in result.output
     assert "Nothing to do" in result.output
 
 

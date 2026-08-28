@@ -102,6 +102,7 @@ def test_pdkboot_exposes_the_complete_option_set(bootstrap_cli: PdkbootCliHarnes
     result = bootstrap_cli.invoke("--help")
 
     assert result.exit_code == 0
+    assert "project based on prodockit-template" in result.output
     for option in (
         "--version",
         "--check",
