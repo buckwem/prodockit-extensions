@@ -357,38 +357,41 @@ and why - and running `--apply` again does only that stage.
 
 ## What it covers {: #bootstrap-stages }
 
+The six quick-start steps above describe what you do. Bootstrap itself groups
+its 23 setup stages into the seven phases shown below.
+
 ![The seven bootstrap phases progress from preflight and core tools through Git, the project, build tooling, the editor and publication](../assets/diagrams/4.1-bootstrap-journey.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-bootstrap-journey}
 
-Prodockit bootstrap journey
+The seven phases that group Prodockit's 23 bootstrap stages
 ///
 
-| # | Stage | Automated? |
-| --- | --- | --- |
-| 1 | prodockit runs in an environment of its own | yes, after a step of your own |
-| 2 | Visual Studio Code | yes, after a step of your own |
-| 3 | Git, installed **and** configured | yes |
-| 4 | SSH keypair | yes, after a step of your own |
-| 5 | SSH config points at the key | yes |
-| 6 | Key loaded into the ssh agent | yes, after a step of your own |
-| 7 | SSH key on the host | **guide and verify** |
-| 8 | Where the project comes from | **a choice** |
-| 9 | Project cloned | yes |
-| 10 | A history of your own | yes |
-| 11 | Your own project on the host | **guide and verify** |
-| 12 | Pages switched on | **guide and verify** |
-| 13 | Clone pointed at your project | yes |
-| 14 | Commit identity in the project | yes |
-| 15 | Pandoc, and the libraries WeasyPrint needs | yes |
-| 16 | Project environment and its dependencies | yes |
-| 17 | Node.js and the render toolchains | yes |
-| 18 | VS Code extensions | yes |
-| 19 | VS Code settings for the project | yes |
-| 20 | Citation style for the first build | yes |
-| 21 | MathJax for the website | yes |
-| 22 | First commit pushed | yes, after a step of your own |
-| 23 | Documentation site published | **guide and verify** |
+| Phase {: width="18%" } | # {: width="5%" } | Stage | Automated? {: width="22%" } |
+| --- | --- | --- | --- |
+| 1. Preflight | 1 | prodockit runs in an environment of its own | yes, after a step of your own |
+| 2. Core tools {: rowspan=2 } | 2 | Visual Studio Code | yes, after a step of your own |
+| | 3 | Git, installed **and** configured | yes |
+| 3. Git and host {: rowspan=4 } | 4 | SSH keypair | yes, after a step of your own |
+| | 5 | SSH config points at the key | yes |
+| | 6 | Key loaded into the ssh agent | yes, after a step of your own |
+| | 7 | SSH key on the host | **guide and verify** |
+| 4. Project {: rowspan=7 } | 8 | Where the project comes from | **a choice** |
+| | 9 | Project cloned | yes |
+| | 10 | A history of your own | yes |
+| | 11 | Your own project on the host | **guide and verify** |
+| | 12 | Pages switched on | **guide and verify** |
+| | 13 | Clone pointed at your project | yes |
+| | 14 | Commit identity in the project | yes |
+| 5. Build toolchain {: rowspan=3 } | 15 | Pandoc, and the libraries WeasyPrint needs | yes |
+| | 16 | Project environment and its dependencies | yes |
+| | 17 | Node.js and the render toolchains | yes |
+| 6. Editor and project {: rowspan=4 } | 18 | VS Code extensions | yes |
+| | 19 | VS Code settings for the project | yes |
+| | 20 | Citation style for the first build | yes |
+| | 21 | MathJax for the website | yes |
+| 7. Publish {: rowspan=2 } | 22 | First commit pushed | yes, after a step of your own |
+| | 23 | Documentation site published | **guide and verify** |
 
 Stages 8 to 14, 18, 19, 21 and 23 do the same thing on every operating
 system - they are about your project and your host rather than about the
