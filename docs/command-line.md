@@ -65,12 +65,11 @@ Choose a command
 ///
 
 \ref{tab-command-line-choose-a-command} is the quickest way to select a safe
-starting form. The \index{commands!`prodockit init-mathjax`} command is the
-narrower website
-asset command; use `init-tools` when preparing both Mermaid and maths for PDF
-output. It copies the pinned package's Apache-2.0 licence beside the browser
-bundle, so a published self-contained site also publishes the licence that
-governs that third-party code.
+starting form. The narrower website asset command is `prodockit
+init-mathjax`\index{commands!`prodockit init-mathjax`}; use `init-tools` when
+preparing both Mermaid and maths for PDF output. It copies the pinned package's
+Apache-2.0 licence beside the browser bundle, so a published self-contained site
+also publishes the licence that governs that third-party code.
 
 ## Check resolved configuration {: #check-resolved-configuration }
 
