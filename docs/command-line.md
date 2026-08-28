@@ -45,7 +45,7 @@ pinned by the project before assuming an option is unavailable.
 | [`prodockit adopt`](adopt.md) | An existing Zensical document needs selected prodockit components without machine, Git or editor setup | `prodockit adopt` | Local project files only with `--apply`; optional choices use `--configure` |
 | [`prodockit bootstrap`](devcons/bootstrap.md) | A machine or a project based on `prodockit-template` is not ready to build and publish | `prodockit bootstrap` | Only with `--apply`; configuration questions use `--configure` |
 | [`prodockit init-tools`](pdf.md#mermaid-diagrams-and-tex-maths) | The project needs local Mermaid or MathJax rendering tools | `prodockit init-tools` | Tool manifests, scripts, and ignore entries; existing files require `--force` |
-| [`prodockit init-mathjax`](pdf.md#mermaid-diagrams-and-tex-maths) | The website needs the installed MathJax bundle copied into its assets | `prodockit init-mathjax` | Website JavaScript assets and, unless disabled, `.gitignore` |
+| [`prodockit init-mathjax`](pdf.md#mermaid-diagrams-and-tex-maths) | The website needs the installed MathJax bundle copied into its assets | `prodockit init-mathjax` | Website JavaScript assets, the package licence, and, unless disabled, `.gitignore` |
 | [`prodockit update-dates`](publishing.md#build-with-revision-dates) | A completed website should show when each page was last updated | `prodockit update-dates` after the normal site build | The configured `site_dir`; source Markdown and configuration remain unchanged |
 | [`prodockit pdf`](pdf.md) | You need one PDF containing the pages in `nav` | `prodockit pdf` | The configured PDF output |
 | [`prodockit source-bundle`](pdf.md#bundling-source-into-a-pdf) | A submission needs the Markdown and configuration as a separate PDF | `prodockit source-bundle` | The configured source-bundle output |
@@ -56,7 +56,9 @@ pinned by the project before assuming an option is unavailable.
 
 The \index{commands!`prodockit init-mathjax`} command is the narrower website
 asset command; use `init-tools` when preparing both Mermaid and maths for PDF
-output.
+output. It copies the pinned package's Apache-2.0 licence beside the browser
+bundle, so a published self-contained site also publishes the licence that
+governs that third-party code.
 
 ## Check resolved configuration {: #check-resolved-configuration }
 

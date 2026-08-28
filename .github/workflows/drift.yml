@@ -158,6 +158,7 @@ jobs:
       - name: Build with the pinned versions
         run: |
           pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.2"
+          prodockit init-mathjax --no-gitignore
           zensical build --clean --strict
           prodockit pdf
           prodockit update-dates

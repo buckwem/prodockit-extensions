@@ -151,9 +151,11 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
     pinned.mkdir(parents=True, exist_ok=True)
     (pinned / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
+    (pinned.parent / "LICENSE").write_text("APACHE", encoding="utf-8")
     vendor = project / "docs" / "javascripts" / "vendor" / "mathjax"
     vendor.mkdir(parents=True, exist_ok=True)
     (vendor / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
+    (vendor / "LICENSE").write_text("APACHE", encoding="utf-8")
     (project / "docs" / "javascripts" / "mathjax.js").write_text(
         mathjax.CONFIG_SOURCE, encoding="utf-8"
     )
@@ -5080,15 +5082,18 @@ def _mathjax_project(tmp_path: Path) -> Path:
     pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
     pinned.mkdir(parents=True)
     (pinned / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
+    (pinned.parent / "LICENSE").write_text("APACHE", encoding="utf-8")
     save(tmp_path / "b.toml", _config())
     return project
 
 
 def _complete_mathjax_install(project: Path) -> None:
     source = project.joinpath(*mathjax.SOURCE)
+    license_source = project.joinpath(*mathjax.LICENSE_SOURCE)
     bundle = project.joinpath(*mathjax.DEST, mathjax.BUNDLE)
     bundle.parent.mkdir(parents=True, exist_ok=True)
     bundle.write_bytes(source.read_bytes())
+    project.joinpath(*mathjax.DEST, mathjax.LICENSE).write_bytes(license_source.read_bytes())
     config = project.joinpath(*mathjax.CONFIG)
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(mathjax.CONFIG_SOURCE, encoding="utf-8")
@@ -5138,6 +5143,7 @@ def test_the_mathjax_stage_calls_the_one_installer(tmp_path: Path) -> None:
         ("empty-bundle", "bundle is empty"),
         ("wrong-bundle", "does not match"),
         ("wrong-config", "configuration is incomplete"),
+        ("empty-license", "licence is empty"),
         ("missing-ignore", "not all excluded from git"),
     ],
 )
@@ -5146,13 +5152,17 @@ def test_partial_mathjax_installations_are_repaired(
 ) -> None:
     project = _mathjax_project(tmp_path)
     _complete_mathjax_install(project)
-    _source, bundle, config = stages_module._mathjax_paths(_context(tmp_path))
+    _source, _license_source, bundle, license_path, config = stages_module._mathjax_paths(
+        _context(tmp_path)
+    )
     if damage == "empty-bundle":
         bundle.write_bytes(b"")
     elif damage == "wrong-bundle":
         bundle.write_bytes(b"OTHER")
     elif damage == "wrong-config":
         config.write_text("window.MathJax = {};\n", encoding="utf-8")
+    elif damage == "empty-license":
+        license_path.write_bytes(b"")
     else:
         (project / ".gitignore").write_text("", encoding="utf-8")
 
