@@ -357,10 +357,12 @@ and why - and running `--apply` again does only that stage.
 
 ## What it covers {: #bootstrap-stages }
 
-The six quick-start steps above describe what you do. The table below shows
-how Bootstrap groups its 23 setup stages into seven phases.
+The six quick-start steps above describe what you do. The table below is about
+the [`--apply` phase](#bootstrap-apply), which is discussed later: Bootstrap
+groups its 23 setup stages into seven phases while it sets up the machine and
+project.
 
-| Phase {: width="18%" } | # {: width="5%" } | Stage | Automated? {: width="22%" } |
+| Phase {: width="18%" } | # {: width="3rem" } | Stage | Automated? {: width="22%" } |
 | --- | --- | --- | --- |
 | 1. Preflight | 1 | prodockit runs in an environment of its own | yes, after a step of your own |
 | 2. Core tools {: rowspan=2 } | 2 | Visual Studio Code | yes, after a step of your own |
