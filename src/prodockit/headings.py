@@ -44,6 +44,56 @@ CAPTION_LEVEL = 0
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 
 
+def _css_image_width(value: str) -> str | None:
+    """Return an image ``width`` attribute as a CSS figure width.
+
+    Percentage and CSS-unit values already mean the same thing on the
+    containing figure. A unitless HTML image width is pixels, so make that
+    implicit browser rule explicit when moving it to ``style``.
+    """
+    value = value.strip()
+    if not value:
+        return None
+    if re.fullmatch(r"\d+(?:\.\d+)?", value):
+        return f"{value}px"
+    if re.fullmatch(
+        r"\d+(?:\.\d+)?(?:%|px|pt|pc|in|cm|mm|q|em|rem|vw|vh|vmin|vmax)",
+        value,
+        flags=re.IGNORECASE,
+    ):
+        return value
+    return None
+
+
+def _fit_figure_to_authored_image_width(figure: etree.Element) -> None:
+    """Make one authored image width size its numbered figure as a unit.
+
+    A percentage on the image is resolved against the full content column.
+    Leaving it there while shrink-wrapping the figure creates a circular
+    percentage and leaves the caption wider than the rendered image. Move
+    that declaration to the figure and let the image fill it. The Markdown
+    author still writes the width once, on the image where it belongs.
+    """
+    classes = (figure.get("class") or "").split()
+    if "prodockit-figure-caption" not in classes:
+        return
+    image = figure.find(".//img")
+    if image is None:
+        return
+    width = _css_image_width(image.get("width") or "")
+    if width is None:
+        return
+    style = (figure.get("style") or "").strip()
+    if re.search(r"(?:^|;)\s*width\s*:", style, flags=re.IGNORECASE):
+        return
+    separator = " " if style.endswith(";") or not style else "; "
+    figure.set("style", f"{style}{separator}width: {width};".strip())
+    del image.attrib["width"]
+    image_style = (image.get("style") or "").strip()
+    image_separator = " " if image_style.endswith(";") or not image_style else "; "
+    image.set("style", f"{image_style}{image_separator}width: 100%;".strip())
+
+
 def _slugify(text: str) -> str:
     """Minimal fallback slug, used only when 'toc' hasn't already assigned an
     id. Enable Python-Markdown's own 'toc' extension for slugs that match the
@@ -205,6 +255,7 @@ class HeadingsTreeprocessor(Treeprocessor):
         as before; this adds nothing to a document that never points at
         one.
         """
+        _fit_figure_to_authored_image_width(el)
         classes = (el.get("class") or "").split()
         kind = next((k for k in CAPTION_KINDS if k in classes), None)
         if kind is None:

@@ -471,6 +471,38 @@
   content: "Table " counter(h1-count) ".";
 }
 
+/* Keep a numbered figure and its caption at one effective width. A figure
+   with an authored image width has that width normalized onto the figure by
+   prodockit.headings; an intrinsically narrow image (including a tall image
+   reduced by max-height) shrink-wraps the table on its own. table-caption is
+   the CSS layout in which the caption receives that final content width
+   without authors having to repeat it. */
+.md-typeset figure.prodockit-figure-caption {
+  display: table;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+.md-typeset figure.prodockit-figure-caption > p {
+  display: table-row;
+}
+.md-typeset figure.prodockit-figure-caption > p > img {
+  display: block;
+  max-width: 100%;
+}
+.md-typeset figure.prodockit-figure-caption > figcaption {
+  display: table-caption;
+  width: auto;
+}
+.md-typeset figure.prodockit-figure-caption > figcaption:first-child {
+  caption-side: top;
+}
+.md-typeset figure.prodockit-figure-caption > figcaption:last-child {
+  caption-side: bottom;
+}
+
 /* prodockit.steps - numbered steps a reader works through in order.
    ---------------------------------------------------------------------
    Two things here are worth keeping, because both fail silently and only

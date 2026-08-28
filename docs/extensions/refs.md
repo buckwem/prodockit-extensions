@@ -148,6 +148,11 @@ Figures and tables are counted separately, and both restart per page and
 carry the page's chapter number - the same numbering the caption itself
 shows, so a reference and the thing it points at always agree.
 
+Set a figure's width once, on the image as shown above. The caption follows
+the image's effective rendered width on both the website and in the PDF, so a
+long caption wraps at the figure edges. This also applies when a PDF height
+limit scales a tall image down; do not repeat the width on the caption block.
+
 !!! warning "The id goes in an `attrs:` option, not `{: #id }`"
     Caption blocks take attributes the [Blocks
     API](https://facelessuser.github.io/pymdown-extensions/extensions/blocks/)
