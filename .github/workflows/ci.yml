@@ -220,3 +220,20 @@ jobs:
       - run: pip install -e .
       - run: zensical build --clean --strict
       - run: prodockit update-dates
+      - name: Check the reusable website has no analytics controls
+        run: |
+          if grep -RFlq --include='*.html' 'href="#__consent"' site; then
+            echo "::error::The reusable website contains a cookie-settings link."
+            exit 1
+          fi
+          if grep -RFlq --include='*.html' 'googletagmanager.com' site; then
+            echo "::error::The reusable website contains Google Analytics."
+            exit 1
+          fi
+      - name: Exercise the canonical analytics configuration
+        run: |
+          python tools/canonical_site_config.py zensical.toml .zensical-canonical.toml G-TEST123
+          zensical build --config-file .zensical-canonical.toml --clean --strict
+          prodockit update-dates --config-file .zensical-canonical.toml
+          grep -RFlq --include='*.html' 'G-TEST123' site
+          grep -RFlq --include='*.html' 'href="#__consent"' site

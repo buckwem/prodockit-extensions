@@ -288,6 +288,33 @@ jobs:
       # raw source, and a nav page missing from the site, before either is
       # published (see tests/test_built_docs.py).
       - run: python -m pytest tests/test_built_docs.py -m built -v
+      # Everything above validates the reusable, analytics-free document.
+      # Only the canonical prodockit.org deployment gets the measurement ID:
+      # it arrives through Actions' secret store and is written into an
+      # ignored temporary config, never into the repository or a build run
+      # from a fork.
+      - name: Prepare canonical website analytics
+        if: github.repository == 'buckwem/prodockit-extensions'
+        env:
+          GOOGLE_ANALYTICS_ID: ${{ secrets.GOOGLE_ANALYTICS_ID }}
+        run: |
+          if [ -z "$GOOGLE_ANALYTICS_ID" ]; then
+            echo "::error::The prodockit.org deployment needs the GOOGLE_ANALYTICS_ID repository secret."
+            exit 1
+          fi
+          python tools/canonical_site_config.py zensical.toml .zensical-canonical.toml "$GOOGLE_ANALYTICS_ID"
+      - name: Build the canonical prodockit.org website
+        if: github.repository == 'buckwem/prodockit-extensions'
+        run: |
+          zensical build --config-file .zensical-canonical.toml --clean --strict
+          prodockit update-dates --config-file .zensical-canonical.toml
+      - name: Check the canonical website has consent-gated analytics
+        if: github.repository == 'buckwem/prodockit-extensions'
+        env:
+          GOOGLE_ANALYTICS_ID: ${{ secrets.GOOGLE_ANALYTICS_ID }}
+        run: |
+          grep -RFlq --include='*.html' "$GOOGLE_ANALYTICS_ID" site
+          grep -RFlq --include='*.html' 'href="#__consent"' site
       # Fingerprint what we are about to publish, so the verify job below can
       # tell whether the live site is actually serving *this* build. Taken
       # from the same directory upload-pages-artifact packs, immediately
