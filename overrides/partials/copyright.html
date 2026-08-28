@@ -12,6 +12,9 @@
   {% if config.copyright %}
     <div class="md-copyright__highlight">
       {{ config.copyright }}
+      {% if config.extra.analytics %}
+        – <a href="#__consent">Change cookie settings</a>
+      {% endif %}
     </div>
   {% endif %}
   {% if not config.extra.generator == false %}

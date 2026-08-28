@@ -116,20 +116,17 @@ def test_reference_site_enables_website_heading_numbering() -> None:
     assert "config.extra.website_heading_numbering == false" in _text("overrides/main.html")
 
 
-def test_reference_site_uses_consent_gated_google_analytics() -> None:
+def test_reference_site_is_reusable_without_canonical_analytics() -> None:
     config = read_config(_text("zensical.toml"))["project"]
     extra = config["extra"]
 
-    assert extra["analytics"] == {
-        "provider": "google",
-        "property": "G-BCDJ2LWJT3",
-    }
-    assert extra["consent"]["actions"] == ["accept", "reject", "manage"]
-    assert extra["consent"]["cookies"]["analytics"] == {
-        "name": "Google Analytics",
-        "checked": False,
-    }
-    assert 'href="#__consent"' in config["copyright"]
+    assert "analytics" not in extra
+    assert "consent" not in extra
+    assert "#__consent" not in config["copyright"]
+
+    footer = _text("overrides/partials/copyright.html")
+    assert "{% if config.extra.analytics %}" in footer
+    assert 'href="#__consent"' in footer
 
 
 def test_reference_site_fails_when_a_macro_cannot_render() -> None:
