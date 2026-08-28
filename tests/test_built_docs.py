@@ -123,6 +123,12 @@ def test_the_pdf_built_and_has_pages(prodockit_pdf):
     assert prodockit_pdf.page_count > 5
 
 
+def test_the_site_publishes_mathjax_and_its_license(prodockit_paths) -> None:
+    mathjax = prodockit_paths.site_dir / "javascripts" / "vendor" / "mathjax"
+    assert (mathjax / "tex-svg-full.js").is_file()
+    assert (mathjax / "LICENSE").is_file()
+
+
 def test_desktop_on_this_page_uses_the_rendered_chapter_number(prodockit_paths) -> None:
     """The desktop secondary nav is a sibling of the primary nav.
 

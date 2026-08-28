@@ -26,6 +26,8 @@ from pathlib import Path
 #: byte-identical MathJax rather than whatever a CDN serves today.
 BUNDLE = "tex-svg-full.js"
 SOURCE = ("tools", "mathjax", "node_modules", "mathjax-full", "es5", BUNDLE)
+LICENSE = "LICENSE"
+LICENSE_SOURCE = ("tools", "mathjax", "node_modules", "mathjax-full", LICENSE)
 DEST = ("docs", "javascripts", "vendor", "mathjax")
 CONFIG = ("docs", "javascripts", "mathjax.js")
 
@@ -70,6 +72,7 @@ class InstallResult:
     """What was written, for a caller that wants to report it."""
 
     bundle: Path
+    license: Path
     config: Path
     ignored: list[str] = field(default_factory=list)
 
@@ -85,15 +88,19 @@ def install_mathjax(root: str | Path = ".", *, update_gitignore: bool = True) ->
     """
     project = Path(root)
     source = project.joinpath(*SOURCE)
-    if not source.is_file():
+    license_source = project.joinpath(*LICENSE_SOURCE)
+    missing = [path for path in (source, license_source) if not path.is_file()]
+    if missing:
         raise MathJaxError(
-            f"{source} is not there - run `npm ci --prefix tools/mathjax` first, "
+            f"{missing[0]} is not there - run `npm ci --prefix tools/mathjax` first, "
             "so the website and the PDF use the same MathJax"
         )
 
     bundle = project.joinpath(*DEST, BUNDLE)
     bundle.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, bundle)
+    license_path = project.joinpath(*DEST, LICENSE)
+    shutil.copyfile(license_source, license_path)
 
     config = project.joinpath(*CONFIG)
     config.parent.mkdir(parents=True, exist_ok=True)
@@ -102,7 +109,7 @@ def install_mathjax(root: str | Path = ".", *, update_gitignore: bool = True) ->
     added: list[str] = []
     if update_gitignore:
         added = _ignore(project / ".gitignore")
-    return InstallResult(bundle=bundle, config=config, ignored=added)
+    return InstallResult(bundle=bundle, license=license_path, config=config, ignored=added)
 
 
 def _ignore(path: Path) -> list[str]:

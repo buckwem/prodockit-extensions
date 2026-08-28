@@ -3589,11 +3589,13 @@ def _plan_csl_style(context: Context) -> Plan:
 #: paths, the bundle's name and the configuration all live in
 #: `prodockit.mathjax` now, which is the single implementation both this
 #: stage and a project's CI call (prodockit-extensions#276).
-def _mathjax_paths(context: Context) -> tuple[Path, Path, Path]:
+def _mathjax_paths(context: Context) -> tuple[Path, Path, Path, Path, Path]:
     project = context.config.resolved_project_dir(context.home)
     return (
         project.joinpath(*mathjax.SOURCE),
+        project.joinpath(*mathjax.LICENSE_SOURCE),
         project.joinpath(*mathjax.DEST, mathjax.BUNDLE),
+        project.joinpath(*mathjax.DEST, mathjax.LICENSE),
         project.joinpath(*mathjax.CONFIG),
     )
 
@@ -3611,20 +3613,27 @@ def _check_mathjax(context: Context) -> CheckResult:
     project = context.config.resolved_project_dir(context.home)
     if not (project / "docs").is_dir():
         return _missing("no project to install it into yet")
-    source, bundle, config = _mathjax_paths(context)
+    source, license_source, bundle, license_path, config = _mathjax_paths(context)
     absent = [
-        name for name, path in (("the config", config), ("the bundle", bundle)) if not path.exists()
+        name for name, path in (
+            ("the config", config),
+            ("the bundle", bundle),
+            ("the licence", license_path),
+        ) if not path.exists()
     ]
     if absent:
         return _missing(f"{' and '.join(absent)} for the website is not installed")
     if context.pdkboot:
         try:
             bundle_bytes = bundle.read_bytes()
+            license_bytes = license_path.read_bytes()
             config_text = config.read_text(encoding="utf-8")
         except OSError:
             return _wrong("the generated MathJax files cannot be read")
         if not bundle_bytes:
             return _wrong("the generated MathJax bundle is empty - installation was interrupted")
+        if not license_bytes:
+            return _wrong("the generated MathJax licence is empty - installation was interrupted")
         if source.exists():
             try:
                 if bundle_bytes != source.read_bytes():
@@ -3633,6 +3642,14 @@ def _check_mathjax(context: Context) -> CheckResult:
                     )
             except OSError:
                 return _wrong("the project's pinned MathJax bundle cannot be read")
+        if license_source.exists():
+            try:
+                if license_bytes != license_source.read_bytes():
+                    return _wrong(
+                        "the generated MathJax licence does not match the project's pinned copy"
+                    )
+            except OSError:
+                return _wrong("the project's pinned MathJax licence cannot be read")
         if config_text != mathjax.CONFIG_SOURCE:
             return _wrong("the generated MathJax configuration is incomplete or out of date")
         try:
@@ -3670,8 +3687,8 @@ def _plan_mathjax(context: Context) -> Plan:
         cwd=str(project),
         describe=(
             "Install MathJax for the website: copy the browser bundle out of "
-            "tools/mathjax's pinned install, write its configuration, and keep "
-            "both out of git"
+            "tools/mathjax's pinned install, copy its licence, write the browser "
+            "configuration, and keep the generated assets out of git"
         ),
         commands=[[*_prodockit_command(), "init-mathjax"]],
     )

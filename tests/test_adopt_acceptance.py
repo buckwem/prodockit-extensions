@@ -117,6 +117,10 @@ def test_site_snapshot_ignores_only_assets_added_by_adoption(tmp_path: Path) -> 
     )
     (before / "index.html").write_bytes(original)
     (after / "index.html").write_bytes(adopted)
+    for relative in adopt_acceptance.ADOPTED_SITE_FILES:
+        asset = after / relative
+        asset.parent.mkdir(parents=True, exist_ok=True)
+        asset.write_text(f"generated {relative}\n", encoding="utf-8")
 
     assert adopt_acceptance.snapshot(before, site=True) == adopt_acceptance.snapshot(
         after, site=True

@@ -2272,13 +2272,13 @@ def init_mathjax_command(root: str, no_gitignore: bool) -> None:
     """Install MathJax for the website, from tools/mathjax's own copy.
 
     Writes `docs/javascripts/mathjax.js` and copies the browser bundle
-    beside it, out of the `mathjax-full` install `prodockit pdf` already
-    renders through - so a formula cannot typeset one way on screen and
-    another in print, and the site works offline.
+    and its licence out of the `mathjax-full` install `prodockit pdf`
+    already renders through - so a formula cannot typeset one way on
+    screen and another in print, and the site works offline.
 
-    Neither file is committed: both are added to `.gitignore`, because
-    the bundle is third-party code that does not belong in your
-    repository. Anything that builds the site without running
+    These installed files are not committed: their paths are added to
+    `.gitignore`, because the bundle is third-party code that does not
+    belong in your repository. Anything that builds the site without running
     `prodockit bootstrap` - a CI job, most obviously - should run this
     first.
     """
@@ -2289,6 +2289,7 @@ def init_mathjax_command(root: str, no_gitignore: bool) -> None:
         sys.exit(1)
     click.echo(f"Wrote {result.config}")
     click.echo(f"Copied {result.bundle}")
+    click.echo(f"Copied {result.license}")
     for line in result.ignored:
         click.echo(f"Ignored {line}")
 

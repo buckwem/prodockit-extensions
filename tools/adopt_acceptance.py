@@ -33,6 +33,7 @@ GENERATED_DIRS = {".cache", ".git", ".venv", "site", "__pycache__", "node_module
 ADOPTED_SITE_FILES = {
     "stylesheets/pdk.css",
     "javascripts/mathjax.js",
+    "javascripts/vendor/mathjax/LICENSE",
     "javascripts/vendor/mathjax/tex-svg-full.js",
 }
 SCENARIOS = (
@@ -327,7 +328,8 @@ def exercise(
     site_changes = changed(site_before, site_after)
     if site_changes:
         raise AcceptanceError(
-            f"{name}: generated site changed beyond selected asset tags: {', '.join(site_changes)}"
+            f"{name}: generated site changed beyond selected assets and tags: "
+            f"{', '.join(site_changes)}"
         )
 
     stable = snapshot(project)

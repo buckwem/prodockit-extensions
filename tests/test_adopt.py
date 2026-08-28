@@ -356,6 +356,7 @@ def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monke
         )
         bundle.parent.mkdir(parents=True)
         bundle.write_text("bundle", encoding="utf-8")
+        (bundle.parent.parent / "LICENSE").write_text("Apache-2.0", encoding="utf-8")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
@@ -364,6 +365,7 @@ def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monke
 
     assert (project / "docs" / "javascripts" / "mathjax.js").is_file()
     assert (project / "docs" / "javascripts" / "vendor" / "mathjax" / "tex-svg-full.js").is_file()
+    assert (project / "docs" / "javascripts" / "vendor" / "mathjax" / "LICENSE").is_file()
     assert not (project / "tools" / "mermaid").exists()
 
 

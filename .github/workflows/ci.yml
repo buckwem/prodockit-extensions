@@ -217,7 +217,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci --prefix tools/mathjax
       - run: pip install -e .
+      - run: prodockit init-mathjax --no-gitignore
       - run: zensical build --clean --strict
       - run: prodockit update-dates
       - name: Check the reusable website has no analytics controls
