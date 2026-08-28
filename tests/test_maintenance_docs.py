@@ -100,6 +100,7 @@ def test_command_map_lists_every_public_command() -> None:
     guide = (ROOT / "docs" / "command-line.md").read_text(encoding="utf-8")
     commands = (
         "bootstrap",
+        "config",
         "init-mathjax",
         "init-tools",
         "pdf",

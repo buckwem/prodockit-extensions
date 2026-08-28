@@ -40,7 +40,12 @@ from prodockit.pdf.site import (
 from prodockit.pdf.source_bundle import build_source_bundle, discover_markdown_and_config_files
 from prodockit.project_config import load_project_config
 from prodockit.revision_dates import resolve_revision_dates
-from prodockit.settings import flatten_nav, heading_numbering_enabled, reference_style_values
+from prodockit.settings import (
+    extra_default,
+    flatten_nav,
+    heading_numbering_enabled,
+    reference_style_values,
+)
 from prodockit.zensical_macros import (
     _compute_site_word_count,
     _get_release,
@@ -441,7 +446,9 @@ def _build_pdf_from_config(
     # places its generated renderer foundation before this complete string,
     # so pdk.css -> extra.css -> pdk-pdf.css -> print.css is a real cascade
     # in which the author-owned files can override equal-specificity defaults.
-    for css_rel_path in (config.get("extra_css") or []) + list(extra.get("pdf_extra_css") or []):
+    for css_rel_path in (config.get("extra_css") or []) + list(
+        extra.get("pdf_extra_css") or extra_default("pdf_extra_css")
+    ):
         full_css_path = os.path.join(source_docs_dir, css_rel_path)
         with open(full_css_path, encoding="utf-8") as f:
             extra_css += _inline_css_urls(f.read(), os.path.dirname(full_css_path)) + "\n"
@@ -593,20 +600,25 @@ def _build_pdf_from_config(
         mono_font=font.get("code") or "Roboto Mono",
         copyright_text=(extra.get("pdf_copyright") or config.get("copyright") or "").strip(),
         site_name=_css_escape_content_string(config.get("site_name") or ""),
-        page_size=extra.get("pdf_page_size") or "A4",
-        margin_top=extra.get("pdf_margin_top") or "2cm",
-        margin_right=extra.get("pdf_margin_right") or "2cm",
+        page_size=extra.get("pdf_page_size") or extra_default("pdf_page_size"),
+        margin_top=extra.get("pdf_margin_top") or extra_default("pdf_margin_top"),
+        margin_right=extra.get("pdf_margin_right") or extra_default("pdf_margin_right"),
         # 2.5cm, not 2cm like the others: the running footer lives in this
         # margin and a two-line one came within 6.1mm of the paper edge -
         # see prodockit.pdf.css's own margin_bottom.
-        margin_bottom=extra.get("pdf_margin_bottom") or "2.5cm",
-        margin_left=extra.get("pdf_margin_left") or "2cm",
-        double_sided=bool(extra.get("pdf_double_sided", False)),
-        margin_inner=extra.get("pdf_margin_inner") or "2cm",
-        margin_outer=extra.get("pdf_margin_outer") or "2cm",
-        header_footer_font_size=extra.get("pdf_header_footer_font_size") or "10pt",
-        header_footer_color=extra.get("pdf_header_footer_color") or "#555555",
-        header_footer_divider_color=extra.get("pdf_header_footer_divider_color") or "#e2e8f0",
+        margin_bottom=extra.get("pdf_margin_bottom") or extra_default("pdf_margin_bottom"),
+        margin_left=extra.get("pdf_margin_left") or extra_default("pdf_margin_left"),
+        double_sided=bool(
+            extra.get("pdf_double_sided", extra_default("pdf_double_sided"))
+        ),
+        margin_inner=extra.get("pdf_margin_inner") or extra_default("pdf_margin_inner"),
+        margin_outer=extra.get("pdf_margin_outer") or extra_default("pdf_margin_outer"),
+        header_footer_font_size=extra.get("pdf_header_footer_font_size")
+        or extra_default("pdf_header_footer_font_size"),
+        header_footer_color=extra.get("pdf_header_footer_color")
+        or extra_default("pdf_header_footer_color"),
+        header_footer_divider_color=extra.get("pdf_header_footer_divider_color")
+        or extra_default("pdf_header_footer_divider_color"),
         reference_style_global=reference_style == "global",
         reference_spacing_european=reference_spacing_european,
         reference_indent_global=reference_indent_global,
@@ -615,8 +627,14 @@ def _build_pdf_from_config(
         mathjax_available=tex2svg_script is not None,
         math_dir=math_dir,
         tex2svg_script=tex2svg_script or "",
-        include_table_of_contents=bool(extra.get("pdf_include_table_of_contents", True)),
-        table_of_contents_title=extra.get("pdf_table_of_contents_title") or "Table of Contents",
+        include_table_of_contents=bool(
+            extra.get(
+                "pdf_include_table_of_contents",
+                extra_default("pdf_include_table_of_contents"),
+            )
+        ),
+        table_of_contents_title=extra.get("pdf_table_of_contents_title")
+        or extra_default("pdf_table_of_contents_title"),
         include_index=bool(index_config.get("include", False)),
         index_title=index_config.get("title") or "Index",
         on_stage=on_stage,
@@ -679,7 +697,7 @@ def build_source_bundle_from_zensical_config(config_path: str = "zensical.toml")
         output_path,
         root=root,
         report_name=config.get("site_name") or "",
-        page_size=extra.get("pdf_page_size") or "A4",
+        page_size=extra.get("pdf_page_size") or extra_default("pdf_page_size"),
         files=discover_markdown_and_config_files(
             root,
             docs_dir=docs_dir,
