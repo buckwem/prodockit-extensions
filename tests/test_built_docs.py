@@ -45,13 +45,6 @@ pytestmark = pytest.mark.built
 
 ROOT = Path(__file__).resolve().parent.parent
 
-#: Mermaid's default node fill (#ECECFF). Every node shape in a rendered
-#: diagram is painted with it, and nothing else in these docs uses it, so it
-#: distinguishes a real diagram from ordinary page furniture - unlike
-#: `page.get_drawings()` being non-empty, which is true of every page.
-MERMAID_NODE_FILL = (0.925, 0.925, 1.0)
-FILL_TOLERANCE = 0.02
-
 #: The two shapes a leaked index marker can take in the text layer: the
 #: current design's marker `id` (`prodockit-index-mark-N`, which reaches
 #: the PDF only as a named destination, never as text) and the literal
@@ -105,18 +98,6 @@ OUTLINE_CHAPTER_RE = re.compile(r"^\d+\.\s+\S")
 #: naming a page that gets a letter ("Appendix A") rather than a number, and
 #: so sits outside the numbered sequence checked below.
 APPENDIX_ATTR = "is_appendix"
-
-
-def _mermaid_node_shapes(page):
-    shapes = []
-    for drawing in page.get_drawings():
-        fill = drawing.get("fill")
-        if fill and all(
-            abs(channel - expected) <= FILL_TOLERANCE
-            for channel, expected in zip(fill, MERMAID_NODE_FILL, strict=False)
-        ):
-            shapes.append(drawing)
-    return shapes
 
 
 def test_the_pdf_built_and_has_pages(prodockit_pdf):
@@ -280,18 +261,20 @@ def test_code_blocks_kept_their_preformatted_layout(prodockit_pdf):
     assert not offenders, "monospace runs with justification holes:\n" + "\n".join(offenders[:10])
 
 
-def test_the_architecture_diagram_actually_rendered(prodockit_pdf):
-    """The counterpart to the check above, which would still pass if the
-    diagram vanished from the PDF entirely rather than reaching it as text.
-
-    Asserts on Mermaid's own node fill rather than the presence of any
-    vector content: every page has drawings (headers, rules), so a
-    non-empty `get_drawings()` proves nothing.
-    """
-    total = sum(len(_mermaid_node_shapes(page)) for page in prodockit_pdf)
-    assert total > 0, (
-        "No shape in the PDF is filled with Mermaid's node colour - the "
-        "diagram in extensions/bibliography.md did not render"
+def test_the_bibliography_pipeline_diagram_reaches_the_pdf(prodockit_pdf):
+    """The reviewed raster diagram must not vanish during PDF assembly."""
+    pages = [
+        page
+        for page in prodockit_pdf
+        if "Delegate bibliography formatting" in page.get_text()
+        and any(
+            image[2] >= 2000 and page.get_image_rects(image[0])
+            for image in page.get_images(full=True)
+        )
+    ]
+    assert len(pages) == 1, (
+        "The high-resolution bibliography pipeline diagram is absent from "
+        "the Extension integration page"
     )
 
 

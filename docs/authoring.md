@@ -12,6 +12,8 @@ use values calculated across the document, or produce a PDF. You do not need
 to read every page: choose the feature or tool the document needs and start
 with its smallest complete example.
 
+![Prodockit authoring features grouped by structure and layout, evidence and navigation, and calculated values and outputs](assets/diagrams/authoring-feature-map.png){ .documentation-diagram }
+
 ## Build on PyMdown Blocks
 
 Two prodockit extensions are built directly on \index{PyMdown Blocks} (see the

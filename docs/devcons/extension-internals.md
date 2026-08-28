@@ -10,6 +10,8 @@ The Authoring reference documents Markdown syntax and `zensical.toml` options.
 This page explains the integration machinery used when changing an extension
 or embedding it in a renderer other than Zensical.
 
+![Markdown and configuration pass through the extension layer and Zensical before the shared website and PDF style paths produce their outputs](../assets/diagrams/extension-integration-flow.png){ .documentation-diagram }
+
 ## Share definitions across pages {: #share-definitions-across-pages }
 
 Headings, references, citations, and glossary terms need build-wide state:
@@ -25,6 +27,8 @@ the Zensical page context, derives a `source` path, and shares the appropriate
 registry across the build. A pre-scan reads definitions from every navigation
 page before conversion so a page can refer forward to a definition rendered
 later.
+
+![A build-wide scan collects labels before references are resolved across Markdown files for both the website and PDF](../assets/diagrams/cross-reference-resolution.png){ .documentation-diagram }
 
 Outside Zensical, the caller supplies the registry and source explicitly:
 

@@ -25,6 +25,8 @@ zensical build --clean --strict
 python -m pytest
 ```
 
+![Testing progresses from source checks through clean builds and artifact tests to the final delivery check](../assets/diagrams/output-testing-layers.png){ .documentation-diagram }
+
 ## Quick start {: #testing-quick-start }
 
 No `conftest.py` wiring is needed - the fixtures register themselves

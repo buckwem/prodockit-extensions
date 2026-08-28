@@ -372,3 +372,5 @@ release ceremony; the changelog test permits it to be absent between releases.
 Downstream repositories that pin prodockit—especially `prodockit-template`
 and the userguide—should update deliberately, rebuild their own site and PDF,
 and use their own tests before adopting the release.
+
+![A prodockit release is followed by deliberate pin, shared-file, build, test and release updates in the template and userguide](../assets/diagrams/downstream-release-cascade.png){ .documentation-diagram }

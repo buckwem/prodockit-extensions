@@ -19,6 +19,8 @@ date otherwise. Every automatic timestamp is converted to UTC before its
 `YYYY-MM-DD` calendar date is selected, so the result does not depend on the
 time zone of the computer running the build.
 
+![Git or file modification times are converted to a UTC date and inserted at the author's chosen position in the website and PDF](assets/diagrams/page-update-dates.png){ .documentation-diagram }
+
 ### How time zones are handled
 
 - **Git history:** the author timestamp includes its recorded UTC offset.

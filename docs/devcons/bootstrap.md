@@ -357,6 +357,8 @@ and why - and running `--apply` again does only that stage.
 
 ## What it covers {: #bootstrap-stages }
 
+![The seven bootstrap phases progress from preflight and core tools through Git, the project, build tooling, the editor and publication](../assets/diagrams/bootstrap-journey.png){ .documentation-diagram }
+
 | # | Stage | Automated? |
 | --- | --- | --- |
 | 1 | prodockit runs in an environment of its own | yes, after a step of your own |

@@ -15,6 +15,8 @@ Use [machine bootstrap](devcons/bootstrap.md) for a new computer or a new
 repository. Adoption assumes that Git, SSH and the editor you prefer already
 work. It does not configure or change any of them.
 
+![Adoption assesses an existing site, adds standard components, installs only the selected renderers, then leaves the author to build and review](assets/diagrams/adoption-workflow.png){ .documentation-diagram }
+
 ## What the command changes
 
 The standard installation adds:

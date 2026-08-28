@@ -157,6 +157,8 @@ After creation, the repository is your project. The template manifest,
 `prodockit template-sync` can update shared publishing infrastructure without
 guessing about ownership.
 
+![Template files are classified as managed or shared, author-owned, or generated and local so later updates preserve the author's work](assets/diagrams/template-file-ownership.png){ .documentation-diagram }
+
 | Classification | Examples | Later template update |
 |---|---|---|
 | **Project-owned** | Markdown and assets under `docs/`, bibliography files, licence, editor and prose-lint choices | Never read for comparison and never written |

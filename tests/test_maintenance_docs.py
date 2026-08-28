@@ -79,14 +79,29 @@ def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
     """Architecture diagrams stay identical in the website and PDF."""
 
     expected = {
+        "docs/adopt.md": ("adoption-workflow.png",),
+        "docs/authoring.md": ("authoring-feature-map.png",),
         "docs/stylesheets.md": (
             "website-stylesheet-cascade.png",
             "pdf-stylesheet-cascade.png",
         ),
+        "docs/update-dates.md": ("page-update-dates.png",),
+        "docs/prodockit-template.md": ("template-file-ownership.png",),
+        "docs/devcons/bootstrap.md": ("bootstrap-journey.png",),
         "docs/devcons/continuous-integration.md": ("publication-pipeline.png",),
-        "docs/devcons/extension-internals.md": ("bibliography-pipeline.png",),
+        "docs/devcons/extension-internals.md": (
+            "extension-integration-flow.png",
+            "cross-reference-resolution.png",
+            "bibliography-pipeline.png",
+        ),
         "docs/devcons/pdf-internals.md": ("pdf-pipeline.png",),
-        "docs/devcons/releasing.md": ("release-workflow.png",),
+        "docs/devcons/pinning-drift.md": ("version-pinning-drift.png",),
+        "docs/devcons/releasing.md": (
+            "release-workflow.png",
+            "downstream-release-cascade.png",
+        ),
+        "docs/devcons/template-sync.md": ("template-sync-decision.png",),
+        "docs/devcons/testing.md": ("output-testing-layers.png",),
         "docs/introduction.md": ("prodockit-output-relationship.png",),
         "docs/pdf.md": ("website-and-pdf-example.png",),
     }
@@ -102,6 +117,14 @@ def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
             assert image_name in guide, f"{relative_path} does not use {image_name}"
             image = ROOT / "docs" / "assets" / "diagrams" / image_name
             assert image.read_bytes().startswith(png_signature), image
+
+    expected_images = {
+        image_name for image_names in expected.values() for image_name in image_names
+    }
+    committed_images = {
+        image.name for image in (ROOT / "docs" / "assets" / "diagrams").glob("*.png")
+    }
+    assert committed_images == expected_images
 
 
 def test_release_guide_covers_the_version_sources_and_release_gates() -> None:
