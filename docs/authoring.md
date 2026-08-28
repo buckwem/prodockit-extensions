@@ -75,6 +75,11 @@ changes visible output.
 | Present a procedure with connected numbered stages | [Numbered steps](extensions/steps.md) |
 | Cite a BibTeX library in a selected CSL style | [Bibliography](extensions/bibliography.md) |
 | Mark terms for a PDF back-of-book index | [Index](extensions/index-terms.md) |
+/// table-caption | <
+    attrs: {id: tab-authoring-choose-a-feature}
+
+Choose a feature
+///
 
 `prodockit.citations` and `prodockit.bibliography` are two approaches to the
 same broad task. A small document can define sources directly in Markdown;
@@ -92,6 +97,11 @@ Python-Markdown extensions:
 | Show when each source page was last updated | [Page update dates](update-dates.md) |
 | Produce a complete PDF, a single-page PDF, or a source bundle | [PDF generation](pdf.md) |
 | Find the safe first form, write behaviour, and options for every public command | [Command-line tools](command-line.md) |
+/// table-caption | <
+    attrs: {id: tab-authoring-use-features-beyond-markdown-extensions}
+
+Use features beyond Markdown extensions
+///
 
 These features are part of the same authoring reference because they affect
 what the document contains or produces. Installation, repository maintenance,

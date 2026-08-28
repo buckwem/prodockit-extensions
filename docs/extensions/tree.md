@@ -67,6 +67,11 @@ the listing:
 | \index{prodockit.tree!`indent`} | `2` | How many spaces one level costs. Set `4` for a listing written that way. |
 | `directory_icon` | `':lucide-folder:'` | Icon shortcode placed before every directory. |
 | `file_icon` | `':lucide-file:'` | Icon shortcode placed before every file. |
+/// table-caption | <
+    attrs: {id: tab-extensions-tree-configure-indentation-and-icons}
+
+Configure indentation and icons
+///
 
 This example changes both the indentation and the icons:
 
@@ -143,6 +148,11 @@ The package's own source-code map now lives under
 | `directory_icon: '…'` | Choose the directory icon |
 | `file_icon: '…'` | Choose the file icon |
 | `attrs: {...}` | Add an id, class, or other attribute to the tree |
+/// table-caption | <
+    attrs: {id: tab-extensions-tree-reference}
+
+Reference
+///
 
 The `tree` block follows the same fence, option, and nesting rules as
 [PyMdown Blocks](https://facelessuser.github.io/pymdown-extensions/extensions/blocks/).

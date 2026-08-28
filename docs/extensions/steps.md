@@ -191,6 +191,11 @@ list. This complete example combines an id with continued numbering:
 | `//// step \| Title` | Open one step with a title |
 | \index{prodockit.steps!`start`}: 9 | Start this procedure at step 9 |
 | `attrs: {...}` | Add HTML attributes to the generated `<ol>` |
+/// table-caption | <
+    attrs: {id: tab-extensions-steps-reference}
+
+Reference
+///
 
 Each title becomes a separate paragraph before the step body. A step may have
 no title, but every `step` must be inside a `steps` block for the resulting
@@ -225,6 +230,11 @@ The two stable class names are:
 | --- | --- |
 | `ol.prodockit-steps` | The complete procedure |
 | `.prodockit-step-title` | A step's optional title paragraph |
+/// table-caption | <
+    attrs: {id: tab-extensions-steps-generated-html}
+
+Generated HTML
+///
 
 The title is an element rather than bold text, so it can be styled separately
 from emphasis used in the step body.

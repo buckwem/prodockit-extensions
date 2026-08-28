@@ -88,6 +88,11 @@ installed depends on the route used to prepare the project:
 | [Bootstrap](devcons/bootstrap.md) | `prodockit bootstrap --apply` installs and verifies the required PDF tools. Continue with the verification commands below. |
 | [Adoption](adopt.md) | Adoption installs project-local Mermaid or maths renderers only when selected. Install Pandoc, WeasyPrint, its native Pango libraries, and any fonts this document requires by following the operating-system instructions below. |
 | [Manual installation](installation.md) | Install the PDF dependencies the document uses by following the operating-system instructions below. |
+/// table-caption | <
+    attrs: {id: tab-pdf-prepare-the-pdf-tools}
+
+Prepare the PDF tools
+///
 
 Activate the project's virtual environment, then use the instructions for its
 operating system when the route above requires them:
@@ -225,6 +230,11 @@ are described under [Test the built output](devcons/testing.md#testing-quick-sta
 | \index{PDF settings!`pdf_mmdc_bin`} | auto-detected | Path to a [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) `mmdc` binary, for pre-rendering Mermaid diagrams. Diagrams are left unrendered if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
 | \index{PDF settings!`pdf_tex2svg_script`} / `pdf_math_dir` | auto-detected | A local MathJax `tex2svg`-style Node script, for pre-rendering TeX math (WeasyPrint has no JS engine to run MathJax client-side). Formulas are left as literal text if none is found - see [Mermaid diagrams and TeX maths](#mermaid-diagrams-and-tex-maths). |
 | \index{PDF settings!`pdf_extra_css`} | none | A list of `docs_dir`-relative stylesheet paths, same shape as `extra_css` above but meant *only* for the PDF. The standard order is managed `pdk-pdf.css` followed by author-owned `print.css`; both are loaded after the renderer foundations and the website styles, so `print.css` has the final say at equal specificity. |
+/// table-caption | <
+    attrs: {id: tab-pdf-building-a-single-file}
+
+Building a single file
+///
 
 A page's own front matter
 \index{PDF settings!`pdf_include`}`pdf_include: false` keeps that page on the
@@ -355,6 +365,11 @@ configuration needed:
 | `{REPOURL}` | The git-detected repo URL (the same value `{% raw %}{{ repo_url }}{% endraw %}` gives a website macro). |
 | `{RELEASE}` | The latest published GitHub/GitLab release tag (e.g. `v1.2.0`). The *whole line* containing this marker is dropped instead if there isn't one - most projects never publish a release at all, so nothing shows a bare `"Release: "` label by default. |
 | `{% raw %}{{ site_name }}{% endraw %}` | Your project's own `site_name`, substituted literally - `prodockit pdf` never evaluates Jinja, so the exact same `{% raw %}{{ site_name }}{% endraw %}` text a website macro variable uses works here too, one line of markdown for both outputs. |
+/// table-caption | <
+    attrs: {id: tab-pdf-cover-page-markers}
+
+Cover page markers
+///
 
 Skipped entirely for a `--markdown-file`-scoped build, or if your `nav`
 has only one page - there's no separate "cover" vs "content" to compute a

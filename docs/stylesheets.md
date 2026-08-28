@@ -22,6 +22,11 @@ when changing colours, spacing, fonts, or the PDF presentation:
 | `docs/stylesheets/extra.css` | Document author | Website and PDF additions or overrides |
 | `docs/stylesheets/pdk-pdf.css` | Prodockit | PDF-only presentation defaults |
 | `docs/stylesheets/print.css` | Document author | PDF-only additions or overrides |
+/// table-caption | <
+    attrs: {id: tab-stylesheets-keep-managed-and-author-styles-separate}
+
+Keep managed and author styles separate
+///
 
 The two `pdk` files are delivered with Prodockit and checked by
 [`prodockit pins`](devcons/pinning-drift.md#pinning-shared-files). Do not edit
@@ -43,6 +48,11 @@ colours, typography, tables, contents presentation, or component spacing.
 |---|---|
 | Website | Theme → `pdk.css` → `extra.css` |
 | PDF | Renderer foundations → `pdk.css` → `extra.css` → `pdk-pdf.css` → `print.css` |
+/// table-caption | <
+    attrs: {id: tab-stylesheets-load-the-cascade-in-order}
+
+Load the cascade in order
+///
 
 The arrows show which later layer can override an earlier layer at equal CSS
 specificity. The website leaves the cascade after `extra.css`; the PDF

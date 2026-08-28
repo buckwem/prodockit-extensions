@@ -5,12 +5,16 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from prodockit.template_sync import read_config
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "zensical.toml"
+TABLE_DELIMITER = re.compile(
+    r"^\|?\s*:?-{1,}:?\s*(?:\|\s*:?-{1,}:?\s*)+\|?$"
+)
 
 
 def _nav_group(title: str) -> list[dict[str, str]]:
@@ -143,6 +147,58 @@ def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
         image.name for image in (ROOT / "docs" / "assets" / "diagrams").glob("*.png")
     }
     assert committed_images == expected_images
+
+
+def test_every_documentation_table_has_a_numbered_caption_above_it() -> None:
+    """Keep tables identifiable in prose and consistent in website/PDF output."""
+
+    missing: list[str] = []
+    table_count = 0
+
+    for guide_path in sorted((ROOT / "docs").rglob("*.md")):
+        lines = guide_path.read_text(encoding="utf-8").splitlines()
+        in_fence = False
+        line_number = 0
+
+        while line_number < len(lines):
+            stripped = lines[line_number].lstrip()
+            if stripped.startswith(("```", "~~~")):
+                in_fence = not in_fence
+
+            is_table = (
+                not in_fence
+                and stripped.startswith("|")
+                and line_number + 1 < len(lines)
+                and TABLE_DELIMITER.match(lines[line_number + 1].strip()) is not None
+            )
+            if not is_table:
+                line_number += 1
+                continue
+
+            table_count += 1
+            table_line = line_number + 1
+            line_number += 2
+            while (
+                line_number < len(lines)
+                and lines[line_number].lstrip().startswith("|")
+            ):
+                line_number += 1
+            while line_number < len(lines) and not lines[line_number].strip():
+                line_number += 1
+
+            caption = lines[line_number:] if line_number < len(lines) else []
+            has_leading_caption = bool(
+                caption and caption[0].lstrip() == "/// table-caption | <"
+            )
+            has_static_id = any(
+                "attrs: {id: tab-" in line for line in caption[:4]
+            )
+            if not (has_leading_caption and has_static_id):
+                relative = guide_path.relative_to(ROOT)
+                missing.append(f"{relative}:{table_line}")
+
+    assert table_count, "documentation table audit did not find any tables"
+    assert not missing, "tables without leading numbered captions: " + ", ".join(missing)
 
 
 def test_release_guide_covers_the_version_sources_and_release_gates() -> None:

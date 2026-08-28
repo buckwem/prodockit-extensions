@@ -42,6 +42,11 @@ Python interfaces and is not an author-facing command.
 | `Page` | One rendered source page plus its path, appendix, index, and running-header metadata |
 | `PdfBuildError` | Build failure carrying the underlying command output |
 | `build_source_bundle_from_zensical_config()` | High-level Markdown/configuration source-bundle build |
+/// table-caption | <
+    attrs: {id: tab-devcons-pdf-internals-use-the-public-python-surface}
+
+Use the public Python surface
+///
 
 Prefer `build_pdf_from_built_site()` when a caller already has a Zensical
 project. Use `build_pdf()` only when the caller owns page rendering and can
@@ -76,6 +81,11 @@ and non-zero exit status; the functions return paths or raise exceptions.
 | `prodockit.pdf.source_bundle` | Markdown/configuration source PDF |
 | `prodockit.pdf.index` | Marker extraction, term-page mapping, and generated index |
 | `prodockit.pdf.release` | Host release lookup for cover markers |
+/// table-caption | <
+    attrs: {id: tab-devcons-pdf-internals-know-the-internal-modules}
+
+Know the internal modules
+///
 
 Keep transformation stages narrow. A change to HTML normalisation, CSS, the
 Lua filter, or an external tool can affect every page, so verify the complete

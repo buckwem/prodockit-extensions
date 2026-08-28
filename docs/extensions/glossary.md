@@ -165,6 +165,11 @@ visible), while `id` stays, since references link straight to it.
 | Syntax | Purpose |
 | --- | --- |
 | `\gls{<id>}` | Insert one term's registered display text and link it to its definition |
+/// table-caption | <
+    attrs: {id: tab-extensions-glossary-using-a-term}
+
+Using a term
+///
 
 Unlike `\citeref{...}`, `\gls{...}` only ever takes a single id - there's no
 multi-term/bracketed form, since inserting a term's own text doesn't
@@ -190,6 +195,11 @@ Neither of the two shown above is resolved; both render the literal text.
 |---|---|---|
 | \index{prodockit.glossary!`unresolved`} | `"?"` | Text shown for a term id that cannot be found. |
 | \index{prodockit.glossary!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
+/// table-caption | <
+    attrs: {id: tab-extensions-glossary-zensical-settings}
+
+Zensical settings
+///
 
 ### Cross-page terms {: #glossary-multi-page-builds }
 
@@ -213,6 +223,11 @@ resolved or not - so a stylesheet has a stable hook either way:
 |---|---|
 | Resolved | `prodockit-gls` |
 | Unresolved | `prodockit-gls prodockit-gls-unresolved` |
+/// table-caption | <
+    attrs: {id: tab-extensions-glossary-customise-with-a-css-style-sheet}
+
+Customise with a CSS style sheet
+///
 
 An unresolved id's `<a>` has no `href` (see
 [Unresolved references](#glossary-unresolved-references) above) - style

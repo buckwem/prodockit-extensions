@@ -24,6 +24,11 @@ The public PDF implementation uses these supported boundaries:
 | Obtain theme admonition icons | Compiled CSS under `site_dir` |
 | Read page front matter | Source Markdown YAML |
 | Test the real integration | An installed wheel invoking the Zensical CLI |
+/// table-caption | <
+    attrs: {id: tab-devcons-zensical-coupling-supported-boundaries}
+
+Supported boundaries
+///
 
 The public `prodockit pdf` command follows these boundaries. It runs a clean
 Zensical build before extracting the configured pages from the completed
@@ -101,6 +106,11 @@ alternatives rather than assuming the private representation was necessary:
 | Obtain the page through macros | Page fields are not documented, macros are optional, and macro rendering can be disabled for a page. |
 | Configure `source` on the extension | One static configuration value cannot vary for every page in the build. |
 | Use root-relative or absolute URLs | These break subpath deployments, offline output or movable sites. |
+/// table-caption | <
+    attrs: {id: tab-devcons-zensical-coupling-can-it-be-removed}
+
+Can it be removed?
+///
 
 Processing completed build output remains the right way to remove private
 Zensical APIs from the PDF pipeline. It is not a replacement for current-page

@@ -32,6 +32,11 @@ except where noted:
 | \index{dependencies!`pypdf`} (>= 4.0) | `prodockit.pdf` |
 | \index{dependencies!`tomli`} (>= 2.0) | reading a template manifest on Python 3.10, where `tomllib` does not exist yet |
 | \index{dependencies!`pymupdf`} (>= 1.24) | only the back-of-book index - `pip install prodockit[index]` |
+/// table-caption | <
+    attrs: {id: tab-installation-requirements}
+
+Requirements
+///
 
 The floors above are the ones declared in `pyproject.toml`, and a test
 keeps this table in step with them - the two had drifted apart, with
@@ -50,6 +55,11 @@ differ in kind:
 | \index{dependencies!`mermaid-cli`}, `mathjax-full` (Node >= 22) | only Mermaid diagrams and TeX maths in the PDF |
 | Chrome or Chromium | only Mermaid diagrams - `mermaid-cli` renders them through a headless browser |
 | A citation style (`.csl`) | only `prodockit.bibliography`. Fetched per build, not vendored - see below |
+/// table-caption | <
+    attrs: {id: tab-installation-not-installed-by-pip}
+
+Not installed by pip
+///
 
 The citation style is a download rather than an install. Pandoc
 resolves `harvard-cite-them-right.csl` from the directory it runs in, and
@@ -146,6 +156,11 @@ See each extension's own page for its syntax, examples, and configuration:
 | [`prodockit.steps`](extensions/steps.md) | Numbered steps a reader works through in order |
 | [`prodockit.bibliography`](extensions/bibliography.md) | A bibliography built from your `.bib` files |
 | [`prodockit.index`](extensions/index-terms.md) | A back-of-book index (PDF only) |
+/// table-caption | <
+    attrs: {id: tab-installation-the-nine-extensions}
+
+The nine extensions
+///
 
 ### What is *not* an extension {: #installation-not-extensions }
 
@@ -163,6 +178,11 @@ nothing to add to `zensical.toml`, because they are not Markdown syntax:
 | [`prodockit pins`](devcons/pinning-drift.md) | Moves build-input version pins together |
 | [`prodockit template-sync`](devcons/template-sync.md) | Brings a project back into step with the template it came from |
 | [`prodockit init-tools` / `init-mathjax`](command-line.md#publish-and-verify) | Sets up optional Mermaid and maths rendering tools |
+/// table-caption | <
+    attrs: {id: tab-installation-what-is-not-an-extension}
+
+What is not an extension
+///
 
 Contributors changing the package itself should use the editable installation
 and repository checks in

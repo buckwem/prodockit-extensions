@@ -52,6 +52,11 @@ starts a section inside it (`1.1`, `1.2`, and so on):
     | Background | `background` | `1.1` |
     | Scope | `scope` | `1.2` |
     | Method | `method` | `2` |
+    /// table-caption | <
+        attrs: {id: tab-extensions-headings-number-headings}
+
+    Number headings
+    ///
 
 The extension calculates the section numbers used by
 [Cross-references](refs.md). The shared prodockit website styles can also show
@@ -75,6 +80,11 @@ The `numbering` setting accepts two values:
 | --- | --- |
 | `"continuous"` | Continue the main section numbers across pages in Zensical navigation order. |
 | `"per-document"` | Start each page's main section numbering at 1. This is the extension's default. |
+/// table-caption | <
+    attrs: {id: tab-extensions-headings-choose-how-numbering-continues}
+
+Choose how numbering continues
+///
 
 For a multi-page documentation site, set the option in `zensical.toml`:
 
@@ -120,6 +130,11 @@ For example:
     | --- | --- |
     | Glossary | A |
     | Terms | A.1 |
+    /// table-caption | <
+        attrs: {id: tab-extensions-headings-number-appendices}
+
+    Number appendices
+    ///
 
 a [prodockit.refs](refs.md) reference to `Terms` from another page:
 
@@ -163,6 +178,11 @@ doesn't consume a counter position:
     | --- | --- |
     | Cover Page | none |
     | Introduction | 1 |
+    /// table-caption | <
+        attrs: {id: tab-extensions-headings-leave-a-heading-unnumbered}
+
+    Leave a heading unnumbered
+    ///
 
 `Introduction` above is still numbered `1`, as if `Cover Page` weren't
 there at all.
@@ -221,6 +241,11 @@ An id comes from one of, in order of precedence:
 | \index{prodockit.headings!`numbering`} | `"per-document"` | Use `"continuous"` to carry main section numbers across pages in Zensical navigation order. |
 | \index{prodockit.headings!`appendix_attr`} | `"is_appendix"` | Name of the front matter setting that marks an appendix page. Change this only if your project uses another name. |
 | \index{prodockit.headings!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
+/// table-caption | <
+    attrs: {id: tab-extensions-headings-zensical-settings}
+
+Zensical settings
+///
 
 ### Cross-page numbering in Zensical
 

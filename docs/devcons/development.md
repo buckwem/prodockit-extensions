@@ -102,6 +102,11 @@ renderers. Use this map when changing that contract:
 | `tests/test_shared_files.py` and `tests/test_shared_file_wheel.py` | Source, manifest, installed-wheel, and byte-for-byte delivery checks |
 | `tests/test_template_sync.py` | Managed-style warning and preservation behaviour |
 | `tests/test_pdf_config.py` and `tests/test_site_consistency.py` | Cascade order and reference-site configuration |
+/// table-caption | <
+    attrs: {id: tab-devcons-development-stylesheet-delivery-code-map}
+
+Stylesheet delivery code map
+///
 
 The author-facing ownership and override rules are in [Stylesheets](../stylesheets.md);
 the contributor release obligations are in [Extension integration](extension-internals.md#maintain-the-stylesheet-contract).

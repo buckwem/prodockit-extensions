@@ -24,6 +24,11 @@ pipeline is \index{GitLab CI}.
 |---|---|---|
 | GitHub Pages | [`docs.yml`](https://github.com/buckwem/prodockit-template/blob/main/.github/workflows/docs.yml) | Builds the outputs, uploads the site, deploys Pages, and verifies the public site |
 | GitLab Pages | [`.gitlab-ci.yml`](https://github.com/buckwem/prodockit-template/blob/main/.gitlab-ci.yml) | Builds the outputs and publishes the `public/` Pages artifact |
+/// table-caption | <
+    attrs: {id: tab-devcons-continuous-integration-use-the-maintained-automation-files}
+
+Use the maintained automation files
+///
 
 The comments in those files explain settings that must remain beside the
 commands they control: pinned system tools, browser variables, fonts, build
@@ -151,6 +156,11 @@ than the rendered report.
 | Node and MathJax | TeX maths in the PDF and website bundle | The output can contain raw TeX |
 | Citation style files | Bibliography formatting | A configured missing style stops rendering |
 | Suitable Git history or release metadata | Version text used by a cover or macro | The field can be empty or one release behind |
+/// table-caption | <
+    attrs: {id: tab-devcons-continuous-integration-know-what-the-hosted-machine-needs}
+
+Know what the hosted machine needs
+///
 
 The maintained workflow files install these in dependency order. A document
 author normally changes the content and requirements, not the operating-system
@@ -228,6 +238,11 @@ which must gate publication. See [Test the built output](testing.md).
 | The website builds but the PDF link is stale | Confirm the PDF command runs before Zensical and both use the same artifact directory |
 | GitHub deploys but the public page is old | Inspect the workflow's live-verification job and rerun the maintained workflow against the default branch |
 | GitLab succeeds but no site is visible | Open **Deploy > Pages**, then check project/instance Pages visibility and the `public/` artifact |
+/// table-caption | <
+    attrs: {id: tab-devcons-continuous-integration-troubleshoot-a-publishing-run}
+
+Troubleshoot a publishing run
+///
 
 <span id="ci-release-numbering"></span>
 <span id="ci-pandoc-version"></span>

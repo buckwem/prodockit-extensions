@@ -131,6 +131,11 @@ several files at once, and nothing keeps them in step.
 | CI docs/build job | `zensical==0.0.57` | An **exact pin**. The site and PDF are artifacts; they should change deliberately. |
 | CI test job | `weasyprint==69.0` | An **exact pin**. Tests that assert on where things land in a rendered PDF treat the layout engine as an input, not an implementation detail. |
 | Drift job | both, exactly | The baseline it compares the newest release against. |
+/// table-caption | <
+    attrs: {id: tab-devcons-pinning-drift-where-a-version-gets-declared}
+
+Where a version gets declared
+///
 
 Both forms are correct in their own place. What is not correct is them
 disagreeing, which is easy to do by hand and invisible when it happens.
@@ -188,6 +193,11 @@ pinned - so one answer updates every file correctly.
 | `--set PACKAGE=VERSION` | Set a version without prompting, repeatable. Implies `--no-input`. |
 | `--latest` | Take PyPI's newest for every package without prompting. Implies `--no-input`. |
 | `--no-input` | Never prompt. Packages given a version are updated; the rest are reported and left untouched. |
+/// table-caption | <
+    attrs: {id: tab-devcons-pinning-drift-options}
+
+Options
+///
 
 ## Keep shared files with the pinned release {: #pinning-shared-files }
 
@@ -310,6 +320,11 @@ always a pip package:
 | image tag | `image: python:3.14` | GitLab CI, or any container |
 | CI variable | `PANDOC_VERSION: "3.10.1"` | a GitHub `env:` block, a GitLab `variables:` block |
 | version file | `3.14` | `.python-version` |
+/// table-caption | <
+    attrs: {id: tab-devcons-pinning-drift-what-it-scans}
+
+What it scans
+///
 
 !!! info "Why Python is managed without a release check"
 

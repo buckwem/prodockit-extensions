@@ -53,6 +53,11 @@ pinned by the project before assuming an option is unavailable.
 | [`prodockit pins`](devcons/pinning-drift.md) | Build-input versions disagree or need a reviewed upgrade | `prodockit pins --check --offline` | Matching version declarations when a version is selected |
 | [`prodockit shared-files`](devcons/pinning-drift.md#pinning-shared-files) | A shared site asset may have missed a cascade | `prodockit shared-files --check` | Missing or different declared files, only with `--apply` |
 | [`prodockit template-sync`](devcons/template-sync.md) | A generated project needs later template fixes | `prodockit template-sync` | With `--apply`, template-owned/shared files on a new branch; always appends its ignored log |
+/// table-caption | <
+    attrs: {id: tab-command-line-choose-a-command}
+
+Choose a command
+///
 
 The \index{commands!`prodockit init-mathjax`} command is the narrower website
 asset command; use `init-tools` when preparing both Mermaid and maths for PDF
@@ -251,6 +256,11 @@ Important exit-status behaviour:
 | `shared-files --check` | Every file declared in `.prodockit-shared-files.toml` matches the installed release |
 | `prodockit update-dates` | Revision dates were resolved and added to the completed site |
 | `pytest` | The selected source or built-output checks passed |
+/// table-caption | <
+    attrs: {id: tab-command-line-use-commands-in-automation}
+
+Use commands in automation
+///
 
 The ordinary interactive `prodockit pins` command is for a terminal, not CI.
 Likewise, `template-sync --push` asks before committing, merging, and pushing;

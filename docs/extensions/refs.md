@@ -169,6 +169,11 @@ sent, so that keeps its name.
 | --- | --- |
 | `\ref{<id>}` | The target's current number and name |
 | `\autoref{<id>}` | The same link, plus “on page N” in the PDF |
+/// table-caption | <
+    attrs: {id: tab-extensions-refs-syntax}
+
+Syntax
+///
 
 `<id>` is the target heading's id - either one you set explicitly via
 [`attr_list`](https://python-markdown.github.io/extensions/attr_list/)
@@ -197,6 +202,11 @@ Neither of the two shown above is resolved; both render the literal text.
 |---|---|---|
 | \index{prodockit.refs!`unresolved`} | `"??"` | Text shown when an id cannot be found. |
 | \index{prodockit.refs!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
+/// table-caption | <
+    attrs: {id: tab-extensions-refs-zensical-settings}
+
+Zensical settings
+///
 
 ### Cross-page references {: #refs-multi-page-builds }
 
@@ -222,6 +232,11 @@ resolved or not - so a stylesheet has a stable hook either way:
 | `\ref{id}` | Unresolved | `prodockit-ref prodockit-ref-unresolved` |
 | `\autoref{id}` | Resolved | `prodockit-autoref` |
 | `\autoref{id}` | Unresolved | `prodockit-autoref prodockit-autoref-unresolved` |
+/// table-caption | <
+    attrs: {id: tab-extensions-refs-customise-with-a-css-style-sheet}
+
+Customise with a CSS style sheet
+///
 
 An unresolved reference (see [Unresolved references](#refs-unresolved-references)
 above) still gets a `class` either way; style `prodockit-ref-unresolved`

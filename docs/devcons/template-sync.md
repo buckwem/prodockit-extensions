@@ -36,6 +36,11 @@ review and more likely to combine a CI migration with a visual change.
 | `prodockit template-sync --apply` | Makes the changes on a separate branch, ready for you to review | Your project uses a pull request (GitHub) or merge request (GitLab) |
 | `prodockit template-sync --apply --push` | Makes the changes and, after asking you, updates `main` directly | Your usual practice is to update `main` without a pull or merge request |
 | `prodockit template-sync --apply --force FILE-PATH` | Also replaces the named file even though it differs from the template | You have checked that file and want the template's complete version |
+/// table-caption | <
+    attrs: {id: tab-devcons-template-sync-choose-how-far-the-command-should-go}
+
+Choose how far the command should go
+///
 
 If you are unsure, use the first command. It is only a preview. The output tells
 you whether an update is available and which command to run next.
@@ -205,6 +210,11 @@ that is in neither list stops the run rather than being guessed at.
 | Seeds | `.vale.ini`, starter pages | Written only if absent |
 | Shared | `.gitignore`, `zensical.toml` | Merged line by line, never replaced |
 | Excluded | `CONTRIBUTING.md`, issue templates | Not delivered at all |
+/// table-caption | <
+    attrs: {id: tab-devcons-template-sync-what-it-will-and-will-not-write}
+
+What it will and will not write
+///
 
 Within the shared `zensical.toml`, an existing `project.extra.pdf_*` value is
 author-owned. Template sync adds a PDF parameter introduced by a newer
@@ -452,6 +462,11 @@ The line under the remote says which of three things happened:
 | `fetched just now` | first run - the template was cloned |
 | `fetched, up to date` | the cached copy was brought current |
 | `cached copy - could not reach the host…` | the host was unreachable; the run continued on what was already cached |
+/// table-caption | <
+    attrs: {id: tab-devcons-template-sync-where-the-template-comes-from}
+
+Where the template comes from
+///
 
 The third is a real answer, not a failure. A run on a train still shows
 you what your project would do - it just says plainly that the template

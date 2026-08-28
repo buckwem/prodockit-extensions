@@ -111,6 +111,11 @@ with names in your own `conftest.py`.
 | \index{prodockit.testing!fixtures!`prodockit_site_dir`} | The built site directory |
 | \index{prodockit.testing!fixtures!`prodockit_site_html_files`} | Every built HTML page, sorted |
 | \index{prodockit.testing!fixtures!`prodockit_soup_for`} | Factory: parses one built HTML file with BeautifulSoup |
+/// table-caption | <
+    attrs: {id: tab-devcons-testing-fixtures}
+
+Fixtures
+///
 
 Paths come from your config rather than an assumed layout: `site_dir`
 defaults to `site` but is commonly set to `public`, and the PDF follows
@@ -124,6 +129,11 @@ Two `pytest` ini options, both usually unnecessary:
 | --- | --- | --- |
 | `prodockit_config_file` | `zensical.toml` | Your Zensical config, relative to the pytest rootdir. |
 | `prodockit_pdf` | from the config | Override the PDF location. |
+/// table-caption | <
+    attrs: {id: tab-devcons-testing-configuration}
+
+Configuration
+///
 
 ```ini
 [pytest]
@@ -150,6 +160,11 @@ From `prodockit.testing`:
 | `find_unrendered_tex_pages(page_texts)` | As above, for maths. |
 | `contains_unrendered_mermaid(text)` | Single-page predicate. |
 | `contains_unrendered_tex(text)` | Single-page predicate. |
+/// table-caption | <
+    attrs: {id: tab-devcons-testing-checks}
+
+Checks
+///
 
 Both assertions name the fix (`prodockit init-tools`) in their failure
 message rather than only reporting the symptom.

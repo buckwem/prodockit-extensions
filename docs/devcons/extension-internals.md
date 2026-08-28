@@ -26,6 +26,11 @@ Headings, references, citations, and glossary terms need build-wide state:
 | `prodockit.headings` and `prodockit.refs` | `IdRegistry` | Heading, figure, and table ids, labels, and destinations |
 | `prodockit.citations` | `CitationRegistry` | Citation keys and authored reference text |
 | `prodockit.glossary` | `GlossaryRegistry` | Term ids, display text, and definitions |
+/// table-caption | <
+    attrs: {id: tab-devcons-extension-internals-share-definitions-across-pages}
+
+Share definitions across pages
+///
 
 Zensical creates a fresh Python-Markdown instance per page. Prodockit detects
 the Zensical page context, derives a `source` path, and shares the appropriate

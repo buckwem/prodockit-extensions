@@ -34,6 +34,11 @@ serves.
 | An existing template-derived project | [Staying in step with the template](devcons/template-sync.md) brings shared workflows and publishing files up to date without replacing your writing |
 | A working project that already previews with `zensical serve` | Continue with the publishing path below |
 | A prodockit package release rather than a documentation project | Use the maintainer [Build and release](devcons/releasing.md) runbook instead |
+/// table-caption | <
+    attrs: {id: tab-publishing-choose-your-starting-point}
+
+Choose your starting point
+///
 
 The template is a starting copy, not a live dependency. Your Markdown remains
 project-owned; later template fixes arrive only when you review and apply a
@@ -173,6 +178,11 @@ proves that a reader can retrieve the intended version.
 | Static website | `zensical build --clean --strict`; optionally `prodockit update-dates` | `site/` | Open pages, optional revision dates, navigation, links, search, and downloadable files |
 | Complete PDF | `prodockit pdf` | `docs/site_documentation.pdf` by default | Inspect cover, contents, page breaks, diagrams, fonts, and index |
 | Hosted website | GitHub Pages or GitLab Pages workflow | Project Pages URL | Confirm the public page contains the reviewed change |
+/// table-caption | <
+    attrs: {id: tab-publishing-know-which-output-you-are-checking}
+
+Know which output you are checking
+///
 
 ## Build with revision dates {: #build-with-revision-dates }
 

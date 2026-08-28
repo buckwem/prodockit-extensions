@@ -387,6 +387,11 @@ project.
 | | 21 | MathJax for the website | yes |
 | 7. Publish {: rowspan=2 } | 22 | First commit pushed | yes, after a step of your own |
 | | 23 | Documentation site published | **guide and verify** |
+/// table-caption | <
+    attrs: {id: tab-bootstrap-stages}
+
+Bootstrap stages grouped into the seven apply phases
+///
 
 Stages 8 to 14, 18, 19, 21 and 23 do the same thing on every operating
 system - they are about your project and your host rather than about the
@@ -437,6 +442,11 @@ Four states, and the difference between them matters:
 | `MISS` | Not there at all. |
 | `WRONG` | Present but not usable - git installed with no `user.email`, Node installed without `npm`. **Not** the same as missing, and telling you to install something you already have would send you the wrong way. |
 | `?` | Cannot be judged yet, because it needs a configuration answer you have not given. |
+/// table-caption | <
+    attrs: {id: tab-devcons-bootstrap-checking-without-changing-anything}
+
+Checking without changing anything
+///
 
 Exits non-zero when anything needs work, so it is usable as a check in a
 script - the same convention as
@@ -463,14 +473,19 @@ prodockit bootstrap --configure   # answer the questions, then stop
 prodockit bootstrap --apply       # set up what needs it, asking first
 ```
 
-`--apply` walks the stages that need work, showing what it will run
-before it runs it, and asks each time. The defaults differ by state, and
-deliberately:
+`--apply` walks the stages in \ref{tab-bootstrap-stages} that need work,
+showing what it will run before it runs it, and asks each time. The defaults
+differ by state, and deliberately:
 
 | What the plan does | Prompt |
 | --- | --- |
 | Anything that can be undone | `Apply? [Y/n]` |
 | Anything that cannot - stage 8, and only stage 8 | `Apply? [y/N]` |
+/// table-caption | <
+    attrs: {id: tab-devcons-bootstrap-setting-it-up}
+
+Setting it up
+///
 
 One rule, and a visible one. The default used to follow the *check's
 status* - `MISS` meant yes, `WRONG` meant no - which is a rule you cannot
@@ -498,6 +513,11 @@ happens is not cosmetic - it is whether the stage can work at all:
 | --- | --- |
 | **Before** the commands, because they depend on you | The keypair stage: the advice on choosing a passphrase is no use once `ssh-keygen` has already asked for one. |
 | **After** them, because it depends on the commands | macOS's VS Code: the Command Palette you are asked to open belongs to the application `brew install` has just put there. |
+/// table-caption | <
+    attrs: {id: tab-devcons-bootstrap-where-your-part-comes-in-the-order}
+
+Where your part comes in the order
+///
 
 Both orderings have been wrong in a shipped release - the install
 skipped entirely in one direction (#230), and the run stopped dead at the
@@ -616,6 +636,11 @@ The file is stored per **directory**, beside whatever is being set up:
 | This directory | `./.pdk-bootstrap.toml` |
 | Older, per user (macOS / Linux) | `~/.config/prodockit/bootstrap.toml` |
 | Older, per user (Windows) | `%APPDATA%\prodockit\bootstrap.toml` |
+/// table-caption | <
+    attrs: {id: tab-devcons-bootstrap-configuration}
+
+Configuration
+///
 
 One config per directory is one per project. There was a single file per
 user until 0.32.1, so setting up a second project overwrote the answers

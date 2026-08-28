@@ -170,6 +170,11 @@ Template file ownership
 | **Template-owned** | Pages workflows, `.gitlab-ci.yml`, styles, JavaScript, `macros.py`, `overrides/`, and `tools/` | Updated when the project has not edited the file; a local edit is kept for review |
 | **Shared** | `zensical.toml`, requirements files, `.gitignore`, and `README.md` | Merged by setting or delegated to the command that owns that content |
 | **Excluded** | Template changelog, contributor files, issue templates, and the template's sample regression suite | Not delivered to generated projects |
+/// table-caption | <
+    attrs: {id: tab-prodockit-template-know-what-becomes-yours}
+
+Know what becomes yours
+///
 
 For shared files, the merge is deliberately narrow. Template extension and
 PDF settings can arrive in `zensical.toml`, but project content such as the

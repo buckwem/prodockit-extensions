@@ -196,6 +196,11 @@ disposable generated output rather than a place for hand-maintained files.
     | --- | --- |
     | `{% raw %}{{ release }}{% endraw %}` (website, and any macro-rendered page) | `git describe --tags` on the local checkout |
     | `{RELEASE}` (PDF cover marker) | The host's releases API |
+    /// table-caption | <
+        attrs: {id: tab-devcons-limitations-pdf-generation}
+
+    PDF generation
+    ///
 
     Each is right for its own context. `{% raw %}{{ release }}{% endraw %}` is
     re-evaluated on

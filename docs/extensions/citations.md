@@ -138,6 +138,11 @@ be visible), while `id` stays, since citations link straight to it.
 | --- | --- |
 | `\citeref{<id>}` | Cite one defined source |
 | `\citeref{<id1>,<id2>,...}` | Cite several sources in one bracket |
+/// table-caption | <
+    attrs: {id: tab-extensions-citations-citing-a-source}
+
+Citing a source
+///
 
 Like [prodockit.refs](refs.md), `\citeref{...}` is recognised the same way
 Python-Markdown's own inline syntax is, so it's protected inside inline
@@ -159,6 +164,11 @@ Neither of the two shown above is resolved; both render the literal text.
 |---|---|---|
 | \index{prodockit.citations!`unresolved`} | `"?"` | Text shown for a citation id that cannot be found. |
 | \index{prodockit.citations!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
+/// table-caption | <
+    attrs: {id: tab-extensions-citations-zensical-settings}
+
+Zensical settings
+///
 
 ### Cross-page citations {: #citations-multi-page-builds }
 
@@ -194,6 +204,11 @@ each individual key's own link:
 | Outer `<span>` wrapping the whole `\citeref{...}` citation | always | `prodockit-cite` |
 | Each key's own `<a>` | resolved | `prodockit-cite-resolved` |
 | Each key's own `<a>` | unresolved | `prodockit-cite-unresolved` |
+/// table-caption | <
+    attrs: {id: tab-extensions-citations-customise-with-a-css-style-sheet}
+
+Customise with a CSS style sheet
+///
 
 An unresolved key's `<a>` has no `href` (see
 [Unresolved citations](#citations-unresolved-citations) above) - style

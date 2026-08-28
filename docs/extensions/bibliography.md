@@ -116,6 +116,11 @@ unresolved = "?"
 | \index{prodockit.bibliography!`csl_style`} | `""` (Pandoc's default) | Path to the `.csl` file that controls citation and reference-list formatting. Leave it out to use Pandoc's default style. |
 | \index{prodockit.bibliography!`unresolved`} | `"?"` | Text shown for a citation key that cannot be found in the `.bib` file. |
 | \index{prodockit.bibliography!`source`} | `""` (detected automatically) | Advanced: identifies the current page when using the extension outside Zensical. Leave it unset in `zensical.toml`. |
+/// table-caption | <
+    attrs: {id: tab-extensions-bibliography-choose-the-bibliography-settings}
+
+Choose the bibliography settings
+///
 
 Only `bib_file` is normally required. Add `csl_style` when you need a
 particular citation style, and change `unresolved` only when you want another
@@ -265,6 +270,11 @@ renders `?`, with no link.
 | `\bibliography{<file>}` | Generate every entry from another `.bib` file |
 | `\bibliography{<file>}{true}` | Generate only entries cited in the build |
 | `\bibliography{<file>}{false}` | Generate every entry, cited or not |
+/// table-caption | <
+    attrs: {id: tab-extensions-bibliography-syntax}
+
+Syntax
+///
 
 Only a single key is supported - unlike `prodockit.citations`'
 `\citeref{id1,id2,...}`, a multi-key citation isn't matched by this
@@ -303,6 +313,11 @@ needs one.
 | External dependencies | None | `pandoc` on `PATH`, even without a PDF build |
 | Editing a reference | Edit the prose by hand, on the references page | Edit the `.bib` entry once, everywhere it's cited updates |
 | Separate References/Bibliography sections | Not built in - would need two hand-authored lists kept in sync manually | Built in - `\bibliography{<file>}{<true\|false>}` generates a strict cited-only list and/or a broader everything-included list, see [Multiple sections](#bibliography-multiple-sections) |
+/// table-caption | <
+    attrs: {id: tab-extensions-bibliography-comparing-the-two-approaches}
+
+Comparing the two approaches
+///
 
 **Where `prodockit.citations` fits best**: a short reference list, a house
 style unlikely to ever change, or a project that doesn't want a `pandoc`
@@ -353,6 +368,11 @@ is built for, as prodockit-template's own adoption shows.
 | `<span>` wrapping a resolved `\cite{id}` | always | `class="prodockit-bib-cite"` |
 | `<span>` wrapping an unresolved `\cite{id}` | always | `class="prodockit-bib-cite prodockit-bib-cite-unresolved"` |
 | Each generated reference-list entry | always | `class="csl-entry reference"` |
+/// table-caption | <
+    attrs: {id: tab-extensions-bibliography-customise-with-a-css-style-sheet}
+
+Customise with a CSS style sheet
+///
 
 Every generated reference-list entry also gets `class="reference"` (in
 addition to Pandoc's own `csl-entry`) - matching the class

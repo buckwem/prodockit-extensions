@@ -42,6 +42,11 @@ schedule. The other boxes are actions or workflow stages that follow.
 | [`drift.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/drift.yml) | Monday schedule; manual dispatch | Build with pinned and newest rendering dependencies, compare artifacts, run checks against the newer build, and open or update an issue rather than failing for mere availability |
 | [`publish.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/publish.yml) | Published GitHub release | Build source and wheel artifacts from the release tag, validate their metadata and rendered README with Twine, then publish them to PyPI through \index{PyPI!Trusted Publishing} |
 | [`release-redeploy.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/release-redeploy.yml) | Published GitHub release; manual dispatch | Start `docs.yml` against `main` after the new tag exists, so the cover and macros can show the new release without deploying from a tag ref |
+/// table-caption | <
+    attrs: {id: tab-devcons-releasing-understand-the-workflow-chain}
+
+Understand the workflow chain
+///
 
 The seven workflows overlap intentionally. `ci.yml` gives quick pull-request
 feedback and makes `main` the complete supported-Python backstop. A
@@ -65,6 +70,11 @@ Use semantic versioning as a decision aid:
 | Backward-compatible fixes or documentation corrections | Patch |
 | New backward-compatible commands, options, or extension features | Minor |
 | An intentional incompatible public change | Major—or the repository's agreed pre-1.0 policy |
+/// table-caption | <
+    attrs: {id: tab-devcons-releasing-1-choose-the-release-version}
+
+1. Choose the release version
+///
 
 Read every change since the previous `prodockit-v...` tag. The Git history is
 the complete record; the website release notes intentionally contain only
@@ -345,6 +355,11 @@ Automation has separate success conditions, so perform separate public checks:
 | `prodockit --version` prints `0.42.0` | The installed code agrees with package metadata |
 | Documentation cover shows the new release | The post-release main-branch redeploy completed |
 | `docs.yml` verify job passes | The public Pages URL serves the artifact built by that run |
+/// table-caption | <
+    attrs: {id: tab-devcons-releasing-7-verify-the-release-as-a-user}
+
+7. Verify the release as a user
+///
 
 A clean installation check can use a temporary virtual environment:
 
@@ -367,6 +382,11 @@ Use the platform's corresponding activation or executable path on Windows.
 | `release-redeploy.yml` fails | Manually run `gh workflow run docs.yml --ref main` after fixing permissions or workflow availability |
 | Pages deploy succeeds but verify fails | Inspect the response headers and rerun `docs.yml`; do not assume successful upload means successful delivery |
 | Drift issue opens after release | Triage it as future maintenance; it does not invalidate the pinned release that just shipped |
+/// table-caption | <
+    attrs: {id: tab-devcons-releasing-recover-from-a-failed-stage}
+
+Recover from a failed stage
+///
 
 ## After release
 

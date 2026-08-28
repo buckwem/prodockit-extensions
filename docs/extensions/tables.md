@@ -28,6 +28,11 @@ Choose the feature that solves the table's problem:
 | Merge cells | `colspan=2` or `rowspan=2` |
 | Change one cell's shading | `shade="off"` or `shade="8%"` |
 | Turn a long heading vertically | `rotate=90` or `rotate=270`, with `width` |
+/// table-caption | <
+    attrs: {id: tab-extensions-tables-enable-the-extension}
+
+Enable the extension
+///
 
 The next examples show each feature in isolation before combining them.
 
@@ -53,6 +58,11 @@ written:
     |---|---|---|
     | Headings | Heading ids and section numbers | Q1 |
     | Refs | Cross-references, resolved by number | Q2 |
+    /// table-caption | <
+        attrs: {id: tab-extensions-tables-percentages-that-add-up-to-100}
+
+    Percentages that add up to 100%
+    ///
 
 ### Percentages that don't add up to 100%
 
@@ -74,6 +84,11 @@ columns have no width, they share that space evenly:
     |---|---|---|
     | Headings | Heading ids and section numbers | Q1 |
     | Refs | Cross-references, resolved by number | Q2 |
+    /// table-caption | <
+        attrs: {id: tab-extensions-tables-percentages-that-don-t-add-up-to-100}
+
+    Percentages that don't add up to 100%
+    ///
 
 `Name` and `Due` get the widths given; `Description`, left unannotated,
 takes the remaining 65%. A column left unannotated in a table with no
@@ -100,6 +115,11 @@ page becomes wider or narrower. You can give every column a fixed width:
     |---|---|---|
     | :material-file-pdf-box: | A downloadable PDF | PDF |
     | :material-file-document: | A Markdown source file | Markdown |
+    /// table-caption | <
+        attrs: {id: tab-extensions-tables-fixed-widths-for-every-column}
+
+    Fixed widths for every column
+    ///
 
 ### Mixing percentages and fixed widths
 
@@ -121,6 +141,11 @@ still be left without a width and use the remaining space:
     |---|---|---|
     | 1 | prodockit.headings | Heading ids and section numbers |
     | 2 | prodockit.tables | Column widths on a table |
+    /// table-caption | <
+        attrs: {id: tab-extensions-tables-mixing-percentages-and-fixed-widths}
+
+    Mixing percentages and fixed widths
+    ///
 
 ### Left-aligning a header
 
@@ -147,6 +172,11 @@ header cell with no conflict:
     |:---|---|
     | Headings | Heading ids and section numbers |
     | Refs | Cross-references, resolved by number |
+    /// table-caption | <
+        attrs: {id: tab-extensions-tables-left-aligning-a-header}
+
+    Left-aligning a header
+    ///
 
 `:---:`/`---:` center- or right-align a column the same way - see
 [Python-Markdown's own `tables` docs](https://python-markdown.github.io/extensions/tables/)
@@ -180,6 +210,11 @@ Mark it `{: .compact }` on any header cell:
     | Threat {: .compact } | Likelihood | Impact | Risk |
     |---|---|---|---|
     | Credential theft | H | H | H |
+    /// table-caption | <
+        attrs: {id: tab-extensions-tables-use-a-compact-layout}
+
+    Use a compact layout
+    ///
 
 Use it only when the normal table is too wide. Put the marker on any header
 cell. It affects the whole table and can be combined with column widths.
@@ -206,6 +241,11 @@ Mark it `{: .header }`:
     |---|---|---|---|
     | | Before {: .header } | After | |
     | Widget | 1 | 2 | ok |
+    /// table-caption | <
+        attrs: {id: tab-extensions-tables-use-more-than-one-header-row}
+
+    Use more than one header row
+    ///
 
 Both header rows then repeat when a long table continues onto another PDF
 page.
@@ -237,6 +277,11 @@ below.
     |---|---|---|---|
     | | Before {: .header } | After | |
     | Widget | 1 | 2 | ok |
+    /// table-caption | <
+        attrs: {id: tab-extensions-tables-merge-cells}
+
+    Merge cells
+    ///
 
 The empty cell after `Measured` and the empty cells beneath the two
 `rowspan=2` headings are structural placeholders. The extension removes those
@@ -283,6 +328,11 @@ Header cells have a subtle 5% shade by default. Remove it from one cell with
     | Unshaded {: shade="off" } | Grouped heading {: colspan=2 shade="8%" } | |
     |---|---|---|
     | Normal | Highlighted {: shade="5%" } | Normal |
+    /// table-caption | <
+        attrs: {id: tab-extensions-tables-adjust-cell-shading}
+
+    Adjust cell shading
+    ///
 
 Shading applies to the whole surviving merged cell, so `shade` combines with
 `colspan` and `rowspan` on the same attribute list. A percentage must be from
@@ -307,6 +357,11 @@ on their side:
     | Control | Availability requirement {: rotate=270 width="1.8em" height="105pt" } |
     |---|---|
     | Backups | H |
+    /// table-caption | <
+        attrs: {id: tab-extensions-tables-rotate-headings}
+
+    Rotate headings
+    ///
 
 `270` reads bottom-to-top, `90` top-to-bottom, and nothing else is allowed:
 another angle gives a heading nobody can read and a row height nobody can
@@ -338,6 +393,11 @@ whole column, so declare it once on the heading rather than on a body cell.
 | `shade="<percentage>"` | Any cell | Shade that cell by an explicit percentage |
 | \index{prodockit.tables!`rotate`}=90 or `rotate=270` | Header cell that also has `width` | Rotate the heading text |
 | `height="<css-length>"` | Rotated header cell | Reserve height for the rotated text |
+/// table-caption | <
+    attrs: {id: tab-extensions-tables-syntax}
+
+Syntax
+///
 
 The minimal width form is:
 
@@ -364,6 +424,11 @@ The extension adds stable classes that a website CSS style sheet can target:
 | `<th>` or `<td>` | cell has `shade="off"` | `class="prodockit-table-cell-unshaded"` |
 | `<th>` or `<td>` | cell has `shade="<percentage>"` | `class="prodockit-table-cell-shaded"` plus `--prodockit-table-cell-shade` |
 | `<col>` | that column has `width` | `style="width: <value>;"` |
+/// table-caption | <
+    attrs: {id: tab-extensions-tables-customise-with-a-css-style-sheet}
+
+Customise with a CSS style sheet
+///
 
 Add at least this rule for sized and compact website tables:
 

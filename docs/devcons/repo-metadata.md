@@ -118,6 +118,11 @@ unchanged for the next run.
 | \index{commands!prodockit sync-repo!`--remote`} | `origin` | Which git remote to read the repository URL from. |
 | \index{commands!prodockit sync-repo!`--branch`} | detected | Default branch for `edit_uri` and GitLab build-badge links. |
 | \index{commands!prodockit sync-repo!`--check`} | off | Report what would change, write nothing, exit non-zero if anything would. |
+/// table-caption | <
+    attrs: {id: tab-devcons-repo-metadata-options}
+
+Options
+///
 
 ## What it does, and why {: #sync-repo-what-it-does }
 

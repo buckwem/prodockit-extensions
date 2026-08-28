@@ -50,6 +50,11 @@ returning the unrendered page and allowing a broken site to be published.
 | `{% raw %}{{ repo_url }}{% endraw %}` | The fully-qualified `https://` URL for the current checkout's git `origin` remote (converted from `git@host:path.git` SSH syntax, with any embedded CI credentials stripped) - `""` if there's no git remote configured. |
 | `{% raw %}{{ release }}{% endraw %}` | The latest git tag reachable from `HEAD` (e.g. `"1.2.0"`) - `""` if this checkout has no tags at all. Resolves identically for the website and for `prodockit pdf`, since both render through this same macro environment - unlike `prodockit.pdf`'s own [`{RELEASE}` cover-page marker](pdf.md#cover-page-markers), which queries the host's GitHub/GitLab API instead, for a project whose cover page isn't part of a live, macro-rendered site at all. |
 | `{% raw %}{{ site_name }}{% endraw %}` | `project.site_name` from `zensical.toml`. |
+/// table-caption | <
+    attrs: {id: tab-macros-variables}
+
+Variables
+///
 
 ## Macros
 
@@ -59,6 +64,11 @@ returning the unrendered page and allowing a broken site to be published.
 | `{% raw %}{{ reference_style() }}{% endraw %}` | Place once near the top of a references page - controls `.reference` paragraph spacing. See below. |
 | `{% raw %}{{ acronym_style() }}{% endraw %}` | Place once near the top of an acronyms page - matches `reference_style()`'s default spacing. |
 | `{% raw %}{{ glossary_style() }}{% endraw %}` | Place once near the top of a glossary page - matches `reference_style()`'s default spacing. |
+/// table-caption | <
+    attrs: {id: tab-macros-macros}
+
+Macros
+///
 
 ## Show macro syntax as text {: #macros-literal-syntax }
 
@@ -108,6 +118,11 @@ one configured value:
 | \index{prodockit.zensical_macros!`reference_spacing_european`} | `"-0.8em"` | Gap between entries, "european" style - also used unconditionally for the acronym/glossary lists. |
 | \index{prodockit.zensical_macros!`reference_indent_global`} | `"1.27cm"` | Hanging indent on wrapped lines, "global" style. |
 | \index{prodockit.zensical_macros!`reference_spacing_global`} | `"2em"` | Gap between entries, "global" style. |
+/// table-caption | <
+    attrs: {id: tab-macros-reference-style-acronym-style-glossary-style}
+
+reference_style() / acronym_style() / glossary_style()
+///
 
 For supported versions and the pre-1.0 stability boundary, see
 [Support and compatibility](about/support.md).
