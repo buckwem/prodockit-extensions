@@ -43,18 +43,19 @@ ADMONITION_ACCENT_COLORS: dict[str, str] = {
 }
 
 
-def discover_icon_dirs(docs_dir: str = "docs") -> list[str]:
+def discover_icon_dirs(
+    docs_dir: str = "docs", *, project_root: str | Path = "."
+) -> list[str]:
     """Discover project-owned ``.icons`` directories.
 
     Zensical's installed package layout is deliberately not searched.  Theme
     icons are recovered from the documented built website instead; only a
     project's explicit overrides need filesystem discovery here.
     """
-    dirs = [
-        os.path.abspath(os.path.join(os.getcwd(), "overrides", ".icons")),
-        os.path.abspath(os.path.join(os.getcwd(), ".icons")),
-        os.path.abspath(os.path.join(os.getcwd(), docs_dir, ".icons")),
-    ]
+    root = Path(project_root).resolve()
+    docs = Path(docs_dir)
+    docs = docs.resolve() if docs.is_absolute() else (root / docs).resolve()
+    dirs = [str(root / "overrides" / ".icons"), str(root / ".icons"), str(docs / ".icons")]
 
     valid_dirs = []
     for d in dirs:

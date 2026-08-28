@@ -22,11 +22,12 @@ here before it ever reaches the live site again.
 """
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from prodockit.pdf.site import build_site, page_html
+from prodockit.pdf.site import page_html
 from prodockit.project_config import ProjectConfig, load_project_config
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -55,7 +56,11 @@ _INTENTIONAL_JINJA_BY_PAGE = {
 def built_project() -> ProjectConfig:
     """Build once through Zensical's documented CLI for all page checks."""
     project = load_project_config(REPO_ROOT / "zensical.toml")
-    build_site(project)
+    subprocess.run(
+        ["zensical", "build", "--clean", "--strict", "--config-file", str(project.path)],
+        cwd=project.root,
+        check=True,
+    )
     return project
 
 

@@ -112,7 +112,7 @@ from prodockit.pdf.config import (
 )
 from prodockit.pdf.site import BuiltSiteError
 from prodockit.pdf.source_bundle import SourceBundleError
-from prodockit.project_config import ProjectConfigError
+from prodockit.project_config import ProjectConfigError, load_project_config
 from prodockit.revision_dates import RevisionDateError, update_built_site_revision_dates
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
@@ -1946,6 +1946,18 @@ def _run_pdf_command(
         click.echo(f"Building PDF from {config_file} using {markdown_file}...")
     else:
         click.echo(f"Building PDF from {config_file}...")
+    if not legacy:
+        try:
+            built_site = load_project_config(config_file).site_dir
+            try:
+                built_site_label = built_site.relative_to(Path.cwd())
+            except ValueError:
+                built_site_label = built_site
+            click.echo(f"Using the completed Zensical build in {built_site_label}")
+        except (OSError, ValueError):
+            # The renderer reports the configuration error consistently with
+            # all other public PDF failures below.
+            pass
 
     def say(number: int, total: int, title: str) -> None:
         # A PDF build is minutes of silence otherwise, and a silent
@@ -1972,8 +1984,8 @@ def _pdf_options(command: Callable[_P, _R]) -> Callable[_P, _R]:
         default=None,
         help=(
             "Include only this Markdown file in the PDF (relative to docs_dir), "
-            "ignoring nav for the PDF contents. The public pdf command still "
-            "rebuilds the full site; CONFIG_FILE supplies everything else."
+            "ignoring nav for the PDF contents. The public pdf command reads "
+            "that page from the completed site; CONFIG_FILE supplies everything else."
         ),
     )(command)
     return click.option(
