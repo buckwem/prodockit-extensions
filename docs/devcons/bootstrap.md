@@ -6,10 +6,16 @@ icon: lucide/rocket
 
 # Machine bootstrap {: #bootstrap-machine-bootstrap }
 
-\index{commands!`prodockit bootstrap`} turns the User Guide's install sequence into
-a list of stages that can be checked individually and repaired one at a
-time, rather than followed top to bottom and hoped over. `prodockit
-bootstrap` reports how many there are; the table below names them.
+\index{commands!`prodockit bootstrap`} prepares a machine to create or resume a
+project based on `prodockit-template`. It is not a general Zensical installer:
+use [adoption](../adopt.md) to add selected prodockit components to an existing
+document that uses its own template, or follow the [manual installation
+route](../installation.md) when you want to choose every component yourself.
+
+Bootstrap turns the User Guide's install sequence into a list of stages that
+can be checked individually and repaired one at a time, rather than followed
+top to bottom and hoped over. It reports how many there are; the table below
+names them.
 
 The install is long, sequential, and easy to get half-right in ways that
 only surface much later - a missing Pango that looks fine until the first

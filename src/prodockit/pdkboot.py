@@ -19,7 +19,7 @@ from prodockit import __version__
 from prodockit.cli import bootstrap as _legacy_command
 from prodockit.cli import pdkboot_mode
 
-_HELP = """Set up this machine and project with the phased bootstrap preview.
+_HELP = """Set up this machine and a project based on prodockit-template.
 
 Checks all 23 stages, including the editor, Git and SSH, project checkout,
 Python and Node environments, PDF tools and publishing. A stage whose goal is
@@ -27,8 +27,9 @@ already satisfied is rechecked and left alone.
 
 With no operating-mode option this reports what it finds and changes nothing.
 Use --dry-run to review exact work or --apply to perform it with confirmation,
-progress and a resumable recovery report. This command uses .pdkboot.toml and
-does not read or modify legacy bootstrap configuration.
+progress and a resumable recovery report. It is specifically for projects based
+on prodockit-template, not a general Zensical installer. This command uses
+.pdkboot.toml and does not read or modify legacy bootstrap configuration.
 """
 
 

@@ -10,7 +10,8 @@ This is the manual setup route. Use it when you want to choose and install the
 package, external tools, and enabled extensions directly. The alternatives are
 [adoption](adopt.md), which integrates prodockit into an established document,
 and [bootstrap](devcons/bootstrap.md), which prepares a machine and a project
-based on the maintained template.
+based on `prodockit-template`. Bootstrap is not a general installer for an
+unrelated Zensical project.
 
 ## Requirements
 
@@ -157,7 +158,7 @@ nothing to add to `zensical.toml`, because they are not Markdown syntax:
 | [`prodockit source-bundle`](pdf.md#bundling-source-into-a-pdf) | Packages documentation source as a separate PDF |
 | [`prodockit.zensical_macros`](macros.md) | A `define_env()` module for Zensical's macros plugin, named under its `modules` config rather than as an extension |
 | [`prodockit.testing`](devcons/testing.md) | pytest fixtures and checks for an already-built site and PDF |
-| [`prodockit bootstrap`](devcons/bootstrap.md) | Sets up a machine to build the docs |
+| [`prodockit bootstrap`](devcons/bootstrap.md) | Sets up a machine and a project based on `prodockit-template` |
 | [`prodockit sync-repo`](devcons/repo-metadata.md) | Keeps repository metadata and README badges matching the git remote |
 | [`prodockit pins`](devcons/pinning-drift.md) | Moves build-input version pins together |
 | [`prodockit template-sync`](devcons/template-sync.md) | Brings a project back into step with the template it came from |
