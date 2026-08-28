@@ -189,7 +189,8 @@ The script:
 4. Builds the copy before adoption.
 5. Confirms `--dry-run` writes nothing.
 6. Applies adoption and builds again.
-7. Checks that existing output is unchanged apart from the selected asset tags.
+7. Checks that existing output is unchanged apart from the selected generated
+   assets and their tags.
 8. Applies adoption again and confirms it is idempotent.
 
 The source project is never passed to `prodockit adopt`. The output directory

@@ -21,18 +21,21 @@ from prodockit.mathjax import CONFIG_SOURCE, MathJaxError, install_mathjax
 def _project(tmp_path: Path, *, pinned: bool = True) -> Path:
     (tmp_path / "docs").mkdir()
     if pinned:
-        es5 = tmp_path / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
+        package = tmp_path / "tools" / "mathjax" / "node_modules" / "mathjax-full"
+        es5 = package / "es5"
         es5.mkdir(parents=True)
         (es5 / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
+        (package / "LICENSE").write_text("APACHE", encoding="utf-8")
     return tmp_path
 
 
-def test_it_writes_the_config_and_copies_the_bundle(tmp_path: Path) -> None:
+def test_it_writes_the_config_and_copies_the_bundle_and_license(tmp_path: Path) -> None:
     project = _project(tmp_path)
 
     result = install_mathjax(project)
 
     assert result.bundle.read_text(encoding="utf-8") == "BUNDLE"
+    assert result.license.read_text(encoding="utf-8") == "APACHE"
     config = result.config.read_text(encoding="utf-8")
     assert "processHtmlClass" in config and "arithmatex" in config
 
@@ -103,6 +106,17 @@ def test_a_missing_pinned_install_says_what_to_run(tmp_path: Path) -> None:
     assert "npm ci --prefix tools/mathjax" in str(exc_info.value)
 
 
+def test_a_missing_package_license_says_what_to_run(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    (project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "LICENSE").unlink()
+
+    with pytest.raises(MathJaxError) as exc_info:
+        install_mathjax(project)
+
+    assert "LICENSE" in str(exc_info.value)
+    assert "npm ci --prefix tools/mathjax" in str(exc_info.value)
+
+
 def test_the_cli_reports_what_it_wrote(tmp_path: Path) -> None:
     from click.testing import CliRunner
 
@@ -112,7 +126,38 @@ def test_the_cli_reports_what_it_wrote(tmp_path: Path) -> None:
     result = CliRunner().invoke(main, ["init-mathjax", "--root", str(project)])
 
     assert result.exit_code == 0
-    assert "mathjax.js" in result.output and "tex-svg-full.js" in result.output
+    assert all(name in result.output for name in ("mathjax.js", "tex-svg-full.js", "LICENSE"))
+
+
+def test_repository_generates_mathjax_before_every_site_build() -> None:
+    root = Path(__file__).resolve().parent.parent
+    for name in ("ci.yml", "docs.yml", "drift.yml"):
+        workflow = (root / ".github" / "workflows" / name).read_text(encoding="utf-8")
+        install = "prodockit init-mathjax --no-gitignore"
+        build = "zensical build --clean --strict"
+        assert "npm ci --prefix tools/mathjax" in workflow
+        assert install in workflow
+        assert workflow.index(install) < workflow.index(build), (
+            f"{name} builds before installing the website MathJax assets"
+        )
+
+
+def test_repository_does_not_track_generated_mathjax_assets() -> None:
+    import subprocess
+
+    root = Path(__file__).resolve().parent.parent
+    ignored = (root / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "docs/javascripts/vendor/" in ignored
+    assert "docs/javascripts/mathjax.js" in ignored
+
+    tracked = subprocess.run(
+        ["git", "ls-files", "docs/javascripts/mathjax.js", "docs/javascripts/vendor"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert not tracked, f"generated MathJax assets are still tracked: {tracked}"
 
 
 def test_the_cli_fails_clearly_without_the_toolchain(tmp_path: Path) -> None:

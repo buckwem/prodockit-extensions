@@ -320,9 +320,10 @@ def test_mathjax_stage_accepts_an_install_after_its_pinned_source_is_removed(
     tmp_path: Path,
 ) -> None:
     context = _context(tmp_path)
-    _source, bundle, config = stages._mathjax_paths(context)
+    _source, _license_source, bundle, license_path, config = stages._mathjax_paths(context)
     bundle.parent.mkdir(parents=True)
     bundle.touch()
+    license_path.touch()
     config.parent.mkdir(parents=True, exist_ok=True)
     config.touch()
 

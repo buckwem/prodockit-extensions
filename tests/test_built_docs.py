@@ -139,6 +139,12 @@ def test_documentation_diagrams_have_rendered_figure_captions(prodockit_paths):
     assert all(re.match(r"^\d+\.\s", caption) for caption in rendered.values()), rendered
 
 
+def test_the_site_publishes_mathjax_and_its_license(prodockit_paths) -> None:
+    mathjax = prodockit_paths.site_dir / "javascripts" / "vendor" / "mathjax"
+    assert (mathjax / "tex-svg-full.js").is_file()
+    assert (mathjax / "LICENSE").is_file()
+
+
 def test_desktop_numbers_headings_and_figures_with_the_rendered_chapter(
     prodockit_paths,
 ) -> None:

@@ -258,6 +258,7 @@ jobs:
       # input to the PDF's own correctness, not just to the website's
       # appearance.
       - run: pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.2"
+      - run: prodockit init-mathjax --no-gitignore
       # The PDF renderer consumes this completed site; it never invokes
       # Zensical itself or cleans the generated output.
       - run: zensical build --clean --strict

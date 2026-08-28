@@ -37,16 +37,15 @@ extra.heading_numbering = true
 extra.website_heading_numbering = true
 
 # Client-side MathJax, for the website only - the PDF pre-renders the same
-# formulas to SVG instead (see docs/javascripts/mathjax.js, and
-# `pymdownx.arithmatex` below). Order is load-bearing: the config file must
-# come first, because MathJax reads `window.MathJax` once at startup.
+# formulas to SVG instead (see `pymdownx.arithmatex` below). Order is
+# load-bearing: the config file must come first, because MathJax reads
+# `window.MathJax` once at startup.
 #
-# MathJax is vendored rather than fetched from a CDN, so the site is
-# self-contained: no third-party request on every page view, and it works
-# offline. The copy is taken verbatim from tools/mathjax's own pinned
-# install, so the website and the PDF typeset through byte-identical
-# MathJax - see docs/javascripts/vendor/mathjax/README.md for which bundle
-# and why, and how to replace it.
+# `prodockit init-mathjax` copies these ignored files from tools/mathjax's
+# pinned install before each build. The site remains self-contained and the
+# website and PDF use byte-identical MathJax without committing third-party
+# code. Its Apache-2.0 licence is published beside the bundle at
+# javascripts/vendor/mathjax/LICENSE.
 extra_javascript = [
   "javascripts/mathjax.js",
   "javascripts/vendor/mathjax/tex-svg-full.js",

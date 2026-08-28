@@ -140,9 +140,11 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
     pinned.mkdir(parents=True, exist_ok=True)
     (pinned / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
+    (pinned.parent / "LICENSE").write_text("APACHE", encoding="utf-8")
     vendor = project / "docs" / "javascripts" / "vendor" / "mathjax"
     vendor.mkdir(parents=True, exist_ok=True)
     (vendor / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
+    (vendor / "LICENSE").write_text("APACHE", encoding="utf-8")
     (project / "docs" / "javascripts" / "mathjax.js").write_text("window.MathJax={}", encoding="utf-8")
     (project / ".vscode").mkdir(exist_ok=True)
     (project / ".vscode" / "settings.json").write_text(
@@ -4655,6 +4657,7 @@ def _mathjax_project(tmp_path: Path) -> Path:
     pinned = project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
     pinned.mkdir(parents=True)
     (pinned / "tex-svg-full.js").write_text("BUNDLE", encoding="utf-8")
+    (pinned.parent / "LICENSE").write_text("APACHE", encoding="utf-8")
     save(tmp_path / "b.toml", _config())
     return project
 

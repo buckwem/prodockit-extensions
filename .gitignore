@@ -28,6 +28,9 @@ tools/mermaid/node_modules/
 # `npm ci --prefix tools/mathjax`. Both manifests and lockfiles are
 # committed; only the installs are ignored.
 tools/mathjax/node_modules/
+# Installed by `prodockit init-mathjax` from the pinned MathJax package.
+docs/javascripts/vendor/
+docs/javascripts/mathjax.js
 
 # prodockit.bibliography's citation style, fetched per build rather than
 # vendored - it is third-party content with its own licence and its own
