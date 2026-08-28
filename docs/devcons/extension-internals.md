@@ -63,14 +63,7 @@ disambiguation. It passes each distinct citation or reference-list request to
 `pandoc --citeproc` with the configured `.bib` and `.csl` files, then memoizes
 the formatted HTML for the rest of the build.
 
-```mermaid
-flowchart LR
-    source[Markdown, BibTeX, and CSL] --> extension[prodockit.bibliography]
-    extension --> citeproc[pandoc --citeproc]
-    citeproc --> html[Formatted HTML]
-    html --> website[Zensical website]
-    html --> pdf[prodockit PDF]
-```
+![Bibliography formatting pipeline from authored inputs through Pandoc to the website and PDF](../assets/diagrams/bibliography-pipeline.png){ .documentation-diagram }
 
 Pandoc formats only the requested citation or list. Zensical still renders the
 surrounding page.

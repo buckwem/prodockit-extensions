@@ -11,28 +11,7 @@ API directly. Document authors should use [Generate a PDF](../pdf.md).
 
 ## Follow the pipeline
 
-```mermaid
-flowchart TB
-    subgraph row1[" "]
-        direction LR
-        config[zensical.toml and nav] --> render[Run zensical build]
-        render --> extract[Read generated articles]
-        extract --> fixup[Normalise page HTML]
-        fixup --> assemble[Assemble document]
-    end
-
-    subgraph row2[" "]
-        direction LR
-        pandoc[Pandoc and Lua filter] --> weasy[WeasyPrint layout]
-        weasy --> index[Optional index extraction]
-        index --> final[Final PDF]
-    end
-
-    row1 -->|continues| row2
-
-    style row1 fill:none,stroke:none
-    style row2 fill:none,stroke:none
-```
+![Pipeline from the Zensical project through generated HTML, Pandoc and WeasyPrint to the final PDF](../assets/diagrams/pdf-pipeline.png){ .documentation-diagram }
 
 The public `prodockit pdf` command runs Zensical's documented
 `build --clean` command, reads each navigation page's generated article, and

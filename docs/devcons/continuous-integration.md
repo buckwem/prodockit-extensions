@@ -124,15 +124,7 @@ retrieve the intended version; these are three separate checks.
 
 ## Understand the build order
 
-```mermaid
-flowchart LR
-    source[Markdown and zensical.toml] --> pdf[prodockit pdf]
-    pdf --> site[zensical build]
-    site --> dates[prodockit update-dates]
-    dates --> tests[Built-output tests]
-    tests --> deploy[Pages deployment]
-    deploy --> verify[Public verification]
-```
+![Build order from authored source through PDF and website builds to public verification](../assets/diagrams/publication-pipeline.png){ .documentation-diagram }
 
 The PDF is built before the website because it lives under `docs/` by default.
 Zensical copies it into the static site together with other downloadable

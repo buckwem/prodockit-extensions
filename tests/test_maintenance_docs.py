@@ -48,10 +48,60 @@ def test_release_guide_covers_every_github_actions_workflow() -> None:
 
 def test_release_diagram_distinguishes_entry_points_from_steps() -> None:
     guide = (ROOT / "docs" / "devcons" / "releasing.md").read_text(encoding="utf-8")
+    source = (
+        ROOT / "tools" / "documentation-diagrams" / "release-workflow.drawio"
+    ).read_text(encoding="utf-8")
 
-    assert "START<br>Release branch" in guide
-    assert "SCHEDULED TRIGGER<br>Every Monday" in guide
-    assert "classDef entry" in guide
+    assert "release-workflow.png" in guide
+    assert "Release branch" in source
+    assert "SCHEDULED TRIGGER" in source
+    assert "Every Monday" in source
+    assert "fillColor=#19c866" in source
+
+
+def test_documentation_flow_diagrams_have_editable_drawio_sources() -> None:
+    diagram_dir = ROOT / "tools" / "documentation-diagrams"
+
+    for image in (ROOT / "docs" / "assets" / "diagrams").glob("*.png"):
+        if image.name in {
+            "prodockit-output-relationship.png",
+            "website-and-pdf-example.png",
+        }:
+            continue
+        source = diagram_dir / f"{image.stem}.drawio"
+        contents = source.read_text(encoding="utf-8")
+        assert "<mxGraphModel" in contents, source
+        assert 'vertex="1"' in contents, source
+        assert 'edge="1"' in contents, source
+
+
+def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
+    """Architecture diagrams stay identical in the website and PDF."""
+
+    expected = {
+        "docs/stylesheets.md": (
+            "website-stylesheet-cascade.png",
+            "pdf-stylesheet-cascade.png",
+        ),
+        "docs/devcons/continuous-integration.md": ("publication-pipeline.png",),
+        "docs/devcons/extension-internals.md": ("bibliography-pipeline.png",),
+        "docs/devcons/pdf-internals.md": ("pdf-pipeline.png",),
+        "docs/devcons/releasing.md": ("release-workflow.png",),
+        "docs/introduction.md": ("prodockit-output-relationship.png",),
+        "docs/pdf.md": ("website-and-pdf-example.png",),
+    }
+    png_signature = b"\x89PNG\r\n\x1a\n"
+
+    for guide_path in (ROOT / "docs").rglob("*.md"):
+        source_lines = guide_path.read_text(encoding="utf-8").splitlines()
+        assert "```mermaid" not in (line.strip() for line in source_lines), guide_path
+
+    for relative_path, image_names in expected.items():
+        guide = (ROOT / relative_path).read_text(encoding="utf-8")
+        for image_name in image_names:
+            assert image_name in guide, f"{relative_path} does not use {image_name}"
+            image = ROOT / "docs" / "assets" / "diagrams" / image_name
+            assert image.read_bytes().startswith(png_signature), image
 
 
 def test_release_guide_covers_the_version_sources_and_release_gates() -> None:

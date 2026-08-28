@@ -48,44 +48,13 @@ The arrows show which later layer can override an earlier layer at equal CSS
 specificity. The website leaves the cascade after `extra.css`; the PDF
 continues through its two PDF-only files:
 
-<table class="stylesheet-cascade-diagrams">
-  <tbody>
-    <tr>
-      <td markdown="1">
-```mermaid
-flowchart TB
-    subgraph web[Website cascade]
-        direction TB
-        theme[Theme] --> wpdk[pdk.css<br/>Managed]
-        wpdk --> wextra[extra.css<br/>Author-owned]
-    end
+**Website stylesheet cascade**
 
-    classDef managed fill:#e8f0fe,stroke:#3559a8,color:#15213a
-    classDef author fill:#e9f7ef,stroke:#2f7d4a,color:#173a24
-    class wpdk managed
-    class wextra author
-```
-      </td>
-      <td markdown="1">
-```mermaid
-flowchart TB
-    subgraph pdf[PDF cascade]
-        direction TB
-        renderer[Renderer foundations] --> ppdk[pdk.css<br/>Managed]
-        ppdk --> pextra[extra.css<br/>Author-owned]
-        pextra --> pdkpdf[pdk-pdf.css<br/>Managed]
-        pdkpdf --> print[print.css<br/>Author-owned]
-    end
+![Website stylesheet cascade: the Zensical theme, then Prodockit's managed pdk.css, then the author's extra.css](assets/diagrams/website-stylesheet-cascade.png){ .documentation-diagram }
 
-    classDef managed fill:#e8f0fe,stroke:#3559a8,color:#15213a
-    classDef author fill:#e9f7ef,stroke:#2f7d4a,color:#173a24
-    class ppdk,pdkpdf managed
-    class pextra,print author
-```
-      </td>
-    </tr>
-  </tbody>
-</table>
+**PDF stylesheet cascade**
+
+![PDF stylesheet cascade: renderer foundations, pdk.css, extra.css, pdk-pdf.css, then print.css](assets/diagrams/pdf-stylesheet-cascade.png){ .documentation-diagram }
 
 Implement the cascade by listing the files in this order in `zensical.toml`:
 

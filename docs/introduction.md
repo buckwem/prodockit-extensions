@@ -15,6 +15,8 @@ prodockit adds the document features that professional and academic
 cross-references, citations, glossaries, richer tables, and a printable PDF.
 Install one Python package, then enable only the parts your project uses.
 
+![Markdown and project configuration pass through Prodockit's authoring and style components and Zensical to produce a website, while Prodockit's PDF pipeline and styles produce the matching printable document](assets/diagrams/prodockit-output-relationship.png){ .documentation-diagram }
+
 If you want to see it working before reading the reference pages, follow
 [Build your first site](getting-started.md). It starts with a new Zensical
 project and ends at a live local preview.

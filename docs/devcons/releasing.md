@@ -22,29 +22,11 @@ the tagged source, while the documentation redeploy is deliberately run from
 
 ## Understand the workflow chain
 
-```mermaid
-flowchart TD
-    branch([START<br>Release branch]):::entry --> pr[Pull request]
-    pr --> ci[ci.yml<br>tests, lint, typing, strict docs]
-    pr --> scope[changed-file scope<br>select the risk-relevant checks]
-    scope --> adopt[adopt-install.yml<br>installed-wheel tests when adoption can change]
-    scope --> pdfsite[pdf-built-site-wheel.yml<br>renderer tests when PDF integration can change]
-    ci -->|required checks pass| merge[Merge to main]
-    merge --> docs[docs.yml<br>PDF, site, built-output tests, Pages]
-    merge --> mainci[ci.yml on main]
-    merge --> release[Publish GitHub release<br>prodockit-vX.Y.Z]
-    release --> pypi[publish.yml<br>build, Twine check, Trusted Publishing to PyPI]
-    release --> redeploy[release-redeploy.yml]
-    redeploy --> dispatch[Dispatch docs.yml against main]
-    dispatch --> live[Pages deploy and live fingerprint check]
-    schedule([SCHEDULED TRIGGER<br>Every Monday]):::entry --> drift[drift.yml<br>compare pinned and newest output]
+![Prodockit pull-request, publication and weekly drift-check workflows](../assets/diagrams/release-workflow.png){ .documentation-diagram .release-workflow-diagram }
 
-    classDef entry fill:#fff4cc,stroke:#9a6700,stroke-width:3px,color:#3d2b00
-```
-
-The rounded gold boxes are entry points: a maintainer starts the release path
+The solid green boxes are entry points: a maintainer starts the release path
 from a release branch, while GitHub starts the drift path on its weekly
-schedule. Rectangular boxes are actions or workflow stages that follow.
+schedule. The other boxes are actions or workflow stages that follow.
 
 | Workflow | Trigger | Responsibility |
 |---|---|---|
