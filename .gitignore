@@ -12,6 +12,8 @@ venv/
 .coverage
 htmlcov/
 .DS_Store
+# Draw.io's recovery files are local editor state, not diagram sources.
+tools/documentation-diagrams/.*.bkp
 site/
 .zensical-canonical.toml
 docs/*.pdf

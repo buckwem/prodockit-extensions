@@ -32,14 +32,23 @@ documentation build currently pins Zensical 0.0.57 and pymdown-extensions
 11.0.2 so changes to either renderer arrive as reviewed version changes rather
 than silently altering published output.
 
-| Requirement | Supported or tested range | Why it matters |
+\ref{tab-about-support-required-versions} gives the supported dependency ranges and explains why each boundary matters.
+
+| Requirement {: width="30%" } | Supported or tested range | Why it matters |
 |---|---|---|
 | Python | 3.10–3.14 tested | The package requires Python 3.10 or later |
 | Zensical | 0.0.57 or later | Site configuration, rendering, navigation, macros, and icons |
 | Python-Markdown | 3.10.3 or later | The extension engine used by every authoring feature |
 | pymdown-extensions | 11.0.2 or later | PyMdown Blocks is the direct foundation for `prodockit.steps` and `prodockit.tree`; the PDF pipeline also preserves PyMdown output |
+/// table-caption | <
+    attrs: {id: tab-about-support-required-versions}
 
-PyMdown Blocks is particularly important when evaluating the authoring model.
+Required versions
+///
+
+The dependency boundaries in \ref{tab-about-support-required-versions} are
+tested rather than inferred. PyMdown Blocks is particularly important when
+evaluating the authoring model.
 The numbered-steps and directory-tree extensions are specialised Blocks API
 implementations, so their slash fences, nesting rules, and option layout follow
 [PyMdown's block syntax](https://facelessuser.github.io/pymdown-extensions/extensions/blocks/).
@@ -70,13 +79,22 @@ together in real environments, beyond unit tests or inspection of generated
 commands. It is not an automated cross-platform full-suite regression matrix,
 however:
 
+\ref{tab-about-support-platforms-and-test-depth} distinguishes routine platform coverage from the deeper tests run for platform-specific installers.
+
 | Platform | Regression test coverage | Manual bootstrap coverage |
 |---|---|---|
 | Ubuntu Linux | Full test suite on every push and pull request using `ubuntu-24.04`; installed-wheel adoption on x64 and ARM64 | Both repository workflows on Surrey GitLab and GitHub.com |
 | macOS | The full test suite is also run locally; installed-wheel adoption runs on hosted ARM64 | Both repository workflows on Surrey GitLab and GitHub.com |
 | Windows | Installed-wheel adoption on Windows 2025 x64 and Windows 11 ARM64; no hosted full-suite job | Both repository workflows on Surrey GitLab and GitHub.com |
+/// table-caption | <
+    attrs: {id: tab-about-support-platforms-and-test-depth}
 
-The installed-wheel adoption jobs build the candidate package afresh and test
+Platforms and test depth
+///
+
+\ref{tab-about-support-platforms-and-test-depth} distinguishes automated
+regression coverage from manual bootstrap exercises. The installed-wheel
+adoption jobs build the candidate package afresh and test
 TOML and YAML projects with the core, Mermaid-only, maths-only and combined
 component choices. They also check that a second apply changes no files. This
 narrow cross-platform matrix complements rather than replaces the full Python
@@ -102,7 +120,10 @@ boundary.
 
 ## Supported surfaces
 
-| Surface | Current support |
+\ref{tab-about-support-supported-surfaces} defines which interfaces carry a
+compatibility promise and which remain internal.
+
+| Surface {: width="38%" } | Current support |
 |---|---|
 | Markdown extensions | All nine registered extensions are documented and tested |
 | PyMdown Blocks integration | `prodockit.steps` and `prodockit.tree` directly use the Blocks API |
@@ -110,6 +131,11 @@ boundary.
 | PDF and source bundles | Implemented and tested with Pandoc and WeasyPrint; external renderer versions can affect layout |
 | GitHub and GitLab publishing | Maintained through the annotated workflows in prodockit-template |
 | Repository and template commands | Implemented and tested; commands that write files provide a report or dry-run path first |
+/// table-caption | <
+    attrs: {id: tab-about-support-supported-surfaces}
+
+Supported surfaces
+///
 
 For observable constraints such as live-reload staleness, unsupported citation
 forms, and differences between browser and PDF rendering, see

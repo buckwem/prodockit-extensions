@@ -181,6 +181,8 @@ when a source file changes; stop it with `Ctrl+C`.
 
 ## Where to go next
 
+Continue with the part of the document workflow you need next:
+
 - Browse the [authoring reference](extensions/headings.md) when you need
   another document feature.
 - Read [Generate a PDF](pdf.md#pdf-quick-start) when the website is ready to

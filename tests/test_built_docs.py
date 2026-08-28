@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from bs4 import BeautifulSoup
 
 from prodockit._zensical import _front_matter_flag, _scan_page_headings
 from prodockit.pdf.index import DEFAULT_INDEX_TITLE, MARKER_ID_PREFIX
@@ -44,13 +45,6 @@ from prodockit.testing import assert_no_unrendered_mermaid, assert_no_unrendered
 pytestmark = pytest.mark.built
 
 ROOT = Path(__file__).resolve().parent.parent
-
-#: Mermaid's default node fill (#ECECFF). Every node shape in a rendered
-#: diagram is painted with it, and nothing else in these docs uses it, so it
-#: distinguishes a real diagram from ordinary page furniture - unlike
-#: `page.get_drawings()` being non-empty, which is true of every page.
-MERMAID_NODE_FILL = (0.925, 0.925, 1.0)
-FILL_TOLERANCE = 0.02
 
 #: The two shapes a leaked index marker can take in the text layer: the
 #: current design's marker `id` (`prodockit-index-mark-N`, which reaches
@@ -107,20 +101,42 @@ OUTLINE_CHAPTER_RE = re.compile(r"^\d+\.\s+\S")
 APPENDIX_ATTR = "is_appendix"
 
 
-def _mermaid_node_shapes(page):
-    shapes = []
-    for drawing in page.get_drawings():
-        fill = drawing.get("fill")
-        if fill and all(
-            abs(channel - expected) <= FILL_TOLERANCE
-            for channel, expected in zip(fill, MERMAID_NODE_FILL, strict=False)
-        ):
-            shapes.append(drawing)
-    return shapes
-
-
 def test_the_pdf_built_and_has_pages(prodockit_pdf):
     assert prodockit_pdf.page_count > 5
+
+
+def test_pdf_figure_captions_use_chapter_and_figure_numbers(prodockit_pdf):
+    text = " ".join(
+        " ".join(page.get_text().split()) for page in prodockit_pdf
+    )
+
+    assert "Figure 3.1. Adopting Prodockit into an existing document" in text
+    assert "Figure 21.2. PDF stylesheet cascade" in text
+
+
+def test_documentation_diagrams_have_rendered_figure_captions(prodockit_paths):
+    expected = {
+        f"fig-{image.stem.split('-', 1)[1]}"
+        for image in (ROOT / "docs" / "assets" / "diagrams").glob("*.png")
+    }
+    rendered: dict[str, str] = {}
+
+    for page in prodockit_paths.site_dir.rglob("*.html"):
+        soup = BeautifulSoup(page.read_text(encoding="utf-8"), "html.parser")
+        for figure in soup.select("figure[id]"):
+            figure_id = str(figure.get("id"))
+            if figure_id not in expected:
+                continue
+            caption = figure.find("figcaption")
+            assert caption is not None, figure_id
+            assert "prodockit-figure-caption" in (figure.get("class") or []), figure_id
+            prefix = caption.select_one(".caption-prefix")
+            assert prefix is not None, figure_id
+            assert re.match(r"^\d+\.$", prefix.get_text(strip=True)), figure_id
+            rendered[figure_id] = caption.get_text(" ", strip=True)
+
+    assert set(rendered) == expected
+    assert all(re.match(r"^\d+\.\s", caption) for caption in rendered.values()), rendered
 
 
 def test_the_site_publishes_mathjax_and_its_license(prodockit_paths) -> None:
@@ -129,7 +145,9 @@ def test_the_site_publishes_mathjax_and_its_license(prodockit_paths) -> None:
     assert (mathjax / "LICENSE").is_file()
 
 
-def test_desktop_on_this_page_uses_the_rendered_chapter_number(prodockit_paths) -> None:
+def test_desktop_numbers_headings_and_figures_with_the_rendered_chapter(
+    prodockit_paths,
+) -> None:
     """The desktop secondary nav is a sibling of the primary nav.
 
     A string-only macro test missed that CSS counters do not inherit between
@@ -175,6 +193,18 @@ def test_desktop_on_this_page_uses_the_rendered_chapter_number(prodockit_paths) 
     chapter = heading.group("chapter")
     assert chapter != "0"
     assert rendered[toc_selector] == f"{chapter}.1 Requirements"
+
+    caption_selector = "#fig-adoption-workflow figcaption"
+    caption_page = prodockit_paths.site_dir / "adopt" / "index.html"
+    completed = subprocess.run(
+        [node, str(probe), caption_page.as_uri(), caption_selector],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    rendered = json.loads(completed.stdout)
+    assert rendered[caption_selector].startswith("Figure 3.1. "), rendered
 
 
 @pytest.fixture(scope="session")
@@ -286,18 +316,20 @@ def test_code_blocks_kept_their_preformatted_layout(prodockit_pdf):
     assert not offenders, "monospace runs with justification holes:\n" + "\n".join(offenders[:10])
 
 
-def test_the_architecture_diagram_actually_rendered(prodockit_pdf):
-    """The counterpart to the check above, which would still pass if the
-    diagram vanished from the PDF entirely rather than reaching it as text.
-
-    Asserts on Mermaid's own node fill rather than the presence of any
-    vector content: every page has drawings (headers, rules), so a
-    non-empty `get_drawings()` proves nothing.
-    """
-    total = sum(len(_mermaid_node_shapes(page)) for page in prodockit_pdf)
-    assert total > 0, (
-        "No shape in the PDF is filled with Mermaid's node colour - the "
-        "diagram in extensions/bibliography.md did not render"
+def test_the_bibliography_pipeline_diagram_reaches_the_pdf(prodockit_pdf):
+    """The reviewed raster diagram must not vanish during PDF assembly."""
+    pages = [
+        page
+        for page in prodockit_pdf
+        if "Delegate bibliography formatting" in page.get_text()
+        and any(
+            image[2] >= 2000 and page.get_image_rects(image[0])
+            for image in page.get_images(full=True)
+        )
+    ]
+    assert len(pages) == 1, (
+        "The high-resolution bibliography pipeline diagram is absent from "
+        "the Extension integration page"
     )
 
 

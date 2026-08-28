@@ -1,0 +1,66 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/26.2.15 Chrome/134.0.6998.205 Electron/35.2.1 Safari/537.36" version="26.2.15">
+  <diagram id="pdf-pipeline" name="Page-1">
+    <mxGraphModel dx="2066" dy="1168" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1540" pageHeight="680" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="config" value="zensical.toml&lt;br&gt;and nav" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="110" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="render" value="Build website&lt;br&gt;with Zensical" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="294" y="110" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="extract" value="Read generated&lt;br&gt;articles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="549" y="110" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="fixup" value="Normalise&lt;br&gt;page HTML" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="803" y="110" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="assemble" value="Assemble&lt;br&gt;document" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="1057" y="110" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="pandoc" value="Pandoc and&lt;br&gt;Lua filter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="280" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="weasy" value="WeasyPrint&lt;br&gt;layout" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="379" y="280" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="index" value="Optional index&lt;br&gt;extraction" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="718" y="280" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="final" value="Final PDF" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="1057" y="280" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;" parent="1" source="config" target="render" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;" parent="1" source="render" target="extract" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;" parent="1" source="extract" target="fixup" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;" parent="1" source="fixup" target="assemble" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-5" value="continues" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;exitX=0.473;exitY=0.989;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="assemble" target="pandoc" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1161" y="250" />
+              <mxPoint x="150" y="250" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;" parent="1" source="pandoc" target="weasy" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;" parent="1" source="weasy" target="index" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;" parent="1" source="index" target="final" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

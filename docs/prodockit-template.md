@@ -157,12 +157,32 @@ After creation, the repository is your project. The template manifest,
 `prodockit template-sync` can update shared publishing infrastructure without
 guessing about ownership.
 
+\ref{fig-template-file-ownership} separates the repository into managed or
+shared files, author-owned content, and generated local output. Follow the
+first group through template-sync; the other two remain under the author's or
+the build's control.
+
+![Template files are classified as managed or shared, author-owned, or generated and local so later updates preserve the author's work](assets/diagrams/5.1-template-file-ownership.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-template-file-ownership}
+
+Template file ownership
+///
+
+\ref{tab-prodockit-template-know-what-becomes-yours} then gives concrete file
+examples and explains how a later template update treats each classification.
+
 | Classification | Examples | Later template update |
 |---|---|---|
 | **Project-owned** | Markdown and assets under `docs/`, bibliography files, licence, editor and prose-lint choices | Never read for comparison and never written |
 | **Template-owned** | Pages workflows, `.gitlab-ci.yml`, styles, JavaScript, `macros.py`, `overrides/`, and `tools/` | Updated when the project has not edited the file; a local edit is kept for review |
 | **Shared** | `zensical.toml`, requirements files, `.gitignore`, and `README.md` | Merged by setting or delegated to the command that owns that content |
 | **Excluded** | Template changelog, contributor files, issue templates, and the template's sample regression suite | Not delivered to generated projects |
+/// table-caption | <
+    attrs: {id: tab-prodockit-template-know-what-becomes-yours}
+
+Know what becomes yours
+///
 
 For shared files, the merge is deliberately narrow. Template extension and
 PDF settings can arrive in `zensical.toml`, but project content such as the

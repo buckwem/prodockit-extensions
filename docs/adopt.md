@@ -6,14 +6,27 @@ icon: lucide/package-plus
 
 # Add prodockit to an existing document
 
-`prodockit adopt` is for an existing Zensical or MkDocs document whose normal
-working environment is already established. It adds prodockit's authoring
+`prodockit adopt` is for an existing Zensical document whose normal working
+environment is already established. It adds prodockit's authoring
 extensions and their website styles without turning the project into a copy
 of prodockit-template.
 
 Use [machine bootstrap](devcons/bootstrap.md) for a new computer or a new
 repository. Adoption assumes that Git, SSH and the editor you prefer already
 work. It does not configure or change any of them.
+
+\ref{fig-adoption-workflow} shows the existing project entering the outlined
+adoption process. Inside that boundary, prodockit assesses the project, adds
+the standard components, and either installs or skips each optional renderer.
+The author then builds and reviews the local changes before accepting the
+updated project.
+
+![Adoption assesses an existing site, adds standard components, installs only the selected renderers, then leaves the author to build and review](assets/diagrams/3.1-adoption-workflow.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-adoption-workflow}
+
+Adopting Prodockit into an existing document
+///
 
 ## What the command changes
 
@@ -23,8 +36,7 @@ The standard installation adds:
     `requirements.txt`, `requirements/docs.txt` or `docs/requirements.txt`, in
     that order, and creates `requirements.txt` when none exists.
 - The standard prodockit Markdown extensions to the existing
-    `zensical.toml`, `zensical.yml`, `zensical.yaml`, `mkdocs.yml` or
-    `mkdocs.yaml`.
+    `zensical.toml`, `zensical.yml` or `zensical.yaml`.
 - `docs/stylesheets/pdk.css`, loaded before any project stylesheet so
     the project's own rules can override it.
 - `.prodockit-components.toml`, recording whether this project selected
@@ -50,13 +62,16 @@ existing working environment. Follow the adoption row under
 
 ## Review the existing project
 
+Start with a read-only assessment from the project's own virtual environment.
+The following steps establish that context before asking prodockit what it
+would change.
+
 /// steps
 
 //// step | Change to the repository directory
 
-Use the directory containing the project's `zensical.toml`, Zensical YAML file
-(`zensical.yml` or `zensical.yaml`), or MkDocs YAML file (`mkdocs.yml` or
-`mkdocs.yaml`):
+Use the directory containing the project's `zensical.toml` or Zensical YAML
+file (`zensical.yml` or `zensical.yaml`):
 
 ```bash
 cd /path/to/your-document
@@ -131,7 +146,7 @@ that Git, SSH, remotes and editors are outside its scope.
 
 ## Choose optional renderers
 
-Run:
+Choose Mermaid and mathematics only when the existing document uses them. Run:
 
 ```bash
 prodockit adopt --configure
@@ -159,6 +174,9 @@ prodockit adopt --no-mermaid --maths --dry-run
 ```
 
 ## Preview and apply
+
+Preview the complete plan before allowing any file or package change, then
+build the result yourself so the review remains under your control.
 
 /// steps
 
@@ -191,17 +209,9 @@ with unrelated documents.
 
 //// step | Build the website
 
-=== "Zensical project"
-
-    ```bash
-    zensical build --clean
-    ```
-
-=== "MkDocs project"
-
-    ```bash
-    mkdocs build --clean
-    ```
+```bash
+zensical build --clean
+```
 
 This uses the document's actual pages and configuration, so it remains the
 final proof that the adopted components work with the existing project.
@@ -232,5 +242,5 @@ prodockit adopt --apply
 ```
 
 It reassesses the files and continues with stages that still need work. It does
-not overwrite an existing project stylesheet or remove existing Zensical or
-MkDocs configuration.
+not overwrite an existing project stylesheet or remove existing Zensical
+configuration.

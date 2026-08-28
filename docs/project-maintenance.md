@@ -116,31 +116,51 @@ additional gates described in [Build and release](devcons/releasing.md).
 
 ## Choose the right maintenance tool
 
+Match the maintenance need to its safest starting tool in
+\ref{tab-project-maintenance-choose-the-right-maintenance-tool}.
+
 | Need | Start with | What changes |
 |---|---|---|
 | A fork, mirror, or renamed repository points at the wrong place | `prodockit sync-repo --check` | Repository URLs, edit links, host icon, and managed README badges |
 | CI files disagree about dependency versions | `prodockit pins --check --offline` | Version declarations, preserving each file's existing operator |
 | A newer dependency may change published output | GitHub's `drift.yml` result | Nothing automatically; it opens or updates an issue with the comparison |
 | A prodockit release is ready | The release checklist | Package version, release notes, GitHub release, PyPI package, and rebuilt documentation |
+/// table-caption | <
+    attrs: {id: tab-project-maintenance-choose-the-right-maintenance-tool}
+
+Choose the right maintenance tool
+///
 
 ## What automation does—and does not—prove
 
 The workflows deliberately divide responsibility:
 
-| Workflow | Trigger | Answer |
+\ref{tab-project-maintenance-what-automation-does-and-does-not-prove} separates the checks performed by automation from the decisions that still need a person.
+
+| Workflow {: width="30%" } | Trigger | Answer |
 |---|---|---|
 | `ci.yml` | Pull requests and pushes to `main` | Does the code work across supported Python versions, and do the docs build strictly? |
 | `docs.yml` | Pushes to `main` and manual dispatch | Can the complete website and PDF be built, tested, deployed, and verified live? |
 | `drift.yml` | Weekly schedule and manual dispatch | Would newer rendering dependencies change the published artifacts? |
 | `publish.yml` | Published GitHub release | Can the tagged source build and publish to PyPI through Trusted Publishing? |
 | `release-redeploy.yml` | Published GitHub release | Can `docs.yml` be rerun against `main` so the site sees the new tag? |
+/// table-caption | <
+    attrs: {id: tab-project-maintenance-what-automation-does-and-does-not-prove}
 
-A green workflow proves the question in its own row, not every row. In
+What automation does—and does not—prove
+///
+
+A green workflow proves the question in its own row in
+\ref{tab-project-maintenance-what-automation-does-and-does-not-prove}, not every
+row. In
 particular, a passing pull request does not publish PyPI, and a successful
 Pages deployment does not by itself prove the public URL serves the new bytes.
 The deployment workflow performs that final delivery check separately.
 
 ## Suggested cadence
+
+\ref{tab-project-maintenance-suggested-cadence} turns the maintenance tools
+into a practical event-based routine.
 
 | When | Maintenance |
 |---|---|
@@ -148,6 +168,11 @@ The deployment workflow performs that final delivery check separately.
 | Weekly | Let `drift.yml` compare pinned and newest renderers; triage the issue it opens |
 | After moving or forking a repository | Run `sync-repo`, rebuild, and inspect canonical/edit links and badges |
 | Before a package release | Complete the local build gates, merge the release PR, publish a GitHub release, verify PyPI and Pages |
+/// table-caption | <
+    attrs: {id: tab-project-maintenance-suggested-cadence}
+
+Suggested cadence
+///
 
 The [command-line map](command-line.md) inventories the public CLI that a
 maintainer must keep consistent. The pages after it explain each repository

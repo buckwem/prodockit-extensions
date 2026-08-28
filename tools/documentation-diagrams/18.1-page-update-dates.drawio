@@ -1,0 +1,43 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/26.2.15 Chrome/134.0.6998.205 Electron/35.2.1 Safari/537.36" version="26.2.15">
+  <diagram id="page-update-dates" name="Page-1">
+    <mxGraphModel dx="2066" dy="1168" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="570" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="page-update-dates-git" value="Git modification&lt;br&gt;time&amp;nbsp;when &lt;br&gt;available" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="80" y="54" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="page-update-dates-select" value="Select the page&#39;s&lt;br&gt;modification time" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="325" y="165" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="page-update-dates-utc" value="Express the date&lt;br&gt;in UTC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="583" y="165" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="page-update-dates-placement" value="Author chooses the&lt;br&gt;text and position" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="842" y="165" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="page-update-dates-mtime" value="File modification time&amp;nbsp;when Git is absent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="80" y="256" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="page-update-dates-rendered" value="Updated date in the&lt;br&gt;website and/or PDF" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="165" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="page-update-dates-git" target="page-update-dates-select" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="page-update-dates-mtime" target="page-update-dates-select" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="page-update-dates-select" target="page-update-dates-utc" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="page-update-dates-utc" target="page-update-dates-placement" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="page-update-dates-placement" target="page-update-dates-rendered" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

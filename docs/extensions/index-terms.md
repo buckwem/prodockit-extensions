@@ -79,10 +79,18 @@ include = true
 title = "Index"
 ```
 
-| Setting | Default | What it controls |
+\ref{tab-extensions-index-terms-configure-the-generated-index} explains the two
+settings used by that configuration.
+
+| Setting {: width="32%" } | Default | What it controls |
 |---|---|---|
 | \index{prodockit.index!`include`} | `false` | Whether `prodockit pdf` generates the index pages. |
 | \index{prodockit.index!`title`} | `"Index"` | Heading shown on the first generated index page. |
+/// table-caption | <
+    attrs: {id: tab-extensions-index-terms-configure-the-generated-index}
+
+Configure the generated index
+///
 
 You can leave out `title` when “Index” is the heading you want.
 
@@ -216,6 +224,9 @@ the index files it under the visible link text:
 
 ## Reference {: #index-terms-reference }
 
+\ref{tab-extensions-index-terms-reference} shows how each authoring form appears
+inline and where it is placed in the generated index.
+
 | Syntax | Inline result | Index structure |
 | --- | --- | --- |
 | `\index{Term}` | `Term` | One flat entry |
@@ -224,6 +235,11 @@ the index files it under the visible link text:
 | <code>&#92;index{&#96;command&#96;}</code> | Code-styled `command` | Code-styled flat entry |
 | <code>&#92;index{Parent!&#96;command&#96;}</code> | Code-styled `command` | Code-styled child entry |
 | `\index{[Text](url)}` | Linked `Text` | Entry filed as `Text` |
+/// table-caption | <
+    attrs: {id: tab-extensions-index-terms-reference}
+
+Reference
+///
 
 Important constraints:
 

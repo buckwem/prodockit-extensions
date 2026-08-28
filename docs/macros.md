@@ -44,21 +44,37 @@ returning the unrendered page and allowing a broken site to be published.
 
 ## Variables
 
-| Variable | Description |
+The values exposed directly to page templates are listed in
+\ref{tab-macros-variables}.
+
+| Variable {: width="32%" } | Description |
 |---|---|
 | `{% raw %}{{ word_count }}{% endraw %}` | Prose word count across every nav page except the first (assumed to be the cover page) and any page flagged `exclude_from_word_count: true` in its own front matter - a comma-formatted string (e.g. `"9,971"`). |
 | `{% raw %}{{ repo_url }}{% endraw %}` | The fully-qualified `https://` URL for the current checkout's git `origin` remote (converted from `git@host:path.git` SSH syntax, with any embedded CI credentials stripped) - `""` if there's no git remote configured. |
 | `{% raw %}{{ release }}{% endraw %}` | The latest git tag reachable from `HEAD` (e.g. `"1.2.0"`) - `""` if this checkout has no tags at all. Resolves identically for the website and for `prodockit pdf`, since both render through this same macro environment - unlike `prodockit.pdf`'s own [`{RELEASE}` cover-page marker](pdf.md#cover-page-markers), which queries the host's GitHub/GitLab API instead, for a project whose cover page isn't part of a live, macro-rendered site at all. |
 | `{% raw %}{{ site_name }}{% endraw %}` | `project.site_name` from `zensical.toml`. |
+/// table-caption | <
+    attrs: {id: tab-macros-variables}
+
+Variables
+///
 
 ## Macros
 
-| Macro | Description |
+\ref{tab-macros-macros} lists the callable helpers and the content each one
+inserts.
+
+| Macro {: width="38%" } | Description |
 |---|---|
 | `{% raw %}{{ heading_counter_reset(page) }}{% endraw %}` | Place near the top of every page - continues chapter/section numbering (and the matching sidebar numbering) across pages, from this page's position in nav. See below. |
 | `{% raw %}{{ reference_style() }}{% endraw %}` | Place once near the top of a references page - controls `.reference` paragraph spacing. See below. |
 | `{% raw %}{{ acronym_style() }}{% endraw %}` | Place once near the top of an acronyms page - matches `reference_style()`'s default spacing. |
 | `{% raw %}{{ glossary_style() }}{% endraw %}` | Place once near the top of a glossary page - matches `reference_style()`'s default spacing. |
+/// table-caption | <
+    attrs: {id: tab-macros-macros}
+
+Macros
+///
 
 ## Show macro syntax as text {: #macros-literal-syntax }
 
@@ -102,12 +118,19 @@ Controls list-entry spacing, driven by the same `project.extra.*` settings
 [`prodockit.pdf`](pdf.md) reads for the PDF, so both outputs stay in sync from
 one configured value:
 
-| Setting | Default | What it does |
+\ref{tab-macros-reference-style-acronym-style-glossary-style} shows which configured style value each helper returns.
+
+| Setting {: width="32%" } | Default | What it does |
 |---|---|---|
 | \index{prodockit.zensical_macros!`reference_style`} | `"european"` | `"european"`: single line spacing throughout, no indent, entries close together. `"global"`: single line spacing within each entry, double spacing *between* entries, with a hanging indent on wrapped lines (the common APA/MLA/Chicago style). Only `reference_style()`/the References page switches look - acronyms/glossary always use the tight "european" spacing. |
 | \index{prodockit.zensical_macros!`reference_spacing_european`} | `"-0.8em"` | Gap between entries, "european" style - also used unconditionally for the acronym/glossary lists. |
 | \index{prodockit.zensical_macros!`reference_indent_global`} | `"1.27cm"` | Hanging indent on wrapped lines, "global" style. |
 | \index{prodockit.zensical_macros!`reference_spacing_global`} | `"2em"` | Gap between entries, "global" style. |
+/// table-caption | <
+    attrs: {id: tab-macros-reference-style-acronym-style-glossary-style}
+
+reference_style() / acronym_style() / glossary_style()
+///
 
 For supported versions and the pre-1.0 stability boundary, see
 [Support and compatibility](about/support.md).

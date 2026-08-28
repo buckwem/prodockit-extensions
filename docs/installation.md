@@ -21,7 +21,9 @@ refuse to install on anything older rather than failing later at import.
 Everything below is pulled in automatically by `pip install prodockit`,
 except where noted:
 
-| Requirement | Needed for |
+\ref{tab-installation-requirements} lists the runtime dependencies installed with prodockit and explains why each one is needed.
+
+| Requirement {: width="36%" } | Needed for |
 | --- | --- |
 | [`Markdown`](https://python-markdown.github.io/) (>= 3.10.3) | every extension |
 | [`zensical`](https://zensical.org/) (>= 0.0.57) | Zensical integration and `prodockit.zensical_macros` |
@@ -32,9 +34,15 @@ except where noted:
 | \index{dependencies!`pypdf`} (>= 4.0) | `prodockit.pdf` |
 | \index{dependencies!`tomli`} (>= 2.0) | reading a template manifest on Python 3.10, where `tomllib` does not exist yet |
 | \index{dependencies!`pymupdf`} (>= 1.24) | only the back-of-book index - `pip install prodockit[index]` |
+/// table-caption | <
+    attrs: {id: tab-installation-requirements}
 
-The floors above are the ones declared in `pyproject.toml`, and a test
-keeps this table in step with them - the two had drifted apart, with
+Requirements
+///
+
+The floors in \ref{tab-installation-requirements} are the ones declared in
+`pyproject.toml`, and a test keeps the table in step with them - the two had
+drifted apart, with
 `Markdown` recorded here as >= 3.4 long after the real floor moved to
 3.10.3 (prodockit-extensions#372).
 
@@ -43,13 +51,20 @@ keeps this table in step with them - the two had drifted apart, with
 These are the ones `pip install prodockit` does **not** bring, and they
 differ in kind:
 
-| Requirement | Needed for |
+\ref{tab-installation-not-installed-by-pip} identifies the external tools that pip cannot install and the features that use them.
+
+| Requirement {: width="36%" } | Needed for |
 | --- | --- |
 | \index{dependencies!`weasyprint`} (>= 69) | `prodockit.pdf`. A Python package, but not a dependency of prodockit - install it yourself. `prodockit.pdf` runs its command-line rather than importing it |
 | \index{dependencies!`pandoc`} (>= 3, builds pin 3.10.1) | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build. Genuinely not a Python package - there is nothing for `pip` to install |
 | \index{dependencies!`mermaid-cli`}, `mathjax-full` (Node >= 22) | only Mermaid diagrams and TeX maths in the PDF |
 | Chrome or Chromium | only Mermaid diagrams - `mermaid-cli` renders them through a headless browser |
 | A citation style (`.csl`) | only `prodockit.bibliography`. Fetched per build, not vendored - see below |
+/// table-caption | <
+    attrs: {id: tab-installation-not-installed-by-pip}
+
+Not installed by pip
+///
 
 The citation style is a download rather than an install. Pandoc
 resolves `harvard-cite-them-right.csl` from the directory it runs in, and
@@ -85,6 +100,8 @@ ones are needed at all. A build with neither Mermaid diagrams nor maths
 needs neither of them, and no browser.
 
 ## From PyPI
+
+Install the current prodockit package into the active project environment:
 
 ```bash
 pip install prodockit
@@ -135,7 +152,9 @@ requires another.
 
 See each extension's own page for its syntax, examples, and configuration:
 
-| Extension | What it adds |
+\ref{tab-installation-the-nine-extensions} maps each Markdown extension to the authoring feature it provides.
+
+| Extension {: width="40%" } | What it adds |
 | --- | --- |
 | [`prodockit.headings`](extensions/headings.md) | Numbered headings, and a number a cross-reference can point at |
 | [`prodockit.refs`](extensions/refs.md) | Cross-references that resolve to a number *and* a name |
@@ -146,11 +165,18 @@ See each extension's own page for its syntax, examples, and configuration:
 | [`prodockit.steps`](extensions/steps.md) | Numbered steps a reader works through in order |
 | [`prodockit.bibliography`](extensions/bibliography.md) | A bibliography built from your `.bib` files |
 | [`prodockit.index`](extensions/index-terms.md) | A back-of-book index (PDF only) |
+/// table-caption | <
+    attrs: {id: tab-installation-the-nine-extensions}
+
+The nine extensions
+///
 
 ### What is *not* an extension {: #installation-not-extensions }
 
 Several parts of prodockit have no `markdown.extensions` entry point and
 nothing to add to `zensical.toml`, because they are not Markdown syntax:
+
+\ref{tab-installation-what-is-not-an-extension} distinguishes the standalone commands and integrations from Markdown extensions.
 
 | | |
 | --- | --- |
@@ -163,6 +189,11 @@ nothing to add to `zensical.toml`, because they are not Markdown syntax:
 | [`prodockit pins`](devcons/pinning-drift.md) | Moves build-input version pins together |
 | [`prodockit template-sync`](devcons/template-sync.md) | Brings a project back into step with the template it came from |
 | [`prodockit init-tools` / `init-mathjax`](command-line.md#publish-and-verify) | Sets up optional Mermaid and maths rendering tools |
+/// table-caption | <
+    attrs: {id: tab-installation-what-is-not-an-extension}
+
+What is not an extension
+///
 
 Contributors changing the package itself should use the editable installation
 and repository checks in

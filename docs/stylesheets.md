@@ -16,12 +16,19 @@ The \index{stylesheets!stylesheet ownership} rules separate styles Prodockit
 maintains from styles that belong to the document author. Keep that separation
 when changing colours, spacing, fonts, or the PDF presentation:
 
-| File | Owner | Applies to |
+\ref{tab-stylesheets-keep-managed-and-author-styles-separate} assigns each stylesheet to either prodockit or the document author.
+
+| File {: width="34%" } | Owner | Applies to |
 |---|---|---|
 | `docs/stylesheets/pdk.css` | Prodockit | Website and PDF component defaults |
 | `docs/stylesheets/extra.css` | Document author | Website and PDF additions or overrides |
 | `docs/stylesheets/pdk-pdf.css` | Prodockit | PDF-only presentation defaults |
 | `docs/stylesheets/print.css` | Document author | PDF-only additions or overrides |
+/// table-caption | <
+    attrs: {id: tab-stylesheets-keep-managed-and-author-styles-separate}
+
+Keep managed and author styles separate
+///
 
 The two `pdk` files are delivered with Prodockit and checked by
 [`prodockit pins`](devcons/pinning-drift.md#pinning-shared-files). Do not edit
@@ -39,53 +46,45 @@ have equal specificity. A final internal guard protects only the page canvas
 and removes website navigation from the PDF; it does not set the document's
 colours, typography, tables, contents presentation, or component spacing.
 
+\ref{tab-stylesheets-load-the-cascade-in-order} shows the order in which the website and PDF stylesheets are loaded and which output uses each file.
+
 | Output | Styles loaded, from first to last |
 |---|---|
 | Website | Theme → `pdk.css` → `extra.css` |
 | PDF | Renderer foundations → `pdk.css` → `extra.css` → `pdk-pdf.css` → `print.css` |
+/// table-caption | <
+    attrs: {id: tab-stylesheets-load-the-cascade-in-order}
+
+Load the cascade in order
+///
 
 The arrows show which later layer can override an earlier layer at equal CSS
 specificity. The website leaves the cascade after `extra.css`; the PDF
 continues through its two PDF-only files:
 
-<table class="stylesheet-cascade-diagrams">
-  <tbody>
-    <tr>
-      <td markdown="1">
-```mermaid
-flowchart TB
-    subgraph web[Website cascade]
-        direction TB
-        theme[Theme] --> wpdk[pdk.css<br/>Managed]
-        wpdk --> wextra[extra.css<br/>Author-owned]
-    end
+**Website stylesheet cascade**
 
-    classDef managed fill:#e8f0fe,stroke:#3559a8,color:#15213a
-    classDef author fill:#e9f7ef,stroke:#2f7d4a,color:#173a24
-    class wpdk managed
-    class wextra author
-```
-      </td>
-      <td markdown="1">
-```mermaid
-flowchart TB
-    subgraph pdf[PDF cascade]
-        direction TB
-        renderer[Renderer foundations] --> ppdk[pdk.css<br/>Managed]
-        ppdk --> pextra[extra.css<br/>Author-owned]
-        pextra --> pdkpdf[pdk-pdf.css<br/>Managed]
-        pdkpdf --> print[print.css<br/>Author-owned]
-    end
+The website stops at the author override shown in
+\ref{fig-website-stylesheet-cascade}.
 
-    classDef managed fill:#e8f0fe,stroke:#3559a8,color:#15213a
-    classDef author fill:#e9f7ef,stroke:#2f7d4a,color:#173a24
-    class ppdk,pdkpdf managed
-    class pextra,print author
-```
-      </td>
-    </tr>
-  </tbody>
-</table>
+![Website stylesheet cascade: the Zensical theme, then Prodockit's managed pdk.css, then the author's extra.css](assets/diagrams/21.1-website-stylesheet-cascade.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-website-stylesheet-cascade}
+
+Website stylesheet cascade
+///
+
+**PDF stylesheet cascade**
+
+\ref{fig-pdf-stylesheet-cascade} continues the same cascade through the two
+print-only layers.
+
+![PDF stylesheet cascade: renderer foundations, pdk.css, extra.css, pdk-pdf.css, then print.css](assets/diagrams/21.2-pdf-stylesheet-cascade.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-pdf-stylesheet-cascade}
+
+PDF stylesheet cascade
+///
 
 Implement the cascade by listing the files in this order in `zensical.toml`:
 
@@ -104,6 +103,9 @@ pdf_extra_css = [
 ```
 
 ## Put a change in the narrowest file
+
+Choose the author-owned stylesheet whose scope matches the output being
+changed:
 
 - Use `extra.css` when the website and PDF should look alike.
 - Use `print.css` when the change applies only to paginated output.

@@ -6,25 +6,60 @@ icon: lucide/blocks
 
 # Extension integration
 
-The Authoring reference documents Markdown syntax and `zensical.toml` options.
-This page explains the integration machinery used when changing an extension
-or embedding it in a renderer other than Zensical.
+The Authoring reference explains the Markdown syntax and `zensical.toml`
+options. This page explains what happens after an author uses them. Zensical
+passes each Markdown page through Python-Markdown, where the prodockit and
+PyMdown extensions add their features. Zensical then finishes the website,
+including its macros and website styles.
+
+The PDF is not built from the Markdown a second time. Prodockit takes the page
+HTML already created by Zensical, applies the PDF processing and styles, and
+combines the pages into one document. \ref{fig-extension-integration-flow}
+shows the website path across the top and the PDF path beneath it. The shared
+point between them is Zensical's generated page HTML.
+
+![Markdown and configuration pass through the extension layer and Zensical before the shared website and PDF style paths produce their outputs](../assets/diagrams/32.1-extension-integration-flow.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-extension-integration-flow}
+
+Extension integration flow
+///
 
 ## Share definitions across pages {: #share-definitions-across-pages }
 
 Headings, references, citations, and glossary terms need build-wide state:
 
-| Extension | Shared object | Registered content |
+\ref{tab-devcons-extension-internals-share-definitions-across-pages} identifies the build-wide state shared by each extension and the definitions stored in it.
+
+| Extension {: width="40%" } | Shared object | Registered content |
 |---|---|---|
 | `prodockit.headings` and `prodockit.refs` | `IdRegistry` | Heading, figure, and table ids, labels, and destinations |
 | `prodockit.citations` | `CitationRegistry` | Citation keys and authored reference text |
 | `prodockit.glossary` | `GlossaryRegistry` | Term ids, display text, and definitions |
+/// table-caption | <
+    attrs: {id: tab-devcons-extension-internals-share-definitions-across-pages}
+
+Share definitions across pages
+///
 
 Zensical creates a fresh Python-Markdown instance per page. Prodockit detects
 the Zensical page context, derives a `source` path, and shares the appropriate
 registry across the build. A pre-scan reads definitions from every navigation
 page before conversion so a page can refer forward to a definition rendered
 later.
+
+The target and the reference may appear in either order and in different
+Markdown files. Prodockit therefore collects labels from every page before it
+resolves any reference. \ref{fig-cross-reference-resolution} shows both files
+entering that shared collection step, followed by one resolution step that
+produces the appropriate website link and PDF page reference.
+
+![A build-wide scan collects labels before references are resolved across Markdown files for both the website and PDF](../assets/diagrams/32.2-cross-reference-resolution.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-cross-reference-resolution}
+
+Cross-file reference resolution
+///
 
 Outside Zensical, the caller supplies the registry and source explicitly:
 
@@ -63,14 +98,17 @@ disambiguation. It passes each distinct citation or reference-list request to
 `pandoc --citeproc` with the configured `.bib` and `.csl` files, then memoizes
 the formatted HTML for the rest of the build.
 
-```mermaid
-flowchart LR
-    source[Markdown, BibTeX, and CSL] --> extension[prodockit.bibliography]
-    extension --> citeproc[pandoc --citeproc]
-    citeproc --> html[Formatted HTML]
-    html --> website[Zensical website]
-    html --> pdf[prodockit PDF]
-```
+\ref{fig-bibliography-pipeline} follows one formatting request from the
+Markdown, BibTeX, and CSL inputs through `prodockit.bibliography` to Pandoc.
+The formatted HTML returned by Pandoc is reused in both the website and PDF,
+which keeps their citation presentation consistent.
+
+![Bibliography formatting pipeline from authored inputs through Pandoc to the website and PDF](../assets/diagrams/32.3-bibliography-pipeline.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-bibliography-pipeline}
+
+Bibliography formatting pipeline
+///
 
 Pandoc formats only the requested citation or list. Zensical still renders the
 surrounding page.

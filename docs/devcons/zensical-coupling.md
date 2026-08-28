@@ -15,6 +15,8 @@ detail. This page explains that dependency and the controls that contain it.
 
 The public PDF implementation uses these supported boundaries:
 
+\ref{tab-devcons-zensical-coupling-supported-boundaries} lists the supported command and file boundaries used by the PDF implementation.
+
 | Need | Boundary |
 | --- | --- |
 | Build a website | `zensical build --clean --config-file ...` |
@@ -24,8 +26,14 @@ The public PDF implementation uses these supported boundaries:
 | Obtain theme admonition icons | Compiled CSS under `site_dir` |
 | Read page front matter | Source Markdown YAML |
 | Test the real integration | An installed wheel invoking the Zensical CLI |
+/// table-caption | <
+    attrs: {id: tab-devcons-zensical-coupling-supported-boundaries}
 
-The public `prodockit pdf` command follows these boundaries. It runs a clean
+Supported boundaries
+///
+
+The public `prodockit pdf` command follows the supported boundaries in
+\ref{tab-devcons-zensical-coupling-supported-boundaries}. It runs a clean
 Zensical build before extracting the configured pages from the completed
 site.
 
@@ -92,7 +100,9 @@ Not as a safe drop-in change with the currently documented Zensical and
 Python-Markdown interfaces. The investigation tested the plausible
 alternatives rather than assuming the private representation was necessary:
 
-| Alternative | Finding |
+\ref{tab-devcons-zensical-coupling-can-it-be-removed} records each replacement considered for the remaining private page-context call and why it is not yet equivalent.
+
+| Alternative {: width="36%" } | Finding |
 | --- | --- |
 | Process completed HTML | The output identifies its page, but it arrives after the Markdown extensions have assigned numbers, selected and cleared registries, and resolved links. Replacing those operations would be a substantial redesign and would also need an equivalent for `zensical serve`. |
 | Read Zensical's links processor | It is another private representation, is added later in the rendering lifecycle, and would only exchange one undocumented dependency for another. |
@@ -101,8 +111,15 @@ alternatives rather than assuming the private representation was necessary:
 | Obtain the page through macros | Page fields are not documented, macros are optional, and macro rendering can be disabled for a page. |
 | Configure `source` on the extension | One static configuration value cannot vary for every page in the build. |
 | Use root-relative or absolute URLs | These break subpath deployments, offline output or movable sites. |
+/// table-caption | <
+    attrs: {id: tab-devcons-zensical-coupling-can-it-be-removed}
 
-Processing completed build output remains the right way to remove private
+Can it be removed?
+///
+
+The alternatives tested in
+\ref{tab-devcons-zensical-coupling-can-it-be-removed} show why processing
+completed build output remains the right way to remove private
 Zensical APIs from the PDF pipeline. It is not a replacement for current-page
 identity inside extensions that must also work during an ordinary website
 build and live preview.
@@ -269,6 +286,9 @@ access to Zensical's `Page`, context preprocessor or internal configuration
 objects.
 
 ## Related {: #coupling-related }
+
+The following pages describe the neighbouring implementation boundaries and
+the tests used to protect them:
 
 - [Implementation limitations](limitations.md) covers HTML and CSS shape
   coupling rather than Python APIs.

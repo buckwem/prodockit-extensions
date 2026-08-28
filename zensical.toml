@@ -175,6 +175,12 @@ permalink = true
 [project.markdown_extensions.admonition]
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.md_in_html]
+[project.markdown_extensions."pymdownx.blocks.caption"]
+types = [
+  { name = "caption" },
+  { name = "figure-caption", prefix = "{}.", classes = "prodockit-figure-caption" },
+  { name = "table-caption", prefix = "{}.", classes = "prodockit-table-caption" },
+]
 # Every prodockit extension this project itself documents, enabled on its
 # own docs site too - not because any of these pages actually need live
 # \ref{}/\cite{}/\citebib{}/\gls{} cross-references (every example of

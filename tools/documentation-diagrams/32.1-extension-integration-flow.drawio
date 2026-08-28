@@ -1,0 +1,61 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/26.2.15 Chrome/134.0.6998.205 Electron/35.2.1 Safari/537.36" version="26.2.15">
+  <diagram id="extension-integration-flow" name="Page-1">
+    <mxGraphModel dx="2066" dy="1168" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="720" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="extension-integration-flow-source" value="Markdown&lt;br&gt;and configuration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="80" y="70" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="extension-integration-flow-extensions" value="Python-Markdown&lt;br&gt;prodockit + PyMdown" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="420" y="70" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="extension-integration-flow-zensical" value="Zensical build&lt;br&gt;and macros" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="760" y="70" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="extension-integration-flow-website" value="Enhanced&lt;br&gt;website" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="70" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="extension-integration-flow-webstyles" value="Website styles&lt;br&gt;&lt;b&gt;pdk.css + extra.css&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="260" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="extension-integration-flow-html" value="Generated&lt;br&gt;page HTML" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="760" y="470" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="extension-integration-flow-pdfbuild" value="prodockit PDF&lt;br&gt;pipeline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="420" y="470" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="extension-integration-flow-pdf" value="Professional&lt;br&gt;PDF" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="80" y="470" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="extension-integration-flow-pdfstyles" value="PDF styles&lt;br&gt;&lt;b&gt;pdk-pdf.css + print.css&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="420" y="260" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="extension-integration-flow-source" target="extension-integration-flow-extensions" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="extension-integration-flow-extensions" target="extension-integration-flow-zensical" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="extension-integration-flow-zensical" target="extension-integration-flow-website" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="extension-integration-flow-webstyles" target="extension-integration-flow-website" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="extension-integration-flow-zensical" target="extension-integration-flow-html" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="extension-integration-flow-html" target="extension-integration-flow-pdfbuild" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="extension-integration-flow-pdfstyles" target="extension-integration-flow-pdfbuild" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="extension-integration-flow-pdfbuild" target="extension-integration-flow-pdf" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

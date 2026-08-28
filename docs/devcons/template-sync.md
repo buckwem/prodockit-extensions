@@ -16,21 +16,44 @@ document that looks slightly unlike everyone else's.
 The \index{commands!`prodockit template-sync`} command closes that gap without touching a word of your
 writing.
 
+\ref{fig-template-sync-decision} follows each managed file from the preview to
+the final diff. An unchanged local file takes the safe-update path; a file with
+local edits is preserved unless the author explicitly chooses the template
+copy with `--force`. Both paths rejoin at the review before anything is
+committed.
+
+![Template sync previews changes first, updates unchanged managed files automatically, and leaves author-edited files for an explicit decision](../assets/diagrams/23.1-template-sync-decision.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-template-sync-decision}
+
+Template-sync decision flow
+///
+
 Use it periodically while a project is active and before a final release. A
 long gap is supported, but it produces a larger change that is harder to
 review and more likely to combine a CI migration with a visual change.
 
 ## Choose how far the command should go
 
-| Command | What it does | When to use it |
+The progression from preview to a pushed update is shown in
+\ref{tab-devcons-template-sync-choose-how-far-the-command-should-go}.
+
+| Command {: width="52%" } | What it does | When to use it |
 |---|---|---|
 | `prodockit template-sync` | Shows what needs updating, without changing the project | Start here |
 | `prodockit template-sync --verbose` | Shows the same preview with technical details and file paths | You are investigating a particular file or reporting a problem |
 | `prodockit template-sync --apply` | Makes the changes on a separate branch, ready for you to review | Your project uses a pull request (GitHub) or merge request (GitLab) |
 | `prodockit template-sync --apply --push` | Makes the changes and, after asking you, updates `main` directly | Your usual practice is to update `main` without a pull or merge request |
 | `prodockit template-sync --apply --force FILE-PATH` | Also replaces the named file even though it differs from the template | You have checked that file and want the template's complete version |
+/// table-caption | <
+    attrs: {id: tab-devcons-template-sync-choose-how-far-the-command-should-go}
 
-If you are unsure, use the first command. It is only a preview. The output tells
+Choose how far the command should go
+///
+
+If you are unsure, use the first command in
+\ref{tab-devcons-template-sync-choose-how-far-the-command-should-go}. It is only
+a preview. The output tells
 you whether an update is available and which command to run next.
 
 The preview also checks the version of prodockit installed in the activated
@@ -47,6 +70,9 @@ request or merge request. Use `--apply --push` only when your usual practice is
 to update `main` directly. It cannot bypass a protected branch.
 
 ## Complete a template update
+
+Work from the project environment, preview what changed upstream, and resolve
+each author-edited file before rebuilding and publishing.
 
 /// steps
 
@@ -122,8 +148,8 @@ finished deciding.
 //// step | Build the complete outputs
 
 ```bash
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 ```
 
 Run the project's tests as well. A template update commonly changes workflows,
@@ -191,6 +217,8 @@ The split is decided by a **manifest** that lives in the template, not by
 the command, and every file the template ships is classified in it. A file
 that is in neither list stops the run rather than being guessed at.
 
+\ref{tab-devcons-template-sync-what-it-will-and-will-not-write} explains how template-sync treats managed, author-owned, generated, and unclassified files.
+
 | Group | Examples | What happens |
 | --- | --- | --- |
 | Template-owned | `.github/workflows/`, `docs/stylesheets/pdk.css`, `docs/stylesheets/pdk-pdf.css`, `macros.py`, `tools/` | Replaced, unless you have edited it |
@@ -198,8 +226,16 @@ that is in neither list stops the run rather than being guessed at.
 | Seeds | `.vale.ini`, starter pages | Written only if absent |
 | Shared | `.gitignore`, `zensical.toml` | Merged line by line, never replaced |
 | Excluded | `CONTRIBUTING.md`, issue templates | Not delivered at all |
+/// table-caption | <
+    attrs: {id: tab-devcons-template-sync-what-it-will-and-will-not-write}
 
-Within the shared `zensical.toml`, an existing `project.extra.pdf_*` value is
+What it will and will not write
+///
+
+The ownership groups in
+\ref{tab-devcons-template-sync-what-it-will-and-will-not-write} set the write
+boundary. Within the shared `zensical.toml`, an existing `project.extra.pdf_*`
+value is
 author-owned. Template sync adds a PDF parameter introduced by a newer
 template when the project does not have it, but never overwrites an existing
 page size, margin, duplex-layout, header/footer, stylesheet, output-path, or
@@ -393,6 +429,9 @@ template's version is right.
 
 #### Taking the template's version {: #tsync-force }
 
+Use `--force` only for files whose local contents should be replaced completely
+by the template copy:
+
 ```bash
 prodockit template-sync --apply --force .gitlab-ci.yml --force .github/workflows/docs.yml
 ```
@@ -440,13 +479,22 @@ never stand in for one another.
 
 The line under the remote says which of three things happened:
 
+\ref{tab-devcons-template-sync-where-the-template-comes-from} explains the three possible sources reported for the template checkout.
+
 | | |
 | --- | --- |
 | `fetched just now` | first run - the template was cloned |
 | `fetched, up to date` | the cached copy was brought current |
 | `cached copy - could not reach the host…` | the host was unreachable; the run continued on what was already cached |
+/// table-caption | <
+    attrs: {id: tab-devcons-template-sync-where-the-template-comes-from}
 
-The third is a real answer, not a failure. A run on a train still shows
+Where the template comes from
+///
+
+The three source outcomes in
+\ref{tab-devcons-template-sync-where-the-template-comes-from} are all real
+answers. A run on a train still shows
 you what your project would do - it just says plainly that the template
 it compared against may be behind.
 

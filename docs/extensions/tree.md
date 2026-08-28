@@ -11,11 +11,16 @@ tree. Use it to show readers where files belong in a project.
 
 ## Enable the extension {: #tree-enabling-it }
 
+Add an empty extension table to `zensical.toml` when the defaults are suitable:
+
 ```toml
 [project.markdown_extensions."prodockit.tree"]
 ```
 
 ## Write a tree {: #tree-writing-one }
+
+Write an indented file and folder list inside a `tree` block. The result tab
+shows how the same source is presented to a reader.
 
 === "Markdown"
 
@@ -62,11 +67,18 @@ Configure each tree inside its Markdown block. Put the options directly below
 `/// tree`, indent them by at least four spaces, and leave a blank line before
 the listing:
 
-| Option | Default | What it does |
+\ref{tab-extensions-tree-configure-indentation-and-icons} shows the tree options for indentation and file or folder icons.
+
+| Option {: width="32%" } | Default | What it does |
 |---|---|---|
 | \index{prodockit.tree!`indent`} | `2` | How many spaces one level costs. Set `4` for a listing written that way. |
 | `directory_icon` | `':lucide-folder:'` | Icon shortcode placed before every directory. |
 | `file_icon` | `':lucide-file:'` | Icon shortcode placed before every file. |
+/// table-caption | <
+    attrs: {id: tab-extensions-tree-configure-indentation-and-icons}
+
+Configure indentation and icons
+///
 
 This example changes both the indentation and the icons:
 
@@ -134,6 +146,9 @@ The package's own source-code map now lives under
 
 ## Reference {: #tree-reference }
 
+Use \ref{tab-extensions-tree-reference} to look up the block syntax, options,
+and nesting markers.
+
 | Syntax or option | Purpose |
 | --- | --- |
 | `/// tree` | Open or close a directory tree |
@@ -143,6 +158,11 @@ The package's own source-code map now lives under
 | `directory_icon: '…'` | Choose the directory icon |
 | `file_icon: '…'` | Choose the file icon |
 | `attrs: {...}` | Add an id, class, or other attribute to the tree |
+/// table-caption | <
+    attrs: {id: tab-extensions-tree-reference}
+
+Reference
+///
 
 The `tree` block follows the same fence, option, and nesting rules as
 [PyMdown Blocks](https://facelessuser.github.io/pymdown-extensions/extensions/blocks/).

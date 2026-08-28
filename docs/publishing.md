@@ -25,6 +25,9 @@ serves.
 
 ## Choose your starting point
 
+\ref{tab-publishing-choose-your-starting-point} directs each project state to
+the appropriate publishing guide.
+
 | Starting point | First guide |
 |---|---|
 | You want a ready-made report project | [Start with prodockit-template](prodockit-template.md) explains what it provides and which files become yours |
@@ -34,12 +37,20 @@ serves.
 | An existing template-derived project | [Staying in step with the template](devcons/template-sync.md) brings shared workflows and publishing files up to date without replacing your writing |
 | A working project that already previews with `zensical serve` | Continue with the publishing path below |
 | A prodockit package release rather than a documentation project | Use the maintainer [Build and release](devcons/releasing.md) runbook instead |
+/// table-caption | <
+    attrs: {id: tab-publishing-choose-your-starting-point}
+
+Choose your starting point
+///
 
 The template is a starting copy, not a live dependency. Your Markdown remains
 project-owned; later template fixes arrive only when you review and apply a
 template sync.
 
 ## Follow the publishing path
+
+Build and inspect the complete outputs locally before asking the hosting service
+to publish the same commit.
 
 /// steps
 
@@ -167,12 +178,20 @@ proves that a reader can retrieve the intended version.
 
 ## Know which output you are checking
 
+Use \ref{tab-publishing-know-which-output-you-are-checking} to distinguish
+local intermediates from the website and PDF readers finally receive.
+
 | Output | Built by | Typical location | Final check |
 |---|---|---|---|
 | Local preview | `zensical serve` | Address printed in the terminal | Edit a page and see it refresh |
 | Static website | `zensical build --clean --strict`; optionally `prodockit update-dates` | `site/` | Open pages, optional revision dates, navigation, links, search, and downloadable files |
 | Complete PDF | `prodockit pdf` | `docs/site_documentation.pdf` by default | Inspect cover, contents, page breaks, diagrams, fonts, and index |
 | Hosted website | GitHub Pages or GitLab Pages workflow | Project Pages URL | Confirm the public page contains the reviewed change |
+/// table-caption | <
+    attrs: {id: tab-publishing-know-which-output-you-are-checking}
+
+Know which output you are checking
+///
 
 ## Build with revision dates {: #build-with-revision-dates }
 
@@ -292,6 +311,8 @@ front matter can still show it in the preview; use the completed static build
 to inspect automatic Git or modification dates.
 
 ## Use the detailed guides when needed
+
+Open the detailed guide for the part of the workflow that needs attention:
 
 - [Set up a machine](devcons/bootstrap.md) prepares a computer and checkout.
 - [Start with prodockit-template](prodockit-template.md) introduces the starter

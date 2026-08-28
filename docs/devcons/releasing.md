@@ -22,31 +22,29 @@ the tagged source, while the documentation redeploy is deliberately run from
 
 ## Understand the workflow chain
 
-```mermaid
-flowchart TD
-    branch([START<br>Release branch]):::entry --> pr[Pull request]
-    pr --> ci[ci.yml<br>tests, lint, typing, strict docs]
-    pr --> scope[changed-file scope<br>select the risk-relevant checks]
-    scope --> adopt[adopt-install.yml<br>installed-wheel tests when adoption can change]
-    scope --> pdfsite[pdf-built-site-wheel.yml<br>renderer tests when PDF integration can change]
-    ci -->|required checks pass| merge[Merge to main]
-    merge --> docs[docs.yml<br>PDF, site, built-output tests, Pages]
-    merge --> mainci[ci.yml on main]
-    merge --> release[Publish GitHub release<br>prodockit-vX.Y.Z]
-    release --> pypi[publish.yml<br>build, Twine check, Trusted Publishing to PyPI]
-    release --> redeploy[release-redeploy.yml]
-    redeploy --> dispatch[Dispatch docs.yml against main]
-    dispatch --> live[Pages deploy and live fingerprint check]
-    schedule([SCHEDULED TRIGGER<br>Every Monday]):::entry --> drift[drift.yml<br>compare pinned and newest output]
+Two independent events start the automation. A release branch opens the pull
+request path: scoped and core checks run before the branch is merged, after
+which the package and documentation are published from `main`. A weekly timer
+starts only the drift comparison and never publishes a release.
 
-    classDef entry fill:#fff4cc,stroke:#9a6700,stroke-width:3px,color:#3d2b00
-```
+\ref{fig-release-workflow} shows those entry points in solid green. Follow the
+release branch down the centre and left of the diagram; the separate scheduled
+path is on the right.
 
-The rounded gold boxes are entry points: a maintainer starts the release path
+![Prodockit pull-request, publication and weekly drift-check workflows](../assets/diagrams/29.1-release-workflow.png){ .documentation-diagram .release-workflow-diagram }
+/// figure-caption
+    attrs: {id: fig-release-workflow}
+
+Release and continuous-integration workflow
+///
+
+The solid green boxes are entry points: a maintainer starts the release path
 from a release branch, while GitHub starts the drift path on its weekly
-schedule. Rectangular boxes are actions or workflow stages that follow.
+schedule. The other boxes are actions or workflow stages that follow.
 
-| Workflow | Trigger | Responsibility |
+\ref{tab-devcons-releasing-understand-the-workflow-chain} maps each workflow file to its trigger and responsibility.
+
+| Workflow {: width="42%" } | Trigger | Responsibility |
 |---|---|---|
 | [`adopt-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/adopt-install.yml) | Relevant pull requests; every push to `main`; manual dispatch | Build and install the wheel on Ubuntu and Windows x64, plus Ubuntu, Windows and macOS ARM64. Both Windows architectures run one complete TOML scenario with Mermaid and maths; Ubuntu and macOS retain the wider TOML/YAML option coverage. Canonical npm lockfiles and the hosted cache avoid resolving and downloading the same Node packages afresh on every run. |
 | [`pdf-built-site-wheel.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/pdf-built-site-wheel.yml) | Relevant pull requests; every push to `main`; manual dispatch | Build and install the wheel on the same x64 and ARM64 operating-system matrix, exercise the renderer used by public `prodockit pdf` through Zensical's documented clean build, and verify it can consume navigation, rendered extensions and page metadata without a Git host |
@@ -55,8 +53,14 @@ schedule. Rectangular boxes are actions or workflow stages that follow.
 | [`drift.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/drift.yml) | Monday schedule; manual dispatch | Build with pinned and newest rendering dependencies, compare artifacts, run checks against the newer build, and open or update an issue rather than failing for mere availability |
 | [`publish.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/publish.yml) | Published GitHub release | Build source and wheel artifacts from the release tag, validate their metadata and rendered README with Twine, then publish them to PyPI through \index{PyPI!Trusted Publishing} |
 | [`release-redeploy.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/release-redeploy.yml) | Published GitHub release; manual dispatch | Start `docs.yml` against `main` after the new tag exists, so the cover and macros can show the new release without deploying from a tag ref |
+/// table-caption | <
+    attrs: {id: tab-devcons-releasing-understand-the-workflow-chain}
 
-The seven workflows overlap intentionally. `ci.yml` gives quick pull-request
+Understand the workflow chain
+///
+
+The workflow roles in \ref{tab-devcons-releasing-understand-the-workflow-chain}
+overlap intentionally. `ci.yml` gives quick pull-request
 feedback and makes `main` the complete supported-Python backstop. A
 repository-owned changed-file classifier selects expensive pull-request
 checks conservatively: shared command, configuration, packaging or asset code
@@ -73,13 +77,22 @@ the current release.
 
 Use semantic versioning as a decision aid:
 
+\ref{tab-devcons-releasing-1-choose-the-release-version} maps patch, minor, and major versions to the kind of change being released.
+
 | Change | Version |
 |---|---|
 | Backward-compatible fixes or documentation corrections | Patch |
 | New backward-compatible commands, options, or extension features | Minor |
 | An intentional incompatible public change | Major—or the repository's agreed pre-1.0 policy |
+/// table-caption | <
+    attrs: {id: tab-devcons-releasing-1-choose-the-release-version}
 
-Read every change since the previous `prodockit-v...` tag. The Git history is
+1. Choose the release version
+///
+
+Use \ref{tab-devcons-releasing-1-choose-the-release-version} to translate the
+reviewed change into a version increment. Read every change since the previous
+`prodockit-v...` tag. The Git history is
 the complete record; the website release notes intentionally contain only
 short changes that matter to package users:
 
@@ -92,6 +105,9 @@ The tag prefix matters. Historic tags named only `vX.Y.Z` exist, but current
 package releases use `prodockit-vX.Y.Z`, such as `prodockit-v0.41.0`.
 
 ## 2. Prepare the release branch
+
+Create the release metadata on a branch based on the latest `main`, then let
+the repository checks validate that exact change.
 
 /// steps
 
@@ -187,12 +203,12 @@ pytest
 zensical build --clean --strict
 ```
 
-Because this repository publishes a PDF as part of its documentation, also
-build it before the strict website build:
+Because this repository publishes a PDF as part of its documentation, build
+the strict website first and then let the PDF command consume it:
 
 ```bash
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 python -m pytest tests/test_built_docs.py -m built -v
 ```
 
@@ -350,6 +366,8 @@ gh run list --workflow docs.yml --limit 5
 
 Automation has separate success conditions, so perform separate public checks:
 
+\ref{tab-devcons-releasing-7-verify-the-release-as-a-user} separates package, documentation, and PDF checks so each public artifact is verified.
+
 | Check | What it proves |
 |---|---|
 | GitHub release page shows `prodockit-v0.42.0` | The release and tag are public |
@@ -358,8 +376,16 @@ Automation has separate success conditions, so perform separate public checks:
 | `prodockit --version` prints `0.42.0` | The installed code agrees with package metadata |
 | Documentation cover shows the new release | The post-release main-branch redeploy completed |
 | `docs.yml` verify job passes | The public Pages URL serves the artifact built by that run |
+/// table-caption | <
+    attrs: {id: tab-devcons-releasing-7-verify-the-release-as-a-user}
 
-A clean installation check can use a temporary virtual environment:
+7. Verify the release as a user
+///
+
+The public checks in
+\ref{tab-devcons-releasing-7-verify-the-release-as-a-user} prove different
+parts of the release. A clean installation check can use a temporary virtual
+environment:
 
 ```bash
 python -m venv /tmp/prodockit-release-check
@@ -371,6 +397,9 @@ Use the platform's corresponding activation or executable path on Windows.
 
 ## Recover from a failed stage
 
+Use \ref{tab-devcons-releasing-recover-from-a-failed-stage} to resume from the
+last completed boundary without repeating publication work unnecessarily.
+
 | Failure | Resume from |
 |---|---|
 | Pull-request CI fails | Fix the release branch; do not publish the release |
@@ -380,6 +409,11 @@ Use the platform's corresponding activation or executable path on Windows.
 | `release-redeploy.yml` fails | Manually run `gh workflow run docs.yml --ref main` after fixing permissions or workflow availability |
 | Pages deploy succeeds but verify fails | Inspect the response headers and rerun `docs.yml`; do not assume successful upload means successful delivery |
 | Drift issue opens after release | Triage it as future maintenance; it does not invalidate the pinned release that just shipped |
+/// table-caption | <
+    attrs: {id: tab-devcons-releasing-recover-from-a-failed-stage}
+
+Recover from a failed stage
+///
 
 ## After release
 
@@ -390,3 +424,15 @@ release ceremony; the changelog test permits it to be absent between releases.
 Downstream repositories that pin prodockit—especially `prodockit-template`
 and the userguide—should update deliberately, rebuild their own site and PDF,
 and use their own tests before adopting the release.
+
+\ref{fig-downstream-release-cascade} shows the downstream sequence. Each
+repository first updates its version pin and shared files, then builds and
+tests its own outputs before making a separate release. A successful prodockit
+release starts this review; it does not bypass it.
+
+![A prodockit release is followed by deliberate pin, shared-file, build, test and release updates in the template and userguide](../assets/diagrams/29.2-downstream-release-cascade.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-downstream-release-cascade}
+
+Downstream release cascade
+///

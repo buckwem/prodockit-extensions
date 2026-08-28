@@ -15,6 +15,16 @@ prodockit adds the document features that professional and academic
 cross-references, citations, glossaries, richer tables, and a printable PDF.
 Install one Python package, then enable only the parts your project uses.
 
+\ref{fig-prodockit-output-relationship} shows how the shared authoring input
+becomes a website and a matching printable document.
+
+![Markdown and project configuration pass through Prodockit's authoring and style components and Zensical to produce a website, while Prodockit's PDF pipeline and styles produce the matching printable document](assets/diagrams/1.1-prodockit-output-relationship.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-prodockit-output-relationship}
+
+Relationship between Prodockit's source, components and outputs
+///
+
 If you want to see it working before reading the reference pages, follow
 [Build your first site](getting-started.md). It starts with a new Zensical
 project and ends at a live local preview.
@@ -24,11 +34,18 @@ project and ends at a live local preview.
 Install the prodockit package first, then choose the route that matches the
 document you have:
 
+\ref{tab-introduction-choose-an-installation-route} compares the three installation routes by starting point and result.
+
 | Starting point | Installation route |
 |---|---|
 | An existing Zensical or MkDocs document whose working environment is already established | [Adoption](adopt.md) integrates selected authoring components without replacing the document's design, Git setup, editor, or publishing workflow |
 | No existing document, or a project that should start from the maintained report template | [Bootstrap](devcons/bootstrap.md) prepares the machine, repository, build tools, and template-based project |
 | A project whose author wants to choose and install every dependency directly | [Manual installation](installation.md) explains the Python package, PDF tools, optional renderers, and extension configuration without running adoption or bootstrap |
+/// table-caption | <
+    attrs: {id: tab-introduction-choose-an-installation-route}
+
+Choose an installation route
+///
 
 [Start with prodockit-template](prodockit-template.md) explains what the
 template supplies and which files become part of your own project. Adoption,
@@ -38,11 +55,17 @@ installed or adopted project later needs a PDF.
 
 ## Choose what you need
 
+Prodockit separates features that change authored Markdown from tools that
+build, inspect, or maintain the complete project. Start with the group that
+matches the outcome you need.
+
 ### Authoring extensions
 
 These are standard Python-Markdown extensions configured in `zensical.toml`:
 
-| Extension | Use it for |
+\ref{tab-introduction-authoring-extensions} links each authoring need to the extension that provides it.
+
+| Extension {: width="40%" } | Use it for |
 | --- | --- |
 | [`prodockit.headings`](extensions/headings.md) | Numbered headings |
 | [`prodockit.refs`](extensions/refs.md) | Cross-references to headings, figures, and tables |
@@ -53,6 +76,11 @@ These are standard Python-Markdown extensions configured in `zensical.toml`:
 | [`prodockit.steps`](extensions/steps.md) | Procedures presented as numbered steps |
 | [`prodockit.bibliography`](extensions/bibliography.md) | BibTeX/BibLaTeX citations formatted with CSL |
 | [`prodockit.index`](extensions/index-terms.md) | A PDF-only back-of-book index |
+/// table-caption | <
+    attrs: {id: tab-introduction-authoring-extensions}
+
+Authoring extensions
+///
 
 Every extension is independent. Start with one; add another when the document
 needs it.
@@ -61,6 +89,8 @@ needs it.
 
 prodockit also provides commands and integrations rather than Markdown syntax:
 
+\ref{tab-introduction-publishing-and-project-tools} links each publishing or maintenance task to its prodockit command.
+
 | Feature | Use it for |
 | --- | --- |
 | [`prodockit pdf`](pdf.md) | Build a standalone PDF from the same navigation as the site |
@@ -68,6 +98,11 @@ prodockit also provides commands and integrations rather than Markdown syntax:
 | [`prodockit.zensical_macros`](macros.md) | Word counts, repository data, and document-wide numbering in templates |
 | [`prodockit.testing`](devcons/testing.md) | Check the built website and PDF with pytest |
 | [Maintain prodockit](project-maintenance.md) | Maintain the package repository, build pins, automation, and releases |
+/// table-caption | <
+    attrs: {id: tab-introduction-publishing-and-project-tools}
+
+Publishing and project tools
+///
 
 Go to the [Authoring reference](authoring.md) when you want to add document
 features, use website macros, build a PDF, or look up a command. Go to

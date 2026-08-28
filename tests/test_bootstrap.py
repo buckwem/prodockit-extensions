@@ -1846,8 +1846,11 @@ def test_the_apply_loop_resolves_before_it_runs(tmp_path: Path) -> None:
     )
 
 
-#: `| 7 | SSH key on the host | **guide and verify** |`
-_STAGE_ROW = re.compile(r"^\| (\d+) \| (.+?) \| (.+?) \|$", flags=re.MULTILINE)
+#: `| 3. Git and host {: rowspan=4 } | 4 | SSH keypair | yes, after a step of your own |`
+_STAGE_ROW = re.compile(
+    r"^\|\s*(.*?)\s*\|\s*(\d+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|$",
+    flags=re.MULTILINE,
+)
 BOOTSTRAP_PAGE = Path(__file__).resolve().parents[1] / "docs" / "devcons" / "bootstrap.md"
 
 
@@ -1860,13 +1863,13 @@ def test_the_documented_stages_are_the_stages() -> None:
     and had no way to tell which of the two was wrong.
     """
     page = BOOTSTRAP_PAGE.read_text(encoding="utf-8")
-    table = page[page.index("| # | Stage | Automated? |") :]
+    table = page[page.index('| Phase {: width="18%" } |') :]
     rows = _STAGE_ROW.findall(table[: table.index("\n\n")])
 
     assert len(rows) == len(STAGES), (
         f"the table lists {len(rows)} stages, the tool has {len(STAGES)}"
     )
-    for (number, described, _automated), (position, stage) in zip(
+    for (_phase, number, described, _automated), (position, stage) in zip(
         rows, enumerate(STAGES, start=1), strict=True
     ):
         assert int(number) == position, f"row {number} is in position {position}"

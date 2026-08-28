@@ -19,7 +19,20 @@ date otherwise. Every automatic timestamp is converted to UTC before its
 `YYYY-MM-DD` calendar date is selected, so the result does not depend on the
 time zone of the computer running the build.
 
+\ref{fig-page-update-dates} shows the two date sources converging on the
+author-selected position in both outputs.
+
+![Git or file modification times are converted to a UTC date and inserted at the author's chosen position in the website and PDF](assets/diagrams/18.1-page-update-dates.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-page-update-dates}
+
+Page update-date workflow
+///
+
 ### How time zones are handled
+
+All automatic timestamps are converted to UTC before prodockit selects the
+calendar date, regardless of where the build runs:
 
 - **Git history:** the author timestamp includes its recorded UTC offset.
   Prodockit converts that instant to UTC, then selects its calendar date.

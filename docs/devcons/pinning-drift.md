@@ -37,7 +37,22 @@ work together:
 2. **Watch for newer releases**, so pinning does not mean going quietly
    stale.
 
+\ref{fig-version-pinning-drift} shows the two controls in one cycle. The top
+row finds declarations or shared files that disagree and aligns the release
+inputs. The lower row compares the pinned output with newer dependencies and
+reports the difference for a maintainer to accept or reject.
+
+![Version declarations are checked for agreement while scheduled drift checks compare pinned and newer rendered outputs before a deliberate upgrade](../assets/diagrams/28.1-version-pinning-drift.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-version-pinning-drift}
+
+Version pinning and drift workflow
+///
+
 ## Maintain a dependency safely
+
+Check agreement first, inspect newer versions separately, and update only after
+the resulting output difference has been reviewed.
 
 /// steps
 
@@ -87,8 +102,8 @@ floor and a publishing workflow's exact pin remains exact.
 //// step | Rebuild in publishing order
 
 ```bash
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 pytest
 ```
 
@@ -118,12 +133,19 @@ request. The pull request then runs the same consistency gate in `ci.yml`.
 Pinning creates its own problem: the same version ends up written in
 several files at once, and nothing keeps them in step.
 
-| File | Typically declares | Why that form |
+\ref{tab-devcons-pinning-drift-where-a-version-gets-declared} identifies every file in which a build-input version can be declared.
+
+| File {: width="28%" } | Typically declares | Why that form |
 | --- | --- | --- |
 | `pyproject.toml` | `zensical>=0.0.57` | A **floor**. An exact pin in a library's metadata propagates to every consumer and conflicts with any project needing a different Zensical. |
 | CI docs/build job | `zensical==0.0.57` | An **exact pin**. The site and PDF are artifacts; they should change deliberately. |
 | CI test job | `weasyprint==69.0` | An **exact pin**. Tests that assert on where things land in a rendered PDF treat the layout engine as an input, not an implementation detail. |
 | Drift job | both, exactly | The baseline it compares the newest release against. |
+/// table-caption | <
+    attrs: {id: tab-devcons-pinning-drift-where-a-version-gets-declared}
+
+Where a version gets declared
+///
 
 Both forms are correct in their own place. What is not correct is them
 disagreeing, which is easy to do by hand and invisible when it happens.
@@ -174,13 +196,21 @@ pinned - so one answer updates every file correctly.
 
 ### Options {: #pinning-options }
 
-| Option | What it does |
+The command's reporting, write, and network controls are summarised in
+\ref{tab-devcons-pinning-drift-options}.
+
+| Option {: width="38%" } | What it does |
 | --- | --- |
 | `-r`, `--root` | Project root to scan. Defaults to the current directory. |
 | `-p`, `--package` | Package to manage, repeatable. Defaults to `zensical`, `weasyprint`, `prodockit`, `Markdown`, `pymdown-extensions` and `pandoc`. |
 | `--set PACKAGE=VERSION` | Set a version without prompting, repeatable. Implies `--no-input`. |
 | `--latest` | Take PyPI's newest for every package without prompting. Implies `--no-input`. |
 | `--no-input` | Never prompt. Packages given a version are updated; the rest are reported and left untouched. |
+/// table-caption | <
+    attrs: {id: tab-devcons-pinning-drift-options}
+
+Options
+///
 
 ## Keep shared files with the pinned release {: #pinning-shared-files }
 
@@ -296,6 +326,8 @@ is not mistaken for a declaration.
 Five shapes of declaration are recognised, because a build input is not
 always a pip package:
 
+\ref{tab-devcons-pinning-drift-what-it-scans} lists the declaration forms recognised by the drift scanner.
+
 | Shape | Example | Where |
 | --- | --- | --- |
 | pip specifier | `zensical==0.0.52`, `zensical>=0.0.52` | anywhere |
@@ -303,6 +335,11 @@ always a pip package:
 | image tag | `image: python:3.14` | GitLab CI, or any container |
 | CI variable | `PANDOC_VERSION: "3.10.1"` | a GitHub `env:` block, a GitLab `variables:` block |
 | version file | `3.14` | `.python-version` |
+/// table-caption | <
+    attrs: {id: tab-devcons-pinning-drift-what-it-scans}
+
+What it scans
+///
 
 !!! info "Why Python is managed without a release check"
 
@@ -438,16 +475,16 @@ jobs:
       - name: Build with the pinned versions
         run: |
           pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.2"
-          prodockit pdf                      # PDF first ...
-          zensical build --clean --strict    # ... then the site
+          zensical build --clean --strict    # Build the site first ...
+          prodockit pdf                      # ... then consume it for the PDF
           cp -R site /tmp/pinned-site
           cp docs/site_documentation.pdf /tmp/pinned.pdf
 
       - name: Build with the newest versions
         run: |
           pip install -qU zensical weasyprint
-          prodockit pdf
           zensical build --clean --strict
+          prodockit pdf
 
       - name: Compare
         env:
@@ -476,13 +513,13 @@ drift:
     - apt-get update && apt-get install -y pandoc libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 jq curl
   script:
     - pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.2"
-    - prodockit pdf                     # PDF first ...
-    - zensical build --clean --strict   # ... then the site
+    - zensical build --clean --strict   # Build the site first ...
+    - prodockit pdf                     # ... then consume it for the PDF
     - cp -R site /tmp/pinned-site && cp docs/site_documentation.pdf /tmp/pinned.pdf
     - pip install -qU zensical weasyprint
     - PINNED=$(pip show zensical | awk '/^Version:/{print $2}')
-    - prodockit pdf
     - zensical build --clean --strict
+    - prodockit pdf
     - LATEST=$(pip show zensical | awk '/^Version:/{print $2}')
     - |
       if [ "$PINNED" = "$LATEST" ]; then
@@ -582,8 +619,8 @@ above. The short command sequence is:
 
 ```bash
 prodockit pins --set zensical=0.0.57
-prodockit pdf
 zensical build --clean --strict
+prodockit pdf
 pytest
 prodockit pins --check --offline
 ```
@@ -600,7 +637,8 @@ Specific to pinning:
 
 - **A floor still floats.** `zensical>=0.0.57` in `pyproject.toml` records
   a version; it does not control one. Only the exact pin in the build job
-  does. Both exist deliberately - see the table above.
+  does. Both exist deliberately - see
+  \ref{tab-devcons-pinning-drift-where-a-version-gets-declared}.
 - **A pinned package's own dependencies float too**, which is the sharper
   version of the same trap: pinning a direct dependency exactly does
   nothing for the transitive ones underneath it, because *their* versions

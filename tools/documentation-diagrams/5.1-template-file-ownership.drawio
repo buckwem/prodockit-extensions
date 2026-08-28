@@ -1,0 +1,61 @@
+<mxfile host="Electron" agent="draw.io/26.2.15" version="26.2.15">
+  <diagram id="template-file-ownership" name="Page-1">
+    <mxGraphModel dx="2066" dy="1168" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="650" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="template-file-ownership-managed" value="Managed shared files&lt;br&gt;&lt;b&gt;pdk.css and tooling&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="80" y="50" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="template-file-ownership-compare" value="Compare with the&lt;br&gt;pinned release" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="420" y="50" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="template-file-ownership-warn" value="Update unchanged files&lt;br&gt;warn about local edits" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="760" y="50" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="template-file-ownership-tools" value="template-sync&lt;br&gt;and pins" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="50" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="template-file-ownership-owned" value="Author-owned files&lt;br&gt;&lt;b&gt;content and extra.css&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="80" y="240" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="template-file-ownership-preserve" value="Preserve during&lt;br&gt;template updates" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="420" y="240" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="template-file-ownership-edit" value="Edit for the&lt;br&gt;document's needs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="760" y="240" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="template-file-ownership-local" value="Generated/local files&lt;br&gt;&lt;b&gt;site and environments&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="80" y="430" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="template-file-ownership-ignore" value="Keep out of&lt;br&gt;version control" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="420" y="430" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="template-file-ownership-recreate" value="Recreate from source&lt;br&gt;when required" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="760" y="430" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="template-file-ownership-managed" target="template-file-ownership-compare" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="template-file-ownership-compare" target="template-file-ownership-warn" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="template-file-ownership-warn" target="template-file-ownership-tools" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="template-file-ownership-owned" target="template-file-ownership-preserve" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="template-file-ownership-preserve" target="template-file-ownership-edit" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="template-file-ownership-local" target="template-file-ownership-ignore" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="template-file-ownership-ignore" target="template-file-ownership-recreate" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

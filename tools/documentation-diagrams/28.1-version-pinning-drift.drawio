@@ -1,0 +1,55 @@
+<mxfile host="Electron" agent="draw.io/26.2.15" version="26.2.15">
+  <diagram id="version-pinning-drift" name="Page-1">
+    <mxGraphModel dx="2066" dy="1168" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="600" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="version-pinning-drift-declarations" value="Version declarations&lt;br&gt;and shared files" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="80" y="80" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="version-pinning-drift-pins" value="Run&lt;br&gt;&lt;b&gt;prodockit pins&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="420" y="80" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="version-pinning-drift-align" value="Find mismatches&lt;br&gt;and stale shared files" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="760" y="80" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="version-pinning-drift-update" value="Review and align&lt;br&gt;the release inputs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="80" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="version-pinning-drift-builds" value="Build pinned and&lt;br&gt;newest environments" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="1100" y="310" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="version-pinning-drift-compare" value="Compare generated&lt;br&gt;artifacts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="760" y="310" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="version-pinning-drift-report" value="Report drift&lt;br&gt;without failing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="420" y="310" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="version-pinning-drift-decide" value="Maintainer decides&lt;br&gt;whether to upgrade" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+          <mxGeometry x="80" y="310" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="version-pinning-drift-declarations" target="version-pinning-drift-pins" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="version-pinning-drift-pins" target="version-pinning-drift-align" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="version-pinning-drift-align" target="version-pinning-drift-update" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="version-pinning-drift-update" target="version-pinning-drift-builds" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="version-pinning-drift-builds" target="version-pinning-drift-compare" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="version-pinning-drift-compare" target="version-pinning-drift-report" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;" parent="1" source="version-pinning-drift-report" target="version-pinning-drift-decide" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
