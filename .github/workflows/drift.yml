@@ -13,10 +13,8 @@
 #
 # The diff is meaningful because the builds are deterministic: two builds of
 # identical inputs produce byte-identical `site/` and PDF (verified when the
-# pins were introduced). The one trap is ordering - the Zensical build
-# Zensical and copies the PDF into `site/`, so it has to run *after*
-# `prodockit pdf` or the
-# copied PDF lags a generation and every comparison is a false positive.
+# pins were introduced). Build Zensical first: `prodockit pdf` consumes that
+# completed output and atomically adds the PDF to it.
 #
 # Reports rather than fails: a newer release is information, not a broken
 # build, and a red cross on a schedule is noise nobody reads.
@@ -160,8 +158,8 @@ jobs:
       - name: Build with the pinned versions
         run: |
           pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.2"
-          prodockit pdf
           zensical build --clean --strict
+          prodockit pdf
           prodockit update-dates
           mkdir -p /tmp/pinned
           cp -R site /tmp/pinned/site
@@ -176,8 +174,8 @@ jobs:
       - name: Build with the newest versions
         run: |
           pip install -qU zensical weasyprint Markdown pymdown-extensions
-          prodockit pdf
           zensical build --clean --strict
+          prodockit pdf
           prodockit update-dates
           mkdir -p /tmp/latest
           cp -R site /tmp/latest/site

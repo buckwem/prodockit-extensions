@@ -258,6 +258,9 @@ jobs:
       # input to the PDF's own correctness, not just to the website's
       # appearance.
       - run: pip install -e ".[testing]" "zensical==0.0.57" "weasyprint==69.0" "Markdown==3.10.3" "pymdown-extensions==11.0.2"
+      # The PDF renderer consumes this completed site; it never invokes
+      # Zensical itself or cleans the generated output.
+      - run: zensical build --clean --strict
       # Two pandoc+WeasyPrint passes when a selected document contains index
       # terms: the back-of-book index can only be built once WeasyPrint has
       # laid the document out (see prodockit.pdf.index). The reviewed matrix
@@ -278,7 +281,6 @@ jobs:
                   subprocess.run(["prodockit", "pdf", "-m", path], check=True)
                   print("::endgroup::", flush=True)
           PY
-      - run: zensical build --clean --strict
       - run: prodockit update-dates
       # Checks what the builds above actually produced, using this project's
       # own pytest plugin - deselected from the normal unit run, which needs

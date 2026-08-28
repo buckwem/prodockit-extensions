@@ -131,6 +131,27 @@ def test_repository_site_builds_supply_revision_dates_from_full_history() -> Non
         assert "fetch-depth: 0" in text, f"{path.name} can publish shallow-history dates"
 
 
+def test_pdf_consumes_the_completed_site_in_build_workflows() -> None:
+    for name in ("docs.yml", "drift.yml"):
+        workflow = (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+        commands = []
+        for line in workflow.splitlines():
+            command = re.sub(r"^\s*(?:-\s+run:\s+)?", "", line)
+            if command in {
+                "zensical build --clean --strict",
+                "prodockit pdf",
+                "prodockit update-dates",
+            }:
+                commands.append(command)
+
+        expected = [
+            "zensical build --clean --strict",
+            "prodockit pdf",
+            "prodockit update-dates",
+        ]
+        assert commands == expected * (2 if name == "drift.yml" else 1)
+
+
 def test_publishing_and_maintenance_state_different_audiences() -> None:
     publishing = (ROOT / "docs" / "publishing.md").read_text(encoding="utf-8")
     maintenance = (ROOT / "docs" / "project-maintenance.md").read_text(encoding="utf-8")
