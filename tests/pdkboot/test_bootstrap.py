@@ -649,6 +649,7 @@ def test_a_truncated_private_key_is_archived_instead_of_reused(tmp_path: Path) -
 def test_node_without_npm_is_wrong(tmp_path: Path) -> None:
     """The signature of Ubuntu's own nodejs package, or a NodeSource install
     whose `curl` line failed - a real failure this family has already hit."""
+    (tmp_path / "GitLab" / "report-al01234").mkdir(parents=True)
     runner = FakeRunner({"node": CommandResult(0, "v22.14.0\n")})
     context = _context(tmp_path, runner=runner)
     result = next(s for s in STAGES if s.id == "node").check(context)
@@ -657,6 +658,7 @@ def test_node_without_npm_is_wrong(tmp_path: Path) -> None:
 
 
 def test_node_older_than_the_builds_use_is_wrong(tmp_path: Path) -> None:
+    (tmp_path / "GitLab" / "report-al01234").mkdir(parents=True)
     runner = FakeRunner(
         {"node": CommandResult(0, "v18.19.0\n"), "npm": CommandResult(0, "10.2.3\n")}
     )
@@ -6180,6 +6182,22 @@ def test_applying_never_runs_a_blocked_stage(tmp_path: Path) -> None:
 
     assert "remote" not in would_apply
     assert "own-project" not in would_apply
+
+
+@pytest.mark.parametrize("platform", [MACOS, WINDOWS, UBUNTU])
+def test_project_dependent_stages_have_no_plan_before_the_clone(
+    tmp_path: Path, platform: str
+) -> None:
+    """An interrupted first run may continue machine setup, never project work (#610)."""
+    reports = {
+        report.stage.id: report
+        for report in plan_all(_context(tmp_path, platform=platform, runner=FakeRunner()))
+    }
+
+    for stage_id in ("project-env", "node", "vscode-settings", "csl-style", "mathjax"):
+        report = reports[stage_id]
+        assert report.result.status is Status.BLOCKED, stage_id
+        assert report.plan is None, f"{stage_id} must not run before its working tree exists"
 
 
 def test_the_reset_unblocks_both_stages(tmp_path: Path) -> None:

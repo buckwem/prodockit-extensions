@@ -194,6 +194,7 @@ def test_project_environment_reports_dependencies_that_do_not_import(tmp_path: P
 
 
 def test_node_stage_rejects_an_unreadable_version(tmp_path: Path) -> None:
+    (tmp_path / "report").mkdir()
     runner = CliFakeRunner({"node --version": CommandResult(0, "development")})
 
     result = stages._check_node(_context(tmp_path, runner=runner))
@@ -214,14 +215,15 @@ def test_node_stage_requests_missing_configuration_after_tool_checks(
     assert result.status is Status.UNKNOWN
 
 
-def test_node_stage_can_succeed_before_the_project_directory_exists(tmp_path: Path) -> None:
+def test_node_stage_waits_until_the_project_directory_exists(tmp_path: Path) -> None:
     runner = CliFakeRunner(
         {"node --version": CommandResult(0, "v24.1.0"), "npm --version": CommandResult(0, "11")}
     )
 
     result = stages._check_node(_context(tmp_path, runner=runner))
 
-    assert result.status is Status.OK
+    assert result.status is Status.BLOCKED
+    assert result.detail == "no project directory yet"
 
 
 def test_ubuntu_locale_without_lang_is_unknown(tmp_path: Path) -> None:
