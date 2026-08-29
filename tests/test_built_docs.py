@@ -293,7 +293,13 @@ Full-width caption.
     fixture.write_text(
         '<!doctype html><meta charset="utf-8">'
         f'<link rel="stylesheet" href="{stylesheet}">'
-        '<style>.md-typeset { width: 800px; }</style>'
+        # Reproduce the Zensical theme rule as well as loading Prodockit's
+        # stylesheet. The original regression test loaded pdk.css alone, so
+        # it missed the theme's 24rem ceiling and passed while the deployed
+        # website still wrapped wide captions at 480px.
+        '<style>.md-typeset { width: 800px; }'
+        '.md-typeset figcaption { max-width: 24rem; margin: 1em auto; }'
+        '</style>'
         f'<article class="md-typeset">{rendered_html}</article>',
         encoding="utf-8",
     )
@@ -306,11 +312,12 @@ Full-width caption.
     environment = dict(os.environ, PUPPETEER_EXECUTABLE_PATH=str(browser))
     completed = subprocess.run(
         [node, str(probe), fixture.as_uri(), *selectors],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         env=environment,
     )
+    assert completed.returncode == 0, completed.stderr
     metrics = json.loads(completed.stdout)
 
     for figure_id in figure_ids:
