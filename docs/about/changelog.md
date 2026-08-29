@@ -39,19 +39,19 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## 0.50.0 (2026-08-29)
+
+- Added `prodockit config` diagnostics and reusable project-integrity checks for configuration mistakes, missing project files, disabled extensions and unresolved build inputs.
+- Changed generated MathJax website assets to be restored from the pinned npm installation when needed rather than stored in a project repository.
+- Made numbered figure captions follow the rendered image width on websites and in PDFs, including percentage, full-width and height-constrained images.
+
 ## 0.49.1 (2026-08-28)
 
 - Changed `prodockit pdf` to consume and validate a prior strict Zensical build, then atomically add the finished PDF to the published site.
 
 ## 0.49.0 (2026-08-27)
 
-- Added `prodockit update-dates`, which adds per-page update dates to completed
-  site HTML from full Git history without modifying source Markdown or calling
-  the site builder. Non-Git and untracked pages use their file modification
-  time, and `--modification-dates` selects those timestamps for every page.
-  Automatic timestamps are converted to UTC before selecting the calendar
-  date, making output independent of the build machine's time zone.
-  The PDF carries the same date in each source section's page-number footer.
+- Added `prodockit update-dates` to add UTC per-page dates to completed site HTML and PDF footers without modifying source Markdown or calling the site builder. It uses Git history by default and file modification times for non-Git or untracked pages, or for every page with `--modification-dates`.
 
 ## 0.48.1 (2026-08-26)
 
