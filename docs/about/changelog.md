@@ -39,6 +39,13 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## 0.51.1 (2026-08-29)
+
+- Made `template-sync` fetch the released template selected for the project's
+  host instead of silently using a nearby checkout. Surrey projects use the
+  Surrey GitLab template and other supported projects use the canonical
+  GitHub template; a local checkout now requires explicit `--template-path`.
+
 ## 0.51.0 (2026-08-29)
 
 - Promoted the tested machine and template setup workflow to the public
