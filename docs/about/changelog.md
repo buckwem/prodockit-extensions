@@ -39,6 +39,20 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## 0.51.0 (2026-08-29)
+
+- Promoted the tested machine and template setup workflow to the public
+  `prodockit bootstrap` command, also available as `pdk boot`. The preview
+  `pdkboot` executable has been removed; existing `.pdkboot.toml`
+  configuration files remain valid.
+- Improved Bootstrap progress and failure messages, prerequisite ordering,
+  repository handling, and verification of the exact published Pages site.
+- Expanded adoption to preserve both string and mapping extension
+  configurations, configure tree icons, and install shared diagram styles
+  without copying the Prodockit website's own branding.
+- Made generated table-caption anchors local to each page so captions in
+  different Markdown files remain distinct.
+
 ## 0.50.1 (2026-08-29)
 
 - Made website figure captions use the rendered figure width instead of the theme's narrower default caption measure.
@@ -71,27 +85,3 @@ requests rather than here.
   checks so local edits to Prodockit styles are reported before replacement.
 - Moved PDF contents-page presentation into the stylesheet cascade, allowing
   a document's `print.css` to customise it without changing renderer code.
-
-## 0.47.0 (2026-08-26)
-
-- Added `pdf_include: false` page front matter for website pages that should
-  be omitted from the complete PDF; an explicit single-page build can still
-  include them.
-- Replaced the historical change transcript with a concise capability summary
-  and user-facing updates. GitHub retains the full record.
-- Macro rendering errors now stop the documentation build instead of allowing
-  a page containing broken macro output to be published.
-- Pull requests now run a smaller risk-selected test set; pushes to `main`
-  retain the complete supported-Python and installed-wheel matrices.
-
-## 0.46.0 (2026-08-25)
-
-- Added Python 3.14 project pins and compatibility checks.
-- Added wheel-owned shared website styles and checks that downstream copies
-  remain identical.
-- Made the documented Zensical build output the standard PDF input.
-- Added adoption of prodockit components into existing documentation sites.
-- Expanded resumable machine setup and installed-wheel acceptance across
-  supported operating systems and processor architectures.
-- Improved template synchronisation and package-version guidance for document
-  authors.
