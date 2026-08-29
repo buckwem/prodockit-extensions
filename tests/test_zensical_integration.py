@@ -217,6 +217,34 @@ def _convert_as_zensical_page_with_captions(
     return md.convert(text)
 
 
+def test_generated_caption_ids_do_not_collide_across_zensical_pages(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Regression for the warning reported after a clean template install.
+
+    pymdown starts its internal caption counter at one on each page. Those
+    repeated page-local anchors must not enter Prodockit's shared registry.
+    """
+    table = """| Item | Value |
+|---|---|
+| One | 1 |
+/// table-caption
+Example table
+///
+"""
+
+    first = _convert_as_zensical_page_with_captions(
+        f"# Originality\n\n{table}", "originality.md"
+    )
+    second = _convert_as_zensical_page_with_captions(
+        f"# Section four\n\n{table}", "section4.md"
+    )
+
+    assert 'id="__table-caption_1"' in first
+    assert 'id="__table-caption_1"' in second
+    assert "collides with an existing one" not in caplog.text
+
+
 def test_forward_cross_page_caption_references_resolve_via_nav_preseed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

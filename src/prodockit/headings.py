@@ -270,6 +270,17 @@ class HeadingsTreeprocessor(Treeprocessor):
         caption_id = el.get("id")
         if not caption_id:
             return
+        # pymdownx.blocks.caption gives every automatically numbered caption
+        # a page-local implementation id such as ``__table-caption_1``. The
+        # counter restarts on every Markdown page, so that id is useful as an
+        # anchor within the generated page but is not an authored cross-page
+        # reference target. Registering it in Zensical's shared registry made
+        # the first unlabelled table on two pages look like a duplicate id.
+        # Explicit author ids do not use this reserved shape and continue to
+        # be registered normally.
+        generated_id = rf"__{re.escape(kind.removeprefix('prodockit-'))}_\d+(?:_\d+)*"
+        if re.fullmatch(generated_id, caption_id):
+            return
         chapter = (
             self.appendix_letter
             if self.appendix_letter is not None
