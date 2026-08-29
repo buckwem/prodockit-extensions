@@ -39,6 +39,11 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## Unreleased
+
+- Made `template-sync --apply` create its review branch and GitLab merge request,
+  while aligning build-input declarations and refreshing declared shared files.
+
 ## 0.51.1 (2026-08-29)
 
 - Made `template-sync` fetch the released template selected for the project's

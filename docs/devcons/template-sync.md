@@ -42,8 +42,9 @@ The progression from preview to a pushed update is shown in
 |---|---|---|
 | `prodockit template-sync` | Shows what needs updating, without changing the project | Start here |
 | `prodockit template-sync --verbose` | Shows the same preview with technical details and file paths | You are investigating a particular file or reporting a problem |
-| `prodockit template-sync --apply` | Makes the changes on a separate branch, ready for you to review | Your project uses a pull request (GitHub) or merge request (GitLab) |
+| `prodockit template-sync --apply` | Makes and saves the changes on a separate branch, sends it to the host, and creates a GitLab merge request | Your project uses a pull request (GitHub) or merge request (GitLab) |
 | `prodockit template-sync --apply --push` | Makes the changes and, after asking you, updates `main` directly | Your usual practice is to update `main` without a pull or merge request |
+| `prodockit template-sync --apply --local-only` | Applies and stages the changes without committing or sending them | You are comfortable finishing the Git workflow yourself |
 | `prodockit template-sync --apply --force FILE-PATH` | Also replaces the named file even though it differs from the template | You have checked that file and want the template's complete version |
 /// table-caption | <
     attrs: {id: tab-devcons-template-sync-choose-how-far-the-command-should-go}
@@ -61,13 +62,28 @@ project environment against the latest release on PyPI and the minimum needed
 by the template. If a newer version is needed, it shows the installed and
 available versions and the exact `python -m pip install --upgrade ...` command
 to run. This is advice rather than an automatic package installation, so you
-remain in control of the project's environment. If PyPI cannot be reached, the
-template check continues and only the latest-release part of the package check
-is omitted.
+remain in control of the project's environment. An apply that needs the newer
+version stops before changing anything: this prevents an older installed
+package from supplying styles that do not belong with the incoming template.
+If PyPI cannot be reached, the template check continues and only the
+latest-release part of the package check is omitted.
+
+The same preview checks every Prodockit and Zensical declaration in the
+project. During apply, requirements files and build workflows are moved to the
+same version while keeping their existing operators and extras. A project
+already using a newer compatible version is never downgraded. Files declared
+in `.prodockit-shared-files.toml`, including the managed website and PDF
+stylesheets, are refreshed from the installed Prodockit release and included
+in the same review request. The MR therefore contains a complete, internally
+consistent update rather than only the files copied directly from the
+template.
 
 Use `--apply` on its own when changes normally reach `main` through a pull
-request or merge request. Use `--apply --push` only when your usual practice is
-to update `main` directly. It cannot bypass a protected branch.
+request or merge request. On GitLab, the merge request is created for you; you
+only need to review and approve it. On GitHub, the branch is sent and the
+command gives you the page that opens the pull request. Use `--apply --push`
+only when your usual practice is to update `main` directly. It cannot bypass a
+protected branch.
 
 ## Complete a template update
 
@@ -123,57 +139,43 @@ particular attention to any files described as "your edited files".
 
 ////
 
-//// step | Apply on the generated branch
+//// step | Resolve any protected files
+
+If the preview lists an edited template file, decide whether to keep your copy
+or replace it. To replace it, add the `--force FILE-PATH` shown by the preview
+to the apply command. The normal apply route stops before changing anything
+until every such file has a decision, so the resulting request is ready to
+approve rather than containing unresolved `.new` files.
+
+////
+
+//// step | Apply and send the update for approval
 
 ```bash
 prodockit template-sync --apply
 ```
 
 The command makes a separate `template-update-...` branch, applies the changes,
-and prepares them for a commit. Your writing is not changed, and nothing is
-sent to GitHub or GitLab.
+saves them as one commit, and sends the branch to GitHub or GitLab. On GitLab it
+also creates the merge request. It prints a link to the review page, and no Git
+commands are needed.
 
 ////
 
-//// step | Resolve kept files and sidecars
-
-If the summary says that one of your edited files was kept, the newer template
-copy is beside it with `.new` added to its name. Compare the two. Keep your file
-and copy across any useful changes, or rerun with `--force FILE-PATH` if you want the
-template to replace that file completely. Delete the `.new` copy when you have
-finished deciding.
-
-////
-
-//// step | Build the complete outputs
+//// step | Review, test, and approve
 
 ```bash
 zensical build --clean --strict
 prodockit pdf
 ```
 
-Run the project's tests as well. A template update commonly changes workflows,
-stylesheets, Node tooling, or pins; a source diff alone cannot show whether the
-published PDF and site still look right.
+Use the printed link to open the pull request or merge request. Review the file
+changes and wait for its automated checks. If you also test locally, run the
+commands above from the update branch. When the results are satisfactory,
+approve and merge the request in the website.
 
-////
-
-//// step | Choose how to publish the update
-
-If your project uses a pull request or merge request, commit and push the
-separate update branch, then open the request in GitHub or GitLab:
-
-```bash
-git diff --cached
-git commit -m "Update from prodockit template"
-git push -u origin HEAD
-```
-
-Wait for the automated checks to pass, then merge the pull request or merge
-request in the website.
-
-If your normal practice is to update `main` directly without a pull request or
-merge request, you can let the command complete those steps instead:
+If your project deliberately updates `main` directly without review, use this
+alternative apply command instead:
 
 ```bash
 prodockit template-sync --apply --push
@@ -224,7 +226,7 @@ that is in neither list stops the run rather than being guessed at.
 | Template-owned | `.github/workflows/`, `docs/stylesheets/pdk.css`, `docs/stylesheets/pdk-pdf.css`, `macros.py`, `tools/` | Replaced, unless you have edited it |
 | Project-owned | `docs/*.md`, `docs/assets/`, `docs/stylesheets/extra.css`, `docs/stylesheets/print.css`, `bibliography.bib` | Never written, never read |
 | Seeds | `.vale.ini`, starter pages | Written only if absent |
-| Shared | `.gitignore`, `zensical.toml` | Merged line by line, never replaced |
+| Shared | `.gitignore`, `zensical.toml`, dependency declarations, packaged stylesheets | Settings are merged; Prodockit and Zensical versions are aligned across requirements and CI; declared shared files are refreshed from the installed release |
 | Excluded | `CONTRIBUTING.md`, issue templates | Not delivered at all |
 /// table-caption | <
     attrs: {id: tab-devcons-template-sync-what-it-will-and-will-not-write}
@@ -268,8 +270,18 @@ diagnostic log described below. Read the report, then:
 prodockit template-sync --apply
 ```
 
-`--apply` makes the changes on a separate branch and prepares them for you to
-review. It does not commit or send anything to GitHub or GitLab.
+`--apply` makes the changes on a separate branch, saves them as one commit, and
+sends them for review. GitLab creates the merge request automatically. GitHub
+receives the branch and the command prints the page for opening its pull
+request. In either case the author does not need to enter Git commands.
+
+Experienced Git users can preserve the old local-only stopping point:
+
+```bash
+prodockit template-sync --apply --local-only
+```
+
+This applies and stages the files but does not commit or send them.
 
 ### Showing technical detail with `--verbose` {: #tsync-verbose }
 
@@ -352,8 +364,8 @@ Answer `y` to continue. Any other answer stops safely: the changes remain on
 the separate branch and nothing is sent to GitHub or GitLab.
 
 If your project normally uses a pull request or merge request, do **not** use
-`--push`. Run `prodockit template-sync --apply`, then commit and push the
-separate `template-update-...` branch and open the request in the website.
+`--push`. Run `prodockit template-sync --apply`; it publishes the separate
+`template-update-...` branch and prepares the review route for you.
 
 !!! note "Uncommitted writing is fine"
     You do not have to commit your chapters first. A project being
@@ -364,7 +376,7 @@ separate `template-update-...` branch and open the request in the website.
 #### Updating `main` by hand {: #tsync-finish-by-hand }
 
 If direct updates to `main` are allowed but you prefer to enter the Git
-commands yourself, use these three commands after `--apply`:
+commands yourself, first use `--apply --local-only`, then enter these commands:
 
 ```bash
 git commit -m "Sync with the template"

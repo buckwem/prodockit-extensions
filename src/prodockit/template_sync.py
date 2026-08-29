@@ -90,6 +90,21 @@ class ProdockitRequirement:
     version: str
 
 
+@dataclass(frozen=True)
+class DependencyUpdate:
+    """One build dependency whose declarations must move together.
+
+    The template owns CI files while the project keeps its requirements
+    files.  Updating only one side leaves a repository that asks different
+    build routes to install different versions.  ``paths`` names every
+    declaration that will be rewritten in the project.
+    """
+
+    package: str
+    version: str
+    paths: tuple[str, ...]
+
+
 _PRODOCKIT_REQUIREMENT = re.compile(
     r"^\s*prodockit(?P<extras>\[[\w.,\s-]*\])?\s*(?P<operator>>=)\s*"
     r"(?P<version>[0-9][\w.+!-]*)\s*$",
@@ -200,6 +215,58 @@ def latest_prodockit_version(
     if not isinstance(version, str) or _version_key(version) is None:
         return None
     return version
+
+
+def dependency_updates(
+    template_root: pathlib.Path,
+    project_root: pathlib.Path,
+    packages: tuple[str, ...] = ("prodockit", "zensical"),
+) -> list[DependencyUpdate]:
+    """Plan consistent project declarations from the incoming template.
+
+    Only versions are borrowed; every declaration keeps its existing
+    operator and extras.  A project already ahead of the template is never
+    downgraded.  If an older template itself contains several declarations,
+    its highest one is the safe floor; the destination is made consistent
+    rather than inheriting that historical drift.
+    """
+    from prodockit.pins import discover, version_key
+
+    template_states = discover(str(template_root), packages)
+    project_states = discover(str(project_root), packages)
+    planned: list[DependencyUpdate] = []
+    for package in packages:
+        template_state = template_states[package]
+        project_state = project_states[package]
+        if template_state.current is None or not project_state.sites:
+            continue
+        candidates = [template_state.current]
+        if project_state.current is not None:
+            candidates.append(project_state.current)
+        target = max(candidates, key=version_key)
+        changed_paths = tuple(
+            dict.fromkeys(site.path for site in project_state.sites if site.version != target)
+        )
+        if changed_paths:
+            planned.append(DependencyUpdate(package, target, changed_paths))
+    return planned
+
+
+def apply_dependency_updates(
+    project_root: pathlib.Path, updates: Sequence[DependencyUpdate]
+) -> list[str]:
+    """Apply a dependency plan and return the project-relative files changed."""
+    from prodockit.pins import PinError, apply_version, discover
+
+    changed: list[str] = []
+    for update in updates:
+        state = discover(str(project_root), (update.package,))[update.package]
+        try:
+            sites = apply_version(str(project_root), state, update.version)
+        except PinError as error:
+            raise TemplateSyncError(str(error)) from error
+        changed.extend(site.path for site in sites)
+    return list(dict.fromkeys(changed))
 
 
 class TemplateSyncError(ValueError):
@@ -1421,6 +1488,99 @@ def stage_changes(run: GitRunner, paths: Sequence[str]) -> bool:
     if not paths:
         return True
     return run(["git", "add", "--", *paths])
+
+
+def review_push_command(
+    origin: str,
+    target: str,
+    *,
+    remote: str = "origin",
+) -> tuple[list[str], bool]:
+    """Return the push that publishes an update branch for review.
+
+    GitLab can create a merge request from ordinary Git authentication by
+    accepting push options.  That is important here: bootstrap users have SSH
+    access, but should not have to configure a separate API token or understand
+    how to publish a branch.  GitHub has no equivalent Git push option, so the
+    branch is still published there and the caller can direct the author to the
+    compare page.
+
+    ``HEAD`` is deliberate.  The generated branch name is already checked out,
+    and using it avoids asking an author to copy or type that name.
+    """
+    host = _host_of(origin)
+    command = ["git", "push", "--set-upstream"]
+    creates_request = host == "gitlab.com" or host.startswith("gitlab.")
+    if creates_request:
+        command.extend(
+            [
+                "--push-option=merge_request.create",
+                f"--push-option=merge_request.target={target}",
+                "--push-option=merge_request.remove_source_branch",
+            ]
+        )
+    command.extend([remote, "HEAD"])
+    return command, creates_request
+
+
+def review_url(origin: str, branch: str, target: str) -> str | None:
+    """The host page where an author reviews the submitted update.
+
+    GitLab's push creates the merge request, so its list is the reliable page
+    to open without needing an API response containing the new request number.
+    GitHub's compare URL opens the pull-request form for the published branch.
+    """
+    from prodockit.sync_repo import SyncRepoError, parse_remote
+
+    try:
+        host, namespace, repo = parse_remote(origin)
+    except SyncRepoError:
+        return None
+    root = f"https://{host}/{namespace}/{repo}"
+    if host == "gitlab.com" or host.startswith("gitlab."):
+        return f"{root}/-/merge_requests"
+    if host == "github.com":
+        return f"{root}/compare/{target}...{branch}?expand=1"
+    return None
+
+
+def submit_for_review(
+    run: GitRunner,
+    origin: str,
+    target: str,
+    message: str,
+    *,
+    remote: str = "origin",
+) -> bool:
+    """Commit and publish the staged update branch for review.
+
+    Fetching with ``--prune`` first clears a deleted review branch from the
+    local remote-tracking state.  Without it, a project whose previous merge
+    request removed its source branch can be left needing the two recovery
+    commands this helper is intended to make unnecessary.
+
+    Returns whether the host was asked to create a merge request as part of the
+    push.  A GitHub branch is published successfully but needs its pull request
+    opened in the website because GitHub has no Git push option for that.
+    """
+    if not run(["git", "fetch", "--prune", remote]):
+        raise TemplateSyncError(
+            f"could not refresh {remote} before sending the update. Nothing was "
+            "committed or sent; check the network and run template-sync --apply again"
+        )
+    if not run(["git", "commit", "--quiet", "--message", message]):
+        raise TemplateSyncError(
+            "the staged template update could not be saved as a commit - "
+            "`git status` will say why"
+        )
+    command, creates_request = review_push_command(origin, target, remote=remote)
+    if not run(command):
+        raise TemplateSyncError(
+            "the update was saved locally but could not be sent for review. Nothing "
+            "on GitHub or GitLab was changed; check the network and run "
+            "template-sync --apply again"
+        )
+    return creates_request
 
 
 #: Reads a git command's output, or None if it failed. Separate from

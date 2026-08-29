@@ -316,3 +316,155 @@ def test_a_sibling_checkout_is_never_selected(
     assert where != sibling, "the sibling checkout must not be used"
     assert where == fetched["path"], "it should have fetched instead"
     assert how == "fetched just now"
+
+
+def test_apply_commits_sets_upstream_and_publishes_the_review_branch(
+    tmp_path, monkeypatch
+) -> None:
+    """The normal author path finishes without asking them to recover with Git."""
+    import subprocess
+
+    from click.testing import CliRunner
+
+    from prodockit import cli
+    from prodockit.template_sync import branch_name
+
+    template = tmp_path / "template"
+    project = tmp_path / "report"
+    remote = tmp_path / "remote.git"
+    template.mkdir()
+    project.mkdir()
+    manifest = """
+[template]
+owns = ["managed.txt", ".github/workflows/**"]
+[project]
+owns = ["docs/**"]
+[shared]
+files = ["requirements.txt"]
+[excluded]
+paths = []
+"""
+    (template / ".prodockit-template.toml").write_text(manifest, encoding="utf-8")
+    (template / "managed.txt").write_text("old\n", encoding="utf-8")
+    (template / "requirements.txt").write_text(
+        "prodockit>=0.39.0\nzensical>=0.0.53\n", encoding="utf-8"
+    )
+    (template / ".github" / "workflows").mkdir(parents=True)
+    (template / ".github" / "workflows" / "docs.yml").write_text(
+        "run: pip install prodockit==0.39.0 zensical==0.0.53\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "-C", str(template), "init", "-b", "main", "-q"], check=True)
+    subprocess.run(["git", "-C", str(template), "add", "."], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(template),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "old template",
+        ],
+        check=True,
+    )
+    old = subprocess.run(
+        ["git", "-C", str(template), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    (template / "managed.txt").write_text("new\n", encoding="utf-8")
+    (template / "requirements.txt").write_text(
+        f"prodockit>={cli.__version__}\nzensical>=0.0.57\n", encoding="utf-8"
+    )
+    (template / ".github" / "workflows" / "docs.yml").write_text(
+        f"run: pip install prodockit=={cli.__version__} zensical==0.0.57\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "-C", str(template), "commit", "-qam", "new template"], check=True)
+
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    subprocess.run(
+        ["git", "-C", str(remote), "symbolic-ref", "HEAD", "refs/heads/main"], check=True
+    )
+    subprocess.run(["git", "-C", str(project), "init", "-b", "main", "-q"], check=True)
+    for key, value in (
+        ("user.name", "Test"),
+        ("user.email", "test@example.com"),
+        ("commit.gpgsign", "false"),
+    ):
+        subprocess.run(["git", "-C", str(project), "config", key, value], check=True)
+    (project / "managed.txt").write_text("old\n", encoding="utf-8")
+    (project / "requirements.txt").write_text(
+        "prodockit[index]>=0.39.0\nzensical>=0.0.53\n", encoding="utf-8"
+    )
+    (project / ".github" / "workflows").mkdir(parents=True)
+    (project / ".github" / "workflows" / "docs.yml").write_text(
+        "run: pip install prodockit==0.39.0 zensical==0.0.53\n", encoding="utf-8"
+    )
+    (project / ".prodockit-shared-files.toml").write_text(
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\n'
+        'target = "docs/stylesheets/pdk.css"\n',
+        encoding="utf-8",
+    )
+    (project / "docs" / "stylesheets").mkdir(parents=True)
+    (project / "docs" / "stylesheets" / "pdk.css").write_text(
+        "outdated\n", encoding="utf-8"
+    )
+    (project / ".prodockit-template").write_text(f"{old}\n", encoding="utf-8")
+    (project / ".gitignore").write_text(".prodockit-template.log\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(project), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(project), "commit", "-qm", "project"], check=True)
+    subprocess.run(
+        ["git", "-C", str(project), "remote", "add", "origin", str(remote)], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(project), "push", "-qu", "origin", "main"], check=True
+    )
+
+    monkeypatch.chdir(project)
+    monkeypatch.setattr("prodockit.template_sync.latest_prodockit_version", lambda: cli.__version__)
+    # The bare repository is deliberately local. Keep the production host
+    # selection covered by the unit tests and use the host-neutral push here
+    # so this integration test remains completely offline.
+    monkeypatch.setattr(
+        "prodockit.template_sync.review_push_command",
+        lambda _origin, _target, remote="origin": (
+            ["git", "push", "--set-upstream", remote, "HEAD"],
+            False,
+        ),
+    )
+    monkeypatch.setattr("prodockit.template_sync.review_url", lambda *_args: None)
+    result = CliRunner().invoke(
+        cli.main,
+        ["template-sync", "--template-path", str(template), "--apply"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "No Git commands are needed" in result.output
+    assert "Build dependencies: aligned Prodockit and Zensical" in result.output
+    assert "Shared files: refreshed 1 managed file" in result.output
+    assert f"prodockit[index]>={cli.__version__}" in (project / "requirements.txt").read_text()
+    assert "zensical>=0.0.57" in (project / "requirements.txt").read_text()
+    assert "prodockit==" + cli.__version__ in (
+        project / ".github" / "workflows" / "docs.yml"
+    ).read_text()
+    assert (project / "docs" / "stylesheets" / "pdk.css").read_text() != "outdated\n"
+    update_branch = branch_name(old)
+    upstream = subprocess.run(
+        ["git", "-C", str(project), "rev-parse", "--abbrev-ref", "@{upstream}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert upstream == f"origin/{update_branch}"
+    assert subprocess.run(
+        ["git", "-C", str(remote), "rev-parse", f"refs/heads/{update_branch}"],
+        check=False,
+        capture_output=True,
+    ).returncode == 0

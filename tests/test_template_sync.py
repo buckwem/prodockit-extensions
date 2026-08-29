@@ -30,6 +30,7 @@ from prodockit.template_sync import (
     append_ignores,
     append_log,
     apply_config_changes,
+    apply_dependency_updates,
     apply_file_actions,
     apply_seeds,
     baseline_report,
@@ -40,6 +41,7 @@ from prodockit.template_sync import (
     classification_report,
     config_changes,
     default_branch,
+    dependency_updates,
     derive_baseline,
     edited_managed_stylesheets,
     ensure_template,
@@ -60,9 +62,12 @@ from prodockit.template_sync import (
     read_config,
     read_stamp,
     resolve_template,
+    review_push_command,
+    review_url,
     set_config_value,
     stage_changes,
     start_branch,
+    submit_for_review,
     unclassified,
     update_report,
     write_stamp,
@@ -128,6 +133,76 @@ def test_template_prodockit_floor_preserves_optional_extras() -> None:
 
     assert requirement is not None
     assert requirement.specifier == "prodockit[index,testing]>=0.43.2"
+
+
+def test_dependency_updates_align_every_project_declaration(tmp_path: pathlib.Path) -> None:
+    template = tmp_path / "template"
+    project = tmp_path / "project"
+    for root in (template, project):
+        (root / ".github" / "workflows").mkdir(parents=True)
+
+    (template / "requirements.txt").write_text(
+        "prodockit>=0.51.0\nzensical>=0.0.57\n", encoding="utf-8"
+    )
+    (template / ".github" / "workflows" / "docs.yml").write_text(
+        "run: pip install prodockit==0.51.0 zensical==0.0.57\n", encoding="utf-8"
+    )
+    (project / "requirements.txt").write_text(
+        "prodockit[index]>=0.39.0\nzensical>=0.0.53\n", encoding="utf-8"
+    )
+    (project / "testrequirements.txt").write_text(
+        "prodockit[testing]>=0.39.0\n", encoding="utf-8"
+    )
+    (project / ".github" / "workflows" / "docs.yml").write_text(
+        "run: pip install prodockit==0.39.0 zensical==0.0.53\n", encoding="utf-8"
+    )
+
+    updates = dependency_updates(template, project)
+
+    assert [(item.package, item.version) for item in updates] == [
+        ("prodockit", "0.51.0"),
+        ("zensical", "0.0.57"),
+    ]
+    changed = apply_dependency_updates(project, updates)
+    assert set(changed) == {
+        "requirements.txt",
+        "testrequirements.txt",
+        ".github/workflows/docs.yml",
+    }
+    assert "prodockit[index]>=0.51.0" in (project / "requirements.txt").read_text()
+    assert "prodockit[testing]>=0.51.0" in (project / "testrequirements.txt").read_text()
+    workflow = (project / ".github" / "workflows" / "docs.yml").read_text()
+    assert "prodockit==0.51.0" in workflow
+    assert "zensical==0.0.57" in workflow
+
+
+def test_dependency_updates_never_downgrade_a_project(tmp_path: pathlib.Path) -> None:
+    template = tmp_path / "template"
+    project = tmp_path / "project"
+    template.mkdir()
+    project.mkdir()
+    (template / "requirements.txt").write_text("prodockit>=0.51.0\n", encoding="utf-8")
+    (project / "requirements.txt").write_text("prodockit>=0.52.0\n", encoding="utf-8")
+
+    assert dependency_updates(template, project) == []
+
+
+def test_dependency_updates_take_highest_version_from_an_old_inconsistent_template(
+    tmp_path: pathlib.Path,
+) -> None:
+    template = tmp_path / "template"
+    project = tmp_path / "project"
+    template.mkdir()
+    project.mkdir()
+    (template / "requirements.txt").write_text("prodockit>=0.51.0\n", encoding="utf-8")
+    (template / "testrequirements.txt").write_text(
+        "prodockit[testing]>=0.50.0\n", encoding="utf-8"
+    )
+    (project / "requirements.txt").write_text("prodockit>=0.49.0\n", encoding="utf-8")
+
+    updates = dependency_updates(template, project)
+
+    assert [(item.package, item.version) for item in updates] == [("prodockit", "0.51.0")]
 
 
 @pytest.mark.parametrize(
@@ -1327,6 +1402,82 @@ def test_the_commit_is_never_made() -> None:
     assert not any("commit" in command for command in git.commands)
 
 
+def test_a_gitlab_review_push_creates_a_merge_request() -> None:
+    command, creates_request = review_push_command(
+        "git@gitlab.surrey.ac.uk:assessment-test/report-test.git", "main"
+    )
+
+    assert creates_request is True
+    assert command[-2:] == ["origin", "HEAD"]
+    assert "--set-upstream" in command
+    assert "--push-option=merge_request.create" in command
+    assert "--push-option=merge_request.target=main" in command
+    assert "--push-option=merge_request.remove_source_branch" in command
+
+
+def test_a_github_review_push_publishes_the_branch_without_gitlab_options() -> None:
+    command, creates_request = review_push_command(
+        "git@github.com:someone/report.git", "main"
+    )
+
+    assert creates_request is False
+    assert command == ["git", "push", "--set-upstream", "origin", "HEAD"]
+
+
+def test_review_links_take_an_author_to_the_host_workflow() -> None:
+    branch = "template-update-0.51.1"
+
+    assert review_url(
+        "git@gitlab.surrey.ac.uk:assessment-test/report-test.git", branch, "main"
+    ) == (
+        "https://gitlab.surrey.ac.uk/assessment-test/report-test/-/merge_requests"
+    )
+    assert review_url(
+        "git@github.com:someone/report.git", branch, "main"
+    ) == (
+        "https://github.com/someone/report/compare/"
+        "main...template-update-0.51.1?expand=1"
+    )
+
+
+def test_review_submission_prunes_commits_and_pushes_in_order() -> None:
+    done: list[list[str]] = []
+
+    def run(command: Sequence[str]) -> bool:
+        done.append(list(command))
+        return True
+
+    created = submit_for_review(
+        run,
+        "git@gitlab.surrey.ac.uk:assessment-test/report-test.git",
+        "main",
+        "Sync with the template",
+    )
+
+    assert created is True
+    assert [command[1] for command in done] == ["fetch", "commit", "push"]
+    assert done[0] == ["git", "fetch", "--prune", "origin"]
+    assert done[2][-2:] == ["origin", "HEAD"]
+
+
+def test_a_failed_refresh_does_not_commit_or_push_a_review() -> None:
+    done: list[list[str]] = []
+
+    def run(command: Sequence[str]) -> bool:
+        done.append(list(command))
+        return "fetch" not in command
+
+    with pytest.raises(TemplateSyncError, match="Nothing was committed or sent"):
+        submit_for_review(
+            run,
+            "git@gitlab.surrey.ac.uk:assessment-test/report-test.git",
+            "main",
+            "Sync with the template",
+        )
+
+    assert [command[1] for command in done] == ["fetch"]
+
+
 def test_the_real_runner_drives_a_real_repository(tmp_path) -> None:
     """The fake above says what this module *decides*; this says the
     decisions work against git itself.
@@ -1371,6 +1522,88 @@ def test_the_real_runner_drives_a_real_repository(tmp_path) -> None:
         ["git", "log", "--oneline"], cwd=tmp_path, capture_output=True, text=True
     ).stdout.strip()
     assert log.count("\n") == 0, "only the fixture's own commit should exist"
+
+
+def test_review_submission_recovers_a_deleted_remote_branch_without_git_commands(
+    tmp_path,
+) -> None:
+    """Exercise the Git state that previously needed fetch/prune and -u by hand.
+
+    The bare repository advertises push options so the same GitLab command is
+    exercised without contacting GitLab or creating a real merge request.
+    """
+    import subprocess
+
+    remote = tmp_path / "remote.git"
+    project = tmp_path / "report"
+    subprocess.run(["git", "init", "--bare", "--quiet", str(remote)], check=True)
+    subprocess.run(
+        ["git", "-C", str(remote), "config", "receive.advertisePushOptions", "true"],
+        check=True,
+    )
+    subprocess.run(["git", "init", "-b", "main", "--quiet", str(project)], check=True)
+    for key, value in (
+        ("user.name", "Test"),
+        ("user.email", "test@example.com"),
+        ("commit.gpgsign", "false"),
+    ):
+        subprocess.run(["git", "-C", str(project), "config", key, value], check=True)
+    (project / "managed.txt").write_text("old\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(project), "add", "managed.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(project), "commit", "-qm", "initial"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(project), "remote", "add", "origin", str(remote)], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(project), "push", "-qu", "origin", "main"], check=True
+    )
+
+    branch = "template-update-0.51.1"
+    subprocess.run(
+        ["git", "-C", str(project), "checkout", "-qb", branch], check=True
+    )
+    # Leave a stale origin/<branch> record behind, as GitLab does locally when
+    # an earlier merge request deletes the host branch between fetches.
+    subprocess.run(
+        ["git", "-C", str(project), "push", "-qu", "origin", "HEAD"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(remote), "update-ref", "-d", f"refs/heads/{branch}"],
+        check=True,
+    )
+
+    (project / "managed.txt").write_text("new\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(project), "add", "managed.txt"], check=True)
+    created = submit_for_review(
+        git_runner(project),
+        "git@gitlab.surrey.ac.uk:assessment-test/report-test.git",
+        "main",
+        "Sync with the template",
+    )
+
+    assert created is True
+    upstream = subprocess.run(
+        ["git", "-C", str(project), "rev-parse", "--abbrev-ref", "@{upstream}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert upstream == f"origin/{branch}"
+    remote_head = subprocess.run(
+        ["git", "-C", str(remote), "rev-parse", f"refs/heads/{branch}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    local_head = subprocess.run(
+        ["git", "-C", str(project), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert remote_head == local_head
 
 
 def test_the_runner_answers_false_rather_than_raising(tmp_path) -> None:
