@@ -3393,10 +3393,11 @@ def _run_template_sync(
 def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path, str]:
     """Where the template can be read from, and how it got there.
 
-    A sibling checkout wins if there is one: that is how the three
-    repositories are laid out during development, and a maintainer
-    working across them means the copy beside the project. Nobody else
-    has one, so everyone else gets the remote fetched into a cache.
+    The resolved remote is always fetched into prodockit's cache. A nearby
+    directory called ``prodockit-template`` may be an old, edited, or otherwise
+    unrelated checkout; silently preferring it can apply stale dependency pins
+    to a current project. Maintainers who deliberately want a local checkout
+    name it explicitly with ``--template-path``.
 
     The whole history is cloned rather than a shallow copy. Deriving a
     baseline by content walks the template's versions and reads the tree
@@ -3405,27 +3406,11 @@ def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path
     project this is for.
     """
     from prodockit.template_sync import (
-        MANIFEST_FILE,
         cache_path_for,
         cache_root,
         ensure_template,
         git_runner,
     )
-
-    name = remote.rstrip("/").rsplit("/", 1)[-1].removesuffix(".git")
-    skipped = None
-    for candidate in (project.parent / name, project.parent.parent / "GitHub" / name):
-        if not (candidate / ".git").exists():
-            continue
-        if (candidate / MANIFEST_FILE).exists():
-            return candidate, "beside this project"
-        # A checkout with no manifest cannot answer anything this asks, so
-        # it is passed over rather than preferred into a dead end. An old
-        # clone left beside a project - one taken before the manifest
-        # existed - stopped the command outright, with a perfectly good
-        # copy a fetch away.
-        skipped = candidate
-        break
 
     path = cache_path_for(remote, cache_root())
     what = ensure_template(remote, path, git_runner(project))
@@ -3434,8 +3419,6 @@ def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path
         "updated": "fetched, up to date",
         "offline": "cached copy - could not reach the host, so this may be behind",
     }[what]
-    if skipped is not None:
-        how += f"; passed over {skipped}, which predates the manifest"
     return path, how
 
 
