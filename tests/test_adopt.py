@@ -569,6 +569,104 @@ extra_css:
     assert "\n  - prodockit.headings" not in config
 
 
+def test_mkdocs_mapping_form_adds_mermaid_without_an_assertion(tmp_path: Path) -> None:
+    project = _project(
+        tmp_path,
+        """\
+site_name: YAML mapping adoption reproduction
+markdown_extensions:
+  attr_list: {}
+  toc:
+    permalink: true
+""",
+        config_name="mkdocs.yml",
+    )
+
+    ensure_zensical_config(project, AdoptOptions(mermaid=True))
+
+    config = (project / "mkdocs.yml").read_text(encoding="utf-8")
+    assert "  pymdownx.superfences:\n    custom_fences:" in config
+    assert "      - name: mermaid" in config
+    assert config.count("pymdownx.superfences:") == 1
+
+
+def test_apply_mapping_form_mermaid_is_transactional(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _project(
+        tmp_path,
+        """\
+site_name: YAML mapping adoption reproduction
+markdown_extensions:
+  attr_list: {}
+  toc:
+    permalink: true
+""",
+        config_name="mkdocs.yml",
+    )
+    (project / "requirements.txt").write_text("mkdocs-material==9.7.7\n", encoding="utf-8")
+    monkeypatch.chdir(project)
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
+    monkeypatch.setattr("prodockit.adopt.install_tool", lambda root, component: [])
+
+    preview = CliRunner().invoke(main, ["adopt", "--dry-run", "--mermaid", "--no-maths"])
+    assert preview.exit_code == 0, preview.output
+
+    result = CliRunner().invoke(
+        main,
+        ["adopt", "--apply", "--mermaid", "--no-maths"],
+        input="y\ny\ny\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    config = (project / "mkdocs.yml").read_text(encoding="utf-8")
+    assert "  pymdownx.superfences:\n    custom_fences:" in config
+    assert "      - name: mermaid" in config
+    assert f"prodockit>={__version__}" in (project / "requirements.txt").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_apply_refuses_an_unsafe_yaml_form_before_updating_requirements(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _project(
+        tmp_path,
+        """\
+site_name: Unsupported inline settings
+markdown_extensions:
+  pymdownx.superfences: { preserve_tabs: true }
+""",
+        config_name="mkdocs.yml",
+    )
+    requirements = project / "requirements.txt"
+    requirements.write_text("mkdocs-material==9.7.7\n", encoding="utf-8")
+    before_config = (project / "mkdocs.yml").read_text(encoding="utf-8")
+    before_requirements = requirements.read_text(encoding="utf-8")
+    monkeypatch.chdir(project)
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
+
+    preview = CliRunner().invoke(
+        main,
+        ["adopt", "--dry-run", "--mermaid", "--no-maths"],
+    )
+
+    assert preview.exit_code != 0
+    assert "cannot update safely" in preview.output
+    assert (project / "mkdocs.yml").read_text(encoding="utf-8") == before_config
+    assert requirements.read_text(encoding="utf-8") == before_requirements
+
+    result = CliRunner().invoke(
+        main,
+        ["adopt", "--apply", "--mermaid", "--no-maths"],
+    )
+
+    assert result.exit_code != 0
+    assert "cannot update safely" in result.output
+    assert (project / "mkdocs.yml").read_text(encoding="utf-8") == before_config
+    assert requirements.read_text(encoding="utf-8") == before_requirements
+
+
 def test_mkdocs_yaml_updates_are_idempotent(tmp_path: Path) -> None:
     project = _project(
         tmp_path,
