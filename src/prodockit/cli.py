@@ -1153,13 +1153,13 @@ def _work_through(
         if phase is not None and phase != shown_phase:
             phase_number, phase_name = phase
             click.echo("")
-            boundary = click.style("═" * 78, fg="bright_cyan")
+            boundary = click.style("═" * 78, fg="bright_blue")
             click.echo(boundary)
             click.echo(
                 click.style(
                     f"Phase {phase_number}/{len(_PDKBOOT_PHASES)} — {phase_name}",
                     bold=True,
-                    fg="bright_cyan",
+                    fg="bright_blue",
                 )
             )
             click.echo(boundary)
@@ -1226,9 +1226,9 @@ def _work_through(
             # A full-width boundary survives terminals without colour and
             # pasted logs. The old bold-only ``[15/23]`` line disappeared
             # among instructions and command output during long installs.
-            click.echo(click.style("─" * 78, fg="cyan"))
+            click.echo(click.style("─" * 78, fg="blue"))
             heading = f"Stage [{number}/{total}] {report.stage.summary}"
-            click.echo(click.style(heading, bold=True, fg="cyan"))
+            click.echo(click.style(heading, bold=True, fg="blue"))
         else:
             click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))
         if context.pdkboot:
@@ -2400,15 +2400,21 @@ _ADOPT_PHASES = ("Assess", "Integrate", "Optional renderers", "Verify")
 
 def _adopt_phase_heading(number: int, name: str) -> None:
     click.echo("")
-    click.echo(click.style("═" * 78, bold=True, fg="bright_cyan"))
-    click.echo(click.style(f"Phase {number}/{len(_ADOPT_PHASES)} — {name}", bold=True))
-    click.echo(click.style("═" * 78, bold=True, fg="bright_cyan"))
+    click.echo(click.style("═" * 78, bold=True, fg="bright_blue"))
+    click.echo(
+        click.style(
+            f"Phase {number}/{len(_ADOPT_PHASES)} — {name}",
+            bold=True,
+            fg="bright_blue",
+        )
+    )
+    click.echo(click.style("═" * 78, bold=True, fg="bright_blue"))
 
 
 def _adopt_stage_heading(number: int, total: int, summary: str) -> None:
     click.echo("")
-    click.echo(click.style("─" * 78, fg="cyan"))
-    click.echo(click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="cyan"))
+    click.echo(click.style("─" * 78, fg="blue"))
+    click.echo(click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="blue"))
 
 
 @main.command("adopt")

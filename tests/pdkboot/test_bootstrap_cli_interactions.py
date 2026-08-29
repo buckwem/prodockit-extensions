@@ -274,10 +274,13 @@ def test_apply_groups_real_stages_into_named_phases(tmp_path: Path) -> None:
             None,
         ),
         input="",
+        color=True,
     )
 
     assert "Phase 2/7 — Core tools" in output
     assert "Phase 3/7 — Git and host" in output
+    assert "\x1b[94m" in output
+    assert "\x1b[96m" not in output
     assert output.count("═" * 40) == 4, "each phase has a double-line top and bottom"
 
 
@@ -318,12 +321,14 @@ def test_active_stage_shows_action_current_state_and_goal(tmp_path: Path) -> Non
     _, output, _ = _isolated(
         lambda: _work_through(context, [report], None),
         input="n\n",
+        color=True,
     )
 
     assert "Action:   CONFIGURE" in output
     assert "Current:  email is not configured" in output
     assert "Goal:     Git, installed and configured" in output
     assert "Stage [1/1] Git, installed and configured" in output
+    assert "\x1b[34m" in output
     assert "─" * 40 in output, "the stage has a visible boundary in plain logs"
 
 

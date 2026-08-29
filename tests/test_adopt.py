@@ -64,11 +64,15 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     monkeypatch.chdir(project)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
 
-    result = CliRunner().invoke(main, ["adopt", "--dry-run"], color=False)
+    result = CliRunner().invoke(main, ["adopt", "--dry-run"], color=True)
 
     assert result.exit_code == 0, result.output
     assert "Phase 1/4 — Assess" in result.output
     assert "Stage [3/7] Prodockit dependency" in result.output
+    assert "\x1b[94m" in result.output
+    assert "\x1b[34m" in result.output
+    assert "\x1b[96m" not in result.output
+    assert "\x1b[36m" not in result.output
     assert "Mermaid diagrams — not selected" in result.output
     assert "Mathematical notation — not selected" in result.output
     assert "WAIT  Ready for local build" in result.output
