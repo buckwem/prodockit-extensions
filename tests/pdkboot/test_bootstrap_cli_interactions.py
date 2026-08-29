@@ -220,6 +220,29 @@ def test_manual_step_that_becomes_blocked_does_not_retry_forever(tmp_path: Path)
     assert "Try again?" not in output
 
 
+def test_project_environment_becoming_blocked_is_not_offered_for_apply(
+    tmp_path: Path,
+) -> None:
+    """The apply pass rechecks after earlier stages and must honour a missing clone (#610)."""
+    context = _context(tmp_path)
+    stage = next(stage for stage in STAGES if stage.id == "project-env")
+    stale = StageReport(
+        stage,
+        CheckResult(Status.MISSING, "no project directory yet"),
+        stage.plan(context),
+    )
+
+    _, output, _ = _isolated(
+        lambda: _work_through(context, [stale], None),
+        input="",
+    )
+
+    assert "WAIT" in output
+    assert "no project directory yet" in output
+    assert "Run 2 commands?" not in output
+    assert "Working directory:" not in output
+
+
 def test_apply_view_distinguishes_blocked_from_unknown_stages(tmp_path: Path) -> None:
     context = _context(tmp_path)
     blocked = _stage(

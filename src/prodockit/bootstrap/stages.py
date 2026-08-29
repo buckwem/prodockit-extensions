@@ -2767,7 +2767,8 @@ def _check_project_env(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
-        return _missing("no project directory yet")
+        absent = _blocked if context.pdkboot else _missing
+        return absent("no project directory yet")
     if not _venv_python(context).exists():
         return _missing(f"no virtual environment at {_project_venv(context)}")
     if not (project / "requirements.txt").exists():
@@ -3046,6 +3047,15 @@ def resolve_for_execution(context: Context, command: Sequence[str]) -> list[str]
 
 
 def _check_node(context: Context) -> CheckResult:
+    if (unknown := _needs_config(context, "project_name")) is not None:
+        return unknown
+    project = context.config.resolved_project_dir(context.home)
+    if context.pdkboot and not project.exists():
+        # This stage installs system Node *and* the render toolchains held
+        # inside the clone. Running its combined plan before the clone exists
+        # installs half the stage and then sends npm into a nonexistent path
+        # (prodockit-extensions#610).
+        return _blocked("no project directory yet")
     result = context.runner.run([node_command(context), "--version"])
     if not result.ok:
         return _missing("node is not installed")
@@ -3066,9 +3076,6 @@ def _check_node(context: Context) -> CheckResult:
     # `ok` on a machine that had node and nothing else - so a reader who
     # had installed Node themselves was told this stage was done, got no
     # toolchains, and found out at the first diagram (#224).
-    if (unknown := _needs_config(context, "project_name")) is not None:
-        return unknown
-    project = context.config.resolved_project_dir(context.home)
     if project.exists() and context.pdkboot:
         mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin"
         mermaid_cli = mermaid / ("mmdc.cmd" if context.platform == WINDOWS else "mmdc")
@@ -3419,7 +3426,8 @@ def _check_vscode_settings(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
-        return _missing("no project directory yet")
+        absent = _blocked if context.pdkboot else _missing
+        return absent("no project directory yet")
     path = _settings_path(context)
     try:
         current = json.loads(path.read_text(encoding="utf-8") or "{}")
@@ -3537,7 +3545,8 @@ def _check_csl_style(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
-        return _missing("no project directory yet")
+        absent = _blocked if context.pdkboot else _missing
+        return absent("no project directory yet")
     style = _configured_csl_style(context)
     path = project / style
     if not path.exists():
@@ -3611,6 +3620,9 @@ def _check_mathjax(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "project_name")) is not None:
         return unknown
     project = context.config.resolved_project_dir(context.home)
+    if not project.exists():
+        absent = _blocked if context.pdkboot else _missing
+        return absent("no project to install it into yet")
     if not (project / "docs").is_dir():
         return _missing("no project to install it into yet")
     source, license_source, bundle, license_path, config = _mathjax_paths(context)
