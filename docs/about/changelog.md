@@ -39,6 +39,10 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## 0.50.1 (2026-08-29)
+
+- Made website figure captions use the rendered figure width instead of the theme's narrower default caption measure.
+
 ## 0.50.0 (2026-08-29)
 
 - Added `prodockit config` diagnostics and reusable project-integrity checks for configuration mistakes, missing project files, disabled extensions and unresolved build inputs.
@@ -55,15 +59,9 @@ requests rather than here.
 
 ## 0.48.1 (2026-08-26)
 
-- Added consent-gated Google Analytics to `prodockit.org`; analytics remains
-  disabled until a visitor explicitly accepts it.
-- Made optional Mermaid and maths adoption deterministic and faster by
-  supplying canonical npm lockfiles, using `npm ci`, and reusing the package
-  cache in installed-wheel CI. Custom Node manifests remain author-owned and
-  continue to use `npm install` when they have no matching lockfile.
-- Made the shared home-page hero more compact by top-aligning its content,
-  reducing the illustration, and allowing the footer to follow the content
-  instead of forcing the hero to fill the viewport.
+- Added consent-gated Google Analytics to `prodockit.org`; analytics remains disabled until a visitor explicitly accepts it.
+- Made optional Mermaid and maths adoption deterministic and faster with canonical npm lockfiles and reusable CI caches. Custom Node manifests remain author-owned.
+- Made the shared home-page hero more compact so the footer follows its content instead of being pushed below a full viewport.
 
 ## 0.48.0 (2026-08-26)
 
