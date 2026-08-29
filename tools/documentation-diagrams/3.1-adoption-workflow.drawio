@@ -1,10 +1,10 @@
 <mxfile host="65bd71144e">
     <diagram id="adoption-workflow" name="Page-1">
-        <mxGraphModel dx="1424" dy="1102" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="760" math="0" shadow="0">
+        <mxGraphModel dx="1567" dy="675" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="760" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
-                <mxCell id="2" value="Adoption Workflow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=25;fontFamily=Inter;shadow=1;arcSize=3;imageHeight=24;verticalAlign=top;fontStyle=1" vertex="1" parent="1">
+                <mxCell id="2" value="Adoption Workflow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=25;fontFamily=Inter;shadow=1;arcSize=3;imageHeight=24;verticalAlign=top;fontStyle=1" parent="1" vertex="1">
                     <mxGeometry x="380" y="10" width="940" height="600" as="geometry"/>
                 </mxCell>
                 <mxCell id="adoption-workflow-existing" value="Existing documentation&lt;br&gt;project" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
@@ -46,7 +46,7 @@
                 <mxCell id="edge-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontColor=#102a36;fontFamily=Inter;labelBackgroundColor=#ffffff;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="adoption-workflow-choose" target="adoption-workflow-skip" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
-                            <mxPoint x="1171" y="325"/>
+                            <mxPoint x="1171" y="310"/>
                         </Array>
                     </mxGeometry>
                 </mxCell>
