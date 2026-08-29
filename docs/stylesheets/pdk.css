@@ -713,3 +713,31 @@
   content: " — ";
   color: var(--md-default-fg-color--lighter, #999);
 }
+
+/* Documentation diagrams use one consistent width on the website and are
+   constrained to the printable area in the PDF. These are shared component
+   defaults, so they belong in this managed stylesheet rather than the
+   author's extra.css override layer. */
+.md-typeset img.documentation-diagram,
+img.documentation-diagram {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
+
+@media print {
+  .md-typeset img.documentation-diagram,
+  img.documentation-diagram {
+    width: auto;
+    max-width: 100%;
+    max-height: 18cm;
+    object-fit: contain;
+    break-inside: avoid;
+  }
+
+  .md-typeset img.release-workflow-diagram,
+  img.release-workflow-diagram {
+    max-height: 12.5cm;
+  }
+}
