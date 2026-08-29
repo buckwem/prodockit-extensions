@@ -308,7 +308,7 @@ pdk boot
 ```
 
 The first run asks what it needs and saves the answers beside the project
-as `.pdk-bootstrap.toml`. Then it stops, so what it tells you to note
+as `.pdkboot.toml`. Then it stops, so what it tells you to note
 down stays on the screen - run it again to see the stages.
 
 On `gitlab.surrey.ac.uk` that is seven questions: your name, the ID you
@@ -376,11 +376,11 @@ its 23 setup stages into seven phases while it sets up the machine and project.
 | | 5 | SSH config points at the key | yes |
 | | 6 | Key loaded into the ssh agent | yes, after a step of your own |
 | | 7 | SSH key on the host | **guide and verify** |
-| 4. Project {: rowspan=7 } | 8 | Where the project comes from | **a choice** |
-| | 9 | Project cloned | yes |
-| | 10 | A history of your own | yes |
-| | 11 | Your own project on the host | **guide and verify** |
-| | 12 | Pages switched on | **guide and verify** |
+| 4. Project {: rowspan=7 } | 8 | Your own project on the host | **guide and verify** |
+| | 9 | Pages switched on | **guide and verify** |
+| | 10 | Where the project comes from | **a choice** |
+| | 11 | Project cloned | yes |
+| | 12 | A history of your own | yes |
 | | 13 | Clone pointed at your project | yes |
 | | 14 | Commit identity in the project | yes |
 | 5. Build toolchain {: rowspan=3 } | 15 | Pandoc, and the libraries WeasyPrint needs | yes |
@@ -571,7 +571,7 @@ does nothing.
 
 ## Configuration {: #bootstrap-configuration }
 
-Bootstrap normally stores answers in `.pdk-bootstrap.toml` in the directory
+Bootstrap normally stores answers in `.pdkboot.toml` in the directory
 where you run it. The file is kept out of Git when that directory is already a
 repository. An older per-user bootstrap file is still read when no local file
 exists, so existing setups continue to work.
@@ -655,7 +655,7 @@ The file is stored per **directory**, beside whatever is being set up:
 
 | Where | Path |
 | --- | --- |
-| This directory | `./.pdk-bootstrap.toml` |
+| This directory | `./.pdkboot.toml` |
 | Older, per user (macOS / Linux) | `~/.config/prodockit/bootstrap.toml` |
 | Older, per user (Windows) | `%APPDATA%\prodockit\bootstrap.toml` |
 /// table-caption | <
@@ -673,7 +673,7 @@ The per-user file is still read where a directory has none of its own, so
 a setup already answered keeps working and nothing has to be moved. It is
 never written to once a local file is possible.
 
-Where the directory is a git repository, `.pdk-bootstrap.toml` is added
+Where the directory is a git repository, `.pdkboot.toml` is added
 to `.gitignore`: it holds your name, email and username, and the first
 push commits everything else in the project.
 

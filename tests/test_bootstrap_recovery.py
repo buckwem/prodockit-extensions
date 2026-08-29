@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Durable recovery records for the standalone ``pdkboot`` command."""
+"""Durable recovery records for the ``prodockit bootstrap`` command."""
 
 from __future__ import annotations
 
@@ -13,19 +13,19 @@ import pytest
 from prodockit.bootstrap import CommandResult
 from prodockit.bootstrap.model import MACOS, UBUNTU, WINDOWS
 from prodockit.bootstrap.recovery import (
-    PdkbootRunJournal,
-    pdkboot_report_path,
+    BootstrapRunJournal,
+    bootstrap_report_path,
     recovery_advice,
 )
 
 
-def _journal(tmp_path: Path) -> PdkbootRunJournal:
+def _journal(tmp_path: Path) -> BootstrapRunJournal:
     config = tmp_path / ".pdkboot.toml"
-    return PdkbootRunJournal(
-        pdkboot_report_path(config),
+    return BootstrapRunJournal(
+        bootstrap_report_path(config),
         version="0.test",
         config_path=config,
-        resume=["pdkboot", "--config", str(config), "--apply"],
+        resume=["prodockit", "bootstrap", "--config", str(config), "--apply"],
         stages=[
             {
                 "id": "git",
@@ -41,7 +41,7 @@ def _journal(tmp_path: Path) -> PdkbootRunJournal:
 def test_default_report_name_is_distinct_from_config(tmp_path: Path) -> None:
     config = tmp_path / ".pdkboot.toml"
 
-    assert pdkboot_report_path(config) == tmp_path / ".pdkboot.last-run.json"
+    assert bootstrap_report_path(config) == tmp_path / ".pdkboot.last-run.json"
 
 
 def test_journal_records_a_resumable_failed_stage_atomically(tmp_path: Path) -> None:
@@ -97,11 +97,11 @@ def test_journal_failure_is_reported_without_raising(tmp_path: Path) -> None:
     blocked = tmp_path / "not-a-directory"
     blocked.write_text("occupied", encoding="utf-8")
 
-    journal = PdkbootRunJournal(
+    journal = BootstrapRunJournal(
         blocked / "report.json",
         version="0.test",
         config_path=tmp_path / ".pdkboot.toml",
-        resume=["pdkboot", "--apply"],
+        resume=["prodockit", "bootstrap", "--apply"],
         stages=[],
     )
 

@@ -26,9 +26,7 @@ import sys
 import textwrap
 import threading
 import time
-from collections.abc import Callable, Iterator, Sequence
-from contextlib import contextmanager
-from contextvars import ContextVar
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, ParamSpec, TypeVar
 
@@ -68,6 +66,7 @@ from prodockit.bootstrap import (
     UnsupportedHostError,
     apply_stage,
     authenticate_sudo,
+    bootstrap_local_config_path,
     check_all,
     connection_problem,
     default_for,
@@ -77,7 +76,6 @@ from prodockit.bootstrap import (
     needs_sudo,
     own_project_exists,
     own_project_has_content,
-    pdkboot_config_path,
     plan_all,
     project_on_host,
     question_for,
@@ -86,13 +84,12 @@ from prodockit.bootstrap import (
     surrey,
 )
 from prodockit.bootstrap import build_context as build_bootstrap_context
-from prodockit.bootstrap import config_path as bootstrap_config_path
 from prodockit.bootstrap import load as load_bootstrap_config
 from prodockit.bootstrap import save as save_bootstrap_config
 from prodockit.bootstrap.config import keep_out_of_git
 from prodockit.bootstrap.recovery import (
-    PdkbootRunJournal,
-    pdkboot_report_path,
+    BootstrapRunJournal,
+    bootstrap_report_path,
     recovery_advice,
 )
 from prodockit.init_tools import (
@@ -116,16 +113,14 @@ from prodockit.project_config import ProjectConfigError, load_project_config
 from prodockit.revision_dates import RevisionDateError, update_built_site_revision_dates
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
-_PDKBOOT_MODE: ContextVar[bool] = ContextVar("pdkboot_mode", default=False)
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
 
 # These are presentation groups, not execution units: stages still run in
 # their established dependency order and are rechecked immediately before
-# use. Keeping the grouping here means the replacement command can evolve
-# without changing legacy bootstrap's model or output.
-_PDKBOOT_PHASES: tuple[tuple[str, frozenset[str]], ...] = (
+# use.
+_BOOTSTRAP_PHASES: tuple[tuple[str, frozenset[str]], ...] = (
     ("Preflight", frozenset({"own-venv"})),
     ("Core tools", frozenset({"vscode", "git"})),
     (
@@ -157,34 +152,7 @@ _PDKBOOT_PHASES: tuple[tuple[str, frozenset[str]], ...] = (
     ("Publish", frozenset({"first-push", "site"})),
 )
 
-# Legacy bootstrap asks where contents come from before it checks or creates
-# the destination repository. pdkboot can correct that dependency without
-# changing the command users already rely on: establish the host repository
-# first, then decide whether it has usable contents, then clone. On a missing
-# repository this lets the same run create an empty destination and continue
-# from the template instead of reaching a later stage with no clone.
-_PDKBOOT_PROJECT_ORDER = (
-    "own-project",
-    "pages",
-    "clone-source",
-    "clone",
-    "fresh-history",
-    "remote",
-    "identity",
-)
-
-
-def _pdkboot_stages() -> tuple[Stage, ...]:
-    """The pdkboot-only dependency order, leaving legacy STAGES untouched."""
-    by_id = {stage.id: stage for stage in STAGES}
-    project_ids = frozenset(_PDKBOOT_PROJECT_ORDER)
-    first_project = min(i for i, stage in enumerate(STAGES) if stage.id in project_ids)
-    before = tuple(stage for stage in STAGES[:first_project] if stage.id not in project_ids)
-    after = tuple(stage for stage in STAGES[first_project:] if stage.id not in project_ids)
-    return (*before, *(by_id[stage_id] for stage_id in _PDKBOOT_PROJECT_ORDER), *after)
-
-
-_PDKBOOT_INSTALL_STAGES = frozenset(
+_BOOTSTRAP_INSTALL_STAGES = frozenset(
     {
         "own-venv",
         "vscode",
@@ -199,20 +167,20 @@ _PDKBOOT_INSTALL_STAGES = frozenset(
         "mathjax",
     }
 )
-_PDKBOOT_CONFIGURE_STAGES = frozenset(
+_BOOTSTRAP_CONFIGURE_STAGES = frozenset(
     {"ssh-config", "ssh-agent", "remote", "identity", "vscode-settings"}
 )
 
 
-def _pdkboot_phase(stage_id: str) -> tuple[int, str] | None:
+def _bootstrap_phase(stage_id: str) -> tuple[int, str] | None:
     """Return the display phase for a real bootstrap stage."""
-    for number, (name, stage_ids) in enumerate(_PDKBOOT_PHASES, start=1):
+    for number, (name, stage_ids) in enumerate(_BOOTSTRAP_PHASES, start=1):
         if stage_id in stage_ids:
             return number, name
     return None
 
 
-def _pdkboot_action(report: StageReport, plan: Plan | None = None) -> str:
+def _bootstrap_action(report: StageReport, plan: Plan | None = None) -> str:
     """Describe work in terms a reader can use to judge its risk."""
     plan = plan or report.plan
     if plan is None:
@@ -231,16 +199,16 @@ def _pdkboot_action(report: StageReport, plan: Plan | None = None) -> str:
         return "MANUAL"
     if report.stage.id in {"first-push", "site"}:
         return "PUBLISH"
-    if report.stage.id in _PDKBOOT_CONFIGURE_STAGES:
+    if report.stage.id in _BOOTSTRAP_CONFIGURE_STAGES:
         return "CONFIGURE"
-    if report.stage.id in _PDKBOOT_INSTALL_STAGES:
+    if report.stage.id in _BOOTSTRAP_INSTALL_STAGES:
         return "INSTALL" if report.result.status is Status.MISSING else "REPAIR"
     if report.result.status is Status.WRONG:
         return "REPAIR"
     return "INSTALL" if plan.commands else "MANUAL"
 
 
-def _pdkboot_status(text: str, status: Status) -> str:
+def _bootstrap_status(text: str, status: Status) -> str:
     """Make faults and outstanding work distinct without changing log text."""
     if status is Status.WRONG:
         return click.style(text, fg="bright_magenta", bold=True)
@@ -249,34 +217,34 @@ def _pdkboot_status(text: str, status: Status) -> str:
     return text
 
 
-def _pdkboot_error(text: str) -> str:
-    """Style an actual pdkboot failure, while Click keeps redirected logs plain."""
+def _bootstrap_error(text: str) -> str:
+    """Style an actual prodockit bootstrap failure, while Click keeps redirected logs plain."""
     return click.style(text, fg="bright_magenta", bold=True)
 
 
-def _pdkboot_warning(text: str) -> str:
+def _bootstrap_warning(text: str) -> str:
     """Style a waiting or action-required message separately from failures."""
     return click.style(text, fg="bright_yellow", bold=True)
 
 
-def _pdkboot_work_summary(reports: Sequence[StageReport]) -> str:
+def _bootstrap_work_summary(reports: Sequence[StageReport]) -> str:
     """Compact counts of the kinds of outstanding work in this pass."""
     order = ("INSTALL", "UPGRADE", "CONFIGURE", "REPAIR", "ARCHIVE", "CHOOSE", "MANUAL", "PUBLISH")
     counts = dict.fromkeys(order, 0)
     for report in reports:
         if report.needs_work and report.plan is not None:
-            action = _pdkboot_action(report)
+            action = _bootstrap_action(report)
             counts[action] = counts.get(action, 0) + 1
     return " · ".join(f"{count} {action.lower()}" for action in order if (count := counts[action]))
 
 
-def _pdkboot_journal(
+def _bootstrap_journal(
     context: Context,
     reports: Sequence[StageReport],
     config_path: Path | None,
-) -> PdkbootRunJournal | None:
+) -> BootstrapRunJournal | None:
     """Start the recovery record for an apply run, if it has a location."""
-    if not context.pdkboot or config_path is None:
+    if not context.guided or config_path is None:
         return None
     stages = []
     for report in reports:
@@ -292,36 +260,38 @@ def _pdkboot_journal(
                 "status": status,
                 "detail": report.result.detail,
                 "action": (
-                    _pdkboot_action(report) if report.needs_work and report.plan is not None else ""
+                    _bootstrap_action(report)
+                    if report.needs_work and report.plan is not None
+                    else ""
                 ),
             }
         )
-    path = pdkboot_report_path(config_path)
-    journal = PdkbootRunJournal(
+    path = bootstrap_report_path(config_path)
+    journal = BootstrapRunJournal(
         path,
         version=__version__,
         config_path=config_path,
-        resume=["pdkboot", "--config", str(config_path), "--apply"],
+        resume=["prodockit", "bootstrap", "--config", str(config_path), "--apply"],
         stages=stages,
     )
     if journal.error is None:
         keep_out_of_git(
             path,
-            reason="Local pdkboot recovery state; do not commit.",
+            reason="Local prodockit bootstrap recovery state; do not commit.",
         )
     return journal
 
 
 def _resume_command(context: Context, config_path: Path | None) -> str:
     """The rerun that preserves this command and its chosen configuration."""
-    if not context.pdkboot:
+    if not context.guided:
         return "prodockit bootstrap --apply"
     if config_path is None:
-        return "pdkboot --apply"
-    return f'pdkboot --config "{config_path}" --apply'
+        return "prodockit bootstrap --apply"
+    return f'prodockit bootstrap --config "{config_path}" --apply'
 
 
-class _PdkbootCommandProgress:
+class _BootstrapCommandProgress:
     """Keep a quiet install visibly alive without hiding its failures."""
 
     def __init__(self) -> None:
@@ -364,16 +334,6 @@ class _PdkbootCommandProgress:
             line = f"  {frames[frame % len(frames)]} Working on {self._label} ({elapsed}s)"
             click.echo(f"\r{line}\x1b[K", nl=False)
             frame += 1
-
-
-@contextmanager
-def pdkboot_mode() -> Iterator[None]:
-    """Run the bootstrap callback with the phased ``pdkboot`` behaviour."""
-    token = _PDKBOOT_MODE.set(True)
-    try:
-        yield
-    finally:
-        _PDKBOOT_MODE.reset(token)
 
 
 def _echo_captured_stderr(error: Exception) -> None:
@@ -729,11 +689,7 @@ def _explain_existing_project(config: BootstrapConfig) -> bool:
     none of them is safe enough to be taken by pressing Enter.
     """
     try:
-        context = (
-            build_bootstrap_context(config, pdkboot=True)
-            if _PDKBOOT_MODE.get()
-            else build_bootstrap_context(config)
-        )
+        context = build_bootstrap_context(config, guided=True)
     except UnsupportedHostError:
         # Nothing can be asked about a host that cannot be used. The
         # ordinary prompt runs instead, and the host stage refuses later.
@@ -791,14 +747,14 @@ def _explain_existing_project(config: BootstrapConfig) -> bool:
         config.history = ""
         return True
 
-    if context.pdkboot:
+    if context.guided:
         config.source_url = name
         config.history = "keep"
         click.echo("")
         click.echo(
             _wrapped(
                 f"Option 1 selected automatically: {name} has work on {host}, so "
-                "pdkboot will clone the full repository and keep its existing commit "
+                "prodockit bootstrap will clone the full repository and keep its existing commit "
                 "history and origin."
             )
         )
@@ -1026,8 +982,8 @@ def _announce_apply(
     click.echo(f"  Host:     {context.host.hostname}")
     click.echo(f"  Project:  {context.config.resolved_project_dir(context.home)}")
     click.echo(f"  To do:    {outstanding} of {len(STAGES)} stages")
-    if context.pdkboot and reports:
-        summary = _pdkboot_work_summary(reports)
+    if context.guided and reports:
+        summary = _bootstrap_work_summary(reports)
         if summary:
             click.echo(f"  Work:     {summary}")
     click.echo("")
@@ -1051,7 +1007,7 @@ def _apply_outstanding(
     before you have done it. Exiting at that point threw away every stage
     already completed and made the reader start again.
     """
-    journal = _pdkboot_journal(context, reports, config_path)
+    journal = _bootstrap_journal(context, reports, config_path)
     if journal is not None and journal.error is not None:
         click.echo(f"Warning: recovery report unavailable: {journal.error}", err=True)
         journal = None
@@ -1108,8 +1064,7 @@ def _apply_outstanding(
     if journal is not None:
         journal.settle()
     click.echo("")
-    check_command = "pdkboot" if context.pdkboot else "prodockit bootstrap"
-    click.echo(f"Finished. Run `{check_command}` to confirm.")
+    click.echo("Finished. Run `prodockit bootstrap` to confirm.")
     if journal is not None:
         click.echo(f"Recovery report: {journal.path}")
 
@@ -1118,7 +1073,7 @@ def _work_through(
     context: Context,
     reports: list[StageReport],
     config_path: Path | None,
-    journal: PdkbootRunJournal | None = None,
+    journal: BootstrapRunJournal | None = None,
 ) -> None:
     """Each stage in turn, asking before it acts on any of them."""
 
@@ -1149,7 +1104,7 @@ def _work_through(
             result=result,
             plan=report.stage.plan(context) if plannable else None,
         )
-        phase = _pdkboot_phase(report.stage.id) if context.pdkboot else None
+        phase = _bootstrap_phase(report.stage.id) if context.guided else None
         if phase is not None and phase != shown_phase:
             phase_number, phase_name = phase
             click.echo("")
@@ -1157,7 +1112,7 @@ def _work_through(
             click.echo(boundary)
             click.echo(
                 click.style(
-                    f"Phase {phase_number}/{len(_PDKBOOT_PHASES)} — {phase_name}",
+                    f"Phase {phase_number}/{len(_BOOTSTRAP_PHASES)} — {phase_name}",
                     bold=True,
                     fg="bright_blue",
                 )
@@ -1185,10 +1140,10 @@ def _work_through(
             # different information to recover.
             detail = f" - {report.result.detail}" if report.result.detail else ""
             symbol = (
-                "WAIT" if context.pdkboot and report.result.status is Status.BLOCKED else "?   "
+                "WAIT" if context.guided and report.result.status is Status.BLOCKED else "?   "
             )
             line = f"{number:2}  {symbol}  {report.stage.summary}{detail}"
-            click.echo(_pdkboot_status(line, report.result.status))
+            click.echo(_bootstrap_status(line, report.result.status))
             if journal is not None:
                 journal.stage(
                     report.stage.id,
@@ -1207,12 +1162,12 @@ def _work_through(
         # of ~/.ssh/id_ed25519_gitlab.pub" about a key that existed by the
         # time the step was reached (prodockit-extensions#281).
         #
-        # In pdkboot this exact plan is also passed to `apply_stage`: mutable
-        # or network-sensitive commands must not change after the reader has
-        # reviewed and approved them. Legacy bootstrap retains its existing
-        # re-planning behaviour until it is deliberately replaced.
-        plan = report.plan if context.pdkboot else report.stage.plan(context)
-        action = _pdkboot_action(report, plan) if context.pdkboot else ""
+        # In ``prodockit bootstrap`` this exact plan is also passed to
+        # `apply_stage`: mutable or network-sensitive commands must not change
+        # after the reader has reviewed and approved them. Compatibility
+        # callers can still ask the public stage model to re-plan.
+        plan = report.plan if context.guided else report.stage.plan(context)
+        action = _bootstrap_action(report, plan) if context.guided else ""
         if journal is not None:
             journal.stage(
                 report.stage.id,
@@ -1222,7 +1177,7 @@ def _work_through(
             )
 
         click.echo("")
-        if context.pdkboot:
+        if context.guided:
             # A full-width boundary survives terminals without colour and
             # pasted logs. The old bold-only ``[15/23]`` line disappeared
             # among instructions and command output during long installs.
@@ -1231,10 +1186,10 @@ def _work_through(
             click.echo(click.style(heading, bold=True, fg="blue"))
         else:
             click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))
-        if context.pdkboot:
+        if context.guided:
             click.echo(f"  Action:   {action}")
             current = f"  Current:  {report.result.detail or 'not yet satisfied'}"
-            click.echo(_pdkboot_status(current, report.result.status))
+            click.echo(_bootstrap_status(current, report.result.status))
             click.echo(f"  Goal:     {report.stage.summary}")
         elif report.result.detail:
             click.echo(f"        {report.result.detail}")
@@ -1284,7 +1239,7 @@ def _work_through(
                 if not verified:
                     click.echo("  skipped")
                 continue
-            if not context.pdkboot:
+            if not context.guided:
                 if not click.confirm(f"  {plan.confirm}", default=not plan.destructive):
                     if journal is not None:
                         journal.stage(report.stage.id, "skipped", action=action)
@@ -1315,7 +1270,7 @@ def _work_through(
             # (#259).
             default_yes = not plan.destructive
             count = len(plan.commands)
-            if context.pdkboot and plan.instructions and plan.confirm:
+            if context.guided and plan.instructions and plan.confirm:
                 question = plan.confirm
             elif plan.describe:
                 question = f"Apply {count} change{'s' if count != 1 else ''}?"
@@ -1344,9 +1299,9 @@ def _work_through(
             # seconds (an `ssh -T` carries a ten-second connect timeout),
             # which reads as a hang right after a command has visibly
             # finished. So both ends are announced (#244).
-            if context.pdkboot and plan.needs_terminal:
+            if context.guided and plan.needs_terminal:
                 click.echo("  This command needs the terminal; its output will be shown.")
-            elif context.pdkboot:
+            elif context.guided:
                 click.echo("  Routine command output is hidden; failures are shown in full.")
             else:
                 click.echo("  Working - the commands' own output follows.")
@@ -1356,9 +1311,9 @@ def _work_through(
                     context,
                     report.stage,
                     plan,
-                    progress=None if plan.needs_terminal else _PdkbootCommandProgress(),
+                    progress=None if plan.needs_terminal else _BootstrapCommandProgress(),
                 )
-                if context.pdkboot
+                if context.guided
                 else apply_stage(context, report.stage)
             )
             click.echo("")
@@ -1373,7 +1328,7 @@ def _work_through(
                     for part in (outcome.failed.stdout, outcome.failed.stderr)
                     if part.strip()
                 )
-                if context.pdkboot and captured:
+                if context.guided and captured:
                     click.echo("  Command output:", err=True)
                     for line in captured.splitlines():
                         click.echo(f"    {line}", err=True)
@@ -1386,9 +1341,9 @@ def _work_through(
                         else f"exit status {outcome.failed.returncode}"
                     )
                 )
-                click.echo(_pdkboot_error(f"  failed: {summary}"), err=True)
+                click.echo(_bootstrap_error(f"  failed: {summary}"), err=True)
                 click.echo(
-                    _pdkboot_error("  Stopping - later stages depend on this one."),
+                    _bootstrap_error("  Stopping - later stages depend on this one."),
                     err=True,
                 )
                 advice = (
@@ -1398,12 +1353,12 @@ def _work_through(
                         outcome.ran[-1] if outcome.ran else [],
                         outcome.failed,
                     )
-                    if context.pdkboot
+                    if context.guided
                     else None
                 )
                 if advice is not None:
                     _show_steps("  Recovery:", list(advice.steps))
-                if context.pdkboot:
+                if context.guided:
                     click.echo(
                         f"  Fix the problem, then run `{_resume_command(context, config_path)}` "
                         "again; "
@@ -1465,7 +1420,7 @@ def _work_through(
             elif not plan.instructions:
                 detail = outcome.verified.detail if outcome.verified else "unknown"
                 click.echo(f"  ran, but still not right: {detail}", err=True)
-                if context.pdkboot:
+                if context.guided:
                     click.echo(
                         f"  Fix the problem, then run `{_resume_command(context, config_path)}` "
                         "again; "
@@ -1519,7 +1474,7 @@ def _echo_dry_run_command(command: Sequence[str]) -> None:
         click.echo(f"             {line}")
 
 
-_PDKBOOT_WAIT_DETAILS = (
+_BOOTSTRAP_WAIT_DETAILS = (
     "no project directory yet",
     "no project to install",
     "no clone to repoint yet",
@@ -1528,11 +1483,11 @@ _PDKBOOT_WAIT_DETAILS = (
 )
 
 
-def _pdkboot_waiting(report: StageReport) -> bool:
-    """Whether a pdkboot report has no safe work until a prerequisite exists."""
+def _bootstrap_waiting(report: StageReport) -> bool:
+    """Whether a prodockit bootstrap report has no safe work until a prerequisite exists."""
     return report.result.status is Status.BLOCKED or (
         report.result.status is Status.MISSING
-        and report.result.detail.startswith(_PDKBOOT_WAIT_DETAILS)
+        and report.result.detail.startswith(_BOOTSTRAP_WAIT_DETAILS)
     )
 
 
@@ -1672,9 +1627,9 @@ def _verify_until_done(
             # Waiting on an earlier stage, not on anything the reader can
             # do in a browser. Asking again would loop for ever on a
             # question they have already answered correctly (#336).
-            click.echo(_pdkboot_warning(f"  waiting - {result.detail}"))
+            click.echo(_bootstrap_warning(f"  waiting - {result.detail}"))
             return False
-        click.echo(_pdkboot_error(f"  not there yet - {result.detail}"))
+        click.echo(_bootstrap_error(f"  not there yet - {result.detail}"))
         if not click.confirm("  Try again?", default=True):
             return False
 
@@ -1685,7 +1640,7 @@ def _remember_browser_confirmation(
     config_path: Path | None,
 ) -> None:
     """Persist the site URL an author has just confirmed in a browser."""
-    if not context.pdkboot or stage.id != "site" or config_path is None:
+    if not context.guided or stage.id != "site" or config_path is None:
         return
     context.config.confirmed_site_url = site_url(context)
     save_bootstrap_config(config_path, context.config)
@@ -1776,10 +1731,10 @@ def config_command(config_file: str, check: bool) -> None:
     click.echo(f"  Optional support: {dependency}")
 
     if report.diagnostics:
-        click.echo(_pdkboot_error("\nProblems"))
+        click.echo(_bootstrap_error("\nProblems"))
         for diagnostic in report.diagnostics:
             click.echo(
-                _pdkboot_error(f"  ERROR {diagnostic.path}: {diagnostic.message}")
+                _bootstrap_error(f"  ERROR {diagnostic.path}: {diagnostic.message}")
             )
         if check:
             raise click.exceptions.Exit(1)
@@ -1857,6 +1812,11 @@ def shared_files(root: str, check: bool, apply_changes: bool, verbose: bool) -> 
 
 
 @main.command()
+@click.version_option(
+    __version__,
+    "--version",
+    message="prodockit bootstrap, version %(version)s",
+)
 @click.option(
     "--check",
     "check_only",
@@ -1884,8 +1844,8 @@ def shared_files(root: str, check: bool, apply_changes: bool, verbose: bool) -> 
     "config_file",
     default=None,
     help=(
-        ".pdk-bootstrap.toml is the default in the current directory. Pass "
-        "another bootstrap config path; an existing legacy user config is still read."
+        ".pdkboot.toml in the current or nearest parent directory is the default. "
+        "Pass another bootstrap config path explicitly."
     ),
 )
 def bootstrap(
@@ -1929,11 +1889,7 @@ def bootstrap(
     if not dry_run and not apply_stages and not configure:
         check_only = True
 
-    path = (
-        Path(config_file)
-        if config_file
-        else (pdkboot_config_path() if _PDKBOOT_MODE.get() else bootstrap_config_path())
-    )
+    path = Path(config_file) if config_file else bootstrap_local_config_path()
     try:
         config = load_bootstrap_config(path)
     except BootstrapConfigError as error:
@@ -1959,31 +1915,23 @@ def bootstrap(
         # Stopping where `--configure` stops, and for the same reason: the
         # run has just told the reader the namespace and repository name
         # to note down, and a stage report would scroll both away (#433).
-        check_command = "pdkboot" if _PDKBOOT_MODE.get() else "prodockit bootstrap"
-        click.echo(f"Run `{check_command}` to see what is set up.")
+        click.echo("Run `prodockit bootstrap` to see what is set up.")
         return
 
     try:
-        # The pdkboot profile affects how the command runner itself is
-        # constructed, not only how reports are presented. On Windows the
+        # The guided profile affects how the command runner itself is constructed,
+        # not only how reports are presented. On Windows the
         # runner must give Git the built-in OpenSSH executable connected to
-        # Windows' ssh-agent. Setting ``context.pdkboot`` afterwards left
-        # the already-built runner in legacy mode: ``ssh -T`` authenticated,
+        # Windows' ssh-agent. Setting ``context.guided`` afterwards left
+        # the already-built runner using a different SSH client: ``ssh -T`` authenticated,
         # while ``git ls-remote`` immediately reported ``Permission denied``.
-        context = (
-            build_bootstrap_context(config, pdkboot=True)
-            if _PDKBOOT_MODE.get()
-            else build_bootstrap_context(config)
-        )
+        context = build_bootstrap_context(config, guided=True)
     except UnsupportedHostError as error:
         click.echo(f"Error: {error}", err=True)
         sys.exit(1)
 
-    if context.pdkboot:
-        stages = _pdkboot_stages()
-        reports = check_all(context, stages) if check_only else plan_all(context, stages)
-    else:
-        reports = check_all(context) if check_only else plan_all(context)
+    stages = STAGES
+    reports = check_all(context, stages) if check_only else plan_all(context, stages)
 
     if apply_stages:
         _apply_outstanding(context, reports, path)
@@ -1998,12 +1946,12 @@ def bootstrap(
     }
     for number, report in enumerate(reports, start=1):
         symbol = symbols[report.result.status]
-        waiting = context.pdkboot and _pdkboot_waiting(report)
+        waiting = context.guided and _bootstrap_waiting(report)
         if waiting:
             symbol = "WAIT"
         detail = f" - {report.result.detail}" if report.result.detail else ""
         line = f"{number:2}  {symbol}  {report.stage.summary}{detail}"
-        click.echo(_pdkboot_status(line, report.result.status) if context.pdkboot else line)
+        click.echo(_bootstrap_status(line, report.result.status) if context.guided else line)
         if dry_run and report.plan is not None and not waiting:
             # In the order they actually happen: prepare, run, finish.
             for instruction in report.plan.instructions:

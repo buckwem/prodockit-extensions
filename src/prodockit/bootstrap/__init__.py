@@ -30,16 +30,16 @@ from pathlib import Path
 from typing import Any
 
 from prodockit.bootstrap.config import (
+    BOOTSTRAP_CONFIG_NAME,
     LOCAL_CONFIG_NAME,
-    PDKBOOT_CONFIG_NAME,
     PROMPTS,
     BootstrapConfig,
     BootstrapConfigError,
+    bootstrap_local_config_path,
     config_path,
     default_for,
     load,
     missing_keys,
-    pdkboot_config_path,
     question_for,
     save,
 )
@@ -81,10 +81,10 @@ from prodockit.bootstrap.stages import (
 )
 
 __all__ = [
+    "BOOTSTRAP_CONFIG_NAME",
     "HOSTS",
     "INSTALL_TIMEOUT_SECONDS",
     "LOCAL_CONFIG_NAME",
-    "PDKBOOT_CONFIG_NAME",
     "PROMPTS",
     "STAGES",
     "SURREY_GITLAB",
@@ -107,6 +107,7 @@ __all__ = [
     "apply_stage",
     "authenticate_sudo",
     "benign_outcome",
+    "bootstrap_local_config_path",
     "build_context",
     "check_all",
     "config_path",
@@ -122,7 +123,6 @@ __all__ = [
     "normalise_host",
     "own_project_exists",
     "own_project_has_content",
-    "pdkboot_config_path",
     "plan_all",
     "project_on_host",
     "question_for",
@@ -237,7 +237,7 @@ def build_context(
     home: Path | None = None,
     exists: Callable[[Path], bool] | None = None,
     fetch: Callable[..., Any] | None = None,
-    pdkboot: bool = False,
+    guided: bool = False,
 ) -> Context:
     """Assembles what the stages need, resolving the configured host.
 
@@ -258,14 +258,14 @@ def build_context(
     # Windows installers persist PATH and WeasyPrint's DLL directory in the
     # registry, but an already-open PowerShell keeps the environment it
     # inherited when it started.  Reload both at the beginning of every
-    # pdkboot invocation as well as after install commands, so a later
-    # ``pdkboot --check`` sees the native libraries that the earlier run
-    # installed.  Keep legacy bootstrap's startup behaviour unchanged.
-    if pdkboot and resolved_platform == WINDOWS:
+    # prodockit bootstrap invocation as well as after install commands, so a later
+    # ``prodockit bootstrap --check`` sees the native libraries that the earlier run
+    # installed.
+    if guided and resolved_platform == WINDOWS:
         refresh_windows_path()
     default_runner = SubprocessRunner(
         git_ssh_executable=(
-            windows_system_ssh() if pdkboot and resolved_platform == WINDOWS else None
+            windows_system_ssh() if guided and resolved_platform == WINDOWS else None
         )
     )
     return Context(
@@ -277,7 +277,7 @@ def build_context(
         exists=exists or Path.exists,
         fetch=fetch or default_fetch,
         contacts=contacts,
-        pdkboot=pdkboot,
+        guided=guided,
     )
 
 
@@ -295,7 +295,7 @@ class ApplyResult:
     ran: list[list[str]] = field(default_factory=list)
     failed: CommandResult | None = None
     verified: CheckResult | None = None
-    #: A command returned a non-benign failure, but an immediate pdkboot
+    #: A command returned a non-benign failure, but an immediate prodockit bootstrap
     #: recheck proved that the stage's required end state was present. Kept
     #: separately so the caller can report the anomaly without treating a
     #: successfully verified stage as failed.
@@ -354,11 +354,9 @@ def apply_stage(
                     command,
                     cwd=plan.cwd,
                     timeout=INSTALL_TIMEOUT_SECONDS,
-                    # Legacy bootstrap streams an installer's output because it
-                    # otherwise offers no indication that a slow download is alive
-                    # (prodockit-extensions#244). pdkboot supplies a live progress
-                    # callback instead, captures routine chatter, and shows the
-                    # captured output if the command fails.
+                    # Compatibility callers without the promoted command's live
+                    # progress callback stream an installer's output so a slow
+                    # download still appears alive (prodockit-extensions#244).
                     #
                     # It also covers what `needs_terminal` was added for: a
                     # command that has to ask something (#246) now always has
@@ -367,20 +365,19 @@ def apply_stage(
                     #
                     # Checks stay captured - they read what a command printed, and
                     # there are dozens of them per run.
-                    # pdkboot replaces routine installer chatter with its own live
-                    # progress display, but a command that genuinely needs the
-                    # terminal must still own it. Legacy bootstrap retains the
-                    # streamed output its users already know.
-                    capture=(context.pdkboot and progress is not None and not plan.needs_terminal),
+                    # ``prodockit bootstrap`` replaces routine installer chatter
+                    # with its own live progress display, but a command that
+                    # genuinely needs the terminal must still own it.
+                    capture=(context.guided and progress is not None and not plan.needs_terminal),
                 )
                 if (
-                    not context.pdkboot
+                    not context.guided
                     or not _safe_to_retry(command)
                     or not _temporary_network_failure(outcome)
                 ):
                     break
         except BaseException:
-            # In particular, stop pdkboot's background spinner when the user
+            # In particular, stop prodockit bootstrap's background spinner when the user
             # interrupts a command. The original exception still decides the
             # process outcome.
             if progress is not None:
@@ -405,7 +402,7 @@ def apply_stage(
         # unconfigured, with the run blaming the install (#309).
         accepted = benign_outcome(command, outcome)
         recovered: CheckResult | None = None
-        if not accepted and context.pdkboot:
+        if not accepted and context.guided:
             # Installers do not all agree that "already at the requested
             # state" is success, and some report failure after completing
             # their work. Trust the stage's end-state check over the process

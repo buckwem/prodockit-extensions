@@ -157,7 +157,7 @@ _MSYS2_ENVIRONMENTS = {
     "other": ("mingw64", "mingw-w64-x86_64-pango"),
 }
 
-_PDKBOOT_MSYS2_ENVIRONMENTS = {
+_BOOTSTRAP_MSYS2_ENVIRONMENTS = {
     "arm64": ("clangarm64", "mingw-w64-clang-aarch64-pango"),
     # UCRT64 is MSYS2's current x64 default. MINGW64 began deprecation in
     # 2026, and CPython itself uses the Universal C Runtime on supported
@@ -233,7 +233,7 @@ def _winget(
 
 
 def _winget_upgrade(package_id: str, version: str = "") -> list[str]:
-    """An explicit, non-interactive upgrade for an approved pdkboot plan."""
+    """An explicit, non-interactive upgrade for an approved prodockit bootstrap plan."""
     return [
         "winget",
         "upgrade",
@@ -727,7 +727,7 @@ def _plan_vscode(context: Context) -> Plan:
                 _apt("install", "-y", "/tmp/code.deb"),
             ]
         )
-    return Plan(commands=[_winget("Microsoft.VisualStudioCode", resilient=context.pdkboot)])
+    return Plan(commands=[_winget("Microsoft.VisualStudioCode", resilient=context.guided)])
 
 
 # ---------------------------------------------------------------------------
@@ -752,7 +752,7 @@ def _check_git(context: Context) -> CheckResult:
         # reader to install git they already have would send them the wrong
         # way entirely.
         return _wrong(f"git is installed but {' and '.join(unset)} are not set")
-    if context.pdkboot and context.platform == WINDOWS:
+    if context.guided and context.platform == WINDOWS:
         ssh_command = context.runner.run([git, "config", "--global", "core.sshCommand"])
         configured = ssh_command.stdout.strip().replace("\\", "/").lower()
         expected = windows_system_ssh().lower()
@@ -768,13 +768,13 @@ def _plan_git(context: Context) -> Plan:
     install = {
         MACOS: [["brew", "install", "git"]],
         UBUNTU: [_apt("update"), _apt("install", "-y", "git")],
-        WINDOWS: [_winget("Git.Git", resilient=context.pdkboot)],
+        WINDOWS: [_winget("Git.Git", resilient=context.guided)],
     }[context.platform]
     configure = [
         [git_command(context), "config", "--global", "user.name", context.config.full_name],
         [git_command(context), "config", "--global", "user.email", context.config.email],
     ]
-    if context.pdkboot and context.platform == WINDOWS:
+    if context.guided and context.platform == WINDOWS:
         configure.append(
             [
                 git_command(context),
@@ -786,7 +786,7 @@ def _plan_git(context: Context) -> Plan:
         )
     # Only install if it is actually absent - a rerun repairing unset
     # identity should not reinstall git underneath a working one.
-    if _installed(context, "git") or (context.pdkboot and _git_is_available(context)):
+    if _installed(context, "git") or (context.guided and _git_is_available(context)):
         return Plan(commands=configure)
     return Plan(commands=[*install, *configure])
 
@@ -806,7 +806,7 @@ def _ssh_key_file_is_usable(context: Context, path: Path) -> bool:
 def _check_ssh_key(context: Context) -> CheckResult:
     private = _key_path(context)
     public = private.with_suffix(".pub")
-    if context.pdkboot:
+    if context.guided:
         private_ready = _ssh_key_file_is_usable(context, private)
         public_ready = _ssh_key_file_is_usable(context, public)
     else:
@@ -870,7 +870,7 @@ def _plan_ssh_key(context: Context) -> Plan:
             str(private),
         ],
     ]
-    if context.pdkboot and _ssh_key_file_is_usable(
+    if context.guided and _ssh_key_file_is_usable(
         context, private
     ) and not _ssh_key_file_is_usable(context, public):
         # Preserve the private key and derive its public half. `ssh-keygen -y`
@@ -888,14 +888,14 @@ def _plan_ssh_key(context: Context) -> Plan:
                 [sys.executable, "-c", script, str(private), str(public), context.config.email]
             ],
             instructions=[
-                "Your private key is intact. pdkboot will recreate only its missing public "
-                "half; it will not replace the private key."
+                "Your private key is intact. prodockit bootstrap will recreate only "
+                "its missing public half; it will not replace the private key."
             ],
             confirm="Recreate the public key from the existing private key?",
             needs_terminal=True,
             action="REPAIR",
         )
-    if context.pdkboot and (private.exists() or public.exists()):
+    if context.guided and (private.exists() or public.exists()):
         commands: list[list[str]] = []
         backups: list[Path] = []
         for path in (private, public):
@@ -924,7 +924,7 @@ def _plan_ssh_key(context: Context) -> Plan:
             "remember it; it protects the key if your machine is lost.",
         ],
         confirm="Ready to create the key?",
-        needs_terminal=context.pdkboot,
+        needs_terminal=context.guided,
     )
 
 
@@ -1162,7 +1162,7 @@ def _plan_ssh_agent(context: Context) -> Plan:
     A Unix shell agent cannot be started for the parent process:
     `eval "$(ssh-agent -s)"` exports `SSH_AUTH_SOCK` into *the shell that
     runs it*, and a subprocess cannot export anything into its parent.
-    Windows is different: its agent is a system service, so pdkboot can
+    Windows is different: its agent is a system service, so prodockit bootstrap can
     request elevation through UAC and continue once that service starts.
     """
     private = _key_path(context)
@@ -1170,7 +1170,7 @@ def _plan_ssh_agent(context: Context) -> Plan:
 
     if listed.returncode == _AGENT_NOT_RUNNING:
         if context.platform == WINDOWS:
-            if context.pdkboot:
+            if context.guided:
                 elevated = (
                     "$process = Start-Process powershell.exe -Verb RunAs -Wait "
                     "-PassThru -ArgumentList '-NoProfile -Command "
@@ -1197,7 +1197,7 @@ def _plan_ssh_agent(context: Context) -> Plan:
                     ),
                     action="configure",
                 )
-            next_command = "pdkboot" if context.pdkboot else "bootstrap"
+            next_command = "prodockit bootstrap" if context.guided else "bootstrap"
             return Plan(
                 instructions=[
                     "The ssh-agent service is not running. In a PowerShell window "
@@ -1213,8 +1213,8 @@ def _plan_ssh_agent(context: Context) -> Plan:
                 # re-check something that cannot have changed (#397).
                 needs_a_new_run=True,
             )
-        next_command = "pdkboot" if context.pdkboot else "bootstrap"
-        tool_name = "pdkboot" if context.pdkboot else "bootstrap"
+        next_command = "prodockit bootstrap" if context.guided else "bootstrap"
+        tool_name = "prodockit bootstrap" if context.guided else "bootstrap"
         return Plan(
             instructions=[
                 f"No ssh agent is running. Start one in this terminal - {tool_name} "
@@ -1347,7 +1347,7 @@ def _check_ssh_authenticates(context: Context) -> CheckResult:
     string is the only reliable signal, which is why every `Host` carries
     its own.
     """
-    if context.pdkboot:
+    if context.guided:
         key = _check_ssh_key(context)
         if key.needs_work:
             return _blocked("the SSH keypair is not ready yet")
@@ -1553,7 +1553,7 @@ def _check_clone(context: Context) -> CheckResult:
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
         if (
-            context.pdkboot
+            context.guided
             and not context.config.source_url.strip()
             and project_on_host(context) is None
         ):
@@ -1562,7 +1562,7 @@ def _check_clone(context: Context) -> CheckResult:
                 "to the host is ready"
             )
         return _missing(f"{project} does not exist")
-    backups = _template_history_backups(project) if context.pdkboot else []
+    backups = _template_history_backups(project) if context.guided else []
     if not (project / ".git").exists():
         if backups:
             return _wrong(
@@ -1570,9 +1570,9 @@ def _check_clone(context: Context) -> CheckResult:
                 "initialised - the interrupted operation can be resumed"
             )
         return _wrong(f"{project} exists but is not a git repository")
-    if context.pdkboot and not _repository_has_a_commit(context, project):
+    if context.guided and not _repository_has_a_commit(context, project):
         # A deliberately fresh repository has no commit until stage 22. The
-        # adjacent archive proves pdkboot created this state; without it, an
+        # adjacent archive proves prodockit bootstrap created this state; without it, an
         # invalid HEAD is evidence of an interrupted clone.
         if backups:
             return _ok(f"{project} - your own project")
@@ -1607,7 +1607,7 @@ def _plan_clone(context: Context) -> Plan:
     """
     project = context.config.resolved_project_dir(context.home)
     if (
-        context.pdkboot
+        context.guided
         and project.exists()
         and not (project / ".git").exists()
         and _template_history_backups(project)
@@ -1621,7 +1621,7 @@ def _plan_clone(context: Context) -> Plan:
             describe="Resume creating your repository after its template history was archived",
             action="REPAIR",
         )
-    if context.pdkboot and project.exists() and (
+    if context.guided and project.exists() and (
         not (project / ".git").exists() or not _repository_has_a_commit(context, project)
     ):
         backup = _numbered_backup(project, "pdk-incomplete-clone-backup")
@@ -1945,7 +1945,7 @@ def _plan_fresh_history(context: Context) -> Plan:
             action="configure",
         )
     git_dir = project / ".git"
-    if not context.pdkboot:
+    if not context.guided:
         remove = (
             [
                 "powershell",
@@ -2045,7 +2045,7 @@ def _check_own_project(context: Context) -> CheckResult:
     # template - a fact about their machine that creating a repository
     # cannot change (prodockit-extensions#336).
     url = context.host.remote_url(context.config.namespace, context.config.project_name)
-    if context.pdkboot and _check_ssh_authenticates(context).needs_work:
+    if context.guided and _check_ssh_authenticates(context).needs_work:
         return _blocked(
             "SSH access to the host is not ready yet - complete the 'SSH key on the "
             "host' stage first"
@@ -2112,10 +2112,10 @@ def _plan_own_project(context: Context) -> Plan:
             f"{context.config.namespace!r}.",
             host.project_visibility,
             (
-                "Untick every 'initialize with' option - pdkboot will add the selected "
+                "Untick every 'initialize with' option - prodockit bootstrap will add the selected "
                 "project contents after this, and an initialised remote would conflict "
                 "with them."
-                if context.pdkboot
+                if context.guided
                 else "Untick every 'initialize with' option - the clone you already "
                 "have provides the contents, and an initialised remote would conflict "
                 "with it."
@@ -2149,7 +2149,7 @@ def _check_remote(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not (project / ".git").exists():
-        absent = _blocked if context.pdkboot else _missing
+        absent = _blocked if context.guided else _missing
         return absent("no clone to repoint yet")
     wanted = context.host.remote_url(context.config.namespace, context.config.project_name)
     result = context.runner.run(
@@ -2276,7 +2276,7 @@ def _check_project_identity(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not context.exists(project / ".git"):
-        absent = _blocked if context.pdkboot else _missing
+        absent = _blocked if context.guided else _missing
         return absent("no clone to set an identity in yet")
 
     unset: list[str] = []
@@ -2431,13 +2431,13 @@ def _windows_font_install_command() -> list[str]:
     Download the publishers' versioned archives instead, verify the exact
     bytes before extracting them, and use Windows' documented per-user font
     location and registry key. Per-user installation avoids UAC and is the
-    same scope pdkboot's font check reads.
+    same scope prodockit bootstrap's font check reads.
     """
     script = (
         "$ErrorActionPreference = 'Stop'; "
         "$ProgressPreference = 'SilentlyContinue'; "
         "$work = Join-Path ([IO.Path]::GetTempPath()) "
-        "('pdkboot-fonts-' + [guid]::NewGuid()); "
+        "('prodockit-bootstrap-fonts-' + [guid]::NewGuid()); "
         "$fontDir = Join-Path $env:LOCALAPPDATA 'Microsoft\\Windows\\Fonts'; "
         "$fontKey = 'HKCU:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts'; "
         "New-Item -ItemType Directory -Force -Path $work,$fontDir | Out-Null; "
@@ -2509,7 +2509,7 @@ def _plan_pandoc(context: Context) -> Plan:
                 f'curl -fsSL -o /tmp/pandoc.deb "{deb_url}" && {APT_SH} install -y /tmp/pandoc.deb',
             ]
         ]
-        if context.pdkboot:
+        if context.guided:
             download_and_install = [
                 ["bash", "-c", f'curl -fsSL -o /tmp/pandoc.deb "{deb_url}"'],
                 _apt("install", "-y", "/tmp/pandoc.deb"),
@@ -2537,14 +2537,14 @@ def _plan_pandoc(context: Context) -> Plan:
     # where it likes, and Pango must match the Python process that loads
     # it. Windows on ARM may run x64 tools under emulation, so neither a
     # PowerShell process nor the host architecture reliably answers that
-    # question. pdkboot asks its own Python interpreter (#393).
+    # question. prodockit bootstrap asks its own Python interpreter (#393).
     pandoc_upgrade = False
     pandoc_install: list[str] | None = _winget(
         "JohnMacFarlane.Pandoc",
         PANDOC_VERSION,
-        resilient=context.pdkboot,
+        resilient=context.guided,
     )
-    if context.pdkboot:
+    if context.guided:
         installed = context.runner.run([pandoc_command(context), "--version"])
         installed_version = _pandoc_version(installed.stdout) if installed.ok else None
         installed_major = installed_version.split(".")[0] if installed_version else ""
@@ -2559,10 +2559,10 @@ def _plan_pandoc(context: Context) -> Plan:
             # repair command from ever being reached.
             pandoc_install = None
 
-    environments = _PDKBOOT_MSYS2_ENVIRONMENTS if context.pdkboot else _MSYS2_ENVIRONMENTS
+    environments = _BOOTSTRAP_MSYS2_ENVIRONMENTS if context.guided else _MSYS2_ENVIRONMENTS
     arm, other = environments["arm64"], environments["other"]
     roots = ", ".join(f'"{root}"' for root in _MSYS2_ROOTS)
-    if context.pdkboot:
+    if context.guided:
         selected = arm if _windows_python_is_arm64(context) else other
         select_environment = f"$msysEnv = '{selected[0]}'; $pkg = '{selected[1]}'; "
     else:
@@ -2604,11 +2604,11 @@ def _plan_pandoc(context: Context) -> Plan:
     )
     commands = [
         *([pandoc_install] if pandoc_install is not None else []),
-        _winget("MSYS2.MSYS2", resilient=context.pdkboot),
+        _winget("MSYS2.MSYS2", resilient=context.guided),
         ["powershell", "-NoProfile", "-Command", pango],
         ["powershell", "-NoProfile", "-Command", path_entry],
     ]
-    if context.pdkboot:
+    if context.guided:
         commands.append(_windows_font_install_command())
     return Plan(
         commands=commands,
@@ -2624,10 +2624,10 @@ def _plan_pandoc(context: Context) -> Plan:
         # it, so the automated half is not held up behind a manual one.
         follow_up=(
             []
-            if context.pdkboot
+            if context.guided
             else [
                 "After setup finishes, open a new PowerShell before running build "
-                "commands yourself. pdkboot has refreshed its own PATH for this run, "
+                "commands yourself. prodockit bootstrap has refreshed its own PATH for this run, "
                 "so do not close this window now.",
                 "Install the fonts the PDF uses, which Windows has no package "
                 "manager for: download the desktop (.ttf/.otf) files for Inter and "
@@ -2635,7 +2635,7 @@ def _plan_pandoc(context: Context) -> Plan:
                 "and choose 'Install'.",
             ]
         ),
-        confirm=("" if context.pdkboot else "Have you installed the fonts?"),
+        confirm=("" if context.guided else "Have you installed the fonts?"),
     )
 
 
@@ -2692,7 +2692,7 @@ def _project_venv_is_structurally_complete(context: Context) -> bool:
     return context.runner.run([str(python), "-m", "pip", "--version"]).ok
 
 
-_MACOS_DYLD_MARKER = "# Added by pdkboot for WeasyPrint"
+_MACOS_DYLD_MARKER = "# Added by prodockit bootstrap for WeasyPrint"
 
 
 def _homebrew_library_path(context: Context) -> str:
@@ -2722,7 +2722,7 @@ def _macos_loader_is_configured(context: Context) -> bool:
 def _imports_from_project_venv(context: Context, module: str) -> CommandResult:
     """Runs `import <module>` using the *project's* interpreter."""
     command = [str(_venv_python(context)), "-c", f"import {module}"]
-    if context.pdkboot and context.platform == MACOS:
+    if context.guided and context.platform == MACOS:
         command = [
             "env",
             f"DYLD_FALLBACK_LIBRARY_PATH={_homebrew_library_path(context)}",
@@ -2778,13 +2778,13 @@ def _check_project_env(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
-        project_absent = _blocked if context.pdkboot else _missing
+        project_absent = _blocked if context.guided else _missing
         return project_absent("no project directory yet")
     if not _venv_python(context).exists():
         return _missing(f"no virtual environment at {_project_venv(context)}")
     if not (project / "requirements.txt").exists():
         return _wrong("the project has no requirements.txt to install")
-    if context.pdkboot and not _project_venv_is_structurally_complete(context):
+    if context.guided and not _project_venv_is_structurally_complete(context):
         return _wrong(
             f"the virtual environment at {_project_venv(context)} is incomplete - "
             "it will be archived and rebuilt"
@@ -2805,7 +2805,7 @@ def _check_project_env(context: Context) -> CheckResult:
             "WeasyPrint is installed but cannot load its graphics libraries - "
             f"the pandoc stage installs {library_source}"
         )
-    if context.pdkboot and context.platform == MACOS and not _macos_loader_is_configured(context):
+    if context.guided and context.platform == MACOS and not _macos_loader_is_configured(context):
         return _wrong(
             "WeasyPrint works in this run, but the project environment does not yet "
             "preserve Homebrew's library path for future shells"
@@ -2905,13 +2905,13 @@ def _venv_recipe(context: Context, interpreter: str = "") -> list[str]:
     """
     if context.platform == WINDOWS:
         home = r"%USERPROFILE%"
-        command = "pdkboot" if context.pdkboot else "pdk bootstrap"
+        command = "prodockit bootstrap" if context.guided else "pdk bootstrap"
         return [
             rf"{interpreter or 'py'} -m venv {home}\.venvs\prodockit",
             rf"{home}\.venvs\prodockit\Scripts\pip install prodockit",
             rf"{home}\.venvs\prodockit\Scripts\{command}",
         ]
-    command = "pdkboot" if context.pdkboot else "pdk bootstrap"
+    command = "prodockit bootstrap" if context.guided else "pdk bootstrap"
     return [
         f"{interpreter or 'python3'} -m venv ~/.venvs/prodockit",
         "~/.venvs/prodockit/bin/pip install prodockit",
@@ -2930,7 +2930,7 @@ def _plan_own_venv(context: Context) -> Plan:
     installers = {
         UBUNTU: _apt("install", "-y", "python3-venv"),
         MACOS: ["brew", "install", "python@3.14"],
-        WINDOWS: _winget("Python.Python.3.14", resilient=context.pdkboot),
+        WINDOWS: _winget("Python.Python.3.14", resilient=context.guided),
     }
     missing_machinery = not _can_build_environments(context)
     return Plan(
@@ -2976,7 +2976,7 @@ def _plan_project_env(context: Context) -> Plan:
     python = _venv_python(context)
     commands: list[list[str]] = []
     rebuild = (
-        context.pdkboot and venv.exists() and not _project_venv_is_structurally_complete(context)
+        context.guided and venv.exists() and not _project_venv_is_structurally_complete(context)
     )
     if rebuild:
         backup = venv.parent / ".venv.pdk-incomplete-backup"
@@ -2988,7 +2988,7 @@ def _plan_project_env(context: Context) -> Plan:
     if not python.exists() or rebuild:
         commands.append([sys.executable, "-m", "venv", str(venv)])
     commands.append([str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")])
-    if context.pdkboot and context.platform == MACOS:
+    if context.guided and context.platform == MACOS:
         activate = venv / "bin" / "activate"
         library = _homebrew_library_path(context)
         script = (
@@ -3011,7 +3011,7 @@ def _plan_project_env(context: Context) -> Plan:
             "    index += 1\n"
             "updated = ('\\n'.join(updated_lines).rstrip() + '\\n\\n' + marker + "
             "'\\n' + line + '\\n')\n"
-            "temporary = path.with_name(path.name + '.pdkboot.tmp')\n"
+            "temporary = path.with_name(path.name + '.bootstrap.tmp')\n"
             "temporary.write_text(updated, encoding='utf-8')\n"
             "temporary.chmod(path.stat().st_mode)\n"
             "temporary.replace(path)\n"
@@ -3061,7 +3061,7 @@ def _check_node(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "project_name")) is not None:
         return unknown
     project = context.config.resolved_project_dir(context.home)
-    if context.pdkboot and not project.exists():
+    if context.guided and not project.exists():
         # This stage installs system Node *and* the render toolchains held
         # inside the clone. Running its combined plan before the clone exists
         # installs half the stage and then sends npm into a nonexistent path
@@ -3087,7 +3087,7 @@ def _check_node(context: Context) -> CheckResult:
     # `ok` on a machine that had node and nothing else - so a reader who
     # had installed Node themselves was told this stage was done, got no
     # toolchains, and found out at the first diagram (#224).
-    if project.exists() and context.pdkboot:
+    if project.exists() and context.guided:
         mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin"
         mermaid_cli = mermaid / ("mmdc.cmd" if context.platform == WINDOWS else "mmdc")
         mathjax_bundle = project.joinpath(*mathjax.SOURCE)
@@ -3168,7 +3168,7 @@ def _plan_node(context: Context) -> Plan:
         ["bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"],
         _apt("install", "-y", "nodejs"),
     ]
-    if context.pdkboot:
+    if context.guided:
         ubuntu_node_install = [
             _apt("install", "-y", "curl"),
             [
@@ -3184,12 +3184,12 @@ def _plan_node(context: Context) -> Plan:
     install = {
         MACOS: [["brew", "install", "node"]],
         UBUNTU: ubuntu_node_install,
-        WINDOWS: [_winget("OpenJS.NodeJS.LTS", resilient=context.pdkboot)],
+        WINDOWS: [_winget("OpenJS.NodeJS.LTS", resilient=context.guided)],
     }[context.platform]
 
     upgrade = False
     repair = False
-    if context.pdkboot:
+    if context.guided:
         major, npm_ok = _node_runtime_state(context)
         if major is not None and major >= NODE_MAJOR and npm_ok:
             install = []
@@ -3437,7 +3437,7 @@ def _check_vscode_settings(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
-        project_absent = _blocked if context.pdkboot else _missing
+        project_absent = _blocked if context.guided else _missing
         return project_absent("no project directory yet")
     path = _settings_path(context)
     try:
@@ -3447,13 +3447,13 @@ def _check_vscode_settings(context: Context) -> CheckResult:
     except OSError:
         return (
             _wrong(f"{path} cannot be read")
-            if context.pdkboot
+            if context.guided
             else _missing(f"{path} is not there yet")
         )
     except ValueError:
         return (
             _wrong(f"{path} is not valid JSON")
-            if context.pdkboot
+            if context.guided
             else _missing(f"{path} is not there yet")
         )
     if not isinstance(current, dict):
@@ -3475,7 +3475,7 @@ def _check_vscode_settings(context: Context) -> CheckResult:
 
 def _plan_vscode_settings(context: Context) -> Plan:
     path = _settings_path(context)
-    if context.pdkboot and path.exists():
+    if context.guided and path.exists():
         try:
             current = json.loads(path.read_text(encoding="utf-8") or "{}")
         except (OSError, ValueError):
@@ -3506,7 +3506,7 @@ def _plan_vscode_settings(context: Context) -> Plan:
             [
                 sys.executable,
                 "-c",
-                _MERGE_SETTINGS if context.pdkboot else _LEGACY_MERGE_SETTINGS,
+                _MERGE_SETTINGS if context.guided else _LEGACY_MERGE_SETTINGS,
                 str(_settings_path(context)),
                 json.dumps(_wanted_settings(context)),
             ]
@@ -3556,7 +3556,7 @@ def _check_csl_style(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
-        project_absent = _blocked if context.pdkboot else _missing
+        project_absent = _blocked if context.guided else _missing
         return project_absent("no project directory yet")
     style = _configured_csl_style(context)
     path = project / style
@@ -3632,7 +3632,7 @@ def _check_mathjax(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
-        project_absent = _blocked if context.pdkboot else _missing
+        project_absent = _blocked if context.guided else _missing
         return project_absent("no project to install it into yet")
     if not (project / "docs").is_dir():
         return _missing("no project to install it into yet")
@@ -3646,7 +3646,7 @@ def _check_mathjax(context: Context) -> CheckResult:
     ]
     if absent:
         return _missing(f"{' and '.join(absent)} for the website is not installed")
-    if context.pdkboot:
+    if context.guided:
         try:
             bundle_bytes = bundle.read_bytes()
             license_bytes = license_path.read_bytes()
@@ -3751,7 +3751,7 @@ def _http_probe(context: Context, url: str) -> tuple[int | None, str]:
     answer = context.fetch(url)
     if answer is not None:
         return int(answer.status), ""
-    if not context.pdkboot:
+    if not context.guided:
         return None, ""
     # Python's TLS trust can differ from the operating system's on macOS.
     # curl uses the system trust store, so it is a useful second opinion.
@@ -3818,7 +3818,7 @@ def _check_site_published(context: Context) -> CheckResult:
     as waiting rather than as a fault.
 
     Fetched anonymously on purpose. A direct 200 proves this exact site;
-    a shared authentication response does not, so pdkboot asks the reader
+    a shared authentication response does not, so prodockit bootstrap asks the reader
     to confirm that address in their signed-in browser instead.
     """
     if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
@@ -3858,9 +3858,9 @@ def _check_site_published(context: Context) -> CheckResult:
             detail = f"could not verify {url} because {probe_problem}"
         else:
             detail = f"could not check {url} from here - the probe did not run"
-        if context.pdkboot and context.config.confirmed_site_url == url:
+        if context.guided and context.config.confirmed_site_url == url:
             return _ok(f"published at {url} - confirmed in your browser")
-        if context.pdkboot:
+        if context.guided:
             return CheckResult(
                 Status.MISSING,
                 f"{detail}; confirm it in your browser",
@@ -3873,13 +3873,13 @@ def _check_site_published(context: Context) -> CheckResult:
         # site and for a path that has never existed, so treating it as proof
         # produced a false `All 23 stages are set up` after a failed pipeline
         # (#611). The browser remains the only project-specific check there.
-        if context.pdkboot and context.config.confirmed_site_url == url:
+        if context.guided and context.config.confirmed_site_url == url:
             return _ok(f"published at {url} - confirmed in your browser")
         detail = (
             f"could not verify {url} because {context.host.hostname}'s login response "
             "does not prove that this specific site exists"
         )
-        if context.pdkboot:
+        if context.guided:
             return CheckResult(
                 Status.MISSING,
                 f"{detail}; confirm the exact address in your browser",
@@ -4152,7 +4152,7 @@ def _plan_first_push(context: Context) -> Plan:
                     "These are the exact uncommitted changes that `git add -A` "
                     "will include:\n" + "\n".join(f"  {line}" for line in pending)
                 ]
-                if context.pdkboot and pending
+                if context.guided and pending
                 else []
             ),
             *(
@@ -4318,7 +4318,7 @@ def _check_clone_source(context: Context) -> CheckResult:
             context.config.namespace.strip(), context.config.project_name.strip()
         )
         if project_on_host(context) is None:
-            if context.pdkboot:
+            if context.guided:
                 return _blocked(
                     f"could not yet ask {context.host.hostname} about {probed} - "
                     "this stage will be rechecked after SSH is ready"
@@ -4331,11 +4331,11 @@ def _check_clone_source(context: Context) -> CheckResult:
         # repository the key cannot see with the words they use for one
         # that does not exist - github.com says `Repository not found.`
         # either way - so absence is not something this can report.
-        if context.pdkboot and project_on_host(context):
+        if context.guided and project_on_host(context):
             return _ok(f"{probed} exists and is empty - the template will be cloned")
         return _ok(f"nothing visible at {probed} - the template will be cloned")
     name = f"{context.config.namespace.strip()}/{context.config.project_name.strip()}"
-    if context.pdkboot:
+    if context.guided:
         # The standalone preview deliberately exposes only the proven-safe
         # path for now. Keep the decision in this run's config object so the
         # clone plan remains a pure reader and `--dry-run` does not make a
@@ -4344,7 +4344,7 @@ def _check_clone_source(context: Context) -> CheckResult:
         context.config.source_url = name
         context.config.history = "keep"
         return _ok(
-            f"Option 1 selected automatically: {name} has work on the host, so pdkboot "
+            f"Option 1 selected automatically: {name} has work on the host, so prodockit bootstrap "
             "will clone the full repository and keep its existing commit history and origin"
         )
     return _missing(f"{name} has work on the host - choose what to do with it")
@@ -4400,6 +4400,14 @@ STAGES: tuple[Stage, ...] = (
     # the host's challenge unless an agent is holding it (#246).
     Stage("ssh-agent", "Key loaded into the ssh agent", _check_ssh_agent, _plan_ssh_agent),
     Stage("ssh-upload", "SSH key on the host", _check_ssh_authenticates, _plan_ssh_upload),
+    # Establish the destination before deciding where its contents come
+    # from. A newly created empty repository can then continue from the
+    # template in the same run (prodockit-extensions#591).
+    Stage("own-project", "Your own project on the host", _check_own_project, _plan_own_project),
+    # Straight after creating the project, while the reader is still in
+    # the browser - it was missed twice as a trailing item on the project
+    # stage's list (#341).
+    Stage("pages", "Pages switched on", _check_pages, _plan_pages),
     # Between the SSH stages and the clone: the first point at which the
     # host can be reached, and the last at which the answer still
     # matters (#348).
@@ -4413,11 +4421,6 @@ STAGES: tuple[Stage, ...] = (
     # Before the remote is set: resetting deletes .git, remotes and all,
     # so doing it afterwards would throw away the repoint (#248).
     Stage("fresh-history", "A history of your own", _check_fresh_history, _plan_fresh_history),
-    Stage("own-project", "Your own project on the host", _check_own_project, _plan_own_project),
-    # Straight after creating the project, while the reader is still in
-    # the browser - it was missed twice as a trailing item on stage 9's
-    # list (#341).
-    Stage("pages", "Pages switched on", _check_pages, _plan_pages),
     Stage("remote", "Clone pointed at your project", _check_remote, _plan_remote),
     Stage(
         "identity",

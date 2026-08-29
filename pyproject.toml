@@ -113,10 +113,6 @@ prodockit = "prodockit.cli:main"
 # written against `prodockit` keep working, and click takes the program
 # name from argv, so the help text says whichever one was typed.
 pdk = "prodockit.cli:main"
-# Standalone proving ground for the phased bootstrap replacement. It is a
-# separate Click command and behaviour profile, so existing bootstrap users
-# remain on the established implementation until migration is deliberate.
-pdkboot = "prodockit.pdkboot:main"
 
 [project.optional-dependencies]
 dev = [

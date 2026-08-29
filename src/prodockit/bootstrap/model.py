@@ -659,8 +659,8 @@ def _no_prompt_env(git_ssh_executable: str | None = None) -> dict[str, str]:
     who has configured their own ssh wrapper has a reason, and silently
     replacing it would break a working setup to fix a hypothetical one.
 
-    The exception is pdkboot on Windows, represented here by an explicit
-    `git_ssh_executable`. pdkboot checks and configures Git to use Windows'
+    The exception is prodockit bootstrap on Windows, represented here by an explicit
+    `git_ssh_executable`. prodockit bootstrap checks and configures Git to use Windows'
     built-in OpenSSH because that is the client connected to the built-in
     ssh-agent service. An inherited `GIT_SSH_COMMAND` has higher precedence
     than Git's `core.sshCommand`; preserving it made `ssh -T` authenticate
@@ -1022,12 +1022,12 @@ class Plan:
     #: pressing Enter through them. Each entry is one option, in order;
     #: the answer is its 1-based number (prodockit-extensions#348).
     choices: tuple[str, ...] = ()
-    #: The user-facing kind of work this plan performs. ``pdkboot`` uses
+    #: The user-facing kind of work this plan performs. ``prodockit bootstrap`` uses
     #: this when the distinction cannot be inferred safely from the stage:
     #: repairing an installed runtime and upgrading an old one can both
     #: contain the same package-manager command shape as a fresh install.
-    #: Legacy bootstrap does not render it. Kept last to preserve positional
-    #: construction compatibility for callers of this public model.
+    #: Kept last to preserve positional construction compatibility for callers
+    #: of this public model.
     action: str = ""
 
     @property
@@ -1075,10 +1075,9 @@ class Context:
     #: costs, and not before (prodockit-extensions#304). Typed loosely to
     #: keep `model` free of a dependency on the module that wraps it.
     contacts: Any = None
-    #: Whether this run came from the standalone, phased ``pdkboot``
-    #: command. The legacy ``prodockit bootstrap``/``pdk boot`` path keeps
-    #: this false until the replacement is ready for existing users.
-    pdkboot: bool = False
+    #: Whether this context uses the guided, phased bootstrap presentation.
+    #: Kept as an internal compatibility seam for callers of the stage model.
+    guided: bool = False
 
 
 @dataclass(frozen=True)

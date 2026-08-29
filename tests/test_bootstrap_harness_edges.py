@@ -11,12 +11,11 @@ import sys
 import types
 import urllib.error
 from dataclasses import replace
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-import prodockit.bootstrap.config as config_module
 import prodockit.bootstrap.fetch as fetch_module
 import prodockit.bootstrap.model as model_module
 from prodockit.bootstrap import (
@@ -64,34 +63,6 @@ def test_forget_contacts_is_a_no_op_without_a_counter() -> None:
 
 def test_empty_command_does_not_contact_the_host() -> None:
     assert contacts_host([]) is False
-
-
-@pytest.mark.parametrize(
-    ("os_name", "environment", "suffix"),
-    [
-        ("posix", {"XDG_CONFIG_HOME": "/tmp/xdg"}, "/tmp/xdg/prodockit/bootstrap.toml"),
-        ("posix", {}, "/home/ada/.config/prodockit/bootstrap.toml"),
-        ("nt", {"APPDATA": "/tmp/roaming"}, "/tmp/roaming/prodockit/bootstrap.toml"),
-        ("nt", {}, "/home/ada/AppData/Roaming/prodockit/bootstrap.toml"),
-    ],
-)
-def test_legacy_config_path_covers_platform_defaults_and_environment_overrides(
-    monkeypatch: pytest.MonkeyPatch,
-    os_name: str,
-    environment: dict[str, str],
-    suffix: str,
-) -> None:
-    monkeypatch.setattr(config_module.os, "name", os_name)
-    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-    monkeypatch.delenv("APPDATA", raising=False)
-    for key, value in environment.items():
-        monkeypatch.setenv(key, value)
-    path_class = PureWindowsPath if os_name == "nt" else PurePosixPath
-    monkeypatch.setattr(config_module, "Path", path_class)
-
-    path = config_module.user_config_path(path_class("/home/ada"))
-
-    assert str(path).replace("\\", "/") == suffix
 
 
 def test_load_wraps_a_filesystem_read_error(
@@ -233,6 +204,65 @@ def test_subprocess_runner_normalises_none_output(monkeypatch: pytest.MonkeyPatc
     assert SubprocessRunner().run(["tool"]) == CommandResult(0, stdout="", stderr="")
 
 
+def test_windows_bootstrap_runner_uses_system_ssh_for_git(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, object] = {}
+
+    def run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(["git"], 0, stdout="", stderr="")
+
+    monkeypatch.setattr(model_module.subprocess, "run", run)
+    monkeypatch.delenv("GIT_SSH_COMMAND", raising=False)
+
+    SubprocessRunner(git_ssh_executable="C:/Windows/System32/OpenSSH/ssh.exe").run(
+        ["git", "ls-remote", "origin"]
+    )
+
+    environment = seen["env"]
+    assert isinstance(environment, dict)
+    assert environment["GIT_SSH_COMMAND"] == (
+        "C:/Windows/System32/OpenSSH/ssh.exe -o BatchMode=yes -o ConnectTimeout=10"
+    )
+
+
+def test_bootstrap_windows_replaces_an_ssh_override_that_bypasses_its_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, object] = {}
+
+    def run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(["git"], 0, stdout="", stderr="")
+
+    monkeypatch.setattr(model_module.subprocess, "run", run)
+    monkeypatch.setenv("GIT_SSH_COMMAND", "my-ssh-wrapper")
+
+    SubprocessRunner(git_ssh_executable="C:/Windows/System32/OpenSSH/ssh.exe").run(
+        ["git", "ls-remote", "origin"]
+    )
+
+    environment = seen["env"]
+    assert isinstance(environment, dict)
+    assert environment["GIT_SSH_COMMAND"] == (
+        "C:/Windows/System32/OpenSSH/ssh.exe -o BatchMode=yes -o ConnectTimeout=10"
+    )
+
+
+def test_a_missing_working_directory_is_not_reported_as_a_missing_command(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "project-that-was-not-cloned"
+
+    result = SubprocessRunner().run(["git", "status"], cwd=str(missing))
+
+    assert result.returncode == 127
+    assert str(missing) in result.stderr
+    assert "working directory does not exist" in result.stderr
+    assert "git: not found" not in result.stderr
+
+
 @pytest.mark.parametrize(("returncode", "expected"), [(0, True), (1, False)])
 def test_sudo_authentication_returns_the_process_outcome(
     monkeypatch: pytest.MonkeyPatch, returncode: int, expected: bool
@@ -311,7 +341,7 @@ def test_default_socket_connector_is_exercised_and_closed(
     assert closed == [True]
 
 
-def _fake_winreg(values: dict[str, str | OSError]):
+def _fake_winreg(values: dict[str, str | OSError | dict[str, str | OSError]]):
     class Key:
         def __init__(self, subkey: str) -> None:
             self.subkey = subkey
@@ -327,6 +357,8 @@ def _fake_winreg(values: dict[str, str | OSError]):
 
     def query(key, name):  # type: ignore[no-untyped-def]
         value = values[key.subkey]
+        if isinstance(value, dict):
+            value = value.get(name, OSError("missing"))
         if isinstance(value, OSError):
             raise value
         return value, 1
@@ -345,7 +377,7 @@ def test_windows_path_refresh_returns_none_when_registry_has_no_path(
     fake = _fake_winreg(
         {
             r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment": OSError("missing"),
-            "Environment": "",
+            "Environment": {"Path": ""},
         }
     )
     monkeypatch.setattr(sys, "platform", "win32")
@@ -364,7 +396,10 @@ def test_windows_path_refresh_merges_machine_and_user_values(
     fake = _fake_winreg(
         {
             r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment": r"C:\Tools",
-            "Environment": r"C:\Users\Ada\bin",
+            "Environment": {
+                "Path": r"C:\Users\Ada\bin",
+                "WEASYPRINT_DLL_DIRECTORIES": r"C:\msys64\ucrt64\bin",
+            },
         }
     )
     monkeypatch.setattr(sys, "platform", "win32")
@@ -374,6 +409,7 @@ def test_windows_path_refresh_merges_machine_and_user_values(
 
     assert merged == r"C:\Tools:C:\Users\Ada\bin"
     assert model_module.os.environ["PATH"] == merged
+    assert model_module.os.environ["WEASYPRINT_DLL_DIRECTORIES"] == r"C:\msys64\ucrt64\bin"
 
 
 def test_invalid_surrey_stage_choice_is_rejected() -> None:
