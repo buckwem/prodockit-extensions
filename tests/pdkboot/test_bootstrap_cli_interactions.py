@@ -170,7 +170,24 @@ def test_unverifiable_manual_step_is_taken_on_trust(tmp_path: Path) -> None:
 
 
 def test_browser_confirmed_site_is_remembered_for_the_next_check(tmp_path: Path) -> None:
-    context = _context(tmp_path)
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    responses = {
+        "remote get-url origin": CommandResult(
+            0, "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git\n"
+        ),
+        "status --porcelain": CommandResult(0, ""),
+        "ls-remote origin HEAD": CommandResult(0, "abc123\tHEAD\n"),
+        "rev-parse HEAD": CommandResult(0, "abc123\n"),
+    }
+    context = build_context(
+        _config(),
+        runner=CliFakeRunner(responses),
+        platform=MACOS,
+        home=tmp_path,
+        fetch=unreachable,
+        pdkboot=True,
+    )
     stage = next(stage for stage in STAGES if stage.id == "site")
     config_path = tmp_path / ".pdkboot.toml"
 
@@ -192,7 +209,7 @@ def test_browser_confirmed_site_is_remembered_for_the_next_check(tmp_path: Path)
     checked_again = stage.check(
         build_context(
             saved,
-            runner=CliFakeRunner(),
+            runner=CliFakeRunner(responses),
             platform=MACOS,
             home=tmp_path,
             fetch=unreachable,

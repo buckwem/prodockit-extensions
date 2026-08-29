@@ -6617,26 +6617,56 @@ def test_being_unable_to_see_a_repository_is_not_permission_to_make_one(
     assert any("do not create another" in s for s in steps)
 
 
-def test_a_site_behind_a_login_is_published(tmp_path: Path) -> None:
-    """A university instance publishes behind its own sign-in (#392).
-
-    An anonymous probe is sent to a login page rather than refused, and
-    "is not answering yet" of a site that is plainly up would leave every
-    Surrey run one stage short of finished, for ever.
-    """
+@pytest.mark.parametrize("platform", [MACOS, WINDOWS, UBUNTU])
+@pytest.mark.parametrize("code", [401, 403, 302])
+def test_a_login_response_requires_project_specific_confirmation(
+    tmp_path: Path, platform: str, code: int
+) -> None:
+    """A shared login response is not proof that this path exists (#611)."""
     stage = next(s for s in STAGES if s.id == "site")
-    for code in ("401", "403", "302"):
-        result = stage.check(_context(tmp_path, fetch=_answers(int(code))))
+    result = stage.check(
+        _context(
+            tmp_path,
+            platform=platform,
+            runner=FakeRunner(_ready_machine(tmp_path)),
+            fetch=_answers(code),
+        )
+    )
 
-        assert result.status is Status.OK, code
-        assert "pages.surrey.ac.uk" in result.detail
-        assert "login" in result.detail, "and says who can read it"
+    assert result.status is Status.MISSING
+    assert "does not prove that this specific site exists" in result.detail
 
-    # 404 is the server answering, and answering "no such page" - which
-    # is a finding, unlike a probe that never ran. Said through `fetch`:
-    # the runner key this used to set has not been read since #449, so
-    # the assertion was passing on an unreachable host instead (#476).
-    assert stage.check(_context(tmp_path, fetch=_answers(404))).needs_work
+def test_a_missing_site_remains_a_finding(tmp_path: Path) -> None:
+    """A 404 is an answer, and its answer is that this path is absent."""
+    result = next(s for s in STAGES if s.id == "site").check(
+        _context(
+            tmp_path,
+            runner=FakeRunner(_ready_machine(tmp_path)),
+            fetch=_answers(404),
+        )
+    )
+
+    assert result.status is Status.MISSING
+
+
+@pytest.mark.parametrize("platform", [MACOS, WINDOWS, UBUNTU])
+def test_site_check_waits_for_first_push_before_probing(
+    tmp_path: Path, platform: str
+) -> None:
+    """A nonexistent repository must not inherit the host login's 302 (#611)."""
+    probed: list[str] = []
+
+    def unexpected_probe(url: str, timeout: float = 20.0):
+        probed.append(url)
+        return _answers(302)(url, timeout)
+
+    result = next(s for s in STAGES if s.id == "site").check(
+        _context(tmp_path, platform=platform, fetch=unexpected_probe)
+    )
+
+    assert result.status is Status.BLOCKED
+    assert "First commit pushed" in result.detail
+    assert not probed
 
 
 def test_a_private_repository_is_shown_the_steps_and_taken_on_trust(
@@ -6722,7 +6752,12 @@ def test_a_site_that_answers_is_finished(tmp_path: Path) -> None:
     """The published site is the whole test now - no token, no tool, and
     it works for a private repository because the site is public."""
     result = next(s for s in STAGES if s.id == "site").check(
-        _context(tmp_path, host="github.com", fetch=_answers(200))
+        _context(
+            tmp_path,
+            host="github.com",
+            runner=FakeRunner(_ready_machine(tmp_path)),
+            fetch=_answers(200),
+        )
     )
 
     assert result.status is Status.OK

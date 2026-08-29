@@ -52,6 +52,25 @@ def _context(
     )
 
 
+def _pushed_context(
+    tmp_path: Path,
+    *,
+    runner: CliFakeRunner | None = None,
+    platform: str = MACOS,
+):
+    """A context whose own commit has already reached its remote."""
+    (tmp_path / "report" / ".git").mkdir(parents=True, exist_ok=True)
+    ready = {
+        "remote get-url origin": CommandResult(0, "git@github.com:ada/report.git\n"),
+        "status --porcelain": CommandResult(0, ""),
+        "ls-remote origin HEAD": CommandResult(0, "abc123\tHEAD\n"),
+        "rev-parse HEAD": CommandResult(0, "abc123\n"),
+    }
+    actual_runner = runner or CliFakeRunner()
+    actual_runner.responses = ready | actual_runner.responses
+    return _context(tmp_path, runner=actual_runner, platform=platform)
+
+
 def test_clone_stage_distinguishes_a_directory_from_a_git_clone(tmp_path: Path) -> None:
     (tmp_path / "report").mkdir()
 
@@ -353,23 +372,24 @@ def test_site_stage_is_not_applicable_without_a_fixed_pages_address(
     assert "not checked" in result.detail
 
 
-def test_site_stage_accepts_an_oauth_redirect_found_by_system_curl(
+def test_site_stage_requires_confirmation_for_oauth_redirect_found_by_system_curl(
     tmp_path: Path,
 ) -> None:
     runner = CliFakeRunner({"curl": CommandResult(47, "302")})
-    context = _context(tmp_path, runner=runner)
+    context = _pushed_context(tmp_path, runner=runner)
 
     result = stages._check_site_published(context)
 
-    assert result.status is Status.OK
-    assert "login" in result.detail
+    assert result.status is Status.MISSING
+    assert result.verifiable is False
+    assert "does not prove that this specific site exists" in result.detail
     assert any(call[0] == "curl" and "--max-redirs" in call for call in runner.calls)
 
 
 def test_unavailable_site_probe_takes_a_browser_confirmation_on_trust(
     tmp_path: Path,
 ) -> None:
-    result = stages._check_site_published(_context(tmp_path))
+    result = stages._check_site_published(_pushed_context(tmp_path))
 
     assert result.status is Status.MISSING
     assert result.verifiable is False
@@ -390,7 +410,8 @@ def test_windows_certificate_failure_is_diagnosed_without_disabling_tls(
         }
     )
 
-    result = stages._check_site_published(_context(tmp_path, runner=runner, platform=WINDOWS))
+    context = _pushed_context(tmp_path, runner=runner, platform=WINDOWS)
+    result = stages._check_site_published(context)
 
     assert result.status is Status.MISSING
     assert result.verifiable is False
