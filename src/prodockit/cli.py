@@ -2473,6 +2473,7 @@ def adopt_command(
     total = len(steps)
     failed = False
     applied_stages = 0
+    apply_blocked = apply and any(step.selected and step.status == "wrong" for step in steps)
     for number, step in enumerate(steps, start=1):
         if step.phase != current_phase:
             current_phase = step.phase
@@ -2520,7 +2521,7 @@ def adopt_command(
                 err=True,
             )
             continue
-        if not step.needs_work or not apply:
+        if not step.needs_work or not apply or apply_blocked:
             continue
         if not click.confirm("\n  Apply this stage?", default=True):
             click.echo("  skipped")

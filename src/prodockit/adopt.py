@@ -451,10 +451,11 @@ def _set_array_extension(source: str, name: str, setting: str) -> str:
     return _add_array_value(source, "project", "markdown_extensions", rendered)
 
 
-def ensure_zensical_config(root: Path, options: AdoptOptions) -> Path:
+def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, str]:
+    """Return the validated configuration update without writing it."""
     path, source, _parsed = _config(root)
     if path.suffix != ".toml":
-        return _ensure_mkdocs_config(path, source, _parsed, options)
+        return path, _planned_yaml_config(path, source, _parsed, options)
     project = _parsed["project"]
     if "markdown_extensions" not in project:
         source = _seed_toml_markdown_defaults(source)
@@ -523,6 +524,11 @@ def ensure_zensical_config(root: Path, options: AdoptOptions) -> Path:
         tomllib.loads(source)
     except tomllib.TOMLDecodeError as error:  # pragma: no cover - defensive transaction guard
         raise AdoptError(f"the planned {path.name} would be invalid: {error}") from error
+    return path, source
+
+
+def ensure_zensical_config(root: Path, options: AdoptOptions) -> Path:
+    path, source = _planned_zensical_config(root, options)
     path.write_text(source, encoding="utf-8")
     return path
 
@@ -649,6 +655,11 @@ def _yaml_add_extension(source: str, name: str, lines: tuple[str, ...] = ()) -> 
             # replace it; targeted helpers below add only required keys.
             return source
         return source[:absolute_start] + entry.rstrip("\n") + source[absolute_end:]
+    if re.search(rf"(?m)^{re.escape(indent + prefix + name)}(?:[ \t]*:|[ \t]*$)", region):
+        raise AdoptError(
+            f"{name} uses a YAML form prodockit cannot update safely; "
+            "write it as an indented mapping and rerun"
+        )
     return source[:end] + entry + source[end:]
 
 
@@ -659,7 +670,12 @@ def _yaml_extension_item(source: str, name: str) -> tuple[int, int] | None:
     start, end = block
     style, indent = _yaml_extension_layout(source, block)
     prefix = "- " if style == "sequence" else ""
-    match = re.search(rf"(?m)^{re.escape(indent + prefix + name)}:[ \t]*$", source[start:end])
+    header = re.escape(indent + prefix + name)
+    if style == "sequence":
+        pattern = rf"(?m)^{header}(?::[ \t]*(?:null|~|\{{\}})?)?[ \t]*$"
+    else:
+        pattern = rf"(?m)^{header}:[ \t]*(?:null|~|\{{\}})?[ \t]*$"
+    match = re.search(pattern, source[start:end])
     if match is None:
         return None
     item_start = start + match.start()
@@ -703,17 +719,30 @@ def _yaml_ensure_mermaid(source: str) -> str:
     if "name: mermaid" in existing_region:
         return source
     source = _yaml_add_extension(source, "pymdownx.superfences")
+    block = _yaml_block(source, "markdown_extensions")
+    if block is None:  # pragma: no cover - _yaml_add_extension creates it
+        raise AdoptError("could not locate markdown_extensions after adding superfences")
+    style, indent = _yaml_extension_layout(source, block)
+    header = re.escape(indent + ("- " if style == "sequence" else "") + "pymdownx.superfences")
+    if style == "sequence":
+        pattern = re.compile(
+            rf"(?m)^(?P<header>{header})(?::[ \t]*(?:null|~|\{{\}})?)?[ \t]*$"
+        )
+    else:
+        pattern = re.compile(
+            rf"(?m)^(?P<header>{header}):[ \t]*(?:null|~|\{{\}})?[ \t]*$"
+        )
+    block_start, block_end = block
+    region, _replacements = pattern.subn(
+        r"\g<header>:", source[block_start:block_end], count=1
+    )
+    source = source[:block_start] + region + source[block_end:]
     item = _yaml_extension_item(source, "pymdownx.superfences")
     if item is None:
-        # The unconfigured string form was just left in place by the helper;
-        # replace it with a mapping before adding the fence.
-        block = _yaml_block(source, "markdown_extensions")
-        assert block is not None
-        indent = _yaml_list_indent(source, block)
-        pattern = re.compile(rf"(?m)^{re.escape(indent)}- pymdownx\.superfences[ \t]*$")
-        source = pattern.sub(f"{indent}- pymdownx.superfences:", source, count=1)
-        item = _yaml_extension_item(source, "pymdownx.superfences")
-    assert item is not None
+        raise AdoptError(
+            "pymdownx.superfences uses a YAML form prodockit cannot update safely; "
+            "write it as an indented mapping and rerun"
+        )
     start, end = item
     region = source[start:end]
     item_indent_match = re.match(r"[ \t]*", source[start:])
@@ -737,12 +766,12 @@ def _yaml_ensure_mermaid(source: str) -> str:
     return source[:header_end] + f"{setting_indent}custom_fences:\n" + fence + source[header_end:]
 
 
-def _ensure_mkdocs_config(
+def _planned_yaml_config(
     path: Path,
     source: str,
     parsed: dict[str, Any],
     options: AdoptOptions,
-) -> Path:
+) -> str:
     if "markdown_extensions" not in parsed:
         source = _seed_yaml_markdown_defaults(source)
         parsed = yaml.load(source, Loader=_MarkdownConfigLoader)
@@ -770,8 +799,7 @@ def _ensure_mkdocs_config(
         yaml.load(source, Loader=_MarkdownConfigLoader)
     except yaml.YAMLError as error:  # pragma: no cover - defensive transaction guard
         raise AdoptError(f"the planned {path.name} would be invalid: {error}") from error
-    path.write_text(source, encoding="utf-8")
-    return path
+    return source
 
 
 def ensure_stylesheet(root: Path) -> Path:
@@ -879,6 +907,12 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
     except AdoptError as error:
         return [Step("project", "Assess", "Existing documentation project", "wrong", str(error))]
 
+    config_error = ""
+    try:
+        _planned_zensical_config(root, options)
+    except AdoptError as error:
+        config_error = str(error)
+
     requirement = _requirements_path(root)
     requirement_detail = (
         f"{requirement.name} records a prodockit version floor"
@@ -888,11 +922,14 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
     configured = _extensions(parsed)
     missing = [name for name in CORE_EXTENSIONS if name not in configured]
     style_path = _stylesheet_path(root, parsed)
-    core_ok = not missing and _style_ok(root, parsed) and style_path.is_file()
+    core_ok = not config_error and not missing and _style_ok(root, parsed) and style_path.is_file()
     core_detail = (
-        "all standard extensions and the shared stylesheet are configured"
-        if core_ok
-        else "add the standard extensions and shared website styles"
+        config_error
+        or (
+            "all standard extensions and the shared stylesheet are configured"
+            if core_ok
+            else "add the standard extensions and shared website styles"
+        )
     )
     mermaid_ok = _tool_installed(root, "mermaid") and "pymdownx.superfences" in configured
     maths_ok = _tool_installed(root, "mathjax") and "pymdownx.arithmatex" in configured
@@ -932,7 +969,7 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
             "core",
             "Integrate",
             "Standard authoring components",
-            "ok" if core_ok else "missing",
+            "wrong" if config_error else ("ok" if core_ok else "missing"),
             core_detail,
         ),
         Step(
