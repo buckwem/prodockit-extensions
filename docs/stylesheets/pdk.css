@@ -495,6 +495,11 @@
 .md-typeset figure.prodockit-figure-caption > figcaption {
   display: table-caption;
   width: auto;
+  /* Zensical's theme limits every figcaption to 24rem. That is useful for
+     ordinary prose captions, but here the table layout already supplies the
+     rendered image width. Remove the theme ceiling so the caption receives
+     that width instead of wrapping early in the middle of a wide figure. */
+  max-width: none;
 }
 .md-typeset figure.prodockit-figure-caption > figcaption:first-child {
   caption-side: top;
