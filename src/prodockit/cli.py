@@ -243,7 +243,7 @@ def _pdkboot_action(report: StageReport, plan: Plan | None = None) -> str:
 def _pdkboot_status(text: str, status: Status) -> str:
     """Make faults and outstanding work distinct without changing log text."""
     if status is Status.WRONG:
-        return click.style(text, fg="bright_red", bold=True)
+        return click.style(text, fg="bright_magenta", bold=True)
     if status in {Status.MISSING, Status.BLOCKED, Status.UNKNOWN}:
         return click.style(text, fg="bright_yellow", bold=True)
     return text
@@ -251,7 +251,7 @@ def _pdkboot_status(text: str, status: Status) -> str:
 
 def _pdkboot_error(text: str) -> str:
     """Style an actual pdkboot failure, while Click keeps redirected logs plain."""
-    return click.style(text, fg="bright_red", bold=True)
+    return click.style(text, fg="bright_magenta", bold=True)
 
 
 def _pdkboot_warning(text: str) -> str:

@@ -327,7 +327,9 @@ def test_active_stage_shows_action_current_state_and_goal(tmp_path: Path) -> Non
     assert "─" * 40 in output, "the stage has a visible boundary in plain logs"
 
 
-def test_active_wrong_stage_is_red_but_plain_logs_keep_the_same_text(tmp_path: Path) -> None:
+def test_active_wrong_stage_is_magenta_but_plain_logs_keep_the_same_text(
+    tmp_path: Path,
+) -> None:
     context = _context(tmp_path)
     stage = Stage(
         id="git",
@@ -344,13 +346,13 @@ def test_active_wrong_stage_is_red_but_plain_logs_keep_the_same_text(tmp_path: P
         lambda: _work_through(context, [report], None), input="n\n"
     )
 
-    assert "\x1b[91m" in coloured
+    assert "\x1b[95m" in coloured
     assert "Current:  email is not configured" in coloured
     assert "\x1b[" not in plain
     assert "Current:  email is not configured" in plain
 
 
-def test_missing_stage_is_yellow_not_red(tmp_path: Path) -> None:
+def test_missing_stage_is_yellow_not_magenta(tmp_path: Path) -> None:
     context = _context(tmp_path)
     stage = _stage(
         lambda context: CheckResult(Status.MISSING, "not installed"),
@@ -363,7 +365,7 @@ def test_missing_stage_is_yellow_not_red(tmp_path: Path) -> None:
     )
 
     assert "\x1b[93m" in output
-    assert "\x1b[91m" not in output
+    assert "\x1b[95m" not in output
     assert "Current:  not installed" in output
 
 
@@ -459,7 +461,7 @@ def test_pdkboot_prints_captured_output_when_a_command_fails(tmp_path: Path) -> 
     assert "Working on command 1/1: installer" in stdout
     assert "download context" in stderr
     assert "package failed" in stderr
-    assert "\x1b[91m" in stderr
+    assert "\x1b[95m" in stderr
     assert "failed: package failed" in stderr
 
 
@@ -672,7 +674,7 @@ def test_reader_can_decline_a_retry_after_failed_verification(tmp_path: Path) ->
     assert "not there yet - still absent" in output
 
 
-def test_failed_manual_verification_is_red(tmp_path: Path) -> None:
+def test_failed_manual_verification_is_magenta(tmp_path: Path) -> None:
     context = _context(tmp_path)
     stage = _stage(
         lambda context: CheckResult(Status.MISSING, "still absent"),
@@ -685,7 +687,7 @@ def test_failed_manual_verification_is_red(tmp_path: Path) -> None:
         color=True,
     )
 
-    assert "\x1b[91m" in output
+    assert "\x1b[95m" in output
     assert "not there yet - still absent" in output
 
 
