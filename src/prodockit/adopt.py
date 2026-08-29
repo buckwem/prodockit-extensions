@@ -69,6 +69,13 @@ CORE_EXTENSIONS = (
     "prodockit.index",
 )
 
+# Directory trees emit these documented Zensical icon shortcodes by default.
+# An explicit Markdown extension collection replaces Zensical's implicit
+# defaults, so adoption must materialise the compatible renderer alongside
+# prodockit.tree rather than leave the shortcodes visible in the output.
+TREE_ICON_EXTENSION = "pymdownx.emoji"
+TREE_ICON_SETTINGS = DOCUMENTED_MARKDOWN_DEFAULTS[TREE_ICON_EXTENSION]
+
 MERMAID_FENCE = (
     '{ name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }'
 )
@@ -320,7 +327,13 @@ def _stylesheet_path(root: Path, parsed: dict[str, Any]) -> Path:
 
 def _core_ok(parsed: dict[str, Any]) -> bool:
     configured = _extensions(parsed)
-    return all(name in configured for name in CORE_EXTENSIONS)
+    return all(name in configured for name in CORE_EXTENSIONS) and _tree_icons_ok(parsed)
+
+
+def _tree_icons_ok(parsed: dict[str, Any]) -> bool:
+    configured = _extensions(parsed)
+    settings = configured.get(TREE_ICON_EXTENSION)
+    return isinstance(settings, Mapping) and all(key in settings for key in TREE_ICON_SETTINGS)
 
 
 def _style_ok(root: Path, parsed: dict[str, Any]) -> bool:
@@ -421,6 +434,20 @@ def _set_table_bool(source: str, table: str, key: str, value: bool) -> str:
     return source[:header_end] + f"{key} = {rendered}\n" + source[header_end:]
 
 
+def _add_table_string(source: str, table: str, key: str, value: str) -> str:
+    """Add a missing string setting without replacing existing table data."""
+    located = _section(source, table)
+    if located is None:
+        source = _append_tables(source, (table,))
+        located = _section(source, table)
+    assert located is not None
+    start, end = located
+    if re.search(rf"(?m)^{re.escape(key)}\s*=", source[start:end]):
+        return source
+    header_end = source.find("\n", start) + 1
+    return source[:header_end] + f"{key} = {_toml_value(value)}\n" + source[header_end:]
+
+
 def _set_array_extension(source: str, name: str, setting: str) -> str:
     """Configure an extension stored in ``project.markdown_extensions``.
 
@@ -437,7 +464,9 @@ def _set_array_extension(source: str, name: str, setting: str) -> str:
     array_start = start + assignment.end() - 1
     array_end = _matching_bracket(source, array_start)
     region = source[array_start : array_end + 1]
-    simple = re.search(rf"(?P<quote>[\"']){re.escape(name)}(?P=quote)", region)
+    simple = re.search(
+        rf"(?P<quote>[\"']){re.escape(name)}(?P=quote)(?![ \t]*=)", region
+    )
     rendered = f'{{ "{name}" = {{ {setting} }} }}'
     if simple is not None:
         absolute_start = array_start + simple.start()
@@ -449,6 +478,31 @@ def _set_array_extension(source: str, name: str, setting: str) -> str:
             "add the required setting yourself and rerun"
         )
     return _add_array_value(source, "project", "markdown_extensions", rendered)
+
+
+def _ensure_toml_tree_icons(
+    source: str,
+    parsed: dict[str, Any],
+    *,
+    extension_array: bool,
+) -> str:
+    """Materialise the icon renderer required by prodockit.tree."""
+    configured = _extensions(parsed)
+    existing = configured.get(TREE_ICON_EXTENSION)
+
+    if extension_array:
+        if _tree_icons_ok(parsed):
+            return source
+        setting = ", ".join(
+            f"{key} = {_toml_value(value)}" for key, value in TREE_ICON_SETTINGS.items()
+        )
+        return _set_array_extension(source, TREE_ICON_EXTENSION, setting)
+
+    table = f'project.markdown_extensions."{TREE_ICON_EXTENSION}"'
+    for key, value in TREE_ICON_SETTINGS.items():
+        if not isinstance(existing, Mapping) or key not in existing:
+            source = _add_table_string(source, table, key, str(value))
+    return source
 
 
 def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, str]:
@@ -472,6 +526,11 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
             source,
             tuple(f'project.markdown_extensions."{name}"' for name in CORE_EXTENSIONS),
         )
+    source = _ensure_toml_tree_icons(
+        source,
+        _parsed,
+        extension_array=extension_array,
+    )
     source = _add_array_value(
         source,
         "project",
@@ -640,7 +699,7 @@ def _yaml_add_extension(source: str, name: str, lines: tuple[str, ...] = ()) -> 
     prefix = "- " if style == "sequence" else ""
     pattern = re.compile(
         rf"(?m)^{re.escape(indent + prefix + name)}(?P<colon>:)?"
-        r"(?P<value>[ \t]*(?:null|~)?)[ \t]*$"
+        r"(?P<value>[ \t]*(?:null|~|\{\})?)[ \t]*$"
     )
     match = pattern.search(region)
     if match is not None:
@@ -713,6 +772,44 @@ def _yaml_ensure_arithmatex(source: str) -> str:
     return source[:header_end] + f"{setting_indent}generic: true\n" + source[header_end:]
 
 
+def _yaml_add_extension_string(source: str, name: str, key: str, value: str) -> str:
+    """Add one missing string setting to a normal indented extension item."""
+    item = _yaml_extension_item(source, name)
+    if item is None:
+        raise AdoptError(
+            f"{name} uses a YAML form prodockit cannot update safely; "
+            "write it as an indented mapping and rerun"
+        )
+    start, end = item
+    if re.search(rf"(?m)^[ \t]+{re.escape(key)}:[ \t]*", source[start:end]):
+        return source
+    header_end = source.find("\n", start) + 1
+    item_indent_match = re.match(r"[ \t]*", source[start:])
+    assert item_indent_match is not None
+    block = _yaml_block(source, "markdown_extensions")
+    assert block is not None
+    style, _indent = _yaml_extension_layout(source, block)
+    setting_indent = item_indent_match.group() + ("    " if style == "sequence" else "  ")
+    return source[:header_end] + f"{setting_indent}{key}: {value}\n" + source[header_end:]
+
+
+def _yaml_ensure_tree_icons(source: str, parsed: dict[str, Any]) -> str:
+    """Materialise the icon renderer required by prodockit.tree."""
+    configured = _extensions(parsed)
+    existing = configured.get(TREE_ICON_EXTENSION)
+    if not isinstance(existing, Mapping) and TREE_ICON_EXTENSION in configured:
+        raise AdoptError(
+            f"the configured {TREE_ICON_EXTENSION} settings must be an indented mapping"
+        )
+
+    lines = tuple(f"{key}: {value}" for key, value in TREE_ICON_SETTINGS.items())
+    source = _yaml_add_extension(source, TREE_ICON_EXTENSION, lines)
+    for key, value in TREE_ICON_SETTINGS.items():
+        if not isinstance(existing, Mapping) or key not in existing:
+            source = _yaml_add_extension_string(source, TREE_ICON_EXTENSION, key, str(value))
+    return source
+
+
 def _yaml_ensure_mermaid(source: str) -> str:
     configured = _yaml_block(source, "markdown_extensions")
     existing_region = source[configured[0] : configured[1]] if configured else ""
@@ -779,6 +876,7 @@ def _planned_yaml_config(
     for name in CORE_EXTENSIONS:
         if name not in configured:
             source = _yaml_add_extension(source, name)
+    source = _yaml_ensure_tree_icons(source, parsed)
     source = _yaml_add_top_list_value(
         source,
         "extra_css",
@@ -922,7 +1020,13 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
     configured = _extensions(parsed)
     missing = [name for name in CORE_EXTENSIONS if name not in configured]
     style_path = _stylesheet_path(root, parsed)
-    core_ok = not config_error and not missing and _style_ok(root, parsed) and style_path.is_file()
+    core_ok = (
+        not config_error
+        and not missing
+        and _tree_icons_ok(parsed)
+        and _style_ok(root, parsed)
+        and style_path.is_file()
+    )
     core_detail = (
         config_error
         or (
