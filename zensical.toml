@@ -25,6 +25,7 @@ extra.pdf_copyright = 'Copyright © 2026 Mark Buckwell and contributors.<br>Made
 
 extra_css = [
   "stylesheets/pdk.css",
+  "stylesheets/branding.css",
   "stylesheets/extra.css",
 ]
 extra.pdf_extra_css = [

@@ -176,21 +176,6 @@
 }
 
 /* ============================================================= */
-/* ================ Style for slate theme logo ================ */
-/* ============================================================= */
-
-/* Keep these as relative files so projects can replace their active
-   logo_black.png/logo_white.png pair without editing this shared stylesheet.
-   prodockit.pdf inlines local CSS assets while assembling the PDF, so the
-   relative website URLs do not make the PDF build depend on this directory. */
-[data-md-color-scheme="slate"] .md-logo img {
-  content: url("../assets/logo_white.png");
-}
-[data-md-color-scheme="default"] .md-logo img {
-  content: url("../assets/logo_black.png");
-}
-
-/* ============================================================= */
 /* ======= Fix for the bundled theme's #only-light/dark bug ===== */
 /* ============================================================= */
 

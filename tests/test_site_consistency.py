@@ -108,7 +108,11 @@ def test_reference_site_enables_website_heading_numbering() -> None:
 
     assert config["extra"]["heading_numbering"] is True
     assert config["extra"]["website_heading_numbering"] is True
-    assert config["extra_css"] == ["stylesheets/pdk.css", "stylesheets/extra.css"]
+    assert config["extra_css"] == [
+        "stylesheets/pdk.css",
+        "stylesheets/branding.css",
+        "stylesheets/extra.css",
+    ]
     assert config["extra"]["pdf_extra_css"] == [
         "stylesheets/pdk-pdf.css",
         "stylesheets/print.css",
@@ -118,9 +122,14 @@ def test_reference_site_enables_website_heading_numbering() -> None:
 
 def test_reference_site_keeps_shared_rules_out_of_author_overrides() -> None:
     managed = _text("docs/stylesheets/pdk.css")
+    branding = _text("docs/stylesheets/branding.css")
     author_owned = _text("docs/stylesheets/extra.css")
 
     assert ".documentation-diagram" in managed
+    assert "logo_white.png" not in managed
+    assert "logo_black.png" not in managed
+    assert 'content: url("../assets/logo_white.png")' in branding
+    assert 'content: url("../assets/logo_black.png")' in branding
     assert author_owned == "/* Add project-specific website and PDF styles below this line. */\n"
 
 

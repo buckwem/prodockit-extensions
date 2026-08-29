@@ -34,6 +34,13 @@ def test_canonical_resources_are_the_extensions_stylesheets(name: str) -> None:
     assert resource_bytes(name) == (ROOT / "docs/stylesheets" / name).read_bytes()
 
 
+def test_shared_website_stylesheet_has_no_project_specific_logo_dependency() -> None:
+    stylesheet = resource_bytes("pdk.css").decode("utf-8")
+
+    assert "logo_white.png" not in stylesheet
+    assert "logo_black.png" not in stylesheet
+
+
 def test_manifest_manages_only_prodockit_owned_stylesheets() -> None:
     declared = load_manifest(ROOT)
 

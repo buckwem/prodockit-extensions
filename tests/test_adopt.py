@@ -123,7 +123,9 @@ language = "en-GB"
     assert config.index('"stylesheets/pdk.css"') < config.index('"stylesheets/mine.css"')
     for extension in CORE_EXTENSIONS:
         assert f'[project.markdown_extensions."{extension}"]' in config
-    assert (project / STYLESHEET).is_file()
+    stylesheet = (project / STYLESHEET).read_text(encoding="utf-8")
+    assert "logo_white.png" not in stylesheet
+    assert "logo_black.png" not in stylesheet
 
 
 def test_toml_without_extensions_preserves_zensical_markdown_defaults(
