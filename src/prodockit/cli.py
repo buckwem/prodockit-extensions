@@ -240,6 +240,25 @@ def _pdkboot_action(report: StageReport, plan: Plan | None = None) -> str:
     return "INSTALL" if plan.commands else "MANUAL"
 
 
+def _pdkboot_status(text: str, status: Status) -> str:
+    """Make faults and outstanding work distinct without changing log text."""
+    if status is Status.WRONG:
+        return click.style(text, fg="bright_magenta", bold=True)
+    if status in {Status.MISSING, Status.BLOCKED, Status.UNKNOWN}:
+        return click.style(text, fg="bright_yellow", bold=True)
+    return text
+
+
+def _pdkboot_error(text: str) -> str:
+    """Style an actual pdkboot failure, while Click keeps redirected logs plain."""
+    return click.style(text, fg="bright_magenta", bold=True)
+
+
+def _pdkboot_warning(text: str) -> str:
+    """Style a waiting or action-required message separately from failures."""
+    return click.style(text, fg="bright_yellow", bold=True)
+
+
 def _pdkboot_work_summary(reports: Sequence[StageReport]) -> str:
     """Compact counts of the kinds of outstanding work in this pass."""
     order = ("INSTALL", "UPGRADE", "CONFIGURE", "REPAIR", "ARCHIVE", "CHOOSE", "MANUAL", "PUBLISH")
@@ -1134,13 +1153,13 @@ def _work_through(
         if phase is not None and phase != shown_phase:
             phase_number, phase_name = phase
             click.echo("")
-            boundary = click.style("═" * 78, fg="bright_cyan")
+            boundary = click.style("═" * 78, fg="bright_blue")
             click.echo(boundary)
             click.echo(
                 click.style(
                     f"Phase {phase_number}/{len(_PDKBOOT_PHASES)} — {phase_name}",
                     bold=True,
-                    fg="bright_cyan",
+                    fg="bright_blue",
                 )
             )
             click.echo(boundary)
@@ -1168,7 +1187,8 @@ def _work_through(
             symbol = (
                 "WAIT" if context.pdkboot and report.result.status is Status.BLOCKED else "?   "
             )
-            click.echo(f"{number:2}  {symbol}  {report.stage.summary}{detail}")
+            line = f"{number:2}  {symbol}  {report.stage.summary}{detail}"
+            click.echo(_pdkboot_status(line, report.result.status))
             if journal is not None:
                 journal.stage(
                     report.stage.id,
@@ -1206,14 +1226,15 @@ def _work_through(
             # A full-width boundary survives terminals without colour and
             # pasted logs. The old bold-only ``[15/23]`` line disappeared
             # among instructions and command output during long installs.
-            click.echo(click.style("─" * 78, fg="cyan"))
+            click.echo(click.style("─" * 78, fg="blue"))
             heading = f"Stage [{number}/{total}] {report.stage.summary}"
-            click.echo(click.style(heading, bold=True, fg="cyan"))
+            click.echo(click.style(heading, bold=True, fg="blue"))
         else:
             click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))
         if context.pdkboot:
             click.echo(f"  Action:   {action}")
-            click.echo(f"  Current:  {report.result.detail or 'not yet satisfied'}")
+            current = f"  Current:  {report.result.detail or 'not yet satisfied'}"
+            click.echo(_pdkboot_status(current, report.result.status))
             click.echo(f"  Goal:     {report.stage.summary}")
         elif report.result.detail:
             click.echo(f"        {report.result.detail}")
@@ -1365,8 +1386,11 @@ def _work_through(
                         else f"exit status {outcome.failed.returncode}"
                     )
                 )
-                click.echo(f"  failed: {summary}", err=True)
-                click.echo("  Stopping - later stages depend on this one.", err=True)
+                click.echo(_pdkboot_error(f"  failed: {summary}"), err=True)
+                click.echo(
+                    _pdkboot_error("  Stopping - later stages depend on this one."),
+                    err=True,
+                )
                 advice = (
                     recovery_advice(
                         report.stage.id,
@@ -1648,9 +1672,9 @@ def _verify_until_done(
             # Waiting on an earlier stage, not on anything the reader can
             # do in a browser. Asking again would loop for ever on a
             # question they have already answered correctly (#336).
-            click.echo(f"  waiting - {result.detail}")
+            click.echo(_pdkboot_warning(f"  waiting - {result.detail}"))
             return False
-        click.echo(f"  not there yet - {result.detail}")
+        click.echo(_pdkboot_error(f"  not there yet - {result.detail}"))
         if not click.confirm("  Try again?", default=True):
             return False
 
@@ -1752,9 +1776,11 @@ def config_command(config_file: str, check: bool) -> None:
     click.echo(f"  Optional support: {dependency}")
 
     if report.diagnostics:
-        click.echo("\nProblems")
+        click.echo(_pdkboot_error("\nProblems"))
         for diagnostic in report.diagnostics:
-            click.echo(f"  ERROR {diagnostic.path}: {diagnostic.message}")
+            click.echo(
+                _pdkboot_error(f"  ERROR {diagnostic.path}: {diagnostic.message}")
+            )
         if check:
             raise click.exceptions.Exit(1)
         click.echo("\nRun `prodockit config --check` in automation to reject these problems.")
@@ -1976,7 +2002,8 @@ def bootstrap(
         if waiting:
             symbol = "WAIT"
         detail = f" - {report.result.detail}" if report.result.detail else ""
-        click.echo(f"{number:2}  {symbol}  {report.stage.summary}{detail}")
+        line = f"{number:2}  {symbol}  {report.stage.summary}{detail}"
+        click.echo(_pdkboot_status(line, report.result.status) if context.pdkboot else line)
         if dry_run and report.plan is not None and not waiting:
             # In the order they actually happen: prepare, run, finish.
             for instruction in report.plan.instructions:
@@ -2373,15 +2400,21 @@ _ADOPT_PHASES = ("Assess", "Integrate", "Optional renderers", "Verify")
 
 def _adopt_phase_heading(number: int, name: str) -> None:
     click.echo("")
-    click.echo(click.style("═" * 78, bold=True, fg="bright_cyan"))
-    click.echo(click.style(f"Phase {number}/{len(_ADOPT_PHASES)} — {name}", bold=True))
-    click.echo(click.style("═" * 78, bold=True, fg="bright_cyan"))
+    click.echo(click.style("═" * 78, bold=True, fg="bright_blue"))
+    click.echo(
+        click.style(
+            f"Phase {number}/{len(_ADOPT_PHASES)} — {name}",
+            bold=True,
+            fg="bright_blue",
+        )
+    )
+    click.echo(click.style("═" * 78, bold=True, fg="bright_blue"))
 
 
 def _adopt_stage_heading(number: int, total: int, summary: str) -> None:
     click.echo("")
-    click.echo(click.style("─" * 78, fg="cyan"))
-    click.echo(click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="cyan"))
+    click.echo(click.style("─" * 78, fg="blue"))
+    click.echo(click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="blue"))
 
 
 @main.command("adopt")

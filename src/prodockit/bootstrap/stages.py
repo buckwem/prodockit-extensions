@@ -204,6 +204,11 @@ def _winget(
     `-e` matches the id exactly. Without it an ambiguous name is another
     question winget stops to ask.
 
+    `--source winget` is just as important as the exact id. These packages
+    all come from the community repository; without an explicit source,
+    winget also queries `msstore`, and an unrelated Store DNS or service
+    failure aborts an otherwise valid community-repository install.
+
     `version` pins the install where the version is one this project
     cares about rather than one it merely needs - pandoc decides how the
     PDF renders, so a machine bootstrap just set up should agree with
@@ -219,6 +224,8 @@ def _winget(
         package_id,
         *(["--version", version] if version else []),
         "-e",
+        "--source",
+        "winget",
         "--accept-source-agreements",
         "--accept-package-agreements",
         *(["--no-upgrade", "--silent", "--disable-interactivity"] if resilient else []),
@@ -234,6 +241,8 @@ def _winget_upgrade(package_id: str, version: str = "") -> list[str]:
         package_id,
         *(["--version", version] if version else []),
         "-e",
+        "--source",
+        "winget",
         "--silent",
         "--accept-source-agreements",
         "--accept-package-agreements",
@@ -249,6 +258,8 @@ def _winget_repair(package_id: str) -> list[str]:
         "--id",
         package_id,
         "-e",
+        "--source",
+        "winget",
         "--silent",
         "--accept-source-agreements",
         "--accept-package-agreements",

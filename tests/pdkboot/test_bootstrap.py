@@ -2671,6 +2671,7 @@ def test_old_windows_node_is_an_explicit_upgrade_not_an_install(tmp_path: Path) 
     )
 
     assert plan.commands[0][:4] == ["winget", "upgrade", "--id", "OpenJS.NodeJS.LTS"]
+    assert "--source winget" in " ".join(plan.commands[0])
     assert plan.destructive, "the upgrade must default to No until explicitly approved"
     assert plan.describe.startswith("Upgrade Node")
 
@@ -2688,6 +2689,7 @@ def test_windows_node_without_npm_uses_repair_not_reinstall(tmp_path: Path) -> N
     )
 
     assert plan.commands[0][:4] == ["winget", "repair", "--id", "OpenJS.NodeJS.LTS"]
+    assert "--source winget" in " ".join(plan.commands[0])
     assert plan.destructive, "repairing an existing runtime needs explicit approval"
     assert plan.describe.startswith("Repair the existing Node")
 
@@ -4056,6 +4058,9 @@ def test_no_winget_call_can_stop_for_a_human(tmp_path: Path) -> None:
             assert "--accept-source-agreements" in joined, joined
             assert "--accept-package-agreements" in joined, joined
             assert " -e " in f" {joined} ", "an ambiguous id is another question"
+            assert "--source winget" in joined, (
+                "an unrelated msstore failure must not block a community package"
+            )
     assert seen >= 4, "vscode, git, pandoc, MSYS2 and node between them"
 
 

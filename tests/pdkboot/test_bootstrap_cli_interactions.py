@@ -99,9 +99,9 @@ def test_pdkboot_profile_is_passed_while_the_command_context_is_built(
     assert received == [True]
 
 
-def _isolated(call, *, input: str):  # type: ignore[no-untyped-def]
+def _isolated(call, *, input: str, color: bool = False):  # type: ignore[no-untyped-def]
     runner = CliRunner()
-    with runner.isolation(input=input) as (out, err, _):
+    with runner.isolation(input=input, color=color) as (out, err, _):
         result = call()
         return result, out.getvalue().decode(), err.getvalue().decode()
 
@@ -274,10 +274,13 @@ def test_apply_groups_real_stages_into_named_phases(tmp_path: Path) -> None:
             None,
         ),
         input="",
+        color=True,
     )
 
     assert "Phase 2/7 — Core tools" in output
     assert "Phase 3/7 — Git and host" in output
+    assert "\x1b[94m" in output
+    assert "\x1b[96m" not in output
     assert output.count("═" * 40) == 4, "each phase has a double-line top and bottom"
 
 
@@ -318,13 +321,57 @@ def test_active_stage_shows_action_current_state_and_goal(tmp_path: Path) -> Non
     _, output, _ = _isolated(
         lambda: _work_through(context, [report], None),
         input="n\n",
+        color=True,
     )
 
     assert "Action:   CONFIGURE" in output
     assert "Current:  email is not configured" in output
     assert "Goal:     Git, installed and configured" in output
     assert "Stage [1/1] Git, installed and configured" in output
+    assert "\x1b[34m" in output
     assert "─" * 40 in output, "the stage has a visible boundary in plain logs"
+
+
+def test_active_wrong_stage_is_magenta_but_plain_logs_keep_the_same_text(
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    stage = Stage(
+        id="git",
+        summary="Git",
+        check=lambda context: CheckResult(Status.WRONG, "email is not configured"),
+        plan=lambda context: Plan(commands=[["repair-git"]]),
+    )
+    report = StageReport(stage, stage.check(context), stage.plan(context))
+
+    _, coloured, _ = _isolated(
+        lambda: _work_through(context, [report], None), input="n\n", color=True
+    )
+    _, plain, _ = _isolated(
+        lambda: _work_through(context, [report], None), input="n\n"
+    )
+
+    assert "\x1b[95m" in coloured
+    assert "Current:  email is not configured" in coloured
+    assert "\x1b[" not in plain
+    assert "Current:  email is not configured" in plain
+
+
+def test_missing_stage_is_yellow_not_magenta(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    stage = _stage(
+        lambda context: CheckResult(Status.MISSING, "not installed"),
+        lambda context: Plan(commands=[["installer"]]),
+    )
+    report = StageReport(stage, stage.check(context), stage.plan(context))
+
+    _, output, _ = _isolated(
+        lambda: _work_through(context, [report], None), input="n\n", color=True
+    )
+
+    assert "\x1b[93m" in output
+    assert "\x1b[95m" not in output
+    assert "Current:  not installed" in output
 
 
 def test_apply_announcement_summarises_kinds_of_work(tmp_path: Path) -> None:
@@ -410,7 +457,7 @@ def test_pdkboot_prints_captured_output_when_a_command_fails(tmp_path: Path) -> 
     report = StageReport(stage, CheckResult(Status.MISSING), stage.plan(context))
 
     click_runner = CliRunner()
-    with click_runner.isolation(input="y\n") as (output, error, _):
+    with click_runner.isolation(input="y\n", color=True) as (output, error, _):
         with pytest.raises(SystemExit):
             _work_through(context, [report], None)
         stdout = output.getvalue().decode()
@@ -419,6 +466,8 @@ def test_pdkboot_prints_captured_output_when_a_command_fails(tmp_path: Path) -> 
     assert "Working on command 1/1: installer" in stdout
     assert "download context" in stderr
     assert "package failed" in stderr
+    assert "\x1b[95m" in stderr
+    assert "failed: package failed" in stderr
 
 
 def test_terminal_command_keeps_direct_terminal_access(tmp_path: Path) -> None:
@@ -627,6 +676,23 @@ def test_reader_can_decline_a_retry_after_failed_verification(tmp_path: Path) ->
     )
 
     assert result is False
+    assert "not there yet - still absent" in output
+
+
+def test_failed_manual_verification_is_magenta(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    stage = _stage(
+        lambda context: CheckResult(Status.MISSING, "still absent"),
+        lambda context: Plan(),
+    )
+
+    _, output, _ = _isolated(
+        lambda: _verify_until_done(context, stage, Plan(confirm="Finished?")),
+        input="yes\nn\n",
+        color=True,
+    )
+
+    assert "\x1b[95m" in output
     assert "not there yet - still absent" in output
 
 
