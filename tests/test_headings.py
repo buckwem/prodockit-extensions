@@ -18,6 +18,29 @@ def _convert(text: str, registry: IdRegistry, source: str) -> str:
     return md.convert(text)
 
 
+def _convert_caption(text: str, registry: IdRegistry, source: str) -> str:
+    md = markdown.Markdown(
+        extensions=[
+            "attr_list",
+            "tables",
+            "pymdownx.blocks.caption",
+            HeadingsExtension(registry=registry, source=source),
+        ],
+        extension_configs={
+            "pymdownx.blocks.caption": {
+                "types": [
+                    {
+                        "name": "table-caption",
+                        "prefix": "{}.",
+                        "classes": "prodockit-table-caption",
+                    }
+                ]
+            }
+        },
+    )
+    return md.convert(text)
+
+
 def test_heading_gets_an_id_and_is_registered() -> None:
     registry = IdRegistry()
     html = _convert("# Introduction\n", registry, "intro.md")
@@ -86,6 +109,52 @@ def test_shared_registry_across_sources() -> None:
     _convert("# Setup\n", registry, "setup.md")
     assert registry.get("introduction").source == "intro.md"  # type: ignore[union-attr]
     assert registry.get("setup").source == "setup.md"  # type: ignore[union-attr]
+
+
+def test_generated_caption_ids_remain_page_local() -> None:
+    """The first unlabelled table on every page receives the same internal id.
+
+    Those anchors belong to their individual HTML pages and must not collide
+    in the shared cross-page reference registry.
+    """
+    registry = IdRegistry()
+    table = """| Item | Value |
+|---|---|
+| One | 1 |
+/// table-caption
+Example table
+///
+"""
+
+    first = _convert_caption(f"# Originality\n\n{table}", registry, "originality.md")
+    second = _convert_caption(f"# Section four\n\n{table}", registry, "section4.md")
+
+    assert 'id="__table-caption_1"' in first
+    assert 'id="__table-caption_1"' in second
+    assert registry.get("__table-caption_1") is None
+
+
+def test_explicit_caption_id_is_still_a_shared_reference_target() -> None:
+    registry = IdRegistry()
+    html = _convert_caption(
+        """# Page
+
+| Item | Value |
+|---|---|
+| One | 1 |
+/// table-caption | #tab-example
+Example table
+///
+""",
+        registry,
+        "section4.md",
+    )
+
+    assert 'id="tab-example"' in html
+    record = registry.get("tab-example")
+    assert record is not None
+    assert record.source == "section4.md"
+    assert record.number == "Table 1.1"
 
 
 def test_duplicate_id_across_sources_raises() -> None:
