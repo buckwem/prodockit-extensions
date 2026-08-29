@@ -116,6 +116,14 @@ def test_reference_site_enables_website_heading_numbering() -> None:
     assert "config.extra.website_heading_numbering == false" in _text("overrides/main.html")
 
 
+def test_reference_site_keeps_shared_rules_out_of_author_overrides() -> None:
+    managed = _text("docs/stylesheets/pdk.css")
+    author_owned = _text("docs/stylesheets/extra.css")
+
+    assert ".documentation-diagram" in managed
+    assert author_owned == "/* Add project-specific website and PDF styles below this line. */\n"
+
+
 def test_reference_site_is_reusable_without_canonical_analytics() -> None:
     config = read_config(_text("zensical.toml"))["project"]
     extra = config["extra"]
