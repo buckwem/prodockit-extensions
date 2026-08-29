@@ -2767,8 +2767,8 @@ def _check_project_env(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
-        absent = _blocked if context.pdkboot else _missing
-        return absent("no project directory yet")
+        project_absent = _blocked if context.pdkboot else _missing
+        return project_absent("no project directory yet")
     if not _venv_python(context).exists():
         return _missing(f"no virtual environment at {_project_venv(context)}")
     if not (project / "requirements.txt").exists():
@@ -3426,8 +3426,8 @@ def _check_vscode_settings(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
-        absent = _blocked if context.pdkboot else _missing
-        return absent("no project directory yet")
+        project_absent = _blocked if context.pdkboot else _missing
+        return project_absent("no project directory yet")
     path = _settings_path(context)
     try:
         current = json.loads(path.read_text(encoding="utf-8") or "{}")
@@ -3545,8 +3545,8 @@ def _check_csl_style(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
-        absent = _blocked if context.pdkboot else _missing
-        return absent("no project directory yet")
+        project_absent = _blocked if context.pdkboot else _missing
+        return project_absent("no project directory yet")
     style = _configured_csl_style(context)
     path = project / style
     if not path.exists():
@@ -3621,8 +3621,8 @@ def _check_mathjax(context: Context) -> CheckResult:
         return unknown
     project = context.config.resolved_project_dir(context.home)
     if not project.exists():
-        absent = _blocked if context.pdkboot else _missing
-        return absent("no project to install it into yet")
+        project_absent = _blocked if context.pdkboot else _missing
+        return project_absent("no project to install it into yet")
     if not (project / "docs").is_dir():
         return _missing("no project to install it into yet")
     source, license_source, bundle, license_path, config = _mathjax_paths(context)
