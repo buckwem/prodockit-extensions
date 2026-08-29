@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -253,6 +255,110 @@ name = "Later array table"
     assert '"pymdownx.arithmatex" = { generic = true }' in config
     assert '"pymdownx.superfences" = { custom_fences = [' in config
     assert 'name = "Later array table"' in config
+
+
+def test_toml_extension_array_materialises_the_tree_icon_renderer(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _project(
+        tmp_path,
+        """\
+[project]
+site_name = "Adopt Tree Reproduction"
+site_dir = "public"
+nav = [
+  { Home = "index.md" },
+  { Tree = "tree.md" },
+]
+
+markdown_extensions = [
+  "attr_list",
+  "toc",
+  "pymdownx.superfences",
+  "pymdownx.arithmatex",
+]
+""",
+    )
+    (project / "docs" / "tree.md").write_text(
+        "# Tree test\n\n/// tree\ndocs/\n  index.md\n  features.md\n///\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(project)
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
+    result = CliRunner().invoke(
+        main,
+        ["adopt", "--apply", "--no-mermaid", "--no-maths"],
+        input="y\ny\n",
+    )
+    assert result.exit_code == 0, result.output
+
+    config = (project / "zensical.toml").read_text(encoding="utf-8")
+    assert '"pymdownx.emoji" = {' in config
+    assert 'emoji_index = "zensical.extensions.emoji.twemoji"' in config
+    assert 'emoji_generator = "zensical.extensions.emoji.to_svg"' in config
+
+    repeated = CliRunner().invoke(
+        main,
+        ["adopt", "--apply", "--no-mermaid", "--no-maths"],
+    )
+    assert repeated.exit_code == 0, repeated.output
+    assert "already configured" in repeated.output
+    assert (project / "zensical.toml").read_text(encoding="utf-8") == config
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "zensical", "build", "--clean", "--strict"],
+        cwd=project,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    html = (project / "public" / "tree" / "index.html").read_text(encoding="utf-8")
+    assert ":lucide-folder:" not in html
+    assert ":lucide-file:" not in html
+    assert html.count('class="twemoji"') >= 3
+
+
+def test_existing_tree_icon_settings_are_preserved_in_table_form(tmp_path: Path) -> None:
+    project = _project(
+        tmp_path,
+        """\
+[project]
+site_name = "Existing icon configuration"
+
+[project.markdown_extensions."pymdownx.emoji"]
+emoji_index = "zensical.extensions.emoji.twemoji"
+custom_icons = "icons"
+""",
+    )
+
+    ensure_zensical_config(project, AdoptOptions())
+
+    config = (project / "zensical.toml").read_text(encoding="utf-8")
+    assert 'custom_icons = "icons"' in config
+    assert config.count('emoji_index = "zensical.extensions.emoji.twemoji"') == 1
+    assert config.count('emoji_generator = "zensical.extensions.emoji.to_svg"') == 1
+
+
+def test_yaml_extension_sequence_materialises_the_tree_icon_renderer(tmp_path: Path) -> None:
+    project = _project(
+        tmp_path,
+        """\
+site_name: Existing YAML extensions
+markdown_extensions:
+  - attr_list
+  - toc
+""",
+        config_name="zensical.yml",
+    )
+
+    ensure_zensical_config(project, AdoptOptions())
+
+    config = (project / "zensical.yml").read_text(encoding="utf-8")
+    assert "  - pymdownx.emoji:" in config
+    assert "      emoji_index: zensical.extensions.emoji.twemoji" in config
+    assert "      emoji_generator: zensical.extensions.emoji.to_svg" in config
 
 
 def test_apply_core_never_invokes_git_or_editor_setup(tmp_path: Path, monkeypatch) -> None:
