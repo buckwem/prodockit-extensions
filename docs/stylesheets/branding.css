@@ -1,0 +1,9 @@
+/* Website branding used by the prodockit reference site only. */
+
+[data-md-color-scheme="slate"] .md-logo img {
+  content: url("../assets/logo_white.png");
+}
+
+[data-md-color-scheme="default"] .md-logo img {
+  content: url("../assets/logo_black.png");
+}
