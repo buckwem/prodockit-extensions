@@ -3631,6 +3631,9 @@ def test_no_winget_call_can_stop_for_a_human(tmp_path: Path) -> None:
             assert "--accept-source-agreements" in joined, joined
             assert "--accept-package-agreements" in joined, joined
             assert " -e " in f" {joined} ", "an ambiguous id is another question"
+            assert "--source winget" in joined, (
+                "an unrelated msstore failure must not block a community package"
+            )
     assert seen >= 4, "vscode, git, pandoc, MSYS2 and node between them"
 
 

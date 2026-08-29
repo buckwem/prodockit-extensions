@@ -91,7 +91,14 @@ def recovery_advice(
         )
 
     winget_source_error = executable in {"winget", "winget.exe"} and any(
-        marker in output for marker in ("source data", "failed when opening source", "0x8a15000f")
+        marker in output
+        for marker in (
+            "source data",
+            "failed when opening source",
+            "failed when searching source",
+            "0x8a15000f",
+            "0x80072ee7",
+        )
     )
     if winget_source_error:
         return RecoveryAdvice(

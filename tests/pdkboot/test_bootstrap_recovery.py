@@ -129,6 +129,21 @@ def test_journal_failure_is_reported_without_raising(tmp_path: Path) -> None:
             "source reset --force",
         ),
         (
+            "git",
+            WINDOWS,
+            ["winget", "install", "--id", "Git.Git"],
+            CommandResult(
+                1,
+                stderr=(
+                    "Failed when searching source: msstore\n"
+                    "WinHttpSendRequest: 12007: The server name or address "
+                    "could not be resolved\n0x80072ee7 : unknown error"
+                ),
+            ),
+            "winget-source",
+            "source update",
+        ),
+        (
             "vscode-extensions",
             WINDOWS,
             ["code.cmd", "--install-extension", "ms-python.python"],
