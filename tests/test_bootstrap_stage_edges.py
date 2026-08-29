@@ -11,6 +11,7 @@ fall through to the workstation or network running the suite.
 from __future__ import annotations
 
 import json
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 
@@ -18,8 +19,9 @@ import pytest
 from bootstrap_cli_harness import CliFakeRunner, unreachable
 
 import prodockit.bootstrap.stages as stages
+from prodockit import mathjax
 from prodockit.bootstrap import BootstrapConfig, CommandResult, Status, build_context
-from prodockit.bootstrap.model import MACOS, UBUNTU
+from prodockit.bootstrap.model import MACOS, UBUNTU, WINDOWS
 
 
 def _context(
@@ -45,7 +47,27 @@ def _context(
         platform=platform,
         home=tmp_path,
         fetch=unreachable,
+        guided=True,
     )
+
+
+def _pushed_context(
+    tmp_path: Path,
+    *,
+    runner: CliFakeRunner | None = None,
+    platform: str = MACOS,
+):
+    """A context whose own commit has already reached its remote."""
+    (tmp_path / "report" / ".git").mkdir(parents=True, exist_ok=True)
+    ready = {
+        "remote get-url origin": CommandResult(0, "git@github.com:ada/report.git\n"),
+        "status --porcelain": CommandResult(0, ""),
+        "ls-remote origin HEAD": CommandResult(0, "abc123\tHEAD\n"),
+        "rev-parse HEAD": CommandResult(0, "abc123\n"),
+    }
+    actual_runner = runner or CliFakeRunner()
+    actual_runner.responses = ready | actual_runner.responses
+    return _context(tmp_path, runner=actual_runner, platform=platform)
 
 
 def test_clone_stage_distinguishes_a_directory_from_a_git_clone(tmp_path: Path) -> None:
@@ -160,15 +182,18 @@ def test_project_environment_reports_dependencies_that_do_not_import(tmp_path: P
     project = tmp_path / "report"
     (project / ".venv" / "bin").mkdir(parents=True)
     (project / ".venv" / "bin" / "python").touch()
+    (project / ".venv" / "bin" / "activate").touch()
     (project / "requirements.txt").touch()
+    runner = CliFakeRunner({"-m pip --version": CommandResult(0, "pip 26.0.1")})
 
-    result = stages._check_project_env(_context(tmp_path))
+    result = stages._check_project_env(_context(tmp_path, runner=runner))
 
     assert result.status is Status.MISSING
     assert "dependencies are not installed" in result.detail
 
 
 def test_node_stage_rejects_an_unreadable_version(tmp_path: Path) -> None:
+    (tmp_path / "report").mkdir()
     runner = CliFakeRunner({"node --version": CommandResult(0, "development")})
 
     result = stages._check_node(_context(tmp_path, runner=runner))
@@ -189,14 +214,15 @@ def test_node_stage_requests_missing_configuration_after_tool_checks(
     assert result.status is Status.UNKNOWN
 
 
-def test_node_stage_can_succeed_before_the_project_directory_exists(tmp_path: Path) -> None:
+def test_node_stage_waits_until_the_project_directory_exists(tmp_path: Path) -> None:
     runner = CliFakeRunner(
         {"node --version": CommandResult(0, "v24.1.0"), "npm --version": CommandResult(0, "11")}
     )
 
     result = stages._check_node(_context(tmp_path, runner=runner))
 
-    assert result.status is Status.OK
+    assert result.status is Status.BLOCKED
+    assert result.detail == "no project directory yet"
 
 
 def test_ubuntu_locale_without_lang_is_unknown(tmp_path: Path) -> None:
@@ -322,10 +348,13 @@ def test_mathjax_stage_accepts_an_install_after_its_pinned_source_is_removed(
     context = _context(tmp_path)
     _source, _license_source, bundle, license_path, config = stages._mathjax_paths(context)
     bundle.parent.mkdir(parents=True)
-    bundle.touch()
-    license_path.touch()
+    bundle.write_text("BUNDLE", encoding="utf-8")
+    license_path.write_text("APACHE", encoding="utf-8")
     config.parent.mkdir(parents=True, exist_ok=True)
-    config.touch()
+    config.write_text(mathjax.CONFIG_SOURCE, encoding="utf-8")
+    (tmp_path / "report" / ".gitignore").write_text(
+        "\n".join(mathjax.IGNORED) + "\n", encoding="utf-8"
+    )
 
     result = stages._check_mathjax(context)
 
@@ -342,6 +371,184 @@ def test_site_stage_is_not_applicable_without_a_fixed_pages_address(
 
     assert result.status is Status.OK
     assert "not checked" in result.detail
+
+
+def test_site_stage_requires_confirmation_for_oauth_redirect_found_by_system_curl(
+    tmp_path: Path,
+) -> None:
+    runner = CliFakeRunner({"curl": CommandResult(47, "302")})
+    context = _pushed_context(tmp_path, runner=runner)
+
+    result = stages._check_site_published(context)
+
+    assert result.status is Status.MISSING
+    assert result.verifiable is False
+    assert "does not prove that this specific site exists" in result.detail
+    assert any(call[0] == "curl" and "--max-redirs" in call for call in runner.calls)
+
+
+def test_unavailable_site_probe_takes_a_browser_confirmation_on_trust(
+    tmp_path: Path,
+) -> None:
+    result = stages._check_site_published(_pushed_context(tmp_path))
+
+    assert result.status is Status.MISSING
+    assert result.verifiable is False
+    assert "confirm it in your browser" in result.detail
+
+
+def test_windows_certificate_failure_is_diagnosed_without_disabling_tls(
+    tmp_path: Path,
+) -> None:
+    runner = CliFakeRunner(
+        {
+            "curl.exe": CommandResult(
+                60,
+                "000",
+                "curl: (60) schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - "
+                "The certificate chain was issued by an authority that is not trusted.",
+            )
+        }
+    )
+
+    context = _pushed_context(tmp_path, runner=runner, platform=WINDOWS)
+    result = stages._check_site_published(context)
+
+    assert result.status is Status.MISSING
+    assert result.verifiable is False
+    assert "certificate chain is not trusted" in result.detail
+    assert "browser" in result.detail
+    assert "probe did not run" not in result.detail
+    curl = next(call for call in runner.calls if call[0] == "curl.exe")
+    assert "-k" not in curl and "--insecure" not in curl
+
+
+def test_macos_project_environment_plan_persists_homebrew_library_path(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "report"
+    project.mkdir()
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    context = _context(
+        tmp_path,
+        runner=CliFakeRunner({"brew --prefix": CommandResult(0, "/opt/homebrew\n")}),
+    )
+
+    plan = stages._plan_project_env(context)
+    rendered = "\n".join(" ".join(command) for command in plan.commands)
+
+    assert "DYLD_FALLBACK_LIBRARY_PATH" in rendered
+    assert "/opt/homebrew/lib" in rendered
+    assert "activate" in rendered
+    compile(plan.commands[-1][2], "<prodockit bootstrap macOS activation update>", "exec")
+
+
+def test_macos_loader_marker_without_the_export_is_not_complete(tmp_path: Path) -> None:
+    activate = tmp_path / "report" / ".venv" / "bin" / "activate"
+    activate.parent.mkdir(parents=True)
+    activate.write_text("# Added by prodockit bootstrap for WeasyPrint\n", encoding="utf-8")
+    context = _context(
+        tmp_path,
+        runner=CliFakeRunner({"brew --prefix": CommandResult(0, "/opt/homebrew\n")}),
+    )
+
+    assert stages._macos_loader_is_configured(context) is False
+
+
+def test_macos_loader_update_replaces_a_partial_block_atomically(tmp_path: Path) -> None:
+    project = tmp_path / "report"
+    activate = project / ".venv" / "bin" / "activate"
+    activate.parent.mkdir(parents=True)
+    activate.write_text(
+        "VIRTUAL_ENV=/old\n# Added by prodockit bootstrap for WeasyPrint\n"
+        'export DYLD_FALLBACK_LIBRARY_PATH="/wrong/lib"\n',
+        encoding="utf-8",
+    )
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    python = activate.parent / "python"
+    python.touch()
+    runner = CliFakeRunner(
+        {
+            "brew --prefix": CommandResult(0, "/opt/homebrew\n"),
+            "-m pip --version": CommandResult(0, "pip 26.0.1"),
+        }
+    )
+    plan = stages._plan_project_env(_context(tmp_path, runner=runner))
+    script = plan.commands[-1]
+
+    subprocess.run(script, check=True)
+
+    updated = activate.read_text(encoding="utf-8")
+    assert "/wrong/lib" not in updated
+    assert updated.count("# Added by prodockit bootstrap for WeasyPrint") == 1
+    assert (
+        'export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib'
+        '${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"'
+    ) in updated
+    assert not activate.with_name("activate.bootstrap.tmp").exists()
+
+
+@pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
+def test_own_environment_recovery_resumes_with_bootstrap(tmp_path: Path, platform: str) -> None:
+    context = _context(
+        tmp_path,
+        platform=platform,
+        runner=CliFakeRunner({"import ensurepip, venv": CommandResult(1)}),
+    )
+
+    instructions = "\n".join(stages._plan_own_venv(context).instructions)
+
+    assert "prodockit bootstrap" in instructions
+    assert "pdk bootstrap" not in instructions
+
+
+def test_linux_node_setup_separates_download_from_privileged_execution(
+    tmp_path: Path,
+) -> None:
+    plan = stages._plan_node(_context(tmp_path, platform=UBUNTU))
+    rendered = [" ".join(command) for command in plan.commands]
+
+    assert any("/tmp/nodesource-setup.sh" in line and line.startswith("curl ") for line in rendered)
+    assert any(line.startswith("sudo -E bash /tmp/nodesource-setup.sh") for line in rendered)
+    assert not any("| sudo" in line for line in rendered)
+
+
+def test_windows_node_repair_is_fully_non_interactive(tmp_path: Path) -> None:
+    runner = CliFakeRunner(
+        {
+            "node --version": CommandResult(0, "v22.0.0\n"),
+            "npm --version": CommandResult(1, stderr="npm is broken"),
+        }
+    )
+    plan = stages._plan_node(_context(tmp_path, platform=WINDOWS, runner=runner))
+    repair = next(command for command in plan.commands if command[:2] == ["winget", "repair"])
+
+    assert "--silent" in repair
+    assert "--accept-source-agreements" in repair
+    assert "--accept-package-agreements" in repair
+    assert "--disable-interactivity" in repair
+
+
+@pytest.mark.parametrize(
+    ("python_machine", "package", "environment"),
+    [
+        ("0x8664", "mingw-w64-ucrt-x86_64-pango", "ucrt64"),
+        ("0xaa64", "mingw-w64-clang-aarch64-pango", "clangarm64"),
+    ],
+)
+def test_windows_pango_matches_the_python_process_architecture(
+    tmp_path: Path,
+    python_machine: str,
+    package: str,
+    environment: str,
+) -> None:
+    runner = CliFakeRunner({"int.from_bytes": CommandResult(0, python_machine)})
+    plan = stages._plan_pandoc(_context(tmp_path, platform=WINDOWS, runner=runner))
+    rendered = " ".join(" ".join(command) for command in plan.commands)
+
+    assert package in rendered
+    assert f"$msysEnv = '{environment}'" in rendered
+    assert "PROCESSOR_ARCHITEW6432" not in rendered
 
 
 def test_first_push_reports_an_unreachable_origin(tmp_path: Path) -> None:

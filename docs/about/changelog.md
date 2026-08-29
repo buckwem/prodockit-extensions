@@ -31,7 +31,7 @@ requests rather than here.
   creates a styled PDF with chapters, cross-page links, figures, tables,
   references, headers, footers, and an optional index.
 - **Project setup:** `prodockit adopt` adds selected components to an existing
-  Zensical or MkDocs project; `pdkboot` automates a complete template-based
+  Zensical or MkDocs project; `prodockit bootstrap` automates a complete template-based
   environment on supported macOS, Windows, and Ubuntu systems.
 - **Project maintenance:** template sync, repository metadata sync, version
   pin checks, shared-file checks, source bundles, and built-output tests help

@@ -137,7 +137,7 @@ prodockit adopt
 ```
 
 The report is read-only. It groups the work into phases and gives every change
-its own stage, using the same presentation as `pdkboot`. It also says explicitly
+its own stage, using the same presentation as `prodockit bootstrap`. It also says explicitly
 that Git, SSH, remotes and editors are outside its scope.
 
 ////

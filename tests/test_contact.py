@@ -184,6 +184,8 @@ def test_a_check_pass_on_a_finished_machine_costs_three_logins(tmp_path) -> None
     Stage 23 now independently checks that Stage 22's push prerequisite
     is true before it probes Pages (#611). That repeats the same read-only
     `ls-remote`, but the contact memo answers it without a fourth login.
+    The promoted stage order also lets the clone-source stage reuse the
+    destination-project probe made immediately before it (#591).
     """
     from test_bootstrap import FakeRunner, _context, _ready_machine
 
@@ -193,9 +195,9 @@ def test_a_check_pass_on_a_finished_machine_costs_three_logins(tmp_path) -> None
     check_all(context)
 
     assert context.contacts.made == 3
-    assert context.contacts.reused == 1, (
-        "the site stage rechecks the push prerequisite, but the memo must "
-        "answer it without another host connection"
+    assert context.contacts.reused == 2, (
+        "the clone-source and site stages must reuse their matching probes "
+        "without opening another host connection"
     )
 
 

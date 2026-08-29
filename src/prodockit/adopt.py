@@ -3,7 +3,7 @@
 
 """Adopt prodockit in an existing Zensical or MkDocs project.
 
-This is deliberately project-scoped.  ``pdkboot`` prepares a machine and a
+This is deliberately project-scoped.  ``prodockit bootstrap`` prepares a machine and a
 repository; adoption starts after that boundary, with an author who already
 has Git, SSH, an editor and an existing documentation site.  It therefore
 changes only files below the project root and never commits or pushes them.

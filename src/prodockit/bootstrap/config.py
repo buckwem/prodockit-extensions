@@ -79,8 +79,8 @@ class BootstrapConfig:
     #: The exact Pages URL an author confirmed in their browser when this
     #: machine could not run an HTTP probe. Storing the URL rather than a
     #: boolean invalidates the confirmation automatically if the project or
-    #: namespace changes. Used only by pdkboot; legacy bootstrap leaves it
-    #: blank and therefore keeps its existing behaviour and file contents.
+    #: namespace changes. Compatibility callers that do not confirm a site
+    #: leave it blank and therefore keep their existing file contents.
     confirmed_site_url: str = ""
 
     @property
@@ -112,25 +112,25 @@ class BootstrapConfig:
 
 #: The per-directory config, beside whatever is being set up.
 LOCAL_CONFIG_NAME = ".pdk-bootstrap.toml"
-#: Independent per-directory state for the phased standalone command. It
-#: deliberately has no user-level fallback: discovering the legacy answers
-#: would make manual pdkboot testing mutate an existing bootstrap setup.
-PDKBOOT_CONFIG_NAME = ".pdkboot.toml"
+#: Per-directory state for the promoted command. The historical filename is
+#: retained so existing setup directories continue to work after the command
+#: changes name (prodockit-extensions#591).
+BOOTSTRAP_CONFIG_NAME = ".pdkboot.toml"
 
 
-def pdkboot_config_path(cwd: Path | None = None) -> Path:
-    """The nearest standalone config, isolated from legacy bootstrap.
+def bootstrap_local_config_path(cwd: Path | None = None) -> Path:
+    """The nearest config used by ``prodockit bootstrap``.
 
     A project is created beneath the setup directory that owns this file.
-    Finding the nearest parent lets ``pdkboot --check`` work from inside
+    Finding the nearest parent lets ``prodockit bootstrap --check`` work from inside
     that project without offering to create a second, conflicting config.
     """
     here = Path(cwd) if cwd is not None else Path.cwd()
     for directory in (here, *here.parents):
-        candidate = directory / PDKBOOT_CONFIG_NAME
+        candidate = directory / BOOTSTRAP_CONFIG_NAME
         if candidate.exists():
             return candidate
-    return here / PDKBOOT_CONFIG_NAME
+    return here / BOOTSTRAP_CONFIG_NAME
 
 
 def config_path(home: Path | None = None, cwd: Path | None = None) -> Path:

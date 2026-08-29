@@ -188,7 +188,7 @@ def test_bootstrap_documents_current_hosts_and_local_config() -> None:
 
     assert "github.com is declared but not yet supported" not in guide
     assert "currently implements gitlab.surrey.ac.uk only" not in guide
-    for phrase in ("gitlab.surrey.ac.uk", "github.com", "gitlab.com", ".pdk-bootstrap.toml", "--config"):
+    for phrase in ("gitlab.surrey.ac.uk", "github.com", "gitlab.com", ".pdkboot.toml", "--config"):
         assert phrase in guide
 
 
@@ -196,7 +196,7 @@ def test_bootstrap_config_help_describes_the_real_default() -> None:
     result = CliRunner().invoke(main, ["bootstrap", "--help"])
 
     assert result.exit_code == 0
-    assert ".pdk-bootstrap.toml" in result.output
+    assert ".pdkboot.toml" in result.output
     assert "user config directory" not in result.output
 
 

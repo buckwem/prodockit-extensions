@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Durable, isolated recovery state for the standalone ``pdkboot`` command."""
+"""Durable recovery state for the ``prodockit bootstrap`` command."""
 
 from __future__ import annotations
 
@@ -51,10 +51,10 @@ def recovery_advice(
         return RecoveryAdvice(
             "command-timeout",
             (
-                "The command exceeded pdkboot's 30-minute safety limit. Check that "
+                "The command exceeded prodockit bootstrap's 30-minute safety limit. Check that "
                 "no installer or package-manager process is still running before retrying.",
                 "Do not start a second installer over a running one. Once the first has "
-                "finished or stopped, resume pdkboot; the stage will be checked before "
+                "finished or stopped, resume prodockit bootstrap; the stage will be checked before "
                 "anything is repeated.",
             ),
         )
@@ -69,7 +69,8 @@ def recovery_advice(
                 (
                     "Open Microsoft Store and install or repair App Installer, "
                     "which provides winget.",
-                    "Close and reopen the terminal, run `winget --version`, then resume pdkboot.",
+                    "Close and reopen the terminal, run `winget --version`, then "
+                    "resume prodockit bootstrap.",
                 ),
             )
         if executable == "brew":
@@ -78,7 +79,7 @@ def recovery_advice(
                 (
                     "Confirm Homebrew is installed and `brew --version` works in this terminal.",
                     "If Homebrew is installed elsewhere, reopen the terminal after "
-                    "adding its shell environment, then resume pdkboot.",
+                    "adding its shell environment, then resume prodockit bootstrap.",
                 ),
             )
         name = command[0] if command else "the command"
@@ -86,7 +87,8 @@ def recovery_advice(
             "command-missing",
             (
                 f"Confirm `{name}` is installed and visible on PATH in this terminal.",
-                "If it was just installed, close and reopen the terminal before resuming pdkboot.",
+                "If it was just installed, close and reopen the terminal before "
+                "resuming prodockit bootstrap.",
             ),
         )
 
@@ -106,7 +108,7 @@ def recovery_advice(
             (
                 "Run `winget source update` and retry.",
                 "If that reports a damaged source, run `winget source reset "
-                "--force`, then `winget source update` before resuming pdkboot.",
+                "--force`, then `winget source update` before resuming prodockit bootstrap.",
             ),
         )
 
@@ -128,7 +130,7 @@ def recovery_advice(
             (
                 "The remote package or extension service is temporarily unavailable; "
                 "no local repair is needed.",
-                "Wait briefly and resume pdkboot; completed work will be skipped and "
+                "Wait briefly and resume prodockit bootstrap; completed work will be skipped and "
                 "the failed download will be retried.",
             ),
         )
@@ -157,7 +159,8 @@ def recovery_advice(
             (
                 "Check the VM's network, DNS, proxy and system clock, then retry "
                 "the failed command.",
-                "Resume pdkboot after the command can reach its package or repository service.",
+                "Resume prodockit bootstrap after the command can reach its package "
+                "or repository service.",
             ),
         )
 
@@ -176,7 +179,7 @@ def recovery_advice(
                 "Check the failed path and package-manager permissions; do not "
                 "change ownership recursively.",
                 "Use an elevated terminal only if the failed installer explicitly "
-                "requires it, then resume pdkboot.",
+                "requires it, then resume prodockit bootstrap.",
             ),
         )
 
@@ -185,7 +188,8 @@ def recovery_advice(
             "disk-space",
             (
                 "Free disk space in the VM and its temporary-file location.",
-                "Resume pdkboot; completed stages will be checked rather than installed again.",
+                "Resume prodockit bootstrap; completed stages will be checked rather "
+                "than installed again.",
             ),
         )
 
@@ -202,7 +206,7 @@ def recovery_advice(
             (
                 "Let the other installer or operating-system update finish; do "
                 "not delete package-manager lock files.",
-                "Resume pdkboot when no other installation is running.",
+                "Resume prodockit bootstrap when no other installation is running.",
             ),
         )
 
@@ -230,7 +234,8 @@ def recovery_advice(
                 f"If winget continues to fail, use the vendor's official installer "
                 f"for {product}; keep its option to add the command to PATH enabled.",
                 f"Close and reopen the terminal, confirm {verification}, then resume "
-                "pdkboot so the installed version and remaining configuration are checked.",
+                "prodockit bootstrap so the installed version and remaining "
+                "configuration are checked.",
             ),
         )
 
@@ -241,7 +246,7 @@ def recovery_advice(
                 "If the package manager remains unavailable, install Visual Studio "
                 "Code with the vendor's official desktop installer.",
                 "Enable VS Code's `code` shell command, reopen the terminal, run "
-                "`code --version`, then resume pdkboot.",
+                "`code --version`, then resume prodockit bootstrap.",
             ),
         )
 
@@ -251,7 +256,7 @@ def recovery_advice(
             (
                 "If Homebrew remains unavailable, run `xcode-select --install` and "
                 "complete Apple's Command Line Tools installer.",
-                "Open a new terminal, run `git --version`, then resume pdkboot so "
+                "Open a new terminal, run `git --version`, then resume prodockit bootstrap so "
                 "Git configuration is completed.",
             ),
         )
@@ -263,7 +268,7 @@ def recovery_advice(
                 "Inspect the destination directory: a failed clone may have left "
                 "a partial checkout.",
                 "If it contains work, preserve it. Otherwise move the partial "
-                "directory aside, then resume pdkboot.",
+                "directory aside, then resume prodockit bootstrap.",
             ),
         )
     if stage_id == "project-env":
@@ -271,7 +276,7 @@ def recovery_advice(
             "partial-environment",
             (
                 "The project environment may be partially populated; resume once "
-                "to let pdkboot recheck it.",
+                "to let prodockit bootstrap recheck it.",
                 "If the same dependency failure repeats, move the project's "
                 "`.venv` aside and resume to rebuild it cleanly.",
             ),
@@ -288,7 +293,7 @@ def recovery_advice(
                 "review its output and confirm the VM's Ubuntu release is supported.",
                 "If NodeSource remains unavailable, install the current Node.js LTS "
                 "with its official Linux instructions, confirm both `node --version` "
-                "and `npm --version`, then resume pdkboot.",
+                "and `npm --version`, then resume prodockit bootstrap.",
             ),
         )
     if stage_id == "node":
@@ -297,7 +302,7 @@ def recovery_advice(
             (
                 "Run `node --version` and `npm --version` to distinguish a runtime "
                 "failure from a project-toolchain failure.",
-                "Run `npm cache verify`; if it succeeds, resume pdkboot so `npm ci` "
+                "Run `npm cache verify`; if it succeeds, resume prodockit bootstrap so `npm ci` "
                 "can rebuild the project toolchains.",
             ),
         )
@@ -308,7 +313,7 @@ def recovery_advice(
                 "Check whether the pinned Pandoc package downloaded to "
                 "`/tmp/pandoc.deb` and whether its architecture matches `dpkg "
                 "--print-architecture`.",
-                "Resume pdkboot after the download or apt problem is corrected; "
+                "Resume prodockit bootstrap after the download or apt problem is corrected; "
                 "it will recheck Pandoc before installing the remaining PDF libraries.",
             ),
         )
@@ -318,7 +323,7 @@ def recovery_advice(
             (
                 "Run `winget list --id JohnMacFarlane.Pandoc --exact` and `pandoc "
                 "--version` to check whether Pandoc installed despite the error.",
-                "Check that MSYS2 opens before resuming; pdkboot will recheck "
+                "Check that MSYS2 opens before resuming; prodockit bootstrap will recheck "
                 "Pandoc and the PDF libraries separately.",
             ),
         )
@@ -327,13 +332,13 @@ def recovery_advice(
         "unclassified",
         (
             "Review the command output above and correct the reported condition.",
-            "Resume pdkboot; completed stages will be checked and skipped.",
+            "Resume prodockit bootstrap; completed stages will be checked and skipped.",
         ),
     )
 
 
-def pdkboot_report_path(config_path: Path) -> Path:
-    """Put recovery state beside, but distinctly from, pdkboot's config."""
+def bootstrap_report_path(config_path: Path) -> Path:
+    """Put recovery state beside, but distinctly from, prodockit bootstrap's config."""
     return config_path.with_name(f"{config_path.stem}.last-run.json")
 
 
@@ -341,7 +346,7 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-class PdkbootRunJournal:
+class BootstrapRunJournal:
     """An atomically replaced account of the latest apply run.
 
     A damaged or half-written recovery file is worse than no recovery file,
@@ -364,7 +369,7 @@ class PdkbootRunJournal:
         started = _now()
         self.data: dict[str, Any] = {
             "schema": REPORT_SCHEMA,
-            "pdkboot_version": version,
+            "prodockit_version": version,
             "status": "running",
             "started_at": started,
             "updated_at": started,
@@ -454,8 +459,8 @@ class PdkbootRunJournal:
 
 
 __all__ = [
-    "PdkbootRunJournal",
+    "BootstrapRunJournal",
     "RecoveryAdvice",
-    "pdkboot_report_path",
+    "bootstrap_report_path",
     "recovery_advice",
 ]

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Hermetic command harness for ``pdk boot``/``prodockit bootstrap``.
+"""Hermetic command harness for the ``prodockit bootstrap`` command.
 
 The stage-model tests have their own broad fake-machine helpers.  This
 smaller harness is deliberately about the command boundary: Click parsing,
@@ -69,7 +69,7 @@ def unreachable(_url: str, timeout: float = 20.0):
 
 
 class BootstrapCliHarness:
-    """Invoke either public spelling against a deterministic fake machine."""
+    """Invoke ``prodockit bootstrap`` against a deterministic fake machine."""
 
     def __init__(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         self.tmp_path = tmp_path
@@ -83,7 +83,6 @@ class BootstrapCliHarness:
         input: str | None = None,
         platform: str = MACOS,
         fetch: Callable[..., Any] | None = None,
-        command: str = "bootstrap",
         config_path: Path | None = None,
         patch_context: bool = True,
     ) -> Result:
@@ -104,19 +103,20 @@ class BootstrapCliHarness:
             self.last_runner = runner
             self.monkeypatch.setattr(
                 "prodockit.cli.build_bootstrap_context",
-                lambda config: build_context(
+                lambda config, *, guided=False: build_context(
                     config,
                     runner=runner,
                     exists=lambda path: False if _looks_like_vscode_app(path) else path.exists(),
                     platform=platform,
                     home=self.tmp_path,
                     fetch=fetch or unreachable,
+                    guided=guided,
                 ),
             )
 
         path = config_path or self.tmp_path / "b.toml"
         return CliRunner().invoke(
             main,
-            [command, "--config", str(path), *args],
+            ["bootstrap", "--config", str(path), *args],
             input=input,
         )
