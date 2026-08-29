@@ -177,14 +177,13 @@ def test_a_check_pass_on_a_finished_machine_costs_three_logins(tmp_path) -> None
     naming it. Nothing that answer could say would change the outcome,
     and it was paid for with a connection on every run.
 
-    Rising, and worth watching for that reason. Every stage that asks the
-    host something adds to what a run costs, and #304 exists because that
-    number got away from the tool once already - a server stopped
-    answering and the tool blamed the reader's key.
-
     It is worth watching. Every stage that asks the host something adds
     to what a run costs, and #304 exists because that number got away
     from the tool once already.
+
+    Stage 23 now independently checks that Stage 22's push prerequisite
+    is true before it probes Pages (#611). That repeats the same read-only
+    `ls-remote`, but the contact memo answers it without a fourth login.
     """
     from test_bootstrap import FakeRunner, _context, _ready_machine
 
@@ -194,9 +193,9 @@ def test_a_check_pass_on_a_finished_machine_costs_three_logins(tmp_path) -> None
     check_all(context)
 
     assert context.contacts.made == 3
-    assert context.contacts.reused == 0, (
-        "the repeat questions were the clone-source stage's, and #368 "
-        "stopped it asking at all - not answered from the memo, not asked"
+    assert context.contacts.reused == 1, (
+        "the site stage rechecks the push prerequisite, but the memo must "
+        "answer it without another host connection"
     )
 
 

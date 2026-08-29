@@ -3794,9 +3794,9 @@ def _check_site_published(context: Context) -> CheckResult:
     yet" is the correct and expected answer - which is why it is worded
     as waiting rather than as a fault.
 
-    Fetched anonymously on purpose: a Pages site is public even when the
-    repository behind it is private, so this needs no token - which is
-    what makes it checkable at all.
+    Fetched anonymously on purpose. A direct 200 proves this exact site;
+    a shared authentication response does not, so pdkboot asks the reader
+    to confirm that address in their signed-in browser instead.
     """
     if (unknown := _needs_config(context, "namespace", "project_name")) is not None:
         return unknown
@@ -3804,10 +3804,21 @@ def _check_site_published(context: Context) -> CheckResult:
     if not url:
         # A self-hosted GitLab publishes wherever its administrator
         # decided, so there is no address to try. Not a finding - leaving
-        # every Surrey run permanently one stage short would be worse
-        # than the gap it reports - but the detail says it was not
-        # checked, rather than implying a site was found.
+        # every run permanently one stage short would be worse than the
+        # gap it reports - but the detail says it was not checked, rather
+        # than implying a site was found.
         return _ok(f"not checked - {context.host.hostname} publishes at no fixed address")
+    # A Pages deployment cannot exist before this project's own commit is
+    # present on the remote. Check that prerequisite before asking the
+    # guessed Pages URL: some installations send *every* path, including a
+    # nonexistent one, to the same authentication service. Its redirect is
+    # evidence that the login service exists, not that this project has
+    # published a site (prodockit-extensions#611).
+    if _check_first_push(context).status is not Status.OK:
+        return _blocked(
+            "the first push has not been confirmed - complete the "
+            "'First commit pushed' stage first"
+        )
     status, probe_problem = _http_probe(context, url)
     if status == 200:
         # Said plainly, because it is the part readers get wrong: a Pages
@@ -3834,15 +3845,24 @@ def _check_site_published(context: Context) -> CheckResult:
             )
         return _missing(detail)
     if status in (401, 403) or 300 <= status < 400:
-        # A login wall is proof the site is there. A university instance
-        # publishes behind its own sign-in, so an anonymous probe is sent
-        # to a login page rather than refused - and reporting "not
-        # answering yet" of a site that is plainly up would leave every
-        # Surrey run one stage short (prodockit-extensions#392).
-        return _ok(
-            f"published at {url} - it asks for a {context.host.hostname} login, "
-            "so only people with one can read it"
+        # Authentication responses are deliberately inconclusive. Surrey's
+        # Pages gateway returns the same redirect for a published private
+        # site and for a path that has never existed, so treating it as proof
+        # produced a false `All 23 stages are set up` after a failed pipeline
+        # (#611). The browser remains the only project-specific check there.
+        if context.pdkboot and context.config.confirmed_site_url == url:
+            return _ok(f"published at {url} - confirmed in your browser")
+        detail = (
+            f"could not verify {url} because {context.host.hostname}'s login response "
+            "does not prove that this specific site exists"
         )
+        if context.pdkboot:
+            return CheckResult(
+                Status.MISSING,
+                f"{detail}; confirm the exact address in your browser",
+                verifiable=False,
+            )
+        return _missing(detail)
     return _missing(f"{url} is not answering yet")
 
 
