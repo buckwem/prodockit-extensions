@@ -235,9 +235,13 @@ def test_real_bootstrap_installs_skip_an_ordinary_pull_request() -> None:
 
 
 def test_real_bootstrap_harness_exercises_itself_and_manual_dispatch() -> None:
-    assert bootstrap_native_for_event(
-        "pull_request", {}, ChangedRange(("tools/bootstrap_native_install.py",))
-    )
+    for harness in (
+        "tools/bootstrap_native_install.py",
+        "tools/bootstrap_native_upgrade.py",
+    ):
+        assert bootstrap_native_for_event(
+            "pull_request", {}, ChangedRange((harness,))
+        )
     assert bootstrap_native_for_event("workflow_dispatch", {}, ChangedRange(full=True))
     assert not bootstrap_native_for_event(
         "push", {}, ChangedRange(("tools/bootstrap_native_install.py",))
@@ -323,7 +327,9 @@ def test_bootstrap_release_gate_runs_real_installs_on_every_supported_runner() -
     assert "native: ${{ steps.scope.outputs['bootstrap-native'] }}" in workflow
     assert "if: needs.scope.outputs.native == 'true'" in workflow
     assert "python tools/bootstrap_native_install.py" in workflow
+    assert "python tools/bootstrap_native_upgrade.py" in workflow
     assert "timeout-minutes: 60" in workflow
+    assert "timeout-minutes: 120" in workflow
     for runner in (
         "ubuntu-24.04",
         "ubuntu-24.04-arm",

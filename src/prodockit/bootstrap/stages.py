@@ -136,6 +136,27 @@ def _apt(*args: str) -> list[str]:
     return ["sudo", "apt", *APT_LOCK_OPTION, *args]
 
 
+def _brew_upgrade_or_install(name: str, *, cask: bool = False) -> list[str]:
+    """Upgrade a Homebrew-owned tool or adopt an existing manual install.
+
+    Bootstrap can discover a genuine executable that was installed from a
+    vendor archive rather than by Homebrew.  ``brew upgrade`` rejects that
+    perfectly ordinary state because it has no receipt.  Selecting install
+    when the receipt is absent lets Homebrew replace the old application and
+    leaves future upgrades under package-manager control.
+    """
+    kind = "--cask" if cask else "--formula"
+    install_kind = " --cask" if cask else ""
+    quoted = shlex.quote(name)
+    return [
+        "bash",
+        "-c",
+        f"if brew list {kind} {quoted} >/dev/null 2>&1; then "
+        f"brew upgrade{install_kind} {quoted}; else "
+        f"brew install{install_kind} --force {quoted}; fi",
+    ]
+
+
 #: The same, for the two places apt is run inside a shell string.
 APT_SH = "sudo apt " + " ".join(APT_LOCK_OPTION)
 
@@ -751,7 +772,7 @@ def _plan_vscode(context: Context) -> Plan:
     )
     if upgrade:
         commands = {
-            MACOS: [["brew", "upgrade", "--cask", "visual-studio-code"]],
+            MACOS: [_brew_upgrade_or_install("visual-studio-code", cask=True)],
             UBUNTU: [],
             WINDOWS: [_winget_upgrade("Microsoft.VisualStudioCode")],
         }[context.platform]
@@ -915,7 +936,7 @@ def _plan_git(context: Context) -> Plan:
     upgrade = installed_version.ok and _version_is_older(installed_version.stdout, GIT_MIN_VERSION)
     if upgrade:
         install = {
-            MACOS: [["brew", "upgrade", "git"]],
+            MACOS: [_brew_upgrade_or_install("git")],
             UBUNTU: [_apt("update"), _apt("install", "-y", "git")],
             WINDOWS: [_winget_upgrade("Git.Git")],
         }[context.platform]
@@ -2674,16 +2695,20 @@ def _plan_pandoc(context: Context) -> Plan:
     pango_upgrade = pango_result.ok and _version_is_older(pango_result.stdout, PANGO_MIN_VERSION)
     upgrade = pandoc_upgrade or pango_upgrade
     if context.platform == MACOS:
-        upgrade_targets = [
-            name
-            for name, needed in (("pandoc", pandoc_upgrade), ("pango", pango_upgrade))
-            if needed
-        ]
+        package_commands: list[list[str]] = []
+        if pandoc_upgrade:
+            package_commands.append(_brew_upgrade_or_install("pandoc"))
+        elif not installed.ok:
+            package_commands.append(["brew", "install", "pandoc"])
+        if pango_upgrade:
+            package_commands.append(_brew_upgrade_or_install("pango"))
+        elif not pango_result.ok:
+            package_commands.append(["brew", "install", "pango"])
+        if not package_commands and not upgrade:
+            package_commands.append(["brew", "install", "pandoc", "pango"])
         return Plan(
             commands=[
-                ["brew", "upgrade", *upgrade_targets]
-                if upgrade_targets
-                else ["brew", "install", "pandoc", "pango"],
+                *package_commands,
                 # The PDF embeds these; the website loads them from a CDN
                 # at view time and so never notices they are absent
                 # (prodockit-userguide#101, #249).
@@ -3466,7 +3491,7 @@ def _plan_node(context: Context) -> Plan:
             upgrade = True
             if old_node:
                 install = {
-                    MACOS: [["brew", "upgrade", "node"]],
+                    MACOS: [_brew_upgrade_or_install("node")],
                     UBUNTU: ubuntu_node_install,
                     WINDOWS: [_winget_upgrade("OpenJS.NodeJS.LTS")],
                 }[context.platform]

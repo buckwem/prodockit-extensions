@@ -42,6 +42,38 @@ def test_old_software_runs_only_on_the_two_deliberate_routes(
     assert bootstrap_acceptance_driver.supports_old_software_route(host, route) is supported
 
 
+def test_real_software_keeps_the_same_machine_and_repository_scope() -> None:
+    stages = {
+        stage.id: stage
+        for stage in bootstrap_acceptance_driver.acceptance_stages(real_software=True)
+    }
+
+    for stage_id in ("vscode", "git", "pandoc", "node", "extensions"):
+        assert stages[stage_id].check.__module__ != bootstrap_acceptance_driver.__name__
+
+
+def test_real_software_commands_cross_the_machine_boundary(monkeypatch, tmp_path: Path) -> None:
+    runner = bootstrap_acceptance_driver.HarnessRunner(
+        {},
+        "git@example.invalid:group/project.git",
+        home=tmp_path,
+        real_software=True,
+    )
+    seen: list[list[str]] = []
+
+    def execute(command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
+        del cwd, timeout, capture
+        seen.append(list(command))
+        return bootstrap_acceptance_driver.CommandResult(0, "pandoc 2.19.2\n")
+
+    monkeypatch.setattr(runner.system, "run", execute)
+
+    result = runner.run(["pandoc", "--version"])
+
+    assert result.stdout == "pandoc 2.19.2\n"
+    assert seen == [["pandoc", "--version"]]
+
+
 def test_a_wheel_file_or_single_wheel_directory_is_accepted(tmp_path: Path) -> None:
     wheel = tmp_path / "prodockit-1.2.3-py3-none-any.whl"
     wheel.write_bytes(b"wheel")

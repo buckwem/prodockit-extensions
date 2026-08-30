@@ -39,6 +39,7 @@ from prodockit.bootstrap import (
     CommandResult,
     Stage,
     Status,
+    SubprocessRunner,
     build_context,
     current_platform,
     load,
@@ -110,7 +111,16 @@ def initialise_worktree(
 ) -> str:
     path.mkdir(parents=True)
     write_project(path, marker=marker)
-    git(["init", "-b", "main"], cwd=path, environment=environment)
+    initialised = git(
+        ["init", "-b", "main"], cwd=path, environment=environment, check=False
+    )
+    if initialised.returncode:
+        # The real-upgrade route intentionally starts with Git 2.27; ``-b``
+        # is the feature Bootstrap must upgrade Git to gain.  The local test
+        # fixture therefore uses the older equivalent without concealing what
+        # Bootstrap itself later executes.
+        git(["init"], cwd=path, environment=environment)
+        git(["checkout", "-b", "main"], cwd=path, environment=environment)
     git(["add", "-A"], cwd=path, environment=environment)
     git(["commit", "-m", marker], cwd=path, environment=environment)
     return git(["rev-parse", "HEAD"], cwd=path, environment=environment).stdout.strip()
@@ -144,11 +154,14 @@ class HarnessRunner:
         *,
         home: Path,
         old_software: bool = False,
+        real_software: bool = False,
     ) -> None:
         self.environment = environment
         self.expected_remote = expected_remote
         self.home = home
         self.old_software = old_software
+        self.real_software = real_software
+        self.system = SubprocessRunner()
         self.calls: list[list[str]] = []
         self.upgraded: set[str] = set()
         self.versions = {
@@ -213,11 +226,36 @@ class HarnessRunner:
         timeout: float | None = None,
         capture: bool = True,
     ) -> CommandResult:
-        del timeout, capture
         words = list(command)
         self.calls.append(words)
         executable = Path(words[0]).name.lower()
         working = Path(cwd) if cwd else Path.cwd()
+
+        # Native release acceptance keeps the Git-host and repository edges
+        # local, but deliberately crosses the machine boundary.  These are
+        # actual programs and package managers on a disposable runner, not
+        # the version-bearing test doubles used by ``--old-software``.
+        real_machine_commands = {
+            "bash",
+            "brew",
+            "code",
+            "code.cmd",
+            "curl",
+            "dpkg",
+            "dpkg-query",
+            "fc-list",
+            "node",
+            "node.exe",
+            "npm",
+            "npm.cmd",
+            "pandoc",
+            "pandoc.exe",
+            "pango-view",
+            "pango-view.exe",
+            "sudo",
+            "winget",
+            "winget.exe",
+        }
 
         if self.old_software and executable in {"code", "code.cmd"}:
             if "--version" in words:
@@ -345,6 +383,8 @@ class HarnessRunner:
                 return CommandResult(1, stderr="could not read Move-Item paths")
             shutil.move(paths[0].replace("''", "'"), paths[1].replace("''", "'"))
             return CommandResult(0)
+        if self.real_software and executable in {"powershell", "powershell.exe", "pwsh"}:
+            return self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
         if self.old_software and executable in {"powershell", "powershell.exe"}:
             if "pacman -S" in words[-1]:
                 self._upgrade("pango")
@@ -420,6 +460,16 @@ class HarnessRunner:
                 )
             return CommandResult(completed.returncode, completed.stdout, completed.stderr)
 
+        if self.real_software and executable in real_machine_commands:
+            return self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
+
+        if (
+            self.real_software
+            and executable == Path(sys.executable).name.lower()
+            and "-c" in words
+        ):
+            return self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
+
         if self.old_software and executable == Path(sys.executable).name.lower() and "-c" in words:
             script = words[words.index("-c") + 1]
             if "int.from_bytes" in script:
@@ -441,7 +491,9 @@ def _simulated_stage(stage: Stage) -> Stage:
     return Stage(stage.id, stage.summary, satisfied, stage.plan)
 
 
-def acceptance_stages(*, old_software: bool = False) -> tuple[Stage, ...]:
+def acceptance_stages(
+    *, old_software: bool = False, real_software: bool = False
+) -> tuple[Stage, ...]:
     """Keep repository stages real and replace only external machine edges."""
     real = {
         "own-project",
@@ -454,7 +506,7 @@ def acceptance_stages(*, old_software: bool = False) -> tuple[Stage, ...]:
         "first-push",
         "site",
     }
-    if old_software:
+    if old_software or real_software:
         real.update({"vscode", "git", "pandoc", "node", "extensions"})
     return tuple(stage if stage.id in real else _simulated_stage(stage) for stage in STAGES)
 
@@ -536,10 +588,15 @@ def main() -> None:
     parser.add_argument("--host", choices=("surrey", "github"), required=True)
     parser.add_argument("--route", choices=("new", "existing"), required=True)
     parser.add_argument("--old-software", action="store_true")
+    parser.add_argument("--real-software", action="store_true")
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
 
-    if args.old_software and not supports_old_software_route(args.host, args.route):
+    if args.old_software and args.real_software:
+        raise AcceptanceError("choose simulated or real old software, not both")
+    if (args.old_software or args.real_software) and not supports_old_software_route(
+        args.host, args.route
+    ):
         raise AcceptanceError(
             "old-software acceptance is limited to Surrey's existing-repository "
             "route and GitHub's new-repository route"
@@ -559,7 +616,7 @@ def main() -> None:
             "PYTHONUTF8": "1",
         }
     )
-    Path(environment["HOME"]).mkdir()
+    Path(environment["HOME"]).mkdir(exist_ok=True)
     if args.old_software and current_platform() == "windows":
         fonts = (
             Path(environment["HOME"])
@@ -636,11 +693,15 @@ def main() -> None:
         expected_remote,
         home=Path(environment["HOME"]),
         old_software=args.old_software,
+        real_software=args.real_software,
     )
     vars(bootstrap_stages_module)["_check_ssh_authenticates"] = lambda _context: (
         CheckResult(Status.OK, "provided by the acceptance runner")
     )
-    vars(cli)["STAGES"] = acceptance_stages(old_software=args.old_software)
+    vars(cli)["STAGES"] = acceptance_stages(
+        old_software=args.old_software,
+        real_software=args.real_software,
+    )
     vars(cli)["build_bootstrap_context"] = (
         lambda candidate, *, guided=False: build_context(
             candidate,
@@ -715,6 +776,24 @@ def main() -> None:
             raise AcceptanceError(
                 "the old-software route did not present each software upgrade explicitly"
             )
+    if args.real_software:
+        expected = {
+            "Visual Studio Code",
+            "Git, installed and configured",
+            "Pandoc, and the libraries WeasyPrint needs",
+            "Node.js and the render toolchains",
+            "VS Code extensions",
+        }
+        upgraded = {
+            summary
+            for summary in expected
+            if f"{summary}\n  Action:   UPGRADE" in apply_output
+        }
+        if upgraded != expected:
+            raise AcceptanceError(
+                "the real back-level route did not present every upgrade; "
+                f"got {sorted(upgraded)}, expected {sorted(expected)}\n{apply_output}"
+            )
     if not project.is_dir() or not (project / ".git").is_dir():
         raise AcceptanceError("bootstrap did not create a complete local clone")
     if git(["status", "--porcelain"], cwd=project, environment=environment).stdout:
@@ -776,6 +855,7 @@ def main() -> None:
         "host": args.host,
         "route": args.route,
         "old_software": args.old_software,
+        "real_software": args.real_software,
         "machine": platform.machine(),
         "platform": current_platform(),
         "python": platform.python_version(),

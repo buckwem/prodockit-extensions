@@ -2691,6 +2691,23 @@ def test_old_pandoc_is_an_explicit_upgrade_on_unix(tmp_path: Path, platform: str
     assert plan.describe.startswith("Upgrade Pandoc")
 
 
+def test_mac_old_pandoc_also_installs_a_missing_pango(tmp_path: Path) -> None:
+    runner = FakeRunner(
+        {
+            "pandoc --version": CommandResult(0, "pandoc 2.19.2\n"),
+            "pango-view --version": CommandResult(127, stderr="not found"),
+        }
+    )
+
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=MACOS, runner=runner)
+    )
+    joined = "\n".join(" ".join(command) for command in plan.commands)
+
+    assert "brew install pango" in joined
+    assert "brew upgrade" in joined and "pandoc" in joined
+
+
 def test_windows_pandoc_repair_does_not_reinstall_a_working_version(
     tmp_path: Path,
 ) -> None:

@@ -142,10 +142,67 @@ jobs:
           path: bootstrap-native-install-report.json
           if-no-files-found: warn
 
+  native-upgrade:
+    needs: scope
+    if: needs.scope.outputs.native == 'true'
+    name: Real upgrades — ${{ matrix.name }} ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu 24.04
+            runner: ubuntu-24.04
+            architecture: x64
+            architecture_check: --require-x64
+          - name: Ubuntu 24.04
+            runner: ubuntu-24.04-arm
+            architecture: arm64
+            architecture_check: --require-arm64
+          - name: Windows 2025
+            runner: windows-2025
+            architecture: x64
+            architecture_check: --require-x64
+          - name: Windows 11
+            runner: windows-11-arm
+            architecture: arm64
+            architecture_check: --require-arm64
+          - name: macOS 15
+            runner: macos-15
+            architecture: arm64
+            architecture_check: --require-arm64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          architecture: ${{ matrix.architecture }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Build and install the candidate wheel
+        run: |
+          python -m pip install build
+          python -m build --wheel
+          python -c "from pathlib import Path; import subprocess, sys; wheel = next(Path('dist').glob('prodockit-*.whl')); subprocess.run([sys.executable, '-m', 'pip', 'install', '--force-reinstall', str(wheel)], check=True)"
+      - name: Upgrade real old software through the Surrey and GitHub routes
+        run: >-
+          python tools/bootstrap_native_upgrade.py
+          --wheel dist
+          ${{ matrix.architecture_check }}
+          --report bootstrap-native-upgrade-report.json
+      - name: Keep the native upgrade report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootstrap-upgrade-${{ matrix.runner }}-${{ matrix.architecture }}
+          path: bootstrap-native-upgrade-report.json
+          if-no-files-found: warn
+
   result:
     name: Bootstrap installed-wheel result
     if: always()
-    needs: [scope, installed-wheel, native-install]
+    needs: [scope, installed-wheel, native-install, native-upgrade]
     runs-on: ubuntu-24.04
     steps:
       - name: Report the selected scope
@@ -155,6 +212,7 @@ jobs:
           NATIVE: ${{ needs.scope.outputs.native }}
           MATRIX_RESULT: ${{ needs.installed-wheel.result }}
           NATIVE_RESULT: ${{ needs.native-install.result }}
+          UPGRADE_RESULT: ${{ needs.native-upgrade.result }}
         run: |
           if [ "$SCOPE_RESULT" != success ]; then
             echo "The changed-file classifier failed."
@@ -166,6 +224,10 @@ jobs:
           fi
           if [ "$NATIVE" = true ] && [ "$NATIVE_RESULT" != success ]; then
             echo "The Bootstrap real-install release matrix did not pass."
+            exit 1
+          fi
+          if [ "$NATIVE" = true ] && [ "$UPGRADE_RESULT" != success ]; then
+            echo "The Bootstrap real-upgrade release matrix did not pass."
             exit 1
           fi
           if [ "$RELEVANT" != true ]; then
