@@ -1,7 +1,10 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
+from __future__ import annotations
+
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -12,12 +15,22 @@ assert _SPEC is not None and _SPEC.loader is not None
 _MODULE = importlib.util.module_from_spec(_SPEC)
 sys.modules[_SPEC.name] = _MODULE
 _SPEC.loader.exec_module(_MODULE)
+ChangedRange = _MODULE.ChangedRange
 Scope = _MODULE.Scope
 all_scope = _MODULE.all_scope
+changed_range_for_event = _MODULE.changed_range_for_event
 classify = _MODULE.classify
 output_lines = _MODULE.output_lines
+owners_for_path = _MODULE.owners_for_path
 
 ROOT = Path(__file__).parents[1]
+BASE = "1" * 40
+HEAD = "2" * 40
+MERGE_BASE = "3" * 40
+
+
+def _completed(returncode: int = 0, stdout: bytes = b"") -> subprocess.CompletedProcess[bytes]:
+    return subprocess.CompletedProcess([], returncode, stdout=stdout, stderr=b"")
 
 
 def _setup_python_steps(workflow: str) -> list[str]:
@@ -43,84 +56,167 @@ def _setup_python_steps(workflow: str) -> list[str]:
 def test_documentation_only_change_uses_the_fast_pr_scope() -> None:
     scope = classify(["docs/macros.md", "zensical.toml"])
 
-    assert scope == Scope(python_compat=False, adopt=False, pdf=False)
+    assert scope == Scope(False, False, False, False)
     assert scope.python_matrix == ("3.14",)
 
 
-def test_python_change_tests_oldest_and_newest_supported_versions() -> None:
-    scope = classify(["src/prodockit/glossary.py"])
+def test_unit_test_only_change_does_not_start_a_native_matrix() -> None:
+    scope = classify(["tests/test_adopt.py", "tests/test_pdf_site.py"])
 
-    assert scope.python_compat
+    assert scope == Scope(True, False, False, False)
     assert scope.python_matrix == ("3.10", "3.14")
-    assert not scope.adopt
-    assert not scope.pdf
 
 
-def test_adopt_change_selects_only_its_installed_wheel_matrix() -> None:
-    assert classify(["src/prodockit/adopt.py"]) == Scope(True, True, False)
-    assert classify(["tools/adopt_acceptance.py"]) == Scope(True, True, False)
-
-
-def test_pdf_change_selects_only_its_installed_wheel_matrix() -> None:
-    assert classify(["src/prodockit/pdf/site.py"]) == Scope(True, False, True)
-    assert classify(["tools/pdf_from_site_acceptance.py"]) == Scope(True, False, True)
-
-
-def test_rendered_extension_change_selects_pdf_acceptance() -> None:
-    for path in (
-        "src/prodockit/headings.py",
-        "src/prodockit/refs.py",
-        "tests/test_zensical_integration.py",
-    ):
-        scope = classify([path])
-        assert scope.pdf, path
-        assert not scope.adopt, path
-
-
-def test_shared_packaging_and_command_files_select_both_matrices() -> None:
-    for path in (
-        "pyproject.toml",
-        "src/prodockit/cli.py",
-        "src/prodockit/project_config.py",
-        "docs/stylesheets/pdk.css",
-        "docs/stylesheets/pdk-pdf.css",
-    ):
-        scope = classify([path])
-        assert scope.adopt, path
-        assert scope.pdf, path
-
-
-def test_workflow_and_test_changes_cannot_skip_their_own_acceptance() -> None:
-    assert classify([".github/workflows/adopt-install.yml"]).adopt
-    assert classify([".github/workflows/pdf-built-site-wheel.yml"]).pdf
-    assert classify(["tests/test_adopt_acceptance.py"]).adopt
-    assert classify(["tests/test_pdf_site.py"]).pdf
-
-
-def test_main_scope_emits_every_supported_python_and_acceptance_suite() -> None:
-    assert output_lines(all_scope(), main=True) == (
-        'python-matrix=["3.10","3.11","3.12","3.13","3.14"]',
-        "adopt=true",
-        "pdf=true",
+def test_component_runtime_changes_select_only_their_native_matrix() -> None:
+    assert classify(["src/prodockit/adopt.py"]) == Scope(True, True, False, True)
+    assert classify(["src/prodockit/pdf/site.py"]) == Scope(True, False, True, False)
+    assert classify(["src/prodockit/bootstrap/stages.py"]) == Scope(
+        True, False, False, True
     )
 
 
-def test_pr_workflows_cancel_superseded_runs_and_include_deleted_paths() -> None:
-    for name in ("ci.yml", "adopt-install.yml", "pdf-built-site-wheel.yml"):
-        workflow = (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
-        assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
-        assert "--diff-filter=ACDMR" in workflow
+def test_component_acceptance_and_workflow_files_select_their_own_matrix() -> None:
+    for path, component in (
+        ("tools/adopt_acceptance.py", "adopt"),
+        ("tools/pdf_from_site_acceptance.py", "pdf"),
+        ("tools/bootstrap_acceptance.py", "bootstrap"),
+        (".github/workflows/adopt-install.yml", "adopt"),
+        (".github/workflows/pdf-built-site-wheel.yml", "pdf"),
+        (".github/workflows/bootstrap-install.yml", "bootstrap"),
+    ):
+        scope = classify([path])
+        assert getattr(scope, component), path
 
 
-def test_installed_wheel_workflows_are_gated_but_main_forces_all_scopes() -> None:
-    for name, output in (
-        ("adopt-install.yml", "adopt"),
-        ("pdf-built-site-wheel.yml", "pdf"),
+def test_shared_packaging_and_command_files_select_every_matrix() -> None:
+    for path in ("pyproject.toml", "src/prodockit/cli.py", "requirements.txt"):
+        scope = classify([path])
+        assert scope.adopt and scope.pdf and scope.bootstrap, path
+
+
+def test_styles_and_project_configuration_have_narrow_explicit_owners() -> None:
+    assert classify(["docs/stylesheets/pdk.css"]) == Scope(False, True, True, False)
+    assert classify(["docs/stylesheets/pdk-pdf.css"]) == Scope(False, False, True, False)
+    assert classify(["src/prodockit/project_config.py"]) == Scope(
+        True, True, True, False
+    )
+
+
+def test_unknown_implementation_path_fails_closed_to_every_matrix() -> None:
+    scope = classify(["src/prodockit/a_future_component.py"])
+
+    assert scope == Scope(True, True, True, True, True)
+
+
+def test_every_runtime_asset_and_ci_tool_has_an_explicit_owner_or_exemption() -> None:
+    paths = {
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "src" / "prodockit").rglob("*")
+        if path.is_file() and "__pycache__" not in path.parts
+    }
+    paths.update(
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "tools").glob("*.py")
+    )
+    paths.update(
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "docs" / "stylesheets").glob("pdk*.css")
+    )
+
+    unknown = [path for path in sorted(paths) if owners_for_path(path) is None]
+    assert not unknown, f"CI ownership is missing for: {unknown}"
+
+
+def test_pull_request_uses_merge_base_and_reports_both_sides_of_renames() -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def git(command):  # type: ignore[no-untyped-def]
+        calls.append(tuple(command))
+        if command[1] == "merge-base":
+            return _completed(stdout=f"{MERGE_BASE}\n".encode())
+        return _completed(stdout=b"old.py\0new.py\0")
+
+    changed = changed_range_for_event(
+        "pull_request",
+        {"pull_request": {"base": {"sha": BASE}, "head": {"sha": HEAD}}},
+        git=git,
+    )
+
+    assert changed == ChangedRange(
+        ("old.py", "new.py"), False, "classified 33333333..22222222"
+    )
+    assert calls[0] == ("git", "merge-base", BASE, HEAD)
+    assert "--no-renames" in calls[1]
+    assert "--diff-filter=ACDMR" in calls[1]
+
+
+def test_push_uses_the_complete_before_after_range() -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def git(command):  # type: ignore[no-untyped-def]
+        calls.append(tuple(command))
+        return _completed(stdout=b"src/prodockit/cli.py\0")
+
+    changed = changed_range_for_event(
+        "push", {"before": BASE, "after": HEAD}, git=git
+    )
+
+    assert changed.paths == ("src/prodockit/cli.py",)
+    assert calls[0][-2:] == (BASE, HEAD)
+
+
+def test_range_collection_fails_closed_on_every_uncertain_state() -> None:
+    def failed(_command):  # type: ignore[no-untyped-def]
+        return _completed(returncode=1)
+
+    def empty(_command):  # type: ignore[no-untyped-def]
+        return _completed()
+
+    def malformed(_command):  # type: ignore[no-untyped-def]
+        return _completed(stdout=b"not-nul-terminated")
+
+    for changed in (
+        changed_range_for_event("push", {"before": "0" * 40, "after": HEAD}),
+        changed_range_for_event("push", {"before": BASE, "after": HEAD}, git=failed),
+        changed_range_for_event("push", {"before": BASE, "after": HEAD}, git=empty),
+        changed_range_for_event("push", {"before": BASE, "after": HEAD}, git=malformed),
+        changed_range_for_event("unknown", {}),
+    ):
+        assert changed.full, changed
+        assert changed.reason
+
+
+def test_manual_schedule_and_full_ci_label_select_the_comprehensive_backstop() -> None:
+    assert changed_range_for_event("workflow_dispatch", {}).full
+    assert changed_range_for_event("schedule", {}).full
+    assert changed_range_for_event(
+        "pull_request", {"pull_request": {"labels": [{"name": "full-ci"}]}}
+    ).full
+
+
+def test_all_scope_emits_every_supported_python_and_acceptance_suite() -> None:
+    assert output_lines(all_scope()) == (
+        'python-matrix=["3.10","3.11","3.12","3.13","3.14"]',
+        "adopt=true",
+        "pdf=true",
+        "bootstrap=true",
+    )
+
+
+def test_workflows_share_one_fail_closed_collector_and_stable_result_job() -> None:
+    for name, result_name in (
+        ("ci.yml", "CI result"),
+        ("adopt-install.yml", "Adopt installed-wheel result"),
+        ("pdf-built-site-wheel.yml", "PDF installed-wheel result"),
+        ("bootstrap-install.yml", "Bootstrap installed-wheel result"),
     ):
         workflow = (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
-        assert f"relevant: ${{{{ steps.scope.outputs.{output} }}}}" in workflow
-        assert "if: needs.scope.outputs.relevant == 'true'" in workflow
-        assert "python tools/ci_scope.py --all" in workflow
+        assert "fetch-depth: 0" in workflow
+        assert "python tools/ci_scope.py --github-event" in workflow
+        assert "--all" not in workflow
+        assert f"name: {result_name}" in workflow
+        assert "merge_group:" in workflow
+        assert "schedule:" in workflow
 
 
 def test_ci_runs_static_render_and_coverage_work_once() -> None:

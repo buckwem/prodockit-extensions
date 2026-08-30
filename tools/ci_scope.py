@@ -1,168 +1,422 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Choose the expensive CI scopes needed by a set of changed files.
+"""Select CI work from a complete, validated Git change range.
 
-Pull requests use this small, repository-owned classifier instead of running
-every installed-wheel matrix for documentation-only changes.  Pushes to
-``main`` pass ``--all`` and retain the complete compatibility backstop.
+The native installed-wheel suites are valuable precisely because they are
+expensive: they exercise real path and architecture boundaries that unit tests
+cannot. This module keeps those complete matrices, but only selects a matrix
+when its component or acceptance boundary changed.
 
-The rules are deliberately conservative.  Shared command, configuration,
-packaging and asset code selects both installed-wheel suites; a missed run is
-more expensive than an unnecessary one.
+Selection fails closed. A missing Git object, a failed diff, an unrecognised
+runtime file, malformed output, or an empty range that should contain a change
+selects every scope. Documentation-only changes can therefore be quick
+without allowing a broken classifier to make a risky change look irrelevant.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
 import sys
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import PurePosixPath
+from typing import Any
+
+PYTHON_VERSIONS = ("3.10", "3.11", "3.12", "3.13", "3.14")
 
 
 @dataclass(frozen=True)
 class Scope:
-    """The PR checks selected by a collection of repository paths."""
+    """The checks selected by a collection of repository paths."""
 
     python_compat: bool
     adopt: bool
     pdf: bool
+    bootstrap: bool
+    full_python: bool = False
 
     @property
     def python_matrix(self) -> tuple[str, ...]:
-        """Test the supported-version boundaries when Python can change."""
+        """Return the smallest supported-version matrix safe for the change."""
 
-        return ("3.10", "3.14") if self.python_compat else ("3.14",)
+        if self.full_python:
+            return PYTHON_VERSIONS
+        return (PYTHON_VERSIONS[0], PYTHON_VERSIONS[-1]) if self.python_compat else (
+            PYTHON_VERSIONS[-1],
+        )
 
 
-_SHARED_INSTALLED_WHEEL_FILES = {
+@dataclass(frozen=True)
+class Classification:
+    """A scope together with human-readable reasons for selecting it."""
+
+    scope: Scope
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ChangedRange:
+    """The validated paths from one Git event, or a reason to run everything."""
+
+    paths: tuple[str, ...] = ()
+    full: bool = False
+    reason: str = ""
+
+
+_ALL_COMPONENTS = frozenset({"adopt", "pdf", "bootstrap"})
+
+_ALL_RUNTIME_FILES = {
     "pyproject.toml",
-    "docs/stylesheets/pdk.css",
-    "docs/stylesheets/pdk-pdf.css",
     "src/prodockit/__init__.py",
     "src/prodockit/__main__.py",
     "src/prodockit/cli.py",
-    "src/prodockit/project_config.py",
     "src/prodockit/shared_files.py",
     "src/prodockit/util.py",
+    "src/prodockit/py.typed",
     "tools/ci_scope.py",
 }
 
-_ADOPT_FILES = {
-    ".github/workflows/adopt-install.yml",
+_ADOPT_RUNTIME_FILES = {
     "src/prodockit/_zensical_defaults.py",
     "src/prodockit/adopt.py",
     "src/prodockit/init_tools.py",
     "src/prodockit/mathjax.py",
-    "tools/adopt_acceptance.py",
 }
 
-_PDF_FILES = {
-    ".github/workflows/pdf-built-site-wheel.yml",
-    "tools/check_shared_file_wheel.py",
-    "tools/pdf_from_site_acceptance.py",
-}
-
-# The built-site renderer deliberately consumes the HTML these extensions
-# produce.  Their integration belongs in the installed-wheel acceptance even
-# though their implementation is outside prodockit.pdf itself.  In particular,
-# headings and refs own the cross-file forward-reference behaviour fixed in
-# #512.
-_PDF_RENDERED_EXTENSION_FILES = {
+_PDF_RUNTIME_FILES = {
     "src/prodockit/_markdown_toc.py",
     "src/prodockit/_zensical.py",
     "src/prodockit/_zensical_page_context.py",
+    "src/prodockit/bibliography.py",
+    "src/prodockit/citations.py",
+    "src/prodockit/glossary.py",
     "src/prodockit/headings.py",
+    "src/prodockit/index.py",
     "src/prodockit/refs.py",
+    "src/prodockit/revision_dates.py",
+    "src/prodockit/settings.py",
     "src/prodockit/steps.py",
     "src/prodockit/tables.py",
     "src/prodockit/tree.py",
+    "src/prodockit/zensical_macros.py",
 }
 
-_ADOPT_TEST_PREFIXES = (
-    "tests/test_adopt",
-    "tests/test_init_tools",
-    "tests/test_mathjax",
-    "tests/test_shared_file",
-)
+_PYTHON_ONLY_RUNTIME_FILES = {
+    "src/prodockit/config_diagnostics.py",
+    "src/prodockit/pins.py",
+    "src/prodockit/project_integrity.py",
+    "src/prodockit/template_sync.py",
+    "src/prodockit/testing/__init__.py",
+    "src/prodockit/testing/checks.py",
+    "src/prodockit/testing/plugin.py",
+    "src/prodockit/tools.py",
+    "src/prodockit/wordcount.py",
+}
 
-_PDF_TEST_PREFIXES = (
-    "tests/test_headings",
-    "tests/test_markdown_toc",
-    "tests/test_pdf_",
-    "tests/test_refs",
-    "tests/test_shared_file",
-    "tests/test_steps",
-    "tests/test_tables",
-    "tests/test_tree",
-    "tests/test_zensical_integration",
-    "tests/test_zensical_page_context",
-)
+_CI_ONLY_FILES = {
+    "tools/canonical_site_config.py",
+    "tools/render_documentation_diagrams.py",
+}
+
+_COMPONENT_FILES: dict[str, frozenset[str]] = {
+    "docs/stylesheets/pdk.css": frozenset({"adopt", "pdf"}),
+    "docs/stylesheets/pdk-pdf.css": frozenset({"pdf"}),
+    "src/prodockit/project_config.py": frozenset({"adopt", "pdf"}),
+    "src/prodockit/sync_repo.py": frozenset({"bootstrap", "pdf"}),
+    "tools/adopt_acceptance.py": frozenset({"adopt"}),
+    "tools/check_shared_file_wheel.py": frozenset({"pdf"}),
+    "tools/pdf_from_site_acceptance.py": frozenset({"pdf"}),
+    "tools/bootstrap_acceptance.py": frozenset({"bootstrap"}),
+    "tools/_bootstrap_acceptance_driver.py": frozenset({"bootstrap"}),
+    ".github/workflows/adopt-install.yml": frozenset({"adopt"}),
+    ".github/workflows/pdf-built-site-wheel.yml": frozenset({"pdf"}),
+    ".github/workflows/bootstrap-install.yml": frozenset({"bootstrap"}),
+}
+
+_FULL_PYTHON_FILES = {
+    "pyproject.toml",
+    "tools/ci_scope.py",
+    ".github/workflows/ci.yml",
+}
 
 
 def _normalise(path: str) -> str:
-    """Return a repository-relative POSIX path from Git's line output."""
+    """Return a validated repository-relative POSIX path."""
 
-    return PurePosixPath(path.strip().replace("\\", "/")).as_posix()
+    value = path.strip().replace("\\", "/")
+    candidate = PurePosixPath(value)
+    if not value or candidate.is_absolute() or ".." in candidate.parts:
+        raise ValueError(f"invalid repository path: {path!r}")
+    return candidate.as_posix()
 
 
-def classify(paths: list[str] | tuple[str, ...]) -> Scope:
-    """Return the conservative CI scope for *paths*."""
+def owners_for_path(path: str) -> frozenset[str] | None:
+    """Return installed-wheel owners, or ``None`` for unknown implementation.
 
-    changed = {_normalise(path) for path in paths if path.strip()}
+    An empty set is an explicit exemption: the path is still covered by normal
+    CI, but no native acceptance matrix consumes it.
+    """
+
+    if path in _ALL_RUNTIME_FILES:
+        return _ALL_COMPONENTS
+    if path in _COMPONENT_FILES:
+        return _COMPONENT_FILES[path]
+    if path in _ADOPT_RUNTIME_FILES:
+        return frozenset({"adopt", "bootstrap"})
+    if path in _PDF_RUNTIME_FILES:
+        return frozenset({"pdf"})
+    if path in _PYTHON_ONLY_RUNTIME_FILES:
+        return frozenset()
+    if path in _CI_ONLY_FILES:
+        return frozenset()
+    if path.startswith("src/prodockit/bootstrap/"):
+        return frozenset({"bootstrap"})
+    if path.startswith("src/prodockit/pdf/"):
+        return frozenset({"pdf"})
+    if path.startswith("src/prodockit/_tools_template/"):
+        return frozenset({"adopt", "bootstrap"})
+    if path.startswith("requirements"):
+        return _ALL_COMPONENTS
+    if path.startswith(".github/workflows/"):
+        return _ALL_COMPONENTS
+    if path.startswith("src/prodockit/") or (
+        path.startswith("tools/") and path.endswith(".py")
+    ):
+        return None
+    return frozenset()
+
+
+def classify_details(paths: Sequence[str]) -> Classification:
+    """Classify *paths*, widening on unknown implementation files."""
+
+    changed = tuple(sorted({_normalise(path) for path in paths if path.strip()}))
+    components: set[str] = set()
+    reasons: list[str] = []
+    unknown: list[str] = []
+    for path in changed:
+        owners = owners_for_path(path)
+        if owners is None:
+            unknown.append(path)
+            components.update(_ALL_COMPONENTS)
+            continue
+        if owners:
+            components.update(owners)
+            reasons.append(f"{path}: {', '.join(sorted(owners))}")
+
+    if unknown:
+        reasons.append("unknown implementation path; selected all: " + ", ".join(unknown))
 
     python_compat = any(
-        path.startswith(("src/", "tests/", "tools/"))
-        or path.startswith(".github/workflows/ci")
+        path.startswith(("src/", "tests/", "tools/", ".github/workflows/"))
         or path == "pyproject.toml"
         or path.startswith("requirements")
         for path in changed
     )
+    full_python = any(
+        path in _FULL_PYTHON_FILES
+        or path.startswith("requirements")
+        or (path.startswith(".github/workflows/") and path != ".github/workflows/docs.yml")
+        for path in changed
+    ) or bool(unknown)
 
-    shared = bool(changed & _SHARED_INSTALLED_WHEEL_FILES)
-    adopt = shared or bool(changed & _ADOPT_FILES) or any(
-        path.startswith(_ADOPT_TEST_PREFIXES) for path in changed
+    scope = Scope(
+        python_compat=python_compat,
+        adopt="adopt" in components,
+        pdf="pdf" in components,
+        bootstrap="bootstrap" in components,
+        full_python=full_python,
     )
-    pdf = (
-        shared
-        or bool(changed & _PDF_FILES)
-        or bool(changed & _PDF_RENDERED_EXTENSION_FILES)
-        or any(path.startswith("src/prodockit/pdf/") for path in changed)
-        or any(path.startswith(_PDF_TEST_PREFIXES) for path in changed)
-    )
-    return Scope(python_compat=python_compat, adopt=adopt, pdf=pdf)
+    return Classification(scope, tuple(reasons or ("normal CI only",)))
+
+
+def classify(paths: list[str] | tuple[str, ...]) -> Scope:
+    """Compatibility wrapper returning only the selected scope."""
+
+    return classify_details(paths).scope
 
 
 def all_scope() -> Scope:
-    """Return the comprehensive post-merge scope."""
+    """Return the comprehensive manual, scheduled, or fail-closed scope."""
 
-    return Scope(python_compat=True, adopt=True, pdf=True)
+    return Scope(True, True, True, True, True)
 
 
 def output_lines(scope: Scope, *, main: bool = False) -> tuple[str, ...]:
-    """Format values for ``GITHUB_OUTPUT``."""
+    """Format values for ``GITHUB_OUTPUT``.
 
-    versions = ("3.10", "3.11", "3.12", "3.13", "3.14") if main else scope.python_matrix
+    ``main`` remains accepted for callers from older branches; it means a
+    comprehensive matrix, not merely that the event happened on main.
+    """
+
+    versions = PYTHON_VERSIONS if main else scope.python_matrix
     return (
         f"python-matrix={json.dumps(versions, separators=(',', ':'))}",
         f"adopt={'true' if scope.adopt else 'false'}",
         f"pdf={'true' if scope.pdf else 'false'}",
+        f"bootstrap={'true' if scope.bootstrap else 'false'}",
     )
+
+
+GitRunner = Callable[[Sequence[str]], subprocess.CompletedProcess[bytes]]
+
+
+def _run_git(command: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(command, capture_output=True, check=False)
+
+
+def _sha(value: object) -> str:
+    text = str(value or "").strip()
+    if len(text) != 40 or any(character not in "0123456789abcdefABCDEF" for character in text):
+        raise ValueError(f"invalid Git SHA: {text!r}")
+    if set(text) == {"0"}:
+        raise ValueError("zero Git SHA")
+    return text
+
+
+def _full_ci_label(event: dict[str, Any]) -> bool:
+    labels = event.get("pull_request", {}).get("labels", [])
+    return any(isinstance(label, dict) and label.get("name") == "full-ci" for label in labels)
+
+
+def changed_range_for_event(
+    event_name: str,
+    event: dict[str, Any],
+    *,
+    force_all: bool = False,
+    git: GitRunner = _run_git,
+) -> ChangedRange:
+    """Collect a complete event range, returning full scope on uncertainty."""
+
+    if force_all or _full_ci_label(event):
+        return ChangedRange(full=True, reason="full CI was requested")
+    if event_name in {"workflow_dispatch", "schedule"}:
+        return ChangedRange(full=True, reason=f"{event_name} runs the comprehensive backstop")
+    try:
+        if event_name == "pull_request":
+            pull = event["pull_request"]
+            base = _sha(pull["base"]["sha"])
+            head = _sha(pull["head"]["sha"])
+            merged = git(("git", "merge-base", base, head))
+            if merged.returncode != 0:
+                raise RuntimeError("git merge-base failed")
+            start = _sha(merged.stdout.decode("ascii", errors="strict").strip())
+            end = head
+        elif event_name == "merge_group":
+            group = event["merge_group"]
+            start = _sha(group["base_sha"])
+            end = _sha(group["head_sha"])
+        elif event_name == "push":
+            start = _sha(event["before"])
+            end = _sha(event.get("after") or os.environ.get("GITHUB_SHA"))
+        else:
+            return ChangedRange(full=True, reason=f"unsupported event {event_name!r}")
+
+        result = git(
+            (
+                "git",
+                "diff",
+                "--no-renames",
+                "--name-only",
+                "-z",
+                "--diff-filter=ACDMR",
+                start,
+                end,
+            )
+        )
+        if result.returncode != 0:
+            raise RuntimeError("git diff failed")
+        decoded = result.stdout.decode("utf-8", errors="strict")
+        if decoded and not decoded.endswith("\0"):
+            raise ValueError("malformed NUL-delimited Git output")
+        paths = tuple(_normalise(path) for path in decoded.split("\0") if path)
+        if not paths:
+            return ChangedRange(full=True, reason="the event range unexpectedly contained no paths")
+        return ChangedRange(paths=paths, reason=f"classified {start[:8]}..{end[:8]}")
+    except (KeyError, TypeError, UnicodeError, ValueError, RuntimeError) as error:
+        return ChangedRange(full=True, reason=f"scope collection failed closed: {error}")
+
+
+def _event_from_environment() -> tuple[str, dict[str, Any]]:
+    path = os.environ.get("GITHUB_EVENT_PATH", "")
+    if not path:
+        raise ValueError("GITHUB_EVENT_PATH is not set")
+    with open(path, encoding="utf-8") as stream:
+        event = json.load(stream)
+    if not isinstance(event, dict):
+        raise ValueError("GitHub event payload is not an object")
+    return os.environ.get("GITHUB_EVENT_NAME", ""), event
+
+
+def _write_summary(changes: ChangedRange, classification: Classification) -> None:
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not path:
+        return
+    selected = [
+        name
+        for name, value in (
+            ("Adopt installed wheel", classification.scope.adopt),
+            ("PDF installed wheel", classification.scope.pdf),
+            ("Bootstrap installed wheel", classification.scope.bootstrap),
+        )
+        if value
+    ]
+    lines = [
+        "## CI scope",
+        "",
+        f"- Range: {changes.reason}",
+        f"- Python: {', '.join(classification.scope.python_matrix)}",
+        f"- Native matrices: {', '.join(selected) if selected else 'none'}",
+        "",
+        "### Reasons",
+        "",
+        *(f"- {reason}" for reason in classification.reasons),
+    ]
+    if changes.paths:
+        lines += ["", "### Changed paths", "", *(f"- `{path}`" for path in changes.paths)]
+    with open(path, "a", encoding="utf-8") as stream:
+        stream.write("\n".join(lines) + "\n")
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Read changed paths on stdin and emit GitHub job outputs."""
+    """Collect and classify changes, then emit GitHub job outputs."""
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--all", action="store_true", help="select every scope")
     parser.add_argument(
-        "--all",
+        "--github-event",
         action="store_true",
-        help="select every scope and the complete Python matrix",
+        help="derive a fail-closed range from the GitHub event environment",
     )
     args = parser.parse_args(argv)
-    scope = all_scope() if args.all else classify(tuple(sys.stdin.read().splitlines()))
-    print("\n".join(output_lines(scope, main=args.all)))
+
+    if args.all:
+        changes = ChangedRange(full=True, reason="all scopes requested")
+        classification = Classification(all_scope(), (changes.reason,))
+    elif args.github_event:
+        try:
+            event_name, event = _event_from_environment()
+            changes = changed_range_for_event(
+                event_name,
+                event,
+                force_all=os.environ.get("FULL_CI", "").lower() == "true",
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            changes = ChangedRange(full=True, reason=f"event loading failed closed: {error}")
+        classification = (
+            Classification(all_scope(), (changes.reason,))
+            if changes.full
+            else classify_details(changes.paths)
+        )
+    else:
+        changes = ChangedRange(paths=tuple(sys.stdin.read().splitlines()), reason="stdin paths")
+        classification = classify_details(changes.paths)
+
+    print("\n".join(output_lines(classification.scope)))
+    _write_summary(changes, classification)
     return 0
 
 

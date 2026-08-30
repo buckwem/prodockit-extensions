@@ -6,7 +6,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
   workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 0"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -23,16 +26,7 @@ jobs:
           fetch-depth: 0
       - id: scope
         name: Check whether adoption or packaging changed
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            git diff --name-only --diff-filter=ACDMR "$BASE_SHA" "$HEAD_SHA" |
-              python tools/ci_scope.py >> "$GITHUB_OUTPUT"
-          else
-            python tools/ci_scope.py --all >> "$GITHUB_OUTPUT"
-          fi
+        run: python tools/ci_scope.py --github-event >> "$GITHUB_OUTPUT"
 
   installed-wheel:
     needs: scope

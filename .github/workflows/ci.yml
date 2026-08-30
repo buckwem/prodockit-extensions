@@ -6,9 +6,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
+  workflow_dispatch:
+  schedule:
+    - cron: "7 3 * * 0"
 
 # A new commit supersedes an older run of the same pull request. Main keeps
-# every run: it is the complete post-merge compatibility backstop.
+# every run as a scope-aware post-merge backstop; the weekly schedule and
+# manual dispatch are the complete compatibility backstops.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -43,16 +48,7 @@ jobs:
           fetch-depth: 0
       - id: scope
         name: Select the supported Python versions needed by this change
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            git diff --name-only --diff-filter=ACDMR "$BASE_SHA" "$HEAD_SHA" |
-              python tools/ci_scope.py >> "$GITHUB_OUTPUT"
-          else
-            python tools/ci_scope.py --all >> "$GITHUB_OUTPUT"
-          fi
+        run: python tools/ci_scope.py --github-event >> "$GITHUB_OUTPUT"
 
   test:
     needs: scope
@@ -63,8 +59,10 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        # PRs test 3.14 for every change and add the oldest supported
-        # interpreter when Python can be affected. Main still tests all five.
+        # Every change tests 3.14 and adds the oldest supported interpreter
+        # when Python can be affected. Dependency, workflow and classifier
+        # changes select all supported versions; the weekly/manual backstop
+        # also selects all five.
         python-version: ${{ fromJSON(needs.scope.outputs.python-matrix) }}
     steps:
       - uses: actions/checkout@v5
@@ -258,3 +256,23 @@ jobs:
       - run: python -m build
       - name: Validate the wheel, source distribution and PyPI README
         run: python -m twine check --strict dist/*.whl dist/*.tar.gz
+
+  result:
+    name: CI result
+    if: always()
+    needs: [scope, test, docs, package]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every selected CI layer
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          DOCS_RESULT: ${{ needs.docs.result }}
+          PACKAGE_RESULT: ${{ needs.package.result }}
+        run: |
+          for result in "$SCOPE_RESULT" "$TEST_RESULT" "$DOCS_RESULT" "$PACKAGE_RESULT"; do
+            if [ "$result" != success ]; then
+              echo "A required CI layer did not pass: $result"
+              exit 1
+            fi
+          done
