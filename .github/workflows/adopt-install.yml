@@ -20,7 +20,6 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       relevant: ${{ steps.scope.outputs.adopt }}
-      native: ${{ steps.scope.outputs['adopt-native'] }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -104,84 +103,17 @@ jobs:
           path: adopt-acceptance-report.json
           if-no-files-found: warn
 
-  native-upgrade:
-    needs: scope
-    if: needs.scope.outputs.native == 'true'
-    name: Real upgrade — ${{ matrix.name }} ${{ matrix.architecture }}
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Ubuntu 24.04
-            runner: ubuntu-24.04
-            architecture: x64
-            architecture_check: --require-x64
-          - name: Ubuntu 24.04
-            runner: ubuntu-24.04-arm
-            architecture: arm64
-            architecture_check: --require-arm64
-          - name: Windows 2025
-            runner: windows-2025
-            architecture: x64
-            architecture_check: --require-x64
-          - name: Windows 11
-            runner: windows-11-arm
-            architecture: arm64
-            architecture_check: --require-arm64
-          - name: macOS 15
-            runner: macos-15
-            architecture: arm64
-            architecture_check: --require-arm64
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: .python-version
-          architecture: ${{ matrix.architecture }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: |
-            src/prodockit/_tools_template/mermaid/package-lock.json
-            src/prodockit/_tools_template/mathjax/package-lock.json
-      - name: Build the candidate wheel
-        run: |
-          python -m pip install build
-          python -m build --wheel
-      - name: Upgrade a fully adopted project from an older release
-        env:
-          PUPPETEER_SKIP_DOWNLOAD: "true"
-        run: >-
-          python tools/adopt_native_upgrade.py
-          --wheel dist
-          ${{ matrix.architecture_check }}
-          --report adopt-native-upgrade-report.json
-      - name: Keep the upgrade report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: adopt-upgrade-${{ matrix.runner }}-${{ matrix.architecture }}
-          path: adopt-native-upgrade-report.json
-          if-no-files-found: warn
-
   result:
     name: Adopt installed-wheel result
     if: always()
-    needs: [scope, installed-wheel, native-upgrade]
+    needs: [scope, installed-wheel]
     runs-on: ubuntu-24.04
     steps:
       - name: Report the selected scope
         env:
           SCOPE_RESULT: ${{ needs.scope.result }}
           RELEVANT: ${{ needs.scope.outputs.relevant }}
-          NATIVE: ${{ needs.scope.outputs.native }}
           MATRIX_RESULT: ${{ needs.installed-wheel.result }}
-          UPGRADE_RESULT: ${{ needs.native-upgrade.result }}
         run: |
           if [ "$SCOPE_RESULT" != success ]; then
             echo "The changed-file classifier failed."
@@ -189,10 +121,6 @@ jobs:
           fi
           if [ "$RELEVANT" = true ] && [ "$MATRIX_RESULT" != success ]; then
             echo "The adoption installed-wheel matrix did not pass."
-            exit 1
-          fi
-          if [ "$NATIVE" = true ] && [ "$UPGRADE_RESULT" != success ]; then
-            echo "The Adopt real-upgrade release matrix did not pass."
             exit 1
           fi
           if [ "$RELEVANT" != true ]; then

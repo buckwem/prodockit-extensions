@@ -355,15 +355,25 @@ def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_c
     assert "runner: windows-11-arm" in workflow
 
 
-def test_adopt_release_gate_upgrades_an_old_full_project_on_every_runner() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(
+def test_release_gate_runs_independent_adopt_and_bootstrap_upgrades() -> None:
+    workflow = (
+        ROOT / ".github" / "workflows" / "release-real-upgrades.yml"
+    ).read_text(
         encoding="utf-8"
     )
 
-    assert "native: ${{ steps.scope.outputs['adopt-native'] }}" in workflow
-    assert "if: needs.scope.outputs.native == 'true'" in workflow
+    assert "adopt: ${{ steps.scope.outputs['adopt-native'] }}" in workflow
+    assert "bootstrap: ${{ steps.scope.outputs['bootstrap-native'] }}" in workflow
+    assert "if: needs.scope.outputs.adopt == 'true'" in workflow
+    assert "if: needs.scope.outputs.bootstrap == 'true'" in workflow
+    assert "name: Adopt upgrade — ${{ matrix.name }} ${{ matrix.architecture }}" in workflow
+    assert (
+        "name: Bootstrap upgrade — ${{ matrix.name }} ${{ matrix.architecture }}"
+        in workflow
+    )
     assert "python tools/adopt_native_upgrade.py" in workflow
-    assert "--scenario" not in workflow.split("native-upgrade:", 1)[1]
+    assert "python tools/bootstrap_native_upgrade.py" in workflow
+    assert "--scenario" not in workflow
     for runner in (
         "ubuntu-24.04",
         "ubuntu-24.04-arm",
@@ -371,7 +381,16 @@ def test_adopt_release_gate_upgrades_an_old_full_project_on_every_runner() -> No
         "windows-11-arm",
         "macos-15",
     ):
-        assert runner in workflow.split("native-upgrade:", 1)[1]
+        assert workflow.splitlines().count(f"            runner: {runner}") == 2
+
+    adopt = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(
+        encoding="utf-8"
+    )
+    bootstrap = (
+        ROOT / ".github" / "workflows" / "bootstrap-install.yml"
+    ).read_text(encoding="utf-8")
+    assert "adopt_native_upgrade.py" not in adopt
+    assert "bootstrap_native_upgrade.py" not in bootstrap
 
 
 def test_bootstrap_release_gate_runs_real_installs_on_every_supported_runner() -> None:
@@ -382,9 +401,7 @@ def test_bootstrap_release_gate_runs_real_installs_on_every_supported_runner() -
     assert "native: ${{ steps.scope.outputs['bootstrap-native'] }}" in workflow
     assert "if: needs.scope.outputs.native == 'true'" in workflow
     assert "python tools/bootstrap_native_install.py" in workflow
-    assert "python tools/bootstrap_native_upgrade.py" in workflow
     assert "timeout-minutes: 60" in workflow
-    assert "timeout-minutes: 120" in workflow
     for runner in (
         "ubuntu-24.04",
         "ubuntu-24.04-arm",
