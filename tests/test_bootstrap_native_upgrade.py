@@ -122,7 +122,9 @@ def test_zip_extraction_preserves_a_framework_symbolic_link(tmp_path: Path) -> N
     assert os.readlink(extracted) == "Versions/A/Framework"
 
 
-def test_mac_path_lets_homebrew_replace_portable_old_tools(monkeypatch, tmp_path: Path) -> None:
+def test_mac_path_proves_old_tools_before_homebrew_replaces_them(
+    monkeypatch, tmp_path: Path
+) -> None:
     manager = tmp_path / "homebrew" / "bin"
     old = tmp_path / "old" / "bin"
     monkeypatch.setenv("PATH", os.pathsep.join(("/usr/bin", str(manager))))
@@ -134,10 +136,10 @@ def test_mac_path_lets_homebrew_replace_portable_old_tools(monkeypatch, tmp_path
         home=tmp_path / "home",
     )
 
-    assert environment["PATH"].split(os.pathsep)[:2] == ["/brew/bin", str(old)]
+    assert environment["PATH"].split(os.pathsep)[:2] == [str(old), "/brew/bin"]
 
 
-def test_ubuntu_path_leaves_new_system_packages_ahead_of_old_tools(
+def test_ubuntu_path_proves_old_tools_before_apt_replaces_them(
     monkeypatch, tmp_path: Path
 ) -> None:
     old = tmp_path / "old" / "bin"
@@ -150,10 +152,28 @@ def test_ubuntu_path_leaves_new_system_packages_ahead_of_old_tools(
     )
 
     assert environment["PATH"].split(os.pathsep) == [
+        str(old),
         "/usr/local/bin",
         "/usr/bin",
-        str(old),
     ]
+
+
+def test_version_resolves_against_the_controlled_path(monkeypatch, tmp_path: Path) -> None:
+    old = tmp_path / "old" / "bin"
+    old.mkdir(parents=True)
+    executable = old / "node"
+    executable.write_text("fixture", encoding="utf-8")
+    executable.chmod(0o755)
+    seen: list[list[str]] = []
+
+    def run(command, **_kwargs):  # type: ignore[no-untyped-def]
+        seen.append(command)
+        return _completed("v18.20.0\n")
+
+    monkeypatch.setattr(native, "_run", run)
+
+    assert native._version(["node", "--version"], {"PATH": str(old)}) == "18.20.0"
+    assert seen == [[str(executable), "--version"]]
 
 
 def test_windows_path_starts_with_the_unregistered_old_tool(

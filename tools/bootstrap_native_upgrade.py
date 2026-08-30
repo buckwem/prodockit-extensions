@@ -368,7 +368,12 @@ def _seed_old_extensions(cache: Path, home: Path) -> None:
 
 
 def _version(command: list[str], environment: dict[str, str]) -> str:
-    output = _run(command, environment=environment).stdout
+    executable = shutil.which(command[0], path=environment.get("PATH"))
+    if executable is None:
+        raise NativeInstallError(
+            f"could not find {command[0]} on the controlled back-level PATH"
+        )
+    output = _run([executable, *command[1:]], environment=environment).stdout
     match = re.search(r"\d+(?:\.\d+)+", output)
     if match is None:
         raise NativeInstallError(f"could not read a version from {' '.join(command)}: {output}")
@@ -416,11 +421,8 @@ def _scenario_environment(
         brew = _run(["brew", "--prefix"]).stdout.strip()
         manager = str(Path(brew) / "bin")
         parts = [part for part in parts if part != manager and part not in old]
-        parts = [manager, *old, *parts]
-    elif recipe == UBUNTU:
-        parts = [part for part in parts if part not in old]
-        parts.extend(old)
-    elif recipe == WINDOWS:
+        parts = [*old, manager, *parts]
+    elif recipe in {UBUNTU, WINDOWS}:
         parts = [part for part in parts if part not in old]
         parts = [*old, *parts]
     environment["PATH"] = os.pathsep.join(parts)
@@ -445,8 +447,12 @@ def run_native_upgrades(wheel: Path, report_path: Path) -> dict[str, Any]:
         cleanup_ephemeral_runner(recipe, Path.home())
         if recipe in {MACOS, UBUNTU}:
             portable_bins = _portable_unix_software(software, recipe)
+            portable_tool_bins = dict(
+                zip(("vscode", "git", "pandoc", "node"), portable_bins, strict=True)
+            )
         elif recipe == WINDOWS:
             portable_bins = [_portable_windows_node(software)]
+            portable_tool_bins = {"node": portable_bins[0]}
 
         driver = Path(__file__).with_name("_bootstrap_acceptance_driver.py").resolve()
         for index, (name, host, route) in enumerate(SCENARIOS):
@@ -466,6 +472,9 @@ def run_native_upgrades(wheel: Path, report_path: Path) -> dict[str, Any]:
             _seed_old_extensions(extension_cache, extension_home)
             environment = _scenario_environment(
                 recipe=recipe, portable_bins=portable_bins, home=home
+            )
+            environment["PDKBOOT_ACCEPTANCE_OLD_TOOL_BINS"] = json.dumps(
+                {name: str(path) for name, path in portable_tool_bins.items()}
             )
             before = _assert_backlevel(environment)
             scenario_report = root / f"{name}.json"

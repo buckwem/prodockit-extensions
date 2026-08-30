@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import importlib
+import json
+import os
 import sys
 from pathlib import Path
 
@@ -72,6 +74,45 @@ def test_real_software_commands_cross_the_machine_boundary(monkeypatch, tmp_path
 
     assert result.stdout == "pandoc 2.19.2\n"
     assert seen == [["pandoc", "--version"]]
+
+
+@pytest.mark.parametrize(
+    ("command", "revealed"),
+    [
+        (["winget", "install", "--id", "OpenJS.NodeJS.LTS"], "node"),
+        (["sudo", "apt", "install", "-y", "/tmp/pandoc.deb"], "pandoc"),
+        (["bash", "-c", "brew install git"], "git"),
+    ],
+)
+def test_real_install_reveals_only_the_tool_just_replaced(
+    monkeypatch, tmp_path: Path, command: list[str], revealed: str
+) -> None:
+    old = {name: str(tmp_path / name) for name in ("git", "pandoc", "node")}
+    environment = {
+        "PATH": os.pathsep.join([*old.values(), "/new/tools"]),
+        "PDKBOOT_ACCEPTANCE_OLD_TOOL_BINS": json.dumps(old),
+    }
+    monkeypatch.setenv("PATH", environment["PATH"])
+    runner = bootstrap_acceptance_driver.HarnessRunner(
+        environment,
+        "git@example.invalid:group/project.git",
+        home=tmp_path,
+        real_software=True,
+    )
+    monkeypatch.setattr(
+        runner.system,
+        "run",
+        lambda *_args, **_kwargs: bootstrap_acceptance_driver.CommandResult(0),
+    )
+
+    runner.run(command)
+
+    remaining = environment["PATH"].split(os.pathsep)
+    assert old[revealed] not in remaining
+    assert "/new/tools" in remaining
+    for name, path in old.items():
+        if name != revealed:
+            assert path in remaining
 
 
 def test_simulated_old_software_understands_resilient_homebrew_upgrades(

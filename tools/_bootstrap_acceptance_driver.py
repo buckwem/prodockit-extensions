@@ -182,6 +182,66 @@ class HarnessRunner:
             for name, minimum in bootstrap_stages_module.VSCODE_EXTENSION_MIN_VERSIONS.items()
         }
         self.chromium = True
+        self.old_tool_bins = {
+            name: Path(path)
+            for name, path in json.loads(
+                environment.get("PDKBOOT_ACCEPTANCE_OLD_TOOL_BINS", "{}")
+            ).items()
+        }
+
+    def _reveal_installed_tools(self, *names: str) -> None:
+        """Remove only upgraded portable fixtures from the controlled PATH."""
+        hidden = {
+            os.path.normcase(str(self.old_tool_bins[name]))
+            for name in names
+            if name in self.old_tool_bins
+        }
+        if not hidden:
+            return
+        parts = [
+            part
+            for part in self.environment.get("PATH", "").split(os.pathsep)
+            if os.path.normcase(part) not in hidden
+        ]
+        value = os.pathsep.join(parts)
+        self.environment["PATH"] = value
+        os.environ["PATH"] = value
+
+    def _record_real_machine_install(self, words: Sequence[str]) -> None:
+        """Expose a new executable only after its real installer succeeds."""
+        executable = Path(words[0]).name.lower()
+        script = " ".join(words)
+        upgraded: set[str] = set()
+        if executable in {"winget", "winget.exe"} and "--id" in words:
+            package = words[words.index("--id") + 1]
+            selected = {
+                "Microsoft.VisualStudioCode": "vscode",
+                "Git.Git": "git",
+                "JohnMacFarlane.Pandoc": "pandoc",
+                "OpenJS.NodeJS.LTS": "node",
+            }.get(package)
+            if selected:
+                upgraded.add(selected)
+        elif executable == "sudo" and "apt" in words:
+            if "/tmp/code.deb" in words:
+                upgraded.add("vscode")
+            if "git" in words:
+                upgraded.add("git")
+            if "/tmp/pandoc.deb" in words:
+                upgraded.add("pandoc")
+            if "nodejs" in words:
+                upgraded.add("node")
+        elif executable in {"brew", "bash"} and "brew" in script:
+            if "visual-studio-code" in script:
+                upgraded.add("vscode")
+            for name in ("git", "pandoc", "node"):
+                pattern = (
+                    rf"(?:--formula\s+|\b(?:install|upgrade)\s+"
+                    rf"(?:--force\s+)?){name}\b"
+                )
+                if re.search(pattern, script):
+                    upgraded.add(name)
+        self._reveal_installed_tools(*upgraded)
 
     def _upgrade(self, *names: str) -> None:
         targets = {
@@ -401,7 +461,10 @@ class HarnessRunner:
             shutil.move(paths[0].replace("''", "'"), paths[1].replace("''", "'"))
             return CommandResult(0)
         if self.real_software and executable in {"powershell", "powershell.exe", "pwsh"}:
-            return self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
+            result = self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
+            if result.returncode == 0:
+                self._record_real_machine_install(words)
+            return result
         if self.old_software and executable in {"powershell", "powershell.exe"}:
             if "pacman -S" in words[-1]:
                 self._upgrade("pango")
@@ -478,7 +541,10 @@ class HarnessRunner:
             return CommandResult(completed.returncode, completed.stdout, completed.stderr)
 
         if self.real_software and executable in real_machine_commands:
-            return self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
+            result = self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
+            if result.returncode == 0:
+                self._record_real_machine_install(words)
+            return result
 
         if (
             self.real_software
@@ -623,16 +689,20 @@ def main() -> None:
     root = args.root.resolve()
     root.mkdir(parents=True)
     environment = dict(os.environ)
+    real_userprofile = environment.get("USERPROFILE")
     environment.pop("PYTHONPATH", None)
     environment.update(
         {
             "HOME": str(root / "home"),
-            "USERPROFILE": str(root / "home"),
             "GIT_CONFIG_GLOBAL": str(root / "gitconfig"),
             "GIT_TERMINAL_PROMPT": "0",
             "PYTHONUTF8": "1",
         }
     )
+    if args.real_software and current_platform() == "windows" and real_userprofile:
+        environment["USERPROFILE"] = real_userprofile
+    else:
+        environment["USERPROFILE"] = str(root / "home")
     Path(environment["HOME"]).mkdir(exist_ok=True)
     if args.old_software and current_platform() == "windows":
         fonts = (
