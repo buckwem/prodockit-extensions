@@ -700,6 +700,47 @@ def test_failed_installer_still_stops_when_the_stage_is_partial(tmp_path: Path) 
     assert outcome.recovered is None
 
 
+def test_warning_after_failed_installer_runs_remaining_repairs(tmp_path: Path) -> None:
+    runner = CliFakeRunner(
+        {
+            "installer": CommandResult(1, stderr="already present but unverified"),
+            "repair": CommandResult(0),
+        }
+    )
+    context = build_context(
+        _config(),
+        runner=runner,
+        platform=MACOS,
+        home=tmp_path,
+        fetch=unreachable,
+        guided=True,
+    )
+    checks = iter(
+        [
+            CheckResult(Status.WARNING, "version cannot yet be established"),
+            CheckResult(Status.OK, "repair established the required version"),
+        ]
+    )
+    stage = _stage(
+        lambda context: next(checks),
+        lambda context: Plan(commands=[["installer"], ["repair"]]),
+    )
+
+    outcome = apply_stage(
+        context,
+        stage,
+        stage.plan(context),
+        progress=lambda event, number, total, command: None,
+    )
+
+    assert outcome.ok is True
+    assert outcome.ran == [["installer"], ["repair"]]
+    assert outcome.recovered == CommandResult(1, stderr="already present but unverified")
+    assert outcome.verified == CheckResult(
+        Status.OK, "repair established the required version"
+    )
+
+
 def test_reader_can_decline_a_retry_after_failed_verification(tmp_path: Path) -> None:
     context = _context(tmp_path)
     stage = _stage(
