@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import gzip
 import importlib
+import io
 import os
 import subprocess
 from pathlib import Path
@@ -30,11 +32,34 @@ def test_old_extension_packages_are_below_every_supported_floor() -> None:
         assert native._parts(version) < native._parts(minimum)
 
 
-def test_marketplace_download_names_the_exact_old_package() -> None:
+def test_marketplace_download_names_the_exact_old_package(monkeypatch) -> None:
+    monkeypatch.setattr(native, "current_platform", lambda: native.MACOS)
+    monkeypatch.setattr(native, "_is_arm64", lambda: True)
+
     assert native._marketplace_url("example.extension", "1.2.3") == (
         "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/"
-        "example/vsextensions/extension/1.2.3/vspackage"
+        "example/vsextensions/extension/1.2.3/vspackage?targetPlatform=darwin-arm64"
     )
+
+
+def test_marketplace_gzip_response_is_decoded_to_the_vsix_bytes(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class Response(io.BytesIO):
+        def __init__(self, content: bytes) -> None:
+            super().__init__(content)
+            self.headers = {"Content-Encoding": "gzip"}
+
+    expected = b"PK\x03\x04real-vsix"
+    monkeypatch.setattr(
+        native.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: Response(gzip.compress(expected)),
+    )
+
+    destination = native._download("https://example.invalid/extension", tmp_path / "x.vsix")
+
+    assert destination.read_bytes() == expected
 
 
 def test_mac_path_lets_homebrew_replace_portable_old_tools(monkeypatch, tmp_path: Path) -> None:

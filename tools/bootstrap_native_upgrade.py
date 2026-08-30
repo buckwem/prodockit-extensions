@@ -13,6 +13,7 @@ installed software, not somebody's GitHub or GitLab account.
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
 import platform
@@ -118,7 +119,11 @@ def _download(url: str, destination: Path) -> Path:
         urllib.request.urlopen(request, timeout=120) as response,
         destination.open("wb") as output,
     ):
-        shutil.copyfileobj(response, output)
+        if response.headers.get("Content-Encoding", "").lower() == "gzip":
+            with gzip.GzipFile(fileobj=response) as decoded:
+                shutil.copyfileobj(decoded, output)
+        else:
+            shutil.copyfileobj(response, output)
     if not destination.stat().st_size:
         raise NativeInstallError(f"download produced an empty file: {url}")
     return destination
@@ -256,9 +261,14 @@ def _install_windows_old_software() -> None:
 
 def _marketplace_url(identifier: str, version: str) -> str:
     publisher, name = identifier.split(".", 1)
+    system = {MACOS: "darwin", UBUNTU: "linux", WINDOWS: "win32"}[
+        current_platform()
+    ]
+    architecture = "arm64" if _is_arm64() else "x64"
     return (
         "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/"
         f"{publisher}/vsextensions/{name}/{version}/vspackage"
+        f"?targetPlatform={system}-{architecture}"
     )
 
 
