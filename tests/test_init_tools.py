@@ -169,6 +169,7 @@ def test_install_commands_target_each_scaffolded_component(tmp_path: Path) -> No
     assert len(commands) == 1
     assert "--prefix" in commands[0]
     assert " ci " in commands[0]
+    assert "--legacy-peer-deps" in commands[0]
     assert commands[0].startswith("npm --prefix ")
     assert "--no-audit --no-fund --prefer-offline" in commands[0]
     assert "/tools/mermaid ci " in commands[0]

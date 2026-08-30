@@ -968,6 +968,11 @@ def install_tool(root: Path, component: str) -> list[Path]:
     command = [
         npm,
         "ci" if (tool_root / "package-lock.json").is_file() else "install",
+        *(
+            ["--legacy-peer-deps"]
+            if (tool_root / "package-lock.json").is_file()
+            else []
+        ),
         "--no-audit",
         "--no-fund",
         "--prefer-offline",

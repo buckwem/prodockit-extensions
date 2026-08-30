@@ -56,6 +56,7 @@ def test_missing_winget_installs_microsofts_signed_release(monkeypatch, tmp_path
     assert "DesktopAppInstaller_Dependencies.zip" in rendered
     assert "PROCESSOR_ARCHITECTURE" in rendered
     assert "Add-AppxPackage -Path $bundle -DependencyPath $dependencyPath" in rendered
+    assert "-ForceApplicationShutdown -ForceTargetApplicationShutdown" in rendered
     assert commands[0][0] == "/usr/bin/powershell"
     assert str(executable.parent) in _MODULE.os.environ["PATH"]
 

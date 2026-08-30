@@ -3505,8 +3505,20 @@ def _plan_node(context: Context) -> Plan:
         return Plan(
             commands=[
                 *install,
-                [npm_command(context), "ci", "--prefix", mermaid],
-                [npm_command(context), "ci", "--prefix", mathjax],
+                [
+                    npm_command(context),
+                    "ci",
+                    "--prefix",
+                    mermaid,
+                    "--legacy-peer-deps",
+                ],
+                [
+                    npm_command(context),
+                    "ci",
+                    "--prefix",
+                    mathjax,
+                    "--legacy-peer-deps",
+                ],
             ],
             describe=(
                 f"Upgrade {' and '.join(upgrade_parts)} to supported versions, then "
@@ -3562,8 +3574,16 @@ def _plan_node(context: Context) -> Plan:
             # Appended once. Rerunning bootstrap should not leave a
             # profile with the same two exports in it four times over.
             ["bash", "-c", persist],
-            ["bash", "-c", f"{exports}npm ci --prefix {mermaid}"],
-            ["bash", "-c", f"{exports}npm ci --prefix {mathjax}"],
+            [
+                "bash",
+                "-c",
+                f"{exports}npm ci --prefix {mermaid} --legacy-peer-deps",
+            ],
+            [
+                "bash",
+                "-c",
+                f"{exports}npm ci --prefix {mathjax} --legacy-peer-deps",
+            ],
         ],
         describe=(
             f"Upgrade {' and '.join(upgrade_parts)} to supported versions, then "

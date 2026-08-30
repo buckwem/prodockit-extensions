@@ -3813,6 +3813,7 @@ def test_npm_ci_is_told_not_to_fetch_its_own_chrome(tmp_path: Path) -> None:
     for command in npm:
         assert "PUPPETEER_SKIP_DOWNLOAD=true" in command
         assert "PUPPETEER_EXECUTABLE_PATH=" in command
+        assert "--legacy-peer-deps" in command
 
 
 def test_chromium_is_installed_before_npm_ci_runs(tmp_path: Path) -> None:
@@ -3847,6 +3848,7 @@ def test_other_platforms_are_left_alone(tmp_path: Path) -> None:
         flat = " ".join(" ".join(c) for c in plan.commands)
         assert "chromium" not in flat, platform
         assert "PUPPETEER" not in flat, platform
+        assert flat.count("--legacy-peer-deps") == 2, platform
 
 
 def test_the_pdf_fonts_are_installed_with_the_graphics_stack(tmp_path: Path) -> None:

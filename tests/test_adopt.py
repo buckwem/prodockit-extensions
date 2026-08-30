@@ -423,6 +423,7 @@ def test_mermaid_install_uses_only_the_selected_node_project(tmp_path: Path, mon
         assert command == [
             "/usr/bin/npm",
             "ci",
+            "--legacy-peer-deps",
             "--no-audit",
             "--no-fund",
             "--prefer-offline",
@@ -452,6 +453,7 @@ def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monke
         assert command == [
             "/usr/bin/npm",
             "ci",
+            "--legacy-peer-deps",
             "--no-audit",
             "--no-fund",
             "--prefer-offline",

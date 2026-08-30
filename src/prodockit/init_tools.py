@@ -142,7 +142,7 @@ def install_commands(result: InitToolsResult) -> list[str]:
     """The `npm` commands that turn the scaffold into a working install."""
     return [
         f"npm --prefix {result.tools_dir.as_posix()}/{component} "
-        "ci --no-audit --no-fund --prefer-offline"
+        "ci --legacy-peer-deps --no-audit --no-fund --prefer-offline"
         for component in result.components
     ]
 

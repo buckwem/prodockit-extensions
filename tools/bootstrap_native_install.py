@@ -158,7 +158,8 @@ def _ensure_windows_winget() -> None:
         "-Filter '*.appx' | ForEach-Object { $_.FullName }; "
         "if (-not $dependencyPath) { "
         "throw \"No WinGet dependencies were found for $architecture\" }; "
-        "Add-AppxPackage -Path $bundle -DependencyPath $dependencyPath"
+        "Add-AppxPackage -Path $bundle -DependencyPath $dependencyPath "
+        "-ForceApplicationShutdown -ForceTargetApplicationShutdown"
     )
     _run([shell, "-NoProfile", "-Command", script])
     located = _run(
