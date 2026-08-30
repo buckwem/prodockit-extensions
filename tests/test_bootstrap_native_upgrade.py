@@ -216,10 +216,35 @@ def test_windows_seed_requests_actual_old_package_versions(
 
     monkeypatch.setattr(native, "_run", record)
 
-    native._install_windows_old_software()
+    node_installer = tmp_path / "node-18.msi"
+    native._install_windows_old_software(node_installer)
 
     rendered = "\n".join(" ".join(command) for command in commands)
     assert f"Microsoft.VisualStudioCode --version {native.OLD_VSCODE}" in rendered
     assert f"Git.Git --version {native.OLD_GIT}" in rendered
     assert f"JohnMacFarlane.Pandoc --version {native.OLD_PANDOC}" in rendered
     assert "OpenJS.NodeJS.LTS" not in rendered
+    assert f"msiexec.exe /i {node_installer} /qn /norestart" in rendered
+
+
+def test_windows_old_node_comes_from_the_signed_machine_installer(
+    monkeypatch, tmp_path: Path
+) -> None:
+    seen: list[tuple[str, Path]] = []
+
+    def download(url: str, destination: Path) -> Path:
+        seen.append((url, destination))
+        return destination
+
+    monkeypatch.setattr(native, "_download", download)
+
+    installer = native._windows_old_node_installer(tmp_path)
+
+    assert seen == [
+        (
+            f"https://nodejs.org/dist/v{native.OLD_NODE}/"
+            f"node-v{native.OLD_NODE}-x64.msi",
+            tmp_path / f"node-v{native.OLD_NODE}-x64.msi",
+        )
+    ]
+    assert installer.suffix == ".msi"

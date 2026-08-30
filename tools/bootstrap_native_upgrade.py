@@ -268,24 +268,21 @@ def _winget_old(identifier: str, version: str) -> None:
     )
 
 
-def _portable_windows_node(root: Path) -> Path:
-    """Provide a genuine Node 18 executable where WinGet no longer can.
+def _windows_old_node_installer(root: Path) -> Path:
+    """Download Node 18's signed x64 MSI for both Windows architectures.
 
-    WinGet prunes retired LTS manifests, and Node 18 never published a native
-    Windows ARM64 package. Its signed upstream x64 ZIP runs on both x64 and
-    Windows ARM64, and lets the test prove Bootstrap can replace an old tool
-    that was installed outside WinGet.
+    Node 18 never published a native Windows ARM64 build, but Windows ARM64
+    supports the upstream x64 MSI.  Installing it, rather than putting its ZIP
+    on PATH, makes this a genuine machine-level old application that survives
+    PATH refreshes and that Bootstrap must hand over to WinGet.
     """
-    archive = _download(
-        f"https://nodejs.org/dist/v{OLD_NODE}/node-v{OLD_NODE}-win-x64.zip",
-        root / "node-windows.zip",
+    return _download(
+        f"https://nodejs.org/dist/v{OLD_NODE}/node-v{OLD_NODE}-x64.msi",
+        root / f"node-v{OLD_NODE}-x64.msi",
     )
-    destination = root / "node-windows"
-    _extract_zip(archive, destination)
-    return _find(destination, ("node.exe",)).parent
 
 
-def _install_windows_old_software() -> None:
+def _install_windows_old_software(node_installer: Path) -> None:
     _ensure_windows_winget()
     for identifier, version in (
         ("Microsoft.VisualStudioCode", OLD_VSCODE),
@@ -293,6 +290,7 @@ def _install_windows_old_software() -> None:
         ("JohnMacFarlane.Pandoc", OLD_PANDOC),
     ):
         _winget_old(identifier, version)
+    _run(["msiexec.exe", "/i", str(node_installer), "/qn", "/norestart"])
     refresh_windows_path()
 
 
@@ -426,6 +424,7 @@ def run_native_upgrades(wheel: Path, report_path: Path) -> dict[str, Any]:
         software = root / "backlevel-software"
         extension_cache = root / "extensions"
         portable_bins: list[Path] = []
+        windows_node_installer: Path | None = None
         cleanup_ephemeral_runner(recipe, Path.home())
         if recipe in {MACOS, UBUNTU}:
             portable_bins = _portable_unix_software(software, recipe)
@@ -433,15 +432,17 @@ def run_native_upgrades(wheel: Path, report_path: Path) -> dict[str, Any]:
                 zip(("vscode", "git", "pandoc", "node"), portable_bins, strict=True)
             )
         elif recipe == WINDOWS:
-            portable_bins = [_portable_windows_node(software)]
-            portable_tool_bins = {"node": portable_bins[0]}
+            windows_node_installer = _windows_old_node_installer(software)
+            portable_tool_bins = {}
 
         driver = Path(__file__).with_name("_bootstrap_acceptance_driver.py").resolve()
         for index, (name, host, route) in enumerate(SCENARIOS):
             if index:
                 cleanup_ephemeral_runner(recipe, Path.home())
             if recipe == WINDOWS:
-                _install_windows_old_software()
+                if windows_node_installer is None:  # pragma: no cover - set above
+                    raise NativeInstallError("the Windows Node installer was not prepared")
+                _install_windows_old_software(windows_node_installer)
             scenario_root = root / name
             home = scenario_root / "home"
             home.mkdir(parents=True)
