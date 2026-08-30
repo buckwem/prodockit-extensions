@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import socket
 import sys
 import tempfile
@@ -317,12 +318,9 @@ PDF_FONT_CASKS = ("font-inter", "font-jetbrains-mono")
 WINDOWS_INTER_URL = "https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip"
 WINDOWS_INTER_SHA256 = "9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e"
 WINDOWS_JETBRAINS_MONO_URL = (
-    "https://github.com/JetBrains/JetBrainsMono/releases/download/"
-    "v2.304/JetBrainsMono-2.304.zip"
+    "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip"
 )
-WINDOWS_JETBRAINS_MONO_SHA256 = (
-    "6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf"
-)
+WINDOWS_JETBRAINS_MONO_SHA256 = "6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf"
 
 #: The pandoc version this family of repos pins. Set in one place so a
 #: bump does not leave bootstrap behind - the CI workflows pin the same
@@ -746,9 +744,7 @@ def _deb_arch(context: Context) -> str:
 def _plan_vscode(context: Context) -> Plan:
     command = vscode_command(context)
     installed_version = (
-        context.runner.run([command, "--version"])
-        if command is not None
-        else CommandResult(127)
+        context.runner.run([command, "--version"]) if command is not None else CommandResult(127)
     )
     upgrade = installed_version.ok and _version_is_older(
         installed_version.stdout, VSCODE_MIN_VERSION
@@ -761,8 +757,7 @@ def _plan_vscode(context: Context) -> Plan:
         }[context.platform]
         if context.platform == UBUNTU:
             url = (
-                "https://update.code.visualstudio.com/latest/"
-                f"linux-deb-{_deb_arch(context)}/stable"
+                f"https://update.code.visualstudio.com/latest/linux-deb-{_deb_arch(context)}/stable"
             )
             commands = [
                 _apt("install", "-y", "curl"),
@@ -917,9 +912,7 @@ def _plan_git(context: Context) -> Plan:
         )
     git = git_command(context)
     installed_version = context.runner.run([git, "--version"])
-    upgrade = installed_version.ok and _version_is_older(
-        installed_version.stdout, GIT_MIN_VERSION
-    )
+    upgrade = installed_version.ok and _version_is_older(installed_version.stdout, GIT_MIN_VERSION)
     if upgrade:
         install = {
             MACOS: [["brew", "upgrade", "git"]],
@@ -1018,9 +1011,11 @@ def _plan_ssh_key(context: Context) -> Plan:
             str(private),
         ],
     ]
-    if context.guided and _ssh_key_file_is_usable(
-        context, private
-    ) and not _ssh_key_file_is_usable(context, public):
+    if (
+        context.guided
+        and _ssh_key_file_is_usable(context, private)
+        and not _ssh_key_file_is_usable(context, public)
+    ):
         # Preserve the private key and derive its public half. `ssh-keygen -y`
         # may ask for the existing key's passphrase, so the subprocess inherits
         # the terminal while only its public-key stdout is captured.
@@ -1769,8 +1764,10 @@ def _plan_clone(context: Context) -> Plan:
             describe="Resume creating your repository after its template history was archived",
             action="REPAIR",
         )
-    if context.guided and project.exists() and (
-        not (project / ".git").exists() or not _repository_has_a_commit(context, project)
+    if (
+        context.guided
+        and project.exists()
+        and (not (project / ".git").exists() or not _repository_has_a_commit(context, project))
     ):
         backup = _numbered_backup(project, "pdk-incomplete-clone-backup")
         return Plan(
@@ -2497,9 +2494,7 @@ def _pango_version_result(context: Context) -> CommandResult:
     MSYS2 both install ``pango-view`` alongside the library.
     """
     if context.platform == UBUNTU:
-        return context.runner.run(
-            ["dpkg-query", "-W", "-f=${Version}", "libpango-1.0-0"]
-        )
+        return context.runner.run(["dpkg-query", "-W", "-f=${Version}", "libpango-1.0-0"])
     return context.runner.run(["pango-view", "--version"])
 
 
@@ -2538,9 +2533,7 @@ def _check_pandoc(context: Context) -> CheckResult:
             f"fail unless Pango is {PANGO_MIN_VERSION} or later"
         )
     pango_text = (
-        ".".join(str(part) for part in pango_version)
-        if pango_version is not None
-        else "unknown"
+        ".".join(str(part) for part in pango_version) if pango_version is not None else "unknown"
     )
     if pango_version is not None and _version_is_older(pango.stdout, PANGO_MIN_VERSION):
         pandoc_text = version if version is not None else "unknown"
@@ -2639,9 +2632,13 @@ def _windows_font_install_command() -> list[str]:
         "$zip = Join-Path $work ($archive.Name + '.zip'); "
         "$out = Join-Path $work $archive.Name; "
         "Invoke-WebRequest -Uri $archive.Uri -OutFile $zip; "
-        "$actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant(); "
+        "$sha256 = [Security.Cryptography.SHA256]::Create(); "
+        "$stream = [IO.File]::OpenRead($zip); "
+        "try { $bytes = $sha256.ComputeHash($stream) } "
+        "finally { $stream.Dispose(); $sha256.Dispose() }; "
+        "$actual = ([BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant(); "
         "if ($actual -ne $archive.Sha) { "
-        "throw \"Font archive checksum failed for $($archive.Name)\" }; "
+        'throw "Font archive checksum failed for $($archive.Name)" }; '
         "Expand-Archive -LiteralPath $zip -DestinationPath $out -Force }; "
         "$fonts = @("
         "@{Path='inter\\Inter.ttc'; Name='Inter (TrueType)'},"
@@ -2658,7 +2655,7 @@ def _windows_font_install_command() -> list[str]:
         "foreach ($font in $fonts) { "
         "$source = Join-Path $work $font.Path; "
         "if (-not (Test-Path -LiteralPath $source)) { "
-        "throw \"Font file missing from archive: $($font.Path)\" }; "
+        'throw "Font file missing from archive: $($font.Path)" }; '
         "$file = Split-Path -Leaf $source; "
         "Copy-Item -LiteralPath $source -Destination (Join-Path $fontDir $file) -Force; "
         "New-ItemProperty -Path $fontKey -Name $font.Name -Value $file "
@@ -2672,13 +2669,9 @@ def _plan_pandoc(context: Context) -> Plan:
     installed = context.runner.run([pandoc_command(context), "--version"])
     installed_version = _pandoc_version(installed.stdout) if installed.ok else None
     installed_major = installed_version.split(".")[0] if installed_version else ""
-    pandoc_upgrade = (
-        installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR
-    )
+    pandoc_upgrade = installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR
     pango_result = _pango_version_result(context)
-    pango_upgrade = pango_result.ok and _version_is_older(
-        pango_result.stdout, PANGO_MIN_VERSION
-    )
+    pango_upgrade = pango_result.ok and _version_is_older(pango_result.stdout, PANGO_MIN_VERSION)
     upgrade = pandoc_upgrade or pango_upgrade
     if context.platform == MACOS:
         upgrade_targets = [
@@ -2697,8 +2690,7 @@ def _plan_pandoc(context: Context) -> Plan:
                 ["brew", "install", "--cask", *PDF_FONT_CASKS],
             ],
             describe=(
-                f"Upgrade Pandoc to {PANDOC_MIN_MAJOR}.x or later and refresh the "
-                "PDF libraries"
+                f"Upgrade Pandoc to {PANDOC_MIN_MAJOR}.x or later and refresh the PDF libraries"
                 if upgrade
                 else ""
             ),
@@ -2963,9 +2955,7 @@ def _project_build_python(project: Path) -> str | None:
 
 def _project_environment_python(context: Context) -> str | None:
     """The actual interpreter version inside the generated environment."""
-    result = context.runner.run(
-        [str(_venv_python(context)), "-c", _PYTHON_VERSION_PROBE]
-    )
+    result = context.runner.run([str(_venv_python(context)), "-c", _PYTHON_VERSION_PROBE])
     return result.stdout.strip() if result.ok and result.stdout.strip() else None
 
 
@@ -3309,9 +3299,7 @@ def _check_node(context: Context) -> CheckResult:
             f"{NPM_MIN_VERSION} or later"
         )
     elif _version_is_older(npm_raw, NPM_MIN_VERSION):
-        return _wrong(
-            f"npm {npm_raw} is older than the {NPM_MIN_VERSION} the toolchains need"
-        )
+        return _wrong(f"npm {npm_raw} is older than the {NPM_MIN_VERSION} the toolchains need")
 
     # Everything above is about node itself; the rest of this stage's plan
     # installs the two toolchains and, on Ubuntu, the browser Mermaid
@@ -3385,7 +3373,7 @@ def _chromium_version_result(context: Context) -> CommandResult:
         [
             "bash",
             "-c",
-            'browser=$(command -v chromium-browser || command -v chromium) || exit 1; '
+            "browser=$(command -v chromium-browser || command -v chromium) || exit 1; "
             '"$browser" --version',
         ]
     )
@@ -3501,24 +3489,33 @@ def _plan_node(context: Context) -> Plan:
     mermaid = str(project / "tools" / "mermaid")
     mathjax = str(project / "tools" / "mathjax")
 
+    def npm_ci(directory: str) -> list[str]:
+        """Run npm from its package directory instead of using ``--prefix``.
+
+        npm 12 currently rejects Mermaid's valid optional-peer lock entry when
+        ``npm ci`` is combined with ``--prefix``. Its ordinary working-directory
+        form remains deterministic and keeps the committed lockfile authoritative.
+        """
+        if context.platform == WINDOWS:
+            literal = directory.replace("'", "''")
+            return [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                f"Set-Location -LiteralPath '{literal}'; npm.cmd ci --legacy-peer-deps",
+            ]
+        return [
+            "bash",
+            "-c",
+            f"cd {shlex.quote(directory)} && npm ci --legacy-peer-deps",
+        ]
+
     if context.platform != UBUNTU:
         return Plan(
             commands=[
                 *install,
-                [
-                    npm_command(context),
-                    "ci",
-                    "--prefix",
-                    mermaid,
-                    "--legacy-peer-deps",
-                ],
-                [
-                    npm_command(context),
-                    "ci",
-                    "--prefix",
-                    mathjax,
-                    "--legacy-peer-deps",
-                ],
+                npm_ci(mermaid),
+                npm_ci(mathjax),
             ],
             describe=(
                 f"Upgrade {' and '.join(upgrade_parts)} to supported versions, then "
@@ -3577,12 +3574,12 @@ def _plan_node(context: Context) -> Plan:
             [
                 "bash",
                 "-c",
-                f"{exports}npm ci --prefix {mermaid} --legacy-peer-deps",
+                f"{exports}cd {shlex.quote(mermaid)} && npm ci --legacy-peer-deps",
             ],
             [
                 "bash",
                 "-c",
-                f"{exports}npm ci --prefix {mathjax} --legacy-peer-deps",
+                f"{exports}cd {shlex.quote(mathjax)} && npm ci --legacy-peer-deps",
             ],
         ],
         describe=(
@@ -3639,8 +3636,7 @@ def _extension_state(context: Context) -> tuple[list[str], list[str], list[str]]
     outdated = [
         name
         for name, minimum in VSCODE_EXTENSION_MIN_VERSIONS.items()
-        if (installed := inventory.get(name.lower()))
-        and _version_is_older(installed, minimum)
+        if (installed := inventory.get(name.lower())) and _version_is_older(installed, minimum)
     ]
     unversioned = [
         name
@@ -3671,8 +3667,7 @@ def _check_extensions(context: Context) -> CheckResult:
     absent, outdated, unversioned = state
     if outdated:
         detail = "outdated: " + ", ".join(
-            f"{name} (needs {VSCODE_EXTENSION_MIN_VERSIONS[name]} or later)"
-            for name in outdated
+            f"{name} (needs {VSCODE_EXTENSION_MIN_VERSIONS[name]} or later)" for name in outdated
         )
         if absent:
             detail = f"missing: {', '.join(absent)}; {detail}"
@@ -3711,9 +3706,7 @@ def _plan_extensions(context: Context) -> Plan:
     its own check.
     """
     state = _extension_state(context)
-    absent, outdated, _unversioned = (
-        (list(VSCODE_EXTENSIONS), [], []) if state is None else state
-    )
+    absent, outdated, _unversioned = (list(VSCODE_EXTENSIONS), [], []) if state is None else state
     # By the path it was found at, so a Windows session that has just
     # installed VS Code can still install extensions without being sent
     # away to open a new terminal (#292).
@@ -4051,11 +4044,13 @@ def _check_mathjax(context: Context) -> CheckResult:
         return _missing("no project to install it into yet")
     source, license_source, bundle, license_path, config = _mathjax_paths(context)
     absent = [
-        name for name, path in (
+        name
+        for name, path in (
             ("the config", config),
             ("the bundle", bundle),
             ("the licence", license_path),
-        ) if not path.exists()
+        )
+        if not path.exists()
     ]
     if absent:
         return _missing(f"{' and '.join(absent)} for the website is not installed")
@@ -4252,8 +4247,7 @@ def _check_site_published(context: Context) -> CheckResult:
     # published a site (prodockit-extensions#611).
     if _check_first_push(context).status is not Status.OK:
         return _blocked(
-            "the first push has not been confirmed - complete the "
-            "'First commit pushed' stage first"
+            "the first push has not been confirmed - complete the 'First commit pushed' stage first"
         )
     status, probe_problem = _http_probe(context, url)
     if status == 200:

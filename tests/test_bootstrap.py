@@ -181,8 +181,7 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         "code --list-extensions": CommandResult(
             0,
             "\n".join(
-                f"{name}@{VSCODE_EXTENSION_MIN_VERSIONS[name]}"
-                for name in VSCODE_EXTENSIONS
+                f"{name}@{VSCODE_EXTENSION_MIN_VERSIONS[name]}" for name in VSCODE_EXTENSIONS
             ),
         ),
         "code --version": CommandResult(0, f"{VSCODE_MIN_VERSION}\ncurrent-commit\n"),
@@ -559,9 +558,7 @@ def test_a_missing_public_key_is_derived_without_replacing_the_private_key(
     private.parent.mkdir()
     private.write_text("PRIVATE", encoding="utf-8")
     runner = FakeRunner({"ssh-keygen -lf": CommandResult(0, "fingerprint")})
-    plan = next(s for s in STAGES if s.id == "ssh-key").plan(
-        _context(tmp_path, runner=runner)
-    )
+    plan = next(s for s in STAGES if s.id == "ssh-key").plan(_context(tmp_path, runner=runner))
     rendered = " ".join(" ".join(command) for command in plan.commands)
 
     assert plan.action == "REPAIR"
@@ -722,9 +719,7 @@ def test_bootstrap_winget_installs_never_upgrade_or_prompt_implicitly(tmp_path: 
 def test_old_vscode_is_reported_as_wrong(tmp_path: Path) -> None:
     runner = FakeRunner({"code --version": CommandResult(0, "1.80.2\nold-commit\n")})
 
-    result = next(s for s in STAGES if s.id == "vscode").check(
-        _context(tmp_path, runner=runner)
-    )
+    result = next(s for s in STAGES if s.id == "vscode").check(_context(tmp_path, runner=runner))
 
     assert result.status is Status.WRONG
     assert VSCODE_MIN_VERSION in result.detail
@@ -764,9 +759,7 @@ def test_old_vscode_has_an_explicit_upgrade_plan(
 def test_old_git_is_reported_as_wrong(tmp_path: Path) -> None:
     runner = FakeRunner({"git --version": CommandResult(0, "git version 2.27.1\n")})
 
-    result = next(s for s in STAGES if s.id == "git").check(
-        _context(tmp_path, runner=runner)
-    )
+    result = next(s for s in STAGES if s.id == "git").check(_context(tmp_path, runner=runner))
 
     assert result.status is Status.WRONG
     assert GIT_MIN_VERSION in result.detail
@@ -781,9 +774,7 @@ def test_git_with_an_unreadable_version_warns_about_compatibility(tmp_path: Path
         }
     )
 
-    result = next(s for s in STAGES if s.id == "git").check(
-        _context(tmp_path, runner=runner)
-    )
+    result = next(s for s in STAGES if s.id == "git").check(_context(tmp_path, runner=runner))
 
     assert result.status is Status.WARNING
     assert GIT_MIN_VERSION in result.detail
@@ -799,9 +790,7 @@ def test_unreadable_git_version_does_not_hide_missing_identity(tmp_path: Path) -
         }
     )
 
-    result = next(s for s in STAGES if s.id == "git").check(
-        _context(tmp_path, runner=runner)
-    )
+    result = next(s for s in STAGES if s.id == "git").check(_context(tmp_path, runner=runner))
 
     assert result.status is Status.WRONG
     assert "user.email" in result.detail
@@ -811,9 +800,7 @@ def test_unreadable_git_version_does_not_hide_missing_identity(tmp_path: Path) -
     "platform,manager",
     [(MACOS, "brew"), (UBUNTU, "apt"), (WINDOWS, "winget")],
 )
-def test_old_git_has_an_explicit_upgrade_plan(
-    tmp_path: Path, platform: str, manager: str
-) -> None:
+def test_old_git_has_an_explicit_upgrade_plan(tmp_path: Path, platform: str, manager: str) -> None:
     runner = FakeRunner({"git --version": CommandResult(0, "git version 2.27.1\n")})
 
     plan = next(s for s in STAGES if s.id == "git").plan(
@@ -1846,8 +1833,7 @@ def test_extensions_are_listed_with_the_command_that_installs_them(tmp_path: Pat
         f"{code} --list-extensions": CommandResult(
             0,
             "\n".join(
-                f"{name}@{VSCODE_EXTENSION_MIN_VERSIONS[name]}"
-                for name in VSCODE_EXTENSIONS
+                f"{name}@{VSCODE_EXTENSION_MIN_VERSIONS[name]}" for name in VSCODE_EXTENSIONS
             ),
         ),
     }
@@ -2521,9 +2507,9 @@ def test_bootstrap_windows_git_uses_the_validated_system_ssh_over_an_inherited_w
 
     monkeypatch.setenv("GIT_SSH_COMMAND", "C:/Program Files/Git/usr/bin/ssh.exe")
     script = "import os; print(os.environ['GIT_SSH_COMMAND'])"
-    result = SubprocessRunner(
-        git_ssh_executable="C:/WINDOWS/System32/OpenSSH/ssh.exe"
-    ).run([sys.executable, "-c", script])
+    result = SubprocessRunner(git_ssh_executable="C:/WINDOWS/System32/OpenSSH/ssh.exe").run(
+        [sys.executable, "-c", script]
+    )
 
     assert result.ok
     assert result.stdout.startswith("C:/WINDOWS/System32/OpenSSH/ssh.exe ")
@@ -2693,9 +2679,7 @@ def test_old_windows_pandoc_is_an_explicit_pinned_upgrade(tmp_path: Path) -> Non
 
 
 @pytest.mark.parametrize("platform", [MACOS, UBUNTU])
-def test_old_pandoc_is_an_explicit_upgrade_on_unix(
-    tmp_path: Path, platform: str
-) -> None:
+def test_old_pandoc_is_an_explicit_upgrade_on_unix(tmp_path: Path, platform: str) -> None:
     runner = FakeRunner({"pandoc --version": CommandResult(0, "pandoc 2.19.2\n")})
 
     plan = next(s for s in STAGES if s.id == "pandoc").plan(
@@ -2747,9 +2731,7 @@ def test_pango_below_weasyprints_floor_is_reported_as_wrong(tmp_path: Path) -> N
         }
     )
 
-    result = next(s for s in STAGES if s.id == "pandoc").check(
-        _context(tmp_path, runner=runner)
-    )
+    result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
 
     assert result.status is Status.WRONG
     assert PANGO_MIN_VERSION in result.detail
@@ -2804,7 +2786,7 @@ def test_current_node_is_not_reinstalled_when_only_toolchains_are_missing(
     )
 
     assert not any(command[0] == "winget" for command in plan.commands)
-    assert len([command for command in plan.commands if "ci" in command]) == 2
+    assert len([command for command in plan.commands if "npm.cmd ci" in " ".join(command)]) == 2
 
 
 def test_old_windows_node_is_an_explicit_upgrade_not_an_install(tmp_path: Path) -> None:
@@ -3876,7 +3858,8 @@ def test_bootstrap_windows_installs_pinned_verified_pdf_fonts(tmp_path: Path) ->
     assert "Inter" in joined and "JetBrains Mono" in joined
     assert "Inter-4.1.zip" in joined
     assert "JetBrainsMono-2.304.zip" in joined
-    assert "Get-FileHash" in joined and "SHA256" in joined
+    assert "Security.Cryptography.SHA256" in joined
+    assert "Get-FileHash" not in joined
     assert "Microsoft\\Windows\\Fonts" in joined
     assert "CurrentVersion\\Fonts" in joined
     assert not plan.follow_up, "the font install no longer needs a human step"
@@ -4142,9 +4125,7 @@ def test_partial_node_modules_directories_are_not_complete_toolchains(tmp_path: 
         {"node": CommandResult(0, "v22.14.0\n"), "npm": CommandResult(0, "10.9.2\n")}
     )
 
-    result = next(s for s in STAGES if s.id == "node").check(
-        _context(tmp_path, runner=runner)
-    )
+    result = next(s for s in STAGES if s.id == "node").check(_context(tmp_path, runner=runner))
 
     assert result.status is Status.WRONG
     assert "mermaid" in result.detail and "mathjax" in result.detail
@@ -4176,9 +4157,7 @@ def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> 
     both = FakeRunner(
         {
             **base,
-            "command -v chromium-browser": CommandResult(
-                0, f"Chromium {CHROMIUM_MIN_VERSION}\n"
-            ),
+            "command -v chromium-browser": CommandResult(0, f"Chromium {CHROMIUM_MIN_VERSION}\n"),
             f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
         }
     )
@@ -4240,9 +4219,7 @@ def test_node_stage_warns_when_a_runtime_version_cannot_be_read(
     runner = FakeRunner(
         {
             "node": CommandResult(0, "v22.14.0\n"),
-            "npm": CommandResult(
-                0, "development\n" if unreadable == "npm" else "10.9.2\n"
-            ),
+            "npm": CommandResult(0, "development\n" if unreadable == "npm" else "10.9.2\n"),
             "command -v chromium-browser": CommandResult(
                 0,
                 "Chromium development\n"
@@ -5895,8 +5872,27 @@ def test_windows_finds_npm_by_path_when_the_bare_name_will_not_run(tmp_path: Pat
 
     assert npm_command(context).endswith("npm.cmd")
     plan = next(s for s in STAGES if s.id == "node").plan(context)
-    installs = [c for c in plan.commands if "ci" in c]
-    assert installs and all(c[0].endswith("npm.cmd") for c in installs)
+    installs = [c for c in plan.commands if "npm.cmd ci" in " ".join(c)]
+    assert installs and all(c[0] == "powershell" for c in installs)
+
+
+def test_npm_ci_runs_from_each_tool_directory_without_prefix(tmp_path: Path) -> None:
+    """npm 12 rejects Mermaid's valid optional-peer lock entry when ``ci``
+    is combined with ``--prefix``. Running inside each package directory
+    avoids that upstream validation defect without relaxing the lockfile."""
+    for platform in (MACOS, WINDOWS, UBUNTU):
+        plan = next(s for s in STAGES if s.id == "node").plan(_context(tmp_path, platform=platform))
+        installs = [
+            " ".join(c) for c in plan.commands if "npm" in " ".join(c) and " ci" in " ".join(c)
+        ]
+        assert len(installs) == 2, platform
+        assert all("--prefix" not in command for command in installs), platform
+        assert any(
+            "tools/mermaid" in command or "tools\\mermaid" in command for command in installs
+        )
+        assert any(
+            "tools/mathjax" in command or "tools\\mathjax" in command for command in installs
+        )
 
 
 def test_npm_is_left_alone_where_it_works(tmp_path: Path) -> None:
@@ -6095,9 +6091,7 @@ def test_bootstrap_refreshes_windows_environment_when_a_run_starts(
     refreshed: list[int] = []
     monkeypatch.setattr(bootstrap, "refresh_windows_path", lambda: refreshed.append(1))
 
-    build_context(
-        _config(host="surrey"), platform=WINDOWS, home=tmp_path, guided=True
-    )
+    build_context(_config(host="surrey"), platform=WINDOWS, home=tmp_path, guided=True)
 
     assert refreshed == [1]
 
@@ -6240,10 +6234,7 @@ def test_winget_pinned_version_already_installed_is_not_a_failure() -> None:
 
     outcome = CommandResult(
         1,
-        stdout=(
-            "A package version is already installed. "
-            "Installation cancelled."
-        ),
+        stdout=("A package version is already installed. Installation cancelled."),
     )
     assert benign_outcome(
         ["winget", "install", "--id", "JohnMacFarlane.Pandoc", "--version", "3.10.1"],
@@ -7619,6 +7610,7 @@ def test_a_login_response_requires_project_specific_confirmation(
     assert "does not prove that this specific site exists" in result.detail
     assert "confirm the exact address" in result.detail
 
+
 def test_a_missing_site_remains_a_finding(tmp_path: Path) -> None:
     """A 404 is an answer, and its answer is that this path is absent."""
     result = next(s for s in STAGES if s.id == "site").check(
@@ -7650,9 +7642,7 @@ def test_browser_confirmation_resolves_an_inconclusive_login_response(
 
 
 @pytest.mark.parametrize("platform", [MACOS, WINDOWS, UBUNTU])
-def test_site_check_waits_for_first_push_before_probing(
-    tmp_path: Path, platform: str
-) -> None:
+def test_site_check_waits_for_first_push_before_probing(tmp_path: Path, platform: str) -> None:
     """A nonexistent repository must not inherit the host login's 302 (#611)."""
     probed: list[str] = []
 

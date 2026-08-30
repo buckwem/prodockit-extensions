@@ -157,7 +157,7 @@ def _ensure_windows_winget() -> None:
         "-LiteralPath (Join-Path $dependencyRoot $architecture) "
         "-Filter '*.appx' | ForEach-Object { $_.FullName }; "
         "if (-not $dependencyPath) { "
-        "throw \"No WinGet dependencies were found for $architecture\" }; "
+        'throw "No WinGet dependencies were found for $architecture" }; '
         "Add-AppxPackage -Path $bundle -DependencyPath $dependencyPath "
         "-ForceApplicationShutdown"
     )
@@ -237,6 +237,24 @@ def cleanup_ephemeral_runner(recipe: str, home: Path) -> None:
             "MSYS2.MSYS2",
         ):
             _winget_remove(identifier)
+        # Hosted images can retain the MSYS2 directory and the per-user DLL
+        # setting after the package registration is removed. Bootstrap then
+        # sees an apparently usable Pango during an intermediate recheck and
+        # skips the commands that configure the fresh installation. Native
+        # release tests deliberately start from a genuinely clean machine.
+        for root in roots:
+            if root.is_dir():
+                shutil.rmtree(root)
+        os.environ.pop("WEASYPRINT_DLL_DIRECTORIES", None)
+        _run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "[Environment]::SetEnvironmentVariable("
+                "'WEASYPRINT_DLL_DIRECTORIES', $null, 'User')",
+            ]
+        )
     else:  # pragma: no cover - guarded by prodockit's platform resolver
         raise NativeInstallError(f"unsupported Bootstrap recipe: {recipe}")
 
