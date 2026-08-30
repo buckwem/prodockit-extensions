@@ -214,6 +214,8 @@ def _bootstrap_status(text: str, status: Status) -> str:
         return click.style(text, fg="bright_magenta", bold=True)
     if status in {Status.MISSING, Status.BLOCKED, Status.UNKNOWN}:
         return click.style(text, fg="bright_yellow", bold=True)
+    if status is Status.WARNING:
+        return click.style(text, fg="bright_yellow", bold=True)
     return text
 
 
@@ -250,6 +252,7 @@ def _bootstrap_journal(
     for report in reports:
         status = {
             Status.OK: "satisfied",
+            Status.WARNING: "warning",
             Status.BLOCKED: "waiting",
             Status.UNKNOWN: "unknown",
         }.get(report.result.status, "planned")
@@ -1123,7 +1126,7 @@ def _work_through(
             if journal is not None:
                 journal.stage(
                     report.stage.id,
-                    "satisfied",
+                    "warning" if result.status is Status.WARNING else "satisfied",
                     detail=report.result.detail,
                 )
             # With the detail, as the report itself prints it. Without
@@ -1132,7 +1135,9 @@ def _work_through(
             # nothing" and "never managed to look" read identically
             # (#356).
             detail = f" - {report.result.detail}" if report.result.detail else ""
-            click.echo(f"{number:2}  ok    {report.stage.summary}{detail}")
+            symbol = "WARN" if result.status is Status.WARNING else "ok  "
+            line = f"{number:2}  {symbol}  {report.stage.summary}{detail}"
+            click.echo(_bootstrap_status(line, result.status))
             continue
         if report.plan is None:
             # Distinguish a stage whose state is unknown from one waiting on
@@ -1939,6 +1944,7 @@ def bootstrap(
 
     symbols = {
         Status.OK: "ok  ",
+        Status.WARNING: "WARN",
         Status.MISSING: "MISS",
         Status.WRONG: "WRONG",
         Status.UNKNOWN: "?   ",

@@ -429,27 +429,29 @@ implemented, is a command that starts installing software because
 somebody typed it to see what it did.
 
 ```text
- 1  MISS  Visual Studio Code - the `code` command is not on PATH
- 2  ok    Git, installed and configured - Ada Lovelace <al01234@surrey.ac.uk>
- 3  ok    SSH keypair - /Users/al01234/.ssh/id_ed25519_gitlab
- 4  ok    SSH config points at the key - gitlab.surrey.ac.uk uses id_ed25519_gitlab
- 5  ok    Key loaded into the ssh agent - id_ed25519_gitlab is loaded
- 6  ok    SSH key on the host - authenticated to gitlab.surrey.ac.uk
- 7  ?     Template cloned - needs project_name
+ 1  ok    prodockit runs in an environment of its own
+ 2  MISS  Visual Studio Code - VS Code is not installed
+ 3  ok    Git, installed and configured - Ada Lovelace <al01234@surrey.ac.uk>
+ 4  ok    SSH keypair - /Users/al01234/.ssh/id_ed25519_gitlab
+ 5  ok    SSH config points at the key - gitlab.surrey.ac.uk uses id_ed25519_gitlab
+ 6  ok    Key loaded into the ssh agent - id_ed25519_gitlab is loaded
+ 7  WAIT  SSH key on the host - the SSH keypair is not ready yet
  ...
-5 of 18 stages need work.
+5 of 23 stages need work.
 ```
 
-Four states, and the difference between them matters:
+Six states, and the difference between them matters:
 
-\ref{tab-devcons-bootstrap-checking-without-changing-anything} explains the four stage states reported by a read-only bootstrap check.
+\ref{tab-devcons-bootstrap-checking-without-changing-anything} explains the six stage states reported by a read-only bootstrap check.
 
 | | Meaning |
 | --- | --- |
 | `ok` | Set up correctly. A rerun leaves it alone. |
+| `WARN` | Usable, but a prerequisite's version could not be verified. The stage is not changed automatically, and the message names the minimum version and the risk of continuing. |
 | `MISS` | Not there at all. |
 | `WRONG` | Present but not usable - git installed with no `user.email`, Node installed without `npm`. **Not** the same as missing, and telling you to install something you already have would send you the wrong way. |
 | `?` | Cannot be judged yet, because it needs a configuration answer you have not given. |
+| `WAIT` | Cannot be checked until an earlier stage is complete. |
 /// table-caption | <
     attrs: {id: tab-devcons-bootstrap-checking-without-changing-anything}
 
@@ -460,6 +462,14 @@ Exits non-zero when anything needs work, so it is usable as a check in a
 script - the same convention as
 [`prodockit sync-repo --check`](repo-metadata.md#sync-repo-in-ci) and
 `prodockit pins --check`.
+
+Bootstrap checks minimum supported versions for every versioned prerequisite
+it installs: VS Code and its required extensions, Git, Pandoc, Pango, Node.js,
+npm, and Ubuntu's system Chromium. Python's minimum is enforced when the wheel
+is installed. A confirmed older version is work to do and produces an explicit
+upgrade plan. If a program is present but does not expose a readable version,
+bootstrap leaves it in place and prints `WARN` with the minimum and the risk of
+continuing rather than claiming it is known to work.
 
 ## Seeing what it would do {: #bootstrap-dry-run }
 

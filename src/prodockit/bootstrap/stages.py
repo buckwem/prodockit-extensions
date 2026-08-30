@@ -72,8 +72,45 @@ VSCODE_EXTENSIONS = (
     "ltex-plus.vscode-ltex-plus",
 )
 
-#: Minimum Node major version - what the automated builds use.
-NODE_MAJOR = 22
+#: Known-good floors for the required editor extensions. The editor normally
+#: updates these itself, but bootstrap also has to recognise a deliberately old
+#: pre-installation: an identifier being present is not proof that the promised
+#: authoring setup is current enough to use.
+VSCODE_EXTENSION_MIN_VERSIONS = {
+    "ms-python.python": "2026.4.0",
+    "zensical.zensical-studio": "0.2.12",
+    "tamasfe.even-better-toml": "0.21.2",
+    "ltex-plus.vscode-ltex-plus": "15.7.1",
+}
+
+#: Oldest VS Code release accepted by bootstrap. Zensical Studio declares
+#: ``^1.100.0`` in its extension manifest, so an older editor can be present
+#: and runnable while being unable to install the editor this setup promises.
+VSCODE_MIN_VERSION = "1.100.0"
+
+#: ``git init -b`` arrived in Git 2.28. Bootstrap uses it when separating a
+#: new document from the template, so merely finding an older Git executable
+#: is not enough to call the machine ready.
+GIT_MIN_VERSION = "2.28.0"
+
+#: Minimum Node release used by the pinned Puppeteer toolchain. Puppeteer
+#: 25.4.0 declares Node 22.12.0 or later; checking only the major would accept
+#: an early 22.x release that npm then refuses to use.
+NODE_MIN_VERSION = "22.12.0"
+NODE_MAJOR = int(NODE_MIN_VERSION.split(".", 1)[0])
+
+#: ``package-lock.json`` uses lockfile version 3, which npm 7 introduced.
+#: A working ``node`` command with an older npm is still unable to install the
+#: pinned Mermaid and MathJax trees reproducibly.
+NPM_MIN_VERSION = "7.0.0"
+
+#: Browser revision used by the pinned Puppeteer runtime. Ubuntu deliberately
+#: uses its system Chromium instead of Puppeteer's downloaded binary so ARM64
+#: receives a native executable; it must still be new enough for that runtime.
+CHROMIUM_MIN_VERSION = "151.0.7922.47"
+
+#: WeasyPrint 69's documented system-library floor.
+PANGO_MIN_VERSION = "1.44.0"
 
 #: How long apt should wait for the dpkg lock rather than giving up.
 #:
@@ -311,9 +348,34 @@ def _wrong(detail: str) -> CheckResult:
     return CheckResult(Status.WRONG, detail)
 
 
+def _warning(detail: str) -> CheckResult:
+    return CheckResult(Status.WARNING, detail)
+
+
 def _installed(context: Context, command: str, *args: str) -> bool:
     """Whether `command` runs at all - the usual "is this on PATH?" probe."""
     return context.runner.run([command, *(args or ("--version",))]).ok
+
+
+def _numeric_version(value: str) -> tuple[int, ...] | None:
+    """The first dotted numeric version in a command's output.
+
+    Tool banners vary (``git version 2.43.0``, ``1.100.2`` and ``v22.14``),
+    but the part bootstrap compares does not. Returning ``None`` keeps an
+    unreadable banner distinct from an old one.
+    """
+    match = re.search(r"(?<!\d)(\d+(?:\.\d+)+)", value)
+    return tuple(int(part) for part in match.group(1).split(".")) if match else None
+
+
+def _version_is_older(value: str, minimum: str) -> bool:
+    """Whether ``value`` is numerically below ``minimum``."""
+    found = _numeric_version(value)
+    wanted = _numeric_version(minimum)
+    if found is None or wanted is None:
+        return False
+    width = max(len(found), len(wanted))
+    return found + (0,) * (width - len(found)) < wanted + (0,) * (width - len(wanted))
 
 
 def _unknown(detail: str) -> CheckResult:
@@ -628,6 +690,19 @@ def _check_vscode(context: Context) -> CheckResult:
     what the later stages need it for.
     """
     command = vscode_command(context)
+    if command is not None:
+        version = context.runner.run([command, "--version"])
+        if not version.ok or _numeric_version(version.stdout) is None:
+            return _warning(
+                "VS Code is installed, but its version could not be read - the required "
+                f"extensions may fail unless it is {VSCODE_MIN_VERSION} or later"
+            )
+        if version.ok and _version_is_older(version.stdout, VSCODE_MIN_VERSION):
+            found = ".".join(str(part) for part in (_numeric_version(version.stdout) or ()))
+            return _wrong(
+                f"VS Code {found} is too old for the required extensions - "
+                f"{VSCODE_MIN_VERSION} or later is needed"
+            )
     if command == "code":
         return _ok()
     if command is not None and context.platform == WINDOWS:
@@ -669,6 +744,48 @@ def _deb_arch(context: Context) -> str:
 
 
 def _plan_vscode(context: Context) -> Plan:
+    command = vscode_command(context)
+    installed_version = (
+        context.runner.run([command, "--version"])
+        if command is not None
+        else CommandResult(127)
+    )
+    upgrade = installed_version.ok and _version_is_older(
+        installed_version.stdout, VSCODE_MIN_VERSION
+    )
+    if upgrade:
+        commands = {
+            MACOS: [["brew", "upgrade", "--cask", "visual-studio-code"]],
+            UBUNTU: [],
+            WINDOWS: [_winget_upgrade("Microsoft.VisualStudioCode")],
+        }[context.platform]
+        if context.platform == UBUNTU:
+            url = (
+                "https://update.code.visualstudio.com/latest/"
+                f"linux-deb-{_deb_arch(context)}/stable"
+            )
+            commands = [
+                _apt("install", "-y", "curl"),
+                ["curl", "-fsSL", "-o", "/tmp/code.deb", url],
+                [
+                    sys.executable,
+                    "-c",
+                    _WRITE_DEBCONF,
+                    VSCODE_DEBCONF_FILE,
+                    VSCODE_MICROSOFT_REPO,
+                ],
+                ["sudo", "debconf-set-selections", VSCODE_DEBCONF_FILE],
+                _apt("install", "-y", "/tmp/code.deb"),
+            ]
+        return Plan(
+            commands=commands,
+            describe=(
+                f"Upgrade VS Code to {VSCODE_MIN_VERSION} or later so it can run "
+                "the required extensions"
+            ),
+            action="UPGRADE",
+            destructive=True,
+        )
     # Installed already: the only thing missing is the shell command, and
     # reinstalling the application would fail rather than supply it.
     if _vscode_app_installed(context):
@@ -739,6 +856,18 @@ def _check_git(context: Context) -> CheckResult:
     if not _git_is_available(context):
         return _missing("git is not installed")
     git = git_command(context)
+    version = context.runner.run([git, "--version"])
+    version_warning = ""
+    if not version.ok or _numeric_version(version.stdout) is None:
+        version_warning = (
+            "git is installed, but its version could not be read - bootstrap may fail "
+            f"unless it is {GIT_MIN_VERSION} or later"
+        )
+    elif _version_is_older(version.stdout, GIT_MIN_VERSION):
+        found = ".".join(str(part) for part in (_numeric_version(version.stdout) or ()))
+        return _wrong(
+            f"git {found} is too old for bootstrap - {GIT_MIN_VERSION} or later is needed"
+        )
     name = context.runner.run([git, "config", "--global", "user.name"])
     email = context.runner.run([git, "config", "--global", "user.email"])
     unset = [
@@ -760,6 +889,8 @@ def _check_git(context: Context) -> CheckResult:
             return _wrong(
                 "git is installed and has an identity, but is not configured to use Windows OpenSSH"
             )
+    if version_warning:
+        return _warning(version_warning)
     found = "" if git == "git" else f" - {git} (PATH picks it up in a new terminal)"
     return _ok(f"{name.stdout.strip()} <{email.stdout.strip()}>{found}")
 
@@ -783,6 +914,23 @@ def _plan_git(context: Context) -> Plan:
                 "core.sshCommand",
                 windows_system_ssh(),
             ]
+        )
+    git = git_command(context)
+    installed_version = context.runner.run([git, "--version"])
+    upgrade = installed_version.ok and _version_is_older(
+        installed_version.stdout, GIT_MIN_VERSION
+    )
+    if upgrade:
+        install = {
+            MACOS: [["brew", "upgrade", "git"]],
+            UBUNTU: [_apt("update"), _apt("install", "-y", "git")],
+            WINDOWS: [_winget_upgrade("Git.Git")],
+        }[context.platform]
+        return Plan(
+            commands=[*install, *configure],
+            describe=f"Upgrade Git to {GIT_MIN_VERSION} or later, then confirm its identity",
+            action="UPGRADE",
+            destructive=True,
         )
     # Only install if it is actually absent - a rerun repairing unset
     # identity should not reinstall git underneath a working one.
@@ -2341,15 +2489,33 @@ def _pandoc_version(stdout: str) -> str | None:
     return None
 
 
+def _pango_version_result(context: Context) -> CommandResult:
+    """Ask for Pango's version using a command available on the platform.
+
+    Ubuntu installs the runtime library rather than ``pango-view``. Its
+    package database is therefore the dependable source there; Homebrew and
+    MSYS2 both install ``pango-view`` alongside the library.
+    """
+    if context.platform == UBUNTU:
+        return context.runner.run(
+            ["dpkg-query", "-W", "-f=${Version}", "libpango-1.0-0"]
+        )
+    return context.runner.run(["pango-view", "--version"])
+
+
 def _check_pandoc(context: Context) -> CheckResult:
     result = context.runner.run([pandoc_command(context), "--version"])
     if not result.ok:
         return _missing("pandoc is not installed")
     version = _pandoc_version(result.stdout)
+    warnings: list[str] = []
     if version is None:
-        return _wrong("pandoc is installed but its version could not be read")
-    major = version.split(".")[0]
-    if major.isdigit() and int(major) < PANDOC_MIN_MAJOR:
+        warnings.append(
+            "pandoc's version could not be read - PDF conversion may fail unless "
+            f"it is {PANDOC_MIN_MAJOR}.x or later"
+        )
+    major = version.split(".")[0] if version is not None else ""
+    if version is not None and major.isdigit() and int(major) < PANDOC_MIN_MAJOR:
         # Ubuntu's own package lags well behind upstream - far enough to
         # change how the PDF renders. Code blocks come out as justified
         # prose on pandoc 2.x (#207).
@@ -2362,7 +2528,29 @@ def _check_pandoc(context: Context) -> CheckResult:
         # The plan installs these, so the check has to be able to see
         # them (#224). WeasyPrint substitutes silently when they are
         # absent, so nothing else will notice until a test does.
-        return _wrong(f"pandoc {version}, but the PDF fonts are missing: {missing_fonts}")
+        prefix = f"pandoc {version}" if version is not None else "pandoc"
+        return _wrong(f"{prefix}, but the PDF fonts are missing: {missing_fonts}")
+    pango = _pango_version_result(context)
+    pango_version = _numeric_version(pango.stdout) if pango.ok else None
+    if pango_version is None:
+        warnings.append(
+            "Pango's version could not be read - the PDF build may "
+            f"fail unless Pango is {PANGO_MIN_VERSION} or later"
+        )
+    pango_text = (
+        ".".join(str(part) for part in pango_version)
+        if pango_version is not None
+        else "unknown"
+    )
+    if pango_version is not None and _version_is_older(pango.stdout, PANGO_MIN_VERSION):
+        pandoc_text = version if version is not None else "unknown"
+        return _wrong(
+            f"pandoc {pandoc_text}, but Pango {pango_text} is too old - "
+            f"{PANGO_MIN_VERSION} or later is needed"
+        )
+    if warnings:
+        return _warning("; ".join(warnings))
+    assert version is not None
     if version != PANDOC_VERSION:
         # Said, not failed. Pandoc decides how the PDF renders - #207 was
         # code blocks coming out as justified prose on an older major,
@@ -2378,9 +2566,9 @@ def _check_pandoc(context: Context) -> CheckResult:
         # act on beats a red mark they cannot.
         return _ok(
             f"pandoc {version} - the builds pin {PANDOC_VERSION}, so a PDF built "
-            "here can differ from the published one"
+            f"here can differ from the published one; Pango {pango_text}"
         )
-    return _ok(f"pandoc {version}")
+    return _ok(f"pandoc {version}; Pango {pango_text}")
 
 
 def _absent_pdf_fonts(context: Context) -> str:
@@ -2481,15 +2669,41 @@ def _windows_font_install_command() -> list[str]:
 
 
 def _plan_pandoc(context: Context) -> Plan:
+    installed = context.runner.run([pandoc_command(context), "--version"])
+    installed_version = _pandoc_version(installed.stdout) if installed.ok else None
+    installed_major = installed_version.split(".")[0] if installed_version else ""
+    pandoc_upgrade = (
+        installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR
+    )
+    pango_result = _pango_version_result(context)
+    pango_upgrade = pango_result.ok and _version_is_older(
+        pango_result.stdout, PANGO_MIN_VERSION
+    )
+    upgrade = pandoc_upgrade or pango_upgrade
     if context.platform == MACOS:
+        upgrade_targets = [
+            name
+            for name, needed in (("pandoc", pandoc_upgrade), ("pango", pango_upgrade))
+            if needed
+        ]
         return Plan(
             commands=[
-                ["brew", "install", "pandoc", "pango"],
+                ["brew", "upgrade", *upgrade_targets]
+                if upgrade_targets
+                else ["brew", "install", "pandoc", "pango"],
                 # The PDF embeds these; the website loads them from a CDN
                 # at view time and so never notices they are absent
                 # (prodockit-userguide#101, #249).
                 ["brew", "install", "--cask", *PDF_FONT_CASKS],
-            ]
+            ],
+            describe=(
+                f"Upgrade Pandoc to {PANDOC_MIN_MAJOR}.x or later and refresh the "
+                "PDF libraries"
+                if upgrade
+                else ""
+            ),
+            action="UPGRADE" if upgrade else "",
+            destructive=upgrade,
         )
     if context.platform == UBUNTU:
         # Ubuntu's own pandoc package is several major versions behind -
@@ -2526,7 +2740,15 @@ def _plan_pandoc(context: Context) -> Plan:
                     "libharfbuzz-subset0",
                     *PDF_FONT_PACKAGES,
                 ),
-            ]
+            ],
+            describe=(
+                f"Upgrade Pandoc to the supported {PANDOC_VERSION} release and "
+                "refresh the PDF libraries"
+                if upgrade
+                else ""
+            ),
+            action="UPGRADE" if upgrade else "",
+            destructive=upgrade,
         )
     # MSYS2 carries Pango, which is what WeasyPrint draws text through on
     # Windows. The User Guide walks the reader through a MINGW64 shell
@@ -2538,16 +2760,12 @@ def _plan_pandoc(context: Context) -> Plan:
     # it. Windows on ARM may run x64 tools under emulation, so neither a
     # PowerShell process nor the host architecture reliably answers that
     # question. prodockit bootstrap asks its own Python interpreter (#393).
-    pandoc_upgrade = False
     pandoc_install: list[str] | None = _winget(
         "JohnMacFarlane.Pandoc",
         PANDOC_VERSION,
         resilient=context.guided,
     )
     if context.guided:
-        installed = context.runner.run([pandoc_command(context), "--version"])
-        installed_version = _pandoc_version(installed.stdout) if installed.ok else None
-        installed_major = installed_version.split(".")[0] if installed_version else ""
         if installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR:
             pandoc_install = _winget_upgrade("JohnMacFarlane.Pandoc", PANDOC_VERSION)
             pandoc_upgrade = True
@@ -2573,7 +2791,7 @@ def _plan_pandoc(context: Context) -> Plan:
             f"$pkg = if ($msysEnv -eq '{arm[0]}') {{ '{arm[1]}' }} "
             f"else {{ '{other[1]}' }}; "
         )
-    pango = (
+    pango_script = (
         "$roots = @(" + roots + "); "
         '$root = $roots | Where-Object { Test-Path "$_\\usr\\bin\\bash.exe" } '
         "| Select-Object -First 1; "
@@ -2605,7 +2823,7 @@ def _plan_pandoc(context: Context) -> Plan:
     commands = [
         *([pandoc_install] if pandoc_install is not None else []),
         _winget("MSYS2.MSYS2", resilient=context.guided),
-        ["powershell", "-NoProfile", "-Command", pango],
+        ["powershell", "-NoProfile", "-Command", pango_script],
         ["powershell", "-NoProfile", "-Command", path_entry],
     ]
     if context.guided:
@@ -2615,11 +2833,11 @@ def _plan_pandoc(context: Context) -> Plan:
         describe=(
             f"Upgrade Pandoc to the supported {PANDOC_VERSION} release, then "
             "prepare the Windows PDF libraries"
-            if pandoc_upgrade
+            if upgrade
             else ""
         ),
-        action="UPGRADE" if pandoc_upgrade else "",
-        destructive=pandoc_upgrade,
+        action="UPGRADE" if upgrade else "",
+        destructive=upgrade,
         # Independent of the winget install, so either order works - after
         # it, so the automated half is not held up behind a manual one.
         follow_up=(
@@ -3071,15 +3289,29 @@ def _check_node(context: Context) -> CheckResult:
     if not result.ok:
         return _missing("node is not installed")
     raw = result.stdout.strip().lstrip("v")
-    major = raw.split(".")[0] if raw else ""
-    if not major.isdigit():
-        return _wrong(f"could not read a version from {result.stdout.strip()!r}")
-    if int(major) < NODE_MAJOR:
-        return _wrong(f"node {raw} is older than the {NODE_MAJOR}.x the builds use")
-    if not context.runner.run([npm_command(context), "--version"]).ok:
+    warnings: list[str] = []
+    if _numeric_version(raw) is None:
+        warnings.append(
+            f"could not read Node's version; the toolchains may fail unless it is "
+            f"{NODE_MIN_VERSION} or later"
+        )
+    elif _version_is_older(raw, NODE_MIN_VERSION):
+        return _wrong(f"node {raw} is older than the {NODE_MIN_VERSION} the tools need")
+    npm_result = context.runner.run([npm_command(context), "--version"])
+    if not npm_result.ok:
         # The signature of Ubuntu's own nodejs package, or a NodeSource
         # install whose `curl` line failed - node without npm.
         return _wrong("node is installed but npm is not")
+    npm_raw = npm_result.stdout.strip().lstrip("v")
+    if _numeric_version(npm_raw) is None:
+        warnings.append(
+            f"could not read npm's version; the pinned toolchains may fail unless it is "
+            f"{NPM_MIN_VERSION} or later"
+        )
+    elif _version_is_older(npm_raw, NPM_MIN_VERSION):
+        return _wrong(
+            f"npm {npm_raw} is older than the {NPM_MIN_VERSION} the toolchains need"
+        )
 
     # Everything above is about node itself; the rest of this stage's plan
     # installs the two toolchains and, on Ubuntu, the browser Mermaid
@@ -3106,24 +3338,65 @@ def _check_node(context: Context) -> CheckResult:
         ]
         if absent:
             return _wrong(f"node {raw}, but {' and '.join(absent)} is not installed")
-    if context.platform == UBUNTU and not _chromium_ready(context):
-        return _wrong(
-            f"node {raw}, but Puppeteer has no system Chromium to use - it would "
-            "download one, which on ARM64 is a build that cannot run"
-        )
-    return _ok(f"node {raw}")
+    if context.platform == UBUNTU:
+        chromium = _chromium_version_result(context)
+        if not chromium.ok or not chromium.stdout.strip():
+            return _wrong(
+                f"node {raw}, but Puppeteer has no system Chromium to use - it would "
+                "download one, which on ARM64 is a build that cannot run"
+            )
+        chromium_raw = chromium.stdout.strip()
+        if _numeric_version(chromium_raw) is None:
+            warnings.append(
+                "could not read Chromium's version; Mermaid may fail unless it is "
+                f"{CHROMIUM_MIN_VERSION} or later"
+            )
+        elif _version_is_older(chromium_raw, CHROMIUM_MIN_VERSION):
+            return _wrong(
+                f"Chromium {'.'.join(str(part) for part in _numeric_version(chromium_raw) or ())} "
+                f"is older than the {CHROMIUM_MIN_VERSION} Mermaid needs"
+            )
+        if not _chromium_exports_ready(context):
+            return _wrong(
+                f"node {raw}, but Puppeteer is not configured to use system Chromium - "
+                "it would download one, which on ARM64 is a build that cannot run"
+            )
+    if warnings:
+        return _warning("; ".join(warnings))
+    return _ok(f"node {raw}, npm {npm_raw}")
 
 
-def _node_runtime_state(context: Context) -> tuple[int | None, bool]:
-    """Installed Node major and whether its npm companion is runnable."""
+def _node_runtime_state(context: Context) -> tuple[str | None, str | None, bool]:
+    """Installed Node/npm versions and whether npm itself is runnable."""
     result = context.runner.run([node_command(context), "--version"])
     if not result.ok:
-        return None, False
+        return None, None, False
     raw = result.stdout.strip().lstrip("v")
-    major = raw.split(".")[0] if raw else ""
-    parsed = int(major) if major.isdigit() else None
-    npm_ok = context.runner.run([npm_command(context), "--version"]).ok
-    return parsed, npm_ok
+    parsed = raw if _numeric_version(raw) is not None else None
+    npm_result = context.runner.run([npm_command(context), "--version"])
+    npm_raw = npm_result.stdout.strip().lstrip("v")
+    npm_version = npm_raw if npm_result.ok and _numeric_version(npm_raw) is not None else None
+    return parsed, npm_version, npm_result.ok
+
+
+def _chromium_version_result(context: Context) -> CommandResult:
+    """Ubuntu's system Chromium version, under either package command name."""
+    return context.runner.run(
+        [
+            "bash",
+            "-c",
+            'browser=$(command -v chromium-browser || command -v chromium) || exit 1; '
+            '"$browser" --version',
+        ]
+    )
+
+
+def _chromium_exports_ready(context: Context) -> bool:
+    """Whether Puppeteer is configured to use the system browser."""
+    exports = context.runner.run(
+        ["bash", "-c", f"grep -q {PUPPETEER_SKIP_VAR} {context.home / '.bashrc'}"]
+    )
+    return exports.ok
 
 
 def _chromium_ready(context: Context) -> bool:
@@ -3133,13 +3406,8 @@ def _chromium_ready(context: Context) -> bool:
     leaves Puppeteer downloading its own; the exports without a Chromium
     point at nothing.
     """
-    found = context.runner.run(["bash", "-c", "which chromium-browser || which chromium"])
-    if not found.ok or not found.stdout.strip():
-        return False
-    exports = context.runner.run(
-        ["bash", "-c", f"grep -q {PUPPETEER_SKIP_VAR} {context.home / '.bashrc'}"]
-    )
-    return exports.ok
+    found = _chromium_version_result(context)
+    return found.ok and bool(found.stdout.strip()) and _chromium_exports_ready(context)
 
 
 #: Where Puppeteer is told to find a browser, and told not to fetch one.
@@ -3189,15 +3457,45 @@ def _plan_node(context: Context) -> Plan:
 
     upgrade = False
     repair = False
+    upgrade_parts: list[str] = []
     if context.guided:
-        major, npm_ok = _node_runtime_state(context)
-        if major is not None and major >= NODE_MAJOR and npm_ok:
+        version, npm_version, npm_ok = _node_runtime_state(context)
+        old_node = version is not None and _version_is_older(version, NODE_MIN_VERSION)
+        old_npm = npm_version is not None and _version_is_older(npm_version, NPM_MIN_VERSION)
+        if old_node:
+            upgrade_parts.append("Node.js")
+        if old_npm:
+            upgrade_parts.append("npm")
+        if (
+            version is not None
+            and not old_node
+            and npm_ok
+            and npm_version is not None
+            and not old_npm
+        ):
             install = []
-        elif context.platform == WINDOWS and major is not None and major < NODE_MAJOR:
-            install = [_winget_upgrade("OpenJS.NodeJS.LTS")]
+        elif old_node or old_npm:
             upgrade = True
-        elif context.platform == WINDOWS and major is not None and not npm_ok:
-            install = [_winget_repair("OpenJS.NodeJS.LTS")]
+            if old_node:
+                install = {
+                    MACOS: [["brew", "upgrade", "node"]],
+                    UBUNTU: ubuntu_node_install,
+                    WINDOWS: [_winget_upgrade("OpenJS.NodeJS.LTS")],
+                }[context.platform]
+            else:
+                npm_upgrade = [
+                    npm_command(context),
+                    "install",
+                    "--global",
+                    f"npm@>={NPM_MIN_VERSION}",
+                ]
+                install = [["sudo", *npm_upgrade] if context.platform == UBUNTU else npm_upgrade]
+        elif version is not None and not npm_ok:
+            install = {
+                MACOS: [["brew", "reinstall", "node"]],
+                UBUNTU: ubuntu_node_install,
+                WINDOWS: [_winget_repair("OpenJS.NodeJS.LTS")],
+            }[context.platform]
             repair = True
 
     mermaid = str(project / "tools" / "mermaid")
@@ -3211,8 +3509,8 @@ def _plan_node(context: Context) -> Plan:
                 [npm_command(context), "ci", "--prefix", mathjax],
             ],
             describe=(
-                f"Upgrade Node to the supported {NODE_MAJOR}.x release, then install "
-                "the project toolchains"
+                f"Upgrade {' and '.join(upgrade_parts)} to supported versions, then "
+                "install the project toolchains"
                 if upgrade
                 else (
                     "Repair the existing Node installation so npm works, then install "
@@ -3245,6 +3543,18 @@ def _plan_node(context: Context) -> Plan:
         f"'export {PUPPETEER_PATH_VAR}={_WHICH_CHROMIUM}' "
         f"'export {PUPPETEER_SKIP_VAR}=true' >> {bashrc}"
     )
+    chromium_upgrade = False
+    if context.guided:
+        chromium = _chromium_version_result(context)
+        chromium_upgrade = (
+            chromium.ok
+            and _numeric_version(chromium.stdout) is not None
+            and _version_is_older(chromium.stdout, CHROMIUM_MIN_VERSION)
+        )
+        if chromium_upgrade:
+            upgrade = True
+            upgrade_parts.append("Chromium")
+
     return Plan(
         commands=[
             *install,
@@ -3254,13 +3564,70 @@ def _plan_node(context: Context) -> Plan:
             ["bash", "-c", persist],
             ["bash", "-c", f"{exports}npm ci --prefix {mermaid}"],
             ["bash", "-c", f"{exports}npm ci --prefix {mathjax}"],
-        ]
+        ],
+        describe=(
+            f"Upgrade {' and '.join(upgrade_parts)} to supported versions, then "
+            "install the project toolchains"
+            if upgrade
+            else (
+                "Repair the existing Node installation so npm works, then install "
+                "the project toolchains"
+                if repair
+                else ""
+            )
+        ),
+        action="UPGRADE" if upgrade else ("REPAIR" if repair else ""),
+        destructive=upgrade or repair,
     )
 
 
 # ---------------------------------------------------------------------------
 # 15. VS Code extensions (platform-independent)
 # ---------------------------------------------------------------------------
+
+
+def _extension_inventory(context: Context) -> dict[str, str] | None:
+    """Installed extension identifiers and versions, or ``None`` if unaskable."""
+    command = vscode_command(context) or "code"
+    result = context.runner.run([command, "--list-extensions", "--show-versions"])
+    if not result.ok:
+        # Older VS Code releases may not support ``--show-versions``. The
+        # editor stage will upgrade those; retaining the identifier-only
+        # fallback also keeps this stage useful with alternative Code builds.
+        result = context.runner.run([command, "--list-extensions"])
+    if not result.ok:
+        return None
+    inventory: dict[str, str] = {}
+    for raw in result.stdout.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        identifier, separator, version = line.rpartition("@")
+        if separator:
+            inventory[identifier.lower()] = version
+        else:
+            inventory[line.lower()] = ""
+    return inventory
+
+
+def _extension_state(context: Context) -> tuple[list[str], list[str], list[str]] | None:
+    """Required extensions that are absent, below their floor, or unversioned."""
+    inventory = _extension_inventory(context)
+    if inventory is None:
+        return None
+    absent = [name for name in VSCODE_EXTENSIONS if name.lower() not in inventory]
+    outdated = [
+        name
+        for name, minimum in VSCODE_EXTENSION_MIN_VERSIONS.items()
+        if (installed := inventory.get(name.lower()))
+        and _version_is_older(installed, minimum)
+    ]
+    unversioned = [
+        name
+        for name in VSCODE_EXTENSIONS
+        if name.lower() in inventory and not inventory[name.lower()]
+    ]
+    return absent, outdated, unversioned
 
 
 def _absent_extensions(context: Context) -> list[str] | None:
@@ -3273,17 +3640,23 @@ def _absent_extensions(context: Context) -> list[str] | None:
     Code installed?" about the VS Code it had just driven successfully,
     four times, by full path (prodockit-extensions#410).
     """
-    result = context.runner.run([vscode_command(context) or "code", "--list-extensions"])
-    if not result.ok:
-        return None
-    installed = {line.strip().lower() for line in result.stdout.splitlines() if line.strip()}
-    return [name for name in VSCODE_EXTENSIONS if name.lower() not in installed]
+    state = _extension_state(context)
+    return None if state is None else state[0]
 
 
 def _check_extensions(context: Context) -> CheckResult:
-    absent = _absent_extensions(context)
-    if absent is None:
+    state = _extension_state(context)
+    if state is None:
         return _missing("could not list extensions - is VS Code installed?")
+    absent, outdated, unversioned = state
+    if outdated:
+        detail = "outdated: " + ", ".join(
+            f"{name} (needs {VSCODE_EXTENSION_MIN_VERSIONS[name]} or later)"
+            for name in outdated
+        )
+        if absent:
+            detail = f"missing: {', '.join(absent)}; {detail}"
+        return _wrong(detail)
     if absent:
         # Name what is already there as well as what is not. "missing: x"
         # alone, next to a plan that reinstalled all three, read as though
@@ -3300,6 +3673,12 @@ def _check_extensions(context: Context) -> CheckResult:
             # to destroy.
             return _missing(detail)
         return _wrong(detail)
+    if unversioned:
+        return _warning(
+            "installed, but versions could not be read for "
+            f"{', '.join(unversioned)} - those extensions may fail if they are below "
+            "their supported minimum"
+        )
     return _ok(f"all {len(VSCODE_EXTENSIONS)} installed")
 
 
@@ -3311,13 +3690,27 @@ def _plan_extensions(context: Context) -> Plan:
     lines under "missing: one-extension" says the tool has not understood
     its own check.
     """
-    absent = _absent_extensions(context)
-    wanted = VSCODE_EXTENSIONS if absent is None else absent
+    state = _extension_state(context)
+    absent, outdated, _unversioned = (
+        (list(VSCODE_EXTENSIONS), [], []) if state is None else state
+    )
     # By the path it was found at, so a Windows session that has just
     # installed VS Code can still install extensions without being sent
     # away to open a new terminal (#292).
     command = vscode_command(context) or "code"
-    return Plan(commands=[[command, "--install-extension", name] for name in wanted])
+    return Plan(
+        commands=[
+            *[[command, "--install-extension", name] for name in absent],
+            *[[command, "--install-extension", name, "--force"] for name in outdated],
+        ],
+        describe=(
+            "Upgrade the outdated VS Code extensions and install any that are missing"
+            if outdated
+            else ""
+        ),
+        action="UPGRADE" if outdated else "",
+        destructive=bool(outdated),
+    )
 
 
 #: Every stage, in the order they have to happen. Ordering is a real

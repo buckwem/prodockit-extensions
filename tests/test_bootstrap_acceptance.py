@@ -18,10 +18,11 @@ bootstrap_acceptance = importlib.import_module("tools.bootstrap_acceptance")
 
 def test_all_host_and_repository_routes_are_declared() -> None:
     assert bootstrap_acceptance.SCENARIOS == (
-        ("surrey-new", "surrey", "new"),
-        ("surrey-existing", "surrey", "existing"),
-        ("github-new", "github", "new"),
-        ("github-existing", "github", "existing"),
+        ("surrey-new", "surrey", "new", False),
+        ("surrey-existing", "surrey", "existing", False),
+        ("surrey-existing-old-software", "surrey", "existing", True),
+        ("github-new", "github", "new", False),
+        ("github-existing", "github", "existing", False),
     )
 
 
