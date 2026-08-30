@@ -455,6 +455,14 @@ def acceptance_stages(*, old_software: bool = False) -> tuple[Stage, ...]:
     return tuple(stage if stage.id in real else _simulated_stage(stage) for stage in STAGES)
 
 
+def supports_old_software_route(host: str, route: str) -> bool:
+    """Whether a declared route is expected to exercise prerequisite upgrades."""
+    return (host, route) in {
+        ("surrey", "existing"),
+        ("github", "new"),
+    }
+
+
 def fetch(_url: str, timeout: float = 20.0) -> Fetched:
     del timeout
     if "api.github.com" in _url:
@@ -527,9 +535,10 @@ def main() -> None:
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
 
-    if args.old_software and (args.host != "surrey" or args.route != "existing"):
+    if args.old_software and not supports_old_software_route(args.host, args.route):
         raise AcceptanceError(
-            "the old-software route is intentionally limited to Surrey's existing repository path"
+            "old-software acceptance is limited to Surrey's existing-repository "
+            "route and GitHub's new-repository route"
         )
 
     started = time.perf_counter()

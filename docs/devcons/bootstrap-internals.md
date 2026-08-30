@@ -79,8 +79,10 @@ and refusal boundaries. Test the real end-to-end path on supported operating
 systems when the change touches installers, shells, SSH, browsers, or host
 behaviour that a fake runner cannot reproduce.
 
-The installed-wheel harness also has a Surrey existing-repository scenario
-whose machine starts with deliberately old versions of every versioned
-prerequisite, including npm and Ubuntu's system Chromium. It must present and
-accept the upgrades, preserve the existing repository history, pass a second
-check, and leave a second apply unchanged.
+The installed-wheel harness runs two routes with deliberately old versions of
+every versioned prerequisite, including npm and Ubuntu's system Chromium. The
+GitHub new-repository route represents a first Bootstrap pass and must upgrade
+the tools before creating the project. The Surrey existing-repository route
+must make the same upgrades without changing the repository's existing
+history. Both routes must pass a second check and leave a second apply
+unchanged.

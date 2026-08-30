@@ -27,7 +27,7 @@ SCENARIOS = (
     ("surrey-new", "surrey", "new", False),
     ("surrey-existing", "surrey", "existing", False),
     ("surrey-existing-old-software", "surrey", "existing", True),
-    ("github-new", "github", "new", False),
+    ("github-new-old-software", "github", "new", True),
     ("github-existing", "github", "existing", False),
 )
 

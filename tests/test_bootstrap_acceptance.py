@@ -22,9 +22,24 @@ def test_all_host_and_repository_routes_are_declared() -> None:
         ("surrey-new", "surrey", "new", False),
         ("surrey-existing", "surrey", "existing", False),
         ("surrey-existing-old-software", "surrey", "existing", True),
-        ("github-new", "github", "new", False),
+        ("github-new-old-software", "github", "new", True),
         ("github-existing", "github", "existing", False),
     )
+
+
+@pytest.mark.parametrize(
+    ("host", "route", "supported"),
+    [
+        ("surrey", "new", False),
+        ("surrey", "existing", True),
+        ("github", "new", True),
+        ("github", "existing", False),
+    ],
+)
+def test_old_software_runs_only_on_the_two_deliberate_routes(
+    host: str, route: str, supported: bool
+) -> None:
+    assert bootstrap_acceptance_driver.supports_old_software_route(host, route) is supported
 
 
 def test_a_wheel_file_or_single_wheel_directory_is_accepted(tmp_path: Path) -> None:
