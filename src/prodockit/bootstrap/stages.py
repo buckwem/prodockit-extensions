@@ -144,6 +144,12 @@ def _brew_upgrade_or_install(name: str, *, cask: bool = False) -> list[str]:
     perfectly ordinary state because it has no receipt.  Selecting install
     when the receipt is absent lets Homebrew replace the old application and
     leaves future upgrades under package-manager control.
+
+    Homebrew can also install the requested package successfully and then
+    return failure from a later post-install warning about an unrelated tap.
+    Confirming the receipt in that case lets Bootstrap reach its own version
+    and functionality re-check.  A package that was not installed still
+    fails here, and an old version still fails the stage re-check.
     """
     kind = "--cask" if cask else "--formula"
     install_kind = " --cask" if cask else ""
@@ -152,8 +158,10 @@ def _brew_upgrade_or_install(name: str, *, cask: bool = False) -> list[str]:
         "bash",
         "-c",
         f"if brew list {kind} {quoted} >/dev/null 2>&1; then "
-        f"brew upgrade{install_kind} {quoted}; else "
-        f"brew install{install_kind} --force {quoted}; fi",
+        f"brew upgrade{install_kind} {quoted} || "
+        f"brew list {kind} {quoted} >/dev/null 2>&1; else "
+        f"brew install{install_kind} --force {quoted} || "
+        f"brew list {kind} {quoted} >/dev/null 2>&1; fi",
     ]
 
 

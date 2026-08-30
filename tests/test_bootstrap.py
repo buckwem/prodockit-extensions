@@ -2708,6 +2708,25 @@ def test_mac_old_pandoc_also_installs_a_missing_pango(tmp_path: Path) -> None:
     assert "brew upgrade" in joined and "pandoc" in joined
 
 
+def test_mac_brew_commands_verify_a_receipt_after_post_install_failure(
+    tmp_path: Path,
+) -> None:
+    runner = FakeRunner(
+        {
+            "pandoc --version": CommandResult(0, "pandoc 2.19.2\n"),
+            "pango-view --version": CommandResult(127, stderr="not found"),
+        }
+    )
+
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=MACOS, runner=runner)
+    )
+    scripts = [command[-1] for command in plan.commands if command[:2] == ["bash", "-c"]]
+
+    assert scripts
+    assert all("|| brew list --formula" in script for script in scripts)
+
+
 def test_windows_pandoc_repair_does_not_reinstall_a_working_version(
     tmp_path: Path,
 ) -> None:
