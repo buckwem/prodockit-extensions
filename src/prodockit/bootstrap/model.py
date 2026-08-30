@@ -840,7 +840,16 @@ def refresh_windows_path() -> str | None:
     # made the repaired executable disappear again. A refresh adds persisted
     # paths; it must not discard valid paths the process already had.
     current = os.environ.get("PATH", "")
-    merged = os.pathsep.join([*parts, *([current] if current else [])])
+    path_parts: list[str] = []
+    seen: set[str] = set()
+    for value in (*parts, current):
+        for part in value.split(";"):
+            part = part.strip()
+            key = part.rstrip("\\/").casefold()
+            if part and key not in seen:
+                path_parts.append(part)
+                seen.add(key)
+    merged = ";".join(path_parts)
     os.environ["PATH"] = merged
     return merged
 
