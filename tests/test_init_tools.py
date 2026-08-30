@@ -112,6 +112,20 @@ def test_scaffolded_manifests_are_valid_json_with_the_expected_dependency(
     assert mathjax_lock["packages"][""]["dependencies"] == mathjax["dependencies"]
 
 
+def test_mermaid_lock_records_the_optional_layout_peer_version(tmp_path: Path) -> None:
+    """Newer npm rejects the optional layout peer when its nested lock
+    entry is absent or has no version (npm/cli#9846)."""
+    init_tools(tmp_path / "tools", components=("mermaid",))
+    lock = json.loads(
+        (tmp_path / "tools/mermaid/package-lock.json").read_text(encoding="utf-8")
+    )
+    packages = lock["packages"]
+
+    assert packages[
+        "node_modules/@mermaid-js/layout-tidy-tree/node_modules/mermaid"
+    ]["version"] == packages["node_modules/mermaid"]["version"]
+
+
 def test_scaffold_lands_exactly_where_the_pdf_build_looks_for_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
