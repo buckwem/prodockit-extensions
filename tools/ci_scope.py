@@ -141,7 +141,6 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/bootstrap_native_install.py": frozenset({"bootstrap"}),
     "tools/bootstrap_native_upgrade.py": frozenset({"bootstrap"}),
     ".github/workflows/adopt-install.yml": frozenset({"adopt"}),
-    ".github/workflows/release-real-upgrades.yml": frozenset({"adopt", "bootstrap"}),
     ".github/workflows/pdf-built-site-wheel.yml": frozenset({"pdf"}),
     ".github/workflows/bootstrap-install.yml": frozenset({"bootstrap"}),
 }
@@ -287,7 +286,6 @@ def _run_git(command: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
 
 _NATIVE_BOOTSTRAP_FILES = {
     ".github/workflows/bootstrap-install.yml",
-    ".github/workflows/release-real-upgrades.yml",
     "tools/ci_scope.py",
     "tools/bootstrap_native_install.py",
     "tools/bootstrap_native_upgrade.py",
@@ -295,7 +293,6 @@ _NATIVE_BOOTSTRAP_FILES = {
 
 _NATIVE_ADOPT_FILES = {
     ".github/workflows/adopt-install.yml",
-    ".github/workflows/release-real-upgrades.yml",
     "tools/adopt_native_upgrade.py",
     "tools/ci_scope.py",
 }
