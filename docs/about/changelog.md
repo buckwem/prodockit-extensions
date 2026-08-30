@@ -39,6 +39,12 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## 0.51.3 (2026-08-30)
+
+- Added automated acceptance coverage for Bootstrap's Surrey GitLab and public
+  GitHub paths, using both new and existing repositories on the supported
+  operating-system and processor combinations.
+
 ## 0.51.2 (2026-08-30)
 
 - Made `template-sync --apply` create its review branch and GitLab merge request,
@@ -88,12 +94,3 @@ requests rather than here.
 - Added consent-gated Google Analytics to `prodockit.org`; analytics remains disabled until a visitor explicitly accepts it.
 - Made optional Mermaid and maths adoption deterministic and faster with canonical npm lockfiles and reusable CI caches. Custom Node manifests remain author-owned.
 - Made the shared home-page hero more compact so the footer follows its content instead of being pushed below a full viewport.
-
-## 0.48.0 (2026-08-26)
-
-- Separated managed website and PDF styles into `pdk.css` and `pdk-pdf.css`,
-  leaving `extra.css` and `print.css` for document-specific overrides.
-- Added managed-file protection to template synchronisation and shared-file
-  checks so local edits to Prodockit styles are reported before replacement.
-- Moved PDF contents-page presentation into the stylesheet cascade, allowing
-  a document's `print.css` to customise it without changing renderer code.
