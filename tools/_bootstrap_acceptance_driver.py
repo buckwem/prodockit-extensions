@@ -315,10 +315,10 @@ class HarnessRunner:
             script = " ".join(words)
             if "chromium-browser" in script and "--version" in script:
                 return CommandResult(0, f"Chromium {self.versions['chromium']}\n")
-            if "npm ci --prefix" in script:
-                match = re.search(r"npm ci --prefix\s+([^;\s]+)", script)
+            if "npm ci" in script and "cd " in script:
+                match = re.search(r"\bcd\s+([^;&]+?)\s+&&\s+npm ci", script)
                 if match:
-                    self._install_toolchain(Path(match.group(1)))
+                    self._install_toolchain(Path(match.group(1).strip(" '\"")))
                 return CommandResult(0)
             if "which chromium-browser" in script:
                 return CommandResult(0, "/usr/bin/chromium-browser\n")
@@ -348,6 +348,10 @@ class HarnessRunner:
         if self.old_software and executable in {"powershell", "powershell.exe"}:
             if "pacman -S" in words[-1]:
                 self._upgrade("pango")
+            if "npm.cmd ci" in words[-1] and "Set-Location -LiteralPath" in words[-1]:
+                match = re.search(r"Set-Location -LiteralPath '((?:''|[^'])+)'", words[-1])
+                if match:
+                    self._install_toolchain(Path(match.group(1).replace("''", "'")))
             return CommandResult(0)
 
         if executable.startswith("zensical"):

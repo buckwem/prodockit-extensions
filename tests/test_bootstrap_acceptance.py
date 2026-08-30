@@ -109,7 +109,7 @@ def test_ubuntu_npm_commands_install_toolchains_before_resolving_chromium(
         "-c",
         (
             "export PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser || "
-            f"which chromium); npm ci --prefix {prefix}"
+            f"which chromium); cd {prefix} && npm ci"
         ),
     ]
 
