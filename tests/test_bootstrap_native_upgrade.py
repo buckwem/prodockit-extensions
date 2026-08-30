@@ -224,6 +224,8 @@ def test_windows_seed_requests_actual_old_package_versions(
     assert f"Git.Git --version {native.OLD_GIT}" in rendered
     assert f"JohnMacFarlane.Pandoc --version {native.OLD_PANDOC}" in rendered
     assert "OpenJS.NodeJS.LTS" not in rendered
+    assert "DisplayName -like 'Node.js*'" in rendered
+    assert "@('/x', $product, '/qn', '/norestart')" in rendered
     assert f"msiexec.exe /i {node_installer} /qn /norestart" in rendered
 
 
