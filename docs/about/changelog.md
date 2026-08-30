@@ -30,20 +30,23 @@ requests rather than here.
 - **PDF output:** `prodockit pdf` consumes a completed Zensical website and
   creates a styled PDF with chapters, cross-page links, figures, tables,
   references, headers, footers, and an optional index.
-- **Project setup:** `prodockit adopt` adds selected components to an existing
-  Zensical or MkDocs project; `prodockit bootstrap` automates a complete template-based
-  environment on supported macOS, Windows, and Ubuntu systems.
+- **Project setup:** `prodockit adopt` adds components to an existing Zensical or
+  MkDocs project; `prodockit bootstrap` automates a complete template environment.
 - **Project maintenance:** template sync, repository metadata sync, version
   pin checks, shared-file checks, source bundles, and built-output tests help
   keep projects reproducible and publishable.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## 0.51.4 (2026-08-30)
+
+- Made Bootstrap safely upgrade unsupported prerequisites and resume after
+  inconclusive installers; made Adoption refresh its version floor and managed `pdk.css`.
+
 ## 0.51.3 (2026-08-30)
 
-- Added automated acceptance coverage for Bootstrap's Surrey GitLab and public
-  GitHub paths, using both new and existing repositories on the supported
-  operating-system and processor combinations.
+- Added Bootstrap acceptance coverage for Surrey GitLab and public GitHub, using new
+  and existing repositories across supported operating-system and processor combinations.
 
 ## 0.51.2 (2026-08-30)
 
