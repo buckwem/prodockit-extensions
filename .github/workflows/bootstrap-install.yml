@@ -185,11 +185,6 @@ jobs:
           python -m pip install build
           python -m build --wheel
           python -c "from pathlib import Path; import subprocess, sys; wheel = next(Path('dist').glob('prodockit-*.whl')); subprocess.run([sys.executable, '-m', 'pip', 'install', '--force-reinstall', str(wheel)], check=True)"
-      - name: Install the old VS Code runtime libraries on Ubuntu
-        if: runner.os == 'Linux'
-        run: >-
-          sudo apt -o DPkg::Lock::Timeout=600 install -y
-          libgtk-3-0t64 libnss3 libxss1 libasound2t64
       - name: Upgrade real old software through the Surrey and GitHub routes
         run: >-
           python tools/bootstrap_native_upgrade.py

@@ -292,10 +292,16 @@ def _winget(
 
 
 def _winget_upgrade(package_id: str, version: str = "") -> list[str]:
-    """An explicit, non-interactive upgrade for an approved prodockit bootstrap plan."""
+    """Install the requested release, upgrading an existing package if known.
+
+    ``winget upgrade`` refuses an application installed by another route even
+    when its executable is plainly present and old. ``winget install`` without
+    ``--no-upgrade`` covers both states: it upgrades a registered package and
+    installs the supported package over an unregistered old executable.
+    """
     return [
         "winget",
-        "upgrade",
+        "install",
         "--id",
         package_id,
         *(["--version", version] if version else []),

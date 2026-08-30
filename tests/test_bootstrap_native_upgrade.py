@@ -7,6 +7,7 @@ import gzip
 import importlib
 import io
 import os
+import stat
 import subprocess
 import urllib.error
 import zipfile
@@ -93,6 +94,7 @@ def test_universal_marketplace_extension_is_the_404_fallback(
 def test_zip_extraction_preserves_an_executable_launcher(tmp_path: Path) -> None:
     archive = tmp_path / "application.zip"
     member = zipfile.ZipInfo("Application/bin/code")
+    member.create_system = 3
     member.external_attr = 0o100755 << 16
     with zipfile.ZipFile(archive, "w") as output:
         output.writestr(member, "#!/bin/sh\n")
@@ -101,6 +103,23 @@ def test_zip_extraction_preserves_an_executable_launcher(tmp_path: Path) -> None
     native._extract_zip(archive, destination)
 
     assert (destination / member.filename).stat().st_mode & 0o111
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix symbolic links are not used on Windows")
+def test_zip_extraction_preserves_a_framework_symbolic_link(tmp_path: Path) -> None:
+    archive = tmp_path / "application.zip"
+    link = zipfile.ZipInfo("Application/Frameworks/Current")
+    link.create_system = 3
+    link.external_attr = (stat.S_IFLNK | 0o777) << 16
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr(link, "Versions/A/Framework")
+
+    destination = tmp_path / "unpacked"
+    native._extract_zip(archive, destination)
+
+    extracted = destination / link.filename
+    assert extracted.is_symlink()
+    assert os.readlink(extracted) == "Versions/A/Framework"
 
 
 def test_mac_path_lets_homebrew_replace_portable_old_tools(monkeypatch, tmp_path: Path) -> None:
@@ -137,6 +156,24 @@ def test_ubuntu_path_leaves_new_system_packages_ahead_of_old_tools(
     ]
 
 
+def test_windows_path_starts_with_the_unregistered_old_tool(
+    monkeypatch, tmp_path: Path
+) -> None:
+    old = tmp_path / "old" / "bin"
+    monkeypatch.setenv("PATH", r"C:\Program Files\nodejs;C:\Windows")
+    monkeypatch.setenv("USERPROFILE", r"C:\Users\runner")
+
+    environment = native._scenario_environment(
+        recipe=native.WINDOWS,
+        portable_bins=[old],
+        home=tmp_path / "home",
+    )
+
+    assert environment["PATH"].split(os.pathsep)[0] == str(old)
+    assert environment["USERPROFILE"] == r"C:\Users\runner"
+    assert environment["HOME"] == str(tmp_path / "home")
+
+
 def test_native_upgrade_refuses_a_developer_machine(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
@@ -146,19 +183,12 @@ def test_native_upgrade_refuses_a_developer_machine(monkeypatch, tmp_path: Path)
         )
 
 
-@pytest.mark.parametrize("arm64", [False, True])
 def test_windows_seed_requests_actual_old_package_versions(
-    monkeypatch, tmp_path: Path, arm64: bool
+    monkeypatch, tmp_path: Path
 ) -> None:
     commands: list[list[str]] = []
     monkeypatch.setattr(native, "_ensure_windows_winget", lambda: None)
-    monkeypatch.setattr(native, "_is_arm64", lambda: arm64)
     monkeypatch.setattr(native, "refresh_windows_path", lambda: None)
-    monkeypatch.setattr(
-        native,
-        "_download",
-        lambda _url, destination: destination,
-    )
 
     def record(command, **_kwargs):  # type: ignore[no-untyped-def]
         commands.append(list(command))
@@ -166,12 +196,10 @@ def test_windows_seed_requests_actual_old_package_versions(
 
     monkeypatch.setattr(native, "_run", record)
 
-    native._install_windows_old_software(tmp_path)
+    native._install_windows_old_software()
 
     rendered = "\n".join(" ".join(command) for command in commands)
     assert f"Microsoft.VisualStudioCode --version {native.OLD_VSCODE}" in rendered
     assert f"Git.Git --version {native.OLD_GIT}" in rendered
     assert f"JohnMacFarlane.Pandoc --version {native.OLD_PANDOC}" in rendered
     assert "OpenJS.NodeJS.LTS" not in rendered
-    installer = tmp_path / f"node-v{native.OLD_NODE}-x64.msi"
-    assert f"msiexec.exe /i {installer}" in rendered

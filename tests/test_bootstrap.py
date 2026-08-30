@@ -2672,7 +2672,7 @@ def test_old_windows_pandoc_is_an_explicit_pinned_upgrade(tmp_path: Path) -> Non
     )
     command = plan.commands[0]
 
-    assert command[:4] == ["winget", "upgrade", "--id", "JohnMacFarlane.Pandoc"]
+    assert command[:4] == ["winget", "install", "--id", "JohnMacFarlane.Pandoc"]
     assert command[command.index("--version") + 1] == PANDOC_VERSION
     assert plan.destructive
     assert plan.describe.startswith("Upgrade Pandoc")
@@ -2806,7 +2806,7 @@ def test_current_node_is_not_reinstalled_when_only_toolchains_are_missing(
     assert len([command for command in plan.commands if "npm.cmd ci" in " ".join(command)]) == 2
 
 
-def test_old_windows_node_is_an_explicit_upgrade_not_an_install(tmp_path: Path) -> None:
+def test_old_windows_node_uses_an_upgrade_or_install_command(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
             "node --version": CommandResult(0, "v18.20.0\n"),
@@ -2818,8 +2818,9 @@ def test_old_windows_node_is_an_explicit_upgrade_not_an_install(tmp_path: Path) 
         _context(tmp_path, platform=WINDOWS, runner=runner)
     )
 
-    assert plan.commands[0][:4] == ["winget", "upgrade", "--id", "OpenJS.NodeJS.LTS"]
+    assert plan.commands[0][:4] == ["winget", "install", "--id", "OpenJS.NodeJS.LTS"]
     assert "--source winget" in " ".join(plan.commands[0])
+    assert "--no-upgrade" not in plan.commands[0]
     assert plan.destructive, "the upgrade must default to No until explicitly approved"
     assert plan.describe.startswith("Upgrade Node")
 

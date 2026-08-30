@@ -19,6 +19,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -133,19 +134,26 @@ def _download(url: str, destination: Path) -> Path:
 def _extract_zip(archive: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive) as source:
-        source.extractall(destination)
-        # Python's ZipFile does not restore Unix executable bits.  The
-        # official macOS VS Code archive records them, and its ``code``
-        # launcher (plus the application binary it starts) must remain
-        # executable for this to be a real old-software check.
-        if os.name != "nt":
-            for member in source.infolist():
-                mode = member.external_attr >> 16
-                if not mode & 0o111:
-                    continue
-                extracted = destination / member.filename
-                if extracted.exists():
-                    extracted.chmod(extracted.stat().st_mode | mode & 0o777)
+        for member in source.infolist():
+            relative = Path(member.filename)
+            if relative.is_absolute() or ".." in relative.parts:
+                raise NativeInstallError(f"unsafe path in {archive}: {member.filename}")
+            extracted = destination / relative
+            mode = member.external_attr >> 16
+            if member.is_dir():
+                extracted.mkdir(parents=True, exist_ok=True)
+                continue
+            extracted.parent.mkdir(parents=True, exist_ok=True)
+            if stat.S_ISLNK(mode):
+                # macOS application ZIPs rely on framework symlinks.  The
+                # standard extractall implementation writes their targets as
+                # plain files, producing an invalid application bundle.
+                extracted.symlink_to(source.read(member).decode("utf-8"))
+                continue
+            with source.open(member) as input_file, extracted.open("wb") as output:
+                shutil.copyfileobj(input_file, output)
+            if os.name != "nt" and mode & 0o111:
+                extracted.chmod(extracted.stat().st_mode | mode & 0o777)
 
 
 def _extract_tar(archive: Path, destination: Path) -> None:
@@ -260,29 +268,24 @@ def _winget_old(identifier: str, version: str) -> None:
     )
 
 
-def _install_windows_old_node(cache: Path) -> None:
-    """Install a retired Node release from its signed upstream MSI.
+def _portable_windows_node(root: Path) -> Path:
+    """Provide a genuine Node 18 executable where WinGet no longer can.
 
-    WinGet periodically removes old LTS manifests.  The Node project keeps
-    its release installers, and an MSI installation is still registered with
-    Windows so Bootstrap can discover and replace it normally.
+    WinGet prunes retired LTS manifests, and Node 18 never published a native
+    Windows ARM64 package. Its signed upstream x64 ZIP runs on both x64 and
+    Windows ARM64, and lets the test prove Bootstrap can replace an old tool
+    that was installed outside WinGet.
     """
-    # Node 18 did not publish a Windows ARM64 MSI.  Windows ARM64 supports
-    # this signed x64 installer through emulation, which also exercises the
-    # mixed-architecture state found on real ARM machines before Bootstrap
-    # replaces it with the current package.
-    architecture = "x64"
-    installer = cache / f"node-v{OLD_NODE}-{architecture}.msi"
-    if not installer.is_file():
-        _download(
-            f"https://nodejs.org/dist/v{OLD_NODE}/"
-            f"node-v{OLD_NODE}-{architecture}.msi",
-            installer,
-        )
-    _run(["msiexec.exe", "/i", str(installer), "/qn", "/norestart"])
+    archive = _download(
+        f"https://nodejs.org/dist/v{OLD_NODE}/node-v{OLD_NODE}-win-x64.zip",
+        root / "node-windows.zip",
+    )
+    destination = root / "node-windows"
+    _extract_zip(archive, destination)
+    return _find(destination, ("node.exe",)).parent
 
 
-def _install_windows_old_software(cache: Path) -> None:
+def _install_windows_old_software() -> None:
     _ensure_windows_winget()
     for identifier, version in (
         ("Microsoft.VisualStudioCode", OLD_VSCODE),
@@ -290,8 +293,25 @@ def _install_windows_old_software(cache: Path) -> None:
         ("JohnMacFarlane.Pandoc", OLD_PANDOC),
     ):
         _winget_old(identifier, version)
-    _install_windows_old_node(cache)
     refresh_windows_path()
+
+
+def _install_ubuntu_vscode_runtime() -> None:
+    """Restore the shared libraries old VS Code needs after Pango cleanup."""
+    _run(
+        [
+            "sudo",
+            "apt",
+            "-o",
+            "DPkg::Lock::Timeout=600",
+            "install",
+            "-y",
+            "libgtk-3-0t64",
+            "libnss3",
+            "libxss1",
+            "libasound2t64",
+        ]
+    )
 
 
 def _marketplace_url(identifier: str, version: str) -> str:
@@ -388,7 +408,8 @@ def _scenario_environment(
 ) -> dict[str, str]:
     environment = dict(os.environ)
     environment["HOME"] = str(home)
-    environment["USERPROFILE"] = str(home)
+    if recipe != WINDOWS:
+        environment["USERPROFILE"] = str(home)
     parts = [part for part in environment.get("PATH", "").split(os.pathsep) if part]
     old = [str(path) for path in portable_bins]
     if recipe == MACOS:
@@ -399,6 +420,9 @@ def _scenario_environment(
     elif recipe == UBUNTU:
         parts = [part for part in parts if part not in old]
         parts.extend(old)
+    elif recipe == WINDOWS:
+        parts = [part for part in parts if part not in old]
+        parts = [*old, *parts]
     environment["PATH"] = os.pathsep.join(parts)
     environment["PYTHONUTF8"] = "1"
     environment.pop("PYTHONPATH", None)
@@ -421,17 +445,25 @@ def run_native_upgrades(wheel: Path, report_path: Path) -> dict[str, Any]:
         cleanup_ephemeral_runner(recipe, Path.home())
         if recipe in {MACOS, UBUNTU}:
             portable_bins = _portable_unix_software(software, recipe)
+        elif recipe == WINDOWS:
+            portable_bins = [_portable_windows_node(software)]
 
         driver = Path(__file__).with_name("_bootstrap_acceptance_driver.py").resolve()
         for index, (name, host, route) in enumerate(SCENARIOS):
             if index:
                 cleanup_ephemeral_runner(recipe, Path.home())
             if recipe == WINDOWS:
-                _install_windows_old_software(software / "downloads")
+                _install_windows_old_software()
+            elif recipe == UBUNTU:
+                _install_ubuntu_vscode_runtime()
             scenario_root = root / name
             home = scenario_root / "home"
             home.mkdir(parents=True)
-            _seed_old_extensions(extension_cache, home)
+            extension_home = home
+            if recipe == WINDOWS:
+                extension_home = Path(os.environ["USERPROFILE"])
+                shutil.rmtree(extension_home / ".vscode" / "extensions", ignore_errors=True)
+            _seed_old_extensions(extension_cache, extension_home)
             environment = _scenario_environment(
                 recipe=recipe, portable_bins=portable_bins, home=home
             )
