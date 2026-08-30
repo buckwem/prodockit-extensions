@@ -26,6 +26,11 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any
 
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover - exercised by Python 3.10 CI
+    import tomli as tomllib
+
 PYTHON_VERSIONS = ("3.10", "3.11", "3.12", "3.13", "3.14")
 
 
@@ -132,6 +137,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/pdf_from_site_acceptance.py": frozenset({"pdf"}),
     "tools/bootstrap_acceptance.py": frozenset({"bootstrap"}),
     "tools/_bootstrap_acceptance_driver.py": frozenset({"bootstrap"}),
+    "tools/bootstrap_native_install.py": frozenset({"bootstrap"}),
     ".github/workflows/adopt-install.yml": frozenset({"adopt"}),
     ".github/workflows/pdf-built-site-wheel.yml": frozenset({"pdf"}),
     ".github/workflows/bootstrap-install.yml": frozenset({"bootstrap"}),
@@ -245,7 +251,9 @@ def all_scope() -> Scope:
     return Scope(True, True, True, True, True)
 
 
-def output_lines(scope: Scope, *, main: bool = False) -> tuple[str, ...]:
+def output_lines(
+    scope: Scope, *, main: bool = False, bootstrap_native: bool = False
+) -> tuple[str, ...]:
     """Format values for ``GITHUB_OUTPUT``.
 
     ``main`` remains accepted for callers from older branches; it means a
@@ -258,6 +266,7 @@ def output_lines(scope: Scope, *, main: bool = False) -> tuple[str, ...]:
         f"adopt={'true' if scope.adopt else 'false'}",
         f"pdf={'true' if scope.pdf else 'false'}",
         f"bootstrap={'true' if scope.bootstrap else 'false'}",
+        f"bootstrap-native={'true' if bootstrap_native else 'false'}",
     )
 
 
@@ -266,6 +275,61 @@ GitRunner = Callable[[Sequence[str]], subprocess.CompletedProcess[bytes]]
 
 def _run_git(command: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(command, capture_output=True, check=False)
+
+
+_NATIVE_BOOTSTRAP_FILES = {
+    ".github/workflows/bootstrap-install.yml",
+    "tools/ci_scope.py",
+    "tools/bootstrap_native_install.py",
+}
+
+
+def _project_version_at(ref: str, *, git: GitRunner = _run_git) -> str:
+    """Read the package version from *ref* without changing the checkout."""
+
+    result = git(("git", "show", f"{ref}:pyproject.toml"))
+    if result.returncode != 0:
+        raise RuntimeError(f"could not read pyproject.toml at {ref}")
+    document = tomllib.loads(result.stdout.decode("utf-8", errors="strict"))
+    version = document.get("project", {}).get("version")
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError(f"pyproject.toml at {ref} has no project version")
+    return version.strip()
+
+
+def bootstrap_native_for_event(
+    event_name: str,
+    event: dict[str, Any],
+    changes: ChangedRange,
+    *,
+    git: GitRunner = _run_git,
+) -> bool:
+    """Select real package installs for release candidates and their own code.
+
+    Ordinary pull requests retain the fast hermetic Bootstrap matrix. A change
+    to the native harness has to exercise itself before merge, while a package
+    version change identifies the release pull request that must cross the
+    real package-manager boundary. Manual dispatch remains an explicit way to
+    repeat the expensive check. Detection fails closed for a pull request: an
+    unreadable version selects the native matrix rather than silently skipping
+    a release gate.
+    """
+
+    if event_name == "workflow_dispatch":
+        return True
+    if event_name != "pull_request":
+        return False
+    if changes.full:
+        return True
+    if any(path in _NATIVE_BOOTSTRAP_FILES for path in changes.paths):
+        return True
+    try:
+        pull = event["pull_request"]
+        base = _sha(pull["base"]["sha"])
+        head = _sha(pull["head"]["sha"])
+        return _project_version_at(base, git=git) != _project_version_at(head, git=git)
+    except (KeyError, TypeError, UnicodeError, ValueError, RuntimeError, tomllib.TOMLDecodeError):
+        return True
 
 
 def _sha(value: object) -> str:
@@ -351,7 +415,12 @@ def _event_from_environment() -> tuple[str, dict[str, Any]]:
     return os.environ.get("GITHUB_EVENT_NAME", ""), event
 
 
-def _write_summary(changes: ChangedRange, classification: Classification) -> None:
+def _write_summary(
+    changes: ChangedRange,
+    classification: Classification,
+    *,
+    bootstrap_native: bool = False,
+) -> None:
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not path:
         return
@@ -370,6 +439,8 @@ def _write_summary(changes: ChangedRange, classification: Classification) -> Non
         f"- Range: {changes.reason}",
         f"- Python: {', '.join(classification.scope.python_matrix)}",
         f"- Native matrices: {', '.join(selected) if selected else 'none'}",
+        "- Real Bootstrap package installs: "
+        + ("selected" if bootstrap_native else "not selected"),
         "",
         "### Reasons",
         "",
@@ -393,10 +464,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    event_name = ""
+    event: dict[str, Any] = {}
+    bootstrap_native = False
     if args.all:
         changes = ChangedRange(full=True, reason="all scopes requested")
         classification = Classification(all_scope(), (changes.reason,))
     elif args.github_event:
+        event_name = os.environ.get("GITHUB_EVENT_NAME", "")
         try:
             event_name, event = _event_from_environment()
             changes = changed_range_for_event(
@@ -411,12 +486,21 @@ def main(argv: list[str] | None = None) -> int:
             if changes.full
             else classify_details(changes.paths)
         )
+        bootstrap_native = bootstrap_native_for_event(event_name, event, changes)
     else:
         changes = ChangedRange(paths=tuple(sys.stdin.read().splitlines()), reason="stdin paths")
         classification = classify_details(changes.paths)
 
-    print("\n".join(output_lines(classification.scope)))
-    _write_summary(changes, classification)
+    print(
+        "\n".join(
+            output_lines(classification.scope, bootstrap_native=bootstrap_native)
+        )
+    )
+    _write_summary(
+        changes,
+        classification,
+        bootstrap_native=bootstrap_native,
+    )
     return 0
 
 
