@@ -74,6 +74,29 @@ def test_real_software_commands_cross_the_machine_boundary(monkeypatch, tmp_path
     assert seen == [["pandoc", "--version"]]
 
 
+def test_simulated_old_software_understands_resilient_homebrew_upgrades(
+    tmp_path: Path,
+) -> None:
+    runner = bootstrap_acceptance_driver.HarnessRunner(
+        {},
+        "git@example.invalid:group/project.git",
+        home=tmp_path,
+        old_software=True,
+    )
+
+    runner.run(
+        [
+            "bash",
+            "-c",
+            "if brew list --cask visual-studio-code; then "
+            "brew upgrade --cask visual-studio-code; else "
+            "brew install --cask --force visual-studio-code; fi",
+        ]
+    )
+
+    assert runner.versions["vscode"] == "1.100.0"
+
+
 def test_a_wheel_file_or_single_wheel_directory_is_accepted(tmp_path: Path) -> None:
     wheel = tmp_path / "prodockit-1.2.3-py3-none-any.whl"
     wheel.write_bytes(b"wheel")

@@ -351,6 +351,23 @@ class HarnessRunner:
 
         if self.old_software and executable == "bash":
             script = " ".join(words)
+            if "brew list" in script:
+                if "visual-studio-code" in script:
+                    self._upgrade("vscode")
+                if re.search(
+                    r"\b(?:brew (?:upgrade|install)(?: --force)?|--formula) git\b",
+                    script,
+                ):
+                    self._upgrade("git")
+                selected = [name for name in ("pandoc", "pango") if name in script]
+                if selected:
+                    self._upgrade(*selected)
+                if re.search(
+                    r"\b(?:brew (?:upgrade|install)(?: --force)?|--formula) node\b",
+                    script,
+                ):
+                    self._upgrade("node")
+                return CommandResult(0)
             if "chromium-browser" in script and "--version" in script:
                 return CommandResult(0, f"Chromium {self.versions['chromium']}\n")
             if "npm ci" in script and "cd " in script:
