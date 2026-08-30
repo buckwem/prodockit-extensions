@@ -833,7 +833,14 @@ def refresh_windows_path() -> str | None:
         os.environ["WEASYPRINT_DLL_DIRECTORIES"] = os.path.expandvars(str(dll_directories))
     if not parts:
         return None
-    merged = os.pathsep.join(parts)
+    # Installers persist additions in the registry, but the current process
+    # can also carry useful session-only entries. In particular, repairing
+    # WinGet on a Windows ARM runner exposes its App Installer directory only
+    # to this process. Replacing PATH with the registry values immediately
+    # made the repaired executable disappear again. A refresh adds persisted
+    # paths; it must not discard valid paths the process already had.
+    current = os.environ.get("PATH", "")
+    merged = os.pathsep.join([*parts, *([current] if current else [])])
     os.environ["PATH"] = merged
     return merged
 
