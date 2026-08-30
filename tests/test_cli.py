@@ -386,7 +386,23 @@ paths = []
         f"run: pip install prodockit=={cli.__version__} zensical==0.0.57\n",
         encoding="utf-8",
     )
-    subprocess.run(["git", "-C", str(template), "commit", "-qam", "new template"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(template),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qam",
+            "new template",
+        ],
+        check=True,
+    )
 
     subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
     subprocess.run(
