@@ -14,6 +14,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 bootstrap_acceptance = importlib.import_module("tools.bootstrap_acceptance")
+bootstrap_acceptance_driver = importlib.import_module("tools._bootstrap_acceptance_driver")
 
 
 def test_all_host_and_repository_routes_are_declared() -> None:
@@ -71,10 +72,33 @@ def test_x64_is_rejected_when_arm64_is_required(monkeypatch) -> None:
 
 
 def test_driver_never_imports_the_source_bootstrap_test_harness() -> None:
-    driver = (ROOT / "tools" / "_bootstrap_acceptance_driver.py").read_text(
-        encoding="utf-8"
-    )
+    driver = (ROOT / "tools" / "_bootstrap_acceptance_driver.py").read_text(encoding="utf-8")
 
     assert "tests.bootstrap_cli_harness" not in driver
     assert "git clone" not in driver, "repository commands go through argument lists"
     assert "gitlab.surrey.ac.uk" not in driver, "host addresses come from the wheel"
+
+
+def test_ubuntu_npm_commands_install_toolchains_before_resolving_chromium(
+    tmp_path: Path,
+) -> None:
+    runner = bootstrap_acceptance_driver.HarnessRunner(
+        {},
+        "git@example.invalid:group/project.git",
+        home=tmp_path,
+        old_software=True,
+    )
+    prefix = tmp_path / "project" / "tools" / "mermaid"
+    command = [
+        "bash",
+        "-c",
+        (
+            "export PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser || "
+            f"which chromium); npm ci --prefix {prefix}"
+        ),
+    ]
+
+    result = runner.run(command)
+
+    assert result.returncode == 0
+    assert (prefix / "node_modules" / ".bin" / "mmdc").is_file()

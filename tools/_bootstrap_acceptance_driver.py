@@ -315,13 +315,13 @@ class HarnessRunner:
             script = " ".join(words)
             if "chromium-browser" in script and "--version" in script:
                 return CommandResult(0, f"Chromium {self.versions['chromium']}\n")
-            if "which chromium-browser" in script:
-                return CommandResult(0, "/usr/bin/chromium-browser\n")
             if "npm ci --prefix" in script:
                 match = re.search(r"npm ci --prefix\s+([^;\s]+)", script)
                 if match:
                     self._install_toolchain(Path(match.group(1)))
                 return CommandResult(0)
+            if "which chromium-browser" in script:
+                return CommandResult(0, "/usr/bin/chromium-browser\n")
             return CommandResult(0)
 
         if executable in {"ssh", "ssh.exe"}:
