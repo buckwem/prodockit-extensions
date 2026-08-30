@@ -146,7 +146,8 @@ def test_pandoc_stage_reports_an_unreadable_installed_version(tmp_path: Path) ->
 
     result = stages._check_pandoc(_context(tmp_path, runner=runner))
 
-    assert result.status is Status.WRONG
+    assert result.status is Status.WARNING
+    assert not result.needs_work
     assert "version could not be read" in result.detail
 
 
@@ -192,14 +193,43 @@ def test_project_environment_reports_dependencies_that_do_not_import(tmp_path: P
     assert "dependencies are not installed" in result.detail
 
 
-def test_node_stage_rejects_an_unreadable_version(tmp_path: Path) -> None:
+def test_node_stage_warns_about_an_unreadable_version(tmp_path: Path) -> None:
+    project = tmp_path / "report"
+    mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+    mermaid.parent.mkdir(parents=True)
+    mermaid.touch()
+    mathjax_bundle = (
+        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
+    )
+    mathjax_bundle.parent.mkdir(parents=True)
+    mathjax_bundle.write_text("bundle", encoding="utf-8")
+    runner = CliFakeRunner(
+        {
+            "node --version": CommandResult(0, "development"),
+            "npm --version": CommandResult(0, "10.9.2"),
+        }
+    )
+
+    result = stages._check_node(_context(tmp_path, runner=runner))
+
+    assert result.status is Status.WARNING
+    assert not result.needs_work
+    assert "could not read Node's version" in result.detail
+
+
+def test_node_stage_rejects_an_old_npm(tmp_path: Path) -> None:
     (tmp_path / "report").mkdir()
-    runner = CliFakeRunner({"node --version": CommandResult(0, "development")})
+    runner = CliFakeRunner(
+        {
+            "node --version": CommandResult(0, "v22.14.0"),
+            "npm --version": CommandResult(0, "6.14.18"),
+        }
+    )
 
     result = stages._check_node(_context(tmp_path, runner=runner))
 
     assert result.status is Status.WRONG
-    assert "could not read a version" in result.detail
+    assert stages.NPM_MIN_VERSION in result.detail
 
 
 def test_node_stage_requests_missing_configuration_after_tool_checks(
@@ -516,7 +546,7 @@ def test_linux_node_setup_separates_download_from_privileged_execution(
 def test_windows_node_repair_is_fully_non_interactive(tmp_path: Path) -> None:
     runner = CliFakeRunner(
         {
-            "node --version": CommandResult(0, "v22.0.0\n"),
+            "node --version": CommandResult(0, "v22.12.0\n"),
             "npm --version": CommandResult(1, stderr="npm is broken"),
         }
     )

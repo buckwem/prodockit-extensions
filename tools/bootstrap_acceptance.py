@@ -1,9 +1,9 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Exercise all bootstrap repository routes from an installed wheel.
+"""Exercise bootstrap repository and upgrade routes from an installed wheel.
 
-The four routes run serially in one native runner.  Creating and installing
+The routes run serially in one native runner.  Creating and installing
 the wheel is the expensive part; sharing that environment keeps the matrix to
 five jobs while retaining complete operating-system and processor coverage.
 """
@@ -24,10 +24,11 @@ from pathlib import Path
 from typing import Any
 
 SCENARIOS = (
-    ("surrey-new", "surrey", "new"),
-    ("surrey-existing", "surrey", "existing"),
-    ("github-new", "github", "new"),
-    ("github-existing", "github", "existing"),
+    ("surrey-new", "surrey", "new", False),
+    ("surrey-existing", "surrey", "existing", False),
+    ("surrey-existing-old-software", "surrey", "existing", True),
+    ("github-new-old-software", "github", "new", True),
+    ("github-existing", "github", "existing", False),
 )
 
 
@@ -103,7 +104,7 @@ def main() -> None:
         python = environment_python(environment)
         run([str(python), "-m", "pip", "install", str(wheel)], cwd=root)
         driver = Path(__file__).with_name("_bootstrap_acceptance_driver.py").resolve()
-        for name, host, route in SCENARIOS:
+        for name, host, route, old_software in SCENARIOS:
             scenario_root = root / name
             scenario_report = root / f"{name}.json"
             completed = run(
@@ -116,6 +117,7 @@ def main() -> None:
                     host,
                     "--route",
                     route,
+                    *(["--old-software"] if old_software else []),
                     "--report",
                     str(scenario_report),
                 ],

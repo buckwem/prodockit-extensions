@@ -896,6 +896,11 @@ class Status(Enum):
     """
 
     OK = "ok"
+    #: The stage is usable, but a compatibility version could not be
+    #: established. It does not create an apply plan or make the run
+    #: incomplete; it keeps an explicit risk visible instead of silently
+    #: claiming that an unverified dependency is supported.
+    WARNING = "warning"
     MISSING = "missing"
     WRONG = "wrong"
     UNKNOWN = "unknown"
@@ -923,7 +928,7 @@ class CheckResult:
 
     @property
     def needs_work(self) -> bool:
-        return self.status is not Status.OK
+        return self.status not in (Status.OK, Status.WARNING)
 
 
 @dataclass(frozen=True)

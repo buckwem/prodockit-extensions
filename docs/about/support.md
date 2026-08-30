@@ -100,9 +100,14 @@ component choices. They also check that a second apply changes no files. This
 narrow cross-platform matrix complements rather than replaces the full Python
 test suite. Bootstrap uses local bare repositories instead of a live host to
 exercise all four combinations of Surrey GitLab or GitHub and new or existing
-repositories. Account setup, package managers, VPNs, firewalls, and real Pages
-publication stay in the manual matrix because a hosted test cannot reproduce
-those boundaries honestly.
+repositories. The GitHub new-repository route starts its first Bootstrap pass
+with old VS Code, Git, Pandoc, Pango, Node.js, npm, editor extensions and, on
+Ubuntu, Chromium, then accepts every offered upgrade before creating the
+project. A fifth, Surrey-only existing-repository scenario repeats those
+upgrades and verifies that the repository itself is not changed.
+Account setup, package managers, VPNs, firewalls, and real Pages publication
+stay in the manual matrix because a hosted test cannot reproduce those
+boundaries honestly.
 
 The manual matrix gives confidence in installation and first-use integration,
 but it is a point-in-time result. The locally run macOS suite adds full

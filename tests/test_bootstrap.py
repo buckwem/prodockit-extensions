@@ -46,13 +46,19 @@ from prodockit.bootstrap import (
 )
 from prodockit.bootstrap.model import GITHUB_COM, MACOS, SURREY_GITLAB, UBUNTU, WINDOWS
 from prodockit.bootstrap.stages import (
+    CHROMIUM_MIN_VERSION,
     DEFAULT_CSL_STYLE,
+    GIT_MIN_VERSION,
+    NPM_MIN_VERSION,
     PANDOC_VERSION,
+    PANGO_MIN_VERSION,
     PDF_FONT_CASKS,
     PDF_FONT_PACKAGES,
     PUBLIC_KEY_MARKER,
     PUPPETEER_SKIP_VAR,
+    VSCODE_EXTENSION_MIN_VERSIONS,
     VSCODE_EXTENSIONS,
+    VSCODE_MIN_VERSION,
 )
 
 
@@ -172,7 +178,14 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         # environment can build another - stage 1 (#381).
         "sys.base_prefix": CommandResult(0, "True"),
         "import ensurepip, venv": CommandResult(0),
-        "code --list-extensions": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
+        "code --list-extensions": CommandResult(
+            0,
+            "\n".join(
+                f"{name}@{VSCODE_EXTENSION_MIN_VERSIONS[name]}"
+                for name in VSCODE_EXTENSIONS
+            ),
+        ),
+        "code --version": CommandResult(0, f"{VSCODE_MIN_VERSION}\ncurrent-commit\n"),
         "code": CommandResult(0),
         "git --version": CommandResult(0, "git version 2.43.0"),
         "git config --global user.name": CommandResult(0, "Ada\n"),
@@ -186,6 +199,7 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         "config --local user.name": CommandResult(0, "Ada Lovelace\n"),
         "config --local user.email": CommandResult(0, "al01234@surrey.ac.uk\n"),
         "pandoc": CommandResult(0, "pandoc 3.10.1"),
+        "pango-view": CommandResult(0, "pango-view (pango) 1.56.3"),
         "node": CommandResult(0, "v22.14.0\n"),
         "npm": CommandResult(0, "10.9.2\n"),
         "import zensical": CommandResult(0),
@@ -703,6 +717,112 @@ def test_bootstrap_winget_installs_never_upgrade_or_prompt_implicitly(tmp_path: 
     assert "--no-upgrade" in command
     assert "--silent" in command
     assert "--disable-interactivity" in command
+
+
+def test_old_vscode_is_reported_as_wrong(tmp_path: Path) -> None:
+    runner = FakeRunner({"code --version": CommandResult(0, "1.80.2\nold-commit\n")})
+
+    result = next(s for s in STAGES if s.id == "vscode").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.status is Status.WRONG
+    assert VSCODE_MIN_VERSION in result.detail
+
+
+def test_vscode_with_an_unreadable_version_warns_about_compatibility(tmp_path: Path) -> None:
+    result = next(s for s in STAGES if s.id == "vscode").check(
+        _context(
+            tmp_path,
+            runner=FakeRunner({"code --version": CommandResult(0, "development\n")}),
+        )
+    )
+
+    assert result.status is Status.WARNING
+    assert VSCODE_MIN_VERSION in result.detail
+    assert not result.needs_work
+
+
+@pytest.mark.parametrize(
+    "platform,manager",
+    [(MACOS, "brew"), (UBUNTU, "apt"), (WINDOWS, "winget")],
+)
+def test_old_vscode_has_an_explicit_upgrade_plan(
+    tmp_path: Path, platform: str, manager: str
+) -> None:
+    runner = FakeRunner({"code --version": CommandResult(0, "1.80.2\nold-commit\n")})
+
+    plan = next(s for s in STAGES if s.id == "vscode").plan(
+        _context(tmp_path, platform=platform, runner=runner)
+    )
+
+    assert manager in " ".join(" ".join(command) for command in plan.commands)
+    assert plan.action == "UPGRADE"
+    assert plan.destructive
+
+
+def test_old_git_is_reported_as_wrong(tmp_path: Path) -> None:
+    runner = FakeRunner({"git --version": CommandResult(0, "git version 2.27.1\n")})
+
+    result = next(s for s in STAGES if s.id == "git").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.status is Status.WRONG
+    assert GIT_MIN_VERSION in result.detail
+
+
+def test_git_with_an_unreadable_version_warns_about_compatibility(tmp_path: Path) -> None:
+    runner = FakeRunner(
+        {
+            "git --version": CommandResult(0, "development\n"),
+            "user.name": CommandResult(0, "Ada Lovelace\n"),
+            "user.email": CommandResult(0, "ada@example.test\n"),
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "git").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.status is Status.WARNING
+    assert GIT_MIN_VERSION in result.detail
+    assert not result.needs_work
+
+
+def test_unreadable_git_version_does_not_hide_missing_identity(tmp_path: Path) -> None:
+    runner = FakeRunner(
+        {
+            "git --version": CommandResult(0, "development\n"),
+            "user.name": CommandResult(0, "Ada Lovelace\n"),
+            "user.email": CommandResult(1),
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "git").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.status is Status.WRONG
+    assert "user.email" in result.detail
+
+
+@pytest.mark.parametrize(
+    "platform,manager",
+    [(MACOS, "brew"), (UBUNTU, "apt"), (WINDOWS, "winget")],
+)
+def test_old_git_has_an_explicit_upgrade_plan(
+    tmp_path: Path, platform: str, manager: str
+) -> None:
+    runner = FakeRunner({"git --version": CommandResult(0, "git version 2.27.1\n")})
+
+    plan = next(s for s in STAGES if s.id == "git").plan(
+        _context(tmp_path, platform=platform, runner=runner)
+    )
+
+    assert manager in " ".join(" ".join(command) for command in plan.commands)
+    assert plan.action == "UPGRADE"
+    assert plan.destructive
 
 
 def test_the_two_browser_stages_guide_and_leave_verifying_to_the_check(
@@ -1364,7 +1484,16 @@ def test_vscode_installed_without_the_shell_command_is_wrong(
         Error: It seems there is already an App at
         '/Applications/Visual Studio Code.app'.
     """
-    context = _context(tmp_path, vscode_app=True)  # FakeRunner: `code` not on PATH
+    context = _context(
+        tmp_path,
+        vscode_app=True,
+        runner=FakeRunner(
+            {
+                "code --version": CommandResult(127, stderr="not found"),
+                "Visual Studio Code": CommandResult(0, f"{VSCODE_MIN_VERSION}\n"),
+            }
+        ),
+    )  # `code` is not on PATH; bootstrap uses the copy in the app.
     stage = next(s for s in STAGES if s.id == "vscode")
 
     result = stage.check(context)
@@ -1455,6 +1584,40 @@ def test_extensions_plan_installs_only_what_is_missing(tmp_path: Path) -> None:
     detail = stage.check(context).detail
     assert f"{len(VSCODE_EXTENSIONS) - 1} of {len(VSCODE_EXTENSIONS)} installed" in detail
     assert VSCODE_EXTENSIONS[-1] in detail
+
+
+def test_old_extensions_are_upgraded_explicitly(tmp_path: Path) -> None:
+    inventory = "\n".join(f"{name}@0.1.0" for name in VSCODE_EXTENSIONS)
+    stage = next(s for s in STAGES if s.id == "extensions")
+    context = _context(
+        tmp_path,
+        runner=FakeRunner({"code --list-extensions": CommandResult(0, inventory)}),
+    )
+
+    result = stage.check(context)
+    plan = stage.plan(context)
+
+    assert result.status is Status.WRONG
+    assert "outdated" in result.detail
+    assert plan.action == "UPGRADE"
+    assert plan.destructive
+    assert all("--force" in command for command in plan.commands)
+
+
+def test_unversioned_extensions_warn_about_compatibility(tmp_path: Path) -> None:
+    stage = next(s for s in STAGES if s.id == "extensions")
+    context = _context(
+        tmp_path,
+        runner=FakeRunner(
+            {"code --list-extensions": CommandResult(0, "\n".join(VSCODE_EXTENSIONS))}
+        ),
+    )
+
+    result = stage.check(context)
+
+    assert result.status is Status.WARNING
+    assert "versions could not be read" in result.detail
+    assert not result.needs_work
 
 
 def test_a_manual_step_is_retried_not_failed(
@@ -1552,7 +1715,10 @@ def test_git_installed_a_moment_ago_is_not_reported_missing(
     monkeypatch.setattr(stage_module, "_GIT_APP_PATHS", {WINDOWS: (str(installed),)})
 
     # PATH cannot see it: `git --version` fails.
-    machine = _ready_machine(tmp_path) | {"git --version": CommandResult(127, stderr="not found")}
+    machine = _ready_machine(tmp_path) | {
+        "git --version": CommandResult(127, stderr="not found"),
+        f"{installed} --version": CommandResult(0, "git version 2.43.0\n"),
+    }
     context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine))
 
     assert stage_module.git_command(context) == str(installed), (
@@ -1677,7 +1843,13 @@ def test_extensions_are_listed_with_the_command_that_installs_them(tmp_path: Pat
     # PATH cannot see it, which is the whole of the Windows case.
     machine = {
         "code --list-extensions": CommandResult(127, stderr="not found"),
-        f"{code} --list-extensions": CommandResult(0, "\n".join(VSCODE_EXTENSIONS)),
+        f"{code} --list-extensions": CommandResult(
+            0,
+            "\n".join(
+                f"{name}@{VSCODE_EXTENSION_MIN_VERSIONS[name]}"
+                for name in VSCODE_EXTENSIONS
+            ),
+        ),
     }
     context = _context(tmp_path, platform=WINDOWS, runner=FakeRunner(machine))
     original = stage_module._VSCODE_CLI_PATHS
@@ -2520,6 +2692,21 @@ def test_old_windows_pandoc_is_an_explicit_pinned_upgrade(tmp_path: Path) -> Non
     assert plan.describe.startswith("Upgrade Pandoc")
 
 
+@pytest.mark.parametrize("platform", [MACOS, UBUNTU])
+def test_old_pandoc_is_an_explicit_upgrade_on_unix(
+    tmp_path: Path, platform: str
+) -> None:
+    runner = FakeRunner({"pandoc --version": CommandResult(0, "pandoc 2.19.2\n")})
+
+    plan = next(s for s in STAGES if s.id == "pandoc").plan(
+        _context(tmp_path, platform=platform, runner=runner)
+    )
+
+    assert plan.action == "UPGRADE"
+    assert plan.destructive
+    assert plan.describe.startswith("Upgrade Pandoc")
+
+
 def test_windows_pandoc_repair_does_not_reinstall_a_working_version(
     tmp_path: Path,
 ) -> None:
@@ -2543,12 +2730,29 @@ def test_pandoc_current_version_is_ok(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
             "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
+            "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
             "fc-list": CommandResult(0, "Inter\nJetBrains Mono\n"),
         }
     )
     result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
     assert result.status is Status.OK
     assert "3.10.1" in result.detail
+
+
+def test_pango_below_weasyprints_floor_is_reported_as_wrong(tmp_path: Path) -> None:
+    runner = FakeRunner(
+        {
+            "pandoc": CommandResult(0, f"pandoc {PANDOC_VERSION}\n"),
+            "pango-view": CommandResult(0, "pango-view (pango) 1.42.4\n"),
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "pandoc").check(
+        _context(tmp_path, runner=runner)
+    )
+
+    assert result.status is Status.WRONG
+    assert PANGO_MIN_VERSION in result.detail
 
 
 def test_ubuntu_pango_libraries_are_still_installed(tmp_path: Path) -> None:
@@ -2618,6 +2822,46 @@ def test_old_windows_node_is_an_explicit_upgrade_not_an_install(tmp_path: Path) 
     assert plan.commands[0][:4] == ["winget", "upgrade", "--id", "OpenJS.NodeJS.LTS"]
     assert "--source winget" in " ".join(plan.commands[0])
     assert plan.destructive, "the upgrade must default to No until explicitly approved"
+    assert plan.describe.startswith("Upgrade Node")
+
+
+def test_old_npm_is_an_explicit_upgrade_without_reinstalling_current_node(
+    tmp_path: Path,
+) -> None:
+    runner = FakeRunner(
+        {
+            "node --version": CommandResult(0, "v22.14.0\n"),
+            "npm --version": CommandResult(0, "6.14.18\n"),
+        }
+    )
+
+    plan = next(s for s in STAGES if s.id == "node").plan(
+        _context(tmp_path, platform=MACOS, runner=runner)
+    )
+
+    assert plan.commands[0][:3] == ["npm", "install", "--global"]
+    assert plan.commands[0][-1] == f"npm@>={NPM_MIN_VERSION}"
+    assert plan.action == "UPGRADE"
+    assert plan.destructive
+    assert plan.describe.startswith("Upgrade npm")
+
+
+@pytest.mark.parametrize("platform", [MACOS, UBUNTU])
+def test_old_node_is_an_explicit_upgrade_on_unix(tmp_path: Path, platform: str) -> None:
+    (tmp_path / "GitLab" / "report-al01234").mkdir(parents=True)
+    runner = FakeRunner(
+        {
+            "node --version": CommandResult(0, "v18.20.0\n"),
+            "npm --version": CommandResult(0, "10.9.2\n"),
+        }
+    )
+
+    plan = next(s for s in STAGES if s.id == "node").plan(
+        _context(tmp_path, platform=platform, runner=runner)
+    )
+
+    assert plan.action == "UPGRADE"
+    assert plan.destructive
     assert plan.describe.startswith("Upgrade Node")
 
 
@@ -3923,18 +4167,97 @@ def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> 
     stage = next(s for s in STAGES if s.id == "node")
     base = {"node": CommandResult(0, "v22.14.0\n"), "npm": CommandResult(0, "10.9.2\n")}
 
-    no_chromium = FakeRunner({**base, "which chromium": CommandResult(1)})
+    no_chromium = FakeRunner({**base, "command -v chromium": CommandResult(1)})
     result = stage.check(_context(tmp_path, runner=no_chromium, platform=UBUNTU))
     assert result.needs_work and "Chromium" in result.detail
 
     both = FakeRunner(
         {
             **base,
-            "which chromium-browser": CommandResult(0, "/usr/bin/chromium\n"),
+            "command -v chromium-browser": CommandResult(
+                0, f"Chromium {CHROMIUM_MIN_VERSION}\n"
+            ),
             f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
         }
     )
     assert stage.check(_context(tmp_path, runner=both, platform=UBUNTU)).status is Status.OK
+
+
+def test_ubuntu_rejects_chromium_older_than_the_puppeteer_floor(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+    mermaid.parent.mkdir(parents=True)
+    mermaid.write_text("", encoding="utf-8")
+    mathjax_bundle = (
+        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
+    )
+    mathjax_bundle.parent.mkdir(parents=True, exist_ok=True)
+    mathjax_bundle.write_text("BUNDLE", encoding="utf-8")
+    save(tmp_path / "b.toml", _config())
+    runner = FakeRunner(
+        {
+            "node": CommandResult(0, "v22.14.0\n"),
+            "npm": CommandResult(0, "10.9.2\n"),
+            "command -v chromium-browser": CommandResult(0, "Chromium 100.0.4896.60\n"),
+            f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "node").check(
+        _context(tmp_path, runner=runner, platform=UBUNTU)
+    )
+
+    assert result.status is Status.WRONG
+    assert CHROMIUM_MIN_VERSION in result.detail
+
+    plan = next(s for s in STAGES if s.id == "node").plan(
+        _context(tmp_path, runner=runner, platform=UBUNTU)
+    )
+    assert plan.action == "UPGRADE"
+    assert plan.destructive
+    assert "Chromium" in plan.describe
+
+
+@pytest.mark.parametrize(
+    "unreadable,detail",
+    [("npm", NPM_MIN_VERSION), ("chromium", CHROMIUM_MIN_VERSION)],
+)
+def test_node_stage_warns_when_a_runtime_version_cannot_be_read(
+    tmp_path: Path, unreadable: str, detail: str
+) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+    mermaid.parent.mkdir(parents=True)
+    mermaid.write_text("", encoding="utf-8")
+    mathjax_bundle = (
+        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
+    )
+    mathjax_bundle.parent.mkdir(parents=True, exist_ok=True)
+    mathjax_bundle.write_text("BUNDLE", encoding="utf-8")
+    save(tmp_path / "b.toml", _config())
+    runner = FakeRunner(
+        {
+            "node": CommandResult(0, "v22.14.0\n"),
+            "npm": CommandResult(
+                0, "development\n" if unreadable == "npm" else "10.9.2\n"
+            ),
+            "command -v chromium-browser": CommandResult(
+                0,
+                "Chromium development\n"
+                if unreadable == "chromium"
+                else f"Chromium {CHROMIUM_MIN_VERSION}\n",
+            ),
+            f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "node").check(
+        _context(tmp_path, runner=runner, platform=UBUNTU)
+    )
+
+    assert result.status is Status.WARNING
+    assert not result.needs_work
+    assert detail in result.detail
 
 
 def test_the_pandoc_stage_notices_its_own_fonts_are_missing(tmp_path: Path) -> None:
@@ -3951,7 +4274,7 @@ def test_the_pandoc_stage_notices_its_own_fonts_are_missing(tmp_path: Path) -> N
     assert "Inter" in result.detail and "JetBrains Mono" in result.detail
 
 
-def test_a_machine_that_cannot_be_asked_about_fonts_is_not_accused(tmp_path: Path) -> None:
+def test_an_unreadable_pango_version_warns_without_blocking(tmp_path: Path) -> None:
     """ "I could not tell" must not read as "they are missing". A false
     alarm sends the reader to reinstall fonts they already have, which is
     worse than the silence this replaced."""
@@ -3959,7 +4282,9 @@ def test_a_machine_that_cannot_be_asked_about_fonts_is_not_accused(tmp_path: Pat
 
     result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
 
-    assert result.status is Status.OK
+    assert result.status is Status.WARNING
+    assert not result.needs_work
+    assert "may fail" in result.detail
 
 
 def test_the_history_stage_notices_core_filemode(tmp_path: Path) -> None:
@@ -4070,7 +4395,12 @@ def test_windows_fonts_are_checked_even_though_they_are_installed_by_hand(
     fonts = tmp_path / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts"
     fonts.mkdir(parents=True)
     (fonts / "DejaVuSans.ttf").write_text("", encoding="utf-8")
-    runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})
+    runner = FakeRunner(
+        {
+            "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
+            "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
+        }
+    )
 
     result = next(s for s in STAGES if s.id == "pandoc").check(
         _context(tmp_path, runner=runner, platform=WINDOWS)
@@ -4085,7 +4415,9 @@ def test_windows_fonts_are_checked_even_though_they_are_installed_by_hand(
     assert result.status is Status.OK
 
 
-def test_a_windows_machine_with_no_font_directory_is_not_accused(tmp_path: Path) -> None:
+def test_a_windows_machine_with_no_font_directory_warns_if_pango_is_unreadable(
+    tmp_path: Path,
+) -> None:
     """Same rule as elsewhere: "I could not tell" must not read as "they
     are missing"."""
     runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})
@@ -4094,7 +4426,8 @@ def test_a_windows_machine_with_no_font_directory_is_not_accused(tmp_path: Path)
         _context(tmp_path, runner=runner, platform=WINDOWS)
     )
 
-    assert result.status is Status.OK
+    assert result.status is Status.WARNING
+    assert not result.needs_work
 
 
 def test_every_windows_stage_produces_something_to_do(tmp_path: Path) -> None:
@@ -5454,7 +5787,16 @@ def test_windows_finds_code_where_the_installer_put_it(tmp_path: Path) -> None:
     Palette action that does not exist on Windows."""
     from prodockit.bootstrap.stages import vscode_command
 
-    context = _windows_context(tmp_path, cli=True)
+    context = _windows_context(
+        tmp_path,
+        cli=True,
+        runner=FakeRunner(
+            {
+                "code --version": CommandResult(127, stderr="not found"),
+                "code.cmd --version": CommandResult(0, f"{VSCODE_MIN_VERSION}\n"),
+            }
+        ),
+    )
 
     found = vscode_command(context)
     assert found is not None and found.endswith("code.cmd")
@@ -5500,7 +5842,17 @@ def test_macos_finds_the_cli_inside_the_application(tmp_path: Path) -> None:
     """
     from prodockit.bootstrap.stages import vscode_command
 
-    context = _context(tmp_path, platform=MACOS, vscode_app=True)
+    context = _context(
+        tmp_path,
+        platform=MACOS,
+        vscode_app=True,
+        runner=FakeRunner(
+            {
+                "code --version": CommandResult(127, stderr="not found"),
+                "Visual Studio Code": CommandResult(0, f"{VSCODE_MIN_VERSION}\n"),
+            }
+        ),
+    )
     found = vscode_command(context)
 
     assert found is not None
@@ -7679,6 +8031,7 @@ def _pandoc_saying(tmp_path: Path, version: str, **kw) -> CheckResult:
     """The pandoc stage's verdict on a machine running `version`."""
     machine = _ready_machine(tmp_path)
     machine["pandoc --version"] = CommandResult(0, f"pandoc {version}\n")
+    machine["pango-view --version"] = CommandResult(0, "pango-view (pango) 1.56.3\n")
     return next(s for s in STAGES if s.id == "pandoc").check(
         _context(tmp_path, runner=FakeRunner(machine), **kw)
     )

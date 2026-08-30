@@ -13,8 +13,10 @@ documents what to run; this page records the safety model behind its stages.
 
 Each stage has two independent parts:
 
-1. A `check` observes the machine or repository and reports `ok`, `missing`,
-   `wrong`, or `blocked` with evidence.
+1. A `check` observes the machine or repository and reports `ok`, `warning`,
+   `missing`, `wrong`, `unknown`, or `blocked` with evidence. A warning is
+   non-blocking and is reserved for an explicit compatibility risk that cannot
+   be verified, such as an installed program whose version cannot be read.
 2. A `plan` describes commands and human instructions that could reach the
    desired state.
 
@@ -76,3 +78,11 @@ non-interactive command arguments, re-check behaviour, platform/host branches,
 and refusal boundaries. Test the real end-to-end path on supported operating
 systems when the change touches installers, shells, SSH, browsers, or host
 behaviour that a fake runner cannot reproduce.
+
+The installed-wheel harness runs two routes with deliberately old versions of
+every versioned prerequisite, including npm and Ubuntu's system Chromium. The
+GitHub new-repository route represents a first Bootstrap pass and must upgrade
+the tools before creating the project. The Surrey existing-repository route
+must make the same upgrades without changing the repository's existing
+history. Both routes must pass a second check and leave a second apply
+unchanged.
