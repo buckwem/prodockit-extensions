@@ -82,6 +82,7 @@ def test_component_acceptance_and_workflow_files_select_their_own_matrix() -> No
         ("tools/adopt_acceptance.py", "adopt"),
         ("tools/pdf_from_site_acceptance.py", "pdf"),
         ("tools/bootstrap_acceptance.py", "bootstrap"),
+        ("tools/bootstrap_live_provider_read_only.py", "bootstrap"),
         (".github/workflows/adopt-install.yml", "adopt"),
         (".github/workflows/pdf-built-site-wheel.yml", "pdf"),
         (".github/workflows/bootstrap-install.yml", "bootstrap"),
