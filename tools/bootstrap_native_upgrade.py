@@ -296,24 +296,6 @@ def _install_windows_old_software() -> None:
     refresh_windows_path()
 
 
-def _install_ubuntu_vscode_runtime() -> None:
-    """Restore the shared libraries old VS Code needs after Pango cleanup."""
-    _run(
-        [
-            "sudo",
-            "apt",
-            "-o",
-            "DPkg::Lock::Timeout=600",
-            "install",
-            "-y",
-            "libgtk-3-0t64",
-            "libnss3",
-            "libxss1",
-            "libasound2t64",
-        ]
-    )
-
-
 def _marketplace_url(identifier: str, version: str) -> str:
     publisher, name = identifier.split(".", 1)
     system = {MACOS: "darwin", UBUNTU: "linux", WINDOWS: "win32"}[
@@ -460,8 +442,6 @@ def run_native_upgrades(wheel: Path, report_path: Path) -> dict[str, Any]:
                 cleanup_ephemeral_runner(recipe, Path.home())
             if recipe == WINDOWS:
                 _install_windows_old_software()
-            elif recipe == UBUNTU:
-                _install_ubuntu_vscode_runtime()
             scenario_root = root / name
             home = scenario_root / "home"
             home.mkdir(parents=True)

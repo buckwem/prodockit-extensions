@@ -5,8 +5,10 @@
 
 The ordinary installed-wheel acceptance suite is intentionally hermetic and
 fast.  This release gate crosses the package-manager boundary instead: it
-removes the relevant runner tools, executes the plans produced by the
-installed candidate wheel, and verifies every resulting stage.
+removes the relevant runner applications, executes the plans produced by the
+installed candidate wheel, and verifies every resulting stage.  It leaves
+operating-system shared libraries intact because removing one can dismantle
+the hosted runner's desktop stack rather than model a user upgrade.
 
 Cleanup is deliberately unavailable on a developer machine.  GitHub-hosted
 runners are disposable; a person's workstation is not.
@@ -218,9 +220,6 @@ def cleanup_ephemeral_runner(recipe: str, home: Path) -> None:
             "pandoc",
             "nodejs",
             "chromium-browser",
-            "libpango-1.0-0",
-            "libpangoft2-1.0-0",
-            "libharfbuzz-subset0",
             "fonts-inter",
             "fonts-jetbrains-mono",
         ):

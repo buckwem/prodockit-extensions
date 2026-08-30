@@ -73,7 +73,6 @@ def test_missing_winget_installs_microsofts_signed_release(monkeypatch, tmp_path
                 "git",
                 "git-man",
                 "pandoc",
-                "libpango-1.0-0",
                 "nodejs",
                 "chromium-browser",
             ),
@@ -108,6 +107,27 @@ def test_cleanup_covers_every_bootstrap_runtime(
 
     for value in expected:
         assert value in rendered
+
+
+def test_ubuntu_cleanup_preserves_operating_system_shared_libraries(
+    monkeypatch, tmp_path: Path
+) -> None:
+    commands: list[list[str]] = []
+
+    def record(command, *, check=True):  # type: ignore[no-untyped-def]
+        del check
+        commands.append(list(command))
+        return _completed(returncode=1)
+
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setattr(_MODULE, "_run", record)
+
+    _MODULE.cleanup_ephemeral_runner(_MODULE.UBUNTU, tmp_path)
+
+    rendered = "\n".join(" ".join(command) for command in commands)
+    assert "libpango-1.0-0" not in rendered
+    assert "libpangoft2-1.0-0" not in rendered
+    assert "libharfbuzz-subset0" not in rendered
 
 
 def test_absent_planning_runner_preserves_cpu_architecture() -> None:
