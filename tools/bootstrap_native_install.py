@@ -159,7 +159,7 @@ def _ensure_windows_winget() -> None:
         "if (-not $dependencyPath) { "
         "throw \"No WinGet dependencies were found for $architecture\" }; "
         "Add-AppxPackage -Path $bundle -DependencyPath $dependencyPath "
-        "-ForceApplicationShutdown -ForceTargetApplicationShutdown"
+        "-ForceApplicationShutdown"
     )
     _run([shell, "-NoProfile", "-Command", script])
     located = _run(
