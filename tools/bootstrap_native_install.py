@@ -176,6 +176,25 @@ def _ensure_windows_winget() -> None:
     os.environ["PATH"] = str(executable.parent) + os.pathsep + os.environ.get("PATH", "")
 
 
+def _windows_msys_roots() -> tuple[Path, ...]:
+    """Return absolute MSYS2 roots using Windows drive-root syntax.
+
+    ``Path("C:") / "msys64"`` is drive-relative on Windows and renders as
+    ``C:msys64`` rather than ``C:\\msys64``.  The native release cleanup then
+    missed the runner's preinstalled Pango package, letting Bootstrap mistake
+    stale files for a completed fresh installation.
+    """
+
+    system_drive = os.environ.get("SYSTEMDRIVE", "C:").rstrip("\\/") or "C:"
+    values = [system_drive + r"\msys64"]
+    for variable in ("LOCALAPPDATA", "PROGRAMFILES"):
+        base = os.environ.get(variable, "").rstrip("\\/")
+        if base:
+            suffix = r"\Programs\msys64" if variable == "LOCALAPPDATA" else r"\msys64"
+            values.append(base + suffix)
+    return tuple(Path(value) for value in values)
+
+
 def cleanup_ephemeral_runner(recipe: str, home: Path) -> None:
     """Remove target tools, but only from a disposable GitHub runner."""
 
@@ -208,11 +227,7 @@ def cleanup_ephemeral_runner(recipe: str, home: Path) -> None:
             _apt_remove(package)
     elif recipe == WINDOWS:
         _ensure_windows_winget()
-        roots = (
-            Path(os.environ.get("SYSTEMDRIVE", "C:")) / "msys64",
-            Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "msys64",
-            Path(os.environ.get("PROGRAMFILES", "")) / "msys64",
-        )
+        roots = _windows_msys_roots()
         packages = (
             "mingw-w64-ucrt-x86_64-pango",
             "mingw-w64-clang-aarch64-pango",

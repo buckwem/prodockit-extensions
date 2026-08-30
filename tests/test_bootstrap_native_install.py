@@ -119,6 +119,18 @@ def test_absent_planning_runner_preserves_cpu_architecture() -> None:
     assert result.stdout.strip() in {"0x8664", "0xaa64"}
 
 
+def test_windows_msys_roots_are_drive_absolute(monkeypatch) -> None:
+    monkeypatch.setenv("SYSTEMDRIVE", "C:")
+    monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\Ada\AppData\Local")
+    monkeypatch.setenv("PROGRAMFILES", r"C:\Program Files")
+
+    assert tuple(map(str, _MODULE._windows_msys_roots())) == (
+        r"C:\msys64",
+        r"C:\Users\Ada\AppData\Local\Programs\msys64",
+        r"C:\Program Files\msys64",
+    )
+
+
 def test_wheel_resolution_requires_exactly_one_candidate(tmp_path: Path) -> None:
     with pytest.raises(_MODULE.NativeInstallError, match="expected one"):
         _MODULE._resolve_wheel(tmp_path)
