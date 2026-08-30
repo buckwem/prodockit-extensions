@@ -347,6 +347,7 @@ def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_c
         encoding="utf-8"
     )
 
+    assert "run-name: Adopt wheel installation and real project upgrades" in workflow
     assert "cache: npm" in workflow
     assert "src/prodockit/_tools_template/mermaid/package-lock.json" in workflow
     assert "src/prodockit/_tools_template/mathjax/package-lock.json" in workflow
@@ -379,6 +380,10 @@ def test_bootstrap_release_gate_runs_real_installs_on_every_supported_runner() -
         encoding="utf-8"
     )
 
+    assert (
+        "run-name: Bootstrap wheel installation, clean setup and real software upgrades"
+        in workflow
+    )
     assert "native: ${{ steps.scope.outputs['bootstrap-native'] }}" in workflow
     assert "if: needs.scope.outputs.native == 'true'" in workflow
     assert "python tools/bootstrap_native_install.py" in workflow

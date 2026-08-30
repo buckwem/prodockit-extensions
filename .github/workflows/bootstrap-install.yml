@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 name: Bootstrap installed wheel
+run-name: Bootstrap wheel installation, clean setup and real software upgrades
 on:
   push:
     branches: [main]

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 name: Adopt installed wheel
+run-name: Adopt wheel installation and real project upgrades
 on:
   push:
     branches: [main]
