@@ -31,7 +31,7 @@ def test_cleanup_refuses_to_modify_a_developer_machine(monkeypatch, tmp_path: Pa
         _MODULE.cleanup_ephemeral_runner(_MODULE.UBUNTU, tmp_path)
 
 
-def test_missing_winget_uses_microsofts_documented_repair(monkeypatch, tmp_path: Path) -> None:
+def test_missing_winget_installs_microsofts_signed_release(monkeypatch, tmp_path: Path) -> None:
     executable = tmp_path / "winget.exe"
     executable.touch()
     commands: list[list[str]] = []
@@ -45,16 +45,18 @@ def test_missing_winget_uses_microsofts_documented_repair(monkeypatch, tmp_path:
     monkeypatch.setattr(
         _MODULE.shutil,
         "which",
-        lambda name: "/usr/bin/pwsh" if name == "pwsh" else None,
+        lambda name: "/usr/bin/powershell" if name == "powershell" else None,
     )
     monkeypatch.setattr(_MODULE, "_run", record)
     _MODULE._ensure_windows_winget()
     rendered = "\n".join(" ".join(command) for command in commands)
 
-    assert "Microsoft.WinGet.Client" in rendered
-    assert "Install-PackageProvider" not in rendered
-    assert "Repair-WinGetPackageManager -AllUsers -IncludePrerelease" in rendered
-    assert commands[0][0] == "/usr/bin/pwsh"
+    assert "api.github.com/repos/microsoft/winget-cli/releases/latest" in rendered
+    assert "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle" in rendered
+    assert "DesktopAppInstaller_Dependencies.zip" in rendered
+    assert "PROCESSOR_ARCHITECTURE" in rendered
+    assert "Add-AppxPackage -Path $bundle -DependencyPath $dependencyPath" in rendered
+    assert commands[0][0] == "/usr/bin/powershell"
     assert str(executable.parent) in _MODULE.os.environ["PATH"]
 
 
@@ -64,7 +66,15 @@ def test_missing_winget_uses_microsofts_documented_repair(monkeypatch, tmp_path:
         (_MODULE.MACOS, ("visual-studio-code", "git", "pandoc", "pango", "node")),
         (
             _MODULE.UBUNTU,
-            ("code", "git", "pandoc", "libpango-1.0-0", "nodejs", "chromium-browser"),
+            (
+                "code",
+                "git",
+                "git-man",
+                "pandoc",
+                "libpango-1.0-0",
+                "nodejs",
+                "chromium-browser",
+            ),
         ),
         (
             _MODULE.WINDOWS,

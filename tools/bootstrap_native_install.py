@@ -123,15 +123,42 @@ def _ensure_windows_winget() -> None:
 
     if shutil.which("winget") is not None:
         return
-    shell = shutil.which("pwsh") or shutil.which("powershell")
+    shell = shutil.which("powershell") or shutil.which("pwsh")
     if shell is None:
-        raise NativeInstallError("WinGet repair requires PowerShell")
+        raise NativeInstallError("WinGet installation requires PowerShell")
     script = (
         "$ErrorActionPreference = 'Stop'; "
         "$ProgressPreference = 'SilentlyContinue'; "
-        "Install-Module -Name Microsoft.WinGet.Client -Force "
-        "-Repository PSGallery | Out-Null; "
-        "Repair-WinGetPackageManager -AllUsers -IncludePrerelease"
+        "$release = Invoke-RestMethod -Uri "
+        "'https://api.github.com/repos/microsoft/winget-cli/releases/latest'; "
+        "$bundleAsset = $release.assets | Where-Object { "
+        "$_.name -eq 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle' "
+        "} | Select-Object -First 1; "
+        "$dependencyAsset = $release.assets | Where-Object { "
+        "$_.name -eq 'DesktopAppInstaller_Dependencies.zip' "
+        "} | Select-Object -First 1; "
+        "if (-not $bundleAsset -or -not $dependencyAsset) { "
+        "throw 'The current WinGet release does not contain its signed installer assets' "
+        "}; "
+        "$root = Join-Path $env:RUNNER_TEMP 'prodockit-winget'; "
+        "New-Item -ItemType Directory -Force -Path $root | Out-Null; "
+        "$bundle = Join-Path $root $bundleAsset.name; "
+        "$dependencyArchive = Join-Path $root $dependencyAsset.name; "
+        "$dependencyRoot = Join-Path $root 'dependencies'; "
+        "Invoke-WebRequest -Uri $bundleAsset.browser_download_url -OutFile $bundle; "
+        "Invoke-WebRequest -Uri $dependencyAsset.browser_download_url "
+        "-OutFile $dependencyArchive; "
+        "Expand-Archive -LiteralPath $dependencyArchive "
+        "-DestinationPath $dependencyRoot -Force; "
+        "$architecture = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { "
+        "'arm64' } elseif ($env:PROCESSOR_ARCHITECTURE -eq 'AMD64') { "
+        "'x64' } else { 'x86' }; "
+        "$dependencyPath = Get-ChildItem "
+        "-LiteralPath (Join-Path $dependencyRoot $architecture) "
+        "-Filter '*.appx' | ForEach-Object { $_.FullName }; "
+        "if (-not $dependencyPath) { "
+        "throw \"No WinGet dependencies were found for $architecture\" }; "
+        "Add-AppxPackage -Path $bundle -DependencyPath $dependencyPath"
     )
     _run([shell, "-NoProfile", "-Command", script])
     located = _run(
@@ -167,6 +194,7 @@ def cleanup_ephemeral_runner(recipe: str, home: Path) -> None:
         for package in (
             "code",
             "git",
+            "git-man",
             "pandoc",
             "nodejs",
             "chromium-browser",
