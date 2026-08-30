@@ -9,6 +9,7 @@ import io
 import os
 import subprocess
 import urllib.error
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -88,6 +89,20 @@ def test_universal_marketplace_extension_is_the_404_fallback(
     assert destination.read_bytes() == b"universal"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Unix executable modes are not used on Windows")
+def test_zip_extraction_preserves_an_executable_launcher(tmp_path: Path) -> None:
+    archive = tmp_path / "application.zip"
+    member = zipfile.ZipInfo("Application/bin/code")
+    member.external_attr = 0o100755 << 16
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr(member, "#!/bin/sh\n")
+
+    destination = tmp_path / "unpacked"
+    native._extract_zip(archive, destination)
+
+    assert (destination / member.filename).stat().st_mode & 0o111
+
+
 def test_mac_path_lets_homebrew_replace_portable_old_tools(monkeypatch, tmp_path: Path) -> None:
     manager = tmp_path / "homebrew" / "bin"
     old = tmp_path / "old" / "bin"
@@ -131,10 +146,19 @@ def test_native_upgrade_refuses_a_developer_machine(monkeypatch, tmp_path: Path)
         )
 
 
-def test_windows_seed_requests_actual_old_package_versions(monkeypatch) -> None:
+@pytest.mark.parametrize("arm64", [False, True])
+def test_windows_seed_requests_actual_old_package_versions(
+    monkeypatch, tmp_path: Path, arm64: bool
+) -> None:
     commands: list[list[str]] = []
     monkeypatch.setattr(native, "_ensure_windows_winget", lambda: None)
+    monkeypatch.setattr(native, "_is_arm64", lambda: arm64)
     monkeypatch.setattr(native, "refresh_windows_path", lambda: None)
+    monkeypatch.setattr(
+        native,
+        "_download",
+        lambda _url, destination: destination,
+    )
 
     def record(command, **_kwargs):  # type: ignore[no-untyped-def]
         commands.append(list(command))
@@ -142,10 +166,12 @@ def test_windows_seed_requests_actual_old_package_versions(monkeypatch) -> None:
 
     monkeypatch.setattr(native, "_run", record)
 
-    native._install_windows_old_software()
+    native._install_windows_old_software(tmp_path)
 
     rendered = "\n".join(" ".join(command) for command in commands)
     assert f"Microsoft.VisualStudioCode --version {native.OLD_VSCODE}" in rendered
     assert f"Git.Git --version {native.OLD_GIT}" in rendered
     assert f"JohnMacFarlane.Pandoc --version {native.OLD_PANDOC}" in rendered
-    assert f"OpenJS.NodeJS.LTS --version {native.OLD_NODE}" in rendered
+    assert "OpenJS.NodeJS.LTS" not in rendered
+    installer = tmp_path / f"node-v{native.OLD_NODE}-x64.msi"
+    assert f"msiexec.exe /i {installer}" in rendered

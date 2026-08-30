@@ -134,6 +134,18 @@ def _extract_zip(archive: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive) as source:
         source.extractall(destination)
+        # Python's ZipFile does not restore Unix executable bits.  The
+        # official macOS VS Code archive records them, and its ``code``
+        # launcher (plus the application binary it starts) must remain
+        # executable for this to be a real old-software check.
+        if os.name != "nt":
+            for member in source.infolist():
+                mode = member.external_attr >> 16
+                if not mode & 0o111:
+                    continue
+                extracted = destination / member.filename
+                if extracted.exists():
+                    extracted.chmod(extracted.stat().st_mode | mode & 0o777)
 
 
 def _extract_tar(archive: Path, destination: Path) -> None:
@@ -248,15 +260,37 @@ def _winget_old(identifier: str, version: str) -> None:
     )
 
 
-def _install_windows_old_software() -> None:
+def _install_windows_old_node(cache: Path) -> None:
+    """Install a retired Node release from its signed upstream MSI.
+
+    WinGet periodically removes old LTS manifests.  The Node project keeps
+    its release installers, and an MSI installation is still registered with
+    Windows so Bootstrap can discover and replace it normally.
+    """
+    # Node 18 did not publish a Windows ARM64 MSI.  Windows ARM64 supports
+    # this signed x64 installer through emulation, which also exercises the
+    # mixed-architecture state found on real ARM machines before Bootstrap
+    # replaces it with the current package.
+    architecture = "x64"
+    installer = cache / f"node-v{OLD_NODE}-{architecture}.msi"
+    if not installer.is_file():
+        _download(
+            f"https://nodejs.org/dist/v{OLD_NODE}/"
+            f"node-v{OLD_NODE}-{architecture}.msi",
+            installer,
+        )
+    _run(["msiexec.exe", "/i", str(installer), "/qn", "/norestart"])
+
+
+def _install_windows_old_software(cache: Path) -> None:
     _ensure_windows_winget()
     for identifier, version in (
         ("Microsoft.VisualStudioCode", OLD_VSCODE),
         ("Git.Git", OLD_GIT),
         ("JohnMacFarlane.Pandoc", OLD_PANDOC),
-        ("OpenJS.NodeJS.LTS", OLD_NODE),
     ):
         _winget_old(identifier, version)
+    _install_windows_old_node(cache)
     refresh_windows_path()
 
 
@@ -393,7 +427,7 @@ def run_native_upgrades(wheel: Path, report_path: Path) -> dict[str, Any]:
             if index:
                 cleanup_ephemeral_runner(recipe, Path.home())
             if recipe == WINDOWS:
-                _install_windows_old_software()
+                _install_windows_old_software(software / "downloads")
             scenario_root = root / name
             home = scenario_root / "home"
             home.mkdir(parents=True)
