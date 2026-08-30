@@ -687,7 +687,10 @@ def main() -> None:
 
     started = time.perf_counter()
     root = args.root.resolve()
-    root.mkdir(parents=True)
+    # The native-upgrade parent creates ``root/home`` first so it can seed
+    # real old editor extensions.  Reusing that deliberately prepared root
+    # must not make the child acceptance route fail before Bootstrap starts.
+    root.mkdir(parents=True, exist_ok=True)
     environment = dict(os.environ)
     real_userprofile = environment.get("USERPROFILE")
     environment.pop("PYTHONPATH", None)
