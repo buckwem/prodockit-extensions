@@ -113,6 +113,39 @@ def _winget_remove(identifier: str) -> None:
     )
 
 
+def _ensure_windows_winget() -> None:
+    """Prepare WinGet where a disposable Windows runner omits App Installer.
+
+    This is runner preparation, not a simulated Bootstrap stage. The commands
+    are Microsoft's documented Windows Sandbox recovery sequence; Bootstrap's
+    own plans still perform every application installation afterwards.
+    """
+
+    if shutil.which("winget") is not None:
+        return
+    script = (
+        "$ErrorActionPreference = 'Stop'; "
+        "$ProgressPreference = 'SilentlyContinue'; "
+        "Install-PackageProvider -Name NuGet -Force | Out-Null; "
+        "Install-Module -Name Microsoft.WinGet.Client -Force "
+        "-Repository PSGallery | Out-Null; "
+        "Repair-WinGetPackageManager -AllUsers"
+    )
+    _run(["powershell", "-NoProfile", "-Command", script])
+    located = _run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "(Get-Command winget.exe -ErrorAction Stop).Source",
+        ]
+    )
+    executable = Path(located.stdout.strip())
+    if not executable.is_file():
+        raise NativeInstallError("WinGet repair completed but winget.exe was not found")
+    os.environ["PATH"] = str(executable.parent) + os.pathsep + os.environ.get("PATH", "")
+
+
 def cleanup_ephemeral_runner(recipe: str, home: Path) -> None:
     """Remove target tools, but only from a disposable GitHub runner."""
 
@@ -143,6 +176,7 @@ def cleanup_ephemeral_runner(recipe: str, home: Path) -> None:
         ):
             _apt_remove(package)
     elif recipe == WINDOWS:
+        _ensure_windows_winget()
         roots = (
             Path(os.environ.get("SYSTEMDRIVE", "C:")) / "msys64",
             Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "msys64",

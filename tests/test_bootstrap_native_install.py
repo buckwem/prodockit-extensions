@@ -31,6 +31,27 @@ def test_cleanup_refuses_to_modify_a_developer_machine(monkeypatch, tmp_path: Pa
         _MODULE.cleanup_ephemeral_runner(_MODULE.UBUNTU, tmp_path)
 
 
+def test_missing_winget_uses_microsofts_documented_repair(monkeypatch, tmp_path: Path) -> None:
+    executable = tmp_path / "winget.exe"
+    executable.touch()
+    commands: list[list[str]] = []
+
+    def record(command, *, check=True):  # type: ignore[no-untyped-def]
+        del check
+        commands.append(list(command))
+        stdout = str(executable) if "Get-Command winget.exe" in command[-1] else ""
+        return _completed(stdout=stdout)
+
+    monkeypatch.setattr(_MODULE.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(_MODULE, "_run", record)
+    _MODULE._ensure_windows_winget()
+    rendered = "\n".join(" ".join(command) for command in commands)
+
+    assert "Microsoft.WinGet.Client" in rendered
+    assert "Repair-WinGetPackageManager -AllUsers" in rendered
+    assert str(executable.parent) in _MODULE.os.environ["PATH"]
+
+
 @pytest.mark.parametrize(
     ("recipe", "expected"),
     (
@@ -63,6 +84,7 @@ def test_cleanup_covers_every_bootstrap_runtime(
 
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setattr(_MODULE, "_run", record)
+    monkeypatch.setattr(_MODULE.shutil, "which", lambda _name: "winget")
     _MODULE.cleanup_ephemeral_runner(recipe, tmp_path)
     rendered = "\n".join(" ".join(command) for command in commands)
 
