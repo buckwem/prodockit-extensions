@@ -151,6 +151,37 @@ def test_windows_msys_roots_are_drive_absolute(monkeypatch) -> None:
     )
 
 
+def test_windows_inter_route_cleanup_keeps_msys2_but_removes_pango(
+    monkeypatch, tmp_path: Path
+) -> None:
+    commands: list[list[str]] = []
+
+    def record(command, *, check=True):  # type: ignore[no-untyped-def]
+        del check
+        commands.append(list(command))
+        return _completed(returncode=1)
+
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setattr(_MODULE, "_run", record)
+    monkeypatch.setattr(_MODULE.shutil, "which", lambda _name: "winget")
+    root = tmp_path / "msys64"
+    bash = root / "usr" / "bin" / "bash.exe"
+    bash.parent.mkdir(parents=True)
+    bash.touch()
+    monkeypatch.setattr(_MODULE, "_windows_msys_roots", lambda: (root,))
+
+    _MODULE.cleanup_ephemeral_runner(
+        _MODULE.WINDOWS,
+        tmp_path,
+        preserve_msys2=True,
+    )
+
+    rendered = "\n".join(" ".join(command) for command in commands)
+    assert "mingw-w64-ucrt-x86_64-pango" in rendered
+    assert "mingw-w64-clang-aarch64-pango" in rendered
+    assert "winget uninstall --id MSYS2.MSYS2" not in rendered
+
+
 def test_wheel_resolution_requires_exactly_one_candidate(tmp_path: Path) -> None:
     with pytest.raises(_MODULE.NativeInstallError, match="expected one"):
         _MODULE._resolve_wheel(tmp_path)

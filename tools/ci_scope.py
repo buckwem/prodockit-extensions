@@ -133,6 +133,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "src/prodockit/project_config.py": frozenset({"adopt", "pdf"}),
     "src/prodockit/sync_repo.py": frozenset({"bootstrap", "pdf"}),
     "tools/adopt_acceptance.py": frozenset({"adopt"}),
+    "tools/adopt_native_upgrade.py": frozenset({"adopt"}),
     "tools/check_shared_file_wheel.py": frozenset({"pdf"}),
     "tools/pdf_from_site_acceptance.py": frozenset({"pdf"}),
     "tools/bootstrap_acceptance.py": frozenset({"bootstrap"}),
@@ -253,7 +254,11 @@ def all_scope() -> Scope:
 
 
 def output_lines(
-    scope: Scope, *, main: bool = False, bootstrap_native: bool = False
+    scope: Scope,
+    *,
+    main: bool = False,
+    adopt_native: bool = False,
+    bootstrap_native: bool = False,
 ) -> tuple[str, ...]:
     """Format values for ``GITHUB_OUTPUT``.
 
@@ -267,6 +272,7 @@ def output_lines(
         f"adopt={'true' if scope.adopt else 'false'}",
         f"pdf={'true' if scope.pdf else 'false'}",
         f"bootstrap={'true' if scope.bootstrap else 'false'}",
+        f"adopt-native={'true' if adopt_native else 'false'}",
         f"bootstrap-native={'true' if bootstrap_native else 'false'}",
     )
 
@@ -325,6 +331,40 @@ def bootstrap_native_for_event(
         return True
     if any(path in _NATIVE_BOOTSTRAP_FILES for path in changes.paths):
         return True
+    try:
+        pull = event["pull_request"]
+        base = _sha(pull["base"]["sha"])
+        head = _sha(pull["head"]["sha"])
+        return _project_version_at(base, git=git) != _project_version_at(head, git=git)
+    except (KeyError, TypeError, UnicodeError, ValueError, RuntimeError, tomllib.TOMLDecodeError):
+        return True
+
+
+def adopt_native_for_event(
+    event_name: str,
+    event: dict[str, Any],
+    changes: ChangedRange,
+    *,
+    git: GitRunner = _run_git,
+) -> bool:
+    """Select the real Adopt upgrade only for a release pull request.
+
+    The ordinary installed-wheel matrix exercises Adopt changes on every
+    relevant pull request.  This slower gate downloads an older published
+    Prodockit release, creates a fully adopted project, and upgrades it with
+    the candidate wheel on all five architectures.  A package version change
+    is therefore the deliberate boundary: it runs before a release is merged,
+    but is not repeated for the resulting push, schedules, or unrelated work.
+
+    If a pull request changes ``pyproject.toml`` but either version cannot be
+    read, select the gate rather than risk mistaking a malformed release pull
+    request for ordinary work.
+    """
+
+    if event_name != "pull_request":
+        return False
+    if not changes.full and "pyproject.toml" not in changes.paths:
+        return False
     try:
         pull = event["pull_request"]
         base = _sha(pull["base"]["sha"])
@@ -421,6 +461,7 @@ def _write_summary(
     changes: ChangedRange,
     classification: Classification,
     *,
+    adopt_native: bool = False,
     bootstrap_native: bool = False,
 ) -> None:
     path = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -441,6 +482,8 @@ def _write_summary(
         f"- Range: {changes.reason}",
         f"- Python: {', '.join(classification.scope.python_matrix)}",
         f"- Native matrices: {', '.join(selected) if selected else 'none'}",
+        "- Real Adopt project upgrade: "
+        + ("selected" if adopt_native else "not selected"),
         "- Real Bootstrap package installs: "
         + ("selected" if bootstrap_native else "not selected"),
         "",
@@ -468,6 +511,7 @@ def main(argv: list[str] | None = None) -> int:
 
     event_name = ""
     event: dict[str, Any] = {}
+    adopt_native = False
     bootstrap_native = False
     if args.all:
         changes = ChangedRange(full=True, reason="all scopes requested")
@@ -488,6 +532,7 @@ def main(argv: list[str] | None = None) -> int:
             if changes.full
             else classify_details(changes.paths)
         )
+        adopt_native = adopt_native_for_event(event_name, event, changes)
         bootstrap_native = bootstrap_native_for_event(event_name, event, changes)
     else:
         changes = ChangedRange(paths=tuple(sys.stdin.read().splitlines()), reason="stdin paths")
@@ -495,12 +540,17 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         "\n".join(
-            output_lines(classification.scope, bootstrap_native=bootstrap_native)
+            output_lines(
+                classification.scope,
+                adopt_native=adopt_native,
+                bootstrap_native=bootstrap_native,
+            )
         )
     )
     _write_summary(
         changes,
         classification,
+        adopt_native=adopt_native,
         bootstrap_native=bootstrap_native,
     )
     return 0

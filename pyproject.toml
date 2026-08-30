@@ -70,6 +70,10 @@ dependencies = [
   # A direct import for `prodockit adopt`, which preserves existing MkDocs
   # and Zensical YAML configuration as well as Zensical's TOML format.
   "PyYAML>=6.0",
+  # Adopt compares a recorded Prodockit floor with the running release so an
+  # already-adopted project is upgraded rather than accepted merely because
+  # some older ``>=`` requirement is present.
+  "packaging>=24.0",
   "pypdf>=4.0",
 ]
 classifiers = [

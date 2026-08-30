@@ -470,7 +470,11 @@ def run_native_upgrades(wheel: Path, report_path: Path) -> dict[str, Any]:
         driver = Path(__file__).with_name("_bootstrap_acceptance_driver.py").resolve()
         for index, (name, host, route) in enumerate(SCENARIOS):
             if index:
-                cleanup_ephemeral_runner(recipe, Path.home())
+                cleanup_ephemeral_runner(
+                    recipe,
+                    Path.home(),
+                    preserve_msys2=recipe == WINDOWS,
+                )
             if recipe == WINDOWS:
                 if windows_node_installer is None:  # pragma: no cover - set above
                     raise NativeInstallError("the Windows Node installer was not prepared")

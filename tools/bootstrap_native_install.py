@@ -197,7 +197,12 @@ def _windows_msys_roots() -> tuple[Path, ...]:
     return tuple(Path(value) for value in values)
 
 
-def cleanup_ephemeral_runner(recipe: str, home: Path) -> None:
+def cleanup_ephemeral_runner(
+    recipe: str,
+    home: Path,
+    *,
+    preserve_msys2: bool = False,
+) -> None:
     """Remove target tools, but only from a disposable GitHub runner."""
 
     if os.environ.get("GITHUB_ACTIONS", "").lower() != "true":
@@ -243,13 +248,21 @@ def cleanup_ephemeral_runner(recipe: str, home: Path) -> None:
                         ],
                         check=False,
                     )
-        for identifier in (
+        identifiers = [
             "Microsoft.VisualStudioCode",
             "Git.Git",
             "JohnMacFarlane.Pandoc",
             "OpenJS.NodeJS.LTS",
             "MSYS2.MSYS2",
-        ):
+        ]
+        # Removing MSYS2 after the first route can hang indefinitely on the
+        # Windows ARM64 hosted image even after its package processes have
+        # stopped.  The upgrade fixture removes both Pango architectures above,
+        # so retaining the manager for its second route still exercises a real
+        # Pango install and avoids spending 15 minutes in runner-only cleanup.
+        if preserve_msys2:
+            identifiers.remove("MSYS2.MSYS2")
+        for identifier in identifiers:
             _winget_remove(identifier)
         # Hosted images can retain the MSYS2 directory and the per-user DLL
         # setting after the package registration is removed. Bootstrap then

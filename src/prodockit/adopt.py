@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped, unused-ignore]
+from packaging.version import InvalidVersion, Version
 
 from prodockit import __version__
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
@@ -215,12 +216,16 @@ def _requirement_ok(root: Path) -> bool:
     path = _requirements_path(root)
     if not path.is_file():
         return False
-    return bool(
-        re.search(
-            r"(?im)^\s*prodockit(?:\[[^]]+\])?\s*>=\s*\S+",
-            path.read_text(encoding="utf-8"),
-        )
+    match = re.search(
+        r"(?im)^\s*prodockit(?:\[[^]]+\])?\s*>=\s*([^\s;#]+)",
+        path.read_text(encoding="utf-8"),
     )
+    if match is None:
+        return False
+    try:
+        return Version(match.group(1)) >= Version(__version__)
+    except InvalidVersion:
+        return False
 
 
 def ensure_requirement(root: Path) -> Path:
@@ -339,7 +344,12 @@ def _tree_icons_ok(parsed: dict[str, Any]) -> bool:
 def _style_ok(root: Path, parsed: dict[str, Any]) -> bool:
     project = parsed.get("project", parsed)
     extra_css = project.get("extra_css", []) if isinstance(project, dict) else []
-    return _stylesheet_path(root, parsed).is_file() and "stylesheets/pdk.css" in extra_css
+    path = _stylesheet_path(root, parsed)
+    return (
+        path.is_file()
+        and path.read_bytes() == resource_bytes("pdk.css")
+        and "stylesheets/pdk.css" in extra_css
+    )
 
 
 def _section(source: str, table: str) -> tuple[int, int] | None:
