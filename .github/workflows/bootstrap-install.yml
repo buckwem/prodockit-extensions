@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-name: PDF renderer installed wheel
+name: Bootstrap installed wheel
 on:
   push:
     branches: [main]
@@ -9,7 +9,7 @@ on:
   merge_group:
   workflow_dispatch:
   schedule:
-    - cron: "27 3 * * 0"
+    - cron: "37 3 * * 0"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -19,13 +19,13 @@ jobs:
   scope:
     runs-on: ubuntu-24.04
     outputs:
-      relevant: ${{ steps.scope.outputs.pdf }}
+      relevant: ${{ steps.scope.outputs.bootstrap }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - id: scope
-        name: Check whether PDF rendering or packaging changed
+        name: Check whether bootstrap or packaging changed
         run: python tools/ci_scope.py --github-event >> "$GITHUB_OUTPUT"
 
   installed-wheel:
@@ -33,7 +33,7 @@ jobs:
     if: needs.scope.outputs.relevant == 'true'
     name: ${{ matrix.name }} ${{ matrix.architecture }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -42,14 +42,14 @@ jobs:
             runner: ubuntu-24.04
             architecture: x64
             architecture_check: --require-x64
-          - name: Windows 2025
-            runner: windows-2025
-            architecture: x64
-            architecture_check: --require-x64
           - name: Ubuntu 24.04
             runner: ubuntu-24.04-arm
             architecture: arm64
             architecture_check: --require-arm64
+          - name: Windows 2025
+            runner: windows-2025
+            architecture: x64
+            architecture_check: --require-x64
           - name: Windows 11
             runner: windows-11-arm
             architecture: arm64
@@ -66,28 +66,26 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
-      - name: Build the wheel
+      - name: Build the candidate wheel
         run: |
           python -m pip install build
           python -m build --wheel
-      - name: Check the packaged shared stylesheet
-        run: python tools/check_shared_file_wheel.py --wheel dist
-      - name: Test the public PDF renderer from the installed wheel
+      - name: Test all Surrey GitLab and public GitHub bootstrap routes
         run: >-
-          python tools/pdf_from_site_acceptance.py
+          python tools/bootstrap_acceptance.py
           --wheel dist
           ${{ matrix.architecture_check }}
-          --report pdf-built-site-report.json
+          --report bootstrap-acceptance-report.json
       - name: Keep the acceptance report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pdf-built-site-${{ matrix.runner }}-${{ matrix.architecture }}
-          path: pdf-built-site-report.json
+          name: bootstrap-${{ matrix.runner }}-${{ matrix.architecture }}
+          path: bootstrap-acceptance-report.json
           if-no-files-found: warn
 
   result:
-    name: PDF installed-wheel result
+    name: Bootstrap installed-wheel result
     if: always()
     needs: [scope, installed-wheel]
     runs-on: ubuntu-24.04
@@ -103,9 +101,9 @@ jobs:
             exit 1
           fi
           if [ "$RELEVANT" = true ] && [ "$MATRIX_RESULT" != success ]; then
-            echo "The PDF installed-wheel matrix did not pass."
+            echo "The bootstrap installed-wheel matrix did not pass."
             exit 1
           fi
           if [ "$RELEVANT" != true ]; then
-            echo "No PDF, packaging or shared integration files changed."
+            echo "No bootstrap, packaging or shared integration files changed."
           fi

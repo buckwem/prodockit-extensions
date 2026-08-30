@@ -46,9 +46,10 @@ schedule. The other boxes are actions or workflow stages that follow.
 
 | Workflow {: width="42%" } | Trigger | Responsibility |
 |---|---|---|
-| [`adopt-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/adopt-install.yml) | Relevant pull requests; every push to `main`; manual dispatch | Build and install the wheel on Ubuntu and Windows x64, plus Ubuntu, Windows and macOS ARM64. Both Windows architectures run one complete TOML scenario with Mermaid and maths; Ubuntu and macOS retain the wider TOML/YAML option coverage. Canonical npm lockfiles and the hosted cache avoid resolving and downloading the same Node packages afresh on every run. |
-| [`pdf-built-site-wheel.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/pdf-built-site-wheel.yml) | Relevant pull requests; every push to `main`; manual dispatch | Build and install the wheel on the same x64 and ARM64 operating-system matrix, exercise the renderer used by public `prodockit pdf` through Zensical's documented clean build, and verify it can consume navigation, rendered extensions and page metadata without a Git host |
-| [`ci.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/ci.yml) | Pull requests; pushes to `main` | On a pull request, test Python 3.14 and add the oldest supported Python when executable code can change; on `main`, test Python 3.10–3.14. Lint, type-check, verify pins and collect coverage once, strictly build the site, and validate both package artifacts on every run |
+| [`adopt-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/adopt-install.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on Ubuntu and Windows x64, plus Ubuntu, Windows and macOS ARM64. Both Windows architectures run one complete TOML scenario with Mermaid and maths; Ubuntu and macOS retain the wider TOML/YAML option coverage. Canonical npm lockfiles and the hosted cache avoid resolving and downloading the same Node packages afresh on every run. |
+| [`bootstrap-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-install.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on the same five native runners, then exercise the new- and existing-repository routes for Surrey GitLab and public GitHub against hermetic local Git remotes. External account, package-manager and Pages boundaries remain covered by manual platform testing. |
+| [`pdf-built-site-wheel.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/pdf-built-site-wheel.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on the same x64 and ARM64 operating-system matrix, exercise the renderer used by public `prodockit pdf` through Zensical's documented clean build, and verify it can consume navigation, rendered extensions and page metadata without a Git host |
+| [`ci.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/ci.yml) | Pull requests and pushes to `main`; weekly schedule; manual dispatch | Test Python 3.14 for every change, add the oldest supported Python when executable code can change, and select Python 3.10–3.14 for dependency, workflow and classifier changes. Weekly and manual runs always use the complete version matrix. Lint, type-check, verify pins and collect coverage once, strictly build the site, and validate both package artifacts on every run. |
 | [`docs.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/docs.yml) | Pushes to `main`; manual dispatch | Build the complete PDF and selected single-page PDFs, strictly build the website, run built-output tests, deploy Pages, then verify the live page matches the uploaded artifact |
 | [`drift.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/drift.yml) | Monday schedule; manual dispatch | Build with pinned and newest rendering dependencies, compare artifacts, run checks against the newer build, and open or update an issue rather than failing for mere availability |
 | [`publish.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/publish.yml) | Published GitHub release | Build source and wheel artifacts from the release tag, validate their metadata and rendered README with Twine, then publish them to PyPI through \index{PyPI!Trusted Publishing} |
@@ -60,18 +61,27 @@ Understand the workflow chain
 ///
 
 The workflow roles in \ref{tab-devcons-releasing-understand-the-workflow-chain}
-overlap intentionally. `ci.yml` gives quick pull-request
-feedback and makes `main` the complete supported-Python backstop. A
-repository-owned changed-file classifier selects expensive pull-request
-checks conservatively: shared command, configuration, packaging or asset code
-selects both installed-wheel suites. `adopt-install.yml` tests the installed
-wheel independently on x64 and ARM64 runners across Ubuntu, Windows and macOS
-when adoption can change; `pdf-built-site-wheel.yml` does the same for the
-public PDF renderer and the extension HTML it consumes. Both always run after
-a merge to `main`. `docs.yml` proves and publishes the complete artifacts;
+overlap intentionally. `ci.yml` gives quick pull-request feedback and keeps a
+scope-aware post-merge check. One repository-owned classifier calculates a
+complete Git change range and selects expensive checks conservatively: an
+unknown implementation file, an unreadable range, or a manually applied
+`full-ci` label selects everything. `adopt-install.yml`,
+`bootstrap-install.yml`, and `pdf-built-site-wheel.yml` test their installed
+wheel independently on x64 and ARM64 runners across Ubuntu, Windows, and
+macOS only when their owned code can change. Unit-test-only changes do not
+start native runners. Weekly and manual runs remain comprehensive, which is
+the safety net for an ownership rule that proves incomplete. `docs.yml` proves and publishes the complete artifacts;
 `publish.yml` has the narrow permission needed for PyPI; the redeploy fixes
 release-tag timing; and `drift.yml` observes future upgrades without changing
 the current release.
+
+This is the deliberate balance between time and maintenance complexity. The
+native matrices remain complete once selected rather than introducing a
+second layer of partial platform scenarios. All four workflows expose one
+stable result job for branch protection, while their detailed jobs may be
+selected or skipped. Post-merge validation remains enabled until those stable
+result checks are required by the repository ruleset; removing it sooner
+would save time by relying on a protection that had not yet been enforced.
 
 ## 1. Choose the release version
 

@@ -83,9 +83,9 @@ however:
 
 | Platform | Regression test coverage | Manual bootstrap coverage |
 |---|---|---|
-| Ubuntu Linux | Full test suite on every push and pull request using `ubuntu-24.04`; installed-wheel adoption on x64 and ARM64 | Both repository workflows on Surrey GitLab and GitHub.com |
-| macOS | The full test suite is also run locally; installed-wheel adoption runs on hosted ARM64 | Both repository workflows on Surrey GitLab and GitHub.com |
-| Windows | Installed-wheel adoption on Windows 2025 x64 and Windows 11 ARM64; no hosted full-suite job | Both repository workflows on Surrey GitLab and GitHub.com |
+| Ubuntu Linux | Scope-selected full test suite on every push and pull request using `ubuntu-24.04`; installed-wheel adoption and bootstrap on x64 and ARM64 | Both repository workflows on Surrey GitLab and GitHub.com |
+| macOS | The full test suite is also run locally; installed-wheel adoption and bootstrap run on hosted ARM64 | Both repository workflows on Surrey GitLab and GitHub.com |
+| Windows | Installed-wheel adoption and bootstrap on Windows 2025 x64 and Windows 11 ARM64; no hosted full-suite job | Both repository workflows on Surrey GitLab and GitHub.com |
 /// table-caption | <
     attrs: {id: tab-about-support-platforms-and-test-depth}
 
@@ -94,11 +94,15 @@ Platforms and test depth
 
 \ref{tab-about-support-platforms-and-test-depth} distinguishes automated
 regression coverage from manual bootstrap exercises. The installed-wheel
-adoption jobs build the candidate package afresh and test
+adoption and bootstrap jobs build the candidate package afresh. Adoption tests
 TOML and YAML projects with the core, Mermaid-only, maths-only and combined
 component choices. They also check that a second apply changes no files. This
 narrow cross-platform matrix complements rather than replaces the full Python
-test suite.
+test suite. Bootstrap uses local bare repositories instead of a live host to
+exercise all four combinations of Surrey GitLab or GitHub and new or existing
+repositories. Account setup, package managers, VPNs, firewalls, and real Pages
+publication stay in the manual matrix because a hosted test cannot reproduce
+those boundaries honestly.
 
 The manual matrix gives confidence in installation and first-use integration,
 but it is a point-in-time result. The locally run macOS suite adds full
