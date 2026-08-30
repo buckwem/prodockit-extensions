@@ -123,18 +123,20 @@ def _ensure_windows_winget() -> None:
 
     if shutil.which("winget") is not None:
         return
+    shell = shutil.which("pwsh") or shutil.which("powershell")
+    if shell is None:
+        raise NativeInstallError("WinGet repair requires PowerShell")
     script = (
         "$ErrorActionPreference = 'Stop'; "
         "$ProgressPreference = 'SilentlyContinue'; "
-        "Install-PackageProvider -Name NuGet -Force | Out-Null; "
         "Install-Module -Name Microsoft.WinGet.Client -Force "
         "-Repository PSGallery | Out-Null; "
         "Repair-WinGetPackageManager -AllUsers"
     )
-    _run(["powershell", "-NoProfile", "-Command", script])
+    _run([shell, "-NoProfile", "-Command", script])
     located = _run(
         [
-            "powershell",
+            shell,
             "-NoProfile",
             "-Command",
             "(Get-Command winget.exe -ErrorAction Stop).Source",

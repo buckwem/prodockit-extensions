@@ -42,13 +42,19 @@ def test_missing_winget_uses_microsofts_documented_repair(monkeypatch, tmp_path:
         stdout = str(executable) if "Get-Command winget.exe" in command[-1] else ""
         return _completed(stdout=stdout)
 
-    monkeypatch.setattr(_MODULE.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(
+        _MODULE.shutil,
+        "which",
+        lambda name: "/usr/bin/pwsh" if name == "pwsh" else None,
+    )
     monkeypatch.setattr(_MODULE, "_run", record)
     _MODULE._ensure_windows_winget()
     rendered = "\n".join(" ".join(command) for command in commands)
 
     assert "Microsoft.WinGet.Client" in rendered
+    assert "Install-PackageProvider" not in rendered
     assert "Repair-WinGetPackageManager -AllUsers" in rendered
+    assert commands[0][0] == "/usr/bin/pwsh"
     assert str(executable.parent) in _MODULE.os.environ["PATH"]
 
 
