@@ -54,6 +54,22 @@ def test_real_software_keeps_the_same_machine_and_repository_scope() -> None:
         assert stages[stage_id].check.__module__ != bootstrap_acceptance_driver.__name__
 
 
+def test_real_windows_software_uses_the_native_user_application_home(tmp_path: Path) -> None:
+    isolated = tmp_path / "scenario-home"
+    native = tmp_path / "windows-user"
+    environment = {"HOME": str(isolated), "USERPROFILE": str(native)}
+
+    assert bootstrap_acceptance_driver.machine_home(
+        environment, real_software=True, platform_name="windows"
+    ) == native
+    assert bootstrap_acceptance_driver.machine_home(
+        environment, real_software=False, platform_name="windows"
+    ) == isolated
+    assert bootstrap_acceptance_driver.machine_home(
+        environment, real_software=True, platform_name="macos"
+    ) == isolated
+
+
 def test_real_software_commands_cross_the_machine_boundary(monkeypatch, tmp_path: Path) -> None:
     runner = bootstrap_acceptance_driver.HarnessRunner(
         {},
@@ -74,6 +90,42 @@ def test_real_software_commands_cross_the_machine_boundary(monkeypatch, tmp_path
 
     assert result.stdout == "pandoc 2.19.2\n"
     assert seen == [["pandoc", "--version"]]
+
+
+def test_git_host_rewrites_are_attached_to_each_harness_command(
+    monkeypatch, tmp_path: Path
+) -> None:
+    remote = "git@example.invalid:group/project.git"
+    local = tmp_path / "project.git"
+    environment = {"PATH": os.environ["PATH"]}
+    runner = bootstrap_acceptance_driver.HarnessRunner(
+        environment,
+        remote,
+        home=tmp_path,
+        remote_rewrites={remote: local},
+    )
+    seen: list[list[str]] = []
+
+    def execute(command, **_kwargs):  # type: ignore[no-untyped-def]
+        seen.append(list(command))
+        return bootstrap_acceptance_driver.subprocess.CompletedProcess(
+            command, 0, "local refs\n", ""
+        )
+
+    monkeypatch.setattr(bootstrap_acceptance_driver, "run", execute)
+
+    result = runner.run(["git", "ls-remote", remote])
+
+    assert result.ok
+    assert seen == [
+        [
+            "git",
+            "-c",
+            f"url.{local.resolve().as_uri()}.insteadOf={remote}",
+            "ls-remote",
+            remote,
+        ]
+    ]
 
 
 @pytest.mark.parametrize(

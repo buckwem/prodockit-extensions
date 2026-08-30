@@ -155,12 +155,14 @@ class HarnessRunner:
         home: Path,
         old_software: bool = False,
         real_software: bool = False,
+        remote_rewrites: dict[str, Path] | None = None,
     ) -> None:
         self.environment = environment
         self.expected_remote = expected_remote
         self.home = home
         self.old_software = old_software
         self.real_software = real_software
+        self.remote_rewrites = remote_rewrites or {}
         self.system = SubprocessRunner()
         self.calls: list[list[str]] = []
         self.upgraded: set[str] = set()
@@ -531,6 +533,17 @@ class HarnessRunner:
             )
             clone_destination = Path(words[-1]) if clone_remote else None
             words[0] = "git"
+            # Keep every host boundary local even when Bootstrap has just
+            # replaced Git itself.  Relying only on a global ``insteadOf``
+            # setting made the rewrite disappear when a native upgrade
+            # switched from the portable old Git to the package-manager Git.
+            # Command-scoped configuration travels with the invocation and
+            # cannot be lost during that transition.
+            for remote, local in self.remote_rewrites.items():
+                words[1:1] = [
+                    "-c",
+                    f"url.{local.resolve().as_uri()}.insteadOf={remote}",
+                ]
             completed = run(words, cwd=working, environment=self.environment, check=False)
             if completed.returncode == 0 and clone_remote and clone_destination:
                 run(
@@ -600,6 +613,26 @@ def supports_old_software_route(host: str, route: str) -> bool:
         ("surrey", "existing"),
         ("github", "new"),
     }
+
+
+def machine_home(
+    environment: dict[str, str], *, real_software: bool, platform_name: str
+) -> Path:
+    """Return the home directory where native applications are installed.
+
+    Repository state remains below the acceptance scenario's isolated
+    ``HOME``.  A real Windows software run must nevertheless inspect the
+    runner's genuine per-user application directory: WinGet installs VS Code
+    below ``USERPROFILE``, and hiding that directory turns an installed old
+    version into a false "not installed" result.
+    """
+    if (
+        real_software
+        and platform_name == "windows"
+        and (userprofile := environment.get("USERPROFILE"))
+    ):
+        return Path(userprofile)
+    return Path(environment["HOME"])
 
 
 def fetch(_url: str, timeout: float = 20.0) -> Fetched:
@@ -781,9 +814,17 @@ def main() -> None:
     harness = HarnessRunner(
         environment,
         expected_remote,
-        home=Path(environment["HOME"]),
+        home=machine_home(
+            environment,
+            real_software=args.real_software,
+            platform_name=current_platform(),
+        ),
         old_software=args.old_software,
         real_software=args.real_software,
+        remote_rewrites={
+            host.template_remote: template_bare,
+            expected_remote: target_bare,
+        },
     )
     vars(bootstrap_stages_module)["_check_ssh_authenticates"] = lambda _context: (
         CheckResult(Status.OK, "provided by the acceptance runner")
@@ -797,7 +838,11 @@ def main() -> None:
             candidate,
             runner=harness,
             platform=current_platform(),
-            home=Path(environment["HOME"]),
+            home=machine_home(
+                environment,
+                real_software=args.real_software,
+                platform_name=current_platform(),
+            ),
             exists=Path.exists,
             fetch=fetch,
             guided=guided,
