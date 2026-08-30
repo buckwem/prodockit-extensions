@@ -242,17 +242,24 @@ def cleanup_ephemeral_runner(recipe: str, home: Path) -> None:
         # sees an apparently usable Pango during an intermediate recheck and
         # skips the commands that configure the fresh installation. Native
         # release tests deliberately start from a genuinely clean machine.
-        for root in roots:
-            if root.is_dir():
-                shutil.rmtree(root)
         os.environ.pop("WEASYPRINT_DLL_DIRECTORIES", None)
+        os.environ["PATH"] = os.pathsep.join(
+            part
+            for part in os.environ.get("PATH", "").split(os.pathsep)
+            if "msys64\\ucrt64\\bin" not in part.lower()
+            and "msys64\\clangarm64\\bin" not in part.lower()
+        )
         _run(
             [
                 "powershell",
                 "-NoProfile",
                 "-Command",
                 "[Environment]::SetEnvironmentVariable("
-                "'WEASYPRINT_DLL_DIRECTORIES', $null, 'User')",
+                "'WEASYPRINT_DLL_DIRECTORIES', $null, 'User'); "
+                "$path = [Environment]::GetEnvironmentVariable('Path', 'User'); "
+                "$kept = @($path -split ';' | Where-Object { $_ -and $_ -notmatch "
+                "'\\msys64\\(ucrt64|clangarm64)\\bin\\?$' }); "
+                "[Environment]::SetEnvironmentVariable('Path', ($kept -join ';'), 'User')",
             ]
         )
     else:  # pragma: no cover - guarded by prodockit's platform resolver
