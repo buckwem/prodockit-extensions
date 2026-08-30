@@ -24,6 +24,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -272,6 +273,22 @@ def _marketplace_url(identifier: str, version: str) -> str:
     )
 
 
+def _download_marketplace(identifier: str, version: str, destination: Path) -> Path:
+    """Download a platform package, falling back to a universal VSIX.
+
+    Extensions with native helpers publish one VSIX per target platform.
+    Pure extensions publish only a universal package, for which Marketplace
+    deliberately returns 404 when ``targetPlatform`` is supplied.
+    """
+    platform_url = _marketplace_url(identifier, version)
+    try:
+        return _download(platform_url, destination)
+    except urllib.error.HTTPError as error:
+        if error.code != 404:
+            raise
+    return _download(platform_url.partition("?")[0], destination)
+
+
 def _seed_old_extensions(cache: Path, home: Path) -> None:
     extensions = home / ".vscode" / "extensions"
     extensions.mkdir(parents=True, exist_ok=True)
@@ -283,7 +300,7 @@ def _seed_old_extensions(cache: Path, home: Path) -> None:
             )
         archive = cache / f"{identifier}-{version}.vsix"
         if not archive.is_file():
-            _download(_marketplace_url(identifier, version), archive)
+            _download_marketplace(identifier, version, archive)
         destination = extensions / f"{identifier}-{version}"
         with zipfile.ZipFile(archive) as source:
             for member in source.infolist():

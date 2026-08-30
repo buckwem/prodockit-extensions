@@ -8,6 +8,7 @@ import importlib
 import io
 import os
 import subprocess
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -60,6 +61,31 @@ def test_marketplace_gzip_response_is_decoded_to_the_vsix_bytes(
     destination = native._download("https://example.invalid/extension", tmp_path / "x.vsix")
 
     assert destination.read_bytes() == expected
+
+
+def test_universal_marketplace_extension_is_the_404_fallback(
+    monkeypatch, tmp_path: Path
+) -> None:
+    attempted: list[str] = []
+
+    def download(url: str, destination: Path) -> Path:
+        attempted.append(url)
+        if "targetPlatform=" in url:
+            raise urllib.error.HTTPError(url, 404, "not platform-specific", {}, None)
+        destination.write_bytes(b"universal")
+        return destination
+
+    monkeypatch.setattr(native, "current_platform", lambda: native.UBUNTU)
+    monkeypatch.setattr(native, "_is_arm64", lambda: False)
+    monkeypatch.setattr(native, "_download", download)
+
+    destination = native._download_marketplace(
+        "zensical.zensical-studio", "0.2.11", tmp_path / "extension.vsix"
+    )
+
+    assert "targetPlatform=linux-x64" in attempted[0]
+    assert "?" not in attempted[1]
+    assert destination.read_bytes() == b"universal"
 
 
 def test_mac_path_lets_homebrew_replace_portable_old_tools(monkeypatch, tmp_path: Path) -> None:
