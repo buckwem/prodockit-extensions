@@ -54,6 +54,21 @@ def test_real_software_keeps_the_same_machine_and_repository_scope() -> None:
         assert stages[stage_id].check.__module__ != bootstrap_acceptance_driver.__name__
 
 
+def test_real_software_repository_fixture_has_actual_toolchain_locks(
+    tmp_path: Path,
+) -> None:
+    bootstrap_acceptance_driver.write_project(
+        tmp_path, marker="Native upgrade", real_toolchains=True
+    )
+
+    assert (tmp_path / "tools" / "mermaid" / "package.json").is_file()
+    assert (tmp_path / "tools" / "mermaid" / "package-lock.json").is_file()
+    assert (tmp_path / "tools" / "mathjax" / "package.json").is_file()
+    assert (tmp_path / "tools" / "mathjax" / "package-lock.json").is_file()
+    assert (tmp_path / "tools" / "mathjax" / "tex2svg.js").is_file()
+    assert not (tmp_path / "tools" / "mermaid" / "node_modules").exists()
+
+
 def test_real_windows_software_uses_the_native_user_application_home(tmp_path: Path) -> None:
     isolated = tmp_path / "scenario-home"
     native = tmp_path / "windows-user"

@@ -82,7 +82,7 @@ def git(
     return run(["git", *arguments], cwd=cwd, environment=environment, check=check)
 
 
-def write_project(path: Path, *, marker: str) -> None:
+def write_project(path: Path, *, marker: str, real_toolchains: bool = False) -> None:
     (path / "docs").mkdir(parents=True)
     (path / "docs" / "index.md").write_text(f"# {marker}\n", encoding="utf-8")
     (path / "README.md").write_text(f"# {marker}\n", encoding="utf-8")
@@ -104,13 +104,30 @@ repo = "fontawesome/brands/github"
 ''',
         encoding="utf-8",
     )
+    if real_toolchains:
+        # The fast harness simulates npm.  Native release acceptance crosses
+        # that boundary, so its template and existing-project repositories
+        # need the same tracked manifests that a real template supplies.
+        source = Path(__file__).resolve().parent
+        for tool, names in {
+            "mermaid": ("package.json", "package-lock.json"),
+            "mathjax": ("package.json", "package-lock.json", "tex2svg.js"),
+        }.items():
+            destination = path / "tools" / tool
+            destination.mkdir(parents=True)
+            for name in names:
+                shutil.copy2(source / tool / name, destination / name)
 
 
 def initialise_worktree(
-    path: Path, *, marker: str, environment: dict[str, str]
+    path: Path,
+    *,
+    marker: str,
+    environment: dict[str, str],
+    real_toolchains: bool = False,
 ) -> str:
     path.mkdir(parents=True)
-    write_project(path, marker=marker)
+    write_project(path, marker=marker, real_toolchains=real_toolchains)
     initialised = git(
         ["init", "-b", "main"], cwd=path, environment=environment, check=False
     )
@@ -775,7 +792,12 @@ def main() -> None:
 
     template_work = root / "template-work"
     template_bare = root / "template.git"
-    initialise_worktree(template_work, marker="Template", environment=environment)
+    initialise_worktree(
+        template_work,
+        marker="Template",
+        environment=environment,
+        real_toolchains=args.real_software,
+    )
     bare_clone(template_work, template_bare, environment=environment)
     configure_rewrite(
         host.template_remote, template_bare, root=root, environment=environment
@@ -785,7 +807,12 @@ def main() -> None:
     initial_head = ""
     if existing:
         target_work = root / "target-work"
-        initialise_worktree(target_work, marker="Existing project", environment=environment)
+        initialise_worktree(
+            target_work,
+            marker="Existing project",
+            environment=environment,
+            real_toolchains=args.real_software,
+        )
         git(
             ["remote", "add", "origin", expected_remote],
             cwd=target_work,
