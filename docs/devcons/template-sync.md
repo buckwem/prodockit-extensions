@@ -17,12 +17,12 @@ The \index{commands!`prodockit template-sync`} command closes that gap without t
 writing.
 
 \ref{fig-template-sync-decision} follows each managed file from the preview to
-the final diff. An unchanged local file takes the safe-update path; a file with
-local edits is preserved unless the author explicitly chooses the template
-copy with `--force`. Both paths rejoin at the review before anything is
-committed.
+the default review workflow. An unchanged local file takes the safe-update
+path; a file with local edits is preserved unless the author explicitly
+chooses the template copy with `--force`. Both paths rejoin as one consistent
+update, which `--apply` commits to a separate branch and sends for review.
 
-![Template sync previews changes first, updates unchanged managed files automatically, and leaves author-edited files for an explicit decision](../assets/diagrams/23.1-template-sync-decision.png){ .documentation-diagram }
+![Template sync previews changes first, updates unchanged managed files automatically, leaves author-edited files for an explicit decision, and sends one consistent update for review](../assets/diagrams/23.1-template-sync-decision.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-template-sync-decision}
 
@@ -39,7 +39,7 @@ The progression from preview to a pushed update is shown in
 \ref{tab-devcons-template-sync-choose-how-far-the-command-should-go}.
 
 | Command {: width="52%" } | What it does | When to use it |
-|---|---|---|
+|:---|:---|:---|
 | `prodockit template-sync` | Shows what needs updating, without changing the project | Start here |
 | `prodockit template-sync --verbose` | Shows the same preview with technical details and file paths | You are investigating a particular file or reporting a problem |
 | `prodockit template-sync --apply` | Makes and saves the changes on a separate branch, sends it to the host, and creates a GitLab merge request | Your project uses a pull request (GitHub) or merge request (GitLab) |
