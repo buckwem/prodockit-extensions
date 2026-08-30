@@ -131,7 +131,7 @@ def _ensure_windows_winget() -> None:
         "$ProgressPreference = 'SilentlyContinue'; "
         "Install-Module -Name Microsoft.WinGet.Client -Force "
         "-Repository PSGallery | Out-Null; "
-        "Repair-WinGetPackageManager -AllUsers"
+        "Repair-WinGetPackageManager -AllUsers -IncludePrerelease"
     )
     _run([shell, "-NoProfile", "-Command", script])
     located = _run(

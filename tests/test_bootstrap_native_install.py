@@ -53,7 +53,7 @@ def test_missing_winget_uses_microsofts_documented_repair(monkeypatch, tmp_path:
 
     assert "Microsoft.WinGet.Client" in rendered
     assert "Install-PackageProvider" not in rendered
-    assert "Repair-WinGetPackageManager -AllUsers" in rendered
+    assert "Repair-WinGetPackageManager -AllUsers -IncludePrerelease" in rendered
     assert commands[0][0] == "/usr/bin/pwsh"
     assert str(executable.parent) in _MODULE.os.environ["PATH"]
 
