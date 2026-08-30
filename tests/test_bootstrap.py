@@ -2704,7 +2704,7 @@ def test_mac_old_pandoc_also_installs_a_missing_pango(tmp_path: Path) -> None:
     )
     joined = "\n".join(" ".join(command) for command in plan.commands)
 
-    assert "brew install pango" in joined
+    assert "brew install --force pango" in joined
     assert "brew upgrade" in joined and "pandoc" in joined
 
 
@@ -2723,7 +2723,9 @@ def test_mac_brew_commands_verify_a_receipt_after_post_install_failure(
     )
     scripts = [command[-1] for command in plan.commands if command[:2] == ["bash", "-c"]]
 
-    assert scripts
+    assert len(scripts) == 2
+    assert any("pandoc" in script for script in scripts)
+    assert any("pango" in script for script in scripts)
     assert all("|| brew list --formula" in script for script in scripts)
 
 

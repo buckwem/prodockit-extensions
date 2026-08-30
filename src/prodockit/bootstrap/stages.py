@@ -2710,14 +2710,10 @@ def _plan_pandoc(context: Context) -> Plan:
     upgrade = pandoc_upgrade or pango_upgrade
     if context.platform == MACOS:
         package_commands: list[list[str]] = []
-        if pandoc_upgrade:
+        if pandoc_upgrade or not installed.ok:
             package_commands.append(_brew_upgrade_or_install("pandoc"))
-        elif not installed.ok:
-            package_commands.append(["brew", "install", "pandoc"])
-        if pango_upgrade:
+        if pango_upgrade or not pango_result.ok:
             package_commands.append(_brew_upgrade_or_install("pango"))
-        elif not pango_result.ok:
-            package_commands.append(["brew", "install", "pango"])
         if not package_commands and not upgrade:
             package_commands.append(["brew", "install", "pandoc", "pango"])
         return Plan(
