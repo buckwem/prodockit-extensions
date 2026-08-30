@@ -2863,8 +2863,10 @@ def test_old_x64_node_is_replaced_before_native_windows_arm64_install(
         _context(tmp_path, platform=WINDOWS, runner=runner)
     )
 
-    assert plan.commands[0][:4] == ["winget", "uninstall", "--id", "OpenJS.NodeJS.LTS"]
-    assert "--source winget" in " ".join(plan.commands[0])
+    assert plan.commands[0][:3] == ["powershell", "-NoProfile", "-Command"]
+    assert "DisplayName -like 'Node.js*'" in plan.commands[0][-1]
+    assert "msiexec.exe" in plan.commands[0][-1]
+    assert "@('/x', $product, '/qn', '/norestart')" in plan.commands[0][-1]
     assert plan.commands[1][:4] == ["winget", "install", "--id", "OpenJS.NodeJS.LTS"]
     assert plan.action == "UPGRADE"
     assert plan.destructive

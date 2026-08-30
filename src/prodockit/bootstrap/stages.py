@@ -323,22 +323,6 @@ def _winget_upgrade(package_id: str, version: str = "") -> list[str]:
     ]
 
 
-def _winget_uninstall(package_id: str) -> list[str]:
-    """Remove one registered package without allowing an interactive prompt."""
-    return [
-        "winget",
-        "uninstall",
-        "--id",
-        package_id,
-        "-e",
-        "--source",
-        "winget",
-        "--silent",
-        "--accept-source-agreements",
-        "--disable-interactivity",
-    ]
-
-
 def _winget_repair(package_id: str) -> list[str]:
     """Repair an installed package without treating it as a fresh install."""
     return [
@@ -3445,6 +3429,31 @@ def _windows_node_needs_architecture_handover(context: Context) -> bool:
     )
 
 
+def _windows_remove_registered_node() -> list[str]:
+    """Remove Node's MSI when Winget cannot correlate another architecture."""
+    script = (
+        "$roots = @("  # machine x64, machine x86, and current user
+        "'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',"
+        "'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',"
+        "'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'); "
+        "$entries = Get-ItemProperty -Path $roots -ErrorAction SilentlyContinue | "
+        "Where-Object { $_.DisplayName -like 'Node.js*' }; "
+        "$removed = $false; foreach ($entry in $entries) { "
+        "$product = if ($entry.PSChildName -match '^\\{[0-9A-Fa-f-]+\\}$') { "
+        "$entry.PSChildName } elseif ($entry.UninstallString -match "
+        "'\\{[0-9A-Fa-f-]+\\}') { $Matches[0] } else { $null }; "
+        "if ($product) { Write-Host "
+        "\"Removing $($entry.DisplayName) $product before installing native ARM64 Node\"; "
+        "$process = Start-Process msiexec.exe -ArgumentList "
+        "@('/x', $product, '/qn', '/norestart') -Wait -PassThru; "
+        "if ($process.ExitCode -notin @(0, 1605, 1614, 3010)) { "
+        "throw \"Node uninstall failed with exit code $($process.ExitCode)\" }; "
+        "$removed = $true } }; if (-not $removed) { "
+        "throw 'The existing x64 Node MSI registration could not be found' }"
+    )
+    return ["powershell", "-NoProfile", "-Command", script]
+
+
 def _chromium_version_result(context: Context) -> CommandResult:
     """Ubuntu's system Chromium version, under either package command name."""
     return context.runner.run(
@@ -3548,7 +3557,7 @@ def _plan_node(context: Context) -> Plan:
                     UBUNTU: ubuntu_node_install,
                     WINDOWS: [
                         *(
-                            [_winget_uninstall("OpenJS.NodeJS.LTS")]
+                            [_windows_remove_registered_node()]
                             if _windows_node_needs_architecture_handover(context)
                             else []
                         ),
