@@ -323,6 +323,22 @@ def _winget_upgrade(package_id: str, version: str = "") -> list[str]:
     ]
 
 
+def _winget_uninstall(package_id: str) -> list[str]:
+    """Remove one registered package without allowing an interactive prompt."""
+    return [
+        "winget",
+        "uninstall",
+        "--id",
+        package_id,
+        "-e",
+        "--source",
+        "winget",
+        "--silent",
+        "--accept-source-agreements",
+        "--disable-interactivity",
+    ]
+
+
 def _winget_repair(package_id: str) -> list[str]:
     """Repair an installed package without treating it as a fresh install."""
     return [
@@ -3402,6 +3418,33 @@ def _node_runtime_state(context: Context) -> tuple[str | None, str | None, bool]
     return parsed, npm_version, npm_result.ok
 
 
+def _windows_node_needs_architecture_handover(context: Context) -> bool:
+    """Whether an emulated x64 Node must give way to native ARM64 Node.
+
+    Node 18 did not publish a Windows ARM64 installer.  It is therefore quite
+    normal for an ARM64 machine to contain its x64 MSI under emulation.  Newer
+    Winget releases select the native ARM64 installer, but Windows Installer
+    cannot change the architecture of an existing product in place and exits
+    with 1603.  Ask each side directly and make the handover explicit.
+    """
+    node_arch = context.runner.run([node_command(context), "-p", "process.arch"])
+    os_arch = context.runner.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "[System.Runtime.InteropServices.RuntimeInformation]::"
+            "OSArchitecture.ToString()",
+        ]
+    )
+    return (
+        node_arch.ok
+        and os_arch.ok
+        and node_arch.stdout.strip().lower() == "x64"
+        and os_arch.stdout.strip().lower() == "arm64"
+    )
+
+
 def _chromium_version_result(context: Context) -> CommandResult:
     """Ubuntu's system Chromium version, under either package command name."""
     return context.runner.run(
@@ -3503,7 +3546,14 @@ def _plan_node(context: Context) -> Plan:
                 install = {
                     MACOS: [_brew_upgrade_or_install("node")],
                     UBUNTU: ubuntu_node_install,
-                    WINDOWS: [_winget_upgrade("OpenJS.NodeJS.LTS")],
+                    WINDOWS: [
+                        *(
+                            [_winget_uninstall("OpenJS.NodeJS.LTS")]
+                            if _windows_node_needs_architecture_handover(context)
+                            else []
+                        ),
+                        _winget_upgrade("OpenJS.NodeJS.LTS"),
+                    ],
                 }[context.platform]
             else:
                 npm_upgrade = [

@@ -2846,6 +2846,30 @@ def test_old_windows_node_uses_an_upgrade_or_install_command(tmp_path: Path) -> 
     assert plan.describe.startswith("Upgrade Node")
 
 
+def test_old_x64_node_is_replaced_before_native_windows_arm64_install(
+    tmp_path: Path,
+) -> None:
+    """Windows Installer cannot change one Node product's architecture."""
+    runner = FakeRunner(
+        {
+            "node --version": CommandResult(0, "v18.20.0\n"),
+            "npm --version": CommandResult(0, "10.9.2\n"),
+            "node -p process.arch": CommandResult(0, "x64\n"),
+            "OSArchitecture.ToString": CommandResult(0, "Arm64\n"),
+        }
+    )
+
+    plan = next(s for s in STAGES if s.id == "node").plan(
+        _context(tmp_path, platform=WINDOWS, runner=runner)
+    )
+
+    assert plan.commands[0][:4] == ["winget", "uninstall", "--id", "OpenJS.NodeJS.LTS"]
+    assert "--source winget" in " ".join(plan.commands[0])
+    assert plan.commands[1][:4] == ["winget", "install", "--id", "OpenJS.NodeJS.LTS"]
+    assert plan.action == "UPGRADE"
+    assert plan.destructive
+
+
 def test_old_npm_is_an_explicit_upgrade_without_reinstalling_current_node(
     tmp_path: Path,
 ) -> None:
