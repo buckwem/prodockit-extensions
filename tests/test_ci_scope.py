@@ -222,7 +222,7 @@ def test_real_bootstrap_installs_are_selected_once_for_release_pull_requests() -
     assert not bootstrap_native_for_event("push", {}, changes, git=changed_version)
 
 
-def test_real_adopt_upgrade_is_selected_only_for_release_pull_requests() -> None:
+def test_real_adopt_upgrade_is_selected_for_release_pull_requests() -> None:
     event = {"pull_request": {"base": {"sha": BASE}, "head": {"sha": HEAD}}}
 
     def changed_version(command):  # type: ignore[no-untyped-def]
@@ -233,7 +233,19 @@ def test_real_adopt_upgrade_is_selected_only_for_release_pull_requests() -> None
     changes = ChangedRange(("pyproject.toml",), False, "release")
     assert adopt_native_for_event("pull_request", event, changes, git=changed_version)
     assert not adopt_native_for_event("push", {}, changes, git=changed_version)
-    assert not adopt_native_for_event("workflow_dispatch", {}, ChangedRange(full=True))
+
+
+def test_real_adopt_harness_exercises_itself_and_manual_dispatch() -> None:
+    for harness in (
+        ".github/workflows/adopt-install.yml",
+        "tools/adopt_native_upgrade.py",
+        "tools/ci_scope.py",
+    ):
+        assert adopt_native_for_event("pull_request", {}, ChangedRange((harness,)))
+    assert adopt_native_for_event("workflow_dispatch", {}, ChangedRange(full=True))
+    assert not adopt_native_for_event(
+        "push", {}, ChangedRange(("tools/adopt_native_upgrade.py",))
+    )
 
 
 def test_real_adopt_upgrade_skips_ordinary_pull_requests() -> None:

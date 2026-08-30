@@ -291,6 +291,12 @@ _NATIVE_BOOTSTRAP_FILES = {
     "tools/bootstrap_native_upgrade.py",
 }
 
+_NATIVE_ADOPT_FILES = {
+    ".github/workflows/adopt-install.yml",
+    "tools/adopt_native_upgrade.py",
+    "tools/ci_scope.py",
+}
+
 
 def _project_version_at(ref: str, *, git: GitRunner = _run_git) -> str:
     """Read the package version from *ref* without changing the checkout."""
@@ -347,23 +353,31 @@ def adopt_native_for_event(
     *,
     git: GitRunner = _run_git,
 ) -> bool:
-    """Select the real Adopt upgrade only for a release pull request.
+    """Select the real Adopt upgrade for releases and its own test code.
 
     The ordinary installed-wheel matrix exercises Adopt changes on every
     relevant pull request.  This slower gate downloads an older published
     Prodockit release, creates a fully adopted project, and upgrades it with
     the candidate wheel on all five architectures.  A package version change
-    is therefore the deliberate boundary: it runs before a release is merged,
-    but is not repeated for the resulting push, schedules, or unrelated work.
+    is therefore the normal boundary.  Changes to the native workflow, harness
+    or selector also exercise the gate before those changes can be merged, and
+    a manual dispatch provides an explicit diagnostic rerun.  It is not
+    repeated for the resulting push, schedules, or ordinary Adopt work.
 
     If a pull request changes ``pyproject.toml`` but either version cannot be
     read, select the gate rather than risk mistaking a malformed release pull
     request for ordinary work.
     """
 
+    if event_name == "workflow_dispatch":
+        return True
     if event_name != "pull_request":
         return False
-    if not changes.full and "pyproject.toml" not in changes.paths:
+    if changes.full:
+        return True
+    if any(path in _NATIVE_ADOPT_FILES for path in changes.paths):
+        return True
+    if "pyproject.toml" not in changes.paths:
         return False
     try:
         pull = event["pull_request"]
