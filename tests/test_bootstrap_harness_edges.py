@@ -392,7 +392,7 @@ def test_windows_path_refresh_merges_machine_and_user_values(
     # ``refresh_windows_path`` intentionally changes the process environment.
     # Register the existing value with monkeypatch so this platform simulation
     # cannot remove git, pandoc and the other tools from later tests' PATH.
-    monkeypatch.setenv("PATH", model_module.os.environ.get("PATH", ""))
+    monkeypatch.setenv("PATH", r"C:\SessionOnly")
     fake = _fake_winreg(
         {
             r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment": r"C:\Tools",
@@ -406,8 +406,11 @@ def test_windows_path_refresh_merges_machine_and_user_values(
     monkeypatch.setitem(sys.modules, "winreg", fake)
 
     merged = refresh_windows_path()
+    refreshed_again = refresh_windows_path()
 
-    assert merged == r"C:\Tools:C:\Users\Ada\bin"
+    assert merged == r"C:\Tools;C:\Users\Ada\bin;C:\SessionOnly"
+    assert refreshed_again == merged
+    assert merged.count(r"C:\SessionOnly") == 1
     assert model_module.os.environ["PATH"] == merged
     assert model_module.os.environ["WEASYPRINT_DLL_DIRECTORIES"] == r"C:\msys64\ucrt64\bin"
 

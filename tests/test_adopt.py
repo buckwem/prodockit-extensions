@@ -182,6 +182,51 @@ def test_requirement_replaces_an_exact_pin_with_a_floor(tmp_path: Path) -> None:
     assert "prodockit==" not in text
 
 
+def test_assessment_upgrades_an_older_prodockit_floor(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    (project / "requirements.txt").write_text(
+        "zensical\nprodockit>=0.47.0\n", encoding="utf-8"
+    )
+
+    dependency = next(step for step in assess(project, AdoptOptions()) if step.id == "dependency")
+
+    assert dependency.status == "missing"
+    assert f"prodockit>={__version__}" in dependency.detail
+
+    ensure_requirement(project)
+    assert f"prodockit>={__version__}" in (project / "requirements.txt").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_assessment_keeps_a_newer_prodockit_floor(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    (project / "requirements.txt").write_text(
+        "prodockit>=999.0.0\n", encoding="utf-8"
+    )
+
+    dependency = next(step for step in assess(project, AdoptOptions()) if step.id == "dependency")
+
+    assert dependency.status == "ok"
+
+
+def test_assessment_refreshes_the_managed_stylesheet(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    ensure_requirement(project)
+    ensure_zensical_config(project, AdoptOptions())
+    stylesheet = project / STYLESHEET
+    stylesheet.parent.mkdir(parents=True, exist_ok=True)
+    stylesheet.write_text("/* old managed stylesheet */\n", encoding="utf-8")
+
+    core = next(step for step in assess(project, AdoptOptions()) if step.id == "core")
+
+    assert core.status == "missing"
+    ensure_stylesheet(project)
+    assert stylesheet.read_text(encoding="utf-8") != "/* old managed stylesheet */\n"
+    core = next(step for step in assess(project, AdoptOptions()) if step.id == "core")
+    assert core.status == "ok"
+
+
 def test_existing_documentation_requirements_file_is_used(tmp_path: Path) -> None:
     project = _project(tmp_path)
     requirements = project / "requirements" / "docs.txt"
@@ -423,6 +468,7 @@ def test_mermaid_install_uses_only_the_selected_node_project(tmp_path: Path, mon
         assert command == [
             "/usr/bin/npm",
             "ci",
+            "--legacy-peer-deps",
             "--no-audit",
             "--no-fund",
             "--prefer-offline",
@@ -452,6 +498,7 @@ def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monke
         assert command == [
             "/usr/bin/npm",
             "ci",
+            "--legacy-peer-deps",
             "--no-audit",
             "--no-fund",
             "--prefer-offline",

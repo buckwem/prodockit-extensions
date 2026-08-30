@@ -31,6 +31,7 @@ except where noted:
 | [`beautifulsoup4`](https://www.crummy.com/software/BeautifulSoup/) (>= 4.12) | `prodockit.pdf` |
 | \index{dependencies!`click`} (>= 8.0) | the `prodockit` command-line tool |
 | [`PyYAML`](https://pyyaml.org/) (>= 6.0) | `prodockit adopt` support for existing `mkdocs.yml`/`mkdocs.yaml` projects |
+| [`packaging`](https://packaging.pypa.io/) (>= 24.0) | comparing an adopted project's recorded Prodockit version floor with the installed release |
 | \index{dependencies!`pypdf`} (>= 4.0) | `prodockit.pdf` |
 | \index{dependencies!`tomli`} (>= 2.0) | reading a template manifest on Python 3.10, where `tomllib` does not exist yet |
 | \index{dependencies!`pymupdf`} (>= 1.24) | only the back-of-book index - `pip install prodockit[index]` |

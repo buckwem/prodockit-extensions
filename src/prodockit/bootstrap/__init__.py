@@ -330,6 +330,7 @@ def apply_stage(
     if plan is None:
         plan = stage.plan(context)
     result = ApplyResult(stage=stage)
+    recovered_outcome: CommandResult | None = None
     command_count = len(plan.commands)
     for command_number, planned in enumerate(plan.commands, start=1):
         # Resolved now rather than when the plan was written. A command
@@ -411,6 +412,15 @@ def apply_stage(
             forget_contacts(context)
             recovered = stage.check(context)
             accepted = not recovered.needs_work
+            if recovered.status is Status.WARNING:
+                # A warning means compatibility could not be proved; it is
+                # not proof that this failed command completed the stage.
+                # Continue through the remaining idempotent repair commands
+                # and let the final check decide. This is important when an
+                # existing MSYS2 installation makes winget return non-zero:
+                # the later commands still install and expose the exact Pango
+                # package WeasyPrint needs.
+                recovered_outcome = outcome
         if progress is not None:
             progress(
                 "finish" if accepted else "failed",
@@ -420,7 +430,7 @@ def apply_stage(
             )
         if not accepted:
             return ApplyResult(stage=stage, ran=result.ran, failed=outcome)
-        if recovered is not None:
+        if recovered is not None and recovered.status is Status.OK:
             return ApplyResult(
                 stage=stage,
                 ran=result.ran,
@@ -434,7 +444,12 @@ def apply_stage(
     # before they did reported the repository they had just created as
     # missing, for ever (prodockit-extensions#321).
     forget_contacts(context)
-    return ApplyResult(stage=stage, ran=result.ran, verified=stage.check(context))
+    return ApplyResult(
+        stage=stage,
+        ran=result.ran,
+        verified=stage.check(context),
+        recovered=recovered_outcome,
+    )
 
 
 @dataclass(frozen=True)

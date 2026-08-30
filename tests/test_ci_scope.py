@@ -18,6 +18,8 @@ _SPEC.loader.exec_module(_MODULE)
 ChangedRange = _MODULE.ChangedRange
 Scope = _MODULE.Scope
 all_scope = _MODULE.all_scope
+bootstrap_native_for_event = _MODULE.bootstrap_native_for_event
+adopt_native_for_event = _MODULE.adopt_native_for_event
 changed_range_for_event = _MODULE.changed_range_for_event
 classify = _MODULE.classify
 output_lines = _MODULE.output_lines
@@ -200,6 +202,95 @@ def test_all_scope_emits_every_supported_python_and_acceptance_suite() -> None:
         "adopt=true",
         "pdf=true",
         "bootstrap=true",
+        "adopt-native=false",
+        "bootstrap-native=false",
+    )
+
+
+def test_real_bootstrap_installs_are_selected_once_for_release_pull_requests() -> None:
+    event = {"pull_request": {"base": {"sha": BASE}, "head": {"sha": HEAD}}}
+
+    def changed_version(command):  # type: ignore[no-untyped-def]
+        ref = command[-1].split(":", 1)[0]
+        version = "0.51.3" if ref == BASE else "0.51.4"
+        return _completed(stdout=f'[project]\nversion = "{version}"\n'.encode())
+
+    changes = ChangedRange(("pyproject.toml",), False, "release")
+    assert bootstrap_native_for_event(
+        "pull_request", event, changes, git=changed_version
+    )
+    assert not bootstrap_native_for_event("push", {}, changes, git=changed_version)
+
+
+def test_real_adopt_upgrade_is_selected_for_release_pull_requests() -> None:
+    event = {"pull_request": {"base": {"sha": BASE}, "head": {"sha": HEAD}}}
+
+    def changed_version(command):  # type: ignore[no-untyped-def]
+        ref = command[-1].split(":", 1)[0]
+        version = "0.51.3" if ref == BASE else "0.51.4"
+        return _completed(stdout=f'[project]\nversion = "{version}"\n'.encode())
+
+    changes = ChangedRange(("pyproject.toml",), False, "release")
+    assert adopt_native_for_event("pull_request", event, changes, git=changed_version)
+    assert not adopt_native_for_event("push", {}, changes, git=changed_version)
+
+
+def test_real_adopt_harness_exercises_itself_and_manual_dispatch() -> None:
+    for harness in (
+        ".github/workflows/adopt-install.yml",
+        "tools/adopt_native_upgrade.py",
+        "tools/ci_scope.py",
+    ):
+        assert adopt_native_for_event("pull_request", {}, ChangedRange((harness,)))
+    assert adopt_native_for_event("workflow_dispatch", {}, ChangedRange(full=True))
+    assert not adopt_native_for_event(
+        "push", {}, ChangedRange(("tools/adopt_native_upgrade.py",))
+    )
+
+
+def test_real_adopt_upgrade_skips_ordinary_pull_requests() -> None:
+    assert not adopt_native_for_event(
+        "pull_request",
+        {},
+        ChangedRange(("src/prodockit/adopt.py",), False, "ordinary"),
+    )
+
+
+def test_real_bootstrap_installs_skip_an_ordinary_pull_request() -> None:
+    event = {"pull_request": {"base": {"sha": BASE}, "head": {"sha": HEAD}}}
+
+    def same_version(_command):  # type: ignore[no-untyped-def]
+        return _completed(stdout=b'[project]\nversion = "0.51.4"\n')
+
+    assert not bootstrap_native_for_event(
+        "pull_request",
+        event,
+        ChangedRange(("src/prodockit/bootstrap/stages.py",), False, "ordinary"),
+        git=same_version,
+    )
+
+
+def test_real_bootstrap_harness_exercises_itself_and_manual_dispatch() -> None:
+    for harness in (
+        "tools/bootstrap_native_install.py",
+        "tools/bootstrap_native_upgrade.py",
+    ):
+        assert bootstrap_native_for_event(
+            "pull_request", {}, ChangedRange((harness,))
+        )
+    assert bootstrap_native_for_event("workflow_dispatch", {}, ChangedRange(full=True))
+    assert not bootstrap_native_for_event(
+        "push", {}, ChangedRange(("tools/bootstrap_native_install.py",))
+    )
+
+
+def test_uncertain_release_detection_fails_closed() -> None:
+    def failed(_command):  # type: ignore[no-untyped-def]
+        return _completed(returncode=1)
+
+    event = {"pull_request": {"base": {"sha": BASE}, "head": {"sha": HEAD}}}
+    assert bootstrap_native_for_event(
+        "pull_request", event, ChangedRange(("pyproject.toml",)), git=failed
     )
 
 
@@ -256,9 +347,54 @@ def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_c
         encoding="utf-8"
     )
 
+    assert "run-name: Adopt wheel installation and real project upgrades" in workflow
     assert "cache: npm" in workflow
     assert "src/prodockit/_tools_template/mermaid/package-lock.json" in workflow
     assert "src/prodockit/_tools_template/mathjax/package-lock.json" in workflow
     assert workflow.count("scenario_args: --scenario toml-both") == 2
     assert "runner: windows-2025" in workflow
     assert "runner: windows-11-arm" in workflow
+
+
+def test_adopt_release_gate_upgrades_an_old_full_project_on_every_runner() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "native: ${{ steps.scope.outputs['adopt-native'] }}" in workflow
+    assert "if: needs.scope.outputs.native == 'true'" in workflow
+    assert "python tools/adopt_native_upgrade.py" in workflow
+    assert "--scenario" not in workflow.split("native-upgrade:", 1)[1]
+    for runner in (
+        "ubuntu-24.04",
+        "ubuntu-24.04-arm",
+        "windows-2025",
+        "windows-11-arm",
+        "macos-15",
+    ):
+        assert runner in workflow.split("native-upgrade:", 1)[1]
+
+
+def test_bootstrap_release_gate_runs_real_installs_on_every_supported_runner() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "bootstrap-install.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        "run-name: Bootstrap wheel installation, clean setup and real software upgrades"
+        in workflow
+    )
+    assert "native: ${{ steps.scope.outputs['bootstrap-native'] }}" in workflow
+    assert "if: needs.scope.outputs.native == 'true'" in workflow
+    assert "python tools/bootstrap_native_install.py" in workflow
+    assert "python tools/bootstrap_native_upgrade.py" in workflow
+    assert "timeout-minutes: 60" in workflow
+    assert "timeout-minutes: 120" in workflow
+    for runner in (
+        "ubuntu-24.04",
+        "ubuntu-24.04-arm",
+        "windows-2025",
+        "windows-11-arm",
+        "macos-15",
+    ):
+        assert runner in workflow

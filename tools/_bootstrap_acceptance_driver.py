@@ -39,6 +39,7 @@ from prodockit.bootstrap import (
     CommandResult,
     Stage,
     Status,
+    SubprocessRunner,
     build_context,
     current_platform,
     load,
@@ -81,7 +82,7 @@ def git(
     return run(["git", *arguments], cwd=cwd, environment=environment, check=check)
 
 
-def write_project(path: Path, *, marker: str) -> None:
+def write_project(path: Path, *, marker: str, real_toolchains: bool = False) -> None:
     (path / "docs").mkdir(parents=True)
     (path / "docs" / "index.md").write_text(f"# {marker}\n", encoding="utf-8")
     (path / "README.md").write_text(f"# {marker}\n", encoding="utf-8")
@@ -103,14 +104,40 @@ repo = "fontawesome/brands/github"
 ''',
         encoding="utf-8",
     )
+    if real_toolchains:
+        # The fast harness simulates npm.  Native release acceptance crosses
+        # that boundary, so its template and existing-project repositories
+        # need the same tracked manifests that a real template supplies.
+        source = Path(__file__).resolve().parent
+        for tool, names in {
+            "mermaid": ("package.json", "package-lock.json"),
+            "mathjax": ("package.json", "package-lock.json", "tex2svg.js"),
+        }.items():
+            destination = path / "tools" / tool
+            destination.mkdir(parents=True)
+            for name in names:
+                shutil.copy2(source / tool / name, destination / name)
 
 
 def initialise_worktree(
-    path: Path, *, marker: str, environment: dict[str, str]
+    path: Path,
+    *,
+    marker: str,
+    environment: dict[str, str],
+    real_toolchains: bool = False,
 ) -> str:
     path.mkdir(parents=True)
-    write_project(path, marker=marker)
-    git(["init", "-b", "main"], cwd=path, environment=environment)
+    write_project(path, marker=marker, real_toolchains=real_toolchains)
+    initialised = git(
+        ["init", "-b", "main"], cwd=path, environment=environment, check=False
+    )
+    if initialised.returncode:
+        # The real-upgrade route intentionally starts with Git 2.27; ``-b``
+        # is the feature Bootstrap must upgrade Git to gain.  The local test
+        # fixture therefore uses the older equivalent without concealing what
+        # Bootstrap itself later executes.
+        git(["init"], cwd=path, environment=environment)
+        git(["checkout", "-b", "main"], cwd=path, environment=environment)
     git(["add", "-A"], cwd=path, environment=environment)
     git(["commit", "-m", marker], cwd=path, environment=environment)
     return git(["rev-parse", "HEAD"], cwd=path, environment=environment).stdout.strip()
@@ -144,11 +171,16 @@ class HarnessRunner:
         *,
         home: Path,
         old_software: bool = False,
+        real_software: bool = False,
+        remote_rewrites: dict[str, Path] | None = None,
     ) -> None:
         self.environment = environment
         self.expected_remote = expected_remote
         self.home = home
         self.old_software = old_software
+        self.real_software = real_software
+        self.remote_rewrites = remote_rewrites or {}
+        self.system = SubprocessRunner()
         self.calls: list[list[str]] = []
         self.upgraded: set[str] = set()
         self.versions = {
@@ -169,6 +201,66 @@ class HarnessRunner:
             for name, minimum in bootstrap_stages_module.VSCODE_EXTENSION_MIN_VERSIONS.items()
         }
         self.chromium = True
+        self.old_tool_bins = {
+            name: Path(path)
+            for name, path in json.loads(
+                environment.get("PDKBOOT_ACCEPTANCE_OLD_TOOL_BINS", "{}")
+            ).items()
+        }
+
+    def _reveal_installed_tools(self, *names: str) -> None:
+        """Remove only upgraded portable fixtures from the controlled PATH."""
+        hidden = {
+            os.path.normcase(str(self.old_tool_bins[name]))
+            for name in names
+            if name in self.old_tool_bins
+        }
+        if not hidden:
+            return
+        parts = [
+            part
+            for part in self.environment.get("PATH", "").split(os.pathsep)
+            if os.path.normcase(part) not in hidden
+        ]
+        value = os.pathsep.join(parts)
+        self.environment["PATH"] = value
+        os.environ["PATH"] = value
+
+    def _record_real_machine_install(self, words: Sequence[str]) -> None:
+        """Expose a new executable only after its real installer succeeds."""
+        executable = Path(words[0]).name.lower()
+        script = " ".join(words)
+        upgraded: set[str] = set()
+        if executable in {"winget", "winget.exe"} and "--id" in words:
+            package = words[words.index("--id") + 1]
+            selected = {
+                "Microsoft.VisualStudioCode": "vscode",
+                "Git.Git": "git",
+                "JohnMacFarlane.Pandoc": "pandoc",
+                "OpenJS.NodeJS.LTS": "node",
+            }.get(package)
+            if selected:
+                upgraded.add(selected)
+        elif executable == "sudo" and "apt" in words:
+            if "/tmp/code.deb" in words:
+                upgraded.add("vscode")
+            if "git" in words:
+                upgraded.add("git")
+            if "/tmp/pandoc.deb" in words:
+                upgraded.add("pandoc")
+            if "nodejs" in words:
+                upgraded.add("node")
+        elif executable in {"brew", "bash"} and "brew" in script:
+            if "visual-studio-code" in script:
+                upgraded.add("vscode")
+            for name in ("git", "pandoc", "node"):
+                pattern = (
+                    rf"(?:--formula\s+|\b(?:install|upgrade)\s+"
+                    rf"(?:--force\s+)?){name}\b"
+                )
+                if re.search(pattern, script):
+                    upgraded.add(name)
+        self._reveal_installed_tools(*upgraded)
 
     def _upgrade(self, *names: str) -> None:
         targets = {
@@ -213,11 +305,36 @@ class HarnessRunner:
         timeout: float | None = None,
         capture: bool = True,
     ) -> CommandResult:
-        del timeout, capture
         words = list(command)
         self.calls.append(words)
         executable = Path(words[0]).name.lower()
         working = Path(cwd) if cwd else Path.cwd()
+
+        # Native release acceptance keeps the Git-host and repository edges
+        # local, but deliberately crosses the machine boundary.  These are
+        # actual programs and package managers on a disposable runner, not
+        # the version-bearing test doubles used by ``--old-software``.
+        real_machine_commands = {
+            "bash",
+            "brew",
+            "code",
+            "code.cmd",
+            "curl",
+            "dpkg",
+            "dpkg-query",
+            "fc-list",
+            "node",
+            "node.exe",
+            "npm",
+            "npm.cmd",
+            "pandoc",
+            "pandoc.exe",
+            "pango-view",
+            "pango-view.exe",
+            "sudo",
+            "winget",
+            "winget.exe",
+        }
 
         if self.old_software and executable in {"code", "code.cmd"}:
             if "--version" in words:
@@ -313,12 +430,29 @@ class HarnessRunner:
 
         if self.old_software and executable == "bash":
             script = " ".join(words)
+            if "brew list" in script:
+                if "visual-studio-code" in script:
+                    self._upgrade("vscode")
+                if re.search(
+                    r"\b(?:brew (?:upgrade|install)(?: --force)?|--formula) git\b",
+                    script,
+                ):
+                    self._upgrade("git")
+                selected = [name for name in ("pandoc", "pango") if name in script]
+                if selected:
+                    self._upgrade(*selected)
+                if re.search(
+                    r"\b(?:brew (?:upgrade|install)(?: --force)?|--formula) node\b",
+                    script,
+                ):
+                    self._upgrade("node")
+                return CommandResult(0)
             if "chromium-browser" in script and "--version" in script:
                 return CommandResult(0, f"Chromium {self.versions['chromium']}\n")
-            if "npm ci --prefix" in script:
-                match = re.search(r"npm ci --prefix\s+([^;\s]+)", script)
+            if "npm ci" in script and "cd " in script:
+                match = re.search(r"\bcd\s+([^;&]+?)\s+&&\s+npm ci", script)
                 if match:
-                    self._install_toolchain(Path(match.group(1)))
+                    self._install_toolchain(Path(match.group(1).strip(" '\"")))
                 return CommandResult(0)
             if "which chromium-browser" in script:
                 return CommandResult(0, "/usr/bin/chromium-browser\n")
@@ -345,9 +479,18 @@ class HarnessRunner:
                 return CommandResult(1, stderr="could not read Move-Item paths")
             shutil.move(paths[0].replace("''", "'"), paths[1].replace("''", "'"))
             return CommandResult(0)
+        if self.real_software and executable in {"powershell", "powershell.exe", "pwsh"}:
+            result = self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
+            if result.returncode == 0:
+                self._record_real_machine_install(words)
+            return result
         if self.old_software and executable in {"powershell", "powershell.exe"}:
             if "pacman -S" in words[-1]:
                 self._upgrade("pango")
+            if "npm.cmd ci" in words[-1] and "Set-Location -LiteralPath" in words[-1]:
+                match = re.search(r"Set-Location -LiteralPath '((?:''|[^'])+)'", words[-1])
+                if match:
+                    self._install_toolchain(Path(match.group(1).replace("''", "'")))
             return CommandResult(0)
 
         if executable.startswith("zensical"):
@@ -407,6 +550,17 @@ class HarnessRunner:
             )
             clone_destination = Path(words[-1]) if clone_remote else None
             words[0] = "git"
+            # Keep every host boundary local even when Bootstrap has just
+            # replaced Git itself.  Relying only on a global ``insteadOf``
+            # setting made the rewrite disappear when a native upgrade
+            # switched from the portable old Git to the package-manager Git.
+            # Command-scoped configuration travels with the invocation and
+            # cannot be lost during that transition.
+            for remote, local in self.remote_rewrites.items():
+                words[1:1] = [
+                    "-c",
+                    f"url.{local.resolve().as_uri()}.insteadOf={remote}",
+                ]
             completed = run(words, cwd=working, environment=self.environment, check=False)
             if completed.returncode == 0 and clone_remote and clone_destination:
                 run(
@@ -415,6 +569,19 @@ class HarnessRunner:
                     environment=self.environment,
                 )
             return CommandResult(completed.returncode, completed.stdout, completed.stderr)
+
+        if self.real_software and executable in real_machine_commands:
+            result = self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
+            if result.returncode == 0:
+                self._record_real_machine_install(words)
+            return result
+
+        if (
+            self.real_software
+            and executable == Path(sys.executable).name.lower()
+            and "-c" in words
+        ):
+            return self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
 
         if self.old_software and executable == Path(sys.executable).name.lower() and "-c" in words:
             script = words[words.index("-c") + 1]
@@ -437,7 +604,9 @@ def _simulated_stage(stage: Stage) -> Stage:
     return Stage(stage.id, stage.summary, satisfied, stage.plan)
 
 
-def acceptance_stages(*, old_software: bool = False) -> tuple[Stage, ...]:
+def acceptance_stages(
+    *, old_software: bool = False, real_software: bool = False
+) -> tuple[Stage, ...]:
     """Keep repository stages real and replace only external machine edges."""
     real = {
         "own-project",
@@ -450,7 +619,7 @@ def acceptance_stages(*, old_software: bool = False) -> tuple[Stage, ...]:
         "first-push",
         "site",
     }
-    if old_software:
+    if old_software or real_software:
         real.update({"vscode", "git", "pandoc", "node", "extensions"})
     return tuple(stage if stage.id in real else _simulated_stage(stage) for stage in STAGES)
 
@@ -461,6 +630,26 @@ def supports_old_software_route(host: str, route: str) -> bool:
         ("surrey", "existing"),
         ("github", "new"),
     }
+
+
+def machine_home(
+    environment: dict[str, str], *, real_software: bool, platform_name: str
+) -> Path:
+    """Return the home directory where native applications are installed.
+
+    Repository state remains below the acceptance scenario's isolated
+    ``HOME``.  A real Windows software run must nevertheless inspect the
+    runner's genuine per-user application directory: WinGet installs VS Code
+    below ``USERPROFILE``, and hiding that directory turns an installed old
+    version into a false "not installed" result.
+    """
+    if (
+        real_software
+        and platform_name == "windows"
+        and (userprofile := environment.get("USERPROFILE"))
+    ):
+        return Path(userprofile)
+    return Path(environment["HOME"])
 
 
 def fetch(_url: str, timeout: float = 20.0) -> Fetched:
@@ -532,10 +721,15 @@ def main() -> None:
     parser.add_argument("--host", choices=("surrey", "github"), required=True)
     parser.add_argument("--route", choices=("new", "existing"), required=True)
     parser.add_argument("--old-software", action="store_true")
+    parser.add_argument("--real-software", action="store_true")
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
 
-    if args.old_software and not supports_old_software_route(args.host, args.route):
+    if args.old_software and args.real_software:
+        raise AcceptanceError("choose simulated or real old software, not both")
+    if (args.old_software or args.real_software) and not supports_old_software_route(
+        args.host, args.route
+    ):
         raise AcceptanceError(
             "old-software acceptance is limited to Surrey's existing-repository "
             "route and GitHub's new-repository route"
@@ -543,19 +737,26 @@ def main() -> None:
 
     started = time.perf_counter()
     root = args.root.resolve()
-    root.mkdir(parents=True)
+    # The native-upgrade parent creates ``root/home`` first so it can seed
+    # real old editor extensions.  Reusing that deliberately prepared root
+    # must not make the child acceptance route fail before Bootstrap starts.
+    root.mkdir(parents=True, exist_ok=True)
     environment = dict(os.environ)
+    real_userprofile = environment.get("USERPROFILE")
     environment.pop("PYTHONPATH", None)
     environment.update(
         {
             "HOME": str(root / "home"),
-            "USERPROFILE": str(root / "home"),
             "GIT_CONFIG_GLOBAL": str(root / "gitconfig"),
             "GIT_TERMINAL_PROMPT": "0",
             "PYTHONUTF8": "1",
         }
     )
-    Path(environment["HOME"]).mkdir()
+    if args.real_software and current_platform() == "windows" and real_userprofile:
+        environment["USERPROFILE"] = real_userprofile
+    else:
+        environment["USERPROFILE"] = str(root / "home")
+    Path(environment["HOME"]).mkdir(exist_ok=True)
     if args.old_software and current_platform() == "windows":
         fonts = (
             Path(environment["HOME"])
@@ -591,7 +792,12 @@ def main() -> None:
 
     template_work = root / "template-work"
     template_bare = root / "template.git"
-    initialise_worktree(template_work, marker="Template", environment=environment)
+    initialise_worktree(
+        template_work,
+        marker="Template",
+        environment=environment,
+        real_toolchains=args.real_software,
+    )
     bare_clone(template_work, template_bare, environment=environment)
     configure_rewrite(
         host.template_remote, template_bare, root=root, environment=environment
@@ -601,7 +807,12 @@ def main() -> None:
     initial_head = ""
     if existing:
         target_work = root / "target-work"
-        initialise_worktree(target_work, marker="Existing project", environment=environment)
+        initialise_worktree(
+            target_work,
+            marker="Existing project",
+            environment=environment,
+            real_toolchains=args.real_software,
+        )
         git(
             ["remote", "add", "origin", expected_remote],
             cwd=target_work,
@@ -630,19 +841,35 @@ def main() -> None:
     harness = HarnessRunner(
         environment,
         expected_remote,
-        home=Path(environment["HOME"]),
+        home=machine_home(
+            environment,
+            real_software=args.real_software,
+            platform_name=current_platform(),
+        ),
         old_software=args.old_software,
+        real_software=args.real_software,
+        remote_rewrites={
+            host.template_remote: template_bare,
+            expected_remote: target_bare,
+        },
     )
     vars(bootstrap_stages_module)["_check_ssh_authenticates"] = lambda _context: (
         CheckResult(Status.OK, "provided by the acceptance runner")
     )
-    vars(cli)["STAGES"] = acceptance_stages(old_software=args.old_software)
+    vars(cli)["STAGES"] = acceptance_stages(
+        old_software=args.old_software,
+        real_software=args.real_software,
+    )
     vars(cli)["build_bootstrap_context"] = (
         lambda candidate, *, guided=False: build_context(
             candidate,
             runner=harness,
             platform=current_platform(),
-            home=Path(environment["HOME"]),
+            home=machine_home(
+                environment,
+                real_software=args.real_software,
+                platform_name=current_platform(),
+            ),
             exists=Path.exists,
             fetch=fetch,
             guided=guided,
@@ -711,6 +938,24 @@ def main() -> None:
             raise AcceptanceError(
                 "the old-software route did not present each software upgrade explicitly"
             )
+    if args.real_software:
+        expected = {
+            "Visual Studio Code",
+            "Git, installed and configured",
+            "Pandoc, and the libraries WeasyPrint needs",
+            "Node.js and the render toolchains",
+            "VS Code extensions",
+        }
+        upgraded = {
+            summary
+            for summary in expected
+            if f"{summary}\n  Action:   UPGRADE" in apply_output
+        }
+        if upgraded != expected:
+            raise AcceptanceError(
+                "the real back-level route did not present every upgrade; "
+                f"got {sorted(upgraded)}, expected {sorted(expected)}\n{apply_output}"
+            )
     if not project.is_dir() or not (project / ".git").is_dir():
         raise AcceptanceError("bootstrap did not create a complete local clone")
     if git(["status", "--porcelain"], cwd=project, environment=environment).stdout:
@@ -772,6 +1017,7 @@ def main() -> None:
         "host": args.host,
         "route": args.route,
         "old_software": args.old_software,
+        "real_software": args.real_software,
         "machine": platform.machine(),
         "platform": current_platform(),
         "python": platform.python_version(),

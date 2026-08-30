@@ -47,7 +47,7 @@ schedule. The other boxes are actions or workflow stages that follow.
 | Workflow {: width="42%" } | Trigger | Responsibility |
 |---|---|---|
 | [`adopt-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/adopt-install.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on Ubuntu and Windows x64, plus Ubuntu, Windows and macOS ARM64. Both Windows architectures run one complete TOML scenario with Mermaid and maths; Ubuntu and macOS retain the wider TOML/YAML option coverage. Canonical npm lockfiles and the hosted cache avoid resolving and downloading the same Node packages afresh on every run. |
-| [`bootstrap-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-install.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on the same five native runners, then exercise the new- and existing-repository routes for Surrey GitLab and public GitHub against hermetic local Git remotes. External account, package-manager and Pages boundaries remain covered by manual platform testing. |
+| [`bootstrap-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-install.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on the same five native runners, then exercise the new- and existing-repository routes for Surrey GitLab and public GitHub against hermetic local Git remotes. A version-changing release pull request also removes the runner's existing tools and executes Bootstrap's real VS Code, Git, Pandoc/Pango/font, Python-environment, Node/toolchain and editor-extension installs on all five runners. |
 | [`pdf-built-site-wheel.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/pdf-built-site-wheel.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on the same x64 and ARM64 operating-system matrix, exercise the renderer used by public `prodockit pdf` through Zensical's documented clean build, and verify it can consume navigation, rendered extensions and page metadata without a Git host |
 | [`ci.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/ci.yml) | Pull requests and pushes to `main`; weekly schedule; manual dispatch | Test Python 3.14 for every change, add the oldest supported Python when executable code can change, and select Python 3.10–3.14 for dependency, workflow and classifier changes. Weekly and manual runs always use the complete version matrix. Lint, type-check, verify pins and collect coverage once, strictly build the site, and validate both package artifacts on every run. |
 | [`docs.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/docs.yml) | Pushes to `main`; manual dispatch | Build the complete PDF and selected single-page PDFs, strictly build the website, run built-output tests, deploy Pages, then verify the live page matches the uploaded artifact |
@@ -74,6 +74,16 @@ the safety net for an ownership rule that proves incomplete. `docs.yml` proves a
 `publish.yml` has the narrow permission needed for PyPI; the redeploy fixes
 release-tag timing; and `drift.yml` observes future upgrades without changing
 the current release.
+
+The Bootstrap workflow deliberately has two levels. Its fast hermetic routes
+run for relevant implementation changes and retain complete GitLab/GitHub
+decision coverage without depending on outside services. The slower real
+installer matrix runs when the package version changes, when that matrix's own
+implementation changes, or when requested manually. It crosses the live
+package-manager and download boundary on disposable runners, but still uses no
+GitHub or GitLab user account. A release therefore detects installer-source,
+download, architecture and native-library failures before publication without
+making every ordinary pull request wait for five fresh machine installations.
 
 This is the deliberate balance between time and maintenance complexity. The
 native matrices remain complete once selected rather than introducing a
