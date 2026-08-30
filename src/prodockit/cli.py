@@ -2889,6 +2889,7 @@ def _run_template_sync(
     do_apply: bool,
     verbose: bool,
     push: bool,
+    local_only: bool,
     force: tuple[str, ...],
     github: str | None,
     surrey: str | None,
@@ -2903,6 +2904,10 @@ def _run_template_sync(
     import subprocess
     from collections.abc import Iterable
 
+    from prodockit.shared_files import SharedFileError
+    from prodockit.shared_files import apply as apply_shared_files
+    from prodockit.shared_files import drift as shared_file_drift
+    from prodockit.shared_files import inspect as inspect_shared_files
     from prodockit.template_sync import (
         MANIFEST_FILE,
         STAMP_FILE,
@@ -2910,6 +2915,7 @@ def _run_template_sync(
         append_ignores,
         append_log,
         apply_config_changes,
+        apply_dependency_updates,
         apply_file_actions,
         apply_seeds,
         baseline_report,
@@ -2918,6 +2924,7 @@ def _run_template_sync(
         classification_report,
         config_changes,
         default_branch,
+        dependency_updates,
         derive_baseline,
         edited_managed_stylesheets,
         git_reader,
@@ -2938,8 +2945,10 @@ def _run_template_sync(
         read_config,
         read_stamp,
         resolve_template,
+        review_url,
         stage_changes,
         start_branch,
+        submit_for_review,
         update_report,
         write_stamp,
         written_report,
@@ -2958,7 +2967,24 @@ def _run_template_sync(
             "--push sends an applied update to GitHub or GitLab, so use it with "
             "--apply: prodockit template-sync --apply --push"
         )
+    if local_only and not do_apply:
+        raise TemplateSyncError(
+            "--local-only changes how an applied update is finished, so use it with "
+            "--apply: prodockit template-sync --apply --local-only"
+        )
+    if local_only and push:
+        raise TemplateSyncError(
+            "--local-only and --push choose different destinations. Use one or the other"
+        )
     git = git_runner(project)
+
+    origin_remote = subprocess.run(
+        ["git", "-C", str(project), "remote", "get-url", "origin"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    ).stdout.strip()
 
     started = now()
     logged: list[str] = []
@@ -2999,14 +3025,9 @@ def _run_template_sync(
             template = pathlib.Path(template_path).resolve()
             say_detail(f"Template source: {template} (--template-path)")
         else:
-            remote = subprocess.run(
-                ["git", "-C", str(project), "remote", "get-url", "origin"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                check=False,
-            ).stdout.strip()
-            template_remote = resolve_template(remote or None, github=github, surrey=surrey)
+            template_remote = resolve_template(
+                origin_remote or None, github=github, surrey=surrey
+            )
             say_detail(f"Template source: {template_remote}")
             template, how = _template_checkout(project, template_remote)
             say_detail(f"Template checkout: {template} ({how})")
@@ -3175,6 +3196,33 @@ def _run_template_sync(
             project_config = read_config(config_path.read_text(encoding="utf-8"))
             added, updated = config_changes(manifest, template_config, project_config)
 
+        dependency_plan = dependency_updates(template, project)
+        required_prodockit = package_requirement.version if package_requirement else None
+        planned_prodockit = next(
+            (item.version for item in dependency_plan if item.package == "prodockit"), None
+        )
+        if planned_prodockit and (
+            required_prodockit is None
+            or prodockit_upgrade_required(required_prodockit, planned_prodockit)
+        ):
+            required_prodockit = planned_prodockit
+        required_package_upgrade = bool(
+            required_prodockit
+            and prodockit_upgrade_required(__version__, required_prodockit)
+        )
+        if required_package_upgrade and required_prodockit and (
+            package_version is None
+            or prodockit_upgrade_required(package_version, required_prodockit)
+        ):
+            package_version = required_prodockit
+            package_reason = "template requires"
+            package_upgrade = True
+            package_specifier = f"prodockit{package_extras}>={package_version}"
+        try:
+            shared_drift = shared_file_drift(inspect_shared_files(project))
+        except SharedFileError as error:
+            raise TemplateSyncError(str(error)) from error
+
         pending = pending_writes(plan, project, lambda p: (template / p).read_bytes())
         seeds = missing_seeds(manifest, lambda name: (project / name).exists())
         # The stamp counts as work of its own. A template release that
@@ -3185,7 +3233,16 @@ def _run_template_sync(
         # unedited files as edited.
         wanted_stamp = versions[0] if versions else (baseline.version or "")
         stamp_is_stale = bool(baseline.version) and read_stamp(project) != wanted_stamp
-        work_needed = bool(pending or seeds or added or updated or ignores or stamp_is_stale)
+        work_needed = bool(
+            pending
+            or seeds
+            or added
+            or updated
+            or ignores
+            or dependency_plan
+            or shared_drift
+            or stamp_is_stale
+        )
 
         # Normal mode answers the author's questions and stops. Diagnostic
         # classification, baseline and every routine filename remain in
@@ -3219,6 +3276,16 @@ def _run_template_sync(
             say(f"  Other project setup updates: {len(ignores)}")
             for entry in ignores:
                 say_detail(f"      {entry}")
+        if dependency_plan:
+            say("  Build dependency declarations to align:")
+            for dependency in dependency_plan:
+                say(f"      {dependency.package}: {dependency.version}")
+                for path in dependency.paths:
+                    say_detail(f"        {path}")
+        if shared_drift:
+            say(f"  Shared files to refresh: {len(shared_drift)}")
+            for state in shared_drift:
+                say_detail(f"      {state.file.target}")
         if stamp_is_stale and not (pending or seeds or added or updated or ignores):
             say("  The saved template version needs refreshing; no project content will change.")
         if package_upgrade and package_specifier and package_version:
@@ -3292,6 +3359,26 @@ def _run_template_sync(
                 say("Your project is already up to date with the template. Nothing was changed.")
             return
 
+        if required_package_upgrade and package_specifier:
+            say("The template needs a newer Prodockit before it can be applied safely.")
+            say("Upgrade in the activated project environment, then run this command again:")
+            say(f'  python -m pip install --upgrade "{package_specifier}"')
+            say(
+                "Nothing has been changed or sent. Upgrading first ensures the shared "
+                "styles placed in the merge request belong to the required release."
+            )
+            return
+
+        if kept and not local_only:
+            say("The update needs a decision before it can be sent for approval.")
+            say("Your edited template files have not been changed.")
+            say(
+                "For each listed file, either rerun with --force FILE-PATH to take "
+                "the template copy, or use --apply --local-only for a manual review."
+            )
+            say("Nothing has been changed, committed, or sent.")
+            return
+
         # 10, first: the branch, before anything is written.
         name = branch_name(baseline.version or "unknown")
         if not start_branch(git, name):
@@ -3329,26 +3416,42 @@ def _run_template_sync(
             say_detail(f".gitignore: {len(ignores)} entries added")
             also_written.append(".gitignore")
 
+        dependency_files = apply_dependency_updates(project, dependency_plan)
+        if dependency_files:
+            also_written.extend(dependency_files)
+            say(
+                "Build dependencies: aligned Prodockit and Zensical in "
+                f"{len(dependency_files)} file(s)"
+            )
+
+        try:
+            refreshed_shared = apply_shared_files(
+                project, shared_file_drift(inspect_shared_files(project))
+            )
+        except SharedFileError as error:
+            raise TemplateSyncError(str(error)) from error
+        if refreshed_shared:
+            also_written.extend(refreshed_shared)
+            say(f"Shared files: refreshed {len(refreshed_shared)} managed file(s)")
+        also_written = list(dict.fromkeys(also_written))
+
         say()
         say("Changes made:")
         say_report(written_report, written)
 
         # 10, last: the stamp describes a state that now exists.
+        previous_stamp = read_stamp(project)
         if baseline.version:
             write_stamp(project, wanted_stamp)
             also_written.append(STAMP_FILE)
         stage_changes(git, [w.path for w in written] + also_written)
         say()
-        if not push:
+        if local_only:
             say("The changes are ready for you to review.")
             say("Nothing has been committed or sent to GitHub or GitLab.")
             say_detail("Git detail: the changes are staged but not committed.")
             return
 
-        # 11: onto the branch the host actually builds from. A sync sitting
-        # on an update branch publishes nothing - a pipeline guarded on the
-        # default branch never sees it - so a reader who wanted their site
-        # rebuilt is not finished until this happens.
         read = git_reader(project)
         target = default_branch(read)
         if target is None:
@@ -3356,6 +3459,53 @@ def _run_template_sync(
                 "cannot find the main branch to update. The changes remain ready on "
                 f"{name}; nothing has been sent to GitHub or GitLab"
             )
+
+        version = wanted_stamp[:9] if wanted_stamp else "the template"
+        message = f"Sync with the template at {version}"
+
+        if not push:
+            if not origin_remote:
+                raise TemplateSyncError(
+                    "this project has no origin to receive the update. The changes remain "
+                    f"ready on {name}; nothing has been sent"
+                )
+            say("Saving the template update and sending it for review...")
+            try:
+                merge_request = submit_for_review(
+                    git, origin_remote, target, message
+                )
+            except TemplateSyncError:
+                # Keep a failed network submission retryable through the same
+                # author-facing command. The files may already be committed,
+                # but restoring the previous stamp makes the next --apply see
+                # unfinished sync work and publish the branch again. Without
+                # this, recovery would require the Git commands this path is
+                # specifically intended to remove.
+                if baseline.version:
+                    if previous_stamp is None:
+                        (project / STAMP_FILE).unlink(missing_ok=True)
+                    else:
+                        write_stamp(project, previous_stamp)
+                raise
+            say()
+            if merge_request:
+                say("Created a merge request in GitLab.")
+                say("Open the project in GitLab, review the update, and approve its merge.")
+            else:
+                say("Sent the update branch to GitHub.")
+                say(
+                    "Open the project in GitHub and choose Compare & pull request for "
+                    f"{name}."
+                )
+            if url := review_url(origin_remote, name, target):
+                say(f"Review it here: {url}")
+            say("No Git commands are needed.")
+            return
+
+        # 11: onto the branch the host actually builds from. A sync sitting
+        # on an update branch publishes nothing - a pipeline guarded on the
+        # default branch never sees it - so a reader who wanted their site
+        # rebuilt is not finished until this happens.
         blockers = publish_blockers(read, target, name)
         if blockers:
             say("The changes are ready, but cannot be sent directly to the main project:")
@@ -3364,8 +3514,6 @@ def _run_template_sync(
             say("Nothing has been committed or sent to GitHub or GitLab.")
             return
 
-        version = wanted_stamp[:9] if wanted_stamp else "the template"
-        message = f"Sync with the template at {version}"
         say("Ready to update the main project directly:")
         say(f"  Save this update as one commit ({len(written) + len(also_written)} files).")
         say(f"  Add it to {target}.")
@@ -3427,8 +3575,9 @@ def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path
     "--apply",
     "do_apply",
     is_flag=True,
-    help="Make the reported changes on a separate branch. Without --apply, "
-    "template-sync only previews them.",
+    help="Make the reported changes on a separate branch and send it for review. "
+    "On GitLab, also create the merge request. Without --apply, template-sync "
+    "only previews the changes.",
 )
 @click.option(
     "--verbose",
@@ -3440,6 +3589,12 @@ def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path
     is_flag=True,
     help="After asking, commit the update and send it directly to main so the site "
     "rebuilds. Use only if your project does not require a PR/MR. Needs --apply.",
+)
+@click.option(
+    "--local-only",
+    is_flag=True,
+    help="Apply and stage the update locally without committing or sending it. "
+    "For experienced Git users; needs --apply.",
 )
 @click.option(
     "--force",
@@ -3485,6 +3640,7 @@ def template_sync(
     do_apply: bool,
     verbose: bool,
     push: bool,
+    local_only: bool,
     force: tuple[str, ...],
     github: str | None,
     surrey: str | None,
@@ -3494,7 +3650,7 @@ def template_sync(
 
     Your writing, figures, and bibliography are left alone. Without --apply,
     this only previews the changes. With --apply, it makes the changes on a
-    separate branch for you to review.
+    separate branch and sends them for review without requiring Git commands.
 
     Use --verbose for technical details. Every run also keeps those details in
     .prodockit-template.log for troubleshooting.
@@ -3502,7 +3658,16 @@ def template_sync(
     from prodockit.template_sync import TemplateSyncError
 
     try:
-        _run_template_sync(do_apply, verbose, push, force, github, surrey, template_path)
+        _run_template_sync(
+            do_apply,
+            verbose,
+            push,
+            local_only,
+            force,
+            github,
+            surrey,
+            template_path,
+        )
     except TemplateSyncError as error:
         click.echo(f"Error: {error}", err=True)
         sys.exit(1)
