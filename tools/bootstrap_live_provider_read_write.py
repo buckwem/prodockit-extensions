@@ -68,7 +68,10 @@ REQUIRED_VSCODE_EXTENSIONS = (
     "tamasfe.even-better-toml",
     "ltex-plus.vscode-ltex-plus",
 )
-READ_RETRY_DELAYS = (2.0, 5.0)
+# Provider reads immediately after a push can remain temporarily unavailable
+# while GitLab creates its pipeline ref. Keep this bounded and read-only: no
+# commit or push operation is ever repeated.
+READ_RETRY_DELAYS = (2.0, 5.0, 10.0, 20.0)
 TRANSIENT_ORIGIN_DETAIL = "could not reach origin to see what is there"
 GITLAB_PIPELINE_REF_RE = re.compile(r"refs/pipelines/[1-9][0-9]*")
 VSCODE_SETTINGS_SCRIPT = """
