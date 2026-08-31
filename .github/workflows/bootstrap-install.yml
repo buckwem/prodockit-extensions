@@ -193,7 +193,7 @@ jobs:
           python -m pip install build
           python -m build --wheel
           python -c "from pathlib import Path; import subprocess, sys; wheel = next(Path('dist').glob('prodockit-*.whl')); subprocess.run([sys.executable, '-m', 'pip', 'install', '--force-reinstall', str(wheel)], check=True)"
-      - name: Upgrade real old software through the Surrey and GitHub routes
+      - name: Upgrade real old software through ${{ matrix.scenario.name }}
         run: >-
           python tools/bootstrap_native_upgrade.py
           --wheel dist
