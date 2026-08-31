@@ -297,6 +297,24 @@ def test_plan_allows_only_the_reviewed_clone_remote_and_one_main_push(
         )
 
 
+def test_history_archive_allows_macos_private_var_alias(tmp_path: Path) -> None:
+    """macOS may spell one temporary path as /var and another as /private/var."""
+    fixture = live.Fixture(**fixture_values())
+    project = tmp_path / "setup" / live.SURREY_PROJECT
+    aliased_home = Path(str(tmp_path).replace("/private/var/", "/var/", 1))
+    archive = project.parent / f".{project.name}.git.pdk-template-backup"
+
+    live.authorise_plan(
+        "fresh-history",
+        [["mv", str(project / ".git"), str(archive)]],
+        str(project),
+        fixture=fixture,
+        home=aliased_home,
+        project=project,
+        allow_push=True,
+    )
+
+
 def test_empty_and_populated_ref_snapshots_are_unambiguous(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()
