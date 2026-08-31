@@ -138,6 +138,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/pdf_from_site_acceptance.py": frozenset({"pdf"}),
     "tools/bootstrap_acceptance.py": frozenset({"bootstrap"}),
     "tools/bootstrap_live_provider_read_only.py": frozenset({"bootstrap"}),
+    "tools/bootstrap_live_provider_read_write.py": frozenset({"bootstrap"}),
     "tools/_bootstrap_acceptance_driver.py": frozenset({"bootstrap"}),
     "tools/bootstrap_native_install.py": frozenset({"bootstrap"}),
     "tools/bootstrap_native_upgrade.py": frozenset({"bootstrap"}),

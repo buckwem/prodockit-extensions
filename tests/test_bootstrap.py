@@ -6222,7 +6222,7 @@ def test_only_surrey_clones_from_surrey() -> None:
 
     assert HOSTS["surrey"].template_remote.startswith("git@gitlab.surrey.ac.uk:")
     for key in ("github", "gitlab"):
-        assert HOSTS[key].template_remote == "git@github.com:buckwem/prodockit-template.git"
+        assert HOSTS[key].template_remote == "https://github.com/buckwem/prodockit-template.git"
 
 
 def test_github_clones_the_template_from_github(tmp_path: Path) -> None:
@@ -6233,7 +6233,7 @@ def test_github_clones_the_template_from_github(tmp_path: Path) -> None:
     plan = next(s for s in STAGES if s.id == "clone").plan(context)
     script = " ".join(" ".join(command) for command in plan.commands)
 
-    assert "git@github.com:buckwem/prodockit-template.git" in script
+    assert "https://github.com/buckwem/prodockit-template.git" in script
     assert "gitlab.surrey.ac.uk" not in script
 
 

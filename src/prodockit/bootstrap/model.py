@@ -244,7 +244,9 @@ SURREY_GITLAB = Host(
 #: and the flag is what a newly declared host starts life with.
 GITLAB_COM = Host(
     key="gitlab",
-    template_remote="git@github.com:buckwem/prodockit-template.git",
+    # The template is public.  Fetch it anonymously so a repository-scoped
+    # destination deploy key never needs access to a second repository.
+    template_remote="https://github.com/buckwem/prodockit-template.git",
     key_suffix="gitlab",
     hostname="gitlab.com",
     ssh_success="Welcome to GitLab",
@@ -299,7 +301,9 @@ GITLAB_COM = Host(
 
 GITHUB_COM = Host(
     key="github",
-    template_remote="git@github.com:buckwem/prodockit-template.git",
+    # The public GitLab route uses the same public template as GitHub.
+    # HTTPS keeps the destination SSH identity scoped to its own repository.
+    template_remote="https://github.com/buckwem/prodockit-template.git",
     key_suffix="github",
     hostname="github.com",
     ssh_success="successfully authenticated",
