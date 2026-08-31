@@ -38,10 +38,12 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
-## Unreleased
+## 0.53.0 (2026-08-31)
 
 - Kept `.web-only` images hidden inside captioned PDF figures, preventing paired
   website and PDF diagram variants from both appearing in the PDF.
+- Added top, middle, and bottom vertical alignment for individual table cells,
+  with top alignment as the website and PDF default.
 
 ## 0.52.0 (2026-08-31)
 
