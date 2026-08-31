@@ -11,15 +11,15 @@ already present, the same way ``prodockit.refs`` auto-enables
 a table that already has at least one width-attributed header cell; a table
 with none is left completely untouched.
 
-Column widths beyond what's explicitly given are deliberately *not*
-computed here: with ``table-layout: fixed`` (see the ``prodockit-table-sized``
-CSS hook below), a browser/WeasyPrint's own table layout algorithm already
-gives an explicitly-widthed column its width and splits whatever's left
-evenly across the rest - the "standard algorithm" for sharing remaining
-space the CSS table layout algorithm has always implemented, not something
-worth re-deriving in Python. The extension also refuses an unmistakable pipe
-table whose header and delimiter row widths disagree, which Python-Markdown
-would otherwise publish silently as prose.
+Column widths beyond what's explicitly given are deliberately *not* computed
+here. With ``table-layout: fixed`` (see the ``prodockit-table-sized`` CSS hook
+below), a browser or WeasyPrint gives an explicitly widthed column its width
+and splits whatever remains evenly across unmarked columns. The one exception
+is a width on a merged heading: that is a total for the columns it spans, so
+the extension divides it between them in proportion to their longest
+unmerged cell text. The extension also refuses an unmistakable pipe table
+whose header and delimiter row widths disagree, which Python-Markdown would
+otherwise publish silently as prose.
 """
 
 from __future__ import annotations
@@ -111,14 +111,9 @@ class TableWidthTreeprocessor(Treeprocessor):
             _apply_compact(table, headers)
             _apply_rotation(headers)
             _apply_cell_shading(table)
-            # Widths come from the first header row only - it is the one
-            # with a cell per column, which is what a <colgroup> needs.
-            widths = [th.get("width") for th in header_row.findall("th")]
-            if not any(widths):
+            widths = _column_widths(table)
+            if not widths:
                 continue
-            for th in header_row.findall("th"):
-                if "width" in th.attrib:
-                    del th.attrib["width"]
             colgroup = etree.Element("colgroup")
             for width in widths:
                 col = etree.SubElement(colgroup, "col")
@@ -229,6 +224,132 @@ def _span(cell: etree.Element, name: str) -> int:
     if value < 1:
         raise TableError(f"{name} must be at least 1, not {value}")
     return value
+
+
+def _positioned_cells(
+    rows: list[etree.Element],
+) -> tuple[list[tuple[etree.Element, int, int]], int]:
+    """Place cells on their physical columns, accounting for both spans."""
+    covered: dict[int, set[int]] = {}
+    positioned: list[tuple[etree.Element, int, int]] = []
+    column_count = 0
+    for row_number, row in enumerate(rows):
+        column = 0
+        for cell in row:
+            while column in covered.get(row_number, set()):
+                column += 1
+            across, down = _span(cell, "colspan"), _span(cell, "rowspan")
+            positioned.append((cell, column, across))
+            for offset in range(1, down):
+                covered.setdefault(row_number + offset, set()).update(
+                    range(column, column + across)
+                )
+            column += across
+            column_count = max(column_count, column)
+        if covered.get(row_number):
+            column_count = max(column_count, max(covered[row_number]) + 1)
+    return positioned, column_count
+
+
+def _cell_text_weight(cell: etree.Element) -> int:
+    """Approximate the layout pressure of a cell without rendering it."""
+    return len(" ".join("".join(cell.itertext()).split()))
+
+
+def _column_text_weights(table: etree.Element, column_count: int) -> list[int]:
+    """Find the longest unmerged text in each physical table column."""
+    rows = [row for section in table for row in section if row.tag == "tr"]
+    positioned, _count = _positioned_cells(rows)
+    weights = [0] * column_count
+    for cell, column, across in positioned:
+        if across == 1 and column < column_count:
+            weights[column] = max(weights[column], _cell_text_weight(cell))
+    return [weight or 1 for weight in weights]
+
+
+WIDTH_VALUE = re.compile(
+    r"(?P<number>[+-]?(?:\d+(?:\.\d*)?|\.\d+))(?P<unit>%|[A-Za-z]+)"
+)
+
+
+def _format_width(value: Decimal, unit: str) -> str:
+    rendered = format(value.normalize(), "f")
+    return f"{'0' if rendered in {'-0', ''} else rendered}{unit}"
+
+
+def _split_width(width: str, weights: list[int]) -> list[str]:
+    """Split one merged-cell width while preserving its CSS unit and total."""
+    match = WIDTH_VALUE.fullmatch(width.strip())
+    if match is None:
+        raise TableError(
+            f"width {width!r} on a colspan cell cannot be divided; "
+            "use a number followed by a CSS unit, such as 60%, 12rem or 240px"
+        )
+    total = Decimal(match.group("number"))
+    unit = match.group("unit")
+    weight_total = sum(weights)
+    remaining = total
+    shares: list[Decimal] = []
+    precision = Decimal("0.000001")
+    for weight in weights[:-1]:
+        share = (total * weight / weight_total).quantize(precision)
+        shares.append(share)
+        remaining -= share
+    shares.append(remaining)
+    return [_format_width(share, unit) for share in shares]
+
+
+def _column_widths(table: etree.Element) -> list[str | None]:
+    """Resolve width attributes from every header row onto physical columns."""
+    rows = table.findall("./thead/tr")
+    positioned, column_count = _positioned_cells(rows)
+    declarations = [item for item in positioned if item[0].get("width")]
+    if not declarations:
+        return []
+
+    widths: list[str | None] = [None] * column_count
+    owners: list[etree.Element | None] = [None] * column_count
+
+    # A one-column declaration is exact, whichever header row contains it.
+    for cell, column, across in declarations:
+        if across != 1:
+            continue
+        width = cell.get("width")
+        assert width is not None
+        if widths[column] is not None and widths[column] != width:
+            raise TableError(
+                f"column {column + 1} has conflicting widths "
+                f"{widths[column]!r} and {width!r} in its header rows"
+            )
+        widths[column] = width
+        owners[column] = cell
+
+    text_weights = _column_text_weights(table, column_count)
+    for cell, column, across in declarations:
+        if across == 1:
+            continue
+        end = column + across
+        conflicts = [index + 1 for index in range(column, end) if owners[index] is not None]
+        if conflicts:
+            listed = ", ".join(map(str, conflicts))
+            raise TableError(
+                f"width on a colspan={across} header overlaps width declarations "
+                f"on column{'s' if len(conflicts) != 1 else ''} {listed}; "
+                "set the group width or its individual column widths, not both"
+            )
+        width = cell.get("width")
+        assert width is not None
+        shares = _split_width(width, text_weights[column:end])
+        for offset, share in enumerate(shares):
+            target = column + offset
+            if owners[target] is not None:
+                raise TableError("overlapping colspan width declarations")
+            widths[target] = share
+            owners[target] = cell
+
+    for cell, _column, _across in declarations:
+        del cell.attrib["width"]
+    return widths
 
 
 def _is_placeholder(cell: etree.Element) -> bool:

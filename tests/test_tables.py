@@ -179,6 +179,67 @@ def test_colgroup_is_the_tables_first_child() -> None:
     assert html.index("<colgroup>") < html.index("<thead>")
 
 
+def test_widths_on_a_promoted_header_row_map_to_their_physical_columns() -> None:
+    html = _convert(
+        "| Group {: colspan=2 } | | Note {: rowspan=2 width=\"40%\" } |\n"
+        "|---|---|---|\n"
+        "| A {: .header width=\"25%\" } | B {: width=\"35%\" } | |\n"
+        "| x | y | z |\n"
+    )
+
+    assert (
+        '<colgroup><col style="width: 25%;" /><col style="width: 35%;" />'
+        '<col style="width: 40%;" /></colgroup>' in html
+    )
+    assert "width=" not in html.split("</colgroup>")[1]
+
+
+def test_a_colspan_width_is_shared_in_proportion_to_column_content() -> None:
+    html = _convert(
+        "| Group {: colspan=2 width=\"60%\" } | | Note {: rowspan=2 width=\"40%\" } |\n"
+        "|---|---|---|\n"
+        "| A {: .header } | BBB | |\n"
+        "| x | yyy | z |\n"
+    )
+
+    assert (
+        '<colgroup><col style="width: 15%;" /><col style="width: 45%;" />'
+        '<col style="width: 40%;" /></colgroup>' in html
+    )
+
+
+def test_a_fixed_colspan_width_keeps_its_unit_and_total() -> None:
+    html = _convert(
+        "| Group {: colspan=2 width=\"12rem\" } | | Note |\n"
+        "|---|---|---|\n"
+        "| A {: .header } | BBB | C |\n"
+        "| x | yyy | z |\n"
+    )
+
+    assert (
+        '<colgroup><col style="width: 3rem;" /><col style="width: 9rem;" /><col />'
+        "</colgroup>" in html
+    )
+
+
+def test_overlapping_group_and_column_widths_are_refused() -> None:
+    with pytest.raises(TableError, match="set the group width or its individual column widths"):
+        _convert(
+            "| Group {: colspan=2 width=\"60%\" } | | Note |\n"
+            "|---|---|---|\n"
+            "| A {: .header width=\"20%\" } | B | C |\n"
+        )
+
+
+def test_a_colspan_width_that_cannot_be_divided_is_refused() -> None:
+    with pytest.raises(TableError, match="cannot be divided"):
+        _convert(
+            "| Group {: colspan=2 width=\"calc(100% - 2rem)\" } | | Note |\n"
+            "|---|---|---|\n"
+            "| A {: .header } | B | C |\n"
+        )
+
+
 def test_table_nested_inside_an_admonition_is_still_sized() -> None:
     """TableWidthTreeprocessor walks root.iter("table"), which recurses
     into any ancestor regardless of nesting - confirmed directly for the
