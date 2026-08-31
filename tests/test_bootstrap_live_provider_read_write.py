@@ -186,6 +186,56 @@ def test_temporary_home_contains_only_the_agents_public_record(
     assert "PRIVATE KEY" not in key.read_text(encoding="utf-8")
 
 
+def test_user_tooling_is_copied_without_exposing_the_host_home(tmp_path: Path) -> None:
+    host_home = tmp_path / "host"
+    fonts = host_home / "Library" / "Fonts"
+    extensions = host_home / ".vscode" / "extensions"
+    fonts.mkdir(parents=True)
+    extensions.mkdir(parents=True)
+    (fonts / "JetBrainsMono-Regular.ttf").write_text("font", encoding="utf-8")
+    (fonts / "Unrelated.ttf").write_text("other", encoding="utf-8")
+    extension = extensions / "zensical.zensical-studio-0.2.12"
+    extension.mkdir()
+    (extension / "package.json").write_text(
+        json.dumps(
+            {
+                "publisher": "zensical",
+                "name": "zensical-studio",
+                "version": "0.2.12",
+                "engines": {"vscode": "^1.100.0"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (host_home / ".config").mkdir()
+    (host_home / ".config" / "credentials").write_text("secret", encoding="utf-8")
+    home = tmp_path / "isolated"
+    home.mkdir()
+
+    live.copy_user_tooling(home, host_home)
+
+    copied_font = home / "Library" / "Fonts" / "JetBrainsMono-Regular.ttf"
+    copied_manifest = (
+        home
+        / ".vscode"
+        / "extensions"
+        / "zensical.zensical-studio-0.2.12"
+        / "package.json"
+    )
+    assert copied_font.read_text(encoding="utf-8") == "font"
+    assert copied_manifest.is_file()
+    assert not copied_font.is_symlink()
+    assert not copied_manifest.is_symlink()
+    assert not (home / "Library" / "Fonts" / "Unrelated.ttf").exists()
+    assert not (home / ".config").exists()
+
+
+def test_live_extension_allowlist_matches_bootstrap() -> None:
+    from prodockit.bootstrap.stages import VSCODE_EXTENSIONS
+
+    assert live.REQUIRED_VSCODE_EXTENSIONS == VSCODE_EXTENSIONS
+
+
 def test_candidate_environment_removes_credentials_and_proxies(tmp_path: Path) -> None:
     approved = public_key()
     identity = live.AgentIdentity(

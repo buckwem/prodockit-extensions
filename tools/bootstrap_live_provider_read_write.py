@@ -59,6 +59,12 @@ SURREY_DESTINATION = (
 )
 PUBLIC_TEMPLATE = "https://github.com/buckwem/prodockit-template.git"
 INITIAL_COMMIT_SUBJECT = "Initial commit"
+REQUIRED_VSCODE_EXTENSIONS = (
+    "ms-python.python",
+    "zensical.zensical-studio",
+    "tamasfe.even-better-toml",
+    "ltex-plus.vscode-ltex-plus",
+)
 
 MUTABLE_STAGE_IDS = {
     "git",
@@ -322,12 +328,15 @@ def prepare_home(
     known_hosts: Path,
     agent: AgentIdentity,
     system_ssh: Path,
+    host_home: Path | None = None,
 ) -> Path:
-    """Create the normal Bootstrap key path and a pinned SSH configuration."""
+    """Create the pinned SSH setup and copy reviewed user tooling metadata."""
     ssh_dir = home / ".ssh"
     bin_dir = home / "bin"
     ssh_dir.mkdir(parents=True, mode=0o700)
     bin_dir.mkdir(parents=True, mode=0o700)
+    if host_home is not None:
+        copy_user_tooling(home, host_home)
     suffix = PROVIDER_HOSTS[fixture.provider][1]
     key_record = ssh_dir / f"id_ed25519_{suffix}"
     copied_public = key_record.with_suffix(".pub")
@@ -362,6 +371,50 @@ def prepare_home(
     )
     config.chmod(0o600)
     return make_ssh_shim(bin_dir, system_ssh, config)
+
+
+def copy_user_tooling(home: Path, host_home: Path) -> None:
+    """Copy only the user-scoped prerequisites needed by Bootstrap checks.
+
+    The candidate must not receive writable links into the real home. Font
+    files and extension manifests are copied into its disposable home instead;
+    any candidate write is therefore discarded with that temporary directory.
+    """
+    font_source = host_home / "Library" / "Fonts"
+    font_target = home / "Library" / "Fonts"
+    if font_source.is_dir():
+        selected_fonts = [
+            path
+            for path in font_source.iterdir()
+            if path.is_file()
+            and any(
+                name in path.name.casefold().replace(" ", "").replace("-", "")
+                for name in ("inter", "jetbrainsmono")
+            )
+        ]
+        if selected_fonts:
+            font_target.mkdir(parents=True)
+            for source in selected_fonts:
+                if not _within(source, host_home):
+                    raise LiveProviderError("an approved font resolves outside the host home")
+                shutil.copyfile(source, font_target / source.name)
+
+    extension_source = host_home / ".vscode" / "extensions"
+    extension_target = home / ".vscode" / "extensions"
+    if not extension_source.is_dir():
+        return
+    for source in extension_source.iterdir():
+        if not source.is_dir() or not any(
+            source.name.casefold().startswith(f"{identifier}-")
+            for identifier in REQUIRED_VSCODE_EXTENSIONS
+        ):
+            continue
+        manifest = source / "package.json"
+        if not manifest.is_file() or not _within(manifest, host_home):
+            continue
+        target = extension_target / source.name
+        target.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(manifest, target / "package.json")
 
 
 def _within(path: Path, root: Path) -> bool:
@@ -1122,6 +1175,7 @@ def controller(args: argparse.Namespace) -> None:
         git_executable=system_git,
     )
     started = utc_now()
+    host_home = Path.home().resolve()
 
     print("Prodockit Bootstrap live-provider Phase 2 — read and one write")
     print(f"  Provider:    {fixture.hostname}")
@@ -1162,6 +1216,7 @@ def controller(args: argparse.Namespace) -> None:
                     known_hosts=known_hosts,
                     agent=agent,
                     system_ssh=system_ssh,
+                    host_home=host_home,
                 )
                 shims.append(shim)
                 environments.append(
