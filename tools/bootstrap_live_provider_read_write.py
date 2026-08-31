@@ -61,6 +61,7 @@ PUBLIC_TEMPLATE = "https://github.com/buckwem/prodockit-template.git"
 INITIAL_COMMIT_SUBJECT = "Initial commit"
 
 MUTABLE_STAGE_IDS = {
+    "git",
     "clone",
     "fresh-history",
     "remote",
@@ -75,7 +76,6 @@ MUTABLE_STAGE_IDS = {
 PREREQUISITE_STAGE_IDS = {
     "own-venv",
     "vscode",
-    "git",
     "ssh-key",
     "ssh-config",
     "ssh-agent",
@@ -448,6 +448,21 @@ def authorise_plan(
                 allowed_git = [
                     ["clone", fixture.source_remote, str(project)],
                     ["clone", fixture.destination_remote, str(project)],
+                ]
+            elif stage_id == "git":
+                allowed_git = [
+                    [
+                        "config",
+                        "--global",
+                        "user.name",
+                        "Prodockit live-provider test",
+                    ],
+                    [
+                        "config",
+                        "--global",
+                        "user.email",
+                        expected_email(fixture),
+                    ],
                 ]
             elif stage_id == "fresh-history":
                 allowed_git = [
