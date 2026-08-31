@@ -22,10 +22,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import venv
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -65,6 +67,8 @@ REQUIRED_VSCODE_EXTENSIONS = (
     "tamasfe.even-better-toml",
     "ltex-plus.vscode-ltex-plus",
 )
+READ_RETRY_DELAYS = (2.0, 5.0)
+TRANSIENT_ORIGIN_DETAIL = "could not reach origin to see what is there"
 VSCODE_SETTINGS_SCRIPT = """
 import json, sys, pathlib
 path, incoming = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])
@@ -238,11 +242,23 @@ def query_refs(
     git_executable: str = "git",
 ) -> dict[str, str]:
     """Return sorted advertised refs, accepting a genuinely empty repository."""
-    result = run(
-        [git_executable, "ls-remote", "--refs", remote],
-        cwd=cwd,
-        environment=environment,
-    )
+    failure: LiveProviderError | None = None
+    for delay in (0.0, *READ_RETRY_DELAYS):
+        if delay:
+            time.sleep(delay)
+        try:
+            result = run(
+                [git_executable, "ls-remote", "--refs", remote],
+                cwd=cwd,
+                environment=environment,
+            )
+        except LiveProviderError as error:
+            failure = error
+            continue
+        break
+    else:
+        assert failure is not None
+        raise failure
     refs: dict[str, str] = {}
     for number, line in enumerate(result.stdout.splitlines(), start=1):
         if not line.strip():
@@ -257,6 +273,24 @@ def query_refs(
             raise LiveProviderError(f"unexpected ls-remote output on line {number}")
         refs[fields[1]] = fields[0]
     return dict(sorted(refs.items()))
+
+
+def check_with_post_push_retry(
+    stage_id: str,
+    check: Callable[[], Any],
+    before_retry: Callable[[], None],
+) -> Any:
+    """Retry only the transient read used to verify an already-finished push."""
+    result = check()
+    if stage_id != "first-push" or result.detail != TRANSIENT_ORIGIN_DETAIL:
+        return result
+    for delay in READ_RETRY_DELAYS:
+        time.sleep(delay)
+        before_retry()
+        result = check()
+        if result.detail != TRANSIENT_ORIGIN_DETAIL:
+            break
+    return result
 
 
 def validate_exclusive_agent(socket: Path, fingerprint: str) -> AgentIdentity:
@@ -860,7 +894,11 @@ def apply_repository_path(
             if stage.id == "site":
                 break
             forget_contacts(context)
-            result = stage.check(context)
+            result = check_with_post_push_retry(
+                stage.id,
+                partial(stage.check, context),
+                lambda: forget_contacts(context),
+            )
             if result.needs_work:
                 raise LiveProviderError(
                     f"the repeated {name} run still needs stage {stage.id}: {result.detail}"
