@@ -31,15 +31,14 @@ property = {measurement_id}
 [project.extra.consent]
 title = "Cookie consent"
 description = """
-  We use optional analytics cookies to understand which documentation is
-  useful and improve prodockit. Google Analytics remains disabled unless you
-  choose to accept it.
+  We use optional analytics cookies to understand which documentation is useful
+  and improve prodockit.
 """
-actions = ["accept", "reject", "manage"]
+actions = ["accept", "manage"]
 
 [project.extra.consent.cookies]
 analytics.name = "Google Analytics"
-analytics.checked = false
+analytics.checked = true
 '''
 
 
@@ -67,8 +66,8 @@ def create_canonical_config(source: Path, destination: Path, measurement_id: str
     extra = parsed["project"]["extra"]
     if extra["analytics"]["property"] != measurement_id:
         raise ValueError("the generated analytics configuration did not validate")
-    if extra["consent"]["cookies"]["analytics"]["checked"] is not False:
-        raise ValueError("analytics consent must be disabled by default")
+    if extra["consent"]["cookies"]["analytics"]["checked"] is not True:
+        raise ValueError("analytics must be selected when a visitor accepts cookies")
 
     destination.write_text(generated, encoding="utf-8")
 
