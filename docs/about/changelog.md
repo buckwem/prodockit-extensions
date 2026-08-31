@@ -38,6 +38,15 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## 0.52.0 (2026-08-31)
+
+- Made Adoption write valid YAML callbacks, repair legacy callback strings,
+  and recommend strict builds using the project's discovered configuration file.
+- Extended table widths to promoted header rows and grouped column headers,
+  distributing grouped widths according to their columns' content.
+- Simplified the canonical analytics consent dialog and made accepting optional
+  analytics reliably enable measurement.
+
 ## 0.51.4 (2026-08-30)
 
 - Made Bootstrap safely upgrade unsupported prerequisites and resume after
@@ -87,13 +96,3 @@ requests rather than here.
 ## 0.49.1 (2026-08-28)
 
 - Changed `prodockit pdf` to consume and validate a prior strict Zensical build, then atomically add the finished PDF to the published site.
-
-## 0.49.0 (2026-08-27)
-
-- Added `prodockit update-dates` to add UTC per-page dates to completed site HTML and PDF footers without modifying source Markdown or calling the site builder. It uses Git history by default and file modification times for non-Git or untracked pages, or for every page with `--modification-dates`.
-
-## 0.48.1 (2026-08-26)
-
-- Added consent-gated Google Analytics to `prodockit.org`; analytics remains disabled until a visitor explicitly accepts it.
-- Made optional Mermaid and maths adoption deterministic and faster with canonical npm lockfiles and reusable CI caches. Custom Node manifests remain author-owned.
-- Made the shared home-page hero more compact so the footer follows its content instead of being pushed below a full viewport.
