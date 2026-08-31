@@ -8,7 +8,7 @@ icon: lucide/table
 
 \index{`prodockit.tables`} adds layout controls to an ordinary Markdown table.
 You can change column widths, reduce spacing, use more than one header row,
-merge cells, and rotate long headings.
+merge cells, align content within tall rows, and rotate long headings.
 
 ## Enable the extension {: #tables-enable }
 
@@ -29,6 +29,7 @@ Choose the feature that solves the table's problem:
 | Repeat more than one header row | `.header` |
 | Merge cells | `colspan=2` or `rowspan=2` |
 | Change one cell's shading | `shade="off"` or `shade="8%"` |
+| Align one cell vertically | `valign="top"`, `valign="middle"` or `valign="bottom"` |
 | Turn a long heading vertically | `rotate=90` or `rotate=270`, with `width` |
 /// table-caption | <
     attrs: {id: tab-extensions-tables-enable-the-extension}
@@ -383,6 +384,40 @@ Shading applies to the whole surviving merged cell, so `shade` combines with
 `0%` to `100%`; use `off` when the intent is to suppress the default header
 shade explicitly.
 
+### Align content within a tall row {: #tables-cell-vertical-alignment }
+
+Header and body cells are top-aligned by default on both the website and in
+the PDF. Mark an individual cell when its content should instead sit in the
+middle or at the bottom of the row:
+
+=== "Markdown"
+
+    ```md
+    | Detail | Default | At top | Centred | At foot |
+    |---|---|---|---|---|
+    | First line<br>Second line<br>Third line | Default | Top {: valign="top" } | Middle {: valign="middle" } | Bottom {: valign="bottom" } |
+    ```
+
+=== "Result"
+
+    The rendered table in \ref{tab-extensions-tables-align-content-within-a-tall-row}
+    shows the three distinct vertical positions.
+
+    | Detail | Default | At top | Centred | At foot |
+    |---|---|---|---|---|
+    | First line<br>Second line<br>Third line | Default | Top {: valign="top" } | Middle {: valign="middle" } | Bottom {: valign="bottom" } |
+    /// table-caption | <
+        attrs: {id: tab-extensions-tables-align-content-within-a-tall-row}
+
+    Align content within a tall row
+    ///
+
+The accepted values are exactly `top`, `middle` and `bottom`. `valign` applies
+to the marked header or body cell, including one using `rowspan`, `colspan`,
+shading, rotation or a promoted header row. Prodockit consumes the authored
+attribute and emits a stable class, so generated HTML does not retain the
+obsolete `valign` attribute.
+
 ### Rotate headings {: #tables-rotated-headings }
 
 A wide table is often wide because of its headings, not its data. Turn them
@@ -443,6 +478,7 @@ belongs.
 | `rowspan=<n>` | Cell being deepened | Merge it with placeholder cells below |
 | `shade="off"` | Any cell | Remove shading from that cell |
 | `shade="<percentage>"` | Any cell | Shade that cell by an explicit percentage |
+| \index{prodockit.tables!`valign`}=`"top"`, `"middle"` or `"bottom"` | Any cell | Override the default top vertical alignment |
 | \index{prodockit.tables!`rotate`}=90 or `rotate=270` | Header cell that also has `width` | Rotate the heading text |
 | `height="<css-length>"` | Rotated header cell | Reserve height for the rotated text |
 /// table-caption | <
@@ -477,6 +513,7 @@ The extension adds stable classes that a website CSS style sheet can target:
 | `<th>` | heading has `rotate=90` or `rotate=270` | `class="prodockit-rotate"` plus an inline transform |
 | `<th>` or `<td>` | cell has `shade="off"` | `class="prodockit-table-cell-unshaded"` |
 | `<th>` or `<td>` | cell has `shade="<percentage>"` | `class="prodockit-table-cell-shaded"` plus `--prodockit-table-cell-shade` |
+| `<th>` or `<td>` | cell has `valign="<position>"` | `class="prodockit-table-cell-valign-<position>"` |
 | `<col>` | that column has `width` | `style="width: <value>;"` |
 /// table-caption | <
     attrs: {id: tab-extensions-tables-customise-with-a-css-style-sheet}
@@ -528,6 +565,25 @@ Add at least this rule for sized and compact website tables:
     var(--prodockit-table-shade-rgb),
     var(--prodockit-table-cell-shade)
   );
+}
+
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td,
+.md-typeset table.prodockit-table-sized th,
+.md-typeset table.prodockit-table-sized td,
+.md-typeset table.prodockit-table-compact th,
+.md-typeset table.prodockit-table-compact td {
+  vertical-align: top;
+}
+
+.md-typeset table th.prodockit-table-cell-valign-middle,
+.md-typeset table td.prodockit-table-cell-valign-middle {
+  vertical-align: middle !important;
+}
+
+.md-typeset table th.prodockit-table-cell-valign-bottom,
+.md-typeset table td.prodockit-table-cell-valign-bottom {
+  vertical-align: bottom !important;
 }
 
 .md-typeset table:not([class]) th,

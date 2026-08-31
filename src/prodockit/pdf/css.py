@@ -508,8 +508,21 @@ table th, table td {
        width, while remaining self-contained when no theme variables exist. */
     border: 0.05rem solid rgba(0, 0, 0, 0.12) !important;
     font-size: 10pt !important;
+    vertical-align: top !important;
 }
 table td { text-align: left !important; }
+table th.prodockit-table-cell-valign-top,
+table td.prodockit-table-cell-valign-top {
+    vertical-align: top !important;
+}
+table th.prodockit-table-cell-valign-middle,
+table td.prodockit-table-cell-valign-middle {
+    vertical-align: middle !important;
+}
+table th.prodockit-table-cell-valign-bottom,
+table td.prodockit-table-cell-valign-bottom {
+    vertical-align: bottom !important;
+}
 /* A dense table, marked `{: .compact }` on a header cell.
 
    The website's problem is the theme's `min-width: 5rem` on every header
