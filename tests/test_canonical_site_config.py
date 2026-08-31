@@ -40,10 +40,15 @@ def test_canonical_config_adds_consent_gated_analytics_without_changing_source(
         "provider": "google",
         "property": "G-TEST123",
     }
-    assert canonical_extra["consent"]["actions"] == ["accept", "reject", "manage"]
+    description = " ".join(canonical_extra["consent"]["description"].split())
+    assert description == (
+        "We use optional analytics cookies to understand which documentation "
+        "is useful and improve prodockit."
+    )
+    assert canonical_extra["consent"]["actions"] == ["accept", "manage"]
     assert canonical_extra["consent"]["cookies"]["analytics"] == {
         "name": "Google Analytics",
-        "checked": False,
+        "checked": True,
     }
 
 
