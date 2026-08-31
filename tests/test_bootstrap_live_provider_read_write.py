@@ -521,6 +521,7 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
         return Stage(stage_id, stage_id, ready, no_plan)
 
     real_ids = {
+        "git",
         "own-project",
         "clone-source",
         "clone",
@@ -637,13 +638,14 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
     assert first.commit == second.commit
     assert first.tree == second.tree
     assert first.applied_stages == (
+        "git",
         "clone",
         "fresh-history",
         "remote",
         "identity",
         "first-push",
     )
-    assert second.applied_stages == ("clone", "fresh-history", "identity")
+    assert second.applied_stages == ("git", "clone", "fresh-history", "identity")
     assert live.query_refs(
         str(destination_bare), cwd=tmp_path, environment=dict(os.environ)
     ) == {"refs/heads/main": first.commit}
