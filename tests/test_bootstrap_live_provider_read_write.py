@@ -488,6 +488,59 @@ def test_empty_and_populated_ref_snapshots_are_unambiguous(tmp_path: Path) -> No
     }
 
 
+def test_surrey_destination_allows_only_same_commit_pipeline_refs() -> None:
+    fixture = live.Fixture(**fixture_values())
+    commit = "1" * 40
+
+    assert live.validate_destination_refs(
+        {
+            "refs/heads/main": commit,
+            "refs/pipelines/143420": commit,
+        },
+        fixture=fixture,
+        expected_commit=commit,
+    ) == ("refs/pipelines/143420",)
+
+    for refs in (
+        {"refs/heads/main": commit, "refs/heads/other": commit},
+        {"refs/heads/main": commit, "refs/tags/release": commit},
+        {"refs/heads/main": commit, "refs/merge-requests/1/head": commit},
+        {"refs/heads/main": commit, "refs/pipelines/143420": "2" * 40},
+    ):
+        with pytest.raises(live.LiveProviderError, match="unexpected ref"):
+            live.validate_destination_refs(
+                refs,
+                fixture=fixture,
+                expected_commit=commit,
+            )
+
+
+def test_public_destination_rejects_gitlab_pipeline_refs() -> None:
+    commit = "1" * 40
+    fixture = live.Fixture(
+        **fixture_values(
+            provider="github",
+            hostname="github.com",
+            source_remote=live.PUBLIC_TEMPLATE,
+            destination_namespace="prodockit-live-tests",
+            destination_project="bootstrap-phase-two",
+            destination_remote=(
+                "git@github.com:prodockit-live-tests/bootstrap-phase-two.git"
+            ),
+        )
+    )
+
+    with pytest.raises(live.LiveProviderError, match="unexpected ref"):
+        live.validate_destination_refs(
+            {
+                "refs/heads/main": commit,
+                "refs/pipelines/143420": commit,
+            },
+            fixture=fixture,
+            expected_commit=commit,
+        )
+
+
 def test_independent_destination_verification_requires_one_clean_root_commit(
     tmp_path: Path,
 ) -> None:
@@ -559,6 +612,7 @@ def test_failed_write_is_classified_without_retrying_push(tmp_path: Path) -> Non
     git("config", "user.email", "mb0105@surrey.ac.uk", cwd=source)
     git("add", "-A", cwd=source)
     git("commit", "-m", live.INITIAL_COMMIT_SUBJECT, cwd=source)
+    commit = git("rev-parse", "HEAD", cwd=source)
     bare = tmp_path / "destination.git"
     git("init", "--bare", str(bare), cwd=tmp_path)
     fixture = live.Fixture(
@@ -578,6 +632,7 @@ def test_failed_write_is_classified_without_retrying_push(tmp_path: Path) -> Non
 
     git("remote", "add", "origin", str(bare), cwd=source)
     git("push", "-u", "origin", "main", cwd=source)
+    git("update-ref", "refs/pipelines/143420", commit, cwd=bare)
     assert live.classify_destination_after_failure(
         fixture,
         root=tmp_path,
