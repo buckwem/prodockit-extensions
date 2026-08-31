@@ -14,12 +14,14 @@ token.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -51,6 +53,7 @@ from bootstrap_live_provider_read_only import (
     utc_now,
     validate_known_hosts,
 )
+from live_provider_state import ResetHandoff, StateError
 
 SURREY_HOSTNAME = "gitlab.surrey.ac.uk"
 SURREY_SOURCE = "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
@@ -134,6 +137,13 @@ REPORT_KEYS = {
     "path_one",
     "path_two",
 }
+
+
+def refs_digest(refs: dict[str, str]) -> str:
+    """Return the canonical digest shared with the lifecycle controller."""
+
+    encoded = json.dumps(refs, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -1134,6 +1144,45 @@ def validate_worker_report(
     return dict(value)
 
 
+def run_candidate_worker(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    environment: dict[str, str],
+    timeout: int,
+) -> None:
+    """Run the candidate in its own process group and account for descendants."""
+
+    process = subprocess.Popen(
+        list(command),
+        cwd=cwd,
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+        raise LiveProviderError("the candidate worker exceeded its time limit") from error
+    if process.returncode:
+        message = stderr.strip() or stdout.strip() or f"status {process.returncode}"
+        raise LiveProviderError(f"the candidate worker failed: {message}")
+    try:
+        os.killpg(process.pid, 0)
+    except ProcessLookupError:
+        return
+    except PermissionError as error:
+        raise LiveProviderError("the candidate process group could not be accounted for") from error
+    os.killpg(process.pid, signal.SIGKILL)
+    raise LiveProviderError("the candidate left a process running after Bootstrap finished")
+
+
 def classify_destination_after_failure(
     fixture: Fixture,
     *,
@@ -1262,6 +1311,31 @@ def controller(args: argparse.Namespace) -> None:
         environment=dict(os.environ),
         git_executable=system_git,
     )
+    handoff: ResetHandoff | None = None
+    if args.reset_handoff is not None:
+        if fixture.provider != "surrey":
+            raise LiveProviderError("a Phase 3 reset handoff is valid only for Surrey")
+        handoff_path = private_metadata_path(
+            args.reset_handoff,
+            label="Phase 3 reset handoff",
+            checkout=source_checkout,
+            must_exist=True,
+        )
+        try:
+            handoff = ResetHandoff.read(handoff_path)
+        except StateError as error:
+            raise LiveProviderError(str(error)) from error
+        if (
+            handoff.provider != fixture.provider
+            or handoff.path_with_namespace
+            != f"{fixture.destination_namespace}/{fixture.destination_project}"
+            or handoff.source_commit != fixture.source_head
+            or handoff.candidate_version != wheel.version
+            or handoff.wheel_sha256 != wheel.sha256
+            or handoff.controller_commit != controller_commit
+            or handoff.deploy_key_fingerprint != fingerprint
+        ):
+            raise LiveProviderError("the Phase 3 reset handoff differs from this candidate run")
     started = utc_now()
     host_home = Path.home().resolve()
 
@@ -1325,6 +1399,9 @@ def controller(args: argparse.Namespace) -> None:
             )
             if source_before.get("refs/heads/main") != fixture.source_head:
                 raise LiveProviderError("the source main ref differs from the fixture")
+            source_digest = refs_digest(source_before)
+            if handoff is not None and source_digest != handoff.source_refs_digest:
+                raise LiveProviderError("the source refs differ from the Phase 3 reset handoff")
             destination_before = query_refs(
                 fixture.destination_remote,
                 cwd=root,
@@ -1384,7 +1461,7 @@ def controller(args: argparse.Namespace) -> None:
                 path.chmod(0o600)
                 environment_files.append(path)
             worker_report = root / "worker-report.json"
-            run(
+            run_candidate_worker(
                 [
                     str(python),
                     str(Path(__file__).resolve()),
@@ -1456,6 +1533,7 @@ def controller(args: argparse.Namespace) -> None:
                 {
                     "passed": True,
                     "wheel_sha256": wheel.sha256,
+                    "source_refs_digest": source_digest,
                     "source_refs_unchanged": True,
                     "destination_transition": "empty -> refs/heads/main",
                     "provider_created_refs": list(provider_refs),
@@ -1463,7 +1541,7 @@ def controller(args: argparse.Namespace) -> None:
                     "architecture": platform.machine(),
                     "started_at_utc": started,
                     "finished_at_utc": utc_now(),
-                    "manual_provider_review_required": True,
+                    "manual_provider_review_required": handoff is None,
                 }
             )
         except (LiveProviderError, OSError, ValueError, subprocess.SubprocessError) as error:
@@ -1496,6 +1574,7 @@ def controller(args: argparse.Namespace) -> None:
             "repository": f"{fixture.destination_namespace}/{fixture.destination_project}",
             "candidate_version": wheel.version,
             "wheel_sha256": wheel.sha256,
+            "source_refs_digest": refs_digest(source_before) if source_before else None,
             "started_at_utc": started,
             "finished_at_utc": utc_now(),
             "failure": failure,
@@ -1530,6 +1609,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--known-hosts", type=Path)
     result.add_argument("--expected-wheel-sha256", default="")
     result.add_argument("--report", type=Path)
+    result.add_argument("--reset-handoff", type=Path)
     result.add_argument("--confirm-read-write", action="store_true")
     return result
 
