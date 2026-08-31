@@ -68,7 +68,10 @@ REQUIRED_VSCODE_EXTENSIONS = (
     "tamasfe.even-better-toml",
     "ltex-plus.vscode-ltex-plus",
 )
-READ_RETRY_DELAYS = (2.0, 5.0)
+# Provider reads immediately after a push can remain temporarily unavailable
+# while GitLab creates its pipeline ref. Keep this bounded and read-only: no
+# commit or push operation is ever repeated.
+READ_RETRY_DELAYS = (2.0, 5.0, 10.0, 20.0)
 TRANSIENT_ORIGIN_DETAIL = "could not reach origin to see what is there"
 GITLAB_PIPELINE_REF_RE = re.compile(r"refs/pipelines/[1-9][0-9]*")
 VSCODE_SETTINGS_SCRIPT = """
@@ -435,7 +438,11 @@ def prepare_home(
         f"Host {fixture.hostname}\n"
         f"    HostName {fixture.hostname}\n"
         "    User git\n"
-        f"    IdentityFile ~/.ssh/{key_record.name}\n"
+        # OpenSSH expands ``~`` from the account database rather than the
+        # candidate's temporary HOME on macOS. An absolute path is essential:
+        # otherwise the live harness can name and load the developer's real
+        # key from ~/.ssh into the supposedly dedicated agent.
+        f"    IdentityFile {ssh_config_path(key_record)}\n"
         "    AddKeysToAgent yes\n"
         "    UseKeychain yes\n"
         f"    IdentityAgent {ssh_config_path(agent.socket)}\n"

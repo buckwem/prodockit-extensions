@@ -181,9 +181,15 @@ def test_temporary_home_contains_only_the_agents_public_record(
     )
 
     key = tmp_path / "home" / ".ssh" / "id_ed25519_gitlab"
+    config = tmp_path / "home" / ".ssh" / "config"
     assert key.read_text(encoding="utf-8").strip() == record
     assert key.with_suffix(".pub").read_text(encoding="utf-8").strip() == record
     assert "PRIVATE KEY" not in key.read_text(encoding="utf-8")
+    assert (
+        f"IdentityFile {live.ssh_config_path(key)}"
+        in config.read_text(encoding="utf-8")
+    )
+    assert "IdentityFile ~/" not in config.read_text(encoding="utf-8")
 
 
 def test_user_tooling_is_copied_without_exposing_the_host_home(tmp_path: Path) -> None:
@@ -282,6 +288,8 @@ def test_post_push_verification_retries_only_the_transient_origin_read(
         (
             Result(live.TRANSIENT_ORIGIN_DETAIL),
             Result(live.TRANSIENT_ORIGIN_DETAIL),
+            Result(live.TRANSIENT_ORIGIN_DETAIL),
+            Result(live.TRANSIENT_ORIGIN_DETAIL),
             Result("pushed to gitlab.surrey.ac.uk"),
         )
     )
@@ -296,8 +304,8 @@ def test_post_push_verification_retries_only_the_transient_origin_read(
     )
 
     assert result.detail == "pushed to gitlab.surrey.ac.uk"
-    assert delays == [2.0, 5.0]
-    assert retries == ["forgot contacts", "forgot contacts"]
+    assert delays == [2.0, 5.0, 10.0, 20.0]
+    assert retries == ["forgot contacts"] * 4
 
 
 def test_non_transient_stage_result_is_not_retried(
@@ -328,7 +336,7 @@ def test_remote_ref_query_retries_transient_command_failures(
     def transient_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
         nonlocal attempts
         attempts += 1
-        if attempts < 3:
+        if attempts < 5:
             raise live.LiveProviderError("temporary provider read failure")
         return subprocess.CompletedProcess(
             ["git", "ls-remote"],
@@ -343,8 +351,8 @@ def test_remote_ref_query_retries_transient_command_failures(
     refs = live.query_refs("fixture", cwd=tmp_path, environment={})
 
     assert refs == {"refs/heads/main": "1" * 40}
-    assert attempts == 3
-    assert delays == [2.0, 5.0]
+    assert attempts == 5
+    assert delays == [2.0, 5.0, 10.0, 20.0]
 
 
 def test_plan_allows_only_the_reviewed_clone_remote_and_one_main_push(
