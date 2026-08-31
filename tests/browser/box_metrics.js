@@ -43,9 +43,34 @@ if (!executablePath) {
     ));
     const metrics = {};
     for (const selector of selectors) {
+      await page.evaluate(candidate => {
+        const element = document.querySelector(candidate);
+        const block = element?.closest(".tabbed-block");
+        const content = block?.parentElement;
+        const tabbedSet = content?.closest(".tabbed-set");
+        if (!block || !content || !tabbedSet) return;
+        const blocks = Array.from(content.children).filter(
+          child => child.classList.contains("tabbed-block"),
+        );
+        const input = Array.from(tabbedSet.children).filter(
+          child => child.matches('input[type="radio"]'),
+        )[blocks.indexOf(block)];
+        if (input) input.checked = true;
+      }, selector);
       metrics[selector] = await page.$eval(selector, element => {
         const rect = element.getBoundingClientRect();
-        return {x: rect.x, y: rect.y, width: rect.width, height: rect.height};
+        const content = document.createRange();
+        content.selectNodeContents(element);
+        const contentRect = content.getBoundingClientRect();
+        return {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+          contentY: contentRect.y,
+          contentHeight: contentRect.height,
+          verticalAlign: getComputedStyle(element).verticalAlign,
+        };
       });
     }
     process.stdout.write(JSON.stringify(metrics));

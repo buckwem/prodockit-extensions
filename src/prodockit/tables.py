@@ -75,6 +75,15 @@ SHADED_CELL_CLASS = "prodockit-table-cell-shaded"
 UNSHADED_CELL_CLASS = "prodockit-table-cell-unshaded"
 SHADE_PROPERTY = "--prodockit-table-cell-shade"
 
+#: Stable CSS hooks emitted for the public ``valign`` authoring convention.
+#: The raw attribute is deliberately consumed: ``valign`` is obsolete HTML,
+#: while these classes give the website and PDF one normalized contract.
+VALIGN_CLASSES = {
+    "top": "prodockit-table-cell-valign-top",
+    "middle": "prodockit-table-cell-valign-middle",
+    "bottom": "prodockit-table-cell-valign-bottom",
+}
+
 DELIMITER_ROW = re.compile(r"^\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|$")
 
 
@@ -111,6 +120,7 @@ class TableWidthTreeprocessor(Treeprocessor):
             _apply_compact(table, headers)
             _apply_rotation(headers)
             _apply_cell_shading(table)
+            _apply_cell_vertical_alignment(table)
             widths = _column_widths(table)
             if not widths:
                 continue
@@ -524,6 +534,26 @@ def _apply_cell_shading(table: etree.Element) -> None:
             style += ";"
         cell.set("style", f"{style} {SHADE_PROPERTY}: {value};".strip())
         _add_class(cell, SHADED_CELL_CLASS)
+
+
+def _apply_cell_vertical_alignment(table: etree.Element) -> None:
+    """Normalize a cell's ``valign`` convention into a stable CSS class.
+
+    The authored attribute reaches us through ``attr_list``, but it is not
+    retained as legacy HTML. Both output paths instead implement the same
+    Prodockit classes, with unmarked cells top-aligned by their shared CSS.
+    """
+    for cell in table.iter():
+        if cell.tag not in {"th", "td"} or "valign" not in cell.attrib:
+            continue
+        raw = cell.attrib.pop("valign").strip().lower()
+        css_class = VALIGN_CLASSES.get(raw)
+        if css_class is None:
+            raise TableError(
+                'valign must be one of "top", "middle" or "bottom", '
+                f"not {raw!r}"
+            )
+        _add_class(cell, css_class)
 
 
 def _apply_compact(table: etree.Element, headers: list[etree.Element]) -> None:

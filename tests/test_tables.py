@@ -106,6 +106,18 @@ def test_pdf_table_grid_matches_the_light_website_line_style() -> None:
     assert "border: 0.5pt solid #555555" not in table_css
 
 
+def test_website_and_pdf_default_table_cells_to_top_alignment() -> None:
+    from prodockit.pdf.css import build_css
+
+    website = EXTRA_CSS.read_text(encoding="utf-8")
+    pdf = build_css(**_css_defaults())
+
+    assert ".md-typeset table:not([class]) td," in website
+    assert "vertical-align: top;" in website
+    assert "table th, table td {" in pdf
+    assert "vertical-align: top !important;" in pdf
+
+
 def test_pdf_merged_cells_render_with_every_boundary_visible() -> None:
     """Check the laid-out grid, not only its CSS: collapsed borders share
     their width between adjacent cells, including rowspan/colspan edges."""
@@ -526,6 +538,81 @@ def test_a_percentage_can_turn_shading_on_for_a_body_cell() -> None:
         '<td class="prodockit-table-cell-shaded" '
         'style="--prodockit-table-cell-shade: 9%;">highlighted</td>' in html
     )
+
+
+@pytest.mark.parametrize("value", ["top", "middle", "bottom"])
+def test_valign_becomes_a_stable_class_on_header_and_body_cells(value: str) -> None:
+    html = _convert(
+        f'| Header {{: valign="{value}" }} | Other |\n'
+        f'|---|---|\n| Body {{: valign="{value}" }} | value |\n'
+    )
+
+    css_class = f"prodockit-table-cell-valign-{value}"
+    assert html.count(css_class) == 2
+    assert "valign=" not in html
+
+
+def test_valign_combines_with_spans_promoted_headers_shading_rotation_and_compact() -> None:
+    html = _convert(
+        '| Group {: colspan=2 valign="middle" shade="8%" .compact } | | '
+        'Turned {: rotate=270 width="2em" height="80pt" valign="bottom" } |\n'
+        '|---|---|---|\n'
+        '| A {: .header valign="top" } | B | |\n'
+        '| Tall {: rowspan=2 valign="bottom" } | one | two |\n'
+        '| | three | four |\n'
+    )
+
+    assert "prodockit-table-compact" in html
+    assert "prodockit-table-cell-shaded" in html
+    assert "prodockit-table-cell-valign-middle" in html
+    assert "prodockit-rotate prodockit-table-cell-valign-bottom" in html
+    assert '<th class="prodockit-table-cell-valign-top">A</th>' in html
+    assert 'class="prodockit-table-cell-valign-bottom" rowspan="2"' in html
+    assert "valign=" not in html
+
+
+@pytest.mark.parametrize("value", ["", "center", "baseline", "top bottom", "up"])
+def test_invalid_cell_vertical_alignment_is_refused(value: str) -> None:
+    with pytest.raises(
+        TableError,
+        match='valign must be one of "top", "middle" or "bottom"',
+    ):
+        _convert(f'| A {{: valign="{value}" }} | B |\n|---|---|\n| a | b |\n')
+
+
+def test_pdf_cell_vertical_alignment_moves_text_within_a_tall_row() -> None:
+    """Measure the PDF text layer, not merely the emitted class or CSS."""
+    import tempfile
+
+    fitz = pytest.importorskip("pymupdf")
+    weasyprint = pytest.importorskip("weasyprint")
+
+    from prodockit.pdf.css import build_css
+
+    html = _convert(
+        "| Tall | Default | Top | Middle | Bottom |\n"
+        "|---|---|---|---|---|\n"
+        '| TallStart<br>line<br>line<br>TallEnd | DefaultCell | '
+        'TopCell {: valign="top" } | MiddleCell {: valign="middle" } | '
+        'BottomCell {: valign="bottom" } |\n'
+    )
+    output = Path(tempfile.mkdtemp()) / "vertical-alignment.pdf"
+    weasyprint.HTML(
+        string=(
+            "<!DOCTYPE html><html><head><meta charset=utf-8>"
+            f"<style>{build_css(**_css_defaults())}</style></head><body>{html}</body></html>"
+        )
+    ).write_pdf(output)
+
+    with fitz.open(output) as pdf:
+        words = {word[4]: word[1] for word in pdf[0].get_text("words")}
+
+    top = words["TallStart"]
+    assert words["DefaultCell"] == pytest.approx(top, abs=1)
+    assert words["TopCell"] == pytest.approx(top, abs=1)
+    assert words["MiddleCell"] > words["TopCell"] + 5
+    assert words["BottomCell"] > words["MiddleCell"] + 5
+    assert words["BottomCell"] == pytest.approx(words["TallEnd"], abs=1)
 
 
 def test_pdf_cell_shading_works_on_merged_and_unmerged_cells() -> None:

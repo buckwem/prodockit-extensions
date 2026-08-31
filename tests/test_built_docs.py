@@ -331,6 +331,55 @@ Full-width caption.
     assert metrics["#fig-full img"]["width"] == pytest.approx(800, abs=0.5)
 
 
+def test_table_cells_have_matching_visible_vertical_alignment_on_the_website(
+    prodockit_paths,
+) -> None:
+    """Measure the documented tall row in Chrome, not only its CSS text."""
+    node = shutil.which("node")
+    puppeteer = ROOT / "tools" / "mermaid" / "node_modules" / "puppeteer"
+    probe = ROOT / "tests" / "browser" / "box_metrics.js"
+    browser_candidates = (
+        os.environ.get("PUPPETEER_EXECUTABLE_PATH"),
+        shutil.which("google-chrome-stable"),
+        shutil.which("google-chrome"),
+        shutil.which("chromium-browser"),
+        shutil.which("chromium"),
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    )
+    browser = next(
+        (candidate for candidate in browser_candidates if candidate and Path(candidate).exists()),
+        None,
+    )
+    if node is None or not puppeteer.exists() or browser is None:
+        pytest.skip("the table alignment check needs Node, Puppeteer and Chrome")
+
+    page = prodockit_paths.site_dir / "extensions" / "tables" / "index.html"
+    table = "#tab-extensions-tables-align-content-within-a-tall-row table"
+    selectors = [f"{table} tbody td:nth-child({column})" for column in range(2, 6)]
+    environment = dict(os.environ, PUPPETEER_EXECUTABLE_PATH=str(browser))
+    completed = subprocess.run(
+        [node, str(probe), page.as_uri(), *selectors],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    assert completed.returncode == 0, completed.stderr
+    default, top, middle, bottom = (
+        json.loads(completed.stdout)[selector] for selector in selectors
+    )
+
+    assert [item["verticalAlign"] for item in (default, top, middle, bottom)] == [
+        "top",
+        "top",
+        "middle",
+        "bottom",
+    ]
+    assert default["contentY"] == pytest.approx(top["contentY"], abs=0.5)
+    assert middle["contentY"] > top["contentY"] + 5
+    assert bottom["contentY"] > middle["contentY"] + 5
+
+
 @pytest.fixture(scope="session")
 def documents_own_chapters(prodockit_paths, prodockit_resolved_config) -> list[str]:
     """Each nav page's own first numbered h1, in nav order - what the PDF's

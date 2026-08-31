@@ -70,7 +70,30 @@
 .md-typeset table.prodockit-table-compact th,
 .md-typeset table.prodockit-table-compact td {
   padding: 0.9375em 1.25em;
+}
+/* Keep website and PDF tables on the same baseline: every unmarked header
+   and body cell starts at the top of a tall row. The explicit classes are
+   emitted from valign="top|middle|bottom"; the raw legacy HTML attribute is
+   consumed by prodockit.tables. */
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td,
+.md-typeset table.prodockit-table-sized th,
+.md-typeset table.prodockit-table-sized td,
+.md-typeset table.prodockit-table-compact th,
+.md-typeset table.prodockit-table-compact td {
   vertical-align: top;
+}
+.md-typeset table th.prodockit-table-cell-valign-top,
+.md-typeset table td.prodockit-table-cell-valign-top {
+  vertical-align: top !important;
+}
+.md-typeset table th.prodockit-table-cell-valign-middle,
+.md-typeset table td.prodockit-table-cell-valign-middle {
+  vertical-align: middle !important;
+}
+.md-typeset table th.prodockit-table-cell-valign-bottom,
+.md-typeset table td.prodockit-table-cell-valign-bottom {
+  vertical-align: bottom !important;
 }
 .md-typeset table.prodockit-table-sized th,
 .md-typeset table.prodockit-table-compact th {
