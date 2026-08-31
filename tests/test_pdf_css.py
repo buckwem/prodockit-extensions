@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
+import pytest
+
 from prodockit.pdf.css import build_css, build_structural_guard_css
 
 
@@ -447,9 +449,9 @@ def _caption_box_metrics(body: str) -> dict[str, tuple[float, float, float]]:
 
     weasyprint = pytest.importorskip("weasyprint")
     css = build_css("Inter", "Fira Code", "My Site")
-    page = weasyprint.HTML(
+    pages = weasyprint.HTML(
         string=f'<style>{css}</style><main>{body}</main>'
-    ).render().pages[0]
+    ).render().pages
     found: dict[str, tuple[float, float, float]] = {}
 
     def walk(box: object) -> None:
@@ -464,7 +466,8 @@ def _caption_box_metrics(body: str) -> dict[str, tuple[float, float, float]]:
         for child in getattr(box, "children", []):
             walk(child)
 
-    walk(page._page_box)
+    for page in pages:
+        walk(page._page_box)
     return found
 
 
@@ -480,6 +483,35 @@ def test_web_only_image_remains_hidden_inside_captioned_figure() -> None:
 
     assert "web-image" not in metrics
     assert "pdf-image" in metrics
+
+
+@pytest.mark.parametrize("landscape", [False, True])
+def test_paired_captioned_pdf_image_is_centred_at_its_authored_width(
+    landscape: bool,
+) -> None:
+    """#661: render the surviving variant in each applicable content area."""
+    opening = '<div id="scope" class="landscape-page">' if landscape else '<div id="scope">'
+    metrics = _caption_box_metrics(
+        opening
+        + '<figure id="figure" class="prodockit-figure-caption" style="width:80%">'
+        f'<p><img id="web-image" class="screenshot web-only" src="{_IMAGE}" '
+        'style="width:100%">'
+        f'<img id="pdf-image" class="screenshot pdf-only" src="{_IMAGE}" '
+        'style="width:100%"></p>'
+        '<figcaption id="caption"><p>Architecture overview</p></figcaption>'
+        "</figure></div>"
+    )
+
+    assert "web-image" not in metrics
+    scope_x, scope_width, _scope_height = metrics["scope"]
+    image_x, image_width, _image_height = metrics["pdf-image"]
+    left_gap = image_x - scope_x
+    right_gap = scope_x + scope_width - image_x - image_width
+    assert abs(left_gap - right_gap) <= 2
+    assert image_width == pytest.approx(scope_width * 0.8, abs=2)
+    _assert_caption_matches_image(
+        {"image": metrics["pdf-image"], "caption": metrics["caption"]}
+    )
 
 
 def _assert_caption_matches_image(metrics: dict[str, tuple[float, float, float]]) -> None:
