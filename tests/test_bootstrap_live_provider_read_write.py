@@ -271,6 +271,82 @@ def test_candidate_environment_removes_credentials_and_proxies(tmp_path: Path) -
     assert "PYTHONPATH" not in environment
 
 
+def test_post_push_verification_retries_only_the_transient_origin_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Result:
+        def __init__(self, detail: str) -> None:
+            self.detail = detail
+
+    results = iter(
+        (
+            Result(live.TRANSIENT_ORIGIN_DETAIL),
+            Result(live.TRANSIENT_ORIGIN_DETAIL),
+            Result("pushed to gitlab.surrey.ac.uk"),
+        )
+    )
+    retries: list[str] = []
+    delays: list[float] = []
+    monkeypatch.setattr(live.time, "sleep", delays.append)
+
+    result = live.check_with_post_push_retry(
+        "first-push",
+        lambda: next(results),
+        lambda: retries.append("forgot contacts"),
+    )
+
+    assert result.detail == "pushed to gitlab.surrey.ac.uk"
+    assert delays == [2.0, 5.0]
+    assert retries == ["forgot contacts", "forgot contacts"]
+
+
+def test_non_transient_stage_result_is_not_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = type("Result", (), {"detail": "there is work here"})()
+    monkeypatch.setattr(
+        live.time,
+        "sleep",
+        lambda _delay: pytest.fail("a non-transient result was retried"),
+    )
+
+    observed = live.check_with_post_push_retry(
+        "first-push",
+        lambda: result,
+        lambda: pytest.fail("contacts were forgotten for a non-transient result"),
+    )
+
+    assert observed is result
+
+
+def test_remote_ref_query_retries_transient_command_failures(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    attempts = 0
+    delays: list[float] = []
+
+    def transient_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise live.LiveProviderError("temporary provider read failure")
+        return subprocess.CompletedProcess(
+            ["git", "ls-remote"],
+            0,
+            stdout=f"{'1' * 40}\trefs/heads/main\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(live, "run", transient_run)
+    monkeypatch.setattr(live.time, "sleep", delays.append)
+
+    refs = live.query_refs("fixture", cwd=tmp_path, environment={})
+
+    assert refs == {"refs/heads/main": "1" * 40}
+    assert attempts == 3
+    assert delays == [2.0, 5.0]
+
+
 def test_plan_allows_only_the_reviewed_clone_remote_and_one_main_push(
     tmp_path: Path,
 ) -> None:
