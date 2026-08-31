@@ -66,20 +66,23 @@ def _css_image_width(value: str) -> str | None:
 
 
 def _fit_figure_to_authored_image_width(figure: etree.Element) -> None:
-    """Make one authored image width size its numbered figure as a unit.
+    """Make an authored image width size its numbered figure as a unit.
 
     A percentage on the image is resolved against the full content column.
     Leaving it there while shrink-wrapping the figure creates a circular
     percentage and leaves the caption wider than the rendered image. Move
     that declaration to the figure and let the image fill it. The Markdown
-    author still writes the width once, on the image where it belongs.
+    author still writes the width once, on the image where it belongs. When
+    web-only and PDF-only variants share the figure, both fill that one width
+    so the surviving image does not apply the percentage a second time.
     """
     classes = (figure.get("class") or "").split()
     if "prodockit-figure-caption" not in classes:
         return
-    image = figure.find(".//img")
-    if image is None:
+    images = figure.findall(".//img")
+    if not images:
         return
+    image = images[0]
     width = _css_image_width(image.get("width") or "")
     if width is None:
         return
@@ -88,10 +91,32 @@ def _fit_figure_to_authored_image_width(figure: etree.Element) -> None:
         return
     separator = " " if style.endswith(";") or not style else "; "
     figure.set("style", f"{style}{separator}width: {width};".strip())
-    del image.attrib["width"]
-    image_style = (image.get("style") or "").strip()
-    image_separator = " " if image_style.endswith(";") or not image_style else "; "
-    image.set("style", f"{image_style}{image_separator}width: 100%;".strip())
+    variant_images = [
+        candidate
+        for candidate in images
+        if {"web-only", "pdf-only"}
+        & set((candidate.get("class") or "").split())
+    ]
+    variants = {
+        variant
+        for candidate in variant_images
+        for variant in (candidate.get("class") or "").split()
+        if variant in {"web-only", "pdf-only"}
+    }
+    fitted_images = (
+        variant_images
+        if image in variant_images and variants == {"web-only", "pdf-only"}
+        else [image]
+    )
+    for fitted_image in fitted_images:
+        fitted_image.attrib.pop("width", None)
+        image_style = (fitted_image.get("style") or "").strip()
+        image_separator = (
+            " " if image_style.endswith(";") or not image_style else "; "
+        )
+        fitted_image.set(
+            "style", f"{image_style}{image_separator}width: 100%;".strip()
+        )
 
 
 def _slugify(text: str) -> str:

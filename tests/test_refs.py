@@ -274,6 +274,31 @@ A caption long enough to wrap at the diagram edge.
     assert '<img alt="Diagram" src="diagram.png" style="width: 100%;"' in html
 
 
+@pytest.mark.parametrize("position", ["", " | <"])
+def test_paired_image_width_is_applied_once_to_the_numbered_figure(
+    position: str,
+) -> None:
+    """#661: both variants fill the figure instead of scaling it twice."""
+    source = f'''# Page
+
+![Diagram](diagram.png){{ width="80%" .web-only }}
+![Diagram](diagram.png){{ width="80%" .pdf-only }}
+/// figure-caption{position}
+    attrs: {{id: fig-diagram}}
+
+Architecture overview.
+///
+'''
+
+    html = _render(source)
+
+    assert 'style="width: 80%;"' in html
+    assert html.count('style="width: 100%;"') == 2
+    assert 'width="80%"' not in html
+    assert 'class="web-only"' in html
+    assert 'class="pdf-only"' in html
+
+
 def test_a_unitless_image_width_becomes_an_explicit_pixel_figure_width() -> None:
     html = _render("""# Page
 
