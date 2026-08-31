@@ -10,12 +10,16 @@ cannot write to the provider.  Provider lifecycle and push testing belong to a
 later phase with different credentials.
 
 The retained report contains no key material or temporary paths.  The complete
-temporary home, agent and clone are removed on every exit path.
+temporary home and clone are removed on every exit path.  The test selects one
+explicitly approved identity from an external SSH agent and refuses an agent
+that exposes any additional identity.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -82,6 +86,7 @@ WORKER_SUMMARY_KEYS = {
 }
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 OBJECT_ID_RE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+AGENT_FINGERPRINT_RE = re.compile(r"SHA256:[A-Za-z0-9+/]{43}")
 
 
 class LiveProviderError(RuntimeError):
@@ -169,9 +174,10 @@ class WheelInfo:
 
 
 @dataclass(frozen=True)
-class Agent:
-    socket: str
-    pid: str
+class AgentIdentity:
+    socket: Path
+    public_key: str
+    fingerprint: str
 
 
 @dataclass(frozen=True)
@@ -230,47 +236,69 @@ def inspect_wheel(path: Path, expected_sha256: str) -> WheelInfo:
     return WheelInfo(path=path, version=version, sha256=actual)
 
 
-def validate_private_key(path: Path, *, normal_home: Path, checkout: Path) -> tuple[Path, Path]:
-    """Reject keys stored in the ordinary SSH home, source tree or OneDrive."""
-    private = path.expanduser().resolve()
-    public = (
-        private.with_suffix(private.suffix + ".pub")
-        if private.suffix
-        else private.with_suffix(".pub")
-    )
-    if not private.is_file() or not private.stat().st_size:
-        raise LiveProviderError("the private deploy key is missing or empty")
-    if not public.is_file() or not public.stat().st_size:
-        raise LiveProviderError(f"the public key beside {private.name} is missing")
-    forbidden = (normal_home.expanduser().resolve() / ".ssh", checkout.resolve())
-    if any(private.is_relative_to(root) for root in forbidden):
+def public_key_fingerprint(public_key: str) -> str:
+    """Return the OpenSSH SHA-256 fingerprint for one public-key record."""
+    fields = public_key.strip().split()
+    if len(fields) < 2 or fields[0] != "ssh-ed25519":
+        raise LiveProviderError("the served deploy identity must be one Ed25519 public key")
+    try:
+        blob = base64.b64decode(fields[1], validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise LiveProviderError("the SSH agent returned an invalid public key") from error
+    digest = base64.b64encode(hashlib.sha256(blob).digest()).decode("ascii").rstrip("=")
+    return f"SHA256:{digest}"
+
+
+def validate_agent_socket(socket: Path) -> Path:
+    """Require an existing Unix-domain SSH-agent socket."""
+    socket = socket.expanduser().resolve()
+    try:
+        mode = socket.stat().st_mode
+    except OSError as error:
+        raise LiveProviderError(f"could not inspect the SSH agent socket: {error}") from error
+    if not stat.S_ISSOCK(mode):
+        raise LiveProviderError("--agent-socket must name an SSH agent socket")
+    return socket
+
+
+def select_agent_identity(socket: Path, expected_fingerprint: str) -> AgentIdentity:
+    """Select the sole explicitly approved identity served by an SSH agent."""
+    if not AGENT_FINGERPRINT_RE.fullmatch(expected_fingerprint):
         raise LiveProviderError(
-            "the deploy key must be outside the normal .ssh directory and source checkout"
+            "the approved agent-key fingerprint is not a complete SHA-256 value"
         )
-    if "onedrive" in str(private).casefold():
-        raise LiveProviderError("the deploy key must not be stored in OneDrive")
-    if private.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
-        raise LiveProviderError("the private deploy key must not be accessible by group or others")
-    return private, public
-
-
-def require_passphrase_protected_key(path: Path) -> None:
-    """Reject an otherwise valid key that can be opened with no passphrase."""
-    executable = shutil.which("ssh-keygen")
+    socket = validate_agent_socket(socket)
+    executable = shutil.which("ssh-add")
     if executable is None:
-        raise LiveProviderError("ssh-keygen is required to inspect the deploy key")
+        raise LiveProviderError("ssh-add is required to inspect the served deploy identity")
+    environment = dict(os.environ)
+    for name in SECRET_ENVIRONMENT_NAMES:
+        environment.pop(name, None)
+    environment["SSH_AUTH_SOCK"] = str(socket)
     try:
         result = subprocess.run(
-            [executable, "-y", "-P", "", "-f", str(path)],
+            [executable, "-L"],
+            env=environment,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=20,
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as error:
-        raise LiveProviderError("could not inspect the deploy key") from error
-    if result.returncode == 0:
-        raise LiveProviderError("the repository deploy key must be protected by a passphrase")
+        raise LiveProviderError("could not inspect the served SSH identities") from error
+    identities = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if result.returncode or len(identities) != 1:
+        raise LiveProviderError(
+            "the selected SSH agent must expose exactly one repository deploy identity"
+        )
+    fingerprint = public_key_fingerprint(identities[0])
+    if not hmac.compare_digest(fingerprint, expected_fingerprint):
+        raise LiveProviderError(
+            f"the served deploy identity is {fingerprint}, not the approved fingerprint"
+        )
+    return AgentIdentity(socket=socket, public_key=identities[0], fingerprint=fingerprint)
 
 
 def validate_known_hosts(path: Path, hostname: str) -> Path:
@@ -352,41 +380,6 @@ def run(
     return result
 
 
-def start_agent(environment: dict[str, str], socket: Path, cwd: Path) -> Agent:
-    result = run(
-        ["ssh-agent", "-a", str(socket), "-s"], cwd=cwd, environment=environment
-    )
-    socket_match = re.search(r"SSH_AUTH_SOCK=([^;\n]+)", result.stdout)
-    pid_match = re.search(r"SSH_AGENT_PID=([0-9]+)", result.stdout)
-    if socket_match is None or pid_match is None:
-        raise LiveProviderError("ssh-agent did not return its socket and process ID")
-    return Agent(socket=socket_match.group(1), pid=pid_match.group(1))
-
-
-def stop_agent(agent: Agent | None, environment: dict[str, str], cwd: Path) -> str | None:
-    """Terminate the isolated agent and return a redacted failure, if any."""
-    if agent is None:
-        return None
-    cleanup = dict(environment)
-    cleanup["SSH_AUTH_SOCK"] = agent.socket
-    cleanup["SSH_AGENT_PID"] = agent.pid
-    try:
-        result = subprocess.run(
-            ["ssh-agent", "-k"],
-            cwd=cwd,
-            env=cleanup,
-            capture_output=True,
-            text=True,
-            timeout=20,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return "could not terminate the isolated SSH agent"
-    if result.returncode:
-        return "could not terminate the isolated SSH agent"
-    return None
-
-
 def make_ssh_shim(bin_dir: Path, system_ssh: Path, ssh_config: Path) -> Path:
     """Add the isolated config to direct production ``ssh -T`` checks."""
     shim = bin_dir / "ssh"
@@ -399,10 +392,23 @@ def make_ssh_shim(bin_dir: Path, system_ssh: Path, ssh_config: Path) -> Path:
     return shim
 
 
+def ssh_config_path(path: Path) -> str:
+    """Quote a filesystem path for an OpenSSH configuration value."""
+    value = str(path)
+    if any(character in value for character in ("\n", "\r", "\0")):
+        raise LiveProviderError("an SSH configuration path contains a control character")
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 def isolated_environment(
-    *, home: Path, bin_dir: Path, git_config: Path, agent: Agent, ssh_shim: Path
+    *,
+    home: Path,
+    bin_dir: Path,
+    git_config: Path,
+    agent_identity: AgentIdentity,
+    ssh_shim: Path,
 ) -> dict[str, str]:
-    """Build an environment that cannot inherit a user or CI credential."""
+    """Build an environment containing only the explicitly selected agent."""
     environment = dict(os.environ)
     for name in SECRET_ENVIRONMENT_NAMES:
         environment.pop(name, None)
@@ -415,8 +421,7 @@ def isolated_environment(
             "GIT_TERMINAL_PROMPT": "0",
             "PATH": os.pathsep.join((str(bin_dir), environment.get("PATH", ""))),
             "PYTHONUTF8": "1",
-            "SSH_AGENT_PID": agent.pid,
-            "SSH_AUTH_SOCK": agent.socket,
+            "SSH_AUTH_SOCK": str(agent_identity.socket),
             "GIT_SSH_COMMAND": shlex.join(
                 (
                     str(ssh_shim),
@@ -782,10 +787,9 @@ def controller(args: argparse.Namespace) -> None:
     if not OBJECT_ID_RE.fullmatch(expected_head):
         raise LiveProviderError("expected head must be a complete hexadecimal Git object ID")
     wheel = inspect_wheel(args.wheel, args.expected_wheel_sha256)
-    private, public = validate_private_key(
-        args.private_key, normal_home=Path.home(), checkout=source_checkout
+    agent_identity = select_agent_identity(
+        args.agent_socket, args.agent_key_fingerprint.strip()
     )
-    require_passphrase_protected_key(private)
     known_hosts_path = private_metadata_path(
         args.known_hosts,
         label="known-hosts allowlist",
@@ -813,10 +817,9 @@ def controller(args: argparse.Namespace) -> None:
     print(f"  Repository: {fixture.namespace}/{fixture.project}")
     print(f"  Candidate:  prodockit {wheel.version} ({wheel.sha256})")
     print(f"  Remote main: {expected_head}")
+    print(f"  Deploy key: {agent_identity.fingerprint} (sole served identity)")
     print("  Boundary:   authenticate, inspect and clone; no provider write credential")
     print("  Output:     one redacted private report; temporary home removed")
-    inherited_agent = os.environ.get("SSH_AUTH_SOCK")
-    agent: Agent | None = None
     summary: dict[str, Any] | None = None
     failure: str | None = None
 
@@ -842,13 +845,10 @@ def controller(args: argparse.Namespace) -> None:
             if sha256_file(copied_wheel) != wheel.sha256:
                 raise LiveProviderError("the copied candidate wheel changed")
             _hostname, key_suffix = PROVIDER_HOSTS[fixture.provider]
-            copied_private = ssh_dir / f"id_ed25519_{key_suffix}"
-            copied_public = copied_private.with_suffix(".pub")
+            copied_public = ssh_dir / f"id_ed25519_{key_suffix}.pub"
             copied_known_hosts = ssh_dir / "known_hosts"
-            shutil.copyfile(private, copied_private)
-            shutil.copyfile(public, copied_public)
+            copied_public.write_text(agent_identity.public_key + "\n", encoding="utf-8")
             shutil.copyfile(known_hosts, copied_known_hosts)
-            copied_private.chmod(0o600)
             copied_public.chmod(0o600)
             copied_known_hosts.chmod(0o600)
         except OSError as error:
@@ -861,11 +861,12 @@ def controller(args: argparse.Namespace) -> None:
             f"Host {fixture.hostname}\n"
             f"    HostName {fixture.hostname}\n"
             "    User git\n"
-            f"    IdentityFile {copied_private}\n"
+            f"    IdentityFile {ssh_config_path(copied_public)}\n"
+            f"    IdentityAgent {ssh_config_path(agent_identity.socket)}\n"
             "    IdentitiesOnly yes\n"
             "    BatchMode yes\n"
             "    StrictHostKeyChecking yes\n"
-            f"    UserKnownHostsFile {copied_known_hosts}\n"
+            f"    UserKnownHostsFile {ssh_config_path(copied_known_hosts)}\n"
             "    GlobalKnownHostsFile /dev/null\n"
             "    ConnectTimeout 10\n",
             encoding="utf-8",
@@ -873,27 +874,13 @@ def controller(args: argparse.Namespace) -> None:
         ssh_config.chmod(0o600)
         ssh_shim = make_ssh_shim(bin_dir, system_ssh, ssh_config)
 
-        base_environment = dict(os.environ)
-        for name in SECRET_ENVIRONMENT_NAMES:
-            base_environment.pop(name, None)
         try:
-            agent = start_agent(base_environment, root / "agent.sock", root)
             environment = isolated_environment(
                 home=root,
                 bin_dir=bin_dir,
                 git_config=root / ".gitconfig",
-                agent=agent,
+                agent_identity=agent_identity,
                 ssh_shim=ssh_shim,
-            )
-            if inherited_agent and environment["SSH_AUTH_SOCK"] == inherited_agent:
-                raise LiveProviderError("the isolated run inherited the user's SSH agent")
-            print("Load the repository-scoped read-only deploy key when prompted.")
-            run(
-                ["ssh-add", str(copied_private)],
-                cwd=root,
-                environment=environment,
-                timeout=120,
-                capture=False,
             )
 
             with unchanged_remote_refs(
@@ -980,13 +967,6 @@ def controller(args: argparse.Namespace) -> None:
         except (LiveProviderError, OSError, ValueError, subprocess.SubprocessError) as error:
             summary = None
             failure = str(error).replace(str(root), "<temporary-home>")
-        finally:
-            cleanup_failure = stop_agent(agent, base_environment, root)
-            if cleanup_failure is not None:
-                summary = None
-                failure = (
-                    f"{failure}; {cleanup_failure}" if failure is not None else cleanup_failure
-                )
 
     if summary is None:
         summary = {
@@ -1024,7 +1004,12 @@ def parser() -> argparse.ArgumentParser:
         "--fixture", type=Path, required=True, help="reviewed repository allowlist JSON"
     )
     result.add_argument(
-        "--private-key", type=Path, help="repository-scoped read-only deploy key"
+        "--agent-socket", type=Path, help="SSH agent serving only the repository deploy key"
+    )
+    result.add_argument(
+        "--agent-key-fingerprint",
+        default="",
+        help="approved SHA-256 fingerprint of the sole served deploy key",
     )
     result.add_argument(
         "--known-hosts", type=Path, help="reviewed host-key file for this provider only"
@@ -1061,13 +1046,15 @@ def main() -> None:
         controller_required = (
             args.wheel,
             args.provider,
-            args.private_key,
+            args.agent_socket,
+            args.agent_key_fingerprint,
             args.known_hosts,
             args.report,
         )
         if any(value is None for value in controller_required):
             raise LiveProviderError(
-                "--wheel, --provider, --private-key, --known-hosts and --report are required"
+                "--wheel, --provider, --agent-socket, --agent-key-fingerprint, "
+                "--known-hosts and --report are required"
             )
         controller(args)
     except LiveProviderError as error:

@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
+import base64
 import importlib
 import json
 import os
-import stat
 import subprocess
 import sys
 import zipfile
@@ -52,7 +52,7 @@ def write_wheel(path: Path, *, version: str = "1.2.3") -> Path:
 
 def git(*arguments: str, cwd: Path, environment: dict[str, str] | None = None) -> str:
     result = subprocess.run(
-        ["git", *arguments],
+        ["git", "-c", "commit.gpgsign=false", *arguments],
         cwd=cwd,
         env=environment,
         capture_output=True,
@@ -165,64 +165,66 @@ def test_non_prodockit_wheel_is_rejected(tmp_path: Path) -> None:
         live.inspect_wheel(wheel, live.sha256_file(wheel))
 
 
-def write_keypair(path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("private fixture\n", encoding="utf-8")
-    path.with_suffix(".pub").write_text("public fixture\n", encoding="utf-8")
-    path.chmod(0o600)
-    return path
+def agent_public_key(comment: str = "prodockit-liveprovider-deploy-key") -> str:
+    encoded = base64.b64encode(b"prodockit live-provider fixture key").decode("ascii")
+    return f"ssh-ed25519 {encoded} {comment}"
 
 
-def test_private_key_must_be_outside_user_ssh_checkout_and_onedrive(tmp_path: Path) -> None:
-    home = tmp_path / "home"
-    checkout = tmp_path / "checkout"
-    safe = write_keypair(tmp_path / "secrets" / "fixture-key")
-
-    assert live.validate_private_key(safe, normal_home=home, checkout=checkout)[0] == safe
-
-    normal_key = write_keypair(home / ".ssh" / "fixture-key")
-    with pytest.raises(live.LiveProviderError, match=r"normal \.ssh"):
-        live.validate_private_key(normal_key, normal_home=home, checkout=checkout)
-
-    checkout_key = write_keypair(checkout / "fixture-key")
-    with pytest.raises(live.LiveProviderError, match="source checkout"):
-        live.validate_private_key(checkout_key, normal_home=home, checkout=checkout)
-
-    onedrive_key = write_keypair(tmp_path / "OneDrive-Personal" / "fixture-key")
-    with pytest.raises(live.LiveProviderError, match="OneDrive"):
-        live.validate_private_key(onedrive_key, normal_home=home, checkout=checkout)
-
-
-def test_private_key_permissions_and_public_half_are_required(tmp_path: Path) -> None:
-    private = write_keypair(tmp_path / "fixture-key")
-    private.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP)
-    with pytest.raises(live.LiveProviderError, match="group or others"):
-        live.validate_private_key(
-            private, normal_home=tmp_path / "home", checkout=tmp_path / "checkout"
-        )
-
-
-def test_private_key_must_be_passphrase_protected(
+def test_agent_identity_requires_one_approved_ed25519_key(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    private = write_keypair(tmp_path / "fixture-key")
-    monkeypatch.setattr(live.shutil, "which", lambda _name: "/usr/bin/ssh-keygen")
-    unprotected = live.subprocess.CompletedProcess([], 0, "public key", "")
-    monkeypatch.setattr(live.subprocess, "run", lambda *_args, **_kwargs: unprotected)
+    agent_socket = tmp_path / "agent.sock"
+    public_key = agent_public_key()
+    fingerprint = live.public_key_fingerprint(public_key)
+    monkeypatch.setattr(live, "validate_agent_socket", lambda path: path.resolve())
+    monkeypatch.setattr(live.shutil, "which", lambda _name: "/usr/bin/ssh-add")
+    result = live.subprocess.CompletedProcess([], 0, public_key + "\n", "")
+    monkeypatch.setattr(live.subprocess, "run", lambda *_args, **_kwargs: result)
 
-    with pytest.raises(live.LiveProviderError, match="protected by a passphrase"):
-        live.require_passphrase_protected_key(private)
+    assert live.select_agent_identity(agent_socket, fingerprint) == live.AgentIdentity(
+        socket=agent_socket.resolve(),
+        public_key=public_key,
+        fingerprint=fingerprint,
+    )
 
-    protected = live.subprocess.CompletedProcess([], 255, "", "incorrect passphrase")
-    monkeypatch.setattr(live.subprocess, "run", lambda *_args, **_kwargs: protected)
-    live.require_passphrase_protected_key(private)
+    with pytest.raises(live.LiveProviderError, match="not the approved fingerprint"):
+        live.select_agent_identity(agent_socket, "SHA256:" + "A" * 43)
 
-    private.chmod(0o600)
-    private.with_suffix(".pub").unlink()
-    with pytest.raises(live.LiveProviderError, match="public key"):
-        live.validate_private_key(
-            private, normal_home=tmp_path / "home", checkout=tmp_path / "checkout"
-        )
+
+def test_agent_identity_rejects_multiple_or_invalid_keys(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    agent_socket = tmp_path / "agent.sock"
+    public_key = agent_public_key()
+    fingerprint = live.public_key_fingerprint(public_key)
+    monkeypatch.setattr(live, "validate_agent_socket", lambda path: path.resolve())
+    monkeypatch.setattr(live.shutil, "which", lambda _name: "/usr/bin/ssh-add")
+
+    multiple = live.subprocess.CompletedProcess(
+        [], 0, f"{public_key}\n{agent_public_key('other')}\n", ""
+    )
+    monkeypatch.setattr(live.subprocess, "run", lambda *_args, **_kwargs: multiple)
+    with pytest.raises(live.LiveProviderError, match="exactly one"):
+        live.select_agent_identity(agent_socket, fingerprint)
+
+    malformed = live.subprocess.CompletedProcess([], 0, "ssh-rsa not-base64\n", "")
+    monkeypatch.setattr(live.subprocess, "run", lambda *_args, **_kwargs: malformed)
+    with pytest.raises(live.LiveProviderError, match="Ed25519"):
+        live.select_agent_identity(agent_socket, fingerprint)
+
+
+def test_agent_socket_must_be_a_socket(tmp_path: Path) -> None:
+    ordinary_file = tmp_path / "not-a-socket"
+    ordinary_file.write_text("not a socket\n", encoding="utf-8")
+
+    with pytest.raises(live.LiveProviderError, match="must name an SSH agent socket"):
+        live.validate_agent_socket(ordinary_file)
+
+
+def test_ssh_configuration_quotes_paths_with_spaces() -> None:
+    assert live.ssh_config_path(Path("/Library/Group Containers/agent.sock")) == (
+        '"/Library/Group Containers/agent.sock"'
+    )
 
 
 def test_known_hosts_accepts_only_the_exact_selected_provider(tmp_path: Path) -> None:
@@ -388,18 +390,22 @@ def test_isolated_environment_replaces_agents_and_removes_tokens(
         monkeypatch.setenv(name, f"inherited-{name}")
     monkeypatch.setenv("PYTHONPATH", "/source/checkout")
     monkeypatch.setenv("PATH", "/system/bin")
-    agent = live.Agent(socket=str(tmp_path / "agent.sock"), pid="123")
+    agent_identity = live.AgentIdentity(
+        socket=tmp_path / "agent.sock",
+        public_key=agent_public_key(),
+        fingerprint=live.public_key_fingerprint(agent_public_key()),
+    )
 
     environment = live.isolated_environment(
         home=tmp_path,
         bin_dir=tmp_path / "bin",
         git_config=tmp_path / ".gitconfig",
-        agent=agent,
+        agent_identity=agent_identity,
         ssh_shim=tmp_path / "bin" / "ssh",
     )
 
-    assert environment["SSH_AUTH_SOCK"] == agent.socket
-    assert environment["SSH_AGENT_PID"] == agent.pid
+    assert environment["SSH_AUTH_SOCK"] == str(agent_identity.socket)
+    assert "SSH_AGENT_PID" not in environment
     assert environment["GIT_SSH_COMMAND"].startswith(str(tmp_path / "bin" / "ssh"))
     assert "StrictHostKeyChecking=yes" in environment["GIT_SSH_COMMAND"]
     assert "PYTHONPATH" not in environment
@@ -496,18 +502,6 @@ def test_worker_summary_rejects_failed_or_path_leaking_stage(tmp_path: Path) -> 
             expected_head="1" * 40,
             temporary_root=tmp_path,
         )
-
-
-def test_agent_cleanup_failure_is_reported(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    failed = live.subprocess.CompletedProcess([], 1, "", "")
-    monkeypatch.setattr(live.subprocess, "run", lambda *_args, **_kwargs: failed)
-
-    assert (
-        live.stop_agent(live.Agent(str(tmp_path / "agent.sock"), "123"), {}, tmp_path)
-        == "could not terminate the isolated SSH agent"
-    )
 
 
 def test_phase_one_requires_macos_and_explicit_confirmation(
