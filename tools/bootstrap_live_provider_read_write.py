@@ -438,7 +438,11 @@ def prepare_home(
         f"Host {fixture.hostname}\n"
         f"    HostName {fixture.hostname}\n"
         "    User git\n"
-        f"    IdentityFile ~/.ssh/{key_record.name}\n"
+        # OpenSSH expands ``~`` from the account database rather than the
+        # candidate's temporary HOME on macOS. An absolute path is essential:
+        # otherwise the live harness can name and load the developer's real
+        # key from ~/.ssh into the supposedly dedicated agent.
+        f"    IdentityFile {ssh_config_path(key_record)}\n"
         "    AddKeysToAgent yes\n"
         "    UseKeychain yes\n"
         f"    IdentityAgent {ssh_config_path(agent.socket)}\n"

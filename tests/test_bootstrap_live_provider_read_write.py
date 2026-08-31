@@ -181,9 +181,15 @@ def test_temporary_home_contains_only_the_agents_public_record(
     )
 
     key = tmp_path / "home" / ".ssh" / "id_ed25519_gitlab"
+    config = tmp_path / "home" / ".ssh" / "config"
     assert key.read_text(encoding="utf-8").strip() == record
     assert key.with_suffix(".pub").read_text(encoding="utf-8").strip() == record
     assert "PRIVATE KEY" not in key.read_text(encoding="utf-8")
+    assert (
+        f"IdentityFile {live.ssh_config_path(key)}"
+        in config.read_text(encoding="utf-8")
+    )
+    assert "IdentityFile ~/" not in config.read_text(encoding="utf-8")
 
 
 def test_user_tooling_is_copied_without_exposing_the_host_home(tmp_path: Path) -> None:
