@@ -209,12 +209,28 @@ with unrelated documents.
 
 //// step | Build the website
 
-```bash
-zensical build --clean
-```
+=== "zensical.toml"
+
+    ```bash
+    zensical build --clean --strict
+    ```
+
+=== "zensical.yml"
+
+    ```bash
+    zensical build -f zensical.yml --clean --strict
+    ```
+
+=== "zensical.yaml"
+
+    ```bash
+    zensical build -f zensical.yaml --clean --strict
+    ```
 
 This uses the document's actual pages and configuration, so it remains the
-final proof that the adopted components work with the existing project.
+final proof that the adopted components work with the existing project. The
+YAML filenames are supported inputs, but Zensical requires them to be supplied
+explicitly with `-f`; only `zensical.toml` is discovered automatically.
 
 ////
 

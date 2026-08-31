@@ -92,6 +92,9 @@ def test_adoption_guide_is_for_zensical_projects() -> None:
     guide = (ROOT / "docs" / "adopt.md").read_text(encoding="utf-8")
 
     assert "mkdocs" not in guide.lower()
+    assert "zensical build --clean --strict" in guide
+    assert "zensical build -f zensical.yml --clean --strict" in guide
+    assert "zensical build -f zensical.yaml --clean --strict" in guide
 
 
 def test_documentation_flow_diagrams_have_editable_drawio_sources() -> None:
