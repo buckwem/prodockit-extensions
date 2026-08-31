@@ -29,6 +29,19 @@ def test_real_upgrade_routes_are_the_two_requested_paths() -> None:
     )
 
 
+def test_real_upgrade_routes_can_be_selected_independently() -> None:
+    assert native.select_scenarios(["github-new-real-upgrade"]) == (
+        ("github-new-real-upgrade", "github", "new"),
+    )
+    assert native.select_scenarios(None) == native.SCENARIOS
+    assert native.select_scenarios(["all"]) == native.SCENARIOS
+
+
+def test_all_cannot_be_combined_with_a_named_upgrade_route() -> None:
+    with pytest.raises(native.NativeInstallError, match="cannot be combined"):
+        native.select_scenarios(["all", "surrey-existing-real-upgrade"])
+
+
 def test_old_extension_packages_are_below_every_supported_floor() -> None:
     for identifier, version in native.OLD_EXTENSIONS.items():
         minimum = native.VSCODE_EXTENSION_MIN_VERSIONS[identifier]

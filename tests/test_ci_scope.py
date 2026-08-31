@@ -393,7 +393,11 @@ def test_bootstrap_release_gate_runs_real_installs_on_every_supported_runner() -
     assert "python tools/bootstrap_native_install.py" in workflow
     assert "python tools/bootstrap_native_upgrade.py" in workflow
     assert "timeout-minutes: 60" in workflow
-    assert "timeout-minutes: 120" in workflow
+    assert "--scenario ${{ matrix.scenario.id }}" in workflow
+    assert "id: surrey-existing-real-upgrade" in workflow
+    assert "id: github-new-real-upgrade" in workflow
+    assert "matrix.platform.runner" in workflow
+    assert "matrix.platform.architecture" in workflow
     for runner in (
         "ubuntu-24.04",
         "ubuntu-24.04-arm",
