@@ -47,6 +47,7 @@ from prodockit.adopt import (
 from prodockit.adopt import (
     assess as assess_adoption,
 )
+from prodockit.adopt import build_command as adopt_build_command
 from prodockit.adopt import (
     load_manifest as load_adopt_manifest,
 )
@@ -2459,6 +2460,7 @@ def adopt_command(
         steps = assess_adoption(root, options)
     except AdoptError as error:
         raise click.ClickException(str(error)) from error
+    build_command = adopt_build_command(root)
 
     click.echo(click.style("prodockit adoption — existing documentation project", bold=True))
     click.echo(f"\n  Project:  {root}")
@@ -2518,7 +2520,7 @@ def adopt_command(
                 "  Will do:  scaffold MathJax, install it with npm, and configure the website"
             )
         elif step.id == "verify":
-            click.echo("  Next:     run `zensical build --clean` after this command finishes")
+            click.echo(f"  Next:     run `{build_command}` after this command finishes")
 
         if step.status == "wrong":
             failed = True
@@ -2567,7 +2569,7 @@ def adopt_command(
         return
 
     click.echo("\nAdoption stages finished.")
-    click.echo("Run `zensical build --clean`, then review the local changes with `git diff`.")
+    click.echo(f"Run `{build_command}`, then review the local changes with `git diff`.")
     click.echo("Nothing has been committed or pushed.")
 
 

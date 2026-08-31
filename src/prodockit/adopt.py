@@ -143,12 +143,16 @@ class _MarkdownConfigLoader(yaml.SafeLoader):  # type: ignore[misc, unused-ignor
     """
 
 
+class _PythonName(str):
+    """A safely inventoried ``!!python/name`` reference from YAML."""
+
+
 def _python_name(
     _loader: _MarkdownConfigLoader,
     suffix: str,
     _node: yaml.Node,
 ) -> str:
-    return suffix
+    return _PythonName(suffix)
 
 
 _MarkdownConfigLoader.add_multi_constructor(
@@ -335,10 +339,14 @@ def _core_ok(parsed: dict[str, Any]) -> bool:
     return all(name in configured for name in CORE_EXTENSIONS) and _tree_icons_ok(parsed)
 
 
-def _tree_icons_ok(parsed: dict[str, Any]) -> bool:
+def _tree_icons_ok(parsed: dict[str, Any], *, require_python_names: bool = False) -> bool:
     configured = _extensions(parsed)
     settings = configured.get(TREE_ICON_EXTENSION)
-    return isinstance(settings, Mapping) and all(key in settings for key in TREE_ICON_SETTINGS)
+    return isinstance(settings, Mapping) and all(
+        key in settings
+        and (not require_python_names or isinstance(settings[key], _PythonName))
+        for key in TREE_ICON_SETTINGS
+    )
 
 
 def _style_ok(root: Path, parsed: dict[str, Any]) -> bool:
@@ -803,6 +811,49 @@ def _yaml_add_extension_string(source: str, name: str, key: str, value: str) -> 
     return source[:header_end] + f"{setting_indent}{key}: {value}\n" + source[header_end:]
 
 
+def _yaml_ensure_extension_python_name(
+    source: str,
+    name: str,
+    key: str,
+    default: str,
+) -> str:
+    """Add or repair one callable extension setting without importing it."""
+    item = _yaml_extension_item(source, name)
+    if item is None:
+        raise AdoptError(
+            f"{name} uses a YAML form prodockit cannot update safely; "
+            "write it as an indented mapping and rerun"
+        )
+    start, end = item
+    pattern = re.compile(
+        rf"(?m)^(?P<indent>[ \t]+){re.escape(key)}:[ \t]*"
+        rf"(?P<value>[^#\n]*?)(?P<comment>[ \t]+#.*)?$"
+    )
+    match = pattern.search(source[start:end])
+    if match is None:
+        return _yaml_add_extension_string(
+            source,
+            name,
+            key,
+            f"!!python/name:{default}",
+        )
+    value = match.group("value").strip()
+    if value.startswith("!!python/name:"):
+        return source
+    if not re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+", value):
+        raise AdoptError(
+            f"the configured {name} {key} value cannot be updated safely; "
+            "use a !!python/name: callable reference and rerun"
+        )
+    replacement = (
+        f"{match.group('indent')}{key}: !!python/name:{value}"
+        f"{match.group('comment') or ''}"
+    )
+    absolute_start = start + match.start()
+    absolute_end = start + match.end()
+    return source[:absolute_start] + replacement + source[absolute_end:]
+
+
 def _yaml_ensure_tree_icons(source: str, parsed: dict[str, Any]) -> str:
     """Materialise the icon renderer required by prodockit.tree."""
     configured = _extensions(parsed)
@@ -812,11 +863,17 @@ def _yaml_ensure_tree_icons(source: str, parsed: dict[str, Any]) -> str:
             f"the configured {TREE_ICON_EXTENSION} settings must be an indented mapping"
         )
 
-    lines = tuple(f"{key}: {value}" for key, value in TREE_ICON_SETTINGS.items())
+    lines = tuple(
+        f"{key}: !!python/name:{value}" for key, value in TREE_ICON_SETTINGS.items()
+    )
     source = _yaml_add_extension(source, TREE_ICON_EXTENSION, lines)
     for key, value in TREE_ICON_SETTINGS.items():
-        if not isinstance(existing, Mapping) or key not in existing:
-            source = _yaml_add_extension_string(source, TREE_ICON_EXTENSION, key, str(value))
+        source = _yaml_ensure_extension_python_name(
+            source,
+            TREE_ICON_EXTENSION,
+            key,
+            str(value),
+        )
     return source
 
 
@@ -1038,7 +1095,10 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
     core_ok = (
         not config_error
         and not missing
-        and _tree_icons_ok(parsed)
+        and _tree_icons_ok(
+            parsed,
+            require_python_names=config_path.suffix != ".toml",
+        )
         and _style_ok(root, parsed)
         and style_path.is_file()
     )
@@ -1058,6 +1118,7 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
         and (not options.mermaid or mermaid_ok)
         and (not options.maths or maths_ok)
     )
+    command = _build_command(config_path)
     return [
         Step(
             "project",
@@ -1113,12 +1174,26 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
             "Ready for local build",
             "ok" if ready_to_build else "wait",
             (
-                "selected components are configured; run zensical build --clean to verify the site"
+                f"selected components are configured; run {command} to verify the site"
                 if ready_to_build
-                else "apply the selected integration stages before running zensical build --clean"
+                else f"apply the selected integration stages before running {command}"
             ),
         ),
     ]
+
+
+def _build_command(config_path: Path) -> str:
+    explicit = "" if config_path.name == "zensical.toml" else f" -f {config_path.name}"
+    return f"zensical build{explicit} --clean --strict"
+
+
+def build_command(root: Path) -> str:
+    """Return the strict build command for the configuration below ``root``."""
+    config_path = next(
+        (root / name for name in CONFIG_NAMES if (root / name).is_file()),
+        root / "zensical.toml",
+    )
+    return _build_command(config_path)
 
 
 def apply_step(root: Path, options: AdoptOptions, step_id: str) -> list[Path]:

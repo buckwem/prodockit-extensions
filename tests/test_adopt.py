@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from click.testing import CliRunner
 
 from prodockit import __version__
@@ -79,6 +80,7 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     assert "Mathematical notation — not selected" in result.output
     assert "WAIT  Ready for local build" in result.output
     assert "apply the selected integration stages" in result.output
+    assert "zensical build --clean --strict" in result.output
     assert "Git, SSH, remotes, editors, commits and pushes" in result.output
 
 
@@ -388,14 +390,62 @@ custom_icons = "icons"
     assert config.count('emoji_generator = "zensical.extensions.emoji.to_svg"') == 1
 
 
-def test_yaml_extension_sequence_materialises_the_tree_icon_renderer(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "extensions",
+    (
+        "  - attr_list\n  - toc\n",
+        "  attr_list: {}\n  toc:\n    permalink: true\n",
+    ),
+    ids=("sequence", "mapping"),
+)
+def test_yaml_extensions_materialise_a_buildable_tree_icon_renderer(
+    tmp_path: Path,
+    extensions: str,
+) -> None:
+    project = _project(
+        tmp_path,
+        f"""\
+site_name: Existing YAML extensions
+site_dir: public
+markdown_extensions:
+{extensions}""",
+        config_name="mkdocs.yml",
+    )
+
+    ensure_zensical_config(project, AdoptOptions())
+
+    config = (project / "mkdocs.yml").read_text(encoding="utf-8")
+    assert "emoji_index: !!python/name:zensical.extensions.emoji.twemoji" in config
+    assert "emoji_generator: !!python/name:zensical.extensions.emoji.to_svg" in config
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "zensical",
+            "build",
+            "-f",
+            "mkdocs.yml",
+            "--clean",
+            "--strict",
+        ],
+        cwd=project,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_yaml_tree_icon_plain_strings_are_upgraded_to_callable_tags(tmp_path: Path) -> None:
     project = _project(
         tmp_path,
         """\
-site_name: Existing YAML extensions
+site_name: Legacy callback strings
 markdown_extensions:
-  - attr_list
-  - toc
+  - pymdownx.emoji:
+      emoji_generator: zensical.extensions.emoji.to_svg
+      emoji_index: zensical.extensions.emoji.twemoji
 """,
         config_name="zensical.yml",
     )
@@ -403,9 +453,8 @@ markdown_extensions:
     ensure_zensical_config(project, AdoptOptions())
 
     config = (project / "zensical.yml").read_text(encoding="utf-8")
-    assert "  - pymdownx.emoji:" in config
-    assert "      emoji_index: zensical.extensions.emoji.twemoji" in config
-    assert "      emoji_generator: zensical.extensions.emoji.to_svg" in config
+    assert "emoji_generator: !!python/name:zensical.extensions.emoji.to_svg" in config
+    assert "emoji_index: !!python/name:zensical.extensions.emoji.twemoji" in config
 
 
 def test_apply_core_never_invokes_git_or_editor_setup(tmp_path: Path, monkeypatch) -> None:
@@ -419,6 +468,7 @@ def test_apply_core_never_invokes_git_or_editor_setup(tmp_path: Path, monkeypatc
     assert (project / "requirements.txt").is_file()
     assert (project / STYLESHEET).is_file()
     assert "ok    Ready for local build" in result.output
+    assert "Run `zensical build --clean --strict`" in result.output
     assert not (project / ".vscode").exists()
     assert "Nothing has been committed or pushed" in result.output
 
@@ -427,7 +477,34 @@ def test_apply_core_never_invokes_git_or_editor_setup(tmp_path: Path, monkeypatc
     assert repeated.exit_code == 0, repeated.output
     assert "All selected prodockit components are already configured" in repeated.output
     assert "No changes made" in repeated.output
-    assert "Run `zensical build --clean`" not in repeated.output
+    assert "Run `zensical build --clean --strict`" not in repeated.output
+
+
+@pytest.mark.parametrize(
+    ("config_name", "command"),
+    (
+        ("zensical.toml", "zensical build --clean --strict"),
+        ("zensical.yml", "zensical build -f zensical.yml --clean --strict"),
+        ("zensical.yaml", "zensical build -f zensical.yaml --clean --strict"),
+        ("mkdocs.yml", "zensical build -f mkdocs.yml --clean --strict"),
+        ("mkdocs.yaml", "zensical build -f mkdocs.yaml --clean --strict"),
+    ),
+)
+def test_report_recommends_the_discovered_configuration(
+    tmp_path: Path,
+    monkeypatch,
+    config_name: str,
+    command: str,
+) -> None:
+    config = None if config_name == "zensical.toml" else "site_name: Existing document\n"
+    project = _project(tmp_path, config, config_name=config_name)
+    monkeypatch.chdir(project)
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
+
+    result = CliRunner().invoke(main, ["adopt", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert command in result.output
 
 
 def test_report_refuses_a_directory_without_zensical_config(tmp_path: Path, monkeypatch) -> None:
