@@ -17,6 +17,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import shlex
 import shutil
 import subprocess
@@ -69,6 +70,7 @@ REQUIRED_VSCODE_EXTENSIONS = (
 )
 READ_RETRY_DELAYS = (2.0, 5.0)
 TRANSIENT_ORIGIN_DETAIL = "could not reach origin to see what is there"
+GITLAB_PIPELINE_REF_RE = re.compile(r"refs/pipelines/[1-9][0-9]*")
 VSCODE_SETTINGS_SCRIPT = """
 import json, sys, pathlib
 path, incoming = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])
@@ -273,6 +275,30 @@ def query_refs(
             raise LiveProviderError(f"unexpected ls-remote output on line {number}")
         refs[fields[1]] = fields[0]
     return dict(sorted(refs.items()))
+
+
+def validate_destination_refs(
+    refs: dict[str, str],
+    *,
+    fixture: Fixture,
+    expected_commit: str,
+) -> tuple[str, ...]:
+    """Accept destination main plus GitLab's same-commit pipeline bookkeeping."""
+    if refs.get("refs/heads/main") != expected_commit:
+        raise LiveProviderError("the destination main ref differs from the tested commit")
+    provider_refs: list[str] = []
+    for name, object_id in refs.items():
+        if name == "refs/heads/main":
+            continue
+        if (
+            fixture.provider == "surrey"
+            and GITLAB_PIPELINE_REF_RE.fullmatch(name)
+            and object_id == expected_commit
+        ):
+            provider_refs.append(name)
+            continue
+        raise LiveProviderError(f"the destination contains an unexpected ref: {name}")
+    return tuple(sorted(provider_refs))
 
 
 def check_with_post_push_retry(
@@ -1121,7 +1147,7 @@ def classify_destination_after_failure(
     if not refs:
         return "not pushed"
     project = root / "path-one" / "setup" / fixture.destination_project
-    if not project.is_dir() or set(refs) != {"refs/heads/main"}:
+    if not project.is_dir() or "refs/heads/main" not in refs:
         return "inconclusive"
     try:
         commit = run(
@@ -1134,8 +1160,7 @@ def classify_destination_after_failure(
             cwd=root,
             environment=environment,
         ).stdout.strip()
-        if refs != {"refs/heads/main": commit}:
-            return "inconclusive"
+        validate_destination_refs(refs, fixture=fixture, expected_commit=commit)
         verify_destination(
             fixture,
             root=root / "failure-verification",
@@ -1387,8 +1412,11 @@ def controller(args: argparse.Namespace) -> None:
                 environment=environments[0],
                 git_executable=system_git,
             )
-            if destination_after != {"refs/heads/main": commit}:
-                raise LiveProviderError("the destination refs exceeded the one-main transition")
+            provider_refs = validate_destination_refs(
+                destination_after,
+                fixture=fixture,
+                expected_commit=commit,
+            )
             source_after = query_refs(
                 fixture.source_remote,
                 cwd=root,
@@ -1405,13 +1433,17 @@ def controller(args: argparse.Namespace) -> None:
                 expected_commit=commit,
                 expected_tree=summary["path_one"]["tree"],
             )
-            if query_refs(
+            final_destination = query_refs(
                 fixture.destination_remote,
                 cwd=root,
                 environment=environments[0],
                 git_executable=system_git,
-            ) != destination_after:
-                raise LiveProviderError("the populated path changed destination refs")
+            )
+            validate_destination_refs(
+                final_destination,
+                fixture=fixture,
+                expected_commit=commit,
+            )
             validate_exclusive_agent(args.agent_socket, fingerprint)
             summary.update(
                 {
@@ -1419,6 +1451,7 @@ def controller(args: argparse.Namespace) -> None:
                     "wheel_sha256": wheel.sha256,
                     "source_refs_unchanged": True,
                     "destination_transition": "empty -> refs/heads/main",
+                    "provider_created_refs": list(provider_refs),
                     "operating_system": platform.platform(),
                     "architecture": platform.machine(),
                     "started_at_utc": started,
