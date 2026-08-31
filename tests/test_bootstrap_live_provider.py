@@ -165,12 +165,15 @@ def test_non_prodockit_wheel_is_rejected(tmp_path: Path) -> None:
         live.inspect_wheel(wheel, live.sha256_file(wheel))
 
 
-def agent_public_key(comment: str = "prodockit-liveprovider-deploy-key") -> str:
-    encoded = base64.b64encode(b"prodockit live-provider fixture key").decode("ascii")
+def agent_public_key(
+    comment: str = "prodockit-liveprovider-deploy-key",
+    payload: bytes = b"prodockit live-provider fixture key",
+) -> str:
+    encoded = base64.b64encode(payload).decode("ascii")
     return f"ssh-ed25519 {encoded} {comment}"
 
 
-def test_agent_identity_requires_one_approved_ed25519_key(
+def test_agent_identity_selects_one_approved_ed25519_key(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     agent_socket = tmp_path / "agent.sock"
@@ -187,11 +190,11 @@ def test_agent_identity_requires_one_approved_ed25519_key(
         fingerprint=fingerprint,
     )
 
-    with pytest.raises(live.LiveProviderError, match="not the approved fingerprint"):
+    with pytest.raises(live.LiveProviderError, match="does not expose exactly one"):
         live.select_agent_identity(agent_socket, "SHA256:" + "A" * 43)
 
 
-def test_agent_identity_rejects_multiple_or_invalid_keys(
+def test_agent_identity_accepts_unrelated_keys_but_rejects_missing_or_duplicate_match(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     agent_socket = tmp_path / "agent.sock"
@@ -200,16 +203,26 @@ def test_agent_identity_rejects_multiple_or_invalid_keys(
     monkeypatch.setattr(live, "validate_agent_socket", lambda path: path.resolve())
     monkeypatch.setattr(live.shutil, "which", lambda _name: "/usr/bin/ssh-add")
 
-    multiple = live.subprocess.CompletedProcess(
-        [], 0, f"{public_key}\n{agent_public_key('other')}\n", ""
+    with_unrelated = live.subprocess.CompletedProcess(
+        [],
+        0,
+        f"{public_key}\n{agent_public_key('other', b'unrelated agent key')}\n",
+        "",
     )
-    monkeypatch.setattr(live.subprocess, "run", lambda *_args, **_kwargs: multiple)
-    with pytest.raises(live.LiveProviderError, match="exactly one"):
+    monkeypatch.setattr(live.subprocess, "run", lambda *_args, **_kwargs: with_unrelated)
+    selected = live.select_agent_identity(agent_socket, fingerprint)
+    assert selected.public_key == public_key
+
+    duplicate_match = live.subprocess.CompletedProcess(
+        [], 0, f"{public_key}\n{agent_public_key('same-key-different-comment')}\n", ""
+    )
+    monkeypatch.setattr(live.subprocess, "run", lambda *_args, **_kwargs: duplicate_match)
+    with pytest.raises(live.LiveProviderError, match="exactly one identity matching"):
         live.select_agent_identity(agent_socket, fingerprint)
 
     malformed = live.subprocess.CompletedProcess([], 0, "ssh-rsa not-base64\n", "")
     monkeypatch.setattr(live.subprocess, "run", lambda *_args, **_kwargs: malformed)
-    with pytest.raises(live.LiveProviderError, match="Ed25519"):
+    with pytest.raises(live.LiveProviderError, match="does not expose exactly one"):
         live.select_agent_identity(agent_socket, fingerprint)
 
 

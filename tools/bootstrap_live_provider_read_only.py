@@ -11,8 +11,9 @@ later phase with different credentials.
 
 The retained report contains no key material or temporary paths.  The complete
 temporary home and clone are removed on every exit path.  The test selects one
-explicitly approved identity from an external SSH agent and refuses an agent
-that exposes any additional identity.
+explicitly approved identity from an external SSH agent. Other identities may
+be present, but OpenSSH is constrained to the approved public key with
+``IdentitiesOnly``.
 """
 
 from __future__ import annotations
@@ -262,7 +263,7 @@ def validate_agent_socket(socket: Path) -> Path:
 
 
 def select_agent_identity(socket: Path, expected_fingerprint: str) -> AgentIdentity:
-    """Select the sole explicitly approved identity served by an SSH agent."""
+    """Select one explicitly approved identity served by an SSH agent."""
     if not AGENT_FINGERPRINT_RE.fullmatch(expected_fingerprint):
         raise LiveProviderError(
             "the approved agent-key fingerprint is not a complete SHA-256 value"
@@ -289,16 +290,26 @@ def select_agent_identity(socket: Path, expected_fingerprint: str) -> AgentIdent
     except (OSError, subprocess.SubprocessError) as error:
         raise LiveProviderError("could not inspect the served SSH identities") from error
     identities = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    if result.returncode or len(identities) != 1:
+    if result.returncode or not identities:
+        raise LiveProviderError("the selected SSH agent exposes no usable identities")
+    matches: list[str] = []
+    for identity in identities:
+        try:
+            fingerprint = public_key_fingerprint(identity)
+        except LiveProviderError:
+            continue
+        if hmac.compare_digest(fingerprint, expected_fingerprint):
+            matches.append(identity)
+    if len(matches) != 1:
         raise LiveProviderError(
-            "the selected SSH agent must expose exactly one repository deploy identity"
+            "the selected SSH agent does not expose exactly one identity matching "
+            "the approved fingerprint"
         )
-    fingerprint = public_key_fingerprint(identities[0])
-    if not hmac.compare_digest(fingerprint, expected_fingerprint):
-        raise LiveProviderError(
-            f"the served deploy identity is {fingerprint}, not the approved fingerprint"
-        )
-    return AgentIdentity(socket=socket, public_key=identities[0], fingerprint=fingerprint)
+    return AgentIdentity(
+        socket=socket,
+        public_key=matches[0],
+        fingerprint=expected_fingerprint,
+    )
 
 
 def validate_known_hosts(path: Path, hostname: str) -> Path:
@@ -697,7 +708,12 @@ def worker(args: argparse.Namespace) -> None:
         config,
         runner=SubprocessRunner(git_ssh_executable=str(args.ssh_shim)),
         home=args.root,
-        guided=True,
+        # The harness has already validated the approved agent identity and
+        # deliberately copies no private key into its temporary home.  The
+        # provider stages are therefore checked directly: guided mode would
+        # first require Bootstrap's normal on-disk user keypair, which is
+        # intentionally absent from this read-only test boundary.
+        guided=False,
     )
     stages = {stage.id: stage for stage in STAGES}
     missing = set(SELECTED_STAGE_IDS) - set(stages)
@@ -817,7 +833,7 @@ def controller(args: argparse.Namespace) -> None:
     print(f"  Repository: {fixture.namespace}/{fixture.project}")
     print(f"  Candidate:  prodockit {wheel.version} ({wheel.sha256})")
     print(f"  Remote main: {expected_head}")
-    print(f"  Deploy key: {agent_identity.fingerprint} (sole served identity)")
+    print(f"  Deploy key: {agent_identity.fingerprint} (explicitly selected identity)")
     print("  Boundary:   authenticate, inspect and clone; no provider write credential")
     print("  Output:     one redacted private report; temporary home removed")
     summary: dict[str, Any] | None = None
