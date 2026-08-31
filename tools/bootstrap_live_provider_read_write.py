@@ -65,6 +65,24 @@ REQUIRED_VSCODE_EXTENSIONS = (
     "tamasfe.even-better-toml",
     "ltex-plus.vscode-ltex-plus",
 )
+VSCODE_SETTINGS_SCRIPT = """
+import json, sys, pathlib
+path, incoming = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])
+path.parent.mkdir(parents=True, exist_ok=True)
+try:
+    current = json.loads(path.read_text(encoding="utf-8") or "{}")
+except FileNotFoundError:
+    current = {}
+if not isinstance(current, dict):
+    raise ValueError(f"{path} is not a JSON object")
+raw_associations = current.get("files.associations")
+associations = dict(raw_associations) if isinstance(raw_associations, dict) else {}
+associations.update(incoming.pop("files.associations", {}))
+if associations:
+    current["files.associations"] = associations
+current.update(incoming)
+path.write_text(json.dumps(current, indent=2) + "\\n", encoding="utf-8")
+"""
 
 MUTABLE_STAGE_IDS = {
     "git",
@@ -637,8 +655,8 @@ def _authorise_non_git_command(
             len(command) == 5
             and command[0] == candidate
             and command[1] == "-c"
+            and command[2] == VSCODE_SETTINGS_SCRIPT
             and command[3] == str(project / ".vscode" / "settings.json")
-            and _safe_embedded_python(command[2])
         )
         if accepted:
             try:

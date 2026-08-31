@@ -346,6 +346,31 @@ def test_plan_allows_only_the_reviewed_clone_remote_and_one_main_push(
             candidate_python=Path(sys.executable),
         )
 
+    with pytest.raises(live.LiveProviderError, match="unapproved non-Git"):
+        live.authorise_plan(
+            "vscode-settings",
+            [
+                [
+                    sys.executable,
+                    "-c",
+                    live.VSCODE_SETTINGS_SCRIPT + "\nimport socket",
+                    str(project / ".vscode" / "settings.json"),
+                    json.dumps(
+                        {
+                            "files.associations": {"*.md": "python-markdown"},
+                            "ltex.language": "en-GB",
+                        }
+                    ),
+                ]
+            ],
+            str(project),
+            fixture=fixture,
+            home=home,
+            project=project,
+            allow_push=True,
+            candidate_python=Path(sys.executable),
+        )
+
 
 def test_history_archive_allows_macos_private_var_alias(tmp_path: Path) -> None:
     """macOS may spell one temporary path as /var and another as /private/var."""
@@ -596,6 +621,7 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
         "fresh-history",
         "remote",
         "identity",
+        "vscode-settings",
         "first-push",
     }
     stages = tuple(
@@ -711,6 +737,7 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
         "fresh-history",
         "remote",
         "identity",
+        "vscode-settings",
         "first-push",
     )
     assert second.applied_stages == ("git", "clone", "fresh-history", "identity")
