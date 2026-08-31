@@ -468,6 +468,20 @@ def _caption_box_metrics(body: str) -> dict[str, tuple[float, float, float]]:
     return found
 
 
+def test_web_only_image_remains_hidden_inside_captioned_figure() -> None:
+    """Caption layout must not override the PDF visibility convention."""
+    metrics = _caption_box_metrics(
+        '<figure class="prodockit-figure-caption">'
+        f'<p><img id="web-image" class="screenshot web-only" src="{_IMAGE}">'
+        f'<img id="pdf-image" class="screenshot pdf-only" src="{_IMAGE}"></p>'
+        '<figcaption><p>Architecture overview</p></figcaption>'
+        "</figure>"
+    )
+
+    assert "web-image" not in metrics
+    assert "pdf-image" in metrics
+
+
 def _assert_caption_matches_image(metrics: dict[str, tuple[float, float, float]]) -> None:
     import pytest
 

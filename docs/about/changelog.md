@@ -38,6 +38,11 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## Unreleased
+
+- Kept `.web-only` images hidden inside captioned PDF figures, preventing paired
+  website and PDF diagram variants from both appearing in the PDF.
+
 ## 0.52.0 (2026-08-31)
 
 - Made Adoption write valid YAML callbacks, repair legacy callback strings,

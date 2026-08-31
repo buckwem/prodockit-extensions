@@ -827,10 +827,14 @@ figure.prodockit-figure-caption > p,
 div.prodockit-figure-caption > p:not(:first-child) {
     display: table-row !important;
 }
-figure.prodockit-figure-caption > p > img,
-div.prodockit-figure-caption > p > img,
-figure.prodockit-figure-caption > img,
-div.prodockit-figure-caption > img {
+/* Do not match a web-only image here. This selector is more specific than
+   the visibility rule near the top of the stylesheet; matching it would
+   restore display: block and render both the web and PDF variants inside a
+   captioned figure. */
+figure.prodockit-figure-caption > p > img:not(.web-only),
+div.prodockit-figure-caption > p > img:not(.web-only),
+figure.prodockit-figure-caption > img:not(.web-only),
+div.prodockit-figure-caption > img:not(.web-only) {
     display: block !important;
     max-width: 100% !important;
 }
