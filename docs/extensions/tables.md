@@ -24,7 +24,7 @@ Choose the feature that solves the table's problem:
 
 | Need | Attribute |
 | --- | --- |
-| Set a column width | `width="30%"` or a fixed width such as `8rem` |
+| Set a column or grouped-header width | `width="30%"` or a fixed width such as `8rem` |
 | Fit many short columns | `.compact` |
 | Repeat more than one header row | `.header` |
 | Merge cells | `colspan=2` or `rowspan=2` |
@@ -269,6 +269,26 @@ Mark it `{: .header }`:
 
 Both header rows then repeat when a long table continues onto another PDF
 page.
+
+Widths can be set on either header row. A width on an ordinary cell applies
+to that physical column even when the cell is in a promoted `.header` row. A
+width on a merged heading is the total for its `colspan`; the extension shares
+that total among the covered columns in proportion to the longest unmerged
+text in each column. This lets a short identifier and a longer description
+receive different parts of one grouped width:
+
+```md
+| Target {: rowspan=2 width="25%" } | Measured values {: colspan=2 width="60%" } | | Note {: rowspan=2 width="15%" } |
+|---|---|---|---|
+| | Before {: .header } | After remediation | |
+| Widget | 1 | 2 | ok |
+```
+
+Do not put a width on both a merged group and one of its individual columns;
+those declarations compete for the same space, so the extension reports an
+actionable error instead of choosing one silently. A grouped width must be a
+number followed by one CSS unit, such as `60%`, `12rem` or `240px`, so it can
+be divided without changing its total.
 
 The marker has to go on a cell that **has text** - `attr_list` has nothing
 to attach to in an empty one. Any cell in the row will do. Only the leading
