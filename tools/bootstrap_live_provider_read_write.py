@@ -547,7 +547,7 @@ def _authorise_non_git_command(
         accepted = command == [
             "mv",
             str(project / ".git"),
-            str(home / "setup" / f".{project.name}.git.pdk-template-backup"),
+            str(project.parent / f".{project.name}.git.pdk-template-backup"),
         ]
     elif stage_id == "remote":
         accepted = command == [candidate, "-m", "prodockit", "sync-repo"]
@@ -611,7 +611,8 @@ def _authorise_non_git_command(
         accepted = command == [project_zensical, "build", "--clean"]
     if not accepted:
         raise LiveProviderError(
-            f"stage {stage_id} generated an unapproved non-Git command"
+            f"stage {stage_id} generated an unapproved non-Git command: "
+            f"{shlex.join(command)}"
         )
 
 
