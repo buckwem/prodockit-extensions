@@ -38,6 +38,11 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## Unreleased
+
+- Kept `.web-only` images hidden inside captioned PDF figures, preventing paired
+  website and PDF diagram variants from both appearing in the PDF.
+
 ## 0.52.0 (2026-08-31)
 
 - Made Adoption write valid YAML callbacks, repair legacy callback strings,
@@ -86,13 +91,3 @@ requests rather than here.
 ## 0.50.1 (2026-08-29)
 
 - Made website figure captions use the rendered figure width instead of the theme's narrower default caption measure.
-
-## 0.50.0 (2026-08-29)
-
-- Added `prodockit config` diagnostics and reusable project-integrity checks for configuration mistakes, missing project files, disabled extensions and unresolved build inputs.
-- Changed generated MathJax website assets to be restored from the pinned npm installation when needed rather than stored in a project repository.
-- Made numbered figure captions follow the rendered image width on websites and in PDFs, including percentage, full-width and height-constrained images.
-
-## 0.49.1 (2026-08-28)
-
-- Changed `prodockit pdf` to consume and validate a prior strict Zensical build, then atomically add the finished PDF to the published site.
