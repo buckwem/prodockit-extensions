@@ -251,7 +251,7 @@ def test_project_snapshot_does_not_query_disabled_features(tmp_path: Path) -> No
         def list_all(
             self, path: str, *, query: dict[str, Any] | None = None
         ) -> list[dict[str, Any]]:
-            if path.endswith(("/pipelines", "/merge_requests")):
+            if path.endswith(("/pipelines", "/merge_requests", "/variables")):
                 raise AssertionError("a disabled feature endpoint must not be queried")
             return super().list_all(path, query=query)
 
@@ -322,6 +322,7 @@ def test_delete_unpublishes_pages_before_removing_project(tmp_path: Path) -> Non
     fixture = state.LifecycleFixture.read(write_fixture(tmp_path / "fixture.json"))
     client = FakeGitLab(fixture)
     client.project = client._project()
+    client.project["pages_access_level"] = "private"
     client.pages = {
         "url": "https://example.pages.invalid/project/",
         "deployments": [{"path_prefix": "", "url": "https://example.pages.invalid/project/"}],
@@ -341,6 +342,39 @@ def test_delete_unpublishes_pages_before_removing_project(tmp_path: Path) -> Non
     ]
 
 
+def test_delete_does_not_query_the_disabled_pages_endpoint(tmp_path: Path) -> None:
+    fixture = state.LifecycleFixture.read(write_fixture(tmp_path / "fixture.json"))
+
+    class DisabledPagesEndpoint(FakeGitLab):
+        def request(
+            self,
+            method: str,
+            path: str,
+            *,
+            query: dict[str, Any] | None = None,
+            body: dict[str, Any] | None = None,
+            expected: object = None,
+        ) -> lifecycle.ApiResponse:
+            if path.endswith("/pages"):
+                raise AssertionError("the disabled Pages endpoint must not be queried")
+            return super().request(
+                method,
+                path,
+                query=query,
+                body=body,
+                expected=expected,
+            )
+
+    client = DisabledPagesEndpoint(fixture)
+    client.project = client._project()
+    journal = lifecycle.Journal([])
+
+    lifecycle.delete_exact_project(client, fixture, client.project, journal)
+
+    assert client.project is None
+    assert [entry["operation"] for entry in journal.operations] == ["delete-project"]
+
+
 def test_reset_removes_the_project_if_post_creation_validation_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -351,8 +385,8 @@ def test_reset_removes_the_project_if_post_creation_validation_fails(
         def list_all(
             self, path: str, *, query: dict[str, Any] | None = None
         ) -> list[dict[str, Any]]:
-            if path.endswith("/variables") and self.project is not None:
-                return [{"key": "UNEXPECTED"}]
+            if path.endswith("/hooks") and self.project is not None:
+                return [{"id": 999}]
             return super().list_all(path, query=query)
 
     client = InvalidPostCreationState(fixture)
@@ -378,7 +412,7 @@ def test_reset_removes_the_project_if_post_creation_validation_fails(
         confirm_project_reset=state.SURREY_PATH,
     )
 
-    with pytest.raises(lifecycle.LifecycleError, match="unexpected variable"):
+    with pytest.raises(lifecycle.LifecycleError, match="unexpected hook"):
         lifecycle.reset_project(args, client)
 
     assert client.project is None
@@ -754,15 +788,15 @@ def test_unexpected_provider_content_blocks_deletion(
     fixture_path = write_fixture(tmp_path / "fixture.json")
     fixture = state.LifecycleFixture.read(fixture_path)
 
-    class UnexpectedVariable(FakeGitLab):
+    class UnexpectedHook(FakeGitLab):
         def list_all(
             self, path: str, *, query: dict[str, Any] | None = None
         ) -> list[dict[str, Any]]:
-            if path == "/projects/403/variables":
-                return [{"key": "UNEXPECTED"}]
+            if path == "/projects/403/hooks":
+                return [{"id": 999}]
             return super().list_all(path, query=query)
 
-    client = UnexpectedVariable(fixture)
+    client = UnexpectedHook(fixture)
     client.project = client._project(403)
     client.refs = {"refs/heads/main": COMMIT}
     previous = state.RetainedState(
@@ -804,7 +838,7 @@ def test_unexpected_provider_content_blocks_deletion(
         confirm_project_reset=state.SURREY_PATH,
     )
 
-    with pytest.raises(lifecycle.LifecycleError, match="unexpected variable"):
+    with pytest.raises(lifecycle.LifecycleError, match="unexpected hook"):
         lifecycle.reset_project(args, client)
     assert not any(method == "DELETE" for method, _path in client.mutations)
 
