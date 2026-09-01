@@ -443,7 +443,17 @@ def project_snapshot(
         raise LifecycleError("GitLab returned an invalid project ID")
     branches = client.list_all(f"/projects/{project_id}/repository/branches")
     tags = client.list_all(f"/projects/{project_id}/repository/tags")
-    pipelines = client.list_all(f"/projects/{project_id}/pipelines")
+    # GitLab returns 403 from the pipelines endpoint after CI/CD has been
+    # disabled.  That is the required state for this isolated fixture, and a
+    # project created with builds disabled cannot have provider-created
+    # pipeline refs.  Avoid querying an endpoint we deliberately made
+    # inaccessible; the candidate's independent Git transport check still
+    # rejects any unexpected refs before the project is sealed.
+    pipelines = (
+        []
+        if project.get("builds_access_level") == "disabled"
+        else client.list_all(f"/projects/{project_id}/pipelines")
+    )
     refs: dict[str, str] = {}
     for prefix, records in (("refs/heads", branches), ("refs/tags", tags)):
         for record in records:
