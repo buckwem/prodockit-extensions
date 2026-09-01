@@ -283,6 +283,7 @@ def test_real_bootstrap_harness_exercises_itself_and_manual_dispatch() -> None:
     for harness in (
         "tools/bootstrap_native_install.py",
         "tools/bootstrap_native_upgrade.py",
+        "tools/native_download.py",
     ):
         assert bootstrap_native_for_event(
             "pull_request", {}, ChangedRange((harness,))
@@ -291,6 +292,21 @@ def test_real_bootstrap_harness_exercises_itself_and_manual_dispatch() -> None:
     assert not bootstrap_native_for_event(
         "push", {}, ChangedRange(("tools/bootstrap_native_install.py",))
     )
+
+
+def test_real_upgrade_workflow_caches_validated_old_software() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "bootstrap-install.yml").read_text(
+        encoding="utf-8"
+    )
+
+    installed_wheel, native_upgrade = workflow.split("\n  native-upgrade:", 1)
+    native_upgrade = native_upgrade.split("\n  result:", 1)[0]
+
+    assert "Restore validated native-upgrade fixtures" not in installed_wheel
+    assert "Restore validated native-upgrade fixtures" in native_upgrade
+    assert "uses: actions/cache@v4" in native_upgrade
+    assert "PDK_NATIVE_DOWNLOAD_CACHE:" in native_upgrade
+    assert "hashFiles('tools/bootstrap_native_upgrade.py')" in native_upgrade
 
 
 def test_uncertain_release_detection_fails_closed() -> None:

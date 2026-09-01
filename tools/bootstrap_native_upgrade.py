@@ -13,7 +13,6 @@ installed software, not somebody's GitHub or GitLab account.
 from __future__ import annotations
 
 import argparse
-import gzip
 import json
 import os
 import platform
@@ -54,6 +53,11 @@ except ImportError:  # executed directly by the release workflow
         cleanup_ephemeral_runner,
     )
 
+try:
+    from .native_download import DownloadError, download
+except ImportError:  # executed directly by the release workflow
+    from native_download import DownloadError, download
+
 from prodockit.bootstrap import current_platform, refresh_windows_path
 from prodockit.bootstrap.stages import (
     GIT_MIN_VERSION,
@@ -67,6 +71,15 @@ OLD_VSCODE = "1.80.2"
 OLD_GIT = "2.27.0"
 OLD_PANDOC = "2.19.2"
 OLD_NODE = "18.20.0"
+
+GIT_SOURCES = (
+    f"https://github.com/git/git/archive/refs/tags/v{OLD_GIT}.tar.gz",
+    f"https://www.kernel.org/pub/software/scm/git/git-{OLD_GIT}.tar.gz",
+)
+GIT_SHA256 = (
+    "9c856565ffb7268c8e85c91a0f747beac20dcf2d1292d35952046467abd969ce",
+    "77ded85cbe42b1ffdc2578b460a1ef5d23bcbc6683eabcafbb0d394dffe2e787",
+)
 
 SCENARIOS = (
     ("surrey-existing-real-upgrade", "surrey", "existing"),
@@ -116,21 +129,41 @@ def _run(
 
 
 def _download(url: str, destination: Path) -> Path:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    print(f"download: {url}", flush=True)
-    request = urllib.request.Request(url, headers={"User-Agent": "prodockit-release-ci"})
-    with (
-        urllib.request.urlopen(request, timeout=120) as response,
-        destination.open("wb") as output,
-    ):
-        if response.headers.get("Content-Encoding", "").lower() == "gzip":
-            with gzip.GzipFile(fileobj=response) as decoded:
-                shutil.copyfileobj(decoded, output)
-        else:
-            shutil.copyfileobj(response, output)
-    if not destination.stat().st_size:
-        raise NativeInstallError(f"download produced an empty file: {url}")
-    return destination
+    try:
+        return download(url, destination, opener=urllib.request.urlopen)
+    except DownloadError as error:
+        raise NativeInstallError(str(error)) from error
+
+
+def _download_sources(
+    urls: tuple[str, ...],
+    destination: Path,
+    *,
+    expected_sha256: tuple[str, ...] | None = None,
+) -> Path:
+    """Try compatible upstream artifacts in order, sharing one cache entry."""
+    failures: list[str] = []
+    cache_key = "\n".join(urls)
+    for index, url in enumerate(urls, 1):
+        try:
+            return download(
+                url,
+                destination,
+                opener=urllib.request.urlopen,
+                expected_sha256=expected_sha256,
+                cache_key=cache_key,
+            )
+        except (DownloadError, urllib.error.HTTPError) as error:
+            failures.append(f"{url}: {error}")
+            if index < len(urls):
+                print(
+                    f"download source unavailable; trying mirror {index + 1}/{len(urls)}",
+                    flush=True,
+                )
+    raise NativeInstallError(
+        "all download sources failed for "
+        f"{destination.name}: " + "; ".join(failures)
+    )
 
 
 def _extract_zip(archive: Path, destination: Path) -> None:
@@ -173,9 +206,10 @@ def _find(root: Path, names: tuple[str, ...]) -> Path:
 
 
 def _build_old_git(source_root: Path, prefix: Path) -> Path:
-    archive = _download(
-        f"https://github.com/git/git/archive/refs/tags/v{OLD_GIT}.tar.gz",
+    archive = _download_sources(
+        GIT_SOURCES,
         source_root / f"git-{OLD_GIT}.tar.gz",
+        expected_sha256=GIT_SHA256,
     )
     extracted = source_root / "git-source"
     _extract_tar(archive, extracted)
@@ -199,8 +233,13 @@ def _portable_unix_software(root: Path, recipe: str) -> list[Path]:
 
     vscode = root / "vscode"
     if recipe == MACOS:
-        archive = _download(
-            f"https://update.code.visualstudio.com/{OLD_VSCODE}/darwin-{architecture}/stable",
+        archive = _download_sources(
+            (
+                f"https://update.code.visualstudio.com/{OLD_VSCODE}/"
+                f"darwin-{architecture}/stable",
+                f"https://update.code.visualstudio.com/{OLD_VSCODE}/"
+                "darwin-universal/stable",
+            ),
             root / "vscode.zip",
         )
         _extract_zip(archive, vscode)
@@ -239,11 +278,15 @@ def _portable_unix_software(root: Path, recipe: str) -> list[Path]:
 
     node = root / "node"
     node_os = "darwin" if recipe == MACOS else "linux"
-    suffix = "tar.gz" if recipe == MACOS else "tar.xz"
-    archive = _download(
-        f"https://nodejs.org/dist/v{OLD_NODE}/"
-        f"node-v{OLD_NODE}-{node_os}-{architecture}.{suffix}",
-        root / f"node.{suffix}",
+    preferred_suffix = "tar.gz" if recipe == MACOS else "tar.xz"
+    alternate_suffix = "tar.xz" if preferred_suffix == "tar.gz" else "tar.gz"
+    archive = _download_sources(
+        tuple(
+            f"https://nodejs.org/dist/v{OLD_NODE}/"
+            f"node-v{OLD_NODE}-{node_os}-{architecture}.{suffix}"
+            for suffix in (preferred_suffix, alternate_suffix)
+        ),
+        root / "node.tar",
     )
     _extract_tar(archive, node)
     bins.append(_find(node, ("node",)).parent)
@@ -345,15 +388,14 @@ def _download_marketplace(identifier: str, version: str, destination: Path) -> P
 
     Extensions with native helpers publish one VSIX per target platform.
     Pure extensions publish only a universal package, for which Marketplace
-    deliberately returns 404 when ``targetPlatform`` is supplied.
+    deliberately returns 404 when ``targetPlatform`` is supplied. The universal
+    package is also a compatible fallback if the targeted endpoint is transiently
+    unavailable after its bounded retries.
     """
     platform_url = _marketplace_url(identifier, version)
-    try:
-        return _download(platform_url, destination)
-    except urllib.error.HTTPError as error:
-        if error.code != 404:
-            raise
-    return _download(platform_url.partition("?")[0], destination)
+    return _download_sources(
+        (platform_url, platform_url.partition("?")[0]), destination
+    )
 
 
 def _seed_old_extensions(cache: Path, home: Path) -> None:

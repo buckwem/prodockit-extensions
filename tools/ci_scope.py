@@ -146,6 +146,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/_bootstrap_acceptance_driver.py": frozenset({"bootstrap"}),
     "tools/bootstrap_native_install.py": frozenset({"bootstrap"}),
     "tools/bootstrap_native_upgrade.py": frozenset({"bootstrap"}),
+    "tools/native_download.py": frozenset({"bootstrap"}),
     ".github/workflows/adopt-install.yml": frozenset({"adopt"}),
     ".github/workflows/pdf-built-site-wheel.yml": frozenset({"pdf"}),
     ".github/workflows/bootstrap-install.yml": frozenset({"bootstrap"}),
@@ -295,6 +296,7 @@ _NATIVE_BOOTSTRAP_FILES = {
     "tools/ci_scope.py",
     "tools/bootstrap_native_install.py",
     "tools/bootstrap_native_upgrade.py",
+    "tools/native_download.py",
 }
 
 _NATIVE_ADOPT_FILES = {
