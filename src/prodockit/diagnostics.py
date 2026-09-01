@@ -25,7 +25,7 @@ from prodockit.config_diagnostics import inspect_config
 from prodockit.pins import DEFAULT_PACKAGES, discover, resolve_latest
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
-from prodockit.renderer_health import probe_mermaid
+from prodockit.renderer_health import probe_mathjax, probe_mermaid
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import inspect as inspect_shared_files
 
@@ -639,37 +639,81 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
         ),
         None,
     )
-    browser_status: Status = "pass" if browser else "warn"
+    browser_version = None
+    browser_error = None
+    if browser:
+        try:
+            browser_result = _run([browser, "--version"])
+            browser_output = "\n".join(
+                part.strip()
+                for part in (browser_result.stdout, browser_result.stderr)
+                if part.strip()
+            )
+            if browser_result.returncode:
+                browser_error = browser_output or f"exited {browser_result.returncode}"
+            else:
+                browser_version = _first_version(browser_output)
+                if browser_version is None:
+                    browser_error = "reported no version"
+        except (OSError, subprocess.SubprocessError) as error:
+            browser_error = str(error)
+    browser_ok = bool(browser and not browser_error)
+    browser_status: Status = (
+        "pass" if browser_ok else ("fail" if browser and mermaid_required else "warn")
+    )
     checks.append(
         DiagnosticResult(
             "renderer.browser",
             "Rendering toolchain",
             browser_status,
-            "Browser executable is available"
-            if browser
-            else "No explicit Chrome/Chromium executable found"
-            + ("; Mermaid CLI may use its bundled browser" if mermaid_required else " (optional)"),
-            (f"path: {_display_path(browser, root)}",) if browser else (),
+            "Browser executable can run"
+            if browser_ok
+            else (
+                "Browser executable is unusable"
+                if browser
+                else "No explicit Chrome/Chromium executable found"
+            )
+            + (
+                "; Mermaid CLI may use its bundled browser"
+                if not browser and mermaid_required
+                else " (optional)" if not mermaid_required else ""
+            ),
+            tuple(
+                detail
+                for detail in (
+                    f"path: {_display_path(browser, root)}" if browser else None,
+                    f"health probe: {browser_error}" if browser_error else None,
+                )
+                if detail
+            ),
             {
                 "required": mermaid_required,
                 "path": _display_path(browser, root) if browser else None,
+                "version": browser_version,
+                "error": browser_error,
             },
         )
     )
 
     mathjax_modules = root / "tools" / "mathjax" / "node_modules" / "mathjax-full"
-    mathjax_ok = bool(tex2svg and mathjax_modules.is_dir())
+    node = shutil.which("node")
+    mathjax_probe = probe_mathjax(node, tex2svg) if node and tex2svg else None
+    mathjax_ok = bool(mathjax_modules.is_dir() and mathjax_probe and mathjax_probe.ok)
     math_details = []
     if tex2svg:
         math_details.append(f"script: {_display_path(tex2svg, root)}")
     if mathjax_modules.is_dir():
         math_details.append(f"inputs: {_display_path(mathjax_modules, root)}")
+    if tex2svg and node is None:
+        math_details.append("health probe: node is not found on PATH")
+    elif mathjax_probe and mathjax_probe.error:
+        math_details.append(f"health probe: {mathjax_probe.error}")
     checks.append(
         DiagnosticResult(
             "renderer.mathjax",
             "Rendering toolchain",
             "pass" if mathjax_ok else ("fail" if maths_required else "warn"),
-            "MathJax inputs and tex2svg.js are available"
+            "MathJax can render an expression"
             if mathjax_ok
             else "MathJax PDF renderer is incomplete"
             + (" but required by this project" if maths_required else " (optional)"),
@@ -680,6 +724,11 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
                 "inputs": _display_path(mathjax_modules, root)
                 if mathjax_modules.is_dir()
                 else None,
+                "error": (
+                    mathjax_probe.error
+                    if mathjax_probe
+                    else "node is not found on PATH" if tex2svg else None
+                ),
             },
         )
     )

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import difflib
-import importlib.util
+import importlib
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -90,8 +90,12 @@ def _suggest(value: str, choices: list[str]) -> str:
 
 
 def index_support_available() -> bool:
-    """Whether the optional package needed to generate an index is installed."""
-    return importlib.util.find_spec("pymupdf") is not None
+    """Whether the optional package needed to generate an index can import."""
+    try:
+        importlib.import_module("pymupdf")
+    except Exception:  # native-loader failures are not necessarily ImportError
+        return False
+    return True
 
 
 def _display_default(config: ProjectConfig, key: str, default: object) -> object:

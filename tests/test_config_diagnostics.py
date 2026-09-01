@@ -7,6 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
+import prodockit.config_diagnostics as config_diagnostics
 from prodockit.cli import main
 from prodockit.config_diagnostics import EXTENSION_TYPES
 from prodockit.template_sync import read_config
@@ -116,6 +117,21 @@ def test_index_status_reports_missing_optional_support(tmp_path: Path, monkeypat
     assert "enabled" in result.output
     assert "not installed" in result.output
     assert "prodockit[index]" in result.output
+
+
+def test_index_support_rejects_an_installed_module_that_cannot_load(monkeypatch) -> None:
+    def broken(_name: str):
+        raise OSError("native library is missing")
+
+    monkeypatch.setattr(config_diagnostics.importlib, "import_module", broken)
+
+    assert config_diagnostics.index_support_available() is False
+
+
+def test_index_support_requires_a_successful_import(monkeypatch) -> None:
+    monkeypatch.setattr(config_diagnostics.importlib, "import_module", lambda _name: object())
+
+    assert config_diagnostics.index_support_available() is True
 
 
 def test_check_passes_valid_prodockit_configuration(tmp_path: Path) -> None:

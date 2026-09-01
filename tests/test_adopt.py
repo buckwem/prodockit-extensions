@@ -630,6 +630,10 @@ def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monke
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr(
+        "prodockit.adopt.probe_mathjax",
+        lambda node, script: SimpleNamespace(path=script, ok=True, version=None, error=None),
+    )
 
     install_tool(project, "mathjax")
 
@@ -637,6 +641,27 @@ def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monke
     assert (project / "docs" / "javascripts" / "vendor" / "mathjax" / "tex-svg-full.js").is_file()
     assert (project / "docs" / "javascripts" / "vendor" / "mathjax" / "LICENSE").is_file()
     assert not (project / "tools" / "mermaid").exists()
+
+
+def test_maths_install_rejects_npm_success_when_renderer_probe_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _project(tmp_path)
+    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/tool")
+
+    def npm(_command, **_kwargs):
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr(
+        "prodockit.adopt.probe_mathjax",
+        lambda node, script: SimpleNamespace(
+            path=script, ok=False, version=None, error="Cannot find module"
+        ),
+    )
+
+    with pytest.raises(AdoptError, match="npm completed but MathJax is unusable"):
+        install_tool(project, "mathjax")
 
 
 def test_custom_node_manifest_without_a_lock_uses_npm_install(

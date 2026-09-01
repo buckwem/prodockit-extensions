@@ -3353,6 +3353,48 @@ def _check_node(context: Context) -> CheckResult:
             absent.append("mathjax")
         if absent:
             return _wrong(f"node {raw}, but {' and '.join(absent)} is not installed")
+        with tempfile.TemporaryDirectory(prefix="prodockit-bootstrap-mermaid-") as temporary:
+            source = Path(temporary) / "health.mmd"
+            output = Path(temporary) / "health.svg"
+            source.write_text("graph LR\n  A --> B\n", encoding="utf-8")
+            mermaid_result = context.runner.run(
+                [str(mermaid_cli), "-i", str(source), "-o", str(output)],
+                cwd=str(project / "tools" / "mermaid"),
+                timeout=30,
+            )
+        if not mermaid_result.ok:
+            detail = mermaid_result.stderr.strip() or mermaid_result.stdout.strip()
+            return _wrong(
+                f"node {raw}, but Mermaid cannot render a diagram"
+                + (f": {detail}" if detail else "")
+            )
+        # Loading the modules used by tex2svg catches partial npm extracts
+        # without modifying the project or relying on shell input redirection.
+        mathjax_result = context.runner.run(
+            [
+                node_command(context),
+                "-e",
+                ";".join(
+                    f"require('{module}')"
+                    for module in (
+                        "mathjax-full/js/mathjax.js",
+                        "mathjax-full/js/input/tex.js",
+                        "mathjax-full/js/output/svg.js",
+                        "mathjax-full/js/adaptors/liteAdaptor.js",
+                        "mathjax-full/js/handlers/html.js",
+                        "mathjax-full/js/input/tex/AllPackages.js",
+                    )
+                ),
+            ],
+            cwd=str(project / "tools" / "mathjax"),
+            timeout=15,
+        )
+        if not mathjax_result.ok:
+            detail = mathjax_result.stderr.strip() or mathjax_result.stdout.strip()
+            return _wrong(
+                f"node {raw}, but MathJax cannot load its renderer modules"
+                + (f": {detail}" if detail else "")
+            )
     elif project.exists():
         absent = [
             name

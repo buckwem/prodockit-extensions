@@ -207,6 +207,8 @@ def test_node_stage_warns_about_an_unreadable_version(tmp_path: Path) -> None:
         {
             "node --version": CommandResult(0, "development"),
             "npm --version": CommandResult(0, "10.9.2"),
+            "mmdc -i": CommandResult(0),
+            "mathjax-full/js/mathjax.js": CommandResult(0),
         }
     )
 
@@ -215,6 +217,55 @@ def test_node_stage_warns_about_an_unreadable_version(tmp_path: Path) -> None:
     assert result.status is Status.WARNING
     assert not result.needs_work
     assert "could not read Node's version" in result.detail
+
+
+def _installed_renderer_files(project: Path) -> None:
+    mermaid = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+    mermaid.parent.mkdir(parents=True)
+    mermaid.touch()
+    bundle = (
+        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
+        / "tex-svg-full.js"
+    )
+    bundle.parent.mkdir(parents=True)
+    bundle.write_text("bundle", encoding="utf-8")
+
+
+def test_node_stage_rejects_a_mermaid_install_that_cannot_render(tmp_path: Path) -> None:
+    project = tmp_path / "report"
+    _installed_renderer_files(project)
+    runner = CliFakeRunner(
+        {
+            "node --version": CommandResult(0, "v22.14.0"),
+            "npm --version": CommandResult(0, "10.9.2"),
+            "mmdc -i": CommandResult(1, stderr="browser failed to launch"),
+        }
+    )
+
+    result = stages._check_node(_context(tmp_path, runner=runner))
+
+    assert result.status is Status.WRONG
+    assert "Mermaid cannot render" in result.detail
+    assert "browser failed to launch" in result.detail
+
+
+def test_node_stage_rejects_incomplete_mathjax_modules(tmp_path: Path) -> None:
+    project = tmp_path / "report"
+    _installed_renderer_files(project)
+    runner = CliFakeRunner(
+        {
+            "node --version": CommandResult(0, "v22.14.0"),
+            "npm --version": CommandResult(0, "10.9.2"),
+            "mmdc -i": CommandResult(0),
+            "mathjax-full/js/mathjax.js": CommandResult(1, stderr="Cannot find module"),
+        }
+    )
+
+    result = stages._check_node(_context(tmp_path, runner=runner))
+
+    assert result.status is Status.WRONG
+    assert "MathJax cannot load" in result.detail
+    assert "Cannot find module" in result.detail
 
 
 def test_node_stage_rejects_an_old_npm(tmp_path: Path) -> None:

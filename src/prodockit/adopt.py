@@ -32,7 +32,7 @@ from prodockit import __version__
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
-from prodockit.renderer_health import probe_mermaid
+from prodockit.renderer_health import probe_mathjax, probe_mermaid
 from prodockit.shared_files import resource_bytes
 
 if sys.version_info >= (3, 11):
@@ -1004,8 +1004,17 @@ def _tool_health(root: Path, component: str) -> tuple[bool, str]:
     installed = (
         root / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
     ).is_file() and (root / "docs" / "javascripts" / "mathjax.js").is_file()
-    detail = "MathJax inputs are installed" if installed else "MathJax inputs are incomplete"
-    return installed, detail
+    if not installed:
+        return False, "MathJax inputs are incomplete"
+    node = shutil.which("node")
+    if node is None:
+        return False, "node is unavailable for the MathJax renderer"
+    probe = probe_mathjax(node, root / "tools" / "mathjax" / "tex2svg.js")
+    return (
+        (True, "MathJax can render an expression")
+        if probe.ok
+        else (False, f"MathJax health check failed: {probe.error}")
+    )
 
 
 def ensure_tools(root: Path, options: AdoptOptions) -> list[Path]:
@@ -1080,11 +1089,27 @@ def install_tool(root: Path, component: str) -> list[Path]:
         binary = _mermaid_bin(root)
         probe = probe_mermaid(binary) if binary else None
         if probe is None or not probe.ok:
-            detail = probe.error if probe else "mmdc executable is missing"
+            health_detail = (
+                probe.error or "health probe failed"
+                if probe
+                else "mmdc executable is missing"
+            )
             raise AdoptError(
                 "npm completed but Mermaid CLI is unusable: "
-                f"{detail}. Remove tools/mermaid/node_modules and rerun "
+                f"{health_detail}. Remove tools/mermaid/node_modules and rerun "
                 "`prodockit adopt --apply --mermaid`."
+            )
+    if component == "mathjax":
+        node = shutil.which("node")
+        probe = probe_mathjax(node, tool_root / "tex2svg.js") if node else None
+        if probe is None or not probe.ok:
+            health_detail = (
+                probe.error or "health probe failed" if probe else "node is unavailable"
+            )
+            raise AdoptError(
+                "npm completed but MathJax is unusable: "
+                f"{health_detail}. Remove tools/mathjax/node_modules and rerun "
+                "`prodockit adopt --apply --maths`."
             )
     lock = root / "tools" / component / "package-lock.json"
     if lock.is_file() and lock not in written:

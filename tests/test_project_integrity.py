@@ -204,6 +204,25 @@ def test_configured_maths_is_optional_until_notation_uses_it(tmp_path: Path) -> 
     assert any("tex2svg renderer" in message for message in _messages(config))
 
 
+def test_mathjax_renderer_must_run_not_merely_exist(tmp_path: Path, monkeypatch) -> None:
+    config = _project(
+        tmp_path,
+        '[project.extra]\npdf_tex2svg_script = "tools/mathjax/tex2svg.js"\n'
+        "[project.markdown_extensions.pymdownx.arithmatex]\n",
+        {"index.md": "The area is $a^2$.\n"},
+    )
+    script = tmp_path / "tools" / "mathjax" / "tex2svg.js"
+    script.parent.mkdir(parents=True)
+    script.write_text("renderer", encoding="utf-8")
+    monkeypatch.setattr("prodockit.project_integrity.shutil.which", lambda _name: "node")
+    monkeypatch.setattr(
+        "prodockit.project_integrity.probe_mathjax",
+        lambda node, path: SimpleNamespace(path=path, ok=False, error="Cannot find module"),
+    )
+
+    assert any("cannot run: Cannot find module" in message for message in _messages(config))
+
+
 def test_complete_project_passes_and_testing_assertion_is_reusable(tmp_path: Path) -> None:
     config = _project(
         tmp_path,

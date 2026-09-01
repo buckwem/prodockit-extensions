@@ -203,6 +203,68 @@ def test_mermaid_diagnostic_rejects_an_unusable_local_cli(
     assert check.data["error"] == "ERR_MODULE_NOT_FOUND"
 
 
+def test_mathjax_diagnostic_rejects_inputs_that_cannot_render(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _project(tmp_path, required=True)
+    script = tmp_path / "tools" / "mathjax" / "tex2svg.js"
+    script.parent.mkdir(parents=True)
+    script.touch()
+    (script.parent / "node_modules" / "mathjax-full").mkdir(parents=True)
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
+    )
+    monkeypatch.setattr(
+        "prodockit.diagnostics.shutil.which",
+        lambda name: "/usr/bin/node" if name == "node" else None,
+    )
+    monkeypatch.setattr(
+        "prodockit.diagnostics.probe_mathjax",
+        lambda node, path: SimpleNamespace(path=path, ok=False, error="Cannot find module"),
+    )
+
+    check = next(
+        item
+        for item in diagnostics._renderer_checks(config, tmp_path)
+        if item.id == "renderer.mathjax"
+    )
+
+    assert check.status == "fail"
+    assert "health probe: Cannot find module" in check.details
+    assert check.data["error"] == "Cannot find module"
+
+
+def test_browser_diagnostic_executes_the_configured_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PUPPETEER_EXECUTABLE_PATH", "/broken/chromium")
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
+    )
+    monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda _name: None)
+    monkeypatch.setattr(
+        diagnostics,
+        "_run",
+        lambda command, **kwargs: subprocess.CompletedProcess(
+            command, 1, "", "loader error"
+        ),
+    )
+
+    check = next(
+        item
+        for item in diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
+        if item.id == "renderer.browser"
+    )
+
+    assert check.status == "fail"
+    assert check.summary == "Browser executable is unusable"
+    assert check.data["error"] == "loader error"
+
+
 def test_diag_json_is_stable_and_failures_set_the_exit_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

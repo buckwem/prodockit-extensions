@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from prodockit.project_config import ProjectConfig, load_project_config
-from prodockit.renderer_health import probe_mermaid
+from prodockit.renderer_health import probe_mathjax, probe_mermaid
 
 
 @dataclass(frozen=True)
@@ -341,13 +341,31 @@ def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
 
     if maths_required:
         configured = config.extra.get("pdf_tex2svg_script")
-        if _tool_path(config.root, configured, ("tools/mathjax/tex2svg.js",)) is None:
+        script = _tool_path(config.root, configured, ("tools/mathjax/tex2svg.js",))
+        if script is None:
             problems.append(
                 ProjectProblem(
                     "project.extra.pdf_tex2svg_script",
                     "maths is used but its MathJax tex2svg renderer is not installed",
                 )
             )
+        elif (node := shutil.which("node")) is None:
+            problems.append(
+                ProjectProblem(
+                    "project.extra.pdf_tex2svg_script",
+                    "maths is used but node is unavailable for the MathJax renderer",
+                )
+            )
+        else:
+            probe = probe_mathjax(node, script)
+            if not probe.ok:
+                problems.append(
+                    ProjectProblem(
+                        "project.extra.pdf_tex2svg_script",
+                        "maths is used but the MathJax renderer cannot run: "
+                        f"{probe.error}",
+                    )
+                )
 
     return tuple(sorted(set(problems), key=lambda problem: (problem.path, problem.message)))
 
