@@ -255,7 +255,24 @@ def _extensions(parsed: dict[str, Any]) -> dict[str, Any]:
     project = parsed.get("project", parsed)
     value = project.get("markdown_extensions", {}) if isinstance(project, dict) else {}
     if isinstance(value, dict):
-        return value
+        mapped: dict[str, Any] = {}
+        for name, options in value.items():
+            if name == "pymdownx" and isinstance(options, Mapping):
+                for child, child_options in options.items():
+                    mapped[f"pymdownx.{child}"] = child_options
+            elif name == "prodockit" and isinstance(options, Mapping):
+                for child, child_options in options.items():
+                    mapped[f"prodockit.{child}"] = child_options
+            elif name == "zensical" and isinstance(options, Mapping):
+                extensions = options.get("extensions")
+                if isinstance(extensions, Mapping):
+                    for child, child_options in extensions.items():
+                        mapped[f"zensical.extensions.{child}"] = child_options
+                else:
+                    mapped[name] = options
+            else:
+                mapped[str(name)] = options
+        return mapped
     configured: dict[str, Any] = {}
     if isinstance(value, list):
         for item in value:
@@ -453,6 +470,21 @@ def _set_table_bool(source: str, table: str, key: str, value: bool) -> str:
     return source[:header_end] + f"{key} = {rendered}\n" + source[header_end:]
 
 
+def _toml_extension_setting(
+    source: str,
+    extension: str,
+    setting: str,
+) -> tuple[str, str]:
+    """Locate a setting in explicit-table or Zensical dotted-key syntax."""
+    table = f"project.markdown_extensions.{extension}"
+    if _section(source, table) is not None:
+        return table, setting
+    quoted_table = f'project.markdown_extensions."{extension}"'
+    if _section(source, quoted_table) is not None:
+        return quoted_table, setting
+    return "project.markdown_extensions", f"{extension}.{setting}"
+
+
 def _add_table_string(source: str, table: str, key: str, value: str) -> str:
     """Add a missing string setting without replacing existing table data."""
     located = _section(source, table)
@@ -535,15 +567,19 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
         _parsed = tomllib.loads(source)
         project = _parsed["project"]
     extension_array = isinstance(project.get("markdown_extensions"), list)
+    configured = _extensions(_parsed)
     if extension_array:
-        configured = _extensions(_parsed)
         for name in CORE_EXTENSIONS:
             if name not in configured:
                 source = _add_array_value(source, "project", "markdown_extensions", f'"{name}"')
     else:
         source = _append_tables(
             source,
-            tuple(f'project.markdown_extensions."{name}"' for name in CORE_EXTENSIONS),
+            tuple(
+                f'project.markdown_extensions."{name}"'
+                for name in CORE_EXTENSIONS
+                if name not in configured
+            ),
         )
     source = _ensure_toml_tree_icons(
         source,
@@ -558,32 +594,42 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
         prepend=True,
     )
     if options.mermaid:
+        existing = configured.get("pymdownx.superfences")
+        fences = existing.get("custom_fences", []) if isinstance(existing, dict) else []
+        has_mermaid = any(
+            isinstance(item, dict) and item.get("name") == "mermaid" for item in fences
+        )
         if extension_array:
-            existing = _extensions(_parsed).get("pymdownx.superfences")
-            fences = existing.get("custom_fences", []) if isinstance(existing, dict) else []
-            if not any(isinstance(item, dict) and item.get("name") == "mermaid" for item in fences):
+            if not has_mermaid:
                 source = _set_array_extension(
                     source,
                     "pymdownx.superfences",
                     f"custom_fences = [{MERMAID_FENCE}]",
                 )
-        else:
+        elif not has_mermaid:
+            table, key = _toml_extension_setting(
+                source, "pymdownx.superfences", "custom_fences"
+            )
             source = _add_array_value(
                 source,
-                "project.markdown_extensions.pymdownx.superfences",
-                "custom_fences",
+                table,
+                key,
                 MERMAID_FENCE,
             )
     if options.maths:
+        existing = configured.get("pymdownx.arithmatex")
+        has_generic_maths = isinstance(existing, dict) and existing.get("generic") is True
         if extension_array:
-            existing = _extensions(_parsed).get("pymdownx.arithmatex")
-            if not isinstance(existing, dict) or existing.get("generic") is not True:
+            if not has_generic_maths:
                 source = _set_array_extension(source, "pymdownx.arithmatex", "generic = true")
-        else:
+        elif not has_generic_maths:
+            table, key = _toml_extension_setting(
+                source, "pymdownx.arithmatex", "generic"
+            )
             source = _set_table_bool(
                 source,
-                "project.markdown_extensions.pymdownx.arithmatex",
-                "generic",
+                table,
+                key,
                 True,
             )
         source = _add_array_value(

@@ -780,8 +780,11 @@ def plan_template_files(
     for path in template_files:
         if manifest.owner(path) != "template":
             continue
-        here = manifest.rename(path)
-        mine, theirs = project_blob(here), template_blob(path)
+        mine = project_blob(path)
+        here = path if mine is not None else manifest.rename(path)
+        if mine is None:
+            mine = project_blob(here)
+        theirs = template_blob(path)
         if mine is None:
             actions.append(FileAction(path, here, "add", FILE_ACTIONS["add"]))
         elif mine == theirs:

@@ -153,6 +153,35 @@ site_name = "Implicit defaults"
     assert 'custom_fences = [{ name = "mermaid", class = "mermaid" }]' in config
 
 
+def test_official_zensical_starter_dotted_extensions_are_adopted_in_place(
+    tmp_path: Path,
+) -> None:
+    project = _project(
+        tmp_path,
+        """\
+[project]
+site_name = "Zensical starter"
+
+[project.markdown_extensions]
+toc.permalink = true
+pymdownx.arithmatex.generic = true
+pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
+pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+""",
+    )
+
+    ensure_zensical_config(project, AdoptOptions(mermaid=True, maths=True))
+
+    config = (project / "zensical.toml").read_text(encoding="utf-8")
+    assert config.count("pymdownx.arithmatex") == 1
+    assert config.count("pymdownx.superfences") == 2
+    assert config.count("pymdownx.emoji") == 2
+    assert "[project.markdown_extensions.pymdownx" not in config
+
+
 def test_adoption_without_optional_renderers_passes_config_check(
     tmp_path: Path, monkeypatch
 ) -> None:
