@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -168,6 +169,26 @@ def test_configured_mermaid_is_optional_until_a_diagram_uses_it(
         "# Diagram\n\n```mermaid\ngraph LR\n  A --> B\n```\n", encoding="utf-8"
     )
     assert any("mmdc renderer" in message for message in _messages(config))
+
+
+def test_mermaid_renderer_must_run_not_merely_exist(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("PATH", "")
+    config = _project(
+        tmp_path,
+        '[project.extra]\npdf_mmdc_bin = "tools/mermaid/mmdc"\n'
+        "[project.markdown_extensions.pymdownx.superfences]\n"
+        'custom_fences = [{name = "mermaid"}]\n',
+        {"index.md": "```mermaid\ngraph LR\n  A --> B\n```\n"},
+    )
+    binary = tmp_path / "tools" / "mermaid" / "mmdc"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("incomplete", encoding="utf-8")
+    monkeypatch.setattr(
+        "prodockit.project_integrity.probe_mermaid",
+        lambda path: SimpleNamespace(path=path, ok=False, error="ERR_MODULE_NOT_FOUND"),
+    )
+
+    assert any("cannot run: ERR_MODULE_NOT_FOUND" in message for message in _messages(config))
 
 
 def test_configured_maths_is_optional_until_notation_uses_it(tmp_path: Path) -> None:

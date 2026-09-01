@@ -25,6 +25,7 @@ from prodockit.config_diagnostics import inspect_config
 from prodockit.pins import DEFAULT_PACKAGES, discover, resolve_latest
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
+from prodockit.renderer_health import probe_mermaid
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import inspect as inspect_shared_files
 
@@ -600,17 +601,33 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
             config.extra.get("pdf_tex2svg_script"),
             ("tools/mathjax/tex2svg.js",),
         )
+    mmdc_probe = probe_mermaid(mmdc) if mmdc else None
+    mmdc_ok = bool(mmdc_probe and mmdc_probe.ok)
     checks.append(
         DiagnosticResult(
             "renderer.mermaid",
             "Rendering toolchain",
-            "pass" if mmdc else ("fail" if mermaid_required else "warn"),
+            "pass" if mmdc_ok else ("fail" if mermaid_required else "warn"),
             "Mermaid CLI is available"
-            if mmdc
-            else "Mermaid CLI is missing"
+            if mmdc_ok
+            else ("Mermaid CLI is unusable" if mmdc else "Mermaid CLI is missing")
             + (" but required by this project" if mermaid_required else " (optional)"),
-            (f"path: {_display_path(mmdc, root)}",) if mmdc else (),
-            {"required": mermaid_required, "path": _display_path(mmdc, root) if mmdc else None},
+            tuple(
+                detail
+                for detail in (
+                    f"path: {_display_path(mmdc, root)}" if mmdc else None,
+                    f"health probe: {mmdc_probe.error}"
+                    if mmdc_probe and mmdc_probe.error
+                    else None,
+                )
+                if detail
+            ),
+            {
+                "required": mermaid_required,
+                "path": _display_path(mmdc, root) if mmdc else None,
+                "version": mmdc_probe.version if mmdc_probe else None,
+                "error": mmdc_probe.error if mmdc_probe else None,
+            },
         )
     )
 

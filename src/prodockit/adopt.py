@@ -32,6 +32,7 @@ from prodockit import __version__
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
+from prodockit.renderer_health import probe_mermaid
 from prodockit.shared_files import resource_bytes
 
 if sys.version_info >= (3, 11):
@@ -979,15 +980,32 @@ def _tool_files_ok(root: Path, component: str) -> bool:
     return all((root / "tools" / component / name).is_file() for name in COMPONENT_FILES[component])
 
 
-def _tool_installed(root: Path, component: str) -> bool:
+def _mermaid_bin(root: Path) -> Path | None:
+    bin_dir = root / "tools" / "mermaid" / "node_modules" / ".bin"
+    return next(
+        (candidate for name in ("mmdc", "mmdc.cmd") if (candidate := bin_dir / name).is_file()),
+        None,
+    )
+
+
+def _tool_health(root: Path, component: str) -> tuple[bool, str]:
     if not _tool_files_ok(root, component):
-        return False
+        return False, "renderer scaffold is incomplete"
     if component == "mermaid":
-        bin_dir = root / "tools" / component / "node_modules" / ".bin"
-        return (bin_dir / "mmdc").is_file() or (bin_dir / "mmdc.cmd").is_file()
-    return (
+        binary = _mermaid_bin(root)
+        if binary is None:
+            return False, "mmdc executable is missing"
+        probe = probe_mermaid(binary)
+        return (
+            (True, f"mmdc {probe.version or 'is available'}")
+            if probe.ok
+            else (False, f"mmdc health check failed: {probe.error}")
+        )
+    installed = (
         root / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
     ).is_file() and (root / "docs" / "javascripts" / "mathjax.js").is_file()
+    detail = "MathJax inputs are installed" if installed else "MathJax inputs are incomplete"
+    return installed, detail
 
 
 def ensure_tools(root: Path, options: AdoptOptions) -> list[Path]:
@@ -1058,6 +1076,16 @@ def install_tool(root: Path, component: str) -> list[Path]:
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout).strip()
         raise AdoptError(f"npm could not install {component}: {detail}")
+    if component == "mermaid":
+        binary = _mermaid_bin(root)
+        probe = probe_mermaid(binary) if binary else None
+        if probe is None or not probe.ok:
+            detail = probe.error if probe else "mmdc executable is missing"
+            raise AdoptError(
+                "npm completed but Mermaid CLI is unusable: "
+                f"{detail}. Remove tools/mermaid/node_modules and rerun "
+                "`prodockit adopt --apply --mermaid`."
+            )
     lock = root / "tools" / component / "package-lock.json"
     if lock.is_file() and lock not in written:
         written.append(lock)
@@ -1110,8 +1138,10 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
             else "add the standard extensions and shared website styles"
         )
     )
-    mermaid_ok = _tool_installed(root, "mermaid") and "pymdownx.superfences" in configured
-    maths_ok = _tool_installed(root, "mathjax") and "pymdownx.arithmatex" in configured
+    mermaid_tool_ok, mermaid_detail = _tool_health(root, "mermaid")
+    maths_tool_ok, maths_detail = _tool_health(root, "mathjax")
+    mermaid_ok = mermaid_tool_ok and "pymdownx.superfences" in configured
+    maths_ok = maths_tool_ok and "pymdownx.arithmatex" in configured
     ready_to_build = (
         _requirement_ok(root)
         and core_ok
@@ -1157,7 +1187,11 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
             "Optional renderers",
             "Mermaid diagrams",
             "ok" if mermaid_ok else "missing",
-            "selected" if options.mermaid else "not selected; Node.js is not needed for Mermaid",
+            (
+                f"selected; {mermaid_detail}"
+                if options.mermaid
+                else "not selected; Node.js is not needed for Mermaid"
+            ),
             selected=options.mermaid,
         ),
         Step(
@@ -1165,7 +1199,11 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
             "Optional renderers",
             "Mathematical notation",
             "ok" if maths_ok else "missing",
-            "selected" if options.maths else "not selected; MathJax is not installed",
+            (
+                f"selected; {maths_detail}"
+                if options.maths
+                else "not selected; MathJax is not installed"
+            ),
             selected=options.maths,
         ),
         Step(

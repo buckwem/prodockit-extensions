@@ -42,6 +42,8 @@ requests rather than here.
 
 - Made Adoption without Mermaid or maths agree with project diagnostics: unused
   Zensical Markdown defaults no longer require the optional PDF renderers.
+- Made Adoption and project diagnostics run a Mermaid CLI health check instead
+  of accepting an incomplete npm installation because its `mmdc` shim exists.
 
 ## 0.54.0 (2026-09-01)
 

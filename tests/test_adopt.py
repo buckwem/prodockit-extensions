@@ -18,10 +18,12 @@ from prodockit.adopt import (
     CORE_EXTENSIONS,
     MANIFEST,
     STYLESHEET,
+    AdoptError,
     AdoptOptions,
     assess,
     ensure_requirement,
     ensure_stylesheet,
+    ensure_tools,
     ensure_zensical_config,
     install_tool,
     load_manifest,
@@ -585,6 +587,10 @@ def test_mermaid_install_uses_only_the_selected_node_project(tmp_path: Path, mon
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr(
+        "prodockit.adopt.probe_mermaid",
+        lambda path: SimpleNamespace(path=path, ok=True, version="11.0.0", error=None),
+    )
 
     written = install_tool(project, "mermaid")
 
@@ -656,10 +662,70 @@ def test_custom_node_manifest_without_a_lock_uses_npm_install(
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr(
+        "prodockit.adopt.probe_mermaid",
+        lambda path: SimpleNamespace(path=path, ok=True, version="11.0.0", error=None),
+    )
 
     install_tool(project, "mermaid")
 
     assert not (manifest.parent / "package-lock.json").exists()
+
+
+def test_mermaid_install_rejects_npm_success_when_cli_probe_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _project(tmp_path)
+    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
+
+    def npm(_command, **_kwargs):
+        binary = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+        binary.parent.mkdir(parents=True)
+        binary.write_text("incomplete", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr(
+        "prodockit.adopt.probe_mermaid",
+        lambda path: SimpleNamespace(
+            path=path,
+            ok=False,
+            version=None,
+            error="ERR_MODULE_NOT_FOUND",
+        ),
+    )
+
+    with pytest.raises(AdoptError, match="npm completed but Mermaid CLI is unusable"):
+        install_tool(project, "mermaid")
+
+
+def test_adoption_readiness_rejects_an_unusable_mermaid_cli(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _project(tmp_path)
+    options = AdoptOptions(mermaid=True, maths=False)
+    ensure_requirement(project)
+    ensure_stylesheet(project)
+    ensure_zensical_config(project, options)
+    ensure_tools(project, options)
+    binary = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("incomplete", encoding="utf-8")
+    monkeypatch.setattr(
+        "prodockit.adopt.probe_mermaid",
+        lambda path: SimpleNamespace(
+            path=path,
+            ok=False,
+            version=None,
+            error="ERR_MODULE_NOT_FOUND",
+        ),
+    )
+
+    steps = {step.id: step for step in assess(project, options)}
+
+    assert steps["mermaid"].status == "missing"
+    assert "health check failed: ERR_MODULE_NOT_FOUND" in steps["mermaid"].detail
+    assert steps["verify"].status == "wait"
 
 
 def test_mkdocs_yaml_gets_the_same_core_components_without_conversion(tmp_path: Path) -> None:

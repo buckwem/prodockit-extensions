@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from prodockit.project_config import ProjectConfig, load_project_config
+from prodockit.renderer_health import probe_mermaid
 
 
 @dataclass(frozen=True)
@@ -318,13 +319,25 @@ def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
             configured,
             ("tools/mermaid/node_modules/.bin/mmdc", "node_modules/.bin/mmdc"),
         )
-        if found is None and not (configured is None and shutil.which("mmdc")):
+        if found is None and configured is None and (on_path := shutil.which("mmdc")):
+            found = Path(on_path)
+        if found is None:
             problems.append(
                 ProjectProblem(
                     "project.extra.pdf_mmdc_bin",
                     "Mermaid diagrams are used but the mmdc renderer is not installed",
                 )
             )
+        else:
+            probe = probe_mermaid(found)
+            if not probe.ok:
+                problems.append(
+                    ProjectProblem(
+                        "project.extra.pdf_mmdc_bin",
+                        "Mermaid diagrams are used but the mmdc renderer cannot run: "
+                        f"{probe.error}",
+                    )
+                )
 
     if maths_required:
         configured = config.extra.get("pdf_tex2svg_script")

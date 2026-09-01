@@ -95,7 +95,12 @@ def test_component_acceptance_and_workflow_files_select_their_own_matrix() -> No
 
 
 def test_shared_packaging_and_command_files_select_every_matrix() -> None:
-    for path in ("pyproject.toml", "src/prodockit/cli.py", "requirements.txt"):
+    for path in (
+        "pyproject.toml",
+        "src/prodockit/cli.py",
+        "src/prodockit/renderer_health.py",
+        "requirements.txt",
+    ):
         scope = classify([path])
         assert scope.adopt and scope.pdf and scope.bootstrap, path
 

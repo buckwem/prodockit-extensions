@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from typing import NoReturn
 
 import pytest
@@ -166,6 +167,40 @@ def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
         "renderer.mermaid",
         "renderer.mathjax",
     }
+
+
+def test_mermaid_diagnostic_rejects_an_unusable_local_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _project(tmp_path, required=True)
+    binary = tmp_path / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("incomplete", encoding="utf-8")
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
+    )
+    monkeypatch.setattr(
+        "prodockit.diagnostics.probe_mermaid",
+        lambda path: SimpleNamespace(
+            path=path,
+            ok=False,
+            version=None,
+            error="ERR_MODULE_NOT_FOUND",
+        ),
+    )
+
+    check = next(
+        item
+        for item in diagnostics._renderer_checks(config, tmp_path)
+        if item.id == "renderer.mermaid"
+    )
+
+    assert check.status == "fail"
+    assert check.summary == "Mermaid CLI is unusable but required by this project"
+    assert "health probe: ERR_MODULE_NOT_FOUND" in check.details
+    assert check.data["error"] == "ERR_MODULE_NOT_FOUND"
 
 
 def test_diag_json_is_stable_and_failures_set_the_exit_status(
