@@ -610,6 +610,23 @@ def test_windows_node_repair_is_fully_non_interactive(tmp_path: Path) -> None:
     assert "--disable-interactivity" in repair
 
 
+@pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
+def test_node_setup_recovers_puppeteer_omitted_by_legacy_peer_install(
+    tmp_path: Path, platform: str
+) -> None:
+    plan = stages._plan_node(_context(tmp_path, platform=platform))
+    mermaid = next(
+        " ".join(command)
+        for command in plan.commands
+        if "tools/mermaid" in " ".join(command)
+    )
+
+    assert "node_modules/puppeteer" in mermaid
+    assert "npm" in mermaid
+    assert "install --no-save --package-lock=false --legacy-peer-deps" in mermaid
+    assert stages.PUPPETEER_RUNTIME in mermaid
+
+
 @pytest.mark.parametrize(
     ("python_machine", "package", "environment"),
     [

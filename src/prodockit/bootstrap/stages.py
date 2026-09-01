@@ -105,6 +105,12 @@ NODE_MAJOR = int(NODE_MIN_VERSION.split(".", 1)[0])
 #: pinned Mermaid and MathJax trees reproducibly.
 NPM_MIN_VERSION = "7.0.0"
 
+#: Mermaid CLI declares Puppeteer as a peer. ``npm ci --legacy-peer-deps``
+#: deliberately omits that peer from older template lockfiles, leaving a
+#: successful install whose ``mmdc`` immediately fails with ERR_MODULE_NOT_FOUND.
+#: Install the compatible runtime without rewriting the author's manifest or lock.
+PUPPETEER_RUNTIME = "puppeteer@25.9.0"
+
 #: Browser revision used by the pinned Puppeteer runtime. Ubuntu deliberately
 #: uses its system Chromium instead of Puppeteer's downloaded binary so ARM64
 #: receives a native executable; it must still be new enough for that runtime.
@@ -3636,7 +3642,7 @@ def _plan_node(context: Context) -> Plan:
     mermaid = str(project / "tools" / "mermaid")
     mathjax = str(project / "tools" / "mathjax")
 
-    def npm_ci(directory: str) -> list[str]:
+    def npm_ci(directory: str, *, ensure_puppeteer: bool = False) -> list[str]:
         """Run npm from its package directory instead of using ``--prefix``.
 
         npm 12 currently rejects Mermaid's valid optional-peer lock entry when
@@ -3645,23 +3651,40 @@ def _plan_node(context: Context) -> Plan:
         """
         if context.platform == WINDOWS:
             literal = directory.replace("'", "''")
+            recovery = (
+                "; if (-not (Test-Path -LiteralPath 'node_modules/puppeteer')) { "
+                f"npm.cmd install --no-save --package-lock=false --legacy-peer-deps "
+                f"{PUPPETEER_RUNTIME}; exit $LASTEXITCODE }}"
+                if ensure_puppeteer
+                else ""
+            )
             return [
                 "powershell",
                 "-NoProfile",
                 "-Command",
-                f"Set-Location -LiteralPath '{literal}'; npm.cmd ci --legacy-peer-deps",
+                f"Set-Location -LiteralPath '{literal}'; "
+                "npm.cmd ci --legacy-peer-deps; "
+                "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
+                f"{recovery}",
             ]
+        recovery = (
+            " && if [ ! -d node_modules/puppeteer ]; then "
+            "npm install --no-save --package-lock=false --legacy-peer-deps "
+            f"{PUPPETEER_RUNTIME}; fi"
+            if ensure_puppeteer
+            else ""
+        )
         return [
             "bash",
             "-c",
-            f"cd {shlex.quote(directory)} && npm ci --legacy-peer-deps",
+            f"cd {shlex.quote(directory)} && npm ci --legacy-peer-deps{recovery}",
         ]
 
     if context.platform != UBUNTU:
         return Plan(
             commands=[
                 *install,
-                npm_ci(mermaid),
+                npm_ci(mermaid, ensure_puppeteer=True),
                 npm_ci(mathjax),
             ],
             describe=(
@@ -3721,7 +3744,10 @@ def _plan_node(context: Context) -> Plan:
             [
                 "bash",
                 "-c",
-                f"{exports}cd {shlex.quote(mermaid)} && npm ci --legacy-peer-deps",
+                f"{exports}cd {shlex.quote(mermaid)} && npm ci --legacy-peer-deps"
+                " && if [ ! -d node_modules/puppeteer ]; then "
+                "npm install --no-save --package-lock=false --legacy-peer-deps "
+                f"{PUPPETEER_RUNTIME}; fi",
             ],
             [
                 "bash",
