@@ -111,7 +111,7 @@ def candidate_report(path: Path) -> Path:
         "path_one": path_result("path-one"),
         "path_two": path_result("path-two"),
         "provider": "surrey",
-        "provider_created_refs": ["refs/pipelines/9"],
+        "provider_created_refs": [],
         "repository": state.SURREY_PATH,
         "source_refs_digest": SOURCE_REFS_SHA,
         "source_refs_unchanged": True,
@@ -232,6 +232,71 @@ class FakeGitLab:
             self.deploy_keys = []
             return lifecycle.ApiResponse(204, None, {})
         raise AssertionError(f"unexpected mutation {method} {path}")
+
+
+def test_project_snapshot_does_not_query_disabled_pipelines(tmp_path: Path) -> None:
+    fixture = state.LifecycleFixture.read(write_fixture(tmp_path / "fixture.json"))
+
+    class DisabledPipelineEndpoint(FakeGitLab):
+        def list_all(
+            self, path: str, *, query: dict[str, Any] | None = None
+        ) -> list[dict[str, Any]]:
+            if path.endswith("/pipelines"):
+                raise AssertionError("the disabled pipelines endpoint must not be queried")
+            return super().list_all(path, query=query)
+
+    client = DisabledPipelineEndpoint(fixture)
+    project = client._project()
+
+    snapshot = lifecycle.project_snapshot(client, fixture, project)
+
+    assert snapshot.refs == {}
+
+
+def test_reset_removes_the_project_if_post_creation_validation_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture_path = write_fixture(tmp_path / "fixture.json")
+    fixture = state.LifecycleFixture.read(fixture_path)
+
+    class InvalidPostCreationState(FakeGitLab):
+        def list_all(
+            self, path: str, *, query: dict[str, Any] | None = None
+        ) -> list[dict[str, Any]]:
+            if path.endswith("/variables") and self.project is not None:
+                return [{"key": "UNEXPECTED"}]
+            return super().list_all(path, query=query)
+
+    client = InvalidPostCreationState(fixture)
+    monkeypatch.setattr(
+        lifecycle,
+        "inspect_wheel",
+        lambda *_args: SimpleNamespace(version=VERSION, sha256=WHEEL_SHA),
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "validate_controller_checkout",
+        lambda *_args, **_kwargs: CONTROLLER_COMMIT,
+    )
+    monkeypatch.setattr(
+        lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA"
+    )
+    args = Namespace(
+        fixture=fixture_path,
+        previous_state=None,
+        deploy_public_key=tmp_path / "key.pub",
+        wheel=tmp_path / "candidate.whl",
+        expected_wheel_sha256=WHEEL_SHA,
+        handoff=tmp_path / "handoff.json",
+        audit_report=tmp_path / "audit.json",
+        confirm_project_reset=state.SURREY_PATH,
+    )
+
+    with pytest.raises(lifecycle.LifecycleError, match="unexpected variable"):
+        lifecycle.reset_project(args, client)
+
+    assert client.project is None
+    assert ("DELETE", "/projects/404") in client.mutations
 
 
 def test_fixture_is_closed_and_pinned_to_the_exact_surrey_project(tmp_path: Path) -> None:
@@ -433,7 +498,7 @@ def test_empty_reset_candidate_and_seal_form_one_bounded_lifecycle(
     handoff = state.ResetHandoff.read(handoff_path)
     assert handoff.repository_empty is True
     assert client.deploy_keys[0]["can_push"] is True
-    client.refs = {"refs/heads/main": COMMIT, "refs/pipelines/9": COMMIT}
+    client.refs = {"refs/heads/main": COMMIT}
     report = candidate_report(tmp_path / "candidate.json")
     retained = tmp_path / "retained.json"
     seal_args = Namespace(
@@ -542,7 +607,7 @@ def test_next_reset_requires_and_consumes_the_exact_retained_state(
     fixture = state.LifecycleFixture.read(fixture_path)
     client = FakeGitLab(fixture)
     client.project = client._project(403)
-    client.refs = {"refs/heads/main": COMMIT, "refs/pipelines/8": COMMIT}
+    client.refs = {"refs/heads/main": COMMIT}
     previous = state.RetainedState(
         schema=1,
         provider="surrey",

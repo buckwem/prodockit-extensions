@@ -443,7 +443,17 @@ def project_snapshot(
         raise LifecycleError("GitLab returned an invalid project ID")
     branches = client.list_all(f"/projects/{project_id}/repository/branches")
     tags = client.list_all(f"/projects/{project_id}/repository/tags")
-    pipelines = client.list_all(f"/projects/{project_id}/pipelines")
+    # GitLab returns 403 from the pipelines endpoint after CI/CD has been
+    # disabled.  That is the required state for this isolated fixture, and a
+    # project created with builds disabled cannot have provider-created
+    # pipeline refs.  Avoid querying an endpoint we deliberately made
+    # inaccessible; the candidate's independent Git transport check still
+    # rejects any unexpected refs before the project is sealed.
+    pipelines = (
+        []
+        if project.get("builds_access_level") == "disabled"
+        else client.list_all(f"/projects/{project_id}/pipelines")
+    )
     refs: dict[str, str] = {}
     for prefix, records in (("refs/heads", branches), ("refs/tags", tags)):
         for record in records:
@@ -850,16 +860,14 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
         created_after=datetime.fromisoformat(started),
         journal=journal,
     )
-    project_id = validate_project_identity(created, fixture, expected_id=None)
-    empty_snapshot = project_snapshot(client, fixture, created)
-    validate_no_project_content(empty_snapshot)
     try:
-        validate_refs(empty_snapshot.refs, expected_head=None)
-    except StateError as error:
-        raise LifecycleError(str(error)) from error
-    key_may_be_enabled = False
-    try:
-        key_may_be_enabled = True
+        project_id = validate_project_identity(created, fixture, expected_id=None)
+        empty_snapshot = project_snapshot(client, fixture, created)
+        validate_no_project_content(empty_snapshot)
+        try:
+            validate_refs(empty_snapshot.refs, expected_head=None)
+        except StateError as error:
+            raise LifecycleError(str(error)) from error
         enable_destination_key(client, fixture, project_id, public_key, journal)
         completed = datetime.now(timezone.utc).replace(microsecond=0)
         handoff = ResetHandoff(
@@ -899,10 +907,14 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
         }
         write_private_json(handoff_path, handoff.document())
         write_private_json(audit_path, audit)
-        key_may_be_enabled = False
-    except Exception:
-        if key_may_be_enabled:
-            disable_destination_key(client, fixture, project_id, journal)
+    except Exception as reset_error:
+        try:
+            delete_exact_project(client, fixture, created, journal)
+        except Exception as cleanup_error:
+            raise LifecycleError(
+                "the reset failed and its newly-created project could not be removed: "
+                f"{cleanup_error}"
+            ) from reset_error
         raise
     print(f"Phase 3 reset ready: {fixture.project.path_with_namespace}")
     print(f"Candidate handoff: {handoff_path}")
