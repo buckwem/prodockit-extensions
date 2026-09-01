@@ -481,7 +481,11 @@ def project_snapshot(
         refs=refs,
         direct_members=tuple(client.list_all(f"/projects/{project_id}/members")),
         access_requests=tuple(client.list_all(f"/projects/{project_id}/access_requests")),
-        variables=tuple(client.list_all(f"/projects/{project_id}/variables")),
+        variables=(
+            ()
+            if project.get("builds_access_level") == "disabled"
+            else tuple(client.list_all(f"/projects/{project_id}/variables"))
+        ),
         hooks=tuple(client.list_all(f"/projects/{project_id}/hooks")),
         deploy_tokens=tuple(client.list_all(f"/projects/{project_id}/deploy_tokens")),
         deploy_keys=tuple(client.list_all(f"/projects/{project_id}/deploy_keys")),
@@ -679,7 +683,14 @@ def delete_exact_project(
     journal: Journal,
 ) -> None:
     project_id = validate_project_identity(project, fixture, expected_id=None)
-    unpublish_project_pages(client, project_id, journal)
+    # GitLab makes the Pages API itself return 403 once Pages has been
+    # disabled.  A project created by this controller has Pages disabled from
+    # its first request and CI/CD disabled before any repository content can
+    # be pushed, so it cannot have created a deployment.  Older retained
+    # projects whose Pages feature remains accessible are explicitly
+    # unpublished before deletion.
+    if project.get("pages_access_level") != "disabled":
+        unpublish_project_pages(client, project_id, journal)
     try:
         response = client.request("DELETE", f"/projects/{project_id}", expected={202, 204})
         journal.record("delete-project", outcome="accepted", status=response.status)
