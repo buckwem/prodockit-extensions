@@ -64,7 +64,6 @@ class FakeGitHub:
             "refs/heads/main": SOURCE,
             "refs/tags/v1": "1" * 40,
         }
-        self.extra_repositories: set[str] = set()
         self.mutations: list[tuple[str, str]] = []
         self.next_repository_id = 501
         self.next_key_id = 601
@@ -79,7 +78,7 @@ class FakeGitHub:
             "id": identifier,
             "name": lifecycle.REPOSITORY,
             "full_name": lifecycle.GITHUB_PATH,
-            "owner": {"login": lifecycle.ORGANISATION},
+            "owner": {"login": lifecycle.ACCOUNT},
             "private": True,
             "fork": False,
             "archived": False,
@@ -108,42 +107,28 @@ class FakeGitHub:
     ) -> lifecycle.ApiResponse:
         self.mutations.append((method, path)) if method != "GET" else None
         headers: dict[str, str] = {}
-        if method == "GET" and path == "/installation":
+        if method == "GET" and path == "/user":
             return lifecycle.ApiResponse(
                 200,
                 {
                     "id": 77,
-                    "repository_selection": "all",
-                    "permissions": {
-                        "administration": "write",
-                        "metadata": "read",
-                        "pages": "read",
-                        "repository_hooks": "read",
-                    },
-                    "account": {
-                        "login": lifecycle.ORGANISATION,
-                        "type": "Organization",
-                    },
+                    "login": lifecycle.ACCOUNT,
+                    "type": "User",
                 },
                 headers,
             )
-        if method == "GET" and path.startswith(f"/orgs/{lifecycle.ORGANISATION}/repos?"):
-            values = [{"full_name": name} for name in sorted(self.extra_repositories)]
-            if self.repository is not None:
-                values.append({"full_name": lifecycle.GITHUB_PATH})
-            return lifecycle.ApiResponse(200, values, headers)
-        if method == "GET" and path == (f"/repos/{lifecycle.ORGANISATION}/{lifecycle.REPOSITORY}"):
+        if method == "GET" and path == (f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}"):
             if self.repository is None:
                 return lifecycle.ApiResponse(404, {"message": "Not Found"}, headers)
             return lifecycle.ApiResponse(200, dict(self.repository), headers)
         if method == "DELETE" and path == (
-            f"/repos/{lifecycle.ORGANISATION}/{lifecycle.REPOSITORY}"
+            f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}"
         ):
             self.repository = None
             self.destination_refs = {}
             self.keys = []
             return lifecycle.ApiResponse(204, None, headers)
-        if method == "POST" and path == f"/orgs/{lifecycle.ORGANISATION}/repos":
+        if method == "POST" and path == "/user/repos":
             assert body is not None and body["name"] == lifecycle.REPOSITORY
             self.repository = self.repository_value(self.next_repository_id)
             self.next_repository_id += 1
@@ -164,7 +149,7 @@ class FakeGitHub:
             f"/repos/{lifecycle.SOURCE_OWNER}/{lifecycle.SOURCE_REPOSITORY}/git/matching-refs/"
         )
         destination_prefix = (
-            f"/repos/{lifecycle.ORGANISATION}/{lifecycle.REPOSITORY}/git/matching-refs/"
+            f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}/git/matching-refs/"
         )
         if method == "GET" and path.startswith(source_prefix):
             namespace = path.removeprefix(source_prefix).split("?", 1)[0]
@@ -176,7 +161,7 @@ class FakeGitHub:
             return lifecycle.ApiResponse(
                 200, self.ref_values(self.destination_refs, namespace), headers
             )
-        key_path = f"/repos/{lifecycle.ORGANISATION}/{lifecycle.REPOSITORY}/keys"
+        key_path = f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}/keys"
         if method == "GET" and path == key_path + "?per_page=100":
             return lifecycle.ApiResponse(200, [dict(key) for key in self.keys], headers)
         if method == "POST" and path == key_path:
@@ -219,13 +204,10 @@ def retained(repository_id: int = 500) -> lifecycle.GitHubRetainedState:
 
 def perform_reset(
     client: FakeGitHub,
-    *,
-    previous: lifecycle.GitHubRetainedState | None = None,
 ) -> state.ResetHandoff:
     record, fingerprint = key_record()
     return lifecycle.reset(
         client=client,
-        retained=previous,
         public_key_record=record,
         key_fingerprint=fingerprint,
         candidate_version="0.54.0",
@@ -304,34 +286,19 @@ def test_absent_reset_creates_only_the_exact_private_empty_fixture() -> None:
     handoff.validate(now=datetime(2026, 9, 1, 12, 1, tzinfo=timezone.utc))
 
 
-def test_existing_fixture_requires_and_matches_retained_state() -> None:
+def test_reset_refuses_a_pre_existing_fixed_repository() -> None:
     client = FakeGitHub(destination=True)
     client.destination_refs = {"refs/heads/main": COMMIT}
 
-    with pytest.raises(lifecycle.LifecycleError, match="without its exact retained state"):
+    with pytest.raises(lifecycle.LifecycleError, match="previous run did not remove it"):
         perform_reset(client)
-    with pytest.raises(lifecycle.LifecycleError, match="ID differs"):
-        perform_reset(client, previous=retained(repository_id=999))
 
-    handoff = perform_reset(client, previous=retained())
-
-    assert handoff.project_id == 501
-    assert ("DELETE", f"/repos/{lifecycle.ORGANISATION}/{lifecycle.REPOSITORY}") in client.mutations
+    assert client.repository is not None
+    assert not any(method == "DELETE" for method, _path in client.mutations)
 
 
-def test_reset_refuses_missing_retained_repository_and_extra_org_repo() -> None:
-    absent = FakeGitHub()
-    with pytest.raises(lifecycle.LifecycleError, match="retained state exists"):
-        perform_reset(absent, previous=retained())
-
-    unsafe = FakeGitHub()
-    unsafe.extra_repositories.add("prodockit-live-tests/valuable")
-    with pytest.raises(lifecycle.LifecycleError, match="unapproved repository"):
-        perform_reset(unsafe)
-
-
-def test_reset_requires_the_exact_all_repository_app_installation() -> None:
-    class SelectedInstallation(FakeGitHub):
+def test_reset_requires_the_exact_personal_account_token() -> None:
+    class OtherAccount(FakeGitHub):
         def request(
             self,
             method: str,
@@ -341,25 +308,34 @@ def test_reset_requires_the_exact_all_repository_app_installation() -> None:
             expected: set[int] | None = None,
         ) -> lifecycle.ApiResponse:
             response = super().request(method, path, body=body, expected=expected)
-            if method == "GET" and path == "/installation":
-                response.value["repository_selection"] = "selected"
+            if method == "GET" and path == "/user":
+                response.value["login"] = "another-account"
             return response
 
-    with pytest.raises(lifecycle.LifecycleError, match="another installation"):
-        perform_reset(SelectedInstallation())
+    with pytest.raises(lifecycle.LifecycleError, match="another account"):
+        perform_reset(OtherAccount())
 
 
-def test_reset_refuses_retained_refs_or_key_drift() -> None:
-    changed = FakeGitHub(destination=True)
-    changed.destination_refs = {"refs/heads/main": "9" * 40}
-    with pytest.raises(lifecycle.LifecycleError, match="refs differ"):
-        perform_reset(changed, previous=retained())
+def test_reset_removes_its_new_repository_when_configuration_fails() -> None:
+    class BrokenActions(FakeGitHub):
+        def request(
+            self,
+            method: str,
+            path: str,
+            *,
+            body: dict[str, Any] | None = None,
+            expected: set[int] | None = None,
+        ) -> lifecycle.ApiResponse:
+            if method == "PUT" and path.endswith("/actions/permissions"):
+                raise lifecycle.LifecycleError("simulated configuration failure")
+            return super().request(method, path, body=body, expected=expected)
 
-    keyed = FakeGitHub(destination=True)
-    keyed.destination_refs = {"refs/heads/main": COMMIT}
-    keyed.keys = [{"id": 1, "title": "unexpected", "read_only": False}]
-    with pytest.raises(lifecycle.LifecycleError, match="still has a deploy key"):
-        perform_reset(keyed, previous=retained())
+    client = BrokenActions()
+    with pytest.raises(lifecycle.LifecycleError, match="simulated configuration failure"):
+        perform_reset(client)
+
+    assert client.repository is None
+    assert ("DELETE", f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}") in client.mutations
 
 
 def test_public_key_requires_ed25519_wire_encoding(tmp_path: Path) -> None:
@@ -434,7 +410,7 @@ def test_github_api_refuses_redirects_and_anonymous_source_omits_token() -> None
     authenticated = lifecycle.GitHubAPI("installation-token")
     authenticated._opener = RedirectOpener()
     with pytest.raises(lifecycle.LifecycleError, match="returned 301"):
-        authenticated.request("GET", "/repos/prodockit-live-tests/bootstrap-release-gate")
+        authenticated.request("GET", f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}")
 
 
 def test_retained_state_schema_is_closed(tmp_path: Path) -> None:
@@ -479,6 +455,7 @@ def test_seal_revokes_key_then_produces_closed_provider_result(tmp_path: Path) -
     assert provider_result.path_one.commit == provider_result.path_two.commit
     assert provider_result.wheel_sha256 == candidate_wheel
     assert provider_result.wheel_contents_sha256 == CONTENTS
+    assert client.repository is None
 
 
 def test_seal_revokes_key_before_rejecting_bad_candidate(tmp_path: Path) -> None:
@@ -498,6 +475,7 @@ def test_seal_revokes_key_before_rejecting_bad_candidate(tmp_path: Path) -> None
         )
 
     assert client.keys == []
+    assert client.repository is None
 
 
 def test_seal_revokes_key_before_rejecting_invalid_candidate_time(tmp_path: Path) -> None:
@@ -520,6 +498,7 @@ def test_seal_revokes_key_before_rejecting_invalid_candidate_time(tmp_path: Path
         )
 
     assert client.keys == []
+    assert client.repository is None
 
 
 def test_seal_rejects_destination_drift_after_key_removal(tmp_path: Path) -> None:
@@ -539,6 +518,7 @@ def test_seal_rejects_destination_drift_after_key_removal(tmp_path: Path) -> Non
         )
 
     assert client.keys == []
+    assert client.repository is None
 
 
 def test_seal_rejects_source_drift_after_key_removal(tmp_path: Path) -> None:
@@ -559,3 +539,4 @@ def test_seal_rejects_source_drift_after_key_removal(tmp_path: Path) -> None:
         )
 
     assert client.keys == []
+    assert client.repository is None
