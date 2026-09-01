@@ -32,16 +32,20 @@ requests rather than here.
   references, headers, footers, and an optional index.
 - **Project setup:** `prodockit adopt` adds components to an existing Zensical or
   MkDocs project; `prodockit bootstrap` automates a complete template environment.
-- **Project maintenance:** template sync, repository metadata sync, version
-  pin checks, shared-file checks, source bundles, and built-output tests help
-  keep projects reproducible and publishable.
+- **Project maintenance:** read-only environment/project diagnostics, template
+  sync, repository metadata sync, version pin checks, shared-file checks,
+  source bundles, and built-output tests keep projects reproducible.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## Unreleased
+
+- Added read-only `pdk diag` environment and project health reports, with
+  verbose, online, and stable JSON forms for troubleshooting and support.
+
 ## 0.53.0 (2026-08-31)
 
-- Kept `.web-only` images hidden inside captioned PDF figures, preventing paired
-  website and PDF diagram variants from both appearing in the PDF.
+- Kept `.web-only` images hidden inside captioned PDF figures, preventing paired website and PDF diagram variants from both appearing in the PDF.
 - Added top, middle, and bottom vertical alignment for individual table cells,
   with top alignment as the website and PDF default.
 

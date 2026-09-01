@@ -145,6 +145,7 @@ The `pdk` executable is an exact shorter alias for `prodockit`; `boot` aliases
 
 | Command | Purpose |
 |---|---|
+| `prodockit diag` | Diagnose the active environment, project, tools, and repository without changing them |
 | `prodockit config` | Show resolved Prodockit settings and check source-project integrity |
 | `prodockit adopt` | Add selected prodockit components to an existing Zensical or MkDocs document |
 | `prodockit bootstrap` | Check or prepare a machine and a project based on `prodockit-template` |

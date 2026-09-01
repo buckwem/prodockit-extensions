@@ -46,6 +46,7 @@ write behaviour of each public command.
 
 | Command {: width="34%" } | Use it when | Safe first run | Writes |
 |---|---|---|---|
+| [`prodockit diag`](#diagnose-an-environment-and-project) | A command, dependency, renderer, configuration, or checkout does not behave as expected | `prodockit diag` | Nothing; network checks are opt-in with `--online` |
 | [`prodockit config`](#check-resolved-configuration) | You need to see the Prodockit settings that will actually be used, or check that the source project is complete | `prodockit config` | Nothing; add `--check` for a CI-friendly non-zero exit when problems exist |
 | [`prodockit adopt`](adopt.md) | An existing Zensical document needs selected prodockit components without machine, Git or editor setup | `prodockit adopt` | Local project files only with `--apply`; optional choices use `--configure` |
 | [`prodockit bootstrap`](devcons/bootstrap.md) | A machine or a project based on `prodockit-template` is not ready to build and publish | `prodockit bootstrap` | Only with `--apply`; configuration questions use `--configure` |
@@ -70,6 +71,37 @@ init-mathjax`\index{commands!`prodockit init-mathjax`}; use `init-tools` when
 preparing both Mermaid and maths for PDF output. It copies the pinned package's
 Apache-2.0 licence beside the browser bundle, so a published self-contained site
 also publishes the licence that governs that third-party code.
+
+## Diagnose an environment and project {: #diagnose-an-environment-and-project }
+
+Run one read-only diagnostic before changing an installation or project:
+
+```bash
+pdk diag
+```
+
+It checks the running Python and selected commands, installed package metadata
+and dependency conflicts, resolved project configuration and source inputs,
+version pins and shared files, configured rendering tools, and Git/template
+metadata. A missing optional renderer is a warning; a renderer required by the
+current configuration is a failure. A virtual environment is supported but not
+required: matching pipx, Conda, system-Python, and CI installations are valid.
+
+The default run is deterministic and offline. Add `--online` to check published
+package versions and the recorded template revision, or `--verbose` to include
+the evidence behind passing checks. For a project whose configuration is named
+or located differently, use `-f PATH` or `--config-file PATH`.
+
+When asking for support, attach the machine-readable report rather than a
+screenshot:
+
+```bash
+pdk diag --json > prodockit-diagnostics.json
+```
+
+The JSON schema is stable and reports pass, warning, and failure counts. The
+command exits non-zero only for an actionable failure; warnings alone still
+exit zero. It never installs, repairs, generates, or changes project files.
 
 ## Check resolved configuration {: #check-resolved-configuration }
 
@@ -263,6 +295,7 @@ Important exit-status behaviour:
 
 | Command {: width="35%" } | Exit zero means |
 |---|---|
+| `diag` | The active installation and every required project capability passed; warnings may describe unused optional tools or available updates |
 | `sync-repo --check` | Managed repository metadata is already current |
 | `config --check` | Prodockit settings are valid, local project inputs exist, configured renderers are available, and any enabled PDF index has its optional dependency |
 | `pins --check --offline` | Every discovered declaration agrees; no network comparison was attempted |
