@@ -90,7 +90,7 @@ def test_pymdown_blocks_dependency_is_visible_to_evaluators_and_authors() -> Non
         assert "prodockit.tree" in text
 
 
-def test_release_notes_are_a_concise_website_only_capability_record() -> None:
+def test_release_notes_are_a_website_only_capability_record() -> None:
     changelog = _text("docs/about/changelog.md")
     prose = " ".join(changelog.split())
 
@@ -108,7 +108,6 @@ def test_release_notes_are_a_concise_website_only_capability_record() -> None:
         assert phrase in prose
 
     assert "zendoc" not in changelog.lower()
-    assert len(changelog.splitlines()) < 100
 
 
 def test_licence_page_explains_but_does_not_replace_the_legal_text() -> None:

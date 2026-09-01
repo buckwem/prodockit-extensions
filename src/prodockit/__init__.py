@@ -69,6 +69,11 @@ Zensical doesn't provide out of the box, each usable independently:
   between GitHub, GitLab and Bitbucket doesn't leave stale links, a wrong
   canonical URL, or badges for somebody else's repository behind. Run
   ``prodockit sync-repo`` from your project root.
+- ``prodockit.diagnostics`` - inspect the active Python, commands,
+  dependencies, ``zensical.toml`` inputs, configured renderers, pins, shared
+  files, Git repository and template state without changing any of them. Run
+  ``prodockit diag`` for a concise offline report, adding ``--verbose``,
+  ``--online`` or ``--json`` when needed.
 - ``prodockit.pins`` - find every place a build-input version is declared
   across a project (``pyproject.toml``, GitHub Actions workflows,
   ``.gitlab-ci.yml``, requirements/constraints files) and move them
@@ -104,13 +109,14 @@ command-line tool instead (there's no ``markdown.extensions`` entry point
 for it - a PDF build pipeline isn't a Markdown syntax extension).
 ``prodockit.zensical_macros`` is a plain ``define_env()`` module for Zensical's
 macros plugin's own ``modules`` config, not a Markdown extension either, and
-``prodockit.sync_repo`` and ``prodockit.template_sync`` are command-line tools
-(``prodockit sync-repo``, ``prodockit template-sync``) with a plain Python API
+``prodockit.sync_repo``, ``prodockit.diagnostics`` and
+``prodockit.template_sync`` are command-line tools (``prodockit sync-repo``,
+``prodockit diag``, ``prodockit template-sync``) with a plain Python API
 alongside them.
 
 See https://prodockit.org/ for documentation.
 """
 
-__version__ = "0.53.0"
+__version__ = "0.54.0"
 
 __all__ = ["__version__"]

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Checks on the concise, website-only release notes."""
+"""Checks on the website-only release notes."""
 
 from __future__ import annotations
 

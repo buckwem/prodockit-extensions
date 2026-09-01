@@ -38,10 +38,11 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
-## Unreleased
+## 0.54.0 (2026-09-01)
 
 - Added read-only `pdk diag` environment and project health reports, with
   verbose, online, stable JSON, and author remediation for every check.
+- Kept paired captioned PDF images centred at their authored width.
 
 ## 0.53.0 (2026-08-31)
 
