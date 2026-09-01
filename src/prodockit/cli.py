@@ -1750,6 +1750,86 @@ def config_command(config_file: str, check: bool) -> None:
     click.echo("\nConfiguration check passed; project integrity checks passed.")
 
 
+@main.command("diag")
+@click.option(
+    "-f",
+    "--config-file",
+    default="zensical.toml",
+    show_default=True,
+    help="Path to the project's Zensical configuration file.",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Show resolved paths, versions and the evidence behind every check.",
+)
+@click.option(
+    "--online",
+    is_flag=True,
+    help="Also check PyPI versions and the recorded template revision.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Write stable structured output for CI and support requests.",
+)
+def diag_command(
+    config_file: str,
+    verbose: bool,
+    online: bool,
+    json_output: bool,
+) -> None:
+    """Diagnose the active environment and project without changing either.
+
+    The default run is deterministic and offline. It combines installation,
+    configuration, project-integrity, pins, renderer and repository checks in
+    one concise report. Use ``pdk config --check`` when the configuration
+    section needs its full resolved-setting report.
+    """
+    from prodockit.diagnostics import inspect
+
+    report = inspect(config_file, online=online)
+    if json_output:
+        click.echo(report.to_json())
+    else:
+        click.echo("Prodockit diagnostics")
+        click.echo(f"  Project: {report.project_root}")
+        click.echo(f"  Config:  {report.config_file}")
+        click.echo(f"  Mode:    {'online' if online else 'offline'}")
+        section = ""
+        labels = {"pass": "PASS", "warn": "WARN", "fail": "FAIL"}
+        colours = {"pass": None, "warn": "bright_yellow", "fail": "bright_magenta"}
+        for check in report.checks:
+            if check.section != section:
+                section = check.section
+                click.echo(f"\n{section}")
+            label = click.style(
+                labels[check.status],
+                fg=colours[check.status],
+                bold=check.status != "pass",
+            )
+            click.echo(f"  {label} {check.summary}")
+            if verbose or check.status != "pass":
+                for detail in check.details:
+                    click.echo(f"       {detail}")
+
+        counts = report.counts
+        click.echo(
+            f"\nResult: {report.status.upper()} "
+            f"({counts['pass']} passed, {counts['warn']} warnings, {counts['fail']} failures)"
+        )
+        if report.status == "fail":
+            click.echo("Fix the failures above, then run `pdk diag` again.")
+        elif report.status == "warn":
+            click.echo("Required checks passed; review the warnings above.")
+        else:
+            click.echo("Every required diagnostic check passed.")
+
+    if report.status == "fail":
+        raise click.exceptions.Exit(1)
+
+
 @main.command("shared-files")
 @click.option(
     "-r",

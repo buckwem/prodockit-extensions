@@ -108,6 +108,19 @@ Install the current prodockit package into the active project environment:
 pip install prodockit
 ```
 
+If an installed command appears to use the wrong Python or version, run this
+from the project root before reinstalling anything:
+
+```bash
+pdk diag
+```
+
+The report distinguishes a stale command on `PATH` from a valid virtual
+environment, pipx, Conda, system-Python, or CI installation. It also runs the
+active interpreter's dependency check and verifies only the renderers required
+by the project's configuration. Use `pdk diag --verbose` for paths and version
+evidence, or attach `pdk diag --json` when requesting support.
+
 For a minimal project that needs no PDF toolchain, continue with
 [Build your first site](getting-started.md). The external tools above can be
 added later when the document needs their features.

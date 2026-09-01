@@ -11,6 +11,11 @@ package's own source, test matrix, documentation artifacts, pinned build
 inputs, GitHub Actions workflows, PyPI release, and public documentation
 deployment.
 
+For a documentation project rather than this package repository, start with
+the read-only [diagnostics guide](devcons/diagnostics.md). It maps every
+`pdk diag` result to an author remediation without requiring package-maintainer
+knowledge.
+
 If you are writing and publishing a document with prodockit, use
 [Publish a document](publishing.md) instead. Machine setup, `prodockit-template`,
 template syncing, PDF generation, and Pages publication belong to that author
@@ -121,6 +126,7 @@ Match the maintenance need to its safest starting tool in
 
 | Need | Start with | What changes |
 |---|---|---|
+| A project, installation, or renderer fails unexpectedly | `pdk diag` | Nothing; follow the remediation for the reported stable check ID |
 | A fork, mirror, or renamed repository points at the wrong place | `prodockit sync-repo --check` | Repository URLs, edit links, host icon, and managed README badges |
 | CI files disagree about dependency versions | `prodockit pins --check --offline` | Version declarations, preserving each file's existing operator |
 | A newer dependency may change published output | GitHub's `drift.yml` result | Nothing automatically; it opens or updates an issue with the comparison |

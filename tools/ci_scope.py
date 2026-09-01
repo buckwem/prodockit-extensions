@@ -79,6 +79,7 @@ _ALL_RUNTIME_FILES = {
     "src/prodockit/__init__.py",
     "src/prodockit/__main__.py",
     "src/prodockit/cli.py",
+    "src/prodockit/diagnostics.py",
     "src/prodockit/shared_files.py",
     "src/prodockit/util.py",
     "src/prodockit/py.typed",
