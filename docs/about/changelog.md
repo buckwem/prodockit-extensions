@@ -38,8 +38,11 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
-## Unreleased
+## 0.54.1 (2026-09-01)
 
+- Made Bootstrap retry transient package-service failures, including Snapcraft
+  HTTP 408 responses, and made the native release tests validate, cache, and
+  switch between compatible sources for immutable downloads.
 - Made Adoption without Mermaid or maths agree with project diagnostics: unused
   Zensical Markdown defaults no longer require the optional PDF renderers.
 - Made Adoption, Bootstrap, and project diagnostics exercise Mermaid rendering
