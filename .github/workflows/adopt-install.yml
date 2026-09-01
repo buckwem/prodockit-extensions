@@ -83,6 +83,11 @@ jobs:
       - name: Install Chromium for Mermaid on Linux ARM64
         if: runner.os == 'Linux' && matrix.architecture == 'arm64'
         run: sudo apt -o DPkg::Lock::Timeout=600 install -y chromium-browser
+      - name: Use a Chromium-accessible temporary directory on Linux ARM64
+        if: runner.os == 'Linux' && matrix.architecture == 'arm64'
+        run: |
+          mkdir -p "$HOME/prodockit-acceptance-tmp"
+          echo "TMPDIR=$HOME/prodockit-acceptance-tmp" >> "$GITHUB_ENV"
       - name: Build the candidate wheel
         run: |
           python -m pip install build
@@ -156,6 +161,11 @@ jobs:
       - name: Install Chromium for Mermaid on Linux ARM64
         if: runner.os == 'Linux' && matrix.architecture == 'arm64'
         run: sudo apt -o DPkg::Lock::Timeout=600 install -y chromium-browser
+      - name: Use a Chromium-accessible temporary directory on Linux ARM64
+        if: runner.os == 'Linux' && matrix.architecture == 'arm64'
+        run: |
+          mkdir -p "$HOME/prodockit-acceptance-tmp"
+          echo "TMPDIR=$HOME/prodockit-acceptance-tmp" >> "$GITHUB_ENV"
       - name: Build the candidate wheel
         run: |
           python -m pip install build
