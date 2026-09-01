@@ -98,6 +98,7 @@ def test_scaffolded_manifests_are_valid_json_with_the_expected_dependency(
 
     assert "@mermaid-js/mermaid-cli" in mermaid["dependencies"]
     assert "mathjax-full" in mathjax["dependencies"]
+    assert "puppeteer" in mermaid["dependencies"]
     # Both are private scaffolds, never published.
     assert mermaid["private"] is True
     assert mathjax["private"] is True

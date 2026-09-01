@@ -3357,8 +3357,18 @@ def _check_node(context: Context) -> CheckResult:
             source = Path(temporary) / "health.mmd"
             output = Path(temporary) / "health.svg"
             source.write_text("graph LR\n  A --> B\n", encoding="utf-8")
+            mermaid_command = [str(mermaid_cli), "-i", str(source), "-o", str(output)]
+            if context.platform == UBUNTU:
+                mermaid_command = [
+                    "bash",
+                    "-c",
+                    "browser=$(command -v chromium-browser || command -v chromium) || exit 1; "
+                    "export PUPPETEER_EXECUTABLE_PATH=$browser; exec \"$@\"",
+                    "prodockit-mermaid-probe",
+                    *mermaid_command,
+                ]
             mermaid_result = context.runner.run(
-                [str(mermaid_cli), "-i", str(source), "-o", str(output)],
+                mermaid_command,
                 cwd=str(project / "tools" / "mermaid"),
                 timeout=30,
             )
@@ -3366,6 +3376,7 @@ def _check_node(context: Context) -> CheckResult:
             detail = mermaid_result.stderr.strip() or mermaid_result.stdout.strip()
             return _wrong(
                 f"node {raw}, but Mermaid cannot render a diagram"
+                + (" with system Chromium" if context.platform == UBUNTU else "")
                 + (f": {detail}" if detail else "")
             )
         # Loading the modules used by tex2svg catches partial npm extracts

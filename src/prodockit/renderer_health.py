@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +27,48 @@ class RendererProbe:
         return self.error is None
 
 
+def find_browser() -> str | None:
+    """Find a browser Puppeteer can use without downloading another copy."""
+    if configured := os.environ.get("PUPPETEER_EXECUTABLE_PATH"):
+        return configured
+    for name in (
+        "google-chrome-stable",
+        "google-chrome",
+        "chromium",
+        "chromium-browser",
+        "chrome",
+        "msedge",
+    ):
+        if found := shutil.which(name):
+            return found
+    candidates: list[Path] = []
+    if sys.platform == "darwin":
+        candidates.extend(
+            (
+                Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                Path("/Applications/Chromium.app/Contents/MacOS/Chromium"),
+            )
+        )
+    elif os.name == "nt":
+        for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+            if base := os.environ.get(variable):
+                root = Path(base)
+                candidates.extend(
+                    (
+                        root / "Google" / "Chrome" / "Application" / "chrome.exe",
+                        root / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+                    )
+                )
+    return next((str(path) for path in candidates if path.is_file()), None)
+
+
+def _renderer_environment() -> dict[str, str]:
+    environment = dict(os.environ)
+    if "PUPPETEER_EXECUTABLE_PATH" not in environment and (browser := find_browser()):
+        environment["PUPPETEER_EXECUTABLE_PATH"] = browser
+    return environment
+
+
 def _command(path: Path, *arguments: str) -> list[str]:
     command = [str(path), *arguments]
     if os.name == "nt" and path.suffix.casefold() in {".bat", ".cmd"}:
@@ -41,6 +85,7 @@ def _output(completed: subprocess.CompletedProcess[str]) -> str:
 def probe_mermaid(path: str | Path, *, timeout: float = 30.0) -> RendererProbe:
     """Render a minimal diagram, exercising Mermaid and its browser."""
     executable = Path(path)
+    environment = _renderer_environment()
     try:
         version_result = subprocess.run(
             _command(executable, "--version"),
@@ -50,6 +95,7 @@ def probe_mermaid(path: str | Path, *, timeout: float = 30.0) -> RendererProbe:
             errors="replace",
             timeout=timeout,
             check=False,
+            env=environment,
         )
     except (OSError, subprocess.SubprocessError) as error:
         return RendererProbe(executable, error=str(error))
@@ -73,6 +119,7 @@ def probe_mermaid(path: str | Path, *, timeout: float = 30.0) -> RendererProbe:
                 errors="replace",
                 timeout=timeout,
                 check=False,
+                env=environment,
             )
             render_output = _output(render_result)
             if render_result.returncode:

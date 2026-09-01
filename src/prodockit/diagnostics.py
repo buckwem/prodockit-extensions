@@ -25,7 +25,7 @@ from prodockit.config_diagnostics import inspect_config
 from prodockit.pins import DEFAULT_PACKAGES, discover, resolve_latest
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
-from prodockit.renderer_health import probe_mathjax, probe_mermaid
+from prodockit.renderer_health import find_browser, probe_mathjax, probe_mermaid
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import inspect as inspect_shared_files
 
@@ -631,14 +631,7 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
         )
     )
 
-    browser = os.environ.get("PUPPETEER_EXECUTABLE_PATH") or next(
-        (
-            candidate
-            for name in ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser")
-            if (candidate := shutil.which(name))
-        ),
-        None,
-    )
+    browser = find_browser()
     browser_version = None
     browser_error = None
     if browser:

@@ -51,6 +51,35 @@ def test_mermaid_probe_records_the_reported_version(tmp_path: Path, monkeypatch)
     assert result.error is None
 
 
+def test_mermaid_probe_uses_a_discovered_browser_when_downloads_are_disabled(
+    tmp_path: Path, monkeypatch
+) -> None:
+    binary = tmp_path / "mmdc"
+    binary.write_text("shim", encoding="utf-8")
+    monkeypatch.delenv("PUPPETEER_EXECUTABLE_PATH", raising=False)
+    monkeypatch.setenv("PUPPETEER_SKIP_DOWNLOAD", "true")
+    monkeypatch.setattr(
+        "prodockit.renderer_health.shutil.which",
+        lambda name: "/usr/bin/chromium" if name == "chromium" else None,
+    )
+    environments = []
+
+    def run(command, **kwargs):
+        environments.append(kwargs["env"])
+        if "-o" in command:
+            Path(command[command.index("-o") + 1]).write_text("<svg/>", encoding="utf-8")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        return SimpleNamespace(returncode=0, stdout="11.12.0", stderr="")
+
+    monkeypatch.setattr("prodockit.renderer_health.subprocess.run", run)
+
+    assert probe_mermaid(binary).ok is True
+    assert all(
+        environment["PUPPETEER_EXECUTABLE_PATH"] == "/usr/bin/chromium"
+        for environment in environments
+    )
+
+
 def test_mermaid_probe_rejects_a_browser_render_failure(tmp_path: Path, monkeypatch) -> None:
     binary = tmp_path / "mmdc"
     binary.write_text("shim", encoding="utf-8")
