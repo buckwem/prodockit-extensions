@@ -151,11 +151,14 @@ def _temporary_network_failure(outcome: CommandResult) -> bool:
     return any(
         marker in output
         for marker in (
+            "server returned 408",
             "server returned 429",
             "server returned 500",
             "server returned 502",
             "server returned 503",
             "server returned 504",
+            "http status code 408",
+            "request timeout",
             "service unavailable",
             "too many requests",
             "temporarily unavailable",
@@ -181,6 +184,15 @@ def _safe_to_retry(command: list[str]) -> bool:
     if not command:
         return False
     executable = Path(command[0]).name.lower().removesuffix(".exe")
+    if executable == "sudo":
+        executable = next(
+            (
+                Path(argument).name.lower().removesuffix(".exe")
+                for argument in command[1:]
+                if not argument.startswith("-")
+            ),
+            executable,
+        )
     if executable in {"apt", "apt-get", "brew", "curl", "npm", "pip", "winget"}:
         return True
     if executable in {"code", "code.cmd"}:
