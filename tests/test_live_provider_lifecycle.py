@@ -130,6 +130,7 @@ class FakeGitLab:
         self.project: dict[str, Any] | None = None
         self.refs: dict[str, str] = {}
         self.deploy_keys: list[dict[str, Any]] = []
+        self.pages: dict[str, Any] | None = None
         self.mutations: list[tuple[str, str]] = []
         self._sleep = lambda _delay: None
 
@@ -151,11 +152,13 @@ class FakeGitLab:
             return {"id": self.fixture.group.id, "full_path": state.SURREY_GROUP}
         if path == f"/projects/{lifecycle.encoded(state.SURREY_PATH)}":
             return self.project
+        if self.project is not None and path == f"/projects/{self.project['id']}":
+            return self.project
+        if path.startswith("/projects/") and path.removeprefix("/projects/").isdecimal():
+            return None
         raise AssertionError(f"unexpected GET {path}")
 
-    def list_all(
-        self, path: str, *, query: dict[str, Any] | None = None
-    ) -> list[dict[str, Any]]:
+    def list_all(self, path: str, *, query: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         del query
         group = f"/groups/{self.fixture.group.id}"
         if path == f"{group}/projects":
@@ -198,13 +201,20 @@ class FakeGitLab:
         body: dict[str, Any] | None = None,
         expected: object = None,
     ) -> lifecycle.ApiResponse:
-        del query, expected
+        del expected
         self.mutations.append((method, path))
         current_id = self.project["id"] if self.project is not None else None
+        if method == "GET" and path == f"/projects/{current_id}/pages":
+            status = 404 if self.pages is None else 200
+            return lifecycle.ApiResponse(status, self.pages, {})
+        if method == "DELETE" and path == f"/projects/{current_id}/pages":
+            self.pages = None
+            return lifecycle.ApiResponse(204, None, {})
         if method == "DELETE" and path == f"/projects/{current_id}":
             self.project = None
             self.refs = {}
             self.deploy_keys = []
+            self.pages = None
             return lifecycle.ApiResponse(204, None, {})
         if method == "POST" and path == "/projects":
             self.project = self._project()
@@ -234,15 +244,15 @@ class FakeGitLab:
         raise AssertionError(f"unexpected mutation {method} {path}")
 
 
-def test_project_snapshot_does_not_query_disabled_pipelines(tmp_path: Path) -> None:
+def test_project_snapshot_does_not_query_disabled_features(tmp_path: Path) -> None:
     fixture = state.LifecycleFixture.read(write_fixture(tmp_path / "fixture.json"))
 
     class DisabledPipelineEndpoint(FakeGitLab):
         def list_all(
             self, path: str, *, query: dict[str, Any] | None = None
         ) -> list[dict[str, Any]]:
-            if path.endswith("/pipelines"):
-                raise AssertionError("the disabled pipelines endpoint must not be queried")
+            if path.endswith(("/pipelines", "/merge_requests")):
+                raise AssertionError("a disabled feature endpoint must not be queried")
             return super().list_all(path, query=query)
 
     client = DisabledPipelineEndpoint(fixture)
@@ -251,6 +261,84 @@ def test_project_snapshot_does_not_query_disabled_pipelines(tmp_path: Path) -> N
     snapshot = lifecycle.project_snapshot(client, fixture, project)
 
     assert snapshot.refs == {}
+
+
+def test_delete_completes_gitlabs_scheduled_deletion_transition(tmp_path: Path) -> None:
+    fixture = state.LifecycleFixture.read(write_fixture(tmp_path / "fixture.json"))
+
+    class ScheduledDeletion(FakeGitLab):
+        def __init__(self, fixture: state.LifecycleFixture) -> None:
+            super().__init__(fixture)
+            self.project = self._project()
+            self.permanent_full_path: str | None = None
+
+        def request(
+            self,
+            method: str,
+            path: str,
+            *,
+            query: dict[str, Any] | None = None,
+            body: dict[str, Any] | None = None,
+            expected: object = None,
+        ) -> lifecycle.ApiResponse:
+            if method == "DELETE" and path == "/projects/404":
+                assert self.project is not None
+                if query and query.get("permanently_remove") == "true":
+                    self.permanent_full_path = str(query.get("full_path"))
+                    self.project = None
+                    return lifecycle.ApiResponse(204, None, {})
+                suffix = "-deletion_scheduled-404"
+                self.project.update(
+                    {
+                        "name": state.SURREY_PROJECT + suffix,
+                        "path": state.SURREY_PROJECT + suffix,
+                        "path_with_namespace": state.SURREY_PATH + suffix,
+                        "marked_for_deletion_on": "2026-09-08",
+                    }
+                )
+                return lifecycle.ApiResponse(202, None, {})
+            return super().request(
+                method,
+                path,
+                query=query,
+                body=body,
+                expected=expected,
+            )
+
+    client = ScheduledDeletion(fixture)
+    journal = lifecycle.Journal([])
+
+    lifecycle.delete_exact_project(client, fixture, client.project, journal)
+
+    assert client.project is None
+    assert client.permanent_full_path == state.SURREY_PATH + "-deletion_scheduled-404"
+    assert [entry["operation"] for entry in journal.operations] == [
+        "delete-project",
+        "permanently-remove-project",
+    ]
+
+
+def test_delete_unpublishes_pages_before_removing_project(tmp_path: Path) -> None:
+    fixture = state.LifecycleFixture.read(write_fixture(tmp_path / "fixture.json"))
+    client = FakeGitLab(fixture)
+    client.project = client._project()
+    client.pages = {
+        "url": "https://example.pages.invalid/project/",
+        "deployments": [{"path_prefix": "", "url": "https://example.pages.invalid/project/"}],
+    }
+    journal = lifecycle.Journal([])
+
+    lifecycle.delete_exact_project(client, fixture, client.project, journal)
+
+    assert client.project is None
+    assert client.pages is None
+    assert client.mutations.index(("DELETE", "/projects/404/pages")) < client.mutations.index(
+        ("DELETE", "/projects/404")
+    )
+    assert [entry["operation"] for entry in journal.operations] == [
+        "unpublish-pages",
+        "delete-project",
+    ]
 
 
 def test_reset_removes_the_project_if_post_creation_validation_fails(
@@ -278,9 +366,7 @@ def test_reset_removes_the_project_if_post_creation_validation_fails(
         "validate_controller_checkout",
         lambda *_args, **_kwargs: CONTROLLER_COMMIT,
     )
-    monkeypatch.setattr(
-        lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA"
-    )
+    monkeypatch.setattr(lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA")
     args = Namespace(
         fixture=fixture_path,
         previous_state=None,
@@ -303,8 +389,7 @@ def test_fixture_is_closed_and_pinned_to_the_exact_surrey_project(tmp_path: Path
     fixture = state.LifecycleFixture.read(write_fixture(tmp_path / "fixture.json"))
 
     assert fixture.destination_remote == (
-        "git@gitlab.surrey.ac.uk:assessment-liveprovider-2026/"
-        "report-liveprovider-2026-mb0105.git"
+        "git@gitlab.surrey.ac.uk:assessment-liveprovider-2026/report-liveprovider-2026-mb0105.git"
     )
 
     value = fixture_value(unexpected="secret")
@@ -439,7 +524,9 @@ def test_reset_refuses_an_existing_project_without_retained_proof(
         "inspect_wheel",
         lambda *_args: SimpleNamespace(version=VERSION, sha256=WHEEL_SHA),
     )
-    monkeypatch.setattr(lifecycle, "validate_controller_checkout", lambda *_args, **_kwargs: CONTROLLER_COMMIT)
+    monkeypatch.setattr(
+        lifecycle, "validate_controller_checkout", lambda *_args, **_kwargs: CONTROLLER_COMMIT
+    )
     monkeypatch.setattr(lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA")
     monkeypatch.setattr(
         lifecycle,
@@ -473,7 +560,9 @@ def test_empty_reset_candidate_and_seal_form_one_bounded_lifecycle(
         "inspect_wheel",
         lambda *_args: SimpleNamespace(version=VERSION, sha256=WHEEL_SHA),
     )
-    monkeypatch.setattr(lifecycle, "validate_controller_checkout", lambda *_args, **_kwargs: CONTROLLER_COMMIT)
+    monkeypatch.setattr(
+        lifecycle, "validate_controller_checkout", lambda *_args, **_kwargs: CONTROLLER_COMMIT
+    )
     monkeypatch.setattr(lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA")
     monkeypatch.setattr(
         lifecycle,
@@ -567,9 +656,7 @@ def test_reset_reconciles_lost_mutation_responses_without_replaying_them(
         "validate_controller_checkout",
         lambda *_args, **_kwargs: CONTROLLER_COMMIT,
     )
-    monkeypatch.setattr(
-        lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA"
-    )
+    monkeypatch.setattr(lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA")
     monkeypatch.setattr(
         lifecycle,
         "public_key_fingerprint",
@@ -635,9 +722,7 @@ def test_next_reset_requires_and_consumes_the_exact_retained_state(
         "validate_controller_checkout",
         lambda *_args, **_kwargs: CONTROLLER_COMMIT,
     )
-    monkeypatch.setattr(
-        lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA"
-    )
+    monkeypatch.setattr(lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA")
     monkeypatch.setattr(
         lifecycle,
         "public_key_fingerprint",
@@ -707,9 +792,7 @@ def test_unexpected_provider_content_blocks_deletion(
         "validate_controller_checkout",
         lambda *_args, **_kwargs: CONTROLLER_COMMIT,
     )
-    monkeypatch.setattr(
-        lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA"
-    )
+    monkeypatch.setattr(lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA")
     args = Namespace(
         fixture=fixture_path,
         previous_state=previous_path,
@@ -762,9 +845,7 @@ def test_unexpected_deploy_key_blocks_deletion(
         "validate_controller_checkout",
         lambda *_args, **_kwargs: CONTROLLER_COMMIT,
     )
-    monkeypatch.setattr(
-        lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA"
-    )
+    monkeypatch.setattr(lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA")
     args = Namespace(
         fixture=fixture_path,
         previous_state=previous_path,
@@ -896,9 +977,7 @@ def test_api_client_rejects_cross_origin_and_mutation_network_failures(
 def test_lifecycle_tool_changes_select_bootstrap_acceptance_scope() -> None:
     scope = importlib.import_module("ci_scope")
 
-    assert scope.owners_for_path("tools/live_provider_state.py") == frozenset(
+    assert scope.owners_for_path("tools/live_provider_state.py") == frozenset({"bootstrap"})
+    assert scope.owners_for_path("tools/bootstrap_live_provider_lifecycle.py") == frozenset(
         {"bootstrap"}
     )
-    assert scope.owners_for_path(
-        "tools/bootstrap_live_provider_lifecycle.py"
-    ) == frozenset({"bootstrap"})

@@ -59,6 +59,7 @@ PROJECT_DISABLE_SETTINGS: dict[str, Any] = {
     "wiki_access_level": "disabled",
     "snippets_access_level": "disabled",
     "builds_access_level": "disabled",
+    "pages_access_level": "disabled",
     "container_registry_access_level": "disabled",
     "package_registry_access_level": "disabled",
     "packages_enabled": False,
@@ -300,9 +301,7 @@ class GitLabClient:
                     raise AmbiguousMutation(
                         f"GitLab API {method} {path} returned {error.code}; outcome is ambiguous"
                     ) from error
-                raise LifecycleError(
-                    f"GitLab API {method} {path} returned {error.code}"
-                ) from error
+                raise LifecycleError(f"GitLab API {method} {path} returned {error.code}") from error
             except (TimeoutError, URLError, OSError) as error:
                 if method == "GET" and attempt < attempts - 1:
                     self._sleep(READ_RETRY_DELAYS[attempt])
@@ -425,9 +424,16 @@ def group_preflight(client: GitLabClient, fixture: LifecycleFixture) -> None:
 
 
 def project_value(client: GitLabClient, fixture: LifecycleFixture) -> dict[str, Any] | None:
-    value = client.get_optional(
-        f"/projects/{encoded(fixture.project.path_with_namespace)}"
-    )
+    value = client.get_optional(f"/projects/{encoded(fixture.project.path_with_namespace)}")
+    if value is not None and not isinstance(value, dict):
+        raise LifecycleError("GitLab returned an invalid project object")
+    return value
+
+
+def project_id_value(client: GitLabClient, project_id: int) -> dict[str, Any] | None:
+    """Observe one project by immutable ID without following path redirects."""
+
+    value = client.get_optional(f"/projects/{project_id}")
     if value is not None and not isinstance(value, dict):
         raise LifecycleError("GitLab returned an invalid project object")
     return value
@@ -479,11 +485,13 @@ def project_snapshot(
         hooks=tuple(client.list_all(f"/projects/{project_id}/hooks")),
         deploy_tokens=tuple(client.list_all(f"/projects/{project_id}/deploy_tokens")),
         deploy_keys=tuple(client.list_all(f"/projects/{project_id}/deploy_keys")),
-        protected_branches=tuple(
-            client.list_all(f"/projects/{project_id}/protected_branches")
-        ),
-        merge_requests=tuple(
-            client.list_all(f"/projects/{project_id}/merge_requests", query={"state": "all"})
+        protected_branches=tuple(client.list_all(f"/projects/{project_id}/protected_branches")),
+        merge_requests=(
+            ()
+            if project.get("merge_requests_access_level") == "disabled"
+            else tuple(
+                client.list_all(f"/projects/{project_id}/merge_requests", query={"state": "all"})
+            )
         ),
     )
 
@@ -531,9 +539,7 @@ def validate_no_project_content(
         if values:
             raise LifecycleError(f"the live-provider project contains an unexpected {label}")
     deploy_key_ids = [record.get("id") for record in snapshot.deploy_keys]
-    expected_deploy_key_ids = (
-        [] if allowed_deploy_key_id is None else [allowed_deploy_key_id]
-    )
+    expected_deploy_key_ids = [] if allowed_deploy_key_id is None else [allowed_deploy_key_id]
     if deploy_key_ids != expected_deploy_key_ids:
         raise LifecycleError("the live-provider project contains an unexpected deploy key")
     protected_names = {record.get("name") for record in snapshot.protected_branches}
@@ -574,10 +580,7 @@ def validate_destination_key(
         fingerprint = public_key_fingerprint(key_record)
     except LiveProviderError as error:
         raise LifecycleError(str(error)) from error
-    if (
-        fingerprint != fixture.deploy_key.fingerprint
-        or key.get("can_push") is not can_push
-    ):
+    if fingerprint != fixture.deploy_key.fingerprint or key.get("can_push") is not can_push:
         raise LifecycleError("the destination deploy-key permission differs from the fixture")
 
 
@@ -597,6 +600,78 @@ def wait_for_project(
     raise LifecycleError(f"the project did not become stably {state} within the observation budget")
 
 
+def wait_for_project_deletion(
+    client: GitLabClient,
+    fixture: LifecycleFixture,
+    project_id: int,
+) -> dict[str, Any] | None:
+    """Wait for an exact project ID to disappear or enter scheduled deletion."""
+
+    for delay in (0.0, *READ_RETRY_DELAYS):
+        if delay:
+            client._sleep(delay)
+        value = project_id_value(client, project_id)
+        if value is None:
+            return None
+        namespace = value.get("namespace")
+        namespace_id = namespace.get("id") if isinstance(namespace, dict) else None
+        suffix = f"-deletion_scheduled-{project_id}"
+        marked = value.get("marked_for_deletion_on") or value.get("marked_for_deletion_at")
+        if (
+            value.get("id") == project_id
+            and namespace_id == fixture.group.id
+            and value.get("visibility") == "private"
+            and value.get("path") == fixture.project.name + suffix
+            and value.get("path_with_namespace") == fixture.project.path_with_namespace + suffix
+            and marked
+        ):
+            return value
+    raise LifecycleError(
+        "the exact project did not disappear or enter scheduled deletion "
+        "within the observation budget"
+    )
+
+
+def project_pages_value(client: GitLabClient, project_id: int) -> dict[str, Any] | None:
+    """Return the exact project's Pages state without using its mutable path."""
+
+    response = client.request("GET", f"/projects/{project_id}/pages", expected={200, 404})
+    if response.status == 404:
+        return None
+    value = response.value
+    if not isinstance(value, dict) or not isinstance(value.get("deployments"), list):
+        raise LifecycleError("GitLab returned invalid Pages state")
+    if not all(isinstance(deployment, dict) for deployment in value["deployments"]):
+        raise LifecycleError("GitLab returned an invalid Pages deployment")
+    return value
+
+
+def unpublish_project_pages(
+    client: GitLabClient,
+    project_id: int,
+    journal: Journal,
+) -> None:
+    """Remove any Pages route or deployment before deleting the fixture project."""
+
+    if project_pages_value(client, project_id) is None:
+        return
+    try:
+        response = client.request(
+            "DELETE",
+            f"/projects/{project_id}/pages",
+            expected={204},
+        )
+        journal.record("unpublish-pages", outcome="accepted", status=response.status)
+    except AmbiguousMutation:
+        journal.record("unpublish-pages", outcome="response-lost")
+    for delay in (0.0, *READ_RETRY_DELAYS):
+        if delay:
+            client._sleep(delay)
+        if project_pages_value(client, project_id) is None:
+            return
+    raise LifecycleError("the exact project's Pages deployment was not unpublished")
+
+
 def delete_exact_project(
     client: GitLabClient,
     fixture: LifecycleFixture,
@@ -604,38 +679,33 @@ def delete_exact_project(
     journal: Journal,
 ) -> None:
     project_id = validate_project_identity(project, fixture, expected_id=None)
+    unpublish_project_pages(client, project_id, journal)
     try:
         response = client.request("DELETE", f"/projects/{project_id}", expected={202, 204})
         journal.record("delete-project", outcome="accepted", status=response.status)
     except AmbiguousMutation:
         journal.record("delete-project", outcome="response-lost")
-    try:
-        wait_for_project(client, fixture, present=False)
+    observed = wait_for_project_deletion(client, fixture, project_id)
+    if observed is None:
         return
-    except LifecycleError:
-        observed = project_value(client, fixture)
-        if not isinstance(observed, dict):
-            return
-        validate_project_identity(observed, fixture, expected_id=project_id)
-        marked = observed.get("marked_for_deletion_on") or observed.get("marked_for_deletion_at")
-        if not marked:
-            raise LifecycleError(
-                "project deletion was not observed; refusing to repeat the destructive request"
-            ) from None
+    scheduled_path = observed.get("path_with_namespace")
+    if not isinstance(scheduled_path, str):
+        raise LifecycleError("GitLab omitted the scheduled-deletion project path")
     try:
         response = client.request(
             "DELETE",
             f"/projects/{project_id}",
             query={
                 "permanently_remove": "true",
-                "full_path": fixture.project.path_with_namespace,
+                "full_path": scheduled_path,
             },
             expected={202, 204},
         )
         journal.record("permanently-remove-project", outcome="accepted", status=response.status)
     except AmbiguousMutation:
         journal.record("permanently-remove-project", outcome="response-lost")
-    wait_for_project(client, fixture, present=False)
+    if wait_for_project_deletion(client, fixture, project_id) is not None:
+        raise LifecycleError("the scheduled-deletion project was not permanently removed")
 
 
 def create_exact_project(
@@ -686,9 +756,7 @@ def create_exact_project(
         response = client.request(
             "PUT", f"/projects/{project_id}", body=PROJECT_DISABLE_SETTINGS, expected={200}
         )
-        journal.record(
-            "disable-project-features", outcome="configured", status=response.status
-        )
+        journal.record("disable-project-features", outcome="configured", status=response.status)
         configured = response.value
     except AmbiguousMutation:
         journal.record("disable-project-features", outcome="response-lost")
@@ -734,9 +802,7 @@ def enable_destination_key(
             body={"title": fixture.deploy_key.title, "can_push": True},
             expected={200},
         )
-        journal.record(
-            "grant-destination-key-write", outcome="configured", status=response.status
-        )
+        journal.record("grant-destination-key-write", outcome="configured", status=response.status)
     except AmbiguousMutation:
         journal.record("grant-destination-key-write", outcome="response-lost")
     validate_destination_key(client, fixture, project_id, can_push=True)
@@ -791,9 +857,7 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
     )
     expected_confirmation = fixture.project.path_with_namespace
     if args.confirm_project_reset != expected_confirmation:
-        raise LifecycleError(
-            f"--confirm-project-reset must be exactly {expected_confirmation}"
-        )
+        raise LifecycleError(f"--confirm-project-reset must be exactly {expected_confirmation}")
     wheel = inspect_wheel(args.wheel, args.expected_wheel_sha256)
     controller_commit = validate_controller_checkout(
         source_checkout,
@@ -912,7 +976,8 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
             delete_exact_project(client, fixture, created, journal)
         except Exception as cleanup_error:
             raise LifecycleError(
-                "the reset failed and its newly-created project could not be removed: "
+                "the reset failed with "
+                f"{reset_error}; its newly-created project could not be removed: "
                 f"{cleanup_error}"
             ) from reset_error
         raise
@@ -949,14 +1014,11 @@ def phase_two_report(path: Path, handoff: ResetHandoff) -> dict[str, Any]:
         if result.get("clean_tree") is not True:
             raise LifecycleError(f"the candidate report did not finish {name} cleanly")
         stages = result.get("applied_stages")
-        if not isinstance(stages, list) or not all(
-            isinstance(stage, str) for stage in stages
-        ):
+        if not isinstance(stages, list) or not all(isinstance(stage, str) for stage in stages):
             raise LifecycleError(f"the candidate report contains invalid stages for {name}")
         paths.append(result)
-    if (
-        paths[0].get("commit") != paths[1].get("commit")
-        or paths[0].get("tree") != paths[1].get("tree")
+    if paths[0].get("commit") != paths[1].get("commit") or paths[0].get("tree") != paths[1].get(
+        "tree"
     ):
         raise LifecycleError("the two candidate paths produced different repository state")
     if (
