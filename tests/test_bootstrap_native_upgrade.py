@@ -66,7 +66,10 @@ def test_marketplace_gzip_response_is_decoded_to_the_vsix_bytes(
             super().__init__(content)
             self.headers = {"Content-Encoding": "gzip"}
 
-    expected = b"PK\x03\x04real-vsix"
+    package = io.BytesIO()
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("extension/package.json", "{}")
+    expected = package.getvalue()
     monkeypatch.setattr(
         native.urllib.request,
         "urlopen",
@@ -83,7 +86,7 @@ def test_universal_marketplace_extension_is_the_404_fallback(
 ) -> None:
     attempted: list[str] = []
 
-    def download(url: str, destination: Path) -> Path:
+    def download(url: str, destination: Path, **_kwargs: object) -> Path:
         attempted.append(url)
         if "targetPlatform=" in url:
             raise urllib.error.HTTPError(url, 404, "not platform-specific", {}, None)
@@ -92,7 +95,7 @@ def test_universal_marketplace_extension_is_the_404_fallback(
 
     monkeypatch.setattr(native, "current_platform", lambda: native.UBUNTU)
     monkeypatch.setattr(native, "_is_arm64", lambda: False)
-    monkeypatch.setattr(native, "_download", download)
+    monkeypatch.setattr(native, "download", download)
 
     destination = native._download_marketplace(
         "zensical.zensical-studio", "0.2.11", tmp_path / "extension.vsix"
@@ -101,6 +104,34 @@ def test_universal_marketplace_extension_is_the_404_fallback(
     assert "targetPlatform=linux-x64" in attempted[0]
     assert "?" not in attempted[1]
     assert destination.read_bytes() == b"universal"
+
+
+def test_download_sources_moves_to_the_next_compatible_source(
+    monkeypatch, tmp_path: Path
+) -> None:
+    attempted: list[tuple[str, str | None]] = []
+
+    def download(
+        url: str, destination: Path, *, cache_key: str | None = None, **_kwargs: object
+    ) -> Path:
+        attempted.append((url, cache_key))
+        if url.endswith("primary"):
+            raise native.DownloadError("primary exhausted")
+        destination.write_bytes(b"mirror")
+        return destination
+
+    monkeypatch.setattr(native, "download", download)
+    result = native._download_sources(
+        ("https://example.invalid/primary", "https://mirror.invalid/fallback"),
+        tmp_path / "fixture.tar.gz",
+    )
+
+    assert result.read_bytes() == b"mirror"
+    assert [url for url, _cache_key in attempted] == [
+        "https://example.invalid/primary",
+        "https://mirror.invalid/fallback",
+    ]
+    assert attempted[0][1] == attempted[1][1]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Unix executable modes are not used on Windows")

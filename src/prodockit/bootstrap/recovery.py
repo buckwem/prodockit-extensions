@@ -115,11 +115,14 @@ def recovery_advice(
     if any(
         marker in output
         for marker in (
+            "server returned 408",
             "server returned 429",
             "server returned 500",
             "server returned 502",
             "server returned 503",
             "server returned 504",
+            "http status code 408",
+            "request timeout",
             "service unavailable",
             "too many requests",
             "temporarily unavailable",

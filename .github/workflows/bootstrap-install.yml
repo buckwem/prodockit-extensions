@@ -189,6 +189,21 @@ jobs:
             id: github-new-real-upgrade
     steps:
       - uses: actions/checkout@v5
+      # The old-version fixtures are immutable but several have only one
+      # official binary source. Keep validated downloads across runs so a
+      # prolonged CDN outage does not repeatedly block the release gate.
+      # The harness keys each file by its complete source set and validates
+      # the archive again on restore; this workflow key changes when fixture
+      # versions or their source plan changes.
+      - name: Restore validated native-upgrade fixtures
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/prodockit-native-downloads
+          key: >-
+            native-upgrade-v1-${{ runner.os }}-${{ matrix.platform.architecture }}-
+            ${{ hashFiles('tools/bootstrap_native_upgrade.py') }}
+          restore-keys: >-
+            native-upgrade-v1-${{ runner.os }}-${{ matrix.platform.architecture }}-
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
@@ -208,6 +223,7 @@ jobs:
       - name: Upgrade real old software through ${{ matrix.scenario.name }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          PDK_NATIVE_DOWNLOAD_CACHE: ${{ runner.temp }}/prodockit-native-downloads
         run: >-
           python tools/bootstrap_native_upgrade.py
           --wheel dist

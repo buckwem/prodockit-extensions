@@ -152,6 +152,17 @@ def test_journal_failure_is_reported_without_raising(tmp_path: Path) -> None:
             "no local repair",
         ),
         (
+            "node",
+            UBUNTU,
+            ["sudo", "apt", "install", "-y", "chromium-browser"],
+            CommandResult(
+                1,
+                stderr="cannot fetch assertion: got unexpected HTTP status code 408",
+            ),
+            "service-temporarily-unavailable",
+            "no local repair",
+        ),
+        (
             "clone",
             UBUNTU,
             ["git", "clone"],
