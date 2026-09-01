@@ -53,6 +53,8 @@ from bootstrap_live_provider_read_only import (
     utc_now,
     validate_known_hosts,
 )
+from canonical_wheel import WheelIdentityError
+from canonical_wheel import inspect_wheel as inspect_canonical_wheel
 from live_provider_state import ResetHandoff, StateError
 
 SURREY_HOSTNAME = "gitlab.surrey.ac.uk"
@@ -60,8 +62,7 @@ SURREY_SOURCE = "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
 SURREY_NAMESPACE = "assessment-liveprovider-2026"
 SURREY_PROJECT = "report-liveprovider-2026-mb0105"
 SURREY_DESTINATION = (
-    "git@gitlab.surrey.ac.uk:"
-    "assessment-liveprovider-2026/report-liveprovider-2026-mb0105.git"
+    "git@gitlab.surrey.ac.uk:assessment-liveprovider-2026/report-liveprovider-2026-mb0105.git"
 )
 PUBLIC_TEMPLATE = "https://github.com/buckwem/prodockit-template.git"
 INITIAL_COMMIT_SUBJECT = "Initial commit"
@@ -205,13 +206,10 @@ class Fixture:
                 f"{self.provider} must use {expected_hostname}, not {self.hostname}"
             )
         expected_destination = (
-            f"git@{self.hostname}:"
-            f"{self.destination_namespace}/{self.destination_project}.git"
+            f"git@{self.hostname}:{self.destination_namespace}/{self.destination_project}.git"
         )
         if self.destination_remote != expected_destination:
-            raise LiveProviderError(
-                f"destination remote must be exactly {expected_destination}"
-            )
+            raise LiveProviderError(f"destination remote must be exactly {expected_destination}")
         if self.provider == "surrey":
             if (
                 self.source_remote != SURREY_SOURCE
@@ -224,9 +222,7 @@ class Fixture:
                     "course liveprovider, First assessment, year 2026"
                 )
         elif self.source_remote != PUBLIC_TEMPLATE:
-            raise LiveProviderError(
-                f"the public provider template must be {PUBLIC_TEMPLATE}"
-            )
+            raise LiveProviderError(f"the public provider template must be {PUBLIC_TEMPLATE}")
         if not OBJECT_ID_RE.fullmatch(self.source_head):
             raise LiveProviderError("source_head must be one complete Git object ID")
         marker = Path(self.template_marker_path)
@@ -351,9 +347,7 @@ def validate_exclusive_agent(socket: Path, fingerprint: str) -> AgentIdentity:
     )
     identities = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     if result.returncode or len(identities) != 1:
-        raise LiveProviderError(
-            "the Phase 2 SSH agent must expose exactly one identity"
-        )
+        raise LiveProviderError("the Phase 2 SSH agent must expose exactly one identity")
     if public_key_fingerprint(identities[0]) != fingerprint:
         raise LiveProviderError("the dedicated agent identity changed during validation")
     return selected
@@ -381,9 +375,7 @@ def isolated_environment(
         "USER",
         "WEASYPRINT_DLL_DIRECTORIES",
     }
-    environment = {
-        name: value for name, value in os.environ.items() if name in safe_inherited
-    }
+    environment = {name: value for name, value in os.environ.items() if name in safe_inherited}
     environment.update(
         {
             "HOME": str(home),
@@ -639,9 +631,7 @@ def authorise_plan(
                     ["push", "-u", "origin", "main"],
                 ]
             if args not in allowed_git:
-                raise LiveProviderError(
-                    f"stage {stage_id} generated an unapproved Git command"
-                )
+                raise LiveProviderError(f"stage {stage_id} generated an unapproved Git command")
             if args and args[0] == "push":
                 push_count += 1
                 if not allow_push or args != ["push", "-u", "origin", "main"]:
@@ -683,9 +673,7 @@ def _authorise_non_git_command(
 ) -> None:
     """Allow only the expected local build operations around repository work."""
     if fixture.source_remote in command or fixture.destination_remote in command:
-        raise LiveProviderError(
-            f"stage {stage_id} passed a provider remote to a non-Git command"
-        )
+        raise LiveProviderError(f"stage {stage_id} passed a provider remote to a non-Git command")
     executable = Path(command[0]).name.casefold()
     candidate = str(candidate_python) if candidate_python is not None else ""
     project_python = str(project / ".venv" / "bin" / "python")
@@ -722,8 +710,7 @@ def _authorise_non_git_command(
             accepted = _safe_embedded_python(command[2])
     elif stage_id == "node":
         wanted = {
-            f"cd {shlex.quote(str(project / 'tools' / component))} "
-            "&& npm ci --legacy-peer-deps"
+            f"cd {shlex.quote(str(project / 'tools' / component))} && npm ci --legacy-peer-deps"
             for component in ("mermaid", "mathjax")
         }
         accepted = executable == "bash" and command[1:2] == ["-c"] and command[2] in wanted
@@ -759,8 +746,7 @@ def _authorise_non_git_command(
         accepted = command == [project_zensical, "build", "--clean"]
     if not accepted:
         raise LiveProviderError(
-            f"stage {stage_id} generated an unapproved non-Git command: "
-            f"{shlex.join(command)}"
+            f"stage {stage_id} generated an unapproved non-Git command: {shlex.join(command)}"
         )
 
 
@@ -920,9 +906,7 @@ def apply_repository_path(
             if applied.count("first-push") != 1:
                 raise LiveProviderError("the empty destination did not perform one first push")
         else:
-            expected_source = (
-                f"{fixture.destination_namespace}/{fixture.destination_project}"
-            )
+            expected_source = f"{fixture.destination_namespace}/{fixture.destination_project}"
             if config.source_url != expected_source or config.history != "keep":
                 raise LiveProviderError("the populated destination did not select option 1")
             if "Option 1 selected automatically" not in clone_source_detail:
@@ -974,9 +958,10 @@ def apply_repository_path(
             raise LiveProviderError(f"the {name} local and remote-tracking main differ")
         if observed["branch"] != "main":
             raise LiveProviderError(f"the {name} checkout is not on main")
-        if observed["origin"] != fixture.destination_remote or observed[
-            "push_origin"
-        ] != fixture.destination_remote:
+        if (
+            observed["origin"] != fixture.destination_remote
+            or observed["push_origin"] != fixture.destination_remote
+        ):
             raise LiveProviderError(f"the {name} origin differs from the destination")
         if observed["file_mode"].casefold() != "false":
             raise LiveProviderError(f"the {name} checkout did not disable core.fileMode")
@@ -1081,8 +1066,7 @@ def verify_destination(
         observed[name] != "Prodockit live-provider test"
         for name in ("author_name", "committer_name")
     ) or any(
-        observed[name] != expected_email(fixture)
-        for name in ("author_email", "committer_email")
+        observed[name] != expected_email(fixture) for name in ("author_email", "committer_email")
     ):
         raise LiveProviderError("the destination commit identity differs from the fixture")
     if (
@@ -1313,11 +1297,9 @@ def controller(args: argparse.Namespace) -> None:
     )
     handoff: ResetHandoff | None = None
     if args.reset_handoff is not None:
-        if fixture.provider != "surrey":
-            raise LiveProviderError("a Phase 3 reset handoff is valid only for Surrey")
         handoff_path = private_metadata_path(
             args.reset_handoff,
-            label="Phase 3 reset handoff",
+            label="provider reset handoff",
             checkout=source_checkout,
             must_exist=True,
         )
@@ -1325,6 +1307,15 @@ def controller(args: argparse.Namespace) -> None:
             handoff = ResetHandoff.read(handoff_path)
         except StateError as error:
             raise LiveProviderError(str(error)) from error
+        if handoff.wheel_contents_sha256 is not None:
+            try:
+                canonical_identity = inspect_canonical_wheel(args.wheel)
+            except WheelIdentityError as error:
+                raise LiveProviderError(str(error)) from error
+            if canonical_identity.wheel_contents_sha256 != handoff.wheel_contents_sha256:
+                raise LiveProviderError(
+                    "the candidate wheel contents differ from the provider reset handoff"
+                )
         if (
             handoff.provider != fixture.provider
             or handoff.path_with_namespace
@@ -1335,7 +1326,7 @@ def controller(args: argparse.Namespace) -> None:
             or handoff.controller_commit != controller_commit
             or handoff.deploy_key_fingerprint != fingerprint
         ):
-            raise LiveProviderError("the Phase 3 reset handoff differs from this candidate run")
+            raise LiveProviderError("the provider reset handoff differs from this candidate run")
     started = utc_now()
     host_home = Path.home().resolve()
 
@@ -1401,7 +1392,7 @@ def controller(args: argparse.Namespace) -> None:
                 raise LiveProviderError("the source main ref differs from the fixture")
             source_digest = refs_digest(source_before)
             if handoff is not None and source_digest != handoff.source_refs_digest:
-                raise LiveProviderError("the source refs differ from the Phase 3 reset handoff")
+                raise LiveProviderError("the source refs differ from the provider reset handoff")
             destination_before = query_refs(
                 fixture.destination_remote,
                 cwd=root,
@@ -1439,12 +1430,15 @@ def controller(args: argparse.Namespace) -> None:
                 raise LiveProviderError("the installed candidate version differs from the wheel")
 
             # Recheck immediately before the candidate receives the identity.
-            if query_refs(
-                fixture.source_remote,
-                cwd=root,
-                environment=environments[0],
-                git_executable=system_git,
-            ) != source_before:
+            if (
+                query_refs(
+                    fixture.source_remote,
+                    cwd=root,
+                    environment=environments[0],
+                    git_executable=system_git,
+                )
+                != source_before
+            ):
                 raise LiveProviderError("the template refs changed during preflight")
             if query_refs(
                 fixture.destination_remote,
@@ -1486,9 +1480,7 @@ def controller(args: argparse.Namespace) -> None:
                 timeout=1800,
             )
             raw = json.loads(worker_report.read_text(encoding="utf-8"))
-            summary = validate_worker_report(
-                raw, fixture, wheel.version, temporary_root=root
-            )
+            summary = validate_worker_report(raw, fixture, wheel.version, temporary_root=root)
             commit = summary["path_one"]["commit"]
             destination_after = query_refs(
                 fixture.destination_remote,

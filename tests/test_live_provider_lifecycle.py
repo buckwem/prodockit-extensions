@@ -495,6 +495,45 @@ def test_handoff_is_short_lived_and_rejects_another_project() -> None:
         reset_handoff(path_with_namespace="other/project").validate()
 
 
+def test_handoff_accepts_only_the_fixed_github_destination() -> None:
+    github = reset_handoff(
+        provider="github",
+        path_with_namespace=state.GITHUB_PATH,
+        deploy_key_fingerprint="SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    )
+
+    github.validate()
+
+    with pytest.raises(state.StateError, match="another project"):
+        reset_handoff(
+            provider="github",
+            path_with_namespace="another/repository",
+            deploy_key_fingerprint="SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        ).validate()
+
+
+def test_schema_two_handoff_requires_and_round_trips_canonical_wheel_digest(
+    tmp_path: Path,
+) -> None:
+    handoff = reset_handoff(
+        schema=2,
+        provider="github",
+        path_with_namespace=state.GITHUB_PATH,
+        deploy_key_fingerprint="SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        wheel_contents_sha256="f" * 64,
+    )
+    path = tmp_path / "handoff.json"
+    state.write_private_json(path, handoff.document())
+
+    assert state.ResetHandoff.read(path).wheel_contents_sha256 == "f" * 64
+
+    missing = handoff.document()
+    missing.pop("wheel_contents_sha256")
+    path.write_text(json.dumps(missing), encoding="utf-8")
+    with pytest.raises(state.StateError, match="missing wheel_contents_sha256"):
+        state.ResetHandoff.read(path)
+
+
 def test_retained_state_allows_only_main_and_same_commit_pipeline_refs() -> None:
     retained = state.RetainedState(
         schema=1,

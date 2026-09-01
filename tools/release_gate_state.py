@@ -158,7 +158,6 @@ class ProviderGateResult:
     source_refs_unchanged: bool
     destination_refs: dict[str, str]
     destination_deploy_key_enabled: bool
-    destination_deleted: bool
     workflow_run_id: int
     workflow_url: str
     started_at_utc: str
@@ -188,7 +187,6 @@ class ProviderGateResult:
                 "source_refs_unchanged",
                 "destination_refs",
                 "destination_deploy_key_enabled",
-                "destination_deleted",
                 "workflow_run_id",
                 "workflow_url",
                 "started_at_utc",
@@ -225,7 +223,6 @@ class ProviderGateResult:
             source_refs_unchanged=value["source_refs_unchanged"],
             destination_refs=refs,
             destination_deploy_key_enabled=value["destination_deploy_key_enabled"],
-            destination_deleted=value["destination_deleted"],
             workflow_run_id=_positive_id(value["workflow_run_id"], label="workflow_run_id"),
             workflow_url=_text(value["workflow_url"], label="workflow_url"),
             started_at_utc=_text(value["started_at_utc"], label="started_at_utc"),
@@ -246,10 +243,6 @@ class ProviderGateResult:
             raise StateError("provider result does not prove its template source stayed unchanged")
         if self.destination_deploy_key_enabled is not False:
             raise StateError("provider result does not prove the destination write key is disabled")
-        if self.destination_deleted is not True:
-            raise StateError(
-                "provider result does not prove the disposable destination was deleted"
-            )
         if self.path_one.name != "path-one" or self.path_two.name != "path-two":
             raise StateError("provider result does not contain the two required paths")
         if (
