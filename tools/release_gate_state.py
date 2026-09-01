@@ -158,6 +158,7 @@ class ProviderGateResult:
     source_refs_unchanged: bool
     destination_refs: dict[str, str]
     destination_deploy_key_enabled: bool
+    destination_deleted: bool
     workflow_run_id: int
     workflow_url: str
     started_at_utc: str
@@ -187,6 +188,7 @@ class ProviderGateResult:
                 "source_refs_unchanged",
                 "destination_refs",
                 "destination_deploy_key_enabled",
+                "destination_deleted",
                 "workflow_run_id",
                 "workflow_url",
                 "started_at_utc",
@@ -223,6 +225,7 @@ class ProviderGateResult:
             source_refs_unchanged=value["source_refs_unchanged"],
             destination_refs=refs,
             destination_deploy_key_enabled=value["destination_deploy_key_enabled"],
+            destination_deleted=value["destination_deleted"],
             workflow_run_id=_positive_id(value["workflow_run_id"], label="workflow_run_id"),
             workflow_url=_text(value["workflow_url"], label="workflow_url"),
             started_at_utc=_text(value["started_at_utc"], label="started_at_utc"),
@@ -232,7 +235,7 @@ class ProviderGateResult:
         return result
 
     def validate(self, *, now: datetime | None = None) -> None:
-        if self.schema != 1 or self.passed is not True:
+        if type(self.schema) is not int or self.schema != 1 or self.passed is not True:
             raise StateError("provider result must be a passing schema 1 result")
         if self.release_repository != RELEASE_REPOSITORY:
             raise StateError(f"release_repository must be exactly {RELEASE_REPOSITORY}")
@@ -243,6 +246,10 @@ class ProviderGateResult:
             raise StateError("provider result does not prove its template source stayed unchanged")
         if self.destination_deploy_key_enabled is not False:
             raise StateError("provider result does not prove the destination write key is disabled")
+        if self.destination_deleted is not True:
+            raise StateError(
+                "provider result does not prove the disposable destination was deleted"
+            )
         if self.path_one.name != "path-one" or self.path_two.name != "path-two":
             raise StateError("provider result does not contain the two required paths")
         if (
@@ -272,11 +279,21 @@ class ProviderGateResult:
                 raise StateError(f"destination ref {name} does not match tested main")
 
         parsed_url = urlparse(self.workflow_url)
-        expected_host = "github.com" if self.provider == "github" else "gitlab.surrey.ac.uk"
-        if parsed_url.scheme != "https" or parsed_url.hostname != expected_host:
-            raise StateError("workflow_url does not use the selected provider's HTTPS host")
-        if str(self.workflow_run_id) not in parsed_url.path:
-            raise StateError("workflow_url does not identify workflow_run_id")
+        if self.provider == "github":
+            expected_path = f"/{RELEASE_REPOSITORY}/actions/runs/{self.workflow_run_id}"
+            expected_host = "github.com"
+        else:
+            expected_path = f"/{self.repository}/-/pipelines/{self.workflow_run_id}"
+            expected_host = "gitlab.surrey.ac.uk"
+        if (
+            parsed_url.scheme != "https"
+            or parsed_url.hostname != expected_host
+            or parsed_url.path != expected_path
+            or parsed_url.params
+            or parsed_url.query
+            or parsed_url.fragment
+        ):
+            raise StateError("workflow_url does not exactly identify the provider run")
 
         started = _utc(self.started_at_utc, label="started_at_utc")
         finished = _utc(self.finished_at_utc, label="finished_at_utc")

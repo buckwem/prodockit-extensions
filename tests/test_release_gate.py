@@ -101,6 +101,7 @@ def result_document(provider: str, **updates: object) -> dict[str, object]:
         "source_refs_unchanged": True,
         "destination_refs": {"refs/heads/main": COMMIT},
         "destination_deploy_key_enabled": False,
+        "destination_deleted": True,
         "workflow_run_id": run_id,
         "workflow_url": workflow_url,
         "started_at_utc": "2026-09-01T11:30:00Z",
@@ -127,6 +128,7 @@ def test_provider_result_accepts_only_the_two_exact_clean_paths(tmp_path: Path) 
     assert result.path_one.applied_stages[-1] == "first-push"
     assert result.path_two.configured_history == "keep"
     assert result.destination_deploy_key_enabled is False
+    assert result.destination_deleted is True
 
 
 def test_provider_result_rejects_unknown_fields_and_stale_runs(tmp_path: Path) -> None:
@@ -148,6 +150,7 @@ def test_provider_result_rejects_unknown_fields_and_stale_runs(tmp_path: Path) -
     ("updates", "message"),
     [
         ({"destination_deploy_key_enabled": True}, "write key is disabled"),
+        ({"destination_deleted": False}, "disposable destination was deleted"),
         ({"source_refs_unchanged": False}, "template source stayed unchanged"),
         ({"repository": "somewhere/else"}, "unapproved destination"),
     ],
