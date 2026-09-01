@@ -80,6 +80,9 @@ jobs:
           cache-dependency-path: |
             src/prodockit/_tools_template/mermaid/package-lock.json
             src/prodockit/_tools_template/mathjax/package-lock.json
+      - name: Install Chromium for Mermaid on Linux ARM64
+        if: runner.os == 'Linux' && matrix.architecture == 'arm64'
+        run: sudo apt -o DPkg::Lock::Timeout=600 install -y chromium-browser
       - name: Build the candidate wheel
         run: |
           python -m pip install build
@@ -150,6 +153,9 @@ jobs:
           cache-dependency-path: |
             src/prodockit/_tools_template/mermaid/package-lock.json
             src/prodockit/_tools_template/mathjax/package-lock.json
+      - name: Install Chromium for Mermaid on Linux ARM64
+        if: runner.os == 'Linux' && matrix.architecture == 'arm64'
+        run: sudo apt -o DPkg::Lock::Timeout=600 install -y chromium-browser
       - name: Build the candidate wheel
         run: |
           python -m pip install build
