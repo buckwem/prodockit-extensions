@@ -18,7 +18,7 @@ from bootstrap_live_provider_read_write import PUBLIC_TEMPLATE, Fixture, LivePro
 from live_provider_state import GITHUB_PATH, ResetHandoff, StateError, write_private_json
 
 HOSTNAME = "github.com"
-DESTINATION_NAMESPACE = "prodockit-live-tests"
+DESTINATION_NAMESPACE = "buckwem"
 DESTINATION_PROJECT = "bootstrap-release-gate"
 DESTINATION_REMOTE = f"git@{HOSTNAME}:{GITHUB_PATH}.git"
 MARKER_PATH = ".prodockit-template.toml"

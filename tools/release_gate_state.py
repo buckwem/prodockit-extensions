@@ -20,7 +20,7 @@ PIPELINE_REF_RE = re.compile(r"refs/pipelines/[1-9][0-9]*")
 RELEASE_REPOSITORY = "buckwem/prodockit-extensions"
 SURREY_WORKFLOW_PROJECT = "mb0105/prodockit-extensions"
 PROVIDER_DESTINATIONS = {
-    "github": "prodockit-live-tests/bootstrap-release-gate",
+    "github": "buckwem/bootstrap-release-gate",
     "surrey": "assessment-liveprovider-2026/report-liveprovider-2026-mb0105",
 }
 MAX_RESULT_AGE = timedelta(hours=24)

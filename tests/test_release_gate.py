@@ -267,13 +267,16 @@ def test_github_shadow_workflow_keeps_three_credential_boundaries() -> None:
     assert "environment: bootstrap-live-github-reset" in reset
     assert "environment: bootstrap-live-github-candidate" in candidate
     assert "environment: bootstrap-live-github-seal" in seal
-    assert "PRODOCKIT_LIVE_GITHUB_APP_PRIVATE_KEY" in reset
-    assert "PRODOCKIT_LIVE_GITHUB_APP_PRIVATE_KEY" in seal
-    assert "PRODOCKIT_LIVE_GITHUB_APP_PRIVATE_KEY" not in candidate
+    assert "PRODOCKIT_LIVE_GITHUB_LIFECYCLE_TOKEN" in reset
+    assert "PRODOCKIT_LIVE_GITHUB_LIFECYCLE_TOKEN" in seal
+    assert "PRODOCKIT_LIVE_GITHUB_LIFECYCLE_TOKEN" not in candidate
     assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" in candidate
     assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" not in reset
     assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" not in seal
     assert "if: always() && needs.reset.result == 'success'" in seal
+    assert "FIXED_REPOSITORY: buckwem/bootstrap-release-gate" in workflow
+    assert "previous_run_id" not in workflow
+    assert "create-github-app-token" not in workflow
 
 
 def test_surrey_shadow_pipeline_keeps_three_credential_boundaries() -> None:

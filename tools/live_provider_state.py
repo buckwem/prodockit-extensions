@@ -31,7 +31,7 @@ SURREY_TEMPLATE_REMOTE = f"git@{SURREY_HOST}:{SURREY_TEMPLATE}.git"
 SURREY_DEPLOY_KEY_TITLE = "prodockit-liveprovider-deploy-key"
 SURREY_DEPLOY_KEY_FINGERPRINT = "SHA256:Nb3d24rFvoUY7qzFfRK2TSSs3nNjg3hIFGblNcGdYBQ"
 GITHUB_PROVIDER = "github"
-GITHUB_PATH = "prodockit-live-tests/bootstrap-release-gate"
+GITHUB_PATH = "buckwem/bootstrap-release-gate"
 
 
 class StateError(RuntimeError):

@@ -11,11 +11,6 @@ on:
         description: Full protected-main commit to test
         required: true
         type: string
-      previous_run_id:
-        description: Previous successful GitHub shadow run, or 0 when the fixture is absent
-        required: true
-        default: "0"
-        type: string
 
 concurrency:
   group: bootstrap-live-github
@@ -26,7 +21,7 @@ permissions:
   contents: read
 
 env:
-  FIXED_REPOSITORY: prodockit-live-tests/bootstrap-release-gate
+  FIXED_REPOSITORY: buckwem/bootstrap-release-gate
 
 jobs:
   reset:
@@ -56,14 +51,6 @@ jobs:
           python -c 'import json, os; value=json.load(open(os.environ["IDENTITY"], encoding="utf-8")); output=open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8"); print("raw=" + value["wheel_sha256"], file=output); print("contents=" + value["wheel_contents_sha256"], file=output)'
         env:
           IDENTITY: ${{ runner.temp }}/reset-wheel.json
-      - name: Download the exact previous retained state
-        if: inputs.previous_run_id != '0'
-        uses: actions/download-artifact@v4
-        with:
-          name: github-retained-state
-          path: ${{ runner.temp }}/previous
-          github-token: ${{ github.token }}
-          run-id: ${{ inputs.previous_run_id }}
       - name: Materialise the reviewed public deploy key
         shell: bash
         run: |
@@ -72,24 +59,9 @@ jobs:
           chmod 600 "$RUNNER_TEMP/gate/deploy-key.pub"
         env:
           LIVE_DEPLOY_PUBLIC_KEY: ${{ secrets.PRODOCKIT_LIVE_GITHUB_DEPLOY_PUBLIC_KEY }}
-      - name: Mint the reset-only GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ vars.PRODOCKIT_LIVE_GITHUB_APP_CLIENT_ID }}
-          private-key: ${{ secrets.PRODOCKIT_LIVE_GITHUB_APP_PRIVATE_KEY }}
-          owner: prodockit-live-tests
-          permission-administration: write
-          permission-metadata: read
-          permission-pages: read
-          permission-repository-hooks: read
       - name: Reset only the fixed private repository
         shell: bash
         run: |
-          previous=()
-          if [[ "${{ inputs.previous_run_id }}" != "0" ]]; then
-            previous=(--previous-state "$RUNNER_TEMP/previous/retained-state.json")
-          fi
           python tools/bootstrap_live_provider_github_lifecycle.py reset \
             --token-fd 3 \
             --deploy-public-key "$RUNNER_TEMP/gate/deploy-key.pub" \
@@ -101,10 +73,9 @@ jobs:
             --handoff "$RUNNER_TEMP/gate/reset-handoff.json" \
             --audit-report "$RUNNER_TEMP/gate/reset-audit.json" \
             --confirm-repository-reset "$FIXED_REPOSITORY" \
-            "${previous[@]}" \
-            3<<<"$APP_TOKEN"
+            3<<<"$LIFECYCLE_TOKEN"
         env:
-          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          LIFECYCLE_TOKEN: ${{ secrets.PRODOCKIT_LIVE_GITHUB_LIFECYCLE_TOKEN }}
       - name: Pass only sanitised reset evidence to the candidate
         uses: actions/upload-artifact@v4
         with:
@@ -237,17 +208,6 @@ jobs:
           install -m 700 -d "$RUNNER_TEMP/candidate"
           printf '{"candidate":"artifact unavailable"}\n' > "$RUNNER_TEMP/candidate/report.json"
           chmod 600 "$RUNNER_TEMP/candidate/report.json"
-      - name: Mint a new seal-only GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ vars.PRODOCKIT_LIVE_GITHUB_APP_CLIENT_ID }}
-          private-key: ${{ secrets.PRODOCKIT_LIVE_GITHUB_APP_PRIVATE_KEY }}
-          owner: prodockit-live-tests
-          permission-administration: write
-          permission-metadata: read
-          permission-pages: read
-          permission-repository-hooks: read
       - name: Revoke write access before trusting candidate evidence
         shell: bash
         run: |
@@ -261,17 +221,9 @@ jobs:
             --audit-report "$RUNNER_TEMP/seal/seal-audit.json" \
             --workflow-run-id "${{ github.run_id }}" \
             --workflow-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            3<<<"$APP_TOKEN"
+            3<<<"$LIFECYCLE_TOKEN"
         env:
-          APP_TOKEN: ${{ steps.app-token.outputs.token }}
-      - name: Retain the exact state authorised for the next reset
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: github-retained-state
-          path: ${{ runner.temp }}/seal/retained-state.json
-          if-no-files-found: error
-          retention-days: 30
+          LIFECYCLE_TOKEN: ${{ secrets.PRODOCKIT_LIVE_GITHUB_LIFECYCLE_TOKEN }}
       - name: Retain the sanitised GitHub provider evidence
         if: always()
         uses: actions/upload-artifact@v4

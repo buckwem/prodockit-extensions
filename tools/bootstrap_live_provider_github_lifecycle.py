@@ -36,7 +36,7 @@ from release_gate_state import ProviderGateResult, ProviderPathResult
 
 API_BASE = "https://api.github.com"
 API_VERSION = "2022-11-28"
-ORGANISATION = "prodockit-live-tests"
+ACCOUNT = "buckwem"
 REPOSITORY = "bootstrap-release-gate"
 SOURCE_OWNER = "buckwem"
 SOURCE_REPOSITORY = "prodockit-template"
@@ -249,7 +249,7 @@ def validate_controller_checkout(checkout: Path, *, expected_commit: str) -> str
 def repository(client: Client) -> dict[str, Any] | None:
     response = client.request(
         "GET",
-        f"/repos/{ORGANISATION}/{REPOSITORY}",
+        f"/repos/{ACCOUNT}/{REPOSITORY}",
         expected={200, 404},
     )
     if response.status == 404:
@@ -259,7 +259,7 @@ def repository(client: Client) -> dict[str, Any] | None:
         positive_id(value.get("id"), label="repository.id") <= 0
         or value.get("name") != REPOSITORY
         or value.get("full_name") != GITHUB_PATH
-        or object_value(value.get("owner"), label="repository.owner").get("login") != ORGANISATION
+        or object_value(value.get("owner"), label="repository.owner").get("login") != ACCOUNT
         or value.get("private") is not True
         or value.get("fork") is not False
         or value.get("archived") is not False
@@ -305,7 +305,7 @@ def source_state(client: Client) -> tuple[str, str]:
 
 
 def deploy_keys(client: Client) -> list[dict[str, Any]]:
-    response = client.request("GET", f"/repos/{ORGANISATION}/{REPOSITORY}/keys?per_page=100")
+    response = client.request("GET", f"/repos/{ACCOUNT}/{REPOSITORY}/keys?per_page=100")
     if 'rel="next"' in response.headers.get("Link", ""):
         raise LifecycleError("GitHub deploy-key response requires unsupported pagination")
     return [
@@ -316,60 +316,34 @@ def deploy_keys(client: Client) -> list[dict[str, Any]]:
 
 def verify_inert_configuration(client: Client) -> None:
     actions = object_value(
-        client.request("GET", f"/repos/{ORGANISATION}/{REPOSITORY}/actions/permissions").value,
+        client.request("GET", f"/repos/{ACCOUNT}/{REPOSITORY}/actions/permissions").value,
         label="GitHub Actions permissions",
     )
     if actions.get("enabled") is not False:
         raise LifecycleError("GitHub Actions is enabled on the destination")
     pages = client.request(
         "GET",
-        f"/repos/{ORGANISATION}/{REPOSITORY}/pages",
+        f"/repos/{ACCOUNT}/{REPOSITORY}/pages",
         expected={200, 404},
     )
     if pages.status != 404:
         raise LifecycleError("GitHub Pages is enabled on the destination")
-    hooks = client.request("GET", f"/repos/{ORGANISATION}/{REPOSITORY}/hooks?per_page=100")
+    hooks = client.request("GET", f"/repos/{ACCOUNT}/{REPOSITORY}/hooks?per_page=100")
     if 'rel="next"' in hooks.headers.get("Link", ""):
         raise LifecycleError("GitHub hooks response requires unsupported pagination")
     if list_value(hooks.value, label="GitHub hooks"):
         raise LifecycleError("GitHub destination contains an unexpected webhook")
 
 
-def verify_fixed_installation(client: Client) -> None:
-    installation = object_value(
-        client.request("GET", "/installation").value,
-        label="GitHub App installation",
+def verify_controller_identity(client: Client) -> None:
+    """Require a user-authorised lifecycle token for the fixed personal account."""
+
+    account = object_value(
+        client.request("GET", "/user").value,
+        label="GitHub lifecycle account",
     )
-    account = object_value(installation.get("account"), label="installation.account")
-    permissions = object_value(installation.get("permissions"), label="installation.permissions")
-    required_permissions = {
-        "administration": "write",
-        "metadata": "read",
-        "pages": "read",
-        "repository_hooks": "read",
-    }
-    if (
-        account.get("login") != ORGANISATION
-        or account.get("type") != "Organization"
-        or installation.get("repository_selection") != "all"
-        or any(permissions.get(name) != level for name, level in required_permissions.items())
-        or set(permissions) != set(required_permissions)
-    ):
-        raise LifecycleError("GitHub App token belongs to another installation")
-    organisation_repositories = client.request(
-        "GET", f"/orgs/{ORGANISATION}/repos?type=all&per_page=100"
-    )
-    if 'rel="next"' in organisation_repositories.headers.get("Link", ""):
-        raise LifecycleError("GitHub test organisation contains more than one result page")
-    names = {
-        text(
-            object_value(item, label="organisation repository").get("full_name"),
-            label="full_name",
-        )
-        for item in list_value(organisation_repositories.value, label="organisation repositories")
-    }
-    if names - {GITHUB_PATH}:
-        raise LifecycleError("GitHub App test organisation contains an unapproved repository")
+    if account.get("login") != ACCOUNT or account.get("type") != "User":
+        raise LifecycleError("GitHub lifecycle token belongs to another account")
 
 
 @dataclass(frozen=True)
@@ -445,18 +419,6 @@ class GitHubRetainedState:
         return asdict(self)
 
 
-def validate_retained_repository(
-    client: Client, current: dict[str, Any], retained: GitHubRetainedState
-) -> None:
-    if positive_id(current.get("id"), label="repository.id") != retained.repository_id:
-        raise LifecycleError("existing GitHub repository ID differs from retained state")
-    if refs(client, ORGANISATION, REPOSITORY) != retained.refs:
-        raise LifecycleError("existing GitHub repository refs differ from retained state")
-    verify_inert_configuration(client)
-    if deploy_keys(client):
-        raise LifecycleError("existing GitHub repository still has a deploy key")
-
-
 def wait_until_absent(client: Client, sleep: Callable[[float], None]) -> None:
     for delay in DELETE_RECONCILIATION_DELAYS:
         if repository(client) is None:
@@ -466,10 +428,30 @@ def wait_until_absent(client: Client, sleep: Callable[[float], None]) -> None:
         raise LifecycleError("GitHub repository deletion did not become observable")
 
 
+def remove_repository(
+    client: Client,
+    *,
+    expected_id: int,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Remove only the fixed repository with the exact expected identity."""
+
+    current = repository(client)
+    if current is None:
+        return
+    if positive_id(current.get("id"), label="repository.id") != expected_id:
+        raise LifecycleError("GitHub repository identity changed before removal")
+    client.request(
+        "DELETE",
+        f"/repos/{ACCOUNT}/{REPOSITORY}",
+        expected={204},
+    )
+    wait_until_absent(client, sleep)
+
+
 def reset(
     *,
     client: Client,
-    retained: GitHubRetainedState | None,
     public_key_record: str,
     key_fingerprint: str,
     candidate_version: str,
@@ -481,30 +463,22 @@ def reset(
     sleep: Callable[[float], None] = time.sleep,
     source_client: Client | None = None,
 ) -> ResetHandoff:
-    """Reset only the fixed retained repository and install one write key."""
+    """Create only the absent fixed repository and install one write key."""
 
-    verify_fixed_installation(client)
+    verify_controller_identity(client)
     if release_commit != controller_commit:
         raise LifecycleError("GitHub reset controller is not the exact release commit")
     current = repository(client)
-    if current is None and retained is not None:
-        raise LifecycleError("retained state exists but the GitHub repository is absent")
-    if current is not None and retained is None:
-        raise LifecycleError("GitHub repository exists without its exact retained state")
-    if current is not None and retained is not None:
-        validate_retained_repository(client, current, retained)
-        client.request(
-            "DELETE",
-            f"/repos/{ORGANISATION}/{REPOSITORY}",
-            expected={204},
+    if current is not None:
+        raise LifecycleError(
+            "GitHub test repository already exists; the previous run did not remove it"
         )
-        wait_until_absent(client, sleep)
 
     source_commit, source_digest = source_state(source_client or client)
     created = object_value(
         client.request(
             "POST",
-            f"/orgs/{ORGANISATION}/repos",
+            "/user/repos",
             body={
                 "name": REPOSITORY,
                 "private": True,
@@ -521,33 +495,37 @@ def reset(
     repository_id = positive_id(created.get("id"), label="created repository.id")
     if created.get("full_name") != GITHUB_PATH or created.get("private") is not True:
         raise LifecycleError("GitHub created another or non-private repository")
-    client.request(
-        "PUT",
-        f"/repos/{ORGANISATION}/{REPOSITORY}/actions/permissions",
-        body={"enabled": False},
-        expected={204},
-    )
-    verify_inert_configuration(client)
-    if refs(client, ORGANISATION, REPOSITORY):
-        raise LifecycleError("new GitHub destination repository is not empty")
-    if deploy_keys(client):
-        raise LifecycleError("new GitHub destination unexpectedly contains a deploy key")
-    key = object_value(
+    try:
         client.request(
-            "POST",
-            f"/repos/{ORGANISATION}/{REPOSITORY}/keys",
-            body={
-                "title": DEPLOY_KEY_TITLE,
-                "key": public_key_record,
-                "read_only": False,
-            },
-            expected={201},
-        ).value,
-        label="created GitHub deploy key",
-    )
-    key_id = positive_id(key.get("id"), label="deploy_key.id")
-    if key.get("title") != DEPLOY_KEY_TITLE or key.get("read_only") is not False:
-        raise LifecycleError("GitHub created the destination key with unsafe properties")
+            "PUT",
+            f"/repos/{ACCOUNT}/{REPOSITORY}/actions/permissions",
+            body={"enabled": False},
+            expected={204},
+        )
+        verify_inert_configuration(client)
+        if refs(client, ACCOUNT, REPOSITORY):
+            raise LifecycleError("new GitHub destination repository is not empty")
+        if deploy_keys(client):
+            raise LifecycleError("new GitHub destination unexpectedly contains a deploy key")
+        key = object_value(
+            client.request(
+                "POST",
+                f"/repos/{ACCOUNT}/{REPOSITORY}/keys",
+                body={
+                    "title": DEPLOY_KEY_TITLE,
+                    "key": public_key_record,
+                    "read_only": False,
+                },
+                expected={201},
+            ).value,
+            label="created GitHub deploy key",
+        )
+        key_id = positive_id(key.get("id"), label="deploy_key.id")
+        if key.get("title") != DEPLOY_KEY_TITLE or key.get("read_only") is not False:
+            raise LifecycleError("GitHub created the destination key with unsafe properties")
+    except (LifecycleError, StateError, OSError, ValueError):
+        remove_repository(client, expected_id=repository_id, sleep=sleep)
+        raise
     completed = now.astimezone(timezone.utc).replace(microsecond=0)
     return ResetHandoff(
         schema=2,
@@ -705,7 +683,7 @@ def revoke_handoff_key(client: Client, handoff: ResetHandoff) -> None:
         raise LifecycleError("GitHub destination deploy key fingerprint changed")
     client.request(
         "DELETE",
-        f"/repos/{ORGANISATION}/{REPOSITORY}/keys/{handoff.deploy_key_id}",
+        f"/repos/{ACCOUNT}/{REPOSITORY}/keys/{handoff.deploy_key_id}",
         expected={204},
     )
     if deploy_keys(client):
@@ -724,67 +702,72 @@ def seal(
 ) -> tuple[GitHubRetainedState, ProviderGateResult]:
     """Independently verify provider state after revoking destination write access."""
 
-    verify_fixed_installation(client)
+    verify_controller_identity(client)
     handoff.validate(now=now)
     if handoff.schema != 2 or handoff.provider != "github":
         raise LifecycleError("seal requires one GitHub schema 2 reset handoff")
-    revoke_handoff_key(client, handoff)
-    candidate = candidate_evidence(candidate_report, handoff)
-    current_source, current_source_digest = source_state(source_client or client)
-    if (
-        current_source != handoff.source_commit
-        or current_source_digest != handoff.source_refs_digest
-    ):
-        raise LifecycleError("public GitHub template refs changed during the candidate run")
-    destination_refs = refs(client, ORGANISATION, REPOSITORY)
-    expected_refs = {"refs/heads/main": candidate.path_one.commit}
-    if destination_refs != expected_refs:
-        raise LifecycleError("GitHub destination refs differ from the candidate result")
-    sealed_at = now.astimezone(timezone.utc).replace(microsecond=0)
-    retained = GitHubRetainedState(
-        schema=1,
-        provider="github",
-        repository_id=handoff.project_id,
-        full_name=GITHUB_PATH,
-        head=candidate.path_one.commit,
-        tree=candidate.path_one.tree,
-        refs=destination_refs,
-        destination_deploy_key_enabled=False,
-        source_refs_digest=current_source_digest,
-        candidate_version=candidate.version,
-        wheel_sha256=candidate.wheel_sha256,
-        wheel_contents_sha256=text(handoff.wheel_contents_sha256, label="wheel_contents_sha256"),
-        release_commit=handoff.controller_commit,
-        controller_commit=handoff.controller_commit,
-        sealed_at_utc=sealed_at.isoformat(),
-    )
-    retained.validate()
-    result = ProviderGateResult(
-        schema=1,
-        passed=True,
-        provider="github",
-        release_repository="buckwem/prodockit-extensions",
-        release_commit=handoff.controller_commit,
-        candidate_version=candidate.version,
-        wheel_sha256=candidate.wheel_sha256,
-        wheel_contents_sha256=retained.wheel_contents_sha256,
-        controller_commit=handoff.controller_commit,
-        repository=GITHUB_PATH,
-        project_id=handoff.project_id,
-        path_one=candidate.path_one,
-        path_two=candidate.path_two,
-        source_commit=current_source,
-        source_refs_digest=current_source_digest,
-        source_refs_unchanged=True,
-        destination_refs=destination_refs,
-        destination_deploy_key_enabled=False,
-        workflow_run_id=workflow_run_id,
-        workflow_url=workflow_url,
-        started_at_utc=candidate.started_at_utc,
-        finished_at_utc=sealed_at.isoformat(),
-    )
-    result.validate(now=sealed_at)
-    return retained, result
+    try:
+        revoke_handoff_key(client, handoff)
+        candidate = candidate_evidence(candidate_report, handoff)
+        current_source, current_source_digest = source_state(source_client or client)
+        if (
+            current_source != handoff.source_commit
+            or current_source_digest != handoff.source_refs_digest
+        ):
+            raise LifecycleError("public GitHub template refs changed during the candidate run")
+        destination_refs = refs(client, ACCOUNT, REPOSITORY)
+        expected_refs = {"refs/heads/main": candidate.path_one.commit}
+        if destination_refs != expected_refs:
+            raise LifecycleError("GitHub destination refs differ from the candidate result")
+        sealed_at = now.astimezone(timezone.utc).replace(microsecond=0)
+        retained = GitHubRetainedState(
+            schema=1,
+            provider="github",
+            repository_id=handoff.project_id,
+            full_name=GITHUB_PATH,
+            head=candidate.path_one.commit,
+            tree=candidate.path_one.tree,
+            refs=destination_refs,
+            destination_deploy_key_enabled=False,
+            source_refs_digest=current_source_digest,
+            candidate_version=candidate.version,
+            wheel_sha256=candidate.wheel_sha256,
+            wheel_contents_sha256=text(
+                handoff.wheel_contents_sha256, label="wheel_contents_sha256"
+            ),
+            release_commit=handoff.controller_commit,
+            controller_commit=handoff.controller_commit,
+            sealed_at_utc=sealed_at.isoformat(),
+        )
+        retained.validate()
+        result = ProviderGateResult(
+            schema=1,
+            passed=True,
+            provider="github",
+            release_repository="buckwem/prodockit-extensions",
+            release_commit=handoff.controller_commit,
+            candidate_version=candidate.version,
+            wheel_sha256=candidate.wheel_sha256,
+            wheel_contents_sha256=retained.wheel_contents_sha256,
+            controller_commit=handoff.controller_commit,
+            repository=GITHUB_PATH,
+            project_id=handoff.project_id,
+            path_one=candidate.path_one,
+            path_two=candidate.path_two,
+            source_commit=current_source,
+            source_refs_digest=current_source_digest,
+            source_refs_unchanged=True,
+            destination_refs=destination_refs,
+            destination_deploy_key_enabled=False,
+            workflow_run_id=workflow_run_id,
+            workflow_url=workflow_url,
+            started_at_utc=candidate.started_at_utc,
+            finished_at_utc=sealed_at.isoformat(),
+        )
+        result.validate(now=sealed_at)
+        return retained, result
+    finally:
+        remove_repository(client, expected_id=handoff.project_id)
 
 
 def write_once_private_json(path: Path, value: Any) -> None:
@@ -813,7 +796,6 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--expected-wheel-contents-sha256")
     result.add_argument("--release-commit")
     result.add_argument("--controller-commit")
-    result.add_argument("--previous-state", type=Path)
     result.add_argument("--handoff", type=Path, required=True)
     result.add_argument("--audit-report", type=Path, required=True)
     result.add_argument("--confirm-repository-reset")
@@ -850,19 +832,15 @@ def reset_command(args: argparse.Namespace, client: Client, *, source_client: Cl
         raise LifecycleError("candidate wheel raw SHA-256 differs from the approved value")
     if identity.wheel_contents_sha256 != args.expected_wheel_contents_sha256:
         raise LifecycleError("candidate wheel contents differ from the approved value")
-    retained = (
-        GitHubRetainedState.read(args.previous_state) if args.previous_state is not None else None
-    )
     record, fingerprint = public_key(args.deploy_public_key)
     started = datetime.now(timezone.utc)
     print("Provider:       github.com")
     print(f"Repository:     {GITHUB_PATH}")
     print(f"Release commit: {release_commit}")
     print(f"Candidate:      prodockit {identity.version}")
-    print("Mutations:      exact retained reset, private create, disable Actions, enable key")
+    print("Mutations:      private create, disable Actions, enable key, remove after seal")
     handoff = reset(
         client=client,
-        retained=retained,
         public_key_record=record,
         key_fingerprint=fingerprint,
         candidate_version=identity.version,
@@ -964,6 +942,7 @@ def seal_command(args: argparse.Namespace, client: Client, *, source_client: Cli
             "wheel_sha256": handoff.wheel_sha256,
             "wheel_contents_sha256": handoff.wheel_contents_sha256,
             "destination_deploy_key_enabled": False,
+            "repository_removed": True,
             "retained_state_sha256": canonical_sha256(retained.document()),
             "provider_result_sha256": result.sha256,
             "workflow_run_id": args.workflow_run_id,

@@ -48,7 +48,7 @@ schedule. The other boxes are actions or workflow stages that follow.
 |---|---|---|
 | [`adopt-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/adopt-install.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on Ubuntu and Windows x64, plus Ubuntu, Windows and macOS ARM64. Both Windows architectures run one complete TOML scenario with Mermaid and maths; Ubuntu and macOS retain the wider TOML/YAML option coverage. Canonical npm lockfiles and the hosted cache avoid resolving and downloading the same Node packages afresh on every run. |
 | [`bootstrap-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-install.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on the same five native runners, then exercise the new- and existing-repository routes for Surrey GitLab and public GitHub against hermetic local Git remotes. A version-changing release pull request also removes the runner's existing tools and executes Bootstrap's real VS Code, Git, Pandoc/Pango/font, Python-environment, Node/toolchain and editor-extension installs on all five runners. |
-| [`bootstrap-live-provider-github.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-live-provider-github.yml) | Protected manual dispatch for one exact `main` commit | Run the shadow GitHub live-provider gate in three fresh jobs: an App-authenticated reset, the two Bootstrap paths with only the destination deploy key, and an independently authenticated seal that removes write access before accepting the result. The shadow result does not yet authorise publication. |
+| [`bootstrap-live-provider-github.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-live-provider-github.yml) | Protected manual dispatch for one exact `main` commit | Run the shadow GitHub live-provider gate in three fresh jobs: a user-authorised reset, the two Bootstrap paths with only the destination deploy key, and an independently authenticated seal that removes the test repository before accepting the result. The shadow result does not yet authorise publication. |
 | [`.gitlab-ci.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.gitlab-ci.yml) | Protected manual pipeline in the fixed Surrey mirror for one exact public GitHub `main` commit | Hold one non-cancelling lifecycle lock while a child pipeline runs three credential-separated jobs: a group-token reset, both Bootstrap paths with only the Surrey deploy key, and a fresh group-token seal. The pipeline fetches the exact public source rather than assuming that the mirror is current. Its shadow result does not yet authorise publication. |
 | [`release-gate.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/release-gate.yml) | Protected manual dispatch after both live-provider runs | Resolve the immutable GitHub run and Surrey child pipeline through their APIs, require the five ordinary release workflows and any active protected-main status checks, rebuild the wheel, compare canonical contents and retain public-safe combined evidence. This remains a shadow and cannot publish. |
 | [`pdf-built-site-wheel.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/pdf-built-site-wheel.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on the same x64 and ARM64 operating-system matrix, exercise the renderer used by public `prodockit pdf` through Zensical's documented clean build, and verify it can consume navigation, rendered extensions and page metadata without a Git host |
@@ -90,14 +90,32 @@ making every ordinary pull request wait for five fresh machine installations.
 
 The separate live-provider workflows are protected shadow controls rather
 than pull-request tests. The GitHub workflow mutates only the fixed private
-repository in the otherwise empty `prodockit-live-tests` organisation. The
-Surrey pipeline mutates only
+repository `buckwem/bootstrap-release-gate`. The GitHub App installation token
+originally designed for this control cannot create a repository in a personal
+namespace: GitHub supports that endpoint with a fine-grained personal token or
+a GitHub App user token, but not an installation token. The lifecycle token is
+therefore stored only in the manually approved reset and seal environments,
+checked against the `buckwem` account at runtime, and constrained in code to the
+single fixed repository. It creates that repository immediately before the test
+and deletes it during the seal, including after a rejected candidate. This token
+has wider account scope than the deploy key, so the candidate receives only the
+fixed repository's deploy key.
+
+Configure `PRODOCKIT_LIVE_GITHUB_LIFECYCLE_TOKEN` as an environment secret in
+both `bootstrap-live-github-reset` and `bootstrap-live-github-seal`. For a
+fine-grained personal token, select `buckwem` as the resource owner, grant
+access to all repositories so the token can create the currently absent fixed
+repository, grant repository Administration read and write, and grant Pages
+and Webhooks read-only access. Do not expose this token as a repository-wide
+secret or to the candidate environment.
+
+The Surrey pipeline mutates only
 `assessment-liveprovider-2026/report-liveprovider-2026-mb0105` and runs from
 the fixed `mb0105/prodockit-extensions` mirror. Each provider separates reset,
 candidate, and seal into protected jobs so no job can receive both a lifecycle
 credential and a repository deploy private key. A successful seal retains the
-repository, removes its write key, and records the exact state needed to
-authorise the next reset. The protected release-gate shadow resolves both
+verified provider evidence after removing the repository and its write key. The
+protected release-gate shadow resolves both
 immutable run IDs through provider APIs, requires the five ordinary release
 workflows for that exact commit plus any active protected-main status checks,
 rebuilds the candidate wheel and compares canonical contents before it
