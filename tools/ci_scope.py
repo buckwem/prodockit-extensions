@@ -50,8 +50,10 @@ class Scope:
 
         if self.full_python:
             return PYTHON_VERSIONS
-        return (PYTHON_VERSIONS[0], PYTHON_VERSIONS[-1]) if self.python_compat else (
-            PYTHON_VERSIONS[-1],
+        return (
+            (PYTHON_VERSIONS[0], PYTHON_VERSIONS[-1])
+            if self.python_compat
+            else (PYTHON_VERSIONS[-1],)
         )
 
 
@@ -142,7 +144,14 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/bootstrap_live_provider_read_only.py": frozenset({"bootstrap"}),
     "tools/bootstrap_live_provider_read_write.py": frozenset({"bootstrap"}),
     "tools/bootstrap_live_provider_lifecycle.py": frozenset({"bootstrap"}),
+    "tools/bootstrap_live_provider_github_fixture.py": frozenset({"bootstrap"}),
+    "tools/bootstrap_live_provider_github_lifecycle.py": frozenset({"bootstrap"}),
+    "tools/bootstrap_live_provider_surrey_fixture.py": frozenset({"bootstrap"}),
+    "tools/canonical_wheel.py": frozenset({"bootstrap"}),
     "tools/live_provider_state.py": frozenset({"bootstrap"}),
+    "tools/release_gate.py": frozenset({"bootstrap"}),
+    "tools/release_gate_provider_status.py": frozenset({"bootstrap"}),
+    "tools/release_gate_state.py": frozenset({"bootstrap"}),
     "tools/_bootstrap_acceptance_driver.py": frozenset({"bootstrap"}),
     "tools/bootstrap_native_install.py": frozenset({"bootstrap"}),
     "tools/bootstrap_native_upgrade.py": frozenset({"bootstrap"}),
@@ -150,6 +159,10 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     ".github/workflows/adopt-install.yml": frozenset({"adopt"}),
     ".github/workflows/pdf-built-site-wheel.yml": frozenset({"pdf"}),
     ".github/workflows/bootstrap-install.yml": frozenset({"bootstrap"}),
+    ".github/workflows/bootstrap-live-provider-github.yml": frozenset({"bootstrap"}),
+    ".github/workflows/release-gate.yml": frozenset({"bootstrap"}),
+    ".gitlab-ci.yml": frozenset({"bootstrap"}),
+    ".gitlab/bootstrap-live-provider-surrey.yml": frozenset({"bootstrap"}),
 }
 
 _FULL_PYTHON_FILES = {
@@ -198,9 +211,7 @@ def owners_for_path(path: str) -> frozenset[str] | None:
         return _ALL_COMPONENTS
     if path.startswith(".github/workflows/"):
         return _ALL_COMPONENTS
-    if path.startswith("src/prodockit/") or (
-        path.startswith("tools/") and path.endswith(".py")
-    ):
+    if path.startswith("src/prodockit/") or (path.startswith("tools/") and path.endswith(".py")):
         return None
     return frozenset()
 
@@ -504,8 +515,7 @@ def _write_summary(
         f"- Range: {changes.reason}",
         f"- Python: {', '.join(classification.scope.python_matrix)}",
         f"- Native matrices: {', '.join(selected) if selected else 'none'}",
-        "- Real Adopt project upgrade: "
-        + ("selected" if adopt_native else "not selected"),
+        "- Real Adopt project upgrade: " + ("selected" if adopt_native else "not selected"),
         "- Real Bootstrap package installs: "
         + ("selected" if bootstrap_native else "not selected"),
         "",

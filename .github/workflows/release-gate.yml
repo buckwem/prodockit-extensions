@@ -1,0 +1,173 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+name: Protected live-provider release gate — shadow
+run-name: Release shadow for ${{ inputs.release_commit }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Full protected-main commit tested by both providers
+        required: true
+        type: string
+      github_run_id:
+        description: Successful Bootstrap live GitHub workflow run ID
+        required: true
+        type: string
+      surrey_pipeline_id:
+        description: Successful Surrey child pipeline ID containing the three gate jobs
+        required: true
+        type: string
+
+concurrency:
+  group: prodockit-release-gate-shadow
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  statuses: read
+
+jobs:
+  verify:
+    name: Compare exact protected provider evidence
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: bootstrap-live-release-gate
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - name: Require immutable input identities and current protected main
+        shell: bash
+        run: |
+          [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SURREY_PIPELINE_ID" =~ ^[1-9][0-9]*$ ]]
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          test "$(git rev-parse refs/remotes/origin/main)" = "$RELEASE_COMMIT"
+          test -z "$(git status --porcelain)"
+        env:
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+          GITHUB_RUN_ID: ${{ inputs.github_run_id }}
+          SURREY_PIPELINE_ID: ${{ inputs.surrey_pipeline_id }}
+      - name: Resolve and validate the exact GitHub provider run
+        shell: bash
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            > "$RUNNER_TEMP/github-run.json"
+          python tools/release_gate_provider_status.py validate-github-run \
+            --document "$RUNNER_TEMP/github-run.json" \
+            --run-id "$GITHUB_RUN_ID" \
+            --release-commit "$RELEASE_COMMIT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_RUN_ID: ${{ inputs.github_run_id }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+      - name: Require ordinary workflows for the exact release commit
+        shell: bash
+        run: |
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$RELEASE_COMMIT&event=push&per_page=100" \
+            > "$RUNNER_TEMP/ordinary-runs.json"
+          python tools/release_gate_provider_status.py validate-ordinary-workflows \
+            --document "$RUNNER_TEMP/ordinary-runs.json" \
+            --release-commit "$RELEASE_COMMIT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+      - name: Enforce active protected-main status-check rules
+        shell: bash
+        run: |
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/rules/branches/main?per_page=100" \
+            > "$RUNNER_TEMP/active-rules.json"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/commits/$RELEASE_COMMIT/check-runs?per_page=100" \
+            > "$RUNNER_TEMP/check-runs.json"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/commits/$RELEASE_COMMIT/statuses?per_page=100" \
+            > "$RUNNER_TEMP/statuses.json"
+          python tools/release_gate_provider_status.py validate-required-checks \
+            --rules "$RUNNER_TEMP/active-rules.json" \
+            --check-runs "$RUNNER_TEMP/check-runs.json" \
+            --statuses "$RUNNER_TEMP/statuses.json" \
+            --release-commit "$RELEASE_COMMIT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+      - name: Download the immutable GitHub provider result
+        uses: actions/download-artifact@v4
+        with:
+          name: github-provider-result-${{ inputs.github_run_id }}
+          path: ${{ runner.temp }}/github-result
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.github_run_id }}
+      - name: Resolve the exact Surrey child pipeline and its seal artifact
+        shell: bash
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/surrey-result"
+          printf 'PRIVATE-TOKEN: %s\n' "$SURREY_STATUS_TOKEN" \
+            > "$RUNNER_TEMP/surrey-api.header"
+          chmod 600 "$RUNNER_TEMP/surrey-api.header"
+          unset SURREY_STATUS_TOKEN
+          api="https://gitlab.surrey.ac.uk/api/v4/projects/mb0105%2Fprodockit-extensions"
+          curl --fail --silent --show-error \
+            --header "@$RUNNER_TEMP/surrey-api.header" \
+            "$api/pipelines/$SURREY_PIPELINE_ID" \
+            --output "$RUNNER_TEMP/surrey-pipeline.json"
+          curl --fail --silent --show-error \
+            --header "@$RUNNER_TEMP/surrey-api.header" \
+            "$api/pipelines/$SURREY_PIPELINE_ID/jobs?per_page=100" \
+            --output "$RUNNER_TEMP/surrey-jobs.json"
+          python tools/release_gate_provider_status.py validate-surrey-pipeline \
+            --document "$RUNNER_TEMP/surrey-pipeline.json" \
+            --pipeline-id "$SURREY_PIPELINE_ID"
+          seal_job_id=$(python tools/release_gate_provider_status.py select-surrey-seal-job \
+            --document "$RUNNER_TEMP/surrey-jobs.json" \
+            --pipeline-id "$SURREY_PIPELINE_ID")
+          curl --fail --silent --show-error \
+            --header "@$RUNNER_TEMP/surrey-api.header" \
+            "$api/jobs/$seal_job_id/artifacts" \
+            --output "$RUNNER_TEMP/surrey-artifacts.zip"
+          rm -f "$RUNNER_TEMP/surrey-api.header"
+          python tools/release_gate_provider_status.py extract-surrey-result \
+            --archive "$RUNNER_TEMP/surrey-artifacts.zip" \
+            --output "$RUNNER_TEMP/surrey-result/provider-result.json"
+        env:
+          SURREY_PIPELINE_ID: ${{ inputs.surrey_pipeline_id }}
+          SURREY_STATUS_TOKEN: ${{ secrets.PRODOCKIT_LIVE_SURREY_STATUS_TOKEN }}
+      - name: Rebuild and compare the exact publication candidate
+        shell: bash
+        run: |
+          python -m pip install build
+          python -m build --wheel --outdir "$RUNNER_TEMP/publication-wheel"
+          wheel=$(find "$RUNNER_TEMP/publication-wheel" -maxdepth 1 -name 'prodockit-*.whl' -type f -print -quit)
+          test -n "$wheel"
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          install -m 700 -d "$RUNNER_TEMP/release-gate"
+          python tools/release_gate.py \
+            --github-result "$RUNNER_TEMP/github-result/provider-result.json" \
+            --surrey-result "$RUNNER_TEMP/surrey-result/provider-result.json" \
+            --wheel "$wheel" \
+            --expected-commit "$RELEASE_COMMIT" \
+            --expected-version "$version" \
+            --release-checkout "$GITHUB_WORKSPACE" \
+            --output "$RUNNER_TEMP/release-gate/release-evidence.json"
+        env:
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+      - name: Retain public-safe shadow evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-gate-shadow-${{ inputs.release_commit }}
+          path: ${{ runner.temp }}/release-gate/release-evidence.json
+          if-no-files-found: error
+          retention-days: 30

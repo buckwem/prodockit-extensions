@@ -70,14 +70,11 @@ def write_executable(path: Path, body: str) -> Path:
 def test_surrey_fixture_is_the_exact_configured_destination(tmp_path: Path) -> None:
     fixture = live.Fixture.read(write_fixture(tmp_path / "fixture.json"))
 
-    assert fixture.source_remote == (
-        "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
-    )
+    assert fixture.source_remote == ("git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git")
     assert fixture.destination_namespace == "assessment-liveprovider-2026"
     assert fixture.destination_project == "report-liveprovider-2026-mb0105"
     assert fixture.destination_remote == (
-        "git@gitlab.surrey.ac.uk:assessment-liveprovider-2026/"
-        "report-liveprovider-2026-mb0105.git"
+        "git@gitlab.surrey.ac.uk:assessment-liveprovider-2026/report-liveprovider-2026-mb0105.git"
     )
 
 
@@ -93,9 +90,7 @@ def test_surrey_fixture_is_the_exact_configured_destination(tmp_path: Path) -> N
         ({"template_marker_sha256": "A" * 64}, "lowercase"),
     ],
 )
-def test_fixture_fails_closed(
-    tmp_path: Path, updates: dict[str, object], message: str
-) -> None:
+def test_fixture_fails_closed(tmp_path: Path, updates: dict[str, object], message: str) -> None:
     values = fixture_values(**updates)
     if "destination_namespace" in updates:
         values["destination_remote"] = (
@@ -103,9 +98,7 @@ def test_fixture_fails_closed(
             f"{values['destination_namespace']}/{values['destination_project']}.git"
         )
     with pytest.raises(live.LiveProviderError, match=message):
-        live.Fixture.read(
-            write_fixture(tmp_path / "fixture.json", **values)
-        )
+        live.Fixture.read(write_fixture(tmp_path / "fixture.json", **values))
 
 
 def test_fixture_rejects_unknown_fields(tmp_path: Path) -> None:
@@ -185,10 +178,7 @@ def test_temporary_home_contains_only_the_agents_public_record(
     assert key.read_text(encoding="utf-8").strip() == record
     assert key.with_suffix(".pub").read_text(encoding="utf-8").strip() == record
     assert "PRIVATE KEY" not in key.read_text(encoding="utf-8")
-    assert (
-        f"IdentityFile {live.ssh_config_path(key)}"
-        in config.read_text(encoding="utf-8")
-    )
+    assert f"IdentityFile {live.ssh_config_path(key)}" in config.read_text(encoding="utf-8")
     assert "IdentityFile ~/" not in config.read_text(encoding="utf-8")
 
 
@@ -222,11 +212,7 @@ def test_user_tooling_is_copied_without_exposing_the_host_home(tmp_path: Path) -
 
     copied_font = home / "Library" / "Fonts" / "JetBrainsMono-Regular.ttf"
     copied_manifest = (
-        home
-        / ".vscode"
-        / "extensions"
-        / "zensical.zensical-studio-0.2.12"
-        / "package.json"
+        home / ".vscode" / "extensions" / "zensical.zensical-studio-0.2.12" / "package.json"
     )
     assert copied_font.read_text(encoding="utf-8") == "font"
     assert copied_manifest.is_file()
@@ -541,9 +527,7 @@ def test_public_destination_rejects_gitlab_pipeline_refs() -> None:
             source_remote=live.PUBLIC_TEMPLATE,
             destination_namespace="prodockit-live-tests",
             destination_project="bootstrap-phase-two",
-            destination_remote=(
-                "git@github.com:prodockit-live-tests/bootstrap-phase-two.git"
-            ),
+            destination_remote=("git@github.com:prodockit-live-tests/bootstrap-phase-two.git"),
         )
     )
 
@@ -604,11 +588,14 @@ def test_controller_checkout_must_be_clean_main_at_origin_main(tmp_path: Path) -
     git("push", "-u", "origin", "main", cwd=checkout)
     head = git("rev-parse", "HEAD", cwd=checkout)
 
-    assert live.validate_controller_checkout(
-        checkout,
-        environment=dict(os.environ),
-        git_executable="git",
-    ) == head
+    assert (
+        live.validate_controller_checkout(
+            checkout,
+            environment=dict(os.environ),
+            git_executable="git",
+        )
+        == head
+    )
 
     (checkout / "unreviewed.txt").write_text("not reviewed\n", encoding="utf-8")
     with pytest.raises(live.LiveProviderError, match="must be clean"):
@@ -616,6 +603,58 @@ def test_controller_checkout_must_be_clean_main_at_origin_main(tmp_path: Path) -
             checkout,
             environment=dict(os.environ),
             git_executable="git",
+        )
+
+
+def test_release_controller_accepts_exact_detached_public_commit(tmp_path: Path) -> None:
+    remote = tmp_path / "controller.git"
+    source = tmp_path / "source"
+    checkout = tmp_path / "controller"
+    git("init", "--bare", str(remote), cwd=tmp_path)
+    git("clone", str(remote), str(source), cwd=tmp_path)
+    git("switch", "-c", "main", cwd=source)
+    git("config", "user.name", "Reviewer", cwd=source)
+    git("config", "user.email", "reviewer@example.invalid", cwd=source)
+    (source / "reviewed.txt").write_text("reviewed\n", encoding="utf-8")
+    git("add", "reviewed.txt", cwd=source)
+    git("commit", "-m", "Reviewed controller", cwd=source)
+    git("push", "-u", "origin", "main", cwd=source)
+    head = git("rev-parse", "HEAD", cwd=source)
+    git("clone", str(remote), str(checkout), cwd=tmp_path)
+    git("checkout", "--detach", head, cwd=checkout)
+    git("remote", "set-url", "origin", live.RELEASE_SOURCE, cwd=checkout)
+
+    assert (
+        live.validate_controller_checkout(
+            checkout,
+            environment=dict(os.environ),
+            git_executable="git",
+            expected_release_commit=head,
+        )
+        == head
+    )
+
+
+def test_release_controller_rejects_another_origin(tmp_path: Path) -> None:
+    remote = tmp_path / "controller.git"
+    checkout = tmp_path / "controller"
+    git("init", "--bare", str(remote), cwd=tmp_path)
+    git("clone", str(remote), str(checkout), cwd=tmp_path)
+    git("switch", "-c", "main", cwd=checkout)
+    git("config", "user.name", "Reviewer", cwd=checkout)
+    git("config", "user.email", "reviewer@example.invalid", cwd=checkout)
+    (checkout / "reviewed.txt").write_text("reviewed\n", encoding="utf-8")
+    git("add", "reviewed.txt", cwd=checkout)
+    git("commit", "-m", "Reviewed controller", cwd=checkout)
+    git("push", "-u", "origin", "main", cwd=checkout)
+    head = git("rev-parse", "HEAD", cwd=checkout)
+
+    with pytest.raises(live.LiveProviderError, match="public source"):
+        live.validate_controller_checkout(
+            checkout,
+            environment=dict(os.environ),
+            git_executable="git",
+            expected_release_commit=head,
         )
 
 
@@ -640,22 +679,28 @@ def test_failed_write_is_classified_without_retrying_push(tmp_path: Path) -> Non
     )
     environment = dict(os.environ)
 
-    assert live.classify_destination_after_failure(
-        fixture,
-        root=tmp_path,
-        environment=environment,
-        git_executable="git",
-    ) == "not pushed"
+    assert (
+        live.classify_destination_after_failure(
+            fixture,
+            root=tmp_path,
+            environment=environment,
+            git_executable="git",
+        )
+        == "not pushed"
+    )
 
     git("remote", "add", "origin", str(bare), cwd=source)
     git("push", "-u", "origin", "main", cwd=source)
     git("update-ref", "refs/pipelines/143420", commit, cwd=bare)
-    assert live.classify_destination_after_failure(
-        fixture,
-        root=tmp_path,
-        environment=environment,
-        git_executable="git",
-    ) == "pushed and verified"
+    assert (
+        live.classify_destination_after_failure(
+            fixture,
+            root=tmp_path,
+            environment=environment,
+            git_executable="git",
+        )
+        == "pushed and verified"
+    )
 
 
 def test_worker_report_requires_both_paths_at_the_same_commit() -> None:
@@ -695,9 +740,7 @@ def test_phase_two_requires_macos_and_explicit_confirmation(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(live.platform, "system", lambda: "Linux")
-    args = live.parser().parse_args(
-        ["--fixture", str(write_fixture(tmp_path / "fixture.json"))]
-    )
+    args = live.parser().parse_args(["--fixture", str(write_fixture(tmp_path / "fixture.json"))])
     with pytest.raises(live.LiveProviderError, match="controlled macOS"):
         live.controller(args)
 
@@ -747,9 +790,7 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
     git("init", "--bare", str(destination_bare), cwd=tmp_path)
     git("symbolic-ref", "HEAD", "refs/heads/main", cwd=destination_bare)
 
-    fixture = live.Fixture(
-        **fixture_values(template_marker_sha256=live.sha256_file(marker))
-    )
+    fixture = live.Fixture(**fixture_values(template_marker_sha256=live.sha256_file(marker)))
     original = {stage.id: stage for stage in bootstrap.STAGES}
 
     def ready(_context: object) -> CheckResult:
@@ -773,8 +814,7 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
         "first-push",
     }
     stages = tuple(
-        original[stage.id] if stage.id in real_ids else fake(stage.id)
-        for stage in bootstrap.STAGES
+        original[stage.id] if stage.id in real_ids else fake(stage.id) for stage in bootstrap.STAGES
     )
     monkeypatch.setattr(bootstrap, "STAGES", stages)
 
@@ -803,7 +843,7 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
     source_path = "mb0105/prodockit-template.git"
     destination_path = f"{live.SURREY_NAMESPACE}/{live.SURREY_PROJECT}.git"
     shim_body = (
-        "case \"$*\" in\n"
+        'case "$*" in\n'
         f"  *{source_path}*) exec git-upload-pack {source_bare!s} ;;\n"
         f"  *git-upload-pack*{destination_path}*) exec git-upload-pack {destination_bare!s} ;;\n"
         f"  *git-receive-pack*{destination_path}*) exec git-receive-pack {destination_bare!s} ;;\n"
@@ -889,6 +929,6 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
         "first-push",
     )
     assert second.applied_stages == ("git", "clone", "fresh-history", "identity")
-    assert live.query_refs(
-        str(destination_bare), cwd=tmp_path, environment=dict(os.environ)
-    ) == {"refs/heads/main": first.commit}
+    assert live.query_refs(str(destination_bare), cwd=tmp_path, environment=dict(os.environ)) == {
+        "refs/heads/main": first.commit
+    }

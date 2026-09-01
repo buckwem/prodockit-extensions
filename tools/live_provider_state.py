@@ -29,9 +29,9 @@ SURREY_PATH = f"{SURREY_GROUP}/{SURREY_PROJECT}"
 SURREY_TEMPLATE = "mb0105/prodockit-template"
 SURREY_TEMPLATE_REMOTE = f"git@{SURREY_HOST}:{SURREY_TEMPLATE}.git"
 SURREY_DEPLOY_KEY_TITLE = "prodockit-liveprovider-deploy-key"
-SURREY_DEPLOY_KEY_FINGERPRINT = (
-    "SHA256:Nb3d24rFvoUY7qzFfRK2TSSs3nNjg3hIFGblNcGdYBQ"
-)
+SURREY_DEPLOY_KEY_FINGERPRINT = "SHA256:Nb3d24rFvoUY7qzFfRK2TSSs3nNjg3hIFGblNcGdYBQ"
+GITHUB_PROVIDER = "github"
+GITHUB_PATH = "prodockit-live-tests/bootstrap-release-gate"
 
 
 class StateError(RuntimeError):
@@ -316,17 +316,13 @@ class RetainedState:
             schema=value["schema"],
             provider=value["provider"],
             project_id=_positive_id(value["project_id"], label="project_id"),
-            path_with_namespace=_text(
-                value["path_with_namespace"], label="path_with_namespace"
-            ),
+            path_with_namespace=_text(value["path_with_namespace"], label="path_with_namespace"),
             visibility=_text(value["visibility"], label="visibility"),
             head=_object_id(value["head"], label="head"),
             tree=_object_id(value["tree"], label="tree"),
             refs=refs,
             destination_deploy_key_enabled=value["destination_deploy_key_enabled"],
-            source_refs_digest=_sha256(
-                value["source_refs_digest"], label="source_refs_digest"
-            ),
+            source_refs_digest=_sha256(value["source_refs_digest"], label="source_refs_digest"),
             candidate_version=_text(value["candidate_version"], label="candidate_version"),
             wheel_sha256=_sha256(value["wheel_sha256"], label="wheel_sha256"),
             sealed_at_utc=_text(value["sealed_at_utc"], label="sealed_at_utc"),
@@ -373,66 +369,86 @@ class ResetHandoff:
     controller_commit: str
     completed_at_utc: str
     expires_at_utc: str
+    wheel_contents_sha256: str | None = None
 
     @classmethod
     def read(cls, path: Path, *, now: datetime | None = None) -> ResetHandoff:
+        raw = read_json(path, label="reset handoff")
+        if not isinstance(raw, dict):
+            raise StateError("reset handoff must be one JSON object")
+        schema = raw.get("schema")
+        keys = {
+            "schema",
+            "run_id",
+            "provider",
+            "project_id",
+            "path_with_namespace",
+            "repository_empty",
+            "deploy_key_id",
+            "deploy_key_fingerprint",
+            "source_commit",
+            "source_refs_digest",
+            "candidate_version",
+            "wheel_sha256",
+            "controller_commit",
+            "completed_at_utc",
+            "expires_at_utc",
+        }
+        if schema == 2:
+            keys.add("wheel_contents_sha256")
         value = _object(
-            read_json(path, label="reset handoff"),
+            raw,
             label="reset handoff",
-            keys={
-                "schema",
-                "run_id",
-                "provider",
-                "project_id",
-                "path_with_namespace",
-                "repository_empty",
-                "deploy_key_id",
-                "deploy_key_fingerprint",
-                "source_commit",
-                "source_refs_digest",
-                "candidate_version",
-                "wheel_sha256",
-                "controller_commit",
-                "completed_at_utc",
-                "expires_at_utc",
-            },
+            keys=keys,
         )
         handoff = cls(
             schema=value["schema"],
             run_id=_text(value["run_id"], label="run_id"),
             provider=value["provider"],
             project_id=_positive_id(value["project_id"], label="project_id"),
-            path_with_namespace=_text(
-                value["path_with_namespace"], label="path_with_namespace"
-            ),
+            path_with_namespace=_text(value["path_with_namespace"], label="path_with_namespace"),
             repository_empty=value["repository_empty"],
             deploy_key_id=_positive_id(value["deploy_key_id"], label="deploy_key_id"),
             deploy_key_fingerprint=_text(
                 value["deploy_key_fingerprint"], label="deploy_key_fingerprint"
             ),
             source_commit=_object_id(value["source_commit"], label="source_commit"),
-            source_refs_digest=_sha256(
-                value["source_refs_digest"], label="source_refs_digest"
-            ),
+            source_refs_digest=_sha256(value["source_refs_digest"], label="source_refs_digest"),
             candidate_version=_text(value["candidate_version"], label="candidate_version"),
             wheel_sha256=_sha256(value["wheel_sha256"], label="wheel_sha256"),
-            controller_commit=_object_id(
-                value["controller_commit"], label="controller_commit"
-            ),
+            controller_commit=_object_id(value["controller_commit"], label="controller_commit"),
             completed_at_utc=_text(value["completed_at_utc"], label="completed_at_utc"),
             expires_at_utc=_text(value["expires_at_utc"], label="expires_at_utc"),
+            wheel_contents_sha256=(
+                _sha256(value["wheel_contents_sha256"], label="wheel_contents_sha256")
+                if schema == 2
+                else None
+            ),
         )
         handoff.validate(now=now)
         return handoff
 
     def validate(self, *, now: datetime | None = None) -> None:
-        if self.schema != 1 or self.provider != "surrey":
-            raise StateError("the reset handoff must be Surrey schema 1")
-        if self.path_with_namespace != SURREY_PATH:
+        expected_path = {
+            "surrey": SURREY_PATH,
+            GITHUB_PROVIDER: GITHUB_PATH,
+        }.get(self.provider)
+        if self.schema not in {1, 2} or expected_path is None:
+            raise StateError("the reset handoff must use a supported provider schema")
+        if self.schema == 1 and self.wheel_contents_sha256 is not None:
+            raise StateError("schema 1 reset handoffs cannot contain a canonical wheel digest")
+        if self.schema == 2 and self.wheel_contents_sha256 is None:
+            raise StateError("schema 2 reset handoffs require a canonical wheel digest")
+        if self.path_with_namespace != expected_path:
             raise StateError("the reset handoff identifies another project")
         if self.repository_empty is not True:
             raise StateError("the reset handoff does not prove an empty repository")
-        if self.deploy_key_fingerprint != SURREY_DEPLOY_KEY_FINGERPRINT:
+        if not FINGERPRINT_RE.fullmatch(self.deploy_key_fingerprint):
+            raise StateError("the reset handoff contains an invalid deploy-key fingerprint")
+        if (
+            self.provider == "surrey"
+            and self.deploy_key_fingerprint != SURREY_DEPLOY_KEY_FINGERPRINT
+        ):
             raise StateError("the reset handoff identifies another deploy key")
         try:
             uuid.UUID(self.run_id)
@@ -447,7 +463,10 @@ class ResetHandoff:
             raise StateError("the reset handoff has expired")
 
     def document(self) -> dict[str, Any]:
-        return asdict(self)
+        value = asdict(self)
+        if self.schema == 1:
+            value.pop("wheel_contents_sha256")
+        return value
 
 
 def validate_refs(refs: dict[str, str], *, expected_head: str | None) -> None:

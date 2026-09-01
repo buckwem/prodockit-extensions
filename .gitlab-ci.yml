@@ -1,0 +1,35 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+workflow:
+  name: "Surrey Bootstrap live gate for $PRODOCKIT_LIVE_RELEASE_COMMIT"
+  rules:
+    - if: >-
+        $CI_PIPELINE_SOURCE == "web" &&
+        $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH &&
+        $CI_PROJECT_PATH == "mb0105/prodockit-extensions" &&
+        $PRODOCKIT_LIVE_RELEASE_COMMIT =~ /^[0-9a-f]{40}$/ &&
+        $PRODOCKIT_LIVE_PREVIOUS_SEAL_JOB_ID =~ /^(0|[1-9][0-9]*)$/
+    - when: never
+
+variables:
+  PRODOCKIT_LIVE_RELEASE_COMMIT:
+    value: ""
+    description: "Full protected GitHub main commit to test"
+  PRODOCKIT_LIVE_PREVIOUS_SEAL_JOB_ID:
+    value: "0"
+    description: "Previous successful Surrey seal job ID, or 0 when the fixture is absent"
+
+stages:
+  - protected-live-gate
+
+surrey_live_gate:
+  stage: protected-live-gate
+  resource_group: bootstrap-live-surrey
+  interruptible: false
+  trigger:
+    include:
+      - local: /.gitlab/bootstrap-live-provider-surrey.yml
+    strategy: mirror
+    forward:
+      pipeline_variables: true

@@ -495,6 +495,45 @@ def test_handoff_is_short_lived_and_rejects_another_project() -> None:
         reset_handoff(path_with_namespace="other/project").validate()
 
 
+def test_handoff_accepts_only_the_fixed_github_destination() -> None:
+    github = reset_handoff(
+        provider="github",
+        path_with_namespace=state.GITHUB_PATH,
+        deploy_key_fingerprint="SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    )
+
+    github.validate()
+
+    with pytest.raises(state.StateError, match="another project"):
+        reset_handoff(
+            provider="github",
+            path_with_namespace="another/repository",
+            deploy_key_fingerprint="SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        ).validate()
+
+
+def test_schema_two_handoff_requires_and_round_trips_canonical_wheel_digest(
+    tmp_path: Path,
+) -> None:
+    handoff = reset_handoff(
+        schema=2,
+        provider="github",
+        path_with_namespace=state.GITHUB_PATH,
+        deploy_key_fingerprint="SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        wheel_contents_sha256="f" * 64,
+    )
+    path = tmp_path / "handoff.json"
+    state.write_private_json(path, handoff.document())
+
+    assert state.ResetHandoff.read(path).wheel_contents_sha256 == "f" * 64
+
+    missing = handoff.document()
+    missing.pop("wheel_contents_sha256")
+    path.write_text(json.dumps(missing), encoding="utf-8")
+    with pytest.raises(state.StateError, match="missing wheel_contents_sha256"):
+        state.ResetHandoff.read(path)
+
+
 def test_retained_state_allows_only_main_and_same_commit_pipeline_refs() -> None:
     retained = state.RetainedState(
         schema=1,
@@ -696,6 +735,143 @@ def test_empty_reset_candidate_and_seal_form_one_bounded_lifecycle(
     assert sealed.tree == TREE
     assert client.deploy_keys == []
     assert ("DELETE", "/projects/404/deploy_keys/303") in client.mutations
+
+
+def test_protected_surrey_release_emits_canonical_provider_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture_path = write_fixture(tmp_path / "fixture.json")
+    fixture = state.LifecycleFixture.read(fixture_path)
+    client = FakeGitLab(fixture)
+    contents_sha = "f" * 64
+    candidate_raw_sha = "c" * 64
+    monkeypatch.setattr(
+        lifecycle,
+        "inspect_wheel",
+        lambda *_args: SimpleNamespace(version=VERSION, sha256=WHEEL_SHA),
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "inspect_canonical_wheel",
+        lambda *_args: SimpleNamespace(wheel_contents_sha256=contents_sha),
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "validate_controller_checkout",
+        lambda *_args, **_kwargs: CONTROLLER_COMMIT,
+    )
+    monkeypatch.setattr(lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA")
+    monkeypatch.setattr(
+        lifecycle,
+        "public_key_fingerprint",
+        lambda _record: state.SURREY_DEPLOY_KEY_FINGERPRINT,
+    )
+    handoff_path = tmp_path / "handoff.json"
+    lifecycle.reset_project(
+        Namespace(
+            fixture=fixture_path,
+            previous_state=None,
+            deploy_public_key=tmp_path / "key.pub",
+            wheel=tmp_path / "candidate.whl",
+            expected_wheel_sha256=WHEEL_SHA,
+            expected_wheel_contents_sha256=contents_sha,
+            release_commit=CONTROLLER_COMMIT,
+            handoff=handoff_path,
+            audit_report=tmp_path / "reset-audit.json",
+            confirm_project_reset=state.SURREY_PATH,
+        ),
+        client,
+    )
+
+    handoff = state.ResetHandoff.read(handoff_path)
+    assert handoff.schema == 2
+    assert handoff.wheel_contents_sha256 == contents_sha
+    client.refs = {"refs/heads/main": COMMIT}
+    report_path = candidate_report(tmp_path / "candidate.json")
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    report["started_at_utc"] = (now - timedelta(minutes=10)).isoformat()
+    report["finished_at_utc"] = (now - timedelta(minutes=5)).isoformat()
+    report["wheel_sha256"] = candidate_raw_sha
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    provider_result = tmp_path / "provider-result.json"
+    lifecycle.verify_and_seal(
+        Namespace(
+            fixture=fixture_path,
+            handoff=handoff_path,
+            candidate_report=report_path,
+            retained_state=tmp_path / "retained.json",
+            audit_report=tmp_path / "seal-audit.json",
+            release_commit=CONTROLLER_COMMIT,
+            provider_result=provider_result,
+            workflow_run_id=77,
+            workflow_url=("https://gitlab.surrey.ac.uk/mb0105/prodockit-extensions/-/pipelines/77"),
+        ),
+        client,
+    )
+
+    result = lifecycle.ProviderGateResult.read(provider_result, now=now)
+    assert result.provider == "surrey"
+    assert result.wheel_sha256 == candidate_raw_sha
+    assert result.wheel_contents_sha256 == contents_sha
+    assert result.release_commit == CONTROLLER_COMMIT
+    assert result.destination_deploy_key_enabled is False
+
+
+def test_protected_surrey_seal_revokes_key_when_output_already_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture_path = write_fixture(tmp_path / "fixture.json")
+    fixture = state.LifecycleFixture.read(fixture_path)
+    client = FakeGitLab(fixture)
+    client.project = client._project()
+    client.deploy_keys = [
+        {
+            "id": fixture.deploy_key.id,
+            "title": fixture.deploy_key.title,
+            "key": "ssh-ed25519 AAAA",
+            "can_push": True,
+        }
+    ]
+    handoff_path = tmp_path / "handoff.json"
+    handoff = reset_handoff(schema=2, wheel_contents_sha256="f" * 64)
+    state.write_private_json(handoff_path, handoff.document())
+    report_path = candidate_report(tmp_path / "candidate.json")
+    provider_result = tmp_path / "provider-result.json"
+    provider_result.write_text("already present\n", encoding="utf-8")
+    monkeypatch.setattr(
+        lifecycle,
+        "validate_controller_checkout",
+        lambda *_args, **_kwargs: CONTROLLER_COMMIT,
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "public_key_fingerprint",
+        lambda _record: state.SURREY_DEPLOY_KEY_FINGERPRINT,
+    )
+
+    with pytest.raises(lifecycle.LifecycleError, match="output already exists"):
+        lifecycle.verify_and_seal(
+            Namespace(
+                fixture=fixture_path,
+                handoff=handoff_path,
+                candidate_report=report_path,
+                retained_state=tmp_path / "retained.json",
+                audit_report=tmp_path / "seal-audit.json",
+                release_commit=CONTROLLER_COMMIT,
+                provider_result=provider_result,
+                workflow_run_id=77,
+                workflow_url=(
+                    "https://gitlab.surrey.ac.uk/mb0105/prodockit-extensions/-/pipelines/77"
+                ),
+            ),
+            client,
+        )
+
+    assert (
+        "DELETE",
+        f"/projects/{handoff.project_id}/deploy_keys/{fixture.deploy_key.id}",
+    ) in client.mutations
 
 
 def test_reset_reconciles_lost_mutation_responses_without_replaying_them(
