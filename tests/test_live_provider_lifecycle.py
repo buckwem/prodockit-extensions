@@ -565,6 +565,31 @@ def test_failure_audit_redacts_private_paths_and_uses_mode_0600(tmp_path: Path) 
     assert audit.stat().st_mode & 0o777 == 0o600
 
 
+def test_failure_audit_does_not_replace_a_completed_seal(tmp_path: Path) -> None:
+    audit = tmp_path / "seal-audit.json"
+    completed = {
+        "schema": 1,
+        "passed": True,
+        "phase": "verify-and-seal",
+        "finished_at_utc": "2026-09-01T16:31:14+00:00",
+    }
+    state.write_private_json(audit, completed)
+    original = audit.read_bytes()
+    args = Namespace(
+        command="verify-and-seal",
+        fixture=tmp_path / "fixture.json",
+        audit_report=audit,
+    )
+
+    lifecycle.write_failure_audit(
+        args,
+        lifecycle.LifecycleError("the live-provider project contains an unexpected deploy key"),
+    )
+
+    assert audit.read_bytes() == original
+    assert json.loads(audit.read_text(encoding="utf-8")) == completed
+
+
 def test_phase_two_report_requires_exact_matching_paths(tmp_path: Path) -> None:
     handoff = reset_handoff()
     report = candidate_report(tmp_path / "candidate.json")

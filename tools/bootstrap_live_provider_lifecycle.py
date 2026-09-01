@@ -1286,6 +1286,14 @@ def write_failure_audit(args: argparse.Namespace, error: BaseException) -> None:
             checkout=checkout,
             must_exist=False,
         )
+        if path.exists():
+            existing = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(existing, dict) and existing.get("passed") is True:
+                # A completed seal is immutable evidence. A repeated command
+                # can fail because its one-use destination key has already
+                # been disabled; that later failure must not replace the
+                # successful audit from the run that performed the seal.
+                return
         write_private_json(
             path,
             {
