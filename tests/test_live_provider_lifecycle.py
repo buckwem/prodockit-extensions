@@ -150,6 +150,11 @@ class FakeGitLab:
     def get_optional(self, path: str) -> Any | None:
         if path == f"/groups/{state.SURREY_GROUP}":
             return {"id": self.fixture.group.id, "full_path": state.SURREY_GROUP}
+        if path == f"/projects/{lifecycle.encoded(state.SURREY_TEMPLATE)}":
+            return {
+                "id": self.fixture.template.id,
+                "path_with_namespace": state.SURREY_TEMPLATE,
+            }
         if path == f"/projects/{lifecycle.encoded(state.SURREY_PATH)}":
             return self.project
         if self.project is not None and path == f"/projects/{self.project['id']}":
@@ -257,10 +262,37 @@ def test_project_snapshot_does_not_query_disabled_features(tmp_path: Path) -> No
 
     client = DisabledPipelineEndpoint(fixture)
     project = client._project()
-
     snapshot = lifecycle.project_snapshot(client, fixture, project)
 
     assert snapshot.refs == {}
+
+
+def test_template_preflight_requires_group_bot_source_access(tmp_path: Path) -> None:
+    fixture = state.LifecycleFixture.read(write_fixture(tmp_path / "fixture.json"))
+
+    class HiddenTemplate(FakeGitLab):
+        def get_optional(self, path: str) -> Any | None:
+            if path == f"/projects/{lifecycle.encoded(state.SURREY_TEMPLATE)}":
+                return None
+            return super().get_optional(path)
+
+    client = HiddenTemplate(fixture)
+
+    with pytest.raises(lifecycle.LifecycleError, match="share mb0105/prodockit-template"):
+        lifecycle.template_preflight(client, fixture)
+
+
+def test_template_preflight_rejects_another_project(tmp_path: Path) -> None:
+    fixture = state.LifecycleFixture.read(write_fixture(tmp_path / "fixture.json"))
+
+    class WrongTemplate(FakeGitLab):
+        def get_optional(self, path: str) -> Any | None:
+            if path == f"/projects/{lifecycle.encoded(state.SURREY_TEMPLATE)}":
+                return {"id": 999, "path_with_namespace": state.SURREY_TEMPLATE}
+            return super().get_optional(path)
+
+    with pytest.raises(lifecycle.LifecycleError, match="differs from the reviewed fixture"):
+        lifecycle.template_preflight(WrongTemplate(fixture), fixture)
 
 
 def test_delete_completes_gitlabs_scheduled_deletion_transition(tmp_path: Path) -> None:

@@ -423,6 +423,23 @@ def group_preflight(client: GitLabClient, fixture: LifecycleFixture) -> None:
             raise LifecycleError(f"the isolated Surrey group contains an unexpected {label}")
 
 
+def template_preflight(client: GitLabClient, fixture: LifecycleFixture) -> None:
+    """Confirm the group-token bot can see the deploy key's source project."""
+
+    template = client.get_optional(f"/projects/{encoded(fixture.template.path_with_namespace)}")
+    if not isinstance(template, dict):
+        raise LifecycleError(
+            "the group access-token bot cannot see the reviewed template project; "
+            f"share {fixture.template.path_with_namespace} with "
+            f"{fixture.group.full_path} at Reporter level before resetting the fixture"
+        )
+    if (
+        template.get("id") != fixture.template.id
+        or template.get("path_with_namespace") != fixture.template.path_with_namespace
+    ):
+        raise LifecycleError("the visible template project differs from the reviewed fixture")
+
+
 def project_value(client: GitLabClient, fixture: LifecycleFixture) -> dict[str, Any] | None:
     value = client.get_optional(f"/projects/{encoded(fixture.project.path_with_namespace)}")
     if value is not None and not isinstance(value, dict):
@@ -789,15 +806,20 @@ def enable_destination_key(
     public_key: str,
     journal: Journal,
 ) -> None:
+    key_path = f"/projects/{project_id}/deploy_keys/{fixture.deploy_key.id}"
     try:
-        response = client.request(
-            "POST",
-            f"/projects/{project_id}/deploy_keys/{fixture.deploy_key.id}/enable",
-            expected={201},
-        )
+        response = client.request("POST", f"{key_path}/enable", expected={201})
         journal.record("enable-destination-deploy-key", outcome="enabled", status=response.status)
     except AmbiguousMutation:
         journal.record("enable-destination-deploy-key", outcome="response-lost")
+    except LifecycleError as error:
+        if str(error).endswith(" returned 404"):
+            raise LifecycleError(
+                "the reviewed deploy key is not available to the group access-token bot; "
+                f"confirm {fixture.template.path_with_namespace} is shared with "
+                f"{fixture.group.full_path} at Reporter level"
+            ) from error
+        raise
     keys = client.list_all(f"/projects/{project_id}/deploy_keys")
     matches = [key for key in keys if key.get("id") == fixture.deploy_key.id]
     if len(keys) != 1 or len(matches) != 1:
@@ -900,6 +922,7 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
     journal = Journal([])
     started = utc_now()
     group_preflight(client, fixture)
+    template_preflight(client, fixture)
     project = project_value(client, fixture)
     previous_id: int | None = None
     before = "absent"
