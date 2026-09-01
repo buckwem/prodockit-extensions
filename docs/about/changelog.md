@@ -38,6 +38,11 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## Unreleased
+
+- Made Adoption without Mermaid or maths agree with project diagnostics: unused
+  Zensical Markdown defaults no longer require the optional PDF renderers.
+
 ## 0.54.0 (2026-09-01)
 
 - Added read-only `pdk diag` environment and project health reports, with

@@ -142,20 +142,44 @@ def test_example_syntax_in_code_does_not_require_an_extension(tmp_path: Path) ->
     assert _messages(config) == []
 
 
-def test_configured_mermaid_requires_mmdc(tmp_path: Path, monkeypatch) -> None:
+def test_configured_mermaid_is_optional_until_a_diagram_uses_it(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("PATH", "")
     config = _project(
         tmp_path,
         "[project.markdown_extensions.pymdownx.superfences]\n"
         'custom_fences = [{name = "mermaid"}]\n',
+        {
+            "index.md": (
+                "# No diagrams\n\n"
+                "````markdown\n"
+                "```mermaid\n"
+                "graph LR\n  A --> B\n"
+                "```\n"
+                "````\n"
+            )
+        },
     )
 
+    assert not any("mmdc renderer" in message for message in _messages(config))
+
+    (tmp_path / "docs" / "index.md").write_text(
+        "# Diagram\n\n```mermaid\ngraph LR\n  A --> B\n```\n", encoding="utf-8"
+    )
     assert any("mmdc renderer" in message for message in _messages(config))
 
 
-def test_configured_maths_requires_tex2svg(tmp_path: Path) -> None:
-    config = _project(tmp_path, "[project.markdown_extensions.pymdownx.arithmatex]\n")
+def test_configured_maths_is_optional_until_notation_uses_it(tmp_path: Path) -> None:
+    config = _project(
+        tmp_path,
+        "[project.markdown_extensions.pymdownx.arithmatex]\n",
+        {"index.md": "The price is $5 and the example is `\\(x\\)`.\n"},
+    )
 
+    assert not any("tex2svg renderer" in message for message in _messages(config))
+
+    (tmp_path / "docs" / "index.md").write_text("The area is $a^2$.\n", encoding="utf-8")
     assert any("tex2svg renderer" in message for message in _messages(config))
 
 

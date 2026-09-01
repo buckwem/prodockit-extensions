@@ -31,6 +31,16 @@ _REFERENCE_DEFINITION_RE = re.compile(
     r"^\s*\[([^\]]+)\]:\s*(?:<([^>]+)>|([^\s]+))", re.MULTILINE
 )
 _INLINE_CODE_RE = re.compile(r"(`+)(.*?)\1")
+_ARITHMATEX_RE = re.compile(
+    r"(?:"
+    r"(?<!\\)\$\$(?:\\.|[^\\])+?\$\$"
+    r"|(?<!\\)\$(?!\s)(?:\\.|[^\\$\x02\x03])+?(?<!\s)\$"
+    r"|(?<!\\)\\\((?:\\[^)]|[^\\\x02\x03])+?\\\)"
+    r"|(?<!\\)\\\[(?:\\[^]]|[^\\])+?\\\]"
+    r"|\\begin\{(?P<env>[a-z]+\*?)\}(?:\\.|[^\\])+?\\end\{(?P=env)\}"
+    r")",
+    re.DOTALL | re.IGNORECASE,
+)
 
 _SYNTAX_REQUIREMENTS = (
     (re.compile(r"\\(?:ref|autoref)\{"), "prodockit.refs", "reference"),
@@ -84,6 +94,37 @@ def _without_fenced_code(source: str) -> str:
 
 def _scannable_markdown(source: str) -> str:
     return _INLINE_CODE_RE.sub("", _without_fenced_code(source))
+
+
+def _uses_mermaid(source: str) -> bool:
+    """Return whether a real Markdown fence selects the Mermaid renderer."""
+    fence_char = ""
+    fence_length = 0
+    for line in source.splitlines():
+        marker = re.match(r"^\s*([`~]{3,})(.*)$", line)
+        if fence_char:
+            if (
+                marker
+                and marker.group(1)[0] == fence_char
+                and len(marker.group(1)) >= fence_length
+                and not marker.group(2).strip()
+            ):
+                fence_char = ""
+                fence_length = 0
+            continue
+        if not marker:
+            continue
+        fence_char = marker.group(1)[0]
+        fence_length = len(marker.group(1))
+        info = marker.group(2).strip()
+        if re.match(r"^mermaid(?:\s|$)", info, flags=re.IGNORECASE):
+            return True
+    return False
+
+
+def _uses_maths(source: str) -> bool:
+    """Return whether prose contains notation handled by Arithmatex."""
+    return bool(_ARITHMATEX_RE.search(_scannable_markdown(source)))
 
 
 def _is_remote(value: str) -> bool:
@@ -177,6 +218,29 @@ def _mermaid_configured(config: ProjectConfig) -> bool:
     )
 
 
+def _renderer_requirements_from_sources(
+    config: ProjectConfig, sources: list[str]
+) -> tuple[bool, bool]:
+    """Return which optional PDF renderers the project's content needs."""
+    mermaid = _mermaid_configured(config) and any(_uses_mermaid(source) for source in sources)
+    maths = "pymdownx.arithmatex" in config.markdown_extensions and any(
+        _uses_maths(source) for source in sources
+    )
+    return mermaid, maths
+
+
+def renderer_requirements(config: ProjectConfig) -> tuple[bool, bool]:
+    """Return Mermaid/MathJax requirements without treating defaults as use."""
+    sources: list[str] = []
+    if config.docs_dir.is_dir():
+        for markdown in sorted(config.docs_dir.rglob("*.md")):
+            try:
+                sources.append(markdown.read_text(encoding="utf-8"))
+            except OSError:
+                continue
+    return _renderer_requirements_from_sources(config, sources)
+
+
 def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
     """Return missing inputs and integrations for a configured project."""
     problems: list[ProjectProblem] = []
@@ -202,6 +266,7 @@ def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
             )
 
     markdown_files = sorted(config.docs_dir.rglob("*.md")) if config.docs_dir.is_dir() else []
+    markdown_sources: list[str] = []
     enabled = set(config.markdown_extensions)
     for markdown in markdown_files:
         try:
@@ -211,6 +276,7 @@ def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
                 ProjectProblem(_display(config, markdown), f"cannot read page: {error}")
             )
             continue
+        markdown_sources.append(source)
         for image in _markdown_image_sources(source):
             target = _local_target(config, image, markdown=markdown)
             if target is not None and not target.is_file():
@@ -242,7 +308,10 @@ def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
                 )
             )
 
-    if _mermaid_configured(config):
+    mermaid_required, maths_required = _renderer_requirements_from_sources(
+        config, markdown_sources
+    )
+    if mermaid_required:
         configured = config.extra.get("pdf_mmdc_bin")
         found = _tool_path(
             config.root,
@@ -253,17 +322,17 @@ def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
             problems.append(
                 ProjectProblem(
                     "project.extra.pdf_mmdc_bin",
-                    "Mermaid is configured but its mmdc renderer is not installed",
+                    "Mermaid diagrams are used but the mmdc renderer is not installed",
                 )
             )
 
-    if "pymdownx.arithmatex" in enabled:
+    if maths_required:
         configured = config.extra.get("pdf_tex2svg_script")
         if _tool_path(config.root, configured, ("tools/mathjax/tex2svg.js",)) is None:
             problems.append(
                 ProjectProblem(
                     "project.extra.pdf_tex2svg_script",
-                    "maths is configured but its MathJax tex2svg renderer is not installed",
+                    "maths is used but its MathJax tex2svg renderer is not installed",
                 )
             )
 

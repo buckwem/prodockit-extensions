@@ -151,6 +151,34 @@ site_name = "Implicit defaults"
     assert 'custom_fences = [{ name = "mermaid", class = "mermaid" }]' in config
 
 
+def test_adoption_without_optional_renderers_passes_config_check(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _project(
+        tmp_path,
+        """\
+[project]
+site_name = "No renderer adoption"
+site_dir = "public"
+nav = [{ Home = "index.md" }]
+""",
+    )
+    monkeypatch.chdir(project)
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
+
+    adopted = CliRunner().invoke(
+        main,
+        ["adopt", "--apply", "--no-mermaid", "--no-maths"],
+        input="y\ny\n",
+    )
+    checked = CliRunner().invoke(main, ["config", "--check"])
+
+    assert adopted.exit_code == 0, adopted.output
+    assert "Ready for local build" in adopted.output
+    assert checked.exit_code == 0, checked.output
+    assert "Configuration check passed" in checked.output
+
+
 def test_yaml_without_extensions_preserves_zensical_markdown_defaults(
     tmp_path: Path,
 ) -> None:

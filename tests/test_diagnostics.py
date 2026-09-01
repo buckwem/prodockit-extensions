@@ -115,6 +115,13 @@ def _project(tmp_path: Path, *, required: bool) -> ProjectConfig:
         if required
         else {}
     )
+    if required:
+        docs = tmp_path / "docs"
+        docs.mkdir(exist_ok=True)
+        (docs / "index.md").write_text(
+            "```mermaid\ngraph LR\n  A --> B\n```\n\nThe area is $a^2$.\n",
+            encoding="utf-8",
+        )
     return ProjectConfig(
         path=tmp_path / "zensical.toml",
         project={"extra": {"pdf_output": "site/document.pdf"} if required else {}},
@@ -123,7 +130,7 @@ def _project(tmp_path: Path, *, required: bool) -> ProjectConfig:
     )
 
 
-def test_missing_renderers_warn_when_unused_and_fail_when_configured(
+def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
@@ -142,6 +149,15 @@ def test_missing_renderers_warn_when_unused_and_fail_when_configured(
     required = diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
 
     assert not [check for check in optional if check.status == "fail"]
+    optional_by_id = {check.id: check for check in optional}
+    for check_id in (
+        "renderer.node",
+        "renderer.npm",
+        "renderer.mermaid",
+        "renderer.mathjax",
+    ):
+        assert optional_by_id[check_id].status == "warn"
+        assert optional_by_id[check_id].data["required"] is False
     assert {check.id for check in required if check.status == "fail"} >= {
         "renderer.pandoc",
         "renderer.weasyprint",

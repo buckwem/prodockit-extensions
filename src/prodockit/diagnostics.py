@@ -24,6 +24,7 @@ import prodockit
 from prodockit.config_diagnostics import inspect_config
 from prodockit.pins import DEFAULT_PACKAGES, discover, resolve_latest
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
+from prodockit.project_integrity import renderer_requirements
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import inspect as inspect_shared_files
 
@@ -500,14 +501,6 @@ def _pin_checks(root: Path, online: bool) -> list[DiagnosticResult]:
     return checks
 
 
-def _mermaid_configured(config: ProjectConfig) -> bool:
-    options = config.markdown_extensions.get("pymdownx.superfences", {})
-    fences = options.get("custom_fences") or []
-    return isinstance(fences, list) and any(
-        isinstance(fence, dict) and fence.get("name") == "mermaid" for fence in fences
-    )
-
-
 def _project_tool(root: Path, configured: object, defaults: tuple[str, ...]) -> Path | None:
     if configured:
         candidate = Path(str(configured))
@@ -557,8 +550,7 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
             for key in ("pdf_output", "pdf_source_bundle_output", "pdf_extra_css")
         )
     )
-    mermaid_required = bool(config and _mermaid_configured(config))
-    maths_required = bool(config and "pymdownx.arithmatex" in config.markdown_extensions)
+    mermaid_required, maths_required = renderer_requirements(config) if config else (False, False)
     node_required = mermaid_required or maths_required
     checks = [_tool_result("renderer.pandoc", "Pandoc", "pandoc", root=root, required=pdf_required)]
 
