@@ -30,6 +30,7 @@ from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import inspect as inspect_shared_files
 
 Status = Literal["pass", "warn", "fail"]
+NODE_AUDIT_LEVEL = "moderate"
 
 
 @dataclass(frozen=True)
@@ -728,6 +729,105 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
     return checks
 
 
+def _node_security_checks(root: Path, online: bool) -> list[DiagnosticResult]:
+    """Audit the Mermaid production graph only when network checks are requested."""
+    tool_root = root / "tools" / "mermaid"
+    lockfile = tool_root / "package-lock.json"
+    if not lockfile.is_file():
+        return [
+            DiagnosticResult(
+                "renderer.mermaid-security",
+                "Rendering toolchain",
+                "pass",
+                "Mermaid security audit is not applicable",
+                ("tools/mermaid/package-lock.json is not present",),
+                {"checked": False, "reason": "not-configured"},
+            )
+        ]
+    if not online:
+        return [
+            DiagnosticResult(
+                "renderer.mermaid-security",
+                "Rendering toolchain",
+                "pass",
+                "Mermaid security audit skipped in offline mode",
+                ("run `pdk diag --online` to query the npm advisory service",),
+                {"checked": False, "reason": "offline", "level": NODE_AUDIT_LEVEL},
+            )
+        ]
+    npm = shutil.which("npm")
+    if npm is None:
+        return [
+            DiagnosticResult(
+                "renderer.mermaid-security",
+                "Rendering toolchain",
+                "warn",
+                "Mermaid security audit could not run because npm is missing",
+                ("install npm, then rerun `pdk diag --online`",),
+                {"checked": False, "reason": "npm-missing", "level": NODE_AUDIT_LEVEL},
+            )
+        ]
+    command = [npm, "audit", "--omit=dev", f"--audit-level={NODE_AUDIT_LEVEL}", "--json"]
+    completed = _run(command, cwd=tool_root, timeout=60)
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        payload = {}
+    metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
+    raw_counts = metadata.get("vulnerabilities", {}) if isinstance(metadata, dict) else {}
+    counts = {
+        severity: int(raw_counts.get(severity, 0)) if isinstance(raw_counts, dict) else 0
+        for severity in ("low", "moderate", "high", "critical")
+    }
+    affected = sum(counts[severity] for severity in ("moderate", "high", "critical"))
+    data = {
+        "checked": True,
+        "level": NODE_AUDIT_LEVEL,
+        "vulnerabilities": counts,
+    }
+    if affected:
+        details = (
+            *(f"{severity}: {count}" for severity, count in counts.items() if count),
+            "run `npm audit --omit=dev` in tools/mermaid for remediation detail",
+        )
+        return [
+            DiagnosticResult(
+                "renderer.mermaid-security",
+                "Rendering toolchain",
+                "warn",
+                f"Mermaid dependencies have {affected} moderate-or-higher advisories",
+                details,
+                data,
+            )
+        ]
+    if completed.returncode:
+        evidence = (
+            completed.stderr.strip()
+            or completed.stdout.strip()
+            or f"npm audit exited {completed.returncode}"
+        )
+        return [
+            DiagnosticResult(
+                "renderer.mermaid-security",
+                "Rendering toolchain",
+                "warn",
+                "Mermaid security audit was unavailable",
+                (_sanitise_text(evidence, root),),
+                {**data, "checked": False, "reason": "audit-error"},
+            )
+        ]
+    return [
+        DiagnosticResult(
+            "renderer.mermaid-security",
+            "Rendering toolchain",
+            "pass",
+            "Mermaid dependencies have no moderate-or-higher advisories",
+            (),
+            data,
+        )
+    ]
+
+
 def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
     git = shutil.which("git")
     if git is None:
@@ -941,6 +1041,12 @@ def inspect(config_file: str | Path = "zensical.toml", *, online: bool = False) 
         "Rendering toolchain",
         "The rendering toolchain",
         lambda: _renderer_checks(config, root),
+    )
+    collect(
+        "renderer.security-inspection",
+        "Rendering toolchain",
+        "The Mermaid security audit",
+        lambda: _node_security_checks(root, online),
     )
     collect(
         "repository.inspection",

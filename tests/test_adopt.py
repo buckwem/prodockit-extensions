@@ -20,6 +20,7 @@ from prodockit.adopt import (
     STYLESHEET,
     AdoptError,
     AdoptOptions,
+    _mermaid_bin,
     assess,
     ensure_requirement,
     ensure_stylesheet,
@@ -627,6 +628,20 @@ def test_mermaid_install_uses_only_the_selected_node_project(tmp_path: Path, mon
     assert written.count(lock) == 1
     assert (project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc").is_file()
     assert not (project / "tools" / "mathjax").exists()
+
+
+def test_mermaid_health_prefers_the_runnable_windows_command_shim(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _project(tmp_path)
+    bin_dir = project / "tools" / "mermaid" / "node_modules" / ".bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "mmdc").write_text("posix shim", encoding="utf-8")
+    windows_shim = bin_dir / "mmdc.cmd"
+    windows_shim.write_text("windows shim", encoding="utf-8")
+    monkeypatch.setattr("prodockit.adopt.sys.platform", "win32")
+
+    assert _mermaid_bin(project) == windows_shim
 
 
 def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monkeypatch) -> None:

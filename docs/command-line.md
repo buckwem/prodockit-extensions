@@ -87,9 +87,10 @@ metadata. A missing optional renderer is a warning; a renderer required by the
 current configuration is a failure. A virtual environment is supported but not
 required: matching pipx, Conda, system-Python, and CI installations are valid.
 
-The default run is deterministic and offline. Add `--online` to check published
-package versions and the recorded template revision, or `--verbose` to include
-the evidence behind passing checks. For a project whose configuration is named
+The default run is deterministic and offline, and explicitly reports that the
+npm advisory lookup was skipped. Add `--online` to check published package
+versions, Mermaid's production dependencies against npm advisories, and the
+recorded template revision, or `--verbose` to include the evidence behind passing checks. For a project whose configuration is named
 or located differently, use `-f PATH` or `--config-file PATH`.
 
 When asking for support, attach the machine-readable report rather than a

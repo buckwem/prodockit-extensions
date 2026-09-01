@@ -1028,8 +1028,9 @@ def _tool_files_ok(root: Path, component: str) -> bool:
 
 def _mermaid_bin(root: Path) -> Path | None:
     bin_dir = root / "tools" / "mermaid" / "node_modules" / ".bin"
+    names = ("mmdc.cmd", "mmdc") if sys.platform == "win32" else ("mmdc",)
     return next(
-        (candidate for name in ("mmdc", "mmdc.cmd") if (candidate := bin_dir / name).is_file()),
+        (candidate for name in names if (candidate := bin_dir / name).is_file()),
         None,
     )
 

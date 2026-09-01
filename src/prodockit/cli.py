@@ -1767,7 +1767,7 @@ def config_command(config_file: str, check: bool) -> None:
 @click.option(
     "--online",
     is_flag=True,
-    help="Also check PyPI versions and the recorded template revision.",
+    help="Also check PyPI, npm advisories and the recorded template revision.",
 )
 @click.option(
     "--json",

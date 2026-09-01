@@ -6,6 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import prodockit.renderer_health as renderer_health
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
 
 
@@ -49,6 +50,21 @@ def test_mermaid_probe_records_the_reported_version(tmp_path: Path, monkeypatch)
     assert result.ok is True
     assert result.version == "11.12.0"
     assert result.error is None
+
+
+def test_mermaid_probe_uses_the_runnable_windows_shim(tmp_path: Path) -> None:
+    binary = tmp_path / "mmdc"
+    binary.write_text("posix shim", encoding="utf-8")
+    windows_shim = tmp_path / "mmdc.cmd"
+    windows_shim.write_text("windows shim", encoding="utf-8")
+    assert renderer_health._command(binary, "--version", platform="nt") == [
+        "cmd.exe",
+        "/d",
+        "/s",
+        "/c",
+        str(windows_shim),
+        "--version",
+    ]
 
 
 def test_mermaid_probe_uses_a_discovered_browser_when_downloads_are_disabled(

@@ -69,9 +69,17 @@ def _renderer_environment() -> dict[str, str]:
     return environment
 
 
-def _command(path: Path, *arguments: str) -> list[str]:
+def _command(
+    path: Path, *arguments: str, platform: str | None = None
+) -> list[str]:
+    platform = os.name if platform is None else platform
+    if platform == "nt" and not path.suffix:
+        for suffix in (".cmd", ".exe", ".bat", ".com"):
+            sibling = Path(f"{path}{suffix}")
+            if sibling.is_file():
+                return _command(sibling, *arguments, platform=platform)
     command = [str(path), *arguments]
-    if os.name == "nt" and path.suffix.casefold() in {".bat", ".cmd"}:
+    if platform == "nt" and path.suffix.casefold() in {".bat", ".cmd"}:
         return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", *command]
     return command
 
