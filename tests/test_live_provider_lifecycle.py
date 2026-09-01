@@ -253,6 +253,52 @@ def test_project_snapshot_does_not_query_disabled_pipelines(tmp_path: Path) -> N
     assert snapshot.refs == {}
 
 
+def test_reset_removes_the_project_if_post_creation_validation_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture_path = write_fixture(tmp_path / "fixture.json")
+    fixture = state.LifecycleFixture.read(fixture_path)
+
+    class InvalidPostCreationState(FakeGitLab):
+        def list_all(
+            self, path: str, *, query: dict[str, Any] | None = None
+        ) -> list[dict[str, Any]]:
+            if path.endswith("/variables") and self.project is not None:
+                return [{"key": "UNEXPECTED"}]
+            return super().list_all(path, query=query)
+
+    client = InvalidPostCreationState(fixture)
+    monkeypatch.setattr(
+        lifecycle,
+        "inspect_wheel",
+        lambda *_args: SimpleNamespace(version=VERSION, sha256=WHEEL_SHA),
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "validate_controller_checkout",
+        lambda *_args, **_kwargs: CONTROLLER_COMMIT,
+    )
+    monkeypatch.setattr(
+        lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA"
+    )
+    args = Namespace(
+        fixture=fixture_path,
+        previous_state=None,
+        deploy_public_key=tmp_path / "key.pub",
+        wheel=tmp_path / "candidate.whl",
+        expected_wheel_sha256=WHEEL_SHA,
+        handoff=tmp_path / "handoff.json",
+        audit_report=tmp_path / "audit.json",
+        confirm_project_reset=state.SURREY_PATH,
+    )
+
+    with pytest.raises(lifecycle.LifecycleError, match="unexpected variable"):
+        lifecycle.reset_project(args, client)
+
+    assert client.project is None
+    assert ("DELETE", "/projects/404") in client.mutations
+
+
 def test_fixture_is_closed_and_pinned_to_the_exact_surrey_project(tmp_path: Path) -> None:
     fixture = state.LifecycleFixture.read(write_fixture(tmp_path / "fixture.json"))
 

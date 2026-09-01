@@ -860,16 +860,14 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
         created_after=datetime.fromisoformat(started),
         journal=journal,
     )
-    project_id = validate_project_identity(created, fixture, expected_id=None)
-    empty_snapshot = project_snapshot(client, fixture, created)
-    validate_no_project_content(empty_snapshot)
     try:
-        validate_refs(empty_snapshot.refs, expected_head=None)
-    except StateError as error:
-        raise LifecycleError(str(error)) from error
-    key_may_be_enabled = False
-    try:
-        key_may_be_enabled = True
+        project_id = validate_project_identity(created, fixture, expected_id=None)
+        empty_snapshot = project_snapshot(client, fixture, created)
+        validate_no_project_content(empty_snapshot)
+        try:
+            validate_refs(empty_snapshot.refs, expected_head=None)
+        except StateError as error:
+            raise LifecycleError(str(error)) from error
         enable_destination_key(client, fixture, project_id, public_key, journal)
         completed = datetime.now(timezone.utc).replace(microsecond=0)
         handoff = ResetHandoff(
@@ -909,10 +907,14 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
         }
         write_private_json(handoff_path, handoff.document())
         write_private_json(audit_path, audit)
-        key_may_be_enabled = False
-    except Exception:
-        if key_may_be_enabled:
-            disable_destination_key(client, fixture, project_id, journal)
+    except Exception as reset_error:
+        try:
+            delete_exact_project(client, fixture, created, journal)
+        except Exception as cleanup_error:
+            raise LifecycleError(
+                "the reset failed and its newly-created project could not be removed: "
+                f"{cleanup_error}"
+            ) from reset_error
         raise
     print(f"Phase 3 reset ready: {fixture.project.path_with_namespace}")
     print(f"Candidate handoff: {handoff_path}")
