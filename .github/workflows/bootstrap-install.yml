@@ -146,13 +146,15 @@ jobs:
   native-upgrade:
     needs: scope
     if: needs.scope.outputs.native == 'true'
-    name: Real upgrades — ${{ matrix.name }} ${{ matrix.architecture }}
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 120
+    name: >-
+      Real upgrade — ${{ matrix.scenario.name }} —
+      ${{ matrix.platform.name }} ${{ matrix.platform.architecture }}
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        include:
+        platform:
           - name: Ubuntu 24.04
             runner: ubuntu-24.04
             architecture: x64
@@ -173,6 +175,11 @@ jobs:
             runner: macos-15
             architecture: arm64
             architecture_check: --require-arm64
+        scenario:
+          - name: Surrey existing repository
+            id: surrey-existing-real-upgrade
+          - name: GitHub new repository
+            id: github-new-real-upgrade
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
@@ -186,17 +193,18 @@ jobs:
           python -m pip install build
           python -m build --wheel
           python -c "from pathlib import Path; import subprocess, sys; wheel = next(Path('dist').glob('prodockit-*.whl')); subprocess.run([sys.executable, '-m', 'pip', 'install', '--force-reinstall', str(wheel)], check=True)"
-      - name: Upgrade real old software through the Surrey and GitHub routes
+      - name: Upgrade real old software through ${{ matrix.scenario.name }}
         run: >-
           python tools/bootstrap_native_upgrade.py
           --wheel dist
-          ${{ matrix.architecture_check }}
+          ${{ matrix.platform.architecture_check }}
+          --scenario ${{ matrix.scenario.id }}
           --report bootstrap-native-upgrade-report.json
       - name: Keep the native upgrade report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bootstrap-upgrade-${{ matrix.runner }}-${{ matrix.architecture }}
+          name: bootstrap-upgrade-${{ matrix.platform.runner }}-${{ matrix.platform.architecture }}-${{ matrix.scenario.id }}
           path: bootstrap-native-upgrade-report.json
           if-no-files-found: warn
 

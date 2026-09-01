@@ -72,6 +72,7 @@ SCENARIOS = (
     ("surrey-existing-real-upgrade", "surrey", "existing"),
     ("github-new-real-upgrade", "github", "new"),
 )
+SCENARIO_NAMES = tuple(item[0] for item in SCENARIOS)
 
 # The version immediately below each accepted floor.  These are real VSIX
 # packages from the Marketplace, unpacked into the disposable test profile.
@@ -443,7 +444,23 @@ def _scenario_environment(
     return environment
 
 
-def run_native_upgrades(wheel: Path, report_path: Path) -> dict[str, Any]:
+def select_scenarios(
+    names: list[str] | None,
+) -> tuple[tuple[str, str, str], ...]:
+    """Return requested upgrade routes in their declared order."""
+    if not names or names == ["all"]:
+        return SCENARIOS
+    if "all" in names:
+        raise NativeInstallError("--scenario all cannot be combined with named scenarios")
+    requested = set(names)
+    return tuple(item for item in SCENARIOS if item[0] in requested)
+
+
+def run_native_upgrades(
+    wheel: Path,
+    report_path: Path,
+    scenario_names: list[str] | None = None,
+) -> dict[str, Any]:
     if os.environ.get("GITHUB_ACTIONS", "").lower() != "true":
         raise NativeInstallError(
             "real upgrade acceptance is restricted to disposable GitHub Actions runners"
@@ -468,7 +485,8 @@ def run_native_upgrades(wheel: Path, report_path: Path) -> dict[str, Any]:
             portable_tool_bins = {}
 
         driver = Path(__file__).with_name("_bootstrap_acceptance_driver.py").resolve()
-        for index, (name, host, route) in enumerate(SCENARIOS):
+        scenarios = select_scenarios(scenario_names)
+        for index, (name, host, route) in enumerate(scenarios):
             if index:
                 cleanup_ephemeral_runner(
                     recipe,
@@ -535,6 +553,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--wheel", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument(
+        "--scenario",
+        action="append",
+        choices=("all", *SCENARIO_NAMES),
+        help="upgrade route to run; repeat it, or omit it to run both",
+    )
     architecture = parser.add_mutually_exclusive_group(required=True)
     architecture.add_argument("--require-x64", action="store_true")
     architecture.add_argument("--require-arm64", action="store_true")
@@ -544,7 +568,7 @@ def main() -> int:
         expected = "arm64" if expected_arm64 else "x64"
         raise NativeInstallError(f"expected {expected}, found {platform.machine()}")
     wheel = _resolve_wheel(args.wheel)
-    report = run_native_upgrades(wheel, args.report)
+    report = run_native_upgrades(wheel, args.report, args.scenario)
     print(json.dumps(report))
     return 0
 

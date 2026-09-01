@@ -327,6 +327,15 @@ def test_non_transient_stage_result_is_not_retried(
     assert observed is result
 
 
+def test_candidate_worker_uses_an_accounted_process_group(tmp_path: Path) -> None:
+    live.run_candidate_worker(
+        ["/bin/sh", "-c", "exit 0"],
+        cwd=tmp_path,
+        environment={"PATH": os.environ.get("PATH", "")},
+        timeout=10,
+    )
+
+
 def test_remote_ref_query_retries_transient_command_failures(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
