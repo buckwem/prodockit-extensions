@@ -124,6 +124,11 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
+      - name: Use a Chromium-accessible temporary directory on Linux
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "$HOME/prodockit-bootstrap-tmp"
+          echo "TMPDIR=$HOME/prodockit-bootstrap-tmp" >> "$GITHUB_ENV"
       - name: Build and install the candidate wheel
         run: |
           python -m pip install build
@@ -190,6 +195,11 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
+      - name: Use a Chromium-accessible temporary directory on Linux
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "$HOME/prodockit-bootstrap-tmp"
+          echo "TMPDIR=$HOME/prodockit-bootstrap-tmp" >> "$GITHUB_ENV"
       - name: Build and install the candidate wheel
         run: |
           python -m pip install build
