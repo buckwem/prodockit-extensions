@@ -1322,7 +1322,7 @@ def controller(args: argparse.Namespace) -> None:
             != f"{fixture.destination_namespace}/{fixture.destination_project}"
             or handoff.source_commit != fixture.source_head
             or handoff.candidate_version != wheel.version
-            or handoff.wheel_sha256 != wheel.sha256
+            or (handoff.schema == 1 and handoff.wheel_sha256 != wheel.sha256)
             or handoff.controller_commit != controller_commit
             or handoff.deploy_key_fingerprint != fingerprint
         ):

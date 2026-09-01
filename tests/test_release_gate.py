@@ -250,3 +250,35 @@ def test_release_checkout_must_be_clean_main_at_origin_main(tmp_path: Path) -> N
     (checkout / "README.md").write_text("changed\n", encoding="utf-8")
     with pytest.raises(gate.ReleaseGateError, match="uncommitted changes"):
         gate.validate_release_checkout(checkout, expected_commit=commit)
+
+
+def test_github_shadow_workflow_keeps_three_credential_boundaries() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "bootstrap-live-provider-github.yml").read_text(
+        encoding="utf-8"
+    )
+    reset = workflow[workflow.index("  reset:") : workflow.index("  candidate:")]
+    candidate = workflow[workflow.index("  candidate:") : workflow.index("  seal:")]
+    seal = workflow[workflow.index("  seal:") :]
+
+    assert "  workflow_dispatch:" in workflow
+    for forbidden in ("  pull_request:", "  push:", "  schedule:", "  release:"):
+        assert forbidden not in workflow
+    assert "cancel-in-progress: false" in workflow
+    assert "environment: bootstrap-live-github-reset" in reset
+    assert "environment: bootstrap-live-github-candidate" in candidate
+    assert "environment: bootstrap-live-github-seal" in seal
+    assert "PRODOCKIT_LIVE_GITHUB_APP_PRIVATE_KEY" in reset
+    assert "PRODOCKIT_LIVE_GITHUB_APP_PRIVATE_KEY" in seal
+    assert "PRODOCKIT_LIVE_GITHUB_APP_PRIVATE_KEY" not in candidate
+    assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" in candidate
+    assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" not in reset
+    assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" not in seal
+    assert "if: always() && needs.reset.result == 'success'" in seal
+
+
+def test_github_shadow_does_not_authorise_current_publication() -> None:
+    publish = (ROOT / ".github" / "workflows" / "publish.yml").read_text(encoding="utf-8")
+
+    assert "release:" in publish
+    assert "types: [published]" in publish
+    assert "bootstrap-live-provider-github" not in publish

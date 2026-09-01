@@ -1,0 +1,285 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+name: Bootstrap live provider — GitHub shadow
+run-name: GitHub Bootstrap live gate for ${{ inputs.release_commit }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Full protected-main commit to test
+        required: true
+        type: string
+      previous_run_id:
+        description: Previous successful GitHub shadow run, or 0 when the fixture is absent
+        required: true
+        default: "0"
+        type: string
+
+concurrency:
+  group: bootstrap-live-github
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.14"
+  FIXED_REPOSITORY: prodockit-live-tests/bootstrap-release-gate
+
+jobs:
+  reset:
+    name: Trusted reset controller
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: bootstrap-live-github-reset
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build and identify the reset-controller wheel
+        id: wheel
+        shell: bash
+        run: |
+          python -m pip install build
+          python -m build --wheel --outdir "$RUNNER_TEMP/reset-wheel"
+          wheel=$(find "$RUNNER_TEMP/reset-wheel" -maxdepth 1 -name 'prodockit-*.whl' -type f -print -quit)
+          test -n "$wheel"
+          python tools/canonical_wheel.py "$wheel" --output "$RUNNER_TEMP/reset-wheel.json"
+          echo "path=$wheel" >> "$GITHUB_OUTPUT"
+          python -c 'import json, os; value=json.load(open(os.environ["IDENTITY"], encoding="utf-8")); output=open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8"); print("raw=" + value["wheel_sha256"], file=output); print("contents=" + value["wheel_contents_sha256"], file=output)' 
+        env:
+          IDENTITY: ${{ runner.temp }}/reset-wheel.json
+      - name: Download the exact previous retained state
+        if: inputs.previous_run_id != '0'
+        uses: actions/download-artifact@v4
+        with:
+          name: github-retained-state
+          path: ${{ runner.temp }}/previous
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.previous_run_id }}
+      - name: Materialise the reviewed public deploy key
+        shell: bash
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/gate"
+          printf '%s\n' "$LIVE_DEPLOY_PUBLIC_KEY" > "$RUNNER_TEMP/gate/deploy-key.pub"
+          chmod 600 "$RUNNER_TEMP/gate/deploy-key.pub"
+        env:
+          LIVE_DEPLOY_PUBLIC_KEY: ${{ secrets.PRODOCKIT_LIVE_GITHUB_DEPLOY_PUBLIC_KEY }}
+      - name: Mint the reset-only GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.PRODOCKIT_LIVE_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PRODOCKIT_LIVE_GITHUB_APP_PRIVATE_KEY }}
+          owner: prodockit-live-tests
+          permission-administration: write
+          permission-metadata: read
+          permission-pages: read
+          permission-repository-hooks: read
+      - name: Reset only the fixed private repository
+        shell: bash
+        run: |
+          previous=()
+          if [[ "${{ inputs.previous_run_id }}" != "0" ]]; then
+            previous=(--previous-state "$RUNNER_TEMP/previous/retained-state.json")
+          fi
+          python tools/bootstrap_live_provider_github_lifecycle.py reset \
+            --token-fd 3 \
+            --deploy-public-key "$RUNNER_TEMP/gate/deploy-key.pub" \
+            --wheel "${{ steps.wheel.outputs.path }}" \
+            --expected-wheel-sha256 "${{ steps.wheel.outputs.raw }}" \
+            --expected-wheel-contents-sha256 "${{ steps.wheel.outputs.contents }}" \
+            --release-commit "${{ inputs.release_commit }}" \
+            --controller-commit "$(git rev-parse HEAD)" \
+            --handoff "$RUNNER_TEMP/gate/reset-handoff.json" \
+            --audit-report "$RUNNER_TEMP/gate/reset-audit.json" \
+            --confirm-repository-reset "$FIXED_REPOSITORY" \
+            "${previous[@]}" \
+            3<<<"$APP_TOKEN"
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+      - name: Pass only sanitised reset evidence to the candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-reset-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/gate/reset-handoff.json
+            ${{ runner.temp }}/gate/reset-audit.json
+          if-no-files-found: error
+          retention-days: 30
+
+  candidate:
+    name: Candidate Bootstrap paths
+    needs: reset
+    runs-on: macos-15
+    timeout-minutes: 40
+    environment: bootstrap-live-github-candidate
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: github-reset-${{ github.run_id }}
+          path: ${{ runner.temp }}/gate
+      - name: Create a failure-safe candidate report placeholder
+        shell: bash
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/candidate"
+          printf '{"candidate":"did not reach the controlled runner"}\n' > "$RUNNER_TEMP/candidate/report.json"
+          chmod 600 "$RUNNER_TEMP/candidate/report.json"
+      - name: Build an independent candidate wheel
+        id: wheel
+        shell: bash
+        run: |
+          python -m pip install build
+          python -m build --wheel --outdir "$RUNNER_TEMP/candidate-wheel"
+          wheel=$(find "$RUNNER_TEMP/candidate-wheel" -maxdepth 1 -name 'prodockit-*.whl' -type f -print -quit)
+          test -n "$wheel"
+          python tools/canonical_wheel.py "$wheel" --output "$RUNNER_TEMP/candidate-wheel.json"
+          echo "path=$wheel" >> "$GITHUB_OUTPUT"
+          python -c 'import json, os; value=json.load(open(os.environ["IDENTITY"], encoding="utf-8")); output=open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8"); print("raw=" + value["wheel_sha256"], file=output)' 
+        env:
+          IDENTITY: ${{ runner.temp }}/candidate-wheel.json
+      - name: Prepare the exact public source fixture
+        shell: bash
+        run: |
+          source_commit=$(python -c 'import json, os; print(json.load(open(os.environ["HANDOFF"], encoding="utf-8"))["source_commit"])')
+          git clone --no-checkout --no-tags https://github.com/buckwem/prodockit-template.git "$RUNNER_TEMP/public-template"
+          git -C "$RUNNER_TEMP/public-template" checkout --detach "$source_commit"
+          python tools/bootstrap_live_provider_github_fixture.py \
+            --handoff "$RUNNER_TEMP/gate/reset-handoff.json" \
+            --source-checkout "$RUNNER_TEMP/public-template" \
+            --output "$RUNNER_TEMP/candidate/fixture.json"
+        env:
+          HANDOFF: ${{ runner.temp }}/gate/reset-handoff.json
+      - name: Supply ordinary build prerequisites
+        shell: bash
+        run: brew install pandoc pango
+      - name: Run the two candidate paths with only one repository deploy key
+        shell: bash
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/candidate/ssh"
+          printf '%s\n' "$LIVE_DEPLOY_PRIVATE_KEY" > "$RUNNER_TEMP/candidate/ssh/id_ed25519"
+          printf '%s\n' "$LIVE_GITHUB_KNOWN_HOSTS" > "$RUNNER_TEMP/candidate/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/candidate/ssh/id_ed25519" "$RUNNER_TEMP/candidate/ssh/known_hosts"
+          ssh-keygen -y -f "$RUNNER_TEMP/candidate/ssh/id_ed25519" > "$RUNNER_TEMP/candidate/ssh/id_ed25519.pub"
+          fingerprint=$(ssh-keygen -lf "$RUNNER_TEMP/candidate/ssh/id_ed25519.pub" -E sha256 | awk '{print $2}')
+          eval "$(ssh-agent -s)"
+          trap 'ssh-add -D >/dev/null 2>&1 || true; ssh-agent -k >/dev/null 2>&1 || true' EXIT
+          ssh-add "$RUNNER_TEMP/candidate/ssh/id_ed25519"
+          python tools/bootstrap_live_provider_read_write.py \
+            --provider github \
+            --fixture "$RUNNER_TEMP/candidate/fixture.json" \
+            --wheel "${{ steps.wheel.outputs.path }}" \
+            --expected-wheel-sha256 "${{ steps.wheel.outputs.raw }}" \
+            --agent-socket "$SSH_AUTH_SOCK" \
+            --key-fingerprint "$fingerprint" \
+            --known-hosts "$RUNNER_TEMP/candidate/ssh/known_hosts" \
+            --reset-handoff "$RUNNER_TEMP/gate/reset-handoff.json" \
+            --report "$RUNNER_TEMP/candidate/report.json" \
+            --confirm-read-write
+        env:
+          LIVE_DEPLOY_PRIVATE_KEY: ${{ secrets.PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY }}
+          LIVE_GITHUB_KNOWN_HOSTS: ${{ secrets.PRODOCKIT_LIVE_GITHUB_KNOWN_HOSTS }}
+      - name: Pass the sanitised candidate result to the sealer
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-candidate-${{ github.run_id }}
+          path: ${{ runner.temp }}/candidate/report.json
+          if-no-files-found: error
+          retention-days: 30
+
+  seal:
+    name: Fresh trusted verifier and sealer
+    needs: [reset, candidate]
+    if: always() && needs.reset.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: bootstrap-live-github-seal
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: github-reset-${{ github.run_id }}
+          path: ${{ runner.temp }}/gate
+      - name: Download candidate evidence if the worker produced it
+        id: candidate-artifact
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: github-candidate-${{ github.run_id }}
+          path: ${{ runner.temp }}/candidate
+      - name: Ensure the sealer always has a rejectable candidate document
+        if: steps.candidate-artifact.outcome != 'success'
+        shell: bash
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/candidate"
+          printf '{"candidate":"artifact unavailable"}\n' > "$RUNNER_TEMP/candidate/report.json"
+          chmod 600 "$RUNNER_TEMP/candidate/report.json"
+      - name: Mint a new seal-only GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.PRODOCKIT_LIVE_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PRODOCKIT_LIVE_GITHUB_APP_PRIVATE_KEY }}
+          owner: prodockit-live-tests
+          permission-administration: write
+          permission-metadata: read
+          permission-pages: read
+          permission-repository-hooks: read
+      - name: Revoke write access before trusting candidate evidence
+        shell: bash
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/seal"
+          python tools/bootstrap_live_provider_github_lifecycle.py seal \
+            --token-fd 3 \
+            --handoff "$RUNNER_TEMP/gate/reset-handoff.json" \
+            --candidate-report "$RUNNER_TEMP/candidate/report.json" \
+            --retained-state "$RUNNER_TEMP/seal/retained-state.json" \
+            --provider-result "$RUNNER_TEMP/seal/provider-result.json" \
+            --audit-report "$RUNNER_TEMP/seal/seal-audit.json" \
+            --workflow-run-id "${{ github.run_id }}" \
+            --workflow-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            3<<<"$APP_TOKEN"
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+      - name: Retain the exact state authorised for the next reset
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-retained-state
+          path: ${{ runner.temp }}/seal/retained-state.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain the sanitised GitHub provider evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-provider-result-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/seal/provider-result.json
+            ${{ runner.temp }}/seal/seal-audit.json
+          if-no-files-found: warn
+          retention-days: 30

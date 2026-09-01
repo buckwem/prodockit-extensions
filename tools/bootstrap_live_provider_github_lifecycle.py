@@ -10,6 +10,7 @@ import base64
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
 import urllib.error
@@ -78,8 +79,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 class GitHubAPI:
     """Small exact-host GitHub REST client without mutation retries."""
 
-    def __init__(self, token: str, *, timeout: float = 30.0) -> None:
-        if not token or any(character in token for character in "\0\r\n"):
+    def __init__(self, token: str | None, *, timeout: float = 30.0) -> None:
+        if token is not None and (not token or any(character in token for character in "\0\r\n")):
             raise LifecycleError("the GitHub installation token is missing or malformed")
         self._token = token
         self._timeout = timeout
@@ -103,10 +104,11 @@ class GitHubAPI:
         payload = None
         headers = {
             "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {self._token}",
             "X-GitHub-Api-Version": API_VERSION,
             "User-Agent": "prodockit-release-gate",
         }
+        if self._token is not None:
+            headers["Authorization"] = f"Bearer {self._token}"
         if body is not None:
             payload = json.dumps(body, separators=(",", ":")).encode("utf-8")
             headers["Content-Type"] = "application/json"
@@ -146,6 +148,13 @@ def object_id(value: Any, *, label: str) -> str:
     value = text(value, label=label)
     if len(value) not in OBJECT_ID_LENGTHS or any(c not in "0123456789abcdef" for c in value):
         raise LifecycleError(f"{label} must be one complete lowercase Git object ID")
+    return value
+
+
+def sha256_digest(value: Any, *, label: str) -> str:
+    value = text(value, label=label)
+    if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+        raise LifecycleError(f"{label} must be one lowercase SHA-256 digest")
     return value
 
 
@@ -202,6 +211,39 @@ def public_key(path: Path) -> tuple[str, str]:
     except OSError as error:
         raise LifecycleError(f"could not read destination public key: {error}") from error
     return record, public_key_fingerprint(record)
+
+
+def validate_controller_checkout(checkout: Path, *, expected_commit: str) -> str:
+    """Require one clean default-branch checkout at the exact release commit."""
+
+    commands = {
+        "branch": ("branch", "--show-current"),
+        "head": ("rev-parse", "HEAD"),
+        "origin_main": ("rev-parse", "origin/main"),
+        "status": ("status", "--porcelain"),
+    }
+    observed: dict[str, str] = {}
+    for label, arguments in commands.items():
+        try:
+            completed = subprocess.run(
+                ("git", "-C", str(checkout), *arguments),
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+            raise LifecycleError(f"could not validate the release checkout: {error}") from error
+        observed[label] = completed.stdout.strip()
+    if observed["branch"] != "main":
+        raise LifecycleError("GitHub lifecycle controller must run from the default main branch")
+    if observed["status"]:
+        raise LifecycleError("GitHub lifecycle controller checkout must be clean")
+    if observed["head"] != observed["origin_main"] or observed["head"] != expected_commit:
+        raise LifecycleError(
+            "GitHub lifecycle controller must match the exact reviewed main commit"
+        )
+    return observed["head"]
 
 
 def repository(client: Client) -> dict[str, Any] | None:
@@ -299,7 +341,20 @@ def verify_fixed_installation(client: Client) -> None:
         label="GitHub App installation",
     )
     account = object_value(installation.get("account"), label="installation.account")
-    if account.get("login") != ORGANISATION or account.get("type") != "Organization":
+    permissions = object_value(installation.get("permissions"), label="installation.permissions")
+    required_permissions = {
+        "administration": "write",
+        "metadata": "read",
+        "pages": "read",
+        "repository_hooks": "read",
+    }
+    if (
+        account.get("login") != ORGANISATION
+        or account.get("type") != "Organization"
+        or installation.get("repository_selection") != "all"
+        or any(permissions.get(name) != level for name, level in required_permissions.items())
+        or set(permissions) != set(required_permissions)
+    ):
         raise LifecycleError("GitHub App token belongs to another installation")
     organisation_repositories = client.request(
         "GET", f"/orgs/{ORGANISATION}/repos?type=all&per_page=100"
@@ -355,10 +410,12 @@ class GitHubRetainedState:
                 for ref, target in refs_value.items()
             },
             destination_deploy_key_enabled=value["destination_deploy_key_enabled"],
-            source_refs_digest=text(value["source_refs_digest"], label="source_refs_digest"),
+            source_refs_digest=sha256_digest(
+                value["source_refs_digest"], label="source_refs_digest"
+            ),
             candidate_version=text(value["candidate_version"], label="candidate_version"),
-            wheel_sha256=text(value["wheel_sha256"], label="wheel_sha256"),
-            wheel_contents_sha256=text(
+            wheel_sha256=sha256_digest(value["wheel_sha256"], label="wheel_sha256"),
+            wheel_contents_sha256=sha256_digest(
                 value["wheel_contents_sha256"], label="wheel_contents_sha256"
             ),
             release_commit=object_id(value["release_commit"], label="release_commit"),
@@ -422,6 +479,7 @@ def reset(
     controller_commit: str,
     now: datetime,
     sleep: Callable[[float], None] = time.sleep,
+    source_client: Client | None = None,
 ) -> ResetHandoff:
     """Reset only the fixed retained repository and install one write key."""
 
@@ -442,7 +500,7 @@ def reset(
         )
         wait_until_absent(client, sleep)
 
-    source_commit, source_digest = source_state(client)
+    source_commit, source_digest = source_state(source_client or client)
     created = object_value(
         client.request(
             "POST",
@@ -574,7 +632,6 @@ def candidate_evidence(path: Path, handoff: ResetHandoff) -> CandidateEvidence:
         or value["provider"] != "github"
         or value["repository"] != GITHUB_PATH
         or value["candidate_version"] != handoff.candidate_version
-        or value["wheel_sha256"] != handoff.wheel_sha256
         or value["source_refs_digest"] != handoff.source_refs_digest
         or value["source_refs_unchanged"] is not True
         or value["manual_provider_review_required"] is not False
@@ -584,6 +641,7 @@ def candidate_evidence(path: Path, handoff: ResetHandoff) -> CandidateEvidence:
     created_refs = value["provider_created_refs"]
     if not isinstance(created_refs, list) or created_refs:
         raise LifecycleError("GitHub candidate report contains unexpected provider refs")
+    wheel_sha256 = sha256_digest(value["wheel_sha256"], label="wheel_sha256")
     path_one = candidate_path(value["path_one"], label="path_one")
     path_two = candidate_path(value["path_two"], label="path_two")
     if (
@@ -615,7 +673,7 @@ def candidate_evidence(path: Path, handoff: ResetHandoff) -> CandidateEvidence:
         raise LifecycleError("GitHub candidate duration is invalid or exceeds two hours")
     return CandidateEvidence(
         version=value["candidate_version"],
-        wheel_sha256=value["wheel_sha256"],
+        wheel_sha256=wheel_sha256,
         source_refs_digest=value["source_refs_digest"],
         path_one=path_one,
         path_two=path_two,
@@ -662,6 +720,7 @@ def seal(
     workflow_run_id: int,
     workflow_url: str,
     now: datetime,
+    source_client: Client | None = None,
 ) -> tuple[GitHubRetainedState, ProviderGateResult]:
     """Independently verify provider state after revoking destination write access."""
 
@@ -671,7 +730,7 @@ def seal(
         raise LifecycleError("seal requires one GitHub schema 2 reset handoff")
     revoke_handoff_key(client, handoff)
     candidate = candidate_evidence(candidate_report, handoff)
-    current_source, current_source_digest = source_state(client)
+    current_source, current_source_digest = source_state(source_client or client)
     if (
         current_source != handoff.source_commit
         or current_source_digest != handoff.source_refs_digest
@@ -766,7 +825,7 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
-def reset_command(args: argparse.Namespace, client: Client) -> None:
+def reset_command(args: argparse.Namespace, client: Client, *, source_client: Client) -> None:
     required = (
         args.deploy_public_key,
         args.wheel,
@@ -782,6 +841,10 @@ def reset_command(args: argparse.Namespace, client: Client) -> None:
         raise LifecycleError(f"reset confirmation must be exactly {GITHUB_PATH}")
     release_commit = object_id(args.release_commit, label="release_commit")
     controller_commit = object_id(args.controller_commit, label="controller_commit")
+    checkout = Path(__file__).resolve().parents[1]
+    observed_commit = validate_controller_checkout(checkout, expected_commit=release_commit)
+    if controller_commit != observed_commit:
+        raise LifecycleError("--controller-commit differs from the controller checkout")
     identity = inspect_wheel(args.wheel)
     if identity.wheel_sha256 != args.expected_wheel_sha256:
         raise LifecycleError("candidate wheel raw SHA-256 differs from the approved value")
@@ -808,6 +871,7 @@ def reset_command(args: argparse.Namespace, client: Client) -> None:
         release_commit=release_commit,
         controller_commit=controller_commit,
         now=started,
+        source_client=source_client,
     )
     write_private_json(args.handoff, handoff.document())
     write_private_json(
@@ -835,7 +899,7 @@ def reset_command(args: argparse.Namespace, client: Client) -> None:
     print(f"Candidate handoff: {args.handoff}")
 
 
-def seal_command(args: argparse.Namespace, client: Client) -> None:
+def seal_command(args: argparse.Namespace, client: Client, *, source_client: Client) -> None:
     required = (
         args.candidate_report,
         args.retained_state,
@@ -850,6 +914,10 @@ def seal_command(args: argparse.Namespace, client: Client) -> None:
     if existing:
         raise LifecycleError("seal output already exists: " + ", ".join(existing))
     handoff = ResetHandoff.read(args.handoff)
+    validate_controller_checkout(
+        Path(__file__).resolve().parents[1],
+        expected_commit=handoff.controller_commit,
+    )
     started = datetime.now(timezone.utc)
     try:
         retained, result = seal(
@@ -859,6 +927,7 @@ def seal_command(args: argparse.Namespace, client: Client) -> None:
             workflow_run_id=args.workflow_run_id,
             workflow_url=args.workflow_url,
             now=started,
+            source_client=source_client,
         )
     except (LifecycleError, StateError, OSError, ValueError) as error:
         write_once_private_json(
@@ -917,10 +986,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         token = token_from_fd(args.token_fd)
         client = GitHubAPI(token)
+        source_client = GitHubAPI(None)
         if args.command == "reset":
-            reset_command(args, client)
+            reset_command(args, client, source_client=source_client)
         else:
-            seal_command(args, client)
+            seal_command(args, client, source_client=source_client)
     except (LifecycleError, StateError, WheelIdentityError, OSError, ValueError) as error:
         fail(str(error))
 

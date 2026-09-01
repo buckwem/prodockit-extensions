@@ -8,11 +8,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import importlib
+import io
 import json
+import subprocess
 import sys
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -27,6 +30,15 @@ SOURCE = "c" * 40
 DIGEST = "d" * 64
 WHEEL = "e" * 64
 CONTENTS = "f" * 64
+
+
+def git(checkout: Path, *arguments: str) -> str:
+    return subprocess.run(
+        ("git", "-C", str(checkout), *arguments),
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
 
 
 def key_record() -> tuple[str, str]:
@@ -101,6 +113,13 @@ class FakeGitHub:
                 200,
                 {
                     "id": 77,
+                    "repository_selection": "all",
+                    "permissions": {
+                        "administration": "write",
+                        "metadata": "read",
+                        "pages": "read",
+                        "repository_hooks": "read",
+                    },
                     "account": {
                         "login": lifecycle.ORGANISATION,
                         "type": "Organization",
@@ -219,7 +238,12 @@ def perform_reset(
     )
 
 
-def candidate_report(path: Path, *, passed: bool = True) -> Path:
+def candidate_report(
+    path: Path,
+    *,
+    passed: bool = True,
+    wheel_sha256: str = WHEEL,
+) -> Path:
     value = {
         "architecture": "arm64",
         "candidate_version": "0.54.0",
@@ -257,7 +281,7 @@ def candidate_report(path: Path, *, passed: bool = True) -> Path:
         ),
         "source_refs_unchanged": True,
         "started_at_utc": "2026-09-01T12:01:00+00:00",
-        "wheel_sha256": WHEEL,
+        "wheel_sha256": wheel_sha256,
     }
     path.write_text(json.dumps(value), encoding="utf-8")
     return path
@@ -306,6 +330,25 @@ def test_reset_refuses_missing_retained_repository_and_extra_org_repo() -> None:
         perform_reset(unsafe)
 
 
+def test_reset_requires_the_exact_all_repository_app_installation() -> None:
+    class SelectedInstallation(FakeGitHub):
+        def request(
+            self,
+            method: str,
+            path: str,
+            *,
+            body: dict[str, Any] | None = None,
+            expected: set[int] | None = None,
+        ) -> lifecycle.ApiResponse:
+            response = super().request(method, path, body=body, expected=expected)
+            if method == "GET" and path == "/installation":
+                response.value["repository_selection"] = "selected"
+            return response
+
+    with pytest.raises(lifecycle.LifecycleError, match="another installation"):
+        perform_reset(SelectedInstallation())
+
+
 def test_reset_refuses_retained_refs_or_key_drift() -> None:
     changed = FakeGitHub(destination=True)
     changed.destination_refs = {"refs/heads/main": "9" * 40}
@@ -333,6 +376,67 @@ def test_public_key_requires_ed25519_wire_encoding(tmp_path: Path) -> None:
         lifecycle.public_key(path)
 
 
+def test_controller_checkout_requires_clean_exact_main(tmp_path: Path) -> None:
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    git(checkout, "init", "-b", "main")
+    git(checkout, "config", "user.name", "Controller")
+    git(checkout, "config", "user.email", "controller@example.invalid")
+    (checkout / "tracked.txt").write_text("reviewed\n", encoding="utf-8")
+    git(checkout, "add", ".")
+    git(checkout, "commit", "-m", "Reviewed")
+    commit = git(checkout, "rev-parse", "HEAD")
+    git(checkout, "update-ref", "refs/remotes/origin/main", commit)
+
+    assert lifecycle.validate_controller_checkout(checkout, expected_commit=commit) == commit
+
+    (checkout / "untracked.txt").write_text("unreviewed\n", encoding="utf-8")
+    with pytest.raises(lifecycle.LifecycleError, match="must be clean"):
+        lifecycle.validate_controller_checkout(checkout, expected_commit=commit)
+
+
+def test_github_api_refuses_redirects_and_anonymous_source_omits_token() -> None:
+    class Response:
+        status = 200
+        headers: ClassVar[dict[str, str]] = {}
+
+        @staticmethod
+        def read(_limit: int) -> bytes:
+            return b"{}"
+
+    class CaptureOpener:
+        request = None
+
+        def open(self, request, *, timeout: float):
+            del timeout
+            self.request = request
+            return Response()
+
+    anonymous = lifecycle.GitHubAPI(None)
+    capture = CaptureOpener()
+    anonymous._opener = capture
+    anonymous.request("GET", "/repos/buckwem/prodockit-template")
+    assert capture.request is not None
+    assert capture.request.get_header("Authorization") is None
+
+    class RedirectOpener:
+        @staticmethod
+        def open(request, *, timeout: float):
+            del request, timeout
+            raise urllib.error.HTTPError(
+                "https://api.github.com/redirect",
+                301,
+                "Moved",
+                {},
+                io.BytesIO(b'{"message":"Moved"}'),
+            )
+
+    authenticated = lifecycle.GitHubAPI("installation-token")
+    authenticated._opener = RedirectOpener()
+    with pytest.raises(lifecycle.LifecycleError, match="returned 301"):
+        authenticated.request("GET", "/repos/prodockit-live-tests/bootstrap-release-gate")
+
+
 def test_retained_state_schema_is_closed(tmp_path: Path) -> None:
     value = retained().document()
     path = tmp_path / "retained.json"
@@ -356,7 +460,8 @@ def test_seal_revokes_key_then_produces_closed_provider_result(tmp_path: Path) -
     client = FakeGitHub()
     handoff = perform_reset(client)
     client.destination_refs = {"refs/heads/main": COMMIT}
-    report = candidate_report(tmp_path / "candidate.json")
+    candidate_wheel = "9" * 64
+    report = candidate_report(tmp_path / "candidate.json", wheel_sha256=candidate_wheel)
 
     retained_state, provider_result = lifecycle.seal(
         client=client,
@@ -372,6 +477,7 @@ def test_seal_revokes_key_then_produces_closed_provider_result(tmp_path: Path) -
     assert retained_state.destination_deploy_key_enabled is False
     assert provider_result.passed is True
     assert provider_result.path_one.commit == provider_result.path_two.commit
+    assert provider_result.wheel_sha256 == candidate_wheel
     assert provider_result.wheel_contents_sha256 == CONTENTS
 
 
