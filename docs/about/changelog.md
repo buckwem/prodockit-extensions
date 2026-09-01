@@ -41,7 +41,7 @@ requests rather than here.
 ## Unreleased
 
 - Added read-only `pdk diag` environment and project health reports, with
-  verbose, online, and stable JSON forms for troubleshooting and support.
+  verbose, online, stable JSON, and author remediation for every check.
 
 ## 0.53.0 (2026-08-31)
 

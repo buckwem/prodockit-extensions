@@ -58,6 +58,7 @@ other_page_shapes = [
 "devcons/template-sync.md" = "publishing.md"
 "devcons/continuous-integration.md" = "publishing.md"
 "devcons/testing.md" = "publishing.md"
+"devcons/diagnostics.md" = "project-maintenance.md"
 "devcons/repo-metadata.md" = "project-maintenance.md"
 "devcons/pinning-drift.md" = "project-maintenance.md"
 "devcons/releasing.md" = "about/changelog.md"

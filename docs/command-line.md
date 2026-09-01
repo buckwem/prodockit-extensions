@@ -102,6 +102,8 @@ pdk diag --json > prodockit-diagnostics.json
 The JSON schema is stable and reports pass, warning, and failure counts. The
 command exits non-zero only for an actionable failure; warnings alone still
 exit zero. It never installs, repairs, generates, or changes project files.
+The [diagnostics guide](devcons/diagnostics.md) explains every stable check ID
+and the remediation required from a document author.
 
 ## Check resolved configuration {: #check-resolved-configuration }
 

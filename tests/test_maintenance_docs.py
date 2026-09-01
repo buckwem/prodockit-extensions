@@ -36,9 +36,10 @@ def test_getting_started_holds_installation_routes() -> None:
     } in publishing
     assert maintenance == [
         {"26. Maintenance overview": "project-maintenance.md"},
-        {"27. Repository metadata": "devcons/repo-metadata.md"},
-        {"28. Version pinning and drift": "devcons/pinning-drift.md"},
-        {"29. Build and release": "devcons/releasing.md"},
+        {"27. Diagnose a project": "devcons/diagnostics.md"},
+        {"28. Repository metadata": "devcons/repo-metadata.md"},
+        {"29. Version pinning and drift": "devcons/pinning-drift.md"},
+        {"30. Build and release": "devcons/releasing.md"},
     ]
 
 

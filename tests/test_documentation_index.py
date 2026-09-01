@@ -27,6 +27,7 @@ def test_topic_owner_pages_define_their_principal_index_entries() -> None:
             r"\index{commands!`prodockit source-bundle`}",
         ),
         "docs/project-maintenance.md": (r"\index{maintenance cycle}",),
+        "docs/devcons/diagnostics.md": (r"\index{commands!`prodockit diag`}",),
         "docs/devcons/devcons.md": (r"\index{contributor internals}",),
         "docs/devcons/development.md": (r"\index{development environment}", r"\index{source code map}"),
         "docs/devcons/bootstrap-internals.md": (r"\index{bootstrap design}",),

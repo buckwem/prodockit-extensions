@@ -808,7 +808,11 @@ def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
                     if update
                     else "Recorded template revision matches the template HEAD",
                     (f"recorded: {stamp}", f"template HEAD: {head}"),
-                    {"recorded": stamp, "latest": head, "remote": remote},
+                    {
+                        "recorded": stamp,
+                        "latest": head,
+                        "remote": _sanitise_text(remote, root),
+                    },
                 )
             )
         except (OSError, subprocess.SubprocessError, TemplateSyncError) as error:
@@ -818,7 +822,7 @@ def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
                     "Repository and template maintenance",
                     "warn",
                     "Online template comparison was unavailable",
-                    (str(error),),
+                    (_sanitise_text(str(error), root),),
                 )
             )
     return checks

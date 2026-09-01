@@ -257,3 +257,36 @@ def test_one_unreadable_area_does_not_prevent_the_remaining_diagnostics(
     failure = next(check for check in report.checks if check.id == "dependencies.inspection")
     assert failure.status == "fail"
     assert failure.details == ("cannot read pins",)
+
+
+def test_author_guide_documents_every_stable_check_id() -> None:
+    guide = (
+        Path(__file__).resolve().parent.parent / "docs" / "devcons" / "diagnostics.md"
+    ).read_text(encoding="utf-8")
+    check_ids = {
+        "environment.python",
+        "environment.virtual-env",
+        "environment.inspection",
+        "installation.commands",
+        "installation.dependencies",
+        "installation.metadata",
+        "installation.inspection",
+        "project.configuration",
+        "dependencies.pins",
+        "dependencies.shared-files",
+        "dependencies.inspection",
+        "renderer.pandoc",
+        "renderer.weasyprint",
+        "renderer.node",
+        "renderer.npm",
+        "renderer.mermaid",
+        "renderer.browser",
+        "renderer.mathjax",
+        "renderer.inspection",
+        "repository.git",
+        "repository.template-metadata",
+        "repository.template-update",
+        "repository.inspection",
+    }
+
+    assert not {check_id for check_id in check_ids if f"`{check_id}`" not in guide}
