@@ -310,3 +310,27 @@ def test_github_shadow_does_not_authorise_current_publication() -> None:
     assert "release:" in publish
     assert "types: [published]" in publish
     assert "bootstrap-live-provider-github" not in publish
+
+
+def test_release_coordinator_is_a_read_only_manual_shadow() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release-gate.yml").read_text(encoding="utf-8")
+
+    assert "  workflow_dispatch:" in workflow
+    for forbidden in ("  pull_request:", "  push:", "  schedule:", "  release:"):
+        assert forbidden not in workflow
+    assert "environment: bootstrap-live-release-gate" in workflow
+    assert "cancel-in-progress: false" in workflow
+    assert "contents: read" in workflow
+    assert "actions: read" in workflow
+    assert "checks: read" in workflow
+    assert "statuses: read" in workflow
+    assert "id-token: write" not in workflow
+    assert "contents: write" not in workflow
+    assert "PRODOCKIT_LIVE_SURREY_STATUS_TOKEN" in workflow
+    assert "PRODOCKIT_LIVE_SURREY_GROUP_TOKEN" not in workflow
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" not in workflow
+    assert "PRODOCKIT_LIVE_GITHUB_APP_PRIVATE_KEY" not in workflow
+    assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" not in workflow
+    assert "release_gate.py" in workflow
+    assert "gh-action-pypi-publish" not in workflow
+    assert "release: create" not in workflow

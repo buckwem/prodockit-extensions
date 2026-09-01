@@ -50,6 +50,7 @@ schedule. The other boxes are actions or workflow stages that follow.
 | [`bootstrap-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-install.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on the same five native runners, then exercise the new- and existing-repository routes for Surrey GitLab and public GitHub against hermetic local Git remotes. A version-changing release pull request also removes the runner's existing tools and executes Bootstrap's real VS Code, Git, Pandoc/Pango/font, Python-environment, Node/toolchain and editor-extension installs on all five runners. |
 | [`bootstrap-live-provider-github.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-live-provider-github.yml) | Protected manual dispatch for one exact `main` commit | Run the shadow GitHub live-provider gate in three fresh jobs: an App-authenticated reset, the two Bootstrap paths with only the destination deploy key, and an independently authenticated seal that removes write access before accepting the result. The shadow result does not yet authorise publication. |
 | [`.gitlab-ci.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.gitlab-ci.yml) | Protected manual pipeline in the fixed Surrey mirror for one exact public GitHub `main` commit | Hold one non-cancelling lifecycle lock while a child pipeline runs three credential-separated jobs: a group-token reset, both Bootstrap paths with only the Surrey deploy key, and a fresh group-token seal. The pipeline fetches the exact public source rather than assuming that the mirror is current. Its shadow result does not yet authorise publication. |
+| [`release-gate.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/release-gate.yml) | Protected manual dispatch after both live-provider runs | Resolve the immutable GitHub run and Surrey child pipeline through their APIs, require the five ordinary release workflows and any active protected-main status checks, rebuild the wheel, compare canonical contents and retain public-safe combined evidence. This remains a shadow and cannot publish. |
 | [`pdf-built-site-wheel.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/pdf-built-site-wheel.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on the same x64 and ARM64 operating-system matrix, exercise the renderer used by public `prodockit pdf` through Zensical's documented clean build, and verify it can consume navigation, rendered extensions and page metadata without a Git host |
 | [`ci.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/ci.yml) | Pull requests and pushes to `main`; weekly schedule; manual dispatch | Test Python 3.14 for every change, add the oldest supported Python when executable code can change, and select Python 3.10–3.14 for dependency, workflow and classifier changes. Weekly and manual runs always use the complete version matrix. Lint, type-check, verify pins and collect coverage once, strictly build the site, and validate both package artifacts on every run. |
 | [`docs.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/docs.yml) | Pushes to `main`; manual dispatch | Build the complete PDF and selected single-page PDFs, strictly build the website, run built-output tests, deploy Pages, then verify the live page matches the uploaded artifact |
@@ -96,9 +97,14 @@ the fixed `mb0105/prodockit-extensions` mirror. Each provider separates reset,
 candidate, and seal into protected jobs so no job can receive both a lifecycle
 credential and a repository deploy private key. A successful seal retains the
 repository, removes its write key, and records the exact state needed to
-authorise the next reset. Until the dual-provider shadow acceptance criteria
-have passed, these workflows supply evidence only: `publish.yml` remains
-unchanged and cannot treat either shadow result as release approval.
+authorise the next reset. The protected release-gate shadow resolves both
+immutable run IDs through provider APIs, requires the five ordinary release
+workflows for that exact commit plus any active protected-main status checks,
+rebuilds the candidate wheel and compares canonical contents before it
+retains combined public-safe evidence. Until the dual-provider shadow
+acceptance criteria have passed, these workflows supply evidence only:
+`publish.yml` remains unchanged and cannot treat a provider or coordinator
+result as release approval.
 
 This is the deliberate balance between time and maintenance complexity. The
 native matrices remain complete once selected rather than introducing a

@@ -150,6 +150,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/canonical_wheel.py": frozenset({"bootstrap"}),
     "tools/live_provider_state.py": frozenset({"bootstrap"}),
     "tools/release_gate.py": frozenset({"bootstrap"}),
+    "tools/release_gate_provider_status.py": frozenset({"bootstrap"}),
     "tools/release_gate_state.py": frozenset({"bootstrap"}),
     "tools/_bootstrap_acceptance_driver.py": frozenset({"bootstrap"}),
     "tools/bootstrap_native_install.py": frozenset({"bootstrap"}),
@@ -159,6 +160,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     ".github/workflows/pdf-built-site-wheel.yml": frozenset({"pdf"}),
     ".github/workflows/bootstrap-install.yml": frozenset({"bootstrap"}),
     ".github/workflows/bootstrap-live-provider-github.yml": frozenset({"bootstrap"}),
+    ".github/workflows/release-gate.yml": frozenset({"bootstrap"}),
     ".gitlab-ci.yml": frozenset({"bootstrap"}),
     ".gitlab/bootstrap-live-provider-surrey.yml": frozenset({"bootstrap"}),
 }

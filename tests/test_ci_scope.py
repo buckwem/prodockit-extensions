@@ -86,11 +86,13 @@ def test_component_acceptance_and_workflow_files_select_their_own_matrix() -> No
         ("tools/bootstrap_live_provider_github_lifecycle.py", "bootstrap"),
         ("tools/bootstrap_live_provider_surrey_fixture.py", "bootstrap"),
         ("tools/release_gate.py", "bootstrap"),
+        ("tools/release_gate_provider_status.py", "bootstrap"),
         ("tools/live_provider_state.py", "bootstrap"),
         (".github/workflows/adopt-install.yml", "adopt"),
         (".github/workflows/pdf-built-site-wheel.yml", "pdf"),
         (".github/workflows/bootstrap-install.yml", "bootstrap"),
         (".github/workflows/bootstrap-live-provider-github.yml", "bootstrap"),
+        (".github/workflows/release-gate.yml", "bootstrap"),
         (".gitlab/bootstrap-live-provider-surrey.yml", "bootstrap"),
     ):
         scope = classify([path])
