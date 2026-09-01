@@ -38,6 +38,8 @@ from bootstrap_live_provider_read_write import (
     validate_controller_checkout,
     validate_destination_refs,
 )
+from canonical_wheel import WheelIdentityError
+from canonical_wheel import inspect_wheel as inspect_canonical_wheel
 from live_provider_state import (
     SURREY_PATH,
     LifecycleFixture,
@@ -47,6 +49,11 @@ from live_provider_state import (
     canonical_sha256,
     validate_refs,
     write_private_json,
+)
+from release_gate_state import (
+    RELEASE_REPOSITORY,
+    ProviderGateResult,
+    ProviderPathResult,
 )
 
 READ_RETRY_DELAYS = (2.0, 5.0, 10.0, 20.0)
@@ -892,11 +899,28 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
     if args.confirm_project_reset != expected_confirmation:
         raise LifecycleError(f"--confirm-project-reset must be exactly {expected_confirmation}")
     wheel = inspect_wheel(args.wheel, args.expected_wheel_sha256)
+    expected_contents = getattr(args, "expected_wheel_contents_sha256", None)
+    release_commit = getattr(args, "release_commit", None)
+    canonical_identity = None
+    if (expected_contents is None) != (release_commit is None):
+        raise LifecycleError(
+            "protected reset requires both the canonical wheel digest and release commit"
+        )
+    if expected_contents is not None:
+        try:
+            canonical_identity = inspect_canonical_wheel(args.wheel)
+        except WheelIdentityError as error:
+            raise LifecycleError(str(error)) from error
+        if canonical_identity.wheel_contents_sha256 != expected_contents:
+            raise LifecycleError("candidate wheel contents differ from the approved value")
     controller_commit = validate_controller_checkout(
         source_checkout,
         environment=dict(os.environ),
         git_executable="git",
+        expected_release_commit=release_commit,
     )
+    if release_commit is not None and controller_commit != release_commit:
+        raise LifecycleError("the release commit differs from the trusted controller checkout")
     public_key = validate_public_key(args.deploy_public_key, fixture)
     previous = None
     if args.previous_state:
@@ -969,7 +993,7 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
         enable_destination_key(client, fixture, project_id, public_key, journal)
         completed = datetime.now(timezone.utc).replace(microsecond=0)
         handoff = ResetHandoff(
-            schema=1,
+            schema=2 if canonical_identity is not None else 1,
             run_id=str(uuid.uuid4()),
             provider="surrey",
             project_id=project_id,
@@ -984,6 +1008,9 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
             controller_commit=controller_commit,
             completed_at_utc=completed.isoformat(),
             expires_at_utc=(completed + timedelta(minutes=30)).isoformat(),
+            wheel_contents_sha256=(
+                canonical_identity.wheel_contents_sha256 if canonical_identity is not None else None
+            ),
         )
         handoff.validate(now=completed)
         audit = {
@@ -1003,6 +1030,9 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
             "operations": journal.operations,
             "handoff_sha256": canonical_sha256(handoff.document()),
         }
+        if canonical_identity is not None:
+            audit["release_commit"] = release_commit
+            audit["wheel_contents_sha256"] = canonical_identity.wheel_contents_sha256
         write_private_json(handoff_path, handoff.document())
         write_private_json(audit_path, audit)
     except Exception as reset_error:
@@ -1032,7 +1062,9 @@ def phase_two_report(path: Path, handoff: ResetHandoff) -> dict[str, Any]:
         value.get("provider") != "surrey"
         or value.get("repository") != SURREY_PATH
         or value.get("candidate_version") != handoff.candidate_version
-        or value.get("wheel_sha256") != handoff.wheel_sha256
+        or (handoff.schema == 1 and value.get("wheel_sha256") != handoff.wheel_sha256)
+        or not isinstance(value.get("wheel_sha256"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", value["wheel_sha256"])
         or value.get("source_refs_unchanged") is not True
         or value.get("source_refs_digest") != handoff.source_refs_digest
         or value.get("destination_transition") != "empty -> refs/heads/main"
@@ -1090,10 +1122,21 @@ def verify_and_seal(args: argparse.Namespace, client: GitLabClient) -> None:
             must_exist=True,
         )
     )
+    release_commit = getattr(args, "release_commit", None)
+    provider_result_path = getattr(args, "provider_result", None)
+    workflow_run_id = getattr(args, "workflow_run_id", None)
+    workflow_url = getattr(args, "workflow_url", None)
+    release_values = (release_commit, provider_result_path, workflow_run_id, workflow_url)
+    protected_release = any(value is not None for value in release_values)
+    if protected_release and any(value is None for value in release_values):
+        raise LifecycleError("protected seal arguments are incomplete")
+    if protected_release and handoff.schema != 2:
+        raise LifecycleError("protected seal requires a schema 2 reset handoff")
     controller_commit = validate_controller_checkout(
         source_checkout,
         environment=dict(os.environ),
         git_executable="git",
+        expected_release_commit=release_commit,
     )
     if (
         handoff.provider != fixture.provider
@@ -1123,12 +1166,31 @@ def verify_and_seal(args: argparse.Namespace, client: GitLabClient) -> None:
         checkout=source_checkout,
         must_exist=False,
     )
+    provider_result_output = None
+    if protected_release:
+        provider_result_output = private_metadata_path(
+            provider_result_path,
+            label="provider gate result",
+            checkout=source_checkout,
+            must_exist=False,
+        )
     project = project_value(client, fixture)
     if project is None:
         raise LifecycleError("the candidate destination project disappeared")
     validate_project_identity(project, fixture, expected_id=handoff.project_id)
     journal = Journal([])
     try:
+        if protected_release:
+            existing = [
+                path
+                for path in (retained_path, audit_path, provider_result_output)
+                if path is not None and path.exists()
+            ]
+            if existing:
+                raise LifecycleError(
+                    "protected seal output already exists: "
+                    + ", ".join(str(path) for path in existing)
+                )
         report = phase_two_report(candidate_path, handoff)
         group_preflight(client, fixture)
         snapshot = project_snapshot(client, fixture, project)
@@ -1168,6 +1230,7 @@ def verify_and_seal(args: argparse.Namespace, client: GitLabClient) -> None:
     validate_no_project_content(snapshot)
     if any(key.get("id") == fixture.deploy_key.id for key in snapshot.deploy_keys):
         raise LifecycleError("the destination write key remains enabled after sealing")
+    template_preflight(client, fixture)
     sealed = RetainedState(
         schema=1,
         provider="surrey",
@@ -1180,7 +1243,7 @@ def verify_and_seal(args: argparse.Namespace, client: GitLabClient) -> None:
         destination_deploy_key_enabled=False,
         source_refs_digest=handoff.source_refs_digest,
         candidate_version=handoff.candidate_version,
-        wheel_sha256=handoff.wheel_sha256,
+        wheel_sha256=report["wheel_sha256"],
         sealed_at_utc=utc_now(),
     )
     sealed.validate()
@@ -1206,7 +1269,54 @@ def verify_and_seal(args: argparse.Namespace, client: GitLabClient) -> None:
         "operations": journal.operations,
         "retained_state_sha256": canonical_sha256(sealed.document()),
     }
+    provider_result = None
+    if protected_release:
+
+        def gate_path(value: dict[str, Any], *, label: str) -> ProviderPathResult:
+            normalised = dict(value)
+            normalised["configured_source"] = normalised["configured_source"] or None
+            normalised["configured_history"] = normalised["configured_history"] or None
+            try:
+                return ProviderPathResult.parse(normalised, label=label)
+            except StateError as error:
+                raise LifecycleError(str(error)) from error
+
+        provider_result = ProviderGateResult(
+            schema=1,
+            passed=True,
+            provider="surrey",
+            release_repository=RELEASE_REPOSITORY,
+            release_commit=release_commit,
+            candidate_version=handoff.candidate_version,
+            wheel_sha256=report["wheel_sha256"],
+            wheel_contents_sha256=handoff.wheel_contents_sha256,
+            controller_commit=controller_commit,
+            repository=fixture.project.path_with_namespace,
+            project_id=handoff.project_id,
+            path_one=gate_path(report["path_one"], label="path_one"),
+            path_two=gate_path(report["path_two"], label="path_two"),
+            source_commit=handoff.source_commit,
+            source_refs_digest=handoff.source_refs_digest,
+            source_refs_unchanged=True,
+            destination_refs=snapshot.refs,
+            destination_deploy_key_enabled=False,
+            workflow_run_id=workflow_run_id,
+            workflow_url=workflow_url,
+            started_at_utc=report["started_at_utc"],
+            finished_at_utc=utc_now(),
+        )
+        try:
+            provider_result.validate()
+        except StateError as error:
+            raise LifecycleError(str(error)) from error
+        audit["release_commit"] = release_commit
+        audit["wheel_contents_sha256"] = handoff.wheel_contents_sha256
+        audit["workflow_run_id"] = workflow_run_id
+        audit["workflow_url"] = workflow_url
+        audit["provider_result_sha256"] = provider_result.sha256
     write_private_json(retained_path, sealed.document())
+    if provider_result is not None and provider_result_output is not None:
+        write_private_json(provider_result_output, provider_result.document())
     write_private_json(audit_path, audit)
     print(f"Phase 3 verified and sealed: {fixture.project.path_with_namespace}")
     print(f"Retained state: {retained_path}")
@@ -1236,6 +1346,8 @@ def parser() -> argparse.ArgumentParser:
     reset.add_argument("--deploy-public-key", required=True, type=Path)
     reset.add_argument("--wheel", required=True, type=Path)
     reset.add_argument("--expected-wheel-sha256", required=True)
+    reset.add_argument("--expected-wheel-contents-sha256")
+    reset.add_argument("--release-commit")
     reset.add_argument("--handoff", required=True, type=Path)
     reset.add_argument("--audit-report", required=True, type=Path)
     reset.add_argument("--token-fd", type=int, default=0)
@@ -1246,6 +1358,10 @@ def parser() -> argparse.ArgumentParser:
     seal.add_argument("--candidate-report", required=True, type=Path)
     seal.add_argument("--retained-state", required=True, type=Path)
     seal.add_argument("--audit-report", required=True, type=Path)
+    seal.add_argument("--release-commit")
+    seal.add_argument("--provider-result", type=Path)
+    seal.add_argument("--workflow-run-id", type=int)
+    seal.add_argument("--workflow-url")
     seal.add_argument("--token-fd", type=int, default=0)
     return result
 

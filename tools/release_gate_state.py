@@ -18,6 +18,7 @@ OBJECT_ID_RE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 PIPELINE_REF_RE = re.compile(r"refs/pipelines/[1-9][0-9]*")
 RELEASE_REPOSITORY = "buckwem/prodockit-extensions"
+SURREY_WORKFLOW_PROJECT = "mb0105/prodockit-extensions"
 PROVIDER_DESTINATIONS = {
     "github": "prodockit-live-tests/bootstrap-release-gate",
     "surrey": "assessment-liveprovider-2026/report-liveprovider-2026-mb0105",
@@ -276,7 +277,7 @@ class ProviderGateResult:
             expected_path = f"/{RELEASE_REPOSITORY}/actions/runs/{self.workflow_run_id}"
             expected_host = "github.com"
         else:
-            expected_path = f"/{self.repository}/-/pipelines/{self.workflow_run_id}"
+            expected_path = f"/{SURREY_WORKFLOW_PROJECT}/-/pipelines/{self.workflow_run_id}"
             expected_host = "gitlab.surrey.ac.uk"
         if (
             parsed_url.scheme != "https"

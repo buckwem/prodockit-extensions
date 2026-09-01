@@ -1,0 +1,183 @@
+# Protected Surrey live-provider shadow gate. This pipeline is intentionally
+# unavailable to pushes, merge requests, schedules and tags.
+
+workflow:
+  name: "Surrey Bootstrap live jobs for $PRODOCKIT_LIVE_RELEASE_COMMIT"
+  rules:
+    - if: >-
+        $CI_PIPELINE_SOURCE == "parent_pipeline" &&
+        $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH &&
+        $CI_PROJECT_PATH == "mb0105/prodockit-extensions" &&
+        $PRODOCKIT_LIVE_RELEASE_COMMIT =~ /^[0-9a-f]{40}$/ &&
+        $PRODOCKIT_LIVE_PREVIOUS_SEAL_JOB_ID =~ /^(0|[1-9][0-9]*)$/
+    - when: never
+
+variables:
+  GIT_STRATEGY: none
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+stages:
+  - live-reset
+  - live-candidate
+  - live-seal
+
+.surrey-release-checkout:
+  before_script:
+    - set -eu
+    - test "$CI_PROJECT_PATH" = "mb0105/prodockit-extensions"
+    - test "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH"
+    - test "$(printf '%s' "$PRODOCKIT_LIVE_RELEASE_COMMIT" | wc -c | tr -d ' ')" = 40
+    - export LIVE_ROOT="$CI_PROJECT_DIR/live-$CI_JOB_ID"
+    - install -m 700 -d "$LIVE_ROOT"
+    - |
+      if [ "$CI_JOB_NAME" = "surrey_candidate" ]; then
+        install -m 700 -d "$CI_PROJECT_DIR/surrey-candidate"
+        printf '{"candidate":"did not reach the controlled runner"}\n' \
+          > "$CI_PROJECT_DIR/surrey-candidate/report.json"
+        chmod 600 "$CI_PROJECT_DIR/surrey-candidate/report.json"
+      fi
+    - git clone --no-checkout --no-tags https://github.com/buckwem/prodockit-extensions.git "$LIVE_ROOT/controller"
+    - git -C "$LIVE_ROOT/controller" checkout --detach "$PRODOCKIT_LIVE_RELEASE_COMMIT"
+    - test "$(git -C "$LIVE_ROOT/controller" rev-parse HEAD)" = "$PRODOCKIT_LIVE_RELEASE_COMMIT"
+    - test "$(git ls-remote https://github.com/buckwem/prodockit-extensions.git refs/heads/main | cut -f1)" = "$PRODOCKIT_LIVE_RELEASE_COMMIT"
+    - test -z "$(git -C "$LIVE_ROOT/controller" status --porcelain)"
+
+surrey_reset:
+  extends: .surrey-release-checkout
+  stage: live-reset
+  tags:
+    - prodockit-live-surrey-controller
+  environment:
+    name: bootstrap-live-surrey-reset
+  timeout: 20 minutes
+  interruptible: false
+  script:
+    - install -m 700 -d "$LIVE_ROOT/reset" "$CI_PROJECT_DIR/surrey-reset"
+    - printf '%s\n' "$PRODOCKIT_LIVE_SURREY_FIXTURE_JSON" > "$LIVE_ROOT/reset/fixture.json"
+    - printf '%s\n' "$PRODOCKIT_LIVE_SURREY_DEPLOY_PUBLIC_KEY" > "$LIVE_ROOT/reset/deploy-key.pub"
+    - chmod 600 "$LIVE_ROOT/reset/fixture.json" "$LIVE_ROOT/reset/deploy-key.pub"
+    - python3 -m pip install build
+    - python3 -m build --wheel --outdir "$LIVE_ROOT/reset-wheel" "$LIVE_ROOT/controller"
+    - export LIVE_WHEEL="$(find "$LIVE_ROOT/reset-wheel" -maxdepth 1 -name 'prodockit-*.whl' -type f -print -quit)"
+    - test -n "$LIVE_WHEEL"
+    - python3 "$LIVE_ROOT/controller/tools/canonical_wheel.py" "$LIVE_WHEEL" --output "$LIVE_ROOT/reset-wheel.json"
+    - export LIVE_RAW_SHA="$(IDENTITY="$LIVE_ROOT/reset-wheel.json" python3 -c 'import json,os; print(json.load(open(os.environ["IDENTITY"], encoding="utf-8"))["wheel_sha256"])')"
+    - export LIVE_CONTENTS_SHA="$(IDENTITY="$LIVE_ROOT/reset-wheel.json" python3 -c 'import json,os; print(json.load(open(os.environ["IDENTITY"], encoding="utf-8"))["wheel_contents_sha256"])')"
+    - |
+      set --
+      if [ "$PRODOCKIT_LIVE_PREVIOUS_SEAL_JOB_ID" != "0" ]; then
+        curl --fail --silent --show-error --location \
+          --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+          "$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/$PRODOCKIT_LIVE_PREVIOUS_SEAL_JOB_ID/artifacts/surrey-retained-state/retained-state.json" \
+          --output "$LIVE_ROOT/reset/previous-state.json"
+        chmod 600 "$LIVE_ROOT/reset/previous-state.json"
+        set -- --previous-state "$LIVE_ROOT/reset/previous-state.json"
+      fi
+      printf '%s' "$PRODOCKIT_LIVE_SURREY_GROUP_TOKEN" | env -i \
+        HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" \
+        python3 "$LIVE_ROOT/controller/tools/bootstrap_live_provider_lifecycle.py" reset \
+          --token-fd 0 \
+          --fixture "$LIVE_ROOT/reset/fixture.json" \
+          --deploy-public-key "$LIVE_ROOT/reset/deploy-key.pub" \
+          --wheel "$LIVE_WHEEL" \
+          --expected-wheel-sha256 "$LIVE_RAW_SHA" \
+          --expected-wheel-contents-sha256 "$LIVE_CONTENTS_SHA" \
+          --release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT" \
+          --handoff "$CI_PROJECT_DIR/surrey-reset/reset-handoff.json" \
+          --audit-report "$CI_PROJECT_DIR/surrey-reset/reset-audit.json" \
+          --confirm-project-reset "assessment-liveprovider-2026/report-liveprovider-2026-mb0105" \
+          "$@"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - surrey-reset/reset-handoff.json
+      - surrey-reset/reset-audit.json
+  cache: []
+
+surrey_candidate:
+  extends: .surrey-release-checkout
+  stage: live-candidate
+  needs:
+    - job: surrey_reset
+      artifacts: true
+  tags:
+    - prodockit-live-surrey-candidate
+  environment:
+    name: bootstrap-live-surrey-candidate
+  timeout: 45 minutes
+  interruptible: false
+  script:
+    - install -m 700 -d "$LIVE_ROOT/candidate/ssh" "$CI_PROJECT_DIR/surrey-candidate"
+    - printf '%s\n' "$PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" > "$LIVE_ROOT/candidate/ssh/id_ed25519"
+    - printf '%s\n' "$PRODOCKIT_LIVE_SURREY_KNOWN_HOSTS" > "$LIVE_ROOT/candidate/ssh/known_hosts"
+    - chmod 600 "$LIVE_ROOT/candidate/ssh/id_ed25519" "$LIVE_ROOT/candidate/ssh/known_hosts"
+    - ssh-keygen -y -f "$LIVE_ROOT/candidate/ssh/id_ed25519" > "$LIVE_ROOT/candidate/ssh/id_ed25519.pub"
+    - export LIVE_FINGERPRINT="$(ssh-keygen -lf "$LIVE_ROOT/candidate/ssh/id_ed25519.pub" -E sha256 | awk '{print $2}')"
+    - eval "$(ssh-agent -s)"
+    - trap 'ssh-add -D >/dev/null 2>&1 || true; ssh-agent -k >/dev/null 2>&1 || true' EXIT
+    - ssh-add "$LIVE_ROOT/candidate/ssh/id_ed25519"
+    - export GIT_SSH_COMMAND="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityFile=$LIVE_ROOT/candidate/ssh/id_ed25519.pub -o IdentityAgent=$SSH_AUTH_SOCK -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$LIVE_ROOT/candidate/ssh/known_hosts"
+    - export LIVE_SOURCE_COMMIT="$(python3 -c 'import json; print(json.load(open("surrey-reset/reset-handoff.json", encoding="utf-8"))["source_commit"])')"
+    - git clone --no-checkout --no-tags git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git "$LIVE_ROOT/surrey-template"
+    - git -C "$LIVE_ROOT/surrey-template" checkout --detach "$LIVE_SOURCE_COMMIT"
+    - python3 "$LIVE_ROOT/controller/tools/bootstrap_live_provider_surrey_fixture.py" --handoff "$CI_PROJECT_DIR/surrey-reset/reset-handoff.json" --source-checkout "$LIVE_ROOT/surrey-template" --output "$LIVE_ROOT/candidate/fixture.json"
+    - python3 -m pip install build
+    - python3 -m build --wheel --outdir "$LIVE_ROOT/candidate-wheel" "$LIVE_ROOT/controller"
+    - export LIVE_WHEEL="$(find "$LIVE_ROOT/candidate-wheel" -maxdepth 1 -name 'prodockit-*.whl' -type f -print -quit)"
+    - test -n "$LIVE_WHEEL"
+    - python3 "$LIVE_ROOT/controller/tools/canonical_wheel.py" "$LIVE_WHEEL" --output "$LIVE_ROOT/candidate-wheel.json"
+    - export LIVE_RAW_SHA="$(IDENTITY="$LIVE_ROOT/candidate-wheel.json" python3 -c 'import json,os; print(json.load(open(os.environ["IDENTITY"], encoding="utf-8"))["wheel_sha256"])')"
+    - brew install pandoc pango
+    - python3 "$LIVE_ROOT/controller/tools/bootstrap_live_provider_read_write.py" --provider surrey --fixture "$LIVE_ROOT/candidate/fixture.json" --wheel "$LIVE_WHEEL" --expected-wheel-sha256 "$LIVE_RAW_SHA" --agent-socket "$SSH_AUTH_SOCK" --key-fingerprint "$LIVE_FINGERPRINT" --known-hosts "$LIVE_ROOT/candidate/ssh/known_hosts" --reset-handoff "$CI_PROJECT_DIR/surrey-reset/reset-handoff.json" --release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT" --report "$CI_PROJECT_DIR/surrey-candidate/report.json" --confirm-read-write
+  after_script:
+    - ssh-add -D >/dev/null 2>&1 || true
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - surrey-candidate/report.json
+  cache: []
+
+surrey_seal:
+  extends: .surrey-release-checkout
+  stage: live-seal
+  needs:
+    - job: surrey_reset
+      artifacts: true
+    - job: surrey_candidate
+      artifacts: true
+  when: always
+  tags:
+    - prodockit-live-surrey-controller
+  environment:
+    name: bootstrap-live-surrey-seal
+  timeout: 20 minutes
+  interruptible: false
+  script:
+    - install -m 700 -d "$LIVE_ROOT/seal" "$CI_PROJECT_DIR/surrey-retained-state" "$CI_PROJECT_DIR/surrey-provider-result"
+    - printf '%s\n' "$PRODOCKIT_LIVE_SURREY_FIXTURE_JSON" > "$LIVE_ROOT/seal/fixture.json"
+    - chmod 600 "$LIVE_ROOT/seal/fixture.json"
+    - test -f "$CI_PROJECT_DIR/surrey-candidate/report.json" || printf '{"candidate":"artifact unavailable"}\n' > "$CI_PROJECT_DIR/surrey-candidate/report.json"
+    - |
+      printf '%s' "$PRODOCKIT_LIVE_SURREY_GROUP_TOKEN" | env -i \
+        HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" \
+        python3 "$LIVE_ROOT/controller/tools/bootstrap_live_provider_lifecycle.py" verify-and-seal \
+          --token-fd 0 \
+          --fixture "$LIVE_ROOT/seal/fixture.json" \
+          --handoff "$CI_PROJECT_DIR/surrey-reset/reset-handoff.json" \
+          --candidate-report "$CI_PROJECT_DIR/surrey-candidate/report.json" \
+          --retained-state "$CI_PROJECT_DIR/surrey-retained-state/retained-state.json" \
+          --audit-report "$CI_PROJECT_DIR/surrey-provider-result/seal-audit.json" \
+          --release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT" \
+          --provider-result "$CI_PROJECT_DIR/surrey-provider-result/provider-result.json" \
+          --workflow-run-id "$CI_PIPELINE_ID" \
+          --workflow-url "$CI_PIPELINE_URL"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - surrey-retained-state/retained-state.json
+      - surrey-provider-result/provider-result.json
+      - surrey-provider-result/seal-audit.json
+  cache: []

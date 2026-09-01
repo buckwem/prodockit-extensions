@@ -65,6 +65,7 @@ SURREY_DESTINATION = (
     "git@gitlab.surrey.ac.uk:assessment-liveprovider-2026/report-liveprovider-2026-mb0105.git"
 )
 PUBLIC_TEMPLATE = "https://github.com/buckwem/prodockit-template.git"
+RELEASE_SOURCE = "https://github.com/buckwem/prodockit-extensions.git"
 INITIAL_COMMIT_SUBJECT = "Initial commit"
 REQUIRED_VSCODE_EXTENSIONS = (
     "ms-python.python",
@@ -526,12 +527,19 @@ def validate_controller_checkout(
     *,
     environment: dict[str, str],
     git_executable: str,
+    expected_release_commit: str | None = None,
 ) -> str:
-    """Require the trusted controller to be clean and at reviewed origin/main."""
+    """Require a clean reviewed controller checkout.
+
+    Manual Phase 3 runs use local ``main`` at ``origin/main``. Protected
+    provider jobs may instead use a detached checkout of one exact public
+    GitHub release commit, because the GitLab mirror can legitimately lag.
+    """
     observations = {
         "branch": ["branch", "--show-current"],
         "head": ["rev-parse", "HEAD"],
         "origin_main": ["rev-parse", "origin/main"],
+        "origin": ["remote", "get-url", "origin"],
         "status": ["status", "--porcelain"],
     }
     values = {
@@ -542,10 +550,22 @@ def validate_controller_checkout(
         ).stdout.strip()
         for name, arguments in observations.items()
     }
-    if values["branch"] != "main":
-        raise LiveProviderError("the Phase 2 controller must run from the default main branch")
     if values["status"]:
         raise LiveProviderError("the Phase 2 controller checkout must be clean")
+    if expected_release_commit is not None:
+        if not OBJECT_ID_RE.fullmatch(expected_release_commit):
+            raise LiveProviderError("the release commit must be one complete Git object ID")
+        if values["branch"] not in {"", "main"}:
+            raise LiveProviderError("the release controller is on an unexpected branch")
+        if values["origin"] != RELEASE_SOURCE:
+            raise LiveProviderError("the release controller did not come from the public source")
+        if values["head"] != expected_release_commit:
+            raise LiveProviderError(
+                "the release controller differs from the exact requested commit"
+            )
+        return values["head"]
+    if values["branch"] != "main":
+        raise LiveProviderError("the Phase 2 controller must run from the default main branch")
     if values["head"] != values["origin_main"]:
         raise LiveProviderError("the Phase 2 controller must match reviewed origin/main")
     return values["head"]
@@ -1294,6 +1314,7 @@ def controller(args: argparse.Namespace) -> None:
         source_checkout,
         environment=dict(os.environ),
         git_executable=system_git,
+        expected_release_commit=args.release_commit,
     )
     handoff: ResetHandoff | None = None
     if args.reset_handoff is not None:
@@ -1602,6 +1623,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--expected-wheel-sha256", default="")
     result.add_argument("--report", type=Path)
     result.add_argument("--reset-handoff", type=Path)
+    result.add_argument("--release-commit")
     result.add_argument("--confirm-read-write", action="store_true")
     return result
 

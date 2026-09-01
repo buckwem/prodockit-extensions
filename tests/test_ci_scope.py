@@ -72,9 +72,7 @@ def test_unit_test_only_change_does_not_start_a_native_matrix() -> None:
 def test_component_runtime_changes_select_only_their_native_matrix() -> None:
     assert classify(["src/prodockit/adopt.py"]) == Scope(True, True, False, True)
     assert classify(["src/prodockit/pdf/site.py"]) == Scope(True, False, True, False)
-    assert classify(["src/prodockit/bootstrap/stages.py"]) == Scope(
-        True, False, False, True
-    )
+    assert classify(["src/prodockit/bootstrap/stages.py"]) == Scope(True, False, False, True)
 
 
 def test_component_acceptance_and_workflow_files_select_their_own_matrix() -> None:
@@ -85,10 +83,15 @@ def test_component_acceptance_and_workflow_files_select_their_own_matrix() -> No
         ("tools/bootstrap_live_provider_read_only.py", "bootstrap"),
         ("tools/bootstrap_live_provider_read_write.py", "bootstrap"),
         ("tools/bootstrap_live_provider_lifecycle.py", "bootstrap"),
+        ("tools/bootstrap_live_provider_github_lifecycle.py", "bootstrap"),
+        ("tools/bootstrap_live_provider_surrey_fixture.py", "bootstrap"),
+        ("tools/release_gate.py", "bootstrap"),
         ("tools/live_provider_state.py", "bootstrap"),
         (".github/workflows/adopt-install.yml", "adopt"),
         (".github/workflows/pdf-built-site-wheel.yml", "pdf"),
         (".github/workflows/bootstrap-install.yml", "bootstrap"),
+        (".github/workflows/bootstrap-live-provider-github.yml", "bootstrap"),
+        (".gitlab/bootstrap-live-provider-surrey.yml", "bootstrap"),
     ):
         scope = classify([path])
         assert getattr(scope, component), path
@@ -108,9 +111,7 @@ def test_shared_packaging_and_command_files_select_every_matrix() -> None:
 def test_styles_and_project_configuration_have_narrow_explicit_owners() -> None:
     assert classify(["docs/stylesheets/pdk.css"]) == Scope(False, True, True, False)
     assert classify(["docs/stylesheets/pdk-pdf.css"]) == Scope(False, False, True, False)
-    assert classify(["src/prodockit/project_config.py"]) == Scope(
-        True, True, True, False
-    )
+    assert classify(["src/prodockit/project_config.py"]) == Scope(True, True, True, False)
 
 
 def test_unknown_implementation_path_fails_closed_to_every_matrix() -> None:
@@ -125,10 +126,7 @@ def test_every_runtime_asset_and_ci_tool_has_an_explicit_owner_or_exemption() ->
         for path in (ROOT / "src" / "prodockit").rglob("*")
         if path.is_file() and "__pycache__" not in path.parts
     }
-    paths.update(
-        path.relative_to(ROOT).as_posix()
-        for path in (ROOT / "tools").glob("*.py")
-    )
+    paths.update(path.relative_to(ROOT).as_posix() for path in (ROOT / "tools").glob("*.py"))
     paths.update(
         path.relative_to(ROOT).as_posix()
         for path in (ROOT / "docs" / "stylesheets").glob("pdk*.css")
@@ -153,9 +151,7 @@ def test_pull_request_uses_merge_base_and_reports_both_sides_of_renames() -> Non
         git=git,
     )
 
-    assert changed == ChangedRange(
-        ("old.py", "new.py"), False, "classified 33333333..22222222"
-    )
+    assert changed == ChangedRange(("old.py", "new.py"), False, "classified 33333333..22222222")
     assert calls[0] == ("git", "merge-base", BASE, HEAD)
     assert "--no-renames" in calls[1]
     assert "--diff-filter=ACDMR" in calls[1]
@@ -168,9 +164,7 @@ def test_push_uses_the_complete_before_after_range() -> None:
         calls.append(tuple(command))
         return _completed(stdout=b"src/prodockit/cli.py\0")
 
-    changed = changed_range_for_event(
-        "push", {"before": BASE, "after": HEAD}, git=git
-    )
+    changed = changed_range_for_event("push", {"before": BASE, "after": HEAD}, git=git)
 
     assert changed.paths == ("src/prodockit/cli.py",)
     assert calls[0][-2:] == (BASE, HEAD)
@@ -225,9 +219,7 @@ def test_real_bootstrap_installs_are_selected_once_for_release_pull_requests() -
         return _completed(stdout=f'[project]\nversion = "{version}"\n'.encode())
 
     changes = ChangedRange(("pyproject.toml",), False, "release")
-    assert bootstrap_native_for_event(
-        "pull_request", event, changes, git=changed_version
-    )
+    assert bootstrap_native_for_event("pull_request", event, changes, git=changed_version)
     assert not bootstrap_native_for_event("push", {}, changes, git=changed_version)
 
 
@@ -252,9 +244,7 @@ def test_real_adopt_harness_exercises_itself_and_manual_dispatch() -> None:
     ):
         assert adopt_native_for_event("pull_request", {}, ChangedRange((harness,)))
     assert adopt_native_for_event("workflow_dispatch", {}, ChangedRange(full=True))
-    assert not adopt_native_for_event(
-        "push", {}, ChangedRange(("tools/adopt_native_upgrade.py",))
-    )
+    assert not adopt_native_for_event("push", {}, ChangedRange(("tools/adopt_native_upgrade.py",)))
 
 
 def test_real_adopt_upgrade_skips_ordinary_pull_requests() -> None:
@@ -285,9 +275,7 @@ def test_real_bootstrap_harness_exercises_itself_and_manual_dispatch() -> None:
         "tools/bootstrap_native_upgrade.py",
         "tools/native_download.py",
     ):
-        assert bootstrap_native_for_event(
-            "pull_request", {}, ChangedRange((harness,))
-        )
+        assert bootstrap_native_for_event("pull_request", {}, ChangedRange((harness,)))
     assert bootstrap_native_for_event("workflow_dispatch", {}, ChangedRange(full=True))
     assert not bootstrap_native_for_event(
         "push", {}, ChangedRange(("tools/bootstrap_native_install.py",))
@@ -366,11 +354,8 @@ def test_every_artifact_workflow_uses_the_python_314_project_pin() -> None:
     assert not unpinned, f"setup-python does not use the 3.14 project pin: {unpinned}"
 
 
-def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_coverage(
-) -> None:
-    workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(
-        encoding="utf-8"
-    )
+def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_coverage() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(encoding="utf-8")
 
     assert "run-name: Adopt wheel installation and real project upgrades" in workflow
     assert "cache: npm" in workflow
@@ -382,9 +367,7 @@ def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_c
 
 
 def test_adopt_release_gate_upgrades_an_old_full_project_on_every_runner() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(encoding="utf-8")
 
     assert "native: ${{ steps.scope.outputs['adopt-native'] }}" in workflow
     assert "if: needs.scope.outputs.native == 'true'" in workflow
@@ -406,8 +389,7 @@ def test_bootstrap_release_gate_runs_real_installs_on_every_supported_runner() -
     )
 
     assert (
-        "run-name: Bootstrap wheel installation, clean setup and real software upgrades"
-        in workflow
+        "run-name: Bootstrap wheel installation, clean setup and real software upgrades" in workflow
     )
     assert "native: ${{ steps.scope.outputs['bootstrap-native'] }}" in workflow
     assert "if: needs.scope.outputs.native == 'true'" in workflow

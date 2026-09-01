@@ -80,7 +80,7 @@ def result_document(provider: str, **updates: object) -> dict[str, object]:
     workflow_url = (
         f"https://github.com/{state.RELEASE_REPOSITORY}/actions/runs/{run_id}"
         if provider == "github"
-        else f"https://gitlab.surrey.ac.uk/{repository}/-/pipelines/{run_id}"
+        else f"https://gitlab.surrey.ac.uk/{state.SURREY_WORKFLOW_PROJECT}/-/pipelines/{run_id}"
     )
     value: dict[str, object] = {
         "schema": 1,
@@ -274,6 +274,34 @@ def test_github_shadow_workflow_keeps_three_credential_boundaries() -> None:
     assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" not in reset
     assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" not in seal
     assert "if: always() && needs.reset.result == 'success'" in seal
+
+
+def test_surrey_shadow_pipeline_keeps_three_credential_boundaries() -> None:
+    parent = (ROOT / ".gitlab-ci.yml").read_text(encoding="utf-8")
+    pipeline = (ROOT / ".gitlab" / "bootstrap-live-provider-surrey.yml").read_text(encoding="utf-8")
+    reset = pipeline[pipeline.index("surrey_reset:") : pipeline.index("surrey_candidate:")]
+    candidate = pipeline[pipeline.index("surrey_candidate:") : pipeline.index("surrey_seal:")]
+    seal = pipeline[pipeline.index("surrey_seal:") :]
+
+    assert '$CI_PIPELINE_SOURCE == "web"' in parent
+    for forbidden in ('"push"', '"merge_request_event"', '"schedule"'):
+        assert forbidden not in parent
+    assert "resource_group: bootstrap-live-surrey" in parent
+    assert "strategy: mirror" in parent
+    assert '$CI_PIPELINE_SOURCE == "parent_pipeline"' in pipeline
+    assert "environment:\n    name: bootstrap-live-surrey-reset" in reset
+    assert "environment:\n    name: bootstrap-live-surrey-candidate" in candidate
+    assert "environment:\n    name: bootstrap-live-surrey-seal" in seal
+    assert "PRODOCKIT_LIVE_SURREY_GROUP_TOKEN" in reset
+    assert "PRODOCKIT_LIVE_SURREY_GROUP_TOKEN" in seal
+    assert "PRODOCKIT_LIVE_SURREY_GROUP_TOKEN" not in candidate
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" in candidate
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" not in reset
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" not in seal
+    assert "when: always" in seal
+    assert '--release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT"' in reset
+    assert '--release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT"' in candidate
+    assert '--release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT"' in seal
 
 
 def test_github_shadow_does_not_authorise_current_publication() -> None:

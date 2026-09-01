@@ -26,7 +26,6 @@ permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: "3.14"
   FIXED_REPOSITORY: prodockit-live-tests/bootstrap-release-gate
 
 jobs:
@@ -43,7 +42,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version-file: .python-version
       - name: Build and identify the reset-controller wheel
         id: wheel
         shell: bash
@@ -130,7 +129,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version-file: .python-version
       - uses: actions/download-artifact@v4
         with:
           name: github-reset-${{ github.run_id }}
@@ -219,7 +218,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version-file: .python-version
       - uses: actions/download-artifact@v4
         with:
           name: github-reset-${{ github.run_id }}
