@@ -199,7 +199,10 @@ prodockit adopt --apply
 
 The command asks before each stage that writes files or installs an optional
 renderer. Routine npm output is captured; a failure is reported with its own
-error rather than leaving an apparently successful stage.
+error rather than leaving an apparently successful stage. After npm completes,
+Adoption renders a minimal Mermaid diagram through its browser and converts a
+minimal expression through MathJax. An incomplete npm extraction or unusable
+browser therefore keeps both the renderer stage and Ready stage incomplete.
 
 If Mermaid or mathematics is selected, its Node packages are installed below
 `tools/`. These are project-local dependencies, not global software shared

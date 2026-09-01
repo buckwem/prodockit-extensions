@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from typing import NoReturn
 
 import pytest
@@ -115,6 +116,13 @@ def _project(tmp_path: Path, *, required: bool) -> ProjectConfig:
         if required
         else {}
     )
+    if required:
+        docs = tmp_path / "docs"
+        docs.mkdir(exist_ok=True)
+        (docs / "index.md").write_text(
+            "```mermaid\ngraph LR\n  A --> B\n```\n\nThe area is $a^2$.\n",
+            encoding="utf-8",
+        )
     return ProjectConfig(
         path=tmp_path / "zensical.toml",
         project={"extra": {"pdf_output": "site/document.pdf"} if required else {}},
@@ -123,7 +131,7 @@ def _project(tmp_path: Path, *, required: bool) -> ProjectConfig:
     )
 
 
-def test_missing_renderers_warn_when_unused_and_fail_when_configured(
+def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
@@ -142,6 +150,15 @@ def test_missing_renderers_warn_when_unused_and_fail_when_configured(
     required = diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
 
     assert not [check for check in optional if check.status == "fail"]
+    optional_by_id = {check.id: check for check in optional}
+    for check_id in (
+        "renderer.node",
+        "renderer.npm",
+        "renderer.mermaid",
+        "renderer.mathjax",
+    ):
+        assert optional_by_id[check_id].status == "warn"
+        assert optional_by_id[check_id].data["required"] is False
     assert {check.id for check in required if check.status == "fail"} >= {
         "renderer.pandoc",
         "renderer.weasyprint",
@@ -150,6 +167,167 @@ def test_missing_renderers_warn_when_unused_and_fail_when_configured(
         "renderer.mermaid",
         "renderer.mathjax",
     }
+
+
+def test_mermaid_diagnostic_rejects_an_unusable_local_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _project(tmp_path, required=True)
+    binary = tmp_path / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("incomplete", encoding="utf-8")
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
+    )
+    monkeypatch.setattr(
+        "prodockit.diagnostics.probe_mermaid",
+        lambda path: SimpleNamespace(
+            path=path,
+            ok=False,
+            version=None,
+            error="ERR_MODULE_NOT_FOUND",
+        ),
+    )
+
+    check = next(
+        item
+        for item in diagnostics._renderer_checks(config, tmp_path)
+        if item.id == "renderer.mermaid"
+    )
+
+    assert check.status == "fail"
+    assert check.summary == "Mermaid CLI is unusable but required by this project"
+    assert "health probe: ERR_MODULE_NOT_FOUND" in check.details
+    assert check.data["error"] == "ERR_MODULE_NOT_FOUND"
+
+
+def test_mathjax_diagnostic_rejects_inputs_that_cannot_render(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _project(tmp_path, required=True)
+    script = tmp_path / "tools" / "mathjax" / "tex2svg.js"
+    script.parent.mkdir(parents=True)
+    script.touch()
+    (script.parent / "node_modules" / "mathjax-full").mkdir(parents=True)
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
+    )
+    monkeypatch.setattr(
+        "prodockit.diagnostics.shutil.which",
+        lambda name: "/usr/bin/node" if name == "node" else None,
+    )
+    monkeypatch.setattr(
+        "prodockit.diagnostics.probe_mathjax",
+        lambda node, path: SimpleNamespace(path=path, ok=False, error="Cannot find module"),
+    )
+
+    check = next(
+        item
+        for item in diagnostics._renderer_checks(config, tmp_path)
+        if item.id == "renderer.mathjax"
+    )
+
+    assert check.status == "fail"
+    assert "health probe: Cannot find module" in check.details
+    assert check.data["error"] == "Cannot find module"
+
+
+def test_browser_diagnostic_executes_the_configured_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PUPPETEER_EXECUTABLE_PATH", "/broken/chromium")
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
+    )
+    monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda _name: None)
+    monkeypatch.setattr(
+        diagnostics,
+        "_run",
+        lambda command, **kwargs: subprocess.CompletedProcess(
+            command, 1, "", "loader error"
+        ),
+    )
+
+    check = next(
+        item
+        for item in diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
+        if item.id == "renderer.browser"
+    )
+
+    assert check.status == "fail"
+    assert check.summary == "Browser executable is unusable"
+    assert check.data["error"] == "loader error"
+
+
+def test_mermaid_security_audit_is_explicitly_skipped_offline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lockfile = tmp_path / "tools" / "mermaid" / "package-lock.json"
+    lockfile.parent.mkdir(parents=True)
+    lockfile.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        diagnostics,
+        "_run",
+        lambda *_args, **_kwargs: pytest.fail("offline diagnostics ran npm audit"),
+    )
+
+    check = diagnostics._node_security_checks(tmp_path, online=False)[0]
+
+    assert check.status == "pass"
+    assert check.summary == "Mermaid security audit skipped in offline mode"
+    assert check.data == {"checked": False, "reason": "offline", "level": "moderate"}
+
+
+def test_online_mermaid_security_audit_reports_advisories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tool_root = tmp_path / "tools" / "mermaid"
+    tool_root.mkdir(parents=True)
+    (tool_root / "package-lock.json").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda name: f"/bin/{name}")
+
+    def audit(
+        command: list[str], *, cwd: Path | None = None, timeout: float = 10.0
+    ) -> subprocess.CompletedProcess[str]:
+        assert command == [
+            "/bin/npm",
+            "audit",
+            "--omit=dev",
+            "--audit-level=moderate",
+            "--json",
+        ]
+        assert cwd == tool_root
+        assert timeout == 60
+        payload = {
+            "metadata": {
+                "vulnerabilities": {
+                    "low": 1,
+                    "moderate": 2,
+                    "high": 1,
+                    "critical": 0,
+                }
+            }
+        }
+        return subprocess.CompletedProcess(command, 1, json.dumps(payload), "")
+
+    monkeypatch.setattr(diagnostics, "_run", audit)
+
+    check = diagnostics._node_security_checks(tmp_path, online=True)[0]
+
+    assert check.status == "warn"
+    assert check.summary == "Mermaid dependencies have 3 moderate-or-higher advisories"
+    assert check.details == (
+        "low: 1",
+        "moderate: 2",
+        "high: 1",
+        "run `npm audit --omit=dev` in tools/mermaid for remediation detail",
+    )
 
 
 def test_diag_json_is_stable_and_failures_set_the_exit_status(
@@ -212,6 +390,7 @@ def test_diag_does_not_change_project_files(
     monkeypatch.setattr(diagnostics, "_installation_checks", lambda _root: [])
     monkeypatch.setattr(diagnostics, "_pin_checks", lambda _root, _online: [])
     monkeypatch.setattr(diagnostics, "_renderer_checks", lambda _config, _root: [])
+    monkeypatch.setattr(diagnostics, "_node_security_checks", lambda _root, _online: [])
     monkeypatch.setattr(diagnostics, "_repository_checks", lambda _root, _online: [])
     before = {
         path.relative_to(tmp_path): path.read_bytes()
@@ -243,6 +422,7 @@ def test_one_unreadable_area_does_not_prevent_the_remaining_diagnostics(
         lambda _root, _online: (_ for _ in ()).throw(OSError("cannot read pins")),
     )
     monkeypatch.setattr(diagnostics, "_renderer_checks", lambda _config, _root: [])
+    monkeypatch.setattr(diagnostics, "_node_security_checks", lambda _root, _online: [])
 
     def repository(_root: Path, _online: bool) -> list[DiagnosticResult]:
         nonlocal reached_repository
@@ -283,6 +463,8 @@ def test_author_guide_documents_every_stable_check_id() -> None:
         "renderer.browser",
         "renderer.mathjax",
         "renderer.inspection",
+        "renderer.mermaid-security",
+        "renderer.security-inspection",
         "repository.git",
         "repository.template-metadata",
         "repository.template-update",

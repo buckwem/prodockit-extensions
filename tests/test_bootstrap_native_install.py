@@ -52,6 +52,8 @@ def test_missing_winget_installs_microsofts_signed_release(monkeypatch, tmp_path
     rendered = "\n".join(" ".join(command) for command in commands)
 
     assert "api.github.com/repos/microsoft/winget-cli/releases/latest" in rendered
+    assert 'Authorization = "Bearer $env:GITHUB_TOKEN"' in rendered
+    assert "-Headers $headers" in rendered
     assert "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle" in rendered
     assert "DesktopAppInstaller_Dependencies.zip" in rendered
     assert "PROCESSOR_ARCHITECTURE" in rendered

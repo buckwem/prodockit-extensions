@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -142,21 +143,84 @@ def test_example_syntax_in_code_does_not_require_an_extension(tmp_path: Path) ->
     assert _messages(config) == []
 
 
-def test_configured_mermaid_requires_mmdc(tmp_path: Path, monkeypatch) -> None:
+def test_configured_mermaid_is_optional_until_a_diagram_uses_it(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("PATH", "")
     config = _project(
         tmp_path,
         "[project.markdown_extensions.pymdownx.superfences]\n"
         'custom_fences = [{name = "mermaid"}]\n',
+        {
+            "index.md": (
+                "# No diagrams\n\n"
+                "````markdown\n"
+                "```mermaid\n"
+                "graph LR\n  A --> B\n"
+                "```\n"
+                "````\n"
+            )
+        },
     )
 
+    assert not any("mmdc renderer" in message for message in _messages(config))
+
+    (tmp_path / "docs" / "index.md").write_text(
+        "# Diagram\n\n```mermaid\ngraph LR\n  A --> B\n```\n", encoding="utf-8"
+    )
     assert any("mmdc renderer" in message for message in _messages(config))
 
 
-def test_configured_maths_requires_tex2svg(tmp_path: Path) -> None:
-    config = _project(tmp_path, "[project.markdown_extensions.pymdownx.arithmatex]\n")
+def test_mermaid_renderer_must_run_not_merely_exist(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("PATH", "")
+    config = _project(
+        tmp_path,
+        '[project.extra]\npdf_mmdc_bin = "tools/mermaid/mmdc"\n'
+        "[project.markdown_extensions.pymdownx.superfences]\n"
+        'custom_fences = [{name = "mermaid"}]\n',
+        {"index.md": "```mermaid\ngraph LR\n  A --> B\n```\n"},
+    )
+    binary = tmp_path / "tools" / "mermaid" / "mmdc"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("incomplete", encoding="utf-8")
+    monkeypatch.setattr(
+        "prodockit.project_integrity.probe_mermaid",
+        lambda path: SimpleNamespace(path=path, ok=False, error="ERR_MODULE_NOT_FOUND"),
+    )
 
+    assert any("cannot run: ERR_MODULE_NOT_FOUND" in message for message in _messages(config))
+
+
+def test_configured_maths_is_optional_until_notation_uses_it(tmp_path: Path) -> None:
+    config = _project(
+        tmp_path,
+        "[project.markdown_extensions.pymdownx.arithmatex]\n",
+        {"index.md": "The price is $5 and the example is `\\(x\\)`.\n"},
+    )
+
+    assert not any("tex2svg renderer" in message for message in _messages(config))
+
+    (tmp_path / "docs" / "index.md").write_text("The area is $a^2$.\n", encoding="utf-8")
     assert any("tex2svg renderer" in message for message in _messages(config))
+
+
+def test_mathjax_renderer_must_run_not_merely_exist(tmp_path: Path, monkeypatch) -> None:
+    config = _project(
+        tmp_path,
+        '[project.extra]\npdf_tex2svg_script = "tools/mathjax/tex2svg.js"\n'
+        "[project.markdown_extensions.pymdownx.arithmatex]\n",
+        {"index.md": "The area is $a^2$.\n"},
+    )
+    script = tmp_path / "tools" / "mathjax" / "tex2svg.js"
+    script.parent.mkdir(parents=True)
+    script.write_text("renderer", encoding="utf-8")
+    monkeypatch.setattr("prodockit.project_integrity.shutil.which", lambda _name: "node")
+    monkeypatch.setattr(
+        "prodockit.project_integrity.probe_mathjax",
+        lambda node, path: SimpleNamespace(path=path, ok=False, error="Cannot find module"),
+    )
+
+    assert any("cannot run: Cannot find module" in message for message in _messages(config))
 
 
 def test_complete_project_passes_and_testing_assertion_is_reusable(tmp_path: Path) -> None:

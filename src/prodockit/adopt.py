@@ -32,6 +32,7 @@ from prodockit import __version__
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
+from prodockit.renderer_health import probe_mathjax, probe_mermaid
 from prodockit.shared_files import resource_bytes
 
 if sys.version_info >= (3, 11):
@@ -254,7 +255,24 @@ def _extensions(parsed: dict[str, Any]) -> dict[str, Any]:
     project = parsed.get("project", parsed)
     value = project.get("markdown_extensions", {}) if isinstance(project, dict) else {}
     if isinstance(value, dict):
-        return value
+        mapped: dict[str, Any] = {}
+        for name, options in value.items():
+            if name == "pymdownx" and isinstance(options, Mapping):
+                for child, child_options in options.items():
+                    mapped[f"pymdownx.{child}"] = child_options
+            elif name == "prodockit" and isinstance(options, Mapping):
+                for child, child_options in options.items():
+                    mapped[f"prodockit.{child}"] = child_options
+            elif name == "zensical" and isinstance(options, Mapping):
+                extensions = options.get("extensions")
+                if isinstance(extensions, Mapping):
+                    for child, child_options in extensions.items():
+                        mapped[f"zensical.extensions.{child}"] = child_options
+                else:
+                    mapped[name] = options
+            else:
+                mapped[str(name)] = options
+        return mapped
     configured: dict[str, Any] = {}
     if isinstance(value, list):
         for item in value:
@@ -452,6 +470,21 @@ def _set_table_bool(source: str, table: str, key: str, value: bool) -> str:
     return source[:header_end] + f"{key} = {rendered}\n" + source[header_end:]
 
 
+def _toml_extension_setting(
+    source: str,
+    extension: str,
+    setting: str,
+) -> tuple[str, str]:
+    """Locate a setting in explicit-table or Zensical dotted-key syntax."""
+    table = f"project.markdown_extensions.{extension}"
+    if _section(source, table) is not None:
+        return table, setting
+    quoted_table = f'project.markdown_extensions."{extension}"'
+    if _section(source, quoted_table) is not None:
+        return quoted_table, setting
+    return "project.markdown_extensions", f"{extension}.{setting}"
+
+
 def _add_table_string(source: str, table: str, key: str, value: str) -> str:
     """Add a missing string setting without replacing existing table data."""
     located = _section(source, table)
@@ -534,15 +567,19 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
         _parsed = tomllib.loads(source)
         project = _parsed["project"]
     extension_array = isinstance(project.get("markdown_extensions"), list)
+    configured = _extensions(_parsed)
     if extension_array:
-        configured = _extensions(_parsed)
         for name in CORE_EXTENSIONS:
             if name not in configured:
                 source = _add_array_value(source, "project", "markdown_extensions", f'"{name}"')
     else:
         source = _append_tables(
             source,
-            tuple(f'project.markdown_extensions."{name}"' for name in CORE_EXTENSIONS),
+            tuple(
+                f'project.markdown_extensions."{name}"'
+                for name in CORE_EXTENSIONS
+                if name not in configured
+            ),
         )
     source = _ensure_toml_tree_icons(
         source,
@@ -557,32 +594,42 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
         prepend=True,
     )
     if options.mermaid:
+        existing = configured.get("pymdownx.superfences")
+        fences = existing.get("custom_fences", []) if isinstance(existing, dict) else []
+        has_mermaid = any(
+            isinstance(item, dict) and item.get("name") == "mermaid" for item in fences
+        )
         if extension_array:
-            existing = _extensions(_parsed).get("pymdownx.superfences")
-            fences = existing.get("custom_fences", []) if isinstance(existing, dict) else []
-            if not any(isinstance(item, dict) and item.get("name") == "mermaid" for item in fences):
+            if not has_mermaid:
                 source = _set_array_extension(
                     source,
                     "pymdownx.superfences",
                     f"custom_fences = [{MERMAID_FENCE}]",
                 )
-        else:
+        elif not has_mermaid:
+            table, key = _toml_extension_setting(
+                source, "pymdownx.superfences", "custom_fences"
+            )
             source = _add_array_value(
                 source,
-                "project.markdown_extensions.pymdownx.superfences",
-                "custom_fences",
+                table,
+                key,
                 MERMAID_FENCE,
             )
     if options.maths:
+        existing = configured.get("pymdownx.arithmatex")
+        has_generic_maths = isinstance(existing, dict) and existing.get("generic") is True
         if extension_array:
-            existing = _extensions(_parsed).get("pymdownx.arithmatex")
-            if not isinstance(existing, dict) or existing.get("generic") is not True:
+            if not has_generic_maths:
                 source = _set_array_extension(source, "pymdownx.arithmatex", "generic = true")
-        else:
+        elif not has_generic_maths:
+            table, key = _toml_extension_setting(
+                source, "pymdownx.arithmatex", "generic"
+            )
             source = _set_table_bool(
                 source,
-                "project.markdown_extensions.pymdownx.arithmatex",
-                "generic",
+                table,
+                key,
                 True,
             )
         source = _add_array_value(
@@ -979,15 +1026,42 @@ def _tool_files_ok(root: Path, component: str) -> bool:
     return all((root / "tools" / component / name).is_file() for name in COMPONENT_FILES[component])
 
 
-def _tool_installed(root: Path, component: str) -> bool:
+def _mermaid_bin(root: Path) -> Path | None:
+    bin_dir = root / "tools" / "mermaid" / "node_modules" / ".bin"
+    names = ("mmdc.cmd", "mmdc") if sys.platform == "win32" else ("mmdc",)
+    return next(
+        (candidate for name in names if (candidate := bin_dir / name).is_file()),
+        None,
+    )
+
+
+def _tool_health(root: Path, component: str) -> tuple[bool, str]:
     if not _tool_files_ok(root, component):
-        return False
+        return False, "renderer scaffold is incomplete"
     if component == "mermaid":
-        bin_dir = root / "tools" / component / "node_modules" / ".bin"
-        return (bin_dir / "mmdc").is_file() or (bin_dir / "mmdc.cmd").is_file()
-    return (
+        binary = _mermaid_bin(root)
+        if binary is None:
+            return False, "mmdc executable is missing"
+        probe = probe_mermaid(binary)
+        return (
+            (True, f"mmdc {probe.version or 'is available'}")
+            if probe.ok
+            else (False, f"mmdc health check failed: {probe.error}")
+        )
+    installed = (
         root / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
     ).is_file() and (root / "docs" / "javascripts" / "mathjax.js").is_file()
+    if not installed:
+        return False, "MathJax inputs are incomplete"
+    node = shutil.which("node")
+    if node is None:
+        return False, "node is unavailable for the MathJax renderer"
+    probe = probe_mathjax(node, root / "tools" / "mathjax" / "tex2svg.js")
+    return (
+        (True, "MathJax can render an expression")
+        if probe.ok
+        else (False, f"MathJax health check failed: {probe.error}")
+    )
 
 
 def ensure_tools(root: Path, options: AdoptOptions) -> list[Path]:
@@ -1058,6 +1132,32 @@ def install_tool(root: Path, component: str) -> list[Path]:
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout).strip()
         raise AdoptError(f"npm could not install {component}: {detail}")
+    if component == "mermaid":
+        binary = _mermaid_bin(root)
+        probe = probe_mermaid(binary) if binary else None
+        if probe is None or not probe.ok:
+            health_detail = (
+                probe.error or "health probe failed"
+                if probe
+                else "mmdc executable is missing"
+            )
+            raise AdoptError(
+                "npm completed but Mermaid CLI is unusable: "
+                f"{health_detail}. Remove tools/mermaid/node_modules and rerun "
+                "`prodockit adopt --apply --mermaid`."
+            )
+    if component == "mathjax":
+        node = shutil.which("node")
+        probe = probe_mathjax(node, tool_root / "tex2svg.js") if node else None
+        if probe is None or not probe.ok:
+            health_detail = (
+                probe.error or "health probe failed" if probe else "node is unavailable"
+            )
+            raise AdoptError(
+                "npm completed but MathJax is unusable: "
+                f"{health_detail}. Remove tools/mathjax/node_modules and rerun "
+                "`prodockit adopt --apply --maths`."
+            )
     lock = root / "tools" / component / "package-lock.json"
     if lock.is_file() and lock not in written:
         written.append(lock)
@@ -1110,8 +1210,10 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
             else "add the standard extensions and shared website styles"
         )
     )
-    mermaid_ok = _tool_installed(root, "mermaid") and "pymdownx.superfences" in configured
-    maths_ok = _tool_installed(root, "mathjax") and "pymdownx.arithmatex" in configured
+    mermaid_tool_ok, mermaid_detail = _tool_health(root, "mermaid")
+    maths_tool_ok, maths_detail = _tool_health(root, "mathjax")
+    mermaid_ok = mermaid_tool_ok and "pymdownx.superfences" in configured
+    maths_ok = maths_tool_ok and "pymdownx.arithmatex" in configured
     ready_to_build = (
         _requirement_ok(root)
         and core_ok
@@ -1157,7 +1259,11 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
             "Optional renderers",
             "Mermaid diagrams",
             "ok" if mermaid_ok else "missing",
-            "selected" if options.mermaid else "not selected; Node.js is not needed for Mermaid",
+            (
+                f"selected; {mermaid_detail}"
+                if options.mermaid
+                else "not selected; Node.js is not needed for Mermaid"
+            ),
             selected=options.mermaid,
         ),
         Step(
@@ -1165,7 +1271,11 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
             "Optional renderers",
             "Mathematical notation",
             "ok" if maths_ok else "missing",
-            "selected" if options.maths else "not selected; MathJax is not installed",
+            (
+                f"selected; {maths_detail}"
+                if options.maths
+                else "not selected; MathJax is not installed"
+            ),
             selected=options.maths,
         ),
         Step(

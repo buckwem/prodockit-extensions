@@ -105,6 +105,12 @@ NODE_MAJOR = int(NODE_MIN_VERSION.split(".", 1)[0])
 #: pinned Mermaid and MathJax trees reproducibly.
 NPM_MIN_VERSION = "7.0.0"
 
+#: Mermaid CLI declares Puppeteer as a peer. ``npm ci --legacy-peer-deps``
+#: deliberately omits that peer from older template lockfiles, leaving a
+#: successful install whose ``mmdc`` immediately fails with ERR_MODULE_NOT_FOUND.
+#: Install the compatible runtime without rewriting the author's manifest or lock.
+PUPPETEER_RUNTIME = "puppeteer@25.9.0"
+
 #: Browser revision used by the pinned Puppeteer runtime. Ubuntu deliberately
 #: uses its system Chromium instead of Puppeteer's downloaded binary so ARM64
 #: receives a native executable; it must still be new enough for that runtime.
@@ -3353,6 +3359,59 @@ def _check_node(context: Context) -> CheckResult:
             absent.append("mathjax")
         if absent:
             return _wrong(f"node {raw}, but {' and '.join(absent)} is not installed")
+        with tempfile.TemporaryDirectory(prefix="prodockit-bootstrap-mermaid-") as temporary:
+            source = Path(temporary) / "health.mmd"
+            output = Path(temporary) / "health.svg"
+            source.write_text("graph LR\n  A --> B\n", encoding="utf-8")
+            mermaid_command = [str(mermaid_cli), "-i", str(source), "-o", str(output)]
+            if context.platform == UBUNTU:
+                mermaid_command = [
+                    "bash",
+                    "-c",
+                    "browser=$(command -v chromium-browser || command -v chromium) || exit 1; "
+                    "export PUPPETEER_EXECUTABLE_PATH=$browser; exec \"$@\"",
+                    "prodockit-mermaid-probe",
+                    *mermaid_command,
+                ]
+            mermaid_result = context.runner.run(
+                mermaid_command,
+                cwd=str(project / "tools" / "mermaid"),
+                timeout=30,
+            )
+        if not mermaid_result.ok:
+            detail = mermaid_result.stderr.strip() or mermaid_result.stdout.strip()
+            return _wrong(
+                f"node {raw}, but Mermaid cannot render a diagram"
+                + (" with system Chromium" if context.platform == UBUNTU else "")
+                + (f": {detail}" if detail else "")
+            )
+        # Loading the modules used by tex2svg catches partial npm extracts
+        # without modifying the project or relying on shell input redirection.
+        mathjax_result = context.runner.run(
+            [
+                node_command(context),
+                "-e",
+                ";".join(
+                    f"require('{module}')"
+                    for module in (
+                        "mathjax-full/js/mathjax.js",
+                        "mathjax-full/js/input/tex.js",
+                        "mathjax-full/js/output/svg.js",
+                        "mathjax-full/js/adaptors/liteAdaptor.js",
+                        "mathjax-full/js/handlers/html.js",
+                        "mathjax-full/js/input/tex/AllPackages.js",
+                    )
+                ),
+            ],
+            cwd=str(project / "tools" / "mathjax"),
+            timeout=15,
+        )
+        if not mathjax_result.ok:
+            detail = mathjax_result.stderr.strip() or mathjax_result.stdout.strip()
+            return _wrong(
+                f"node {raw}, but MathJax cannot load its renderer modules"
+                + (f": {detail}" if detail else "")
+            )
     elif project.exists():
         absent = [
             name
@@ -3583,7 +3642,7 @@ def _plan_node(context: Context) -> Plan:
     mermaid = str(project / "tools" / "mermaid")
     mathjax = str(project / "tools" / "mathjax")
 
-    def npm_ci(directory: str) -> list[str]:
+    def npm_ci(directory: str, *, ensure_puppeteer: bool = False) -> list[str]:
         """Run npm from its package directory instead of using ``--prefix``.
 
         npm 12 currently rejects Mermaid's valid optional-peer lock entry when
@@ -3592,23 +3651,40 @@ def _plan_node(context: Context) -> Plan:
         """
         if context.platform == WINDOWS:
             literal = directory.replace("'", "''")
+            recovery = (
+                "; if (-not (Test-Path -LiteralPath 'node_modules/puppeteer')) { "
+                f"npm.cmd install --no-save --package-lock=false --legacy-peer-deps "
+                f"{PUPPETEER_RUNTIME}; exit $LASTEXITCODE }}"
+                if ensure_puppeteer
+                else ""
+            )
             return [
                 "powershell",
                 "-NoProfile",
                 "-Command",
-                f"Set-Location -LiteralPath '{literal}'; npm.cmd ci --legacy-peer-deps",
+                f"Set-Location -LiteralPath '{literal}'; "
+                "npm.cmd ci --legacy-peer-deps; "
+                "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
+                f"{recovery}",
             ]
+        recovery = (
+            " && if [ ! -d node_modules/puppeteer ]; then "
+            "npm install --no-save --package-lock=false --legacy-peer-deps "
+            f"{PUPPETEER_RUNTIME}; fi"
+            if ensure_puppeteer
+            else ""
+        )
         return [
             "bash",
             "-c",
-            f"cd {shlex.quote(directory)} && npm ci --legacy-peer-deps",
+            f"cd {shlex.quote(directory)} && npm ci --legacy-peer-deps{recovery}",
         ]
 
     if context.platform != UBUNTU:
         return Plan(
             commands=[
                 *install,
-                npm_ci(mermaid),
+                npm_ci(mermaid, ensure_puppeteer=True),
                 npm_ci(mathjax),
             ],
             describe=(
@@ -3668,7 +3744,10 @@ def _plan_node(context: Context) -> Plan:
             [
                 "bash",
                 "-c",
-                f"{exports}cd {shlex.quote(mermaid)} && npm ci --legacy-peer-deps",
+                f"{exports}cd {shlex.quote(mermaid)} && npm ci --legacy-peer-deps"
+                " && if [ ! -d node_modules/puppeteer ]; then "
+                "npm install --no-save --package-lock=false --legacy-peer-deps "
+                f"{PUPPETEER_RUNTIME}; fi",
             ],
             [
                 "bash",

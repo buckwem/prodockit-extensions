@@ -124,12 +124,19 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
+      - name: Use a Chromium-accessible temporary directory on Linux
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "$HOME/prodockit-bootstrap-tmp"
+          echo "TMPDIR=$HOME/prodockit-bootstrap-tmp" >> "$GITHUB_ENV"
       - name: Build and install the candidate wheel
         run: |
           python -m pip install build
           python -m build --wheel
           python -c "from pathlib import Path; import subprocess, sys; wheel = next(Path('dist').glob('prodockit-*.whl')); subprocess.run([sys.executable, '-m', 'pip', 'install', '--force-reinstall', str(wheel)], check=True)"
       - name: Remove runner tools, then execute Bootstrap's real install plans
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: >-
           python tools/bootstrap_native_install.py
           --wheel dist
@@ -188,12 +195,19 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
+      - name: Use a Chromium-accessible temporary directory on Linux
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "$HOME/prodockit-bootstrap-tmp"
+          echo "TMPDIR=$HOME/prodockit-bootstrap-tmp" >> "$GITHUB_ENV"
       - name: Build and install the candidate wheel
         run: |
           python -m pip install build
           python -m build --wheel
           python -c "from pathlib import Path; import subprocess, sys; wheel = next(Path('dist').glob('prodockit-*.whl')); subprocess.run([sys.executable, '-m', 'pip', 'install', '--force-reinstall', str(wheel)], check=True)"
       - name: Upgrade real old software through ${{ matrix.scenario.name }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: >-
           python tools/bootstrap_native_upgrade.py
           --wheel dist

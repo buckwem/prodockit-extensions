@@ -332,6 +332,27 @@ def test_a_rename_does_not_match_a_merely_similar_prefix() -> None:
     assert manifest.rename("docs/javascriptsX/extra.js") == "docs/javascriptsX/extra.js"
 
 
+def test_a_current_path_takes_precedence_over_its_historical_rename() -> None:
+    manifest = load_manifest(MANIFEST)
+    baseline = Baseline(version="v1", matched=1, total=1)
+    project = {
+        "docs/javascripts/extra.js": "current",
+        "docs/javascript/extra.js": "obsolete",
+    }
+
+    actions = plan_template_files(
+        manifest,
+        ["docs/javascripts/extra.js"],
+        project.get,
+        {"docs/javascripts/extra.js": "current"}.get,
+        baseline,
+    )
+
+    assert [(action.action, action.project_path) for action in actions] == [
+        ("same", "docs/javascripts/extra.js")
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Which template a project tracks
 # ---------------------------------------------------------------------------

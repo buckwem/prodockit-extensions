@@ -331,6 +331,8 @@ class HarnessRunner:
             "pandoc.exe",
             "pango-view",
             "pango-view.exe",
+            "mmdc",
+            "mmdc.cmd",
             "sudo",
             "winget",
             "winget.exe",
@@ -358,6 +360,11 @@ class HarnessRunner:
             return CommandResult(0, f"pango-view (pango) {self.versions['pango']}\n")
         if self.old_software and executable in {"node", "node.exe"}:
             return CommandResult(0, f"v{self.versions['node']}\n")
+        if self.old_software and executable in {"mmdc", "mmdc.cmd"}:
+            if "-o" in words:
+                output = Path(words[words.index("-o") + 1])
+                output.write_text("<svg></svg>\n", encoding="utf-8")
+            return CommandResult(0, "11.12.0\n" if "--version" in words else "")
         if self.old_software and executable in {"npm", "npm.cmd"} and "--version" in words:
             return CommandResult(0, f"{self.versions['npm']}\n")
         if self.old_software and executable == "fc-list":

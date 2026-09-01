@@ -131,8 +131,12 @@ def _ensure_windows_winget() -> None:
     script = (
         "$ErrorActionPreference = 'Stop'; "
         "$ProgressPreference = 'SilentlyContinue'; "
+        "$headers = if ($env:GITHUB_TOKEN) { @{ "
+        "Authorization = \"Bearer $env:GITHUB_TOKEN\"; "
+        "'X-GitHub-Api-Version' = '2022-11-28' } } else { @{} }; "
         "$release = Invoke-RestMethod -Uri "
-        "'https://api.github.com/repos/microsoft/winget-cli/releases/latest'; "
+        "'https://api.github.com/repos/microsoft/winget-cli/releases/latest' "
+        "-Headers $headers; "
         "$bundleAsset = $release.assets | Where-Object { "
         "$_.name -eq 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle' "
         "} | Select-Object -First 1; "

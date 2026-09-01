@@ -1709,7 +1709,8 @@ def config_command(config_file: str, check: bool) -> None:
     """Show the Prodockit settings the project actually resolves to.
 
     Prodockit-owned settings are validated, then local files, navigation,
-    images and configured renderers are checked without building the site.
+    images and renderers required by authored content are checked without
+    building the site.
     Unrelated Zensical ``project.extra`` values are left alone.
     """
     from prodockit.config_diagnostics import inspect_config
@@ -1766,7 +1767,7 @@ def config_command(config_file: str, check: bool) -> None:
 @click.option(
     "--online",
     is_flag=True,
-    help="Also check PyPI versions and the recorded template revision.",
+    help="Also check PyPI, npm advisories and the recorded template revision.",
 )
 @click.option(
     "--json",

@@ -3895,7 +3895,9 @@ def test_other_platforms_are_left_alone(tmp_path: Path) -> None:
         flat = " ".join(" ".join(c) for c in plan.commands)
         assert "chromium" not in flat, platform
         assert "PUPPETEER" not in flat, platform
-        assert flat.count("--legacy-peer-deps") == 2, platform
+        # Mermaid has one deterministic install plus a conditional recovery
+        # for older locks where legacy-peer mode omits Puppeteer; MathJax has one.
+        assert flat.count("--legacy-peer-deps") == 3, platform
 
 
 def test_the_pdf_fonts_are_installed_with_the_graphics_stack(tmp_path: Path) -> None:

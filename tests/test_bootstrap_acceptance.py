@@ -280,3 +280,20 @@ def test_ubuntu_npm_commands_install_toolchains_before_resolving_chromium(
 
     assert result.returncode == 0
     assert (prefix / "node_modules" / ".bin" / "mmdc").is_file()
+
+
+def test_old_software_runner_accepts_the_mermaid_health_render(tmp_path: Path) -> None:
+    runner = bootstrap_acceptance_driver.HarnessRunner(
+        {},
+        "git@example.invalid:group/project.git",
+        home=tmp_path,
+        old_software=True,
+    )
+    source = tmp_path / "health.mmd"
+    output = tmp_path / "health.svg"
+    source.write_text("graph LR\n  A --> B\n", encoding="utf-8")
+
+    result = runner.run([str(tmp_path / "mmdc"), "-i", str(source), "-o", str(output)])
+
+    assert result.returncode == 0
+    assert output.read_text(encoding="utf-8") == "<svg></svg>\n"
