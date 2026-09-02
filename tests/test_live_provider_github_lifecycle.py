@@ -10,6 +10,7 @@ import hashlib
 import importlib
 import io
 import json
+import os
 import subprocess
 import sys
 import urllib.error
@@ -39,6 +40,41 @@ def git(checkout: Path, *arguments: str) -> str:
         capture_output=True,
         text=True,
     ).stdout.strip()
+
+
+def test_seal_entrypoint_does_not_require_the_reset_wheel_dependencies(tmp_path: Path) -> None:
+    """Cleanup must start even when third-party wheel tooling is unavailable."""
+
+    (tmp_path / "sitecustomize.py").write_text(
+        """\
+import builtins
+
+original_import = builtins.__import__
+
+def guarded_import(name, *args, **kwargs):
+    if name == "packaging" or name.startswith("packaging."):
+        raise ModuleNotFoundError("packaging deliberately unavailable")
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+""",
+        encoding="utf-8",
+    )
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(tmp_path)
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "bootstrap_live_provider_github_lifecycle.py"),
+            "--help",
+        ],
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def key_record() -> tuple[str, str]:
