@@ -825,6 +825,39 @@ def test_only_unverifiable_github_pages_is_deferred() -> None:
     )
 
 
+def test_repeated_pass_ignores_only_the_inert_github_pages_stage() -> None:
+    assert not live.repeated_stage_requires_work(
+        provider="github",
+        stage_id="pages",
+        needs_work=True,
+        verifiable=False,
+    )
+    assert live.repeated_stage_requires_work(
+        provider="github",
+        stage_id="pages",
+        needs_work=True,
+        verifiable=True,
+    )
+    assert live.repeated_stage_requires_work(
+        provider="github",
+        stage_id="node",
+        needs_work=True,
+        verifiable=False,
+    )
+    assert live.repeated_stage_requires_work(
+        provider="surrey",
+        stage_id="pages",
+        needs_work=True,
+        verifiable=False,
+    )
+    assert not live.repeated_stage_requires_work(
+        provider="github",
+        stage_id="node",
+        needs_work=False,
+        verifiable=False,
+    )
+
+
 def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
