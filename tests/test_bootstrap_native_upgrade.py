@@ -134,6 +134,18 @@ def test_download_sources_moves_to_the_next_compatible_source(
     assert attempted[0][1] == attempted[1][1]
 
 
+def test_executable_lookup_ignores_a_directory_with_the_same_name(
+    tmp_path: Path,
+) -> None:
+    misleading = tmp_path / "include" / "node"
+    misleading.mkdir(parents=True)
+    executable = tmp_path / "distribution" / "bin" / "node"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("fixture", encoding="utf-8")
+
+    assert native._find(tmp_path, ("node",)) == executable
+
+
 @pytest.mark.skipif(os.name == "nt", reason="Unix executable modes are not used on Windows")
 def test_zip_extraction_preserves_an_executable_launcher(tmp_path: Path) -> None:
     archive = tmp_path / "application.zip"
