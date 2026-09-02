@@ -939,18 +939,25 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
         environment: dict[str, str],
     ) -> tuple[BootstrapConfig, str]:
         del python, environment
-        return (
-            BootstrapConfig(
-                full_name="Prodockit live-provider test",
-                email="mb0105@surrey.ac.uk",
-                username="mb0105",
-                host=fixture.hostname,
-                namespace=fixture.destination_namespace,
-                project_name=fixture.destination_project,
-                project_dir=str(setup / fixture.destination_project),
-            ),
-            "configured",
+        config = BootstrapConfig(
+            full_name="Prodockit live-provider test",
+            email="mb0105@surrey.ac.uk",
+            username="mb0105",
+            host=fixture.hostname,
+            namespace=fixture.destination_namespace,
+            project_name=fixture.destination_project,
+            project_dir=str(setup / fixture.destination_project),
         )
+        populated = subprocess.run(
+            ["git", "--git-dir", str(destination_bare), "show-ref", "--verify", "refs/heads/main"],
+            capture_output=True,
+            check=False,
+        ).returncode == 0
+        if populated:
+            config.source_url = f"{fixture.destination_namespace}/{fixture.destination_project}"
+            config.history = "keep"
+            return config, "Option 1 selected automatically during configuration"
+        return config, "configured"
 
     monkeypatch.setattr(live, "configure_candidate", configured)
     source_path = "mb0105/prodockit-template.git"
