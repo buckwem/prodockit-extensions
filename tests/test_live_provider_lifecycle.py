@@ -491,6 +491,10 @@ def test_handoff_is_short_lived_and_rejects_another_project() -> None:
     )
     with pytest.raises(state.StateError, match="expired"):
         expired.validate(now=datetime(2026, 8, 31, 18, tzinfo=timezone.utc))
+    expired.validate(
+        now=datetime(2026, 8, 31, 18, tzinfo=timezone.utc),
+        allow_expired=True,
+    )
     with pytest.raises(state.StateError, match="another project"):
         reset_handoff(path_with_namespace="other/project").validate()
 
@@ -1170,6 +1174,115 @@ def test_seal_revokes_write_access_when_candidate_report_is_invalid(
         lifecycle.verify_and_seal(args, client)
     assert client.deploy_keys == []
     assert not args.retained_state.exists()
+
+
+def test_recovery_revoke_removes_only_the_reviewed_destination_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture_path = write_fixture(tmp_path / "fixture.json")
+    fixture = state.LifecycleFixture.read(fixture_path)
+    client = FakeGitLab(fixture)
+    client.project = client._project(404)
+    client.deploy_keys = [
+        {
+            "id": 303,
+            "title": state.SURREY_DEPLOY_KEY_TITLE,
+            "key": "ssh-ed25519 AAAA",
+            "can_push": True,
+        }
+    ]
+    handoff_path = tmp_path / "handoff.json"
+    state.write_private_json(handoff_path, reset_handoff().document())
+    monkeypatch.setattr(
+        lifecycle,
+        "public_key_fingerprint",
+        lambda _record: state.SURREY_DEPLOY_KEY_FINGERPRINT,
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "validate_controller_checkout",
+        lambda *_args, **_kwargs: CONTROLLER_COMMIT,
+    )
+    args = Namespace(
+        fixture=fixture_path,
+        handoff=handoff_path,
+        audit_report=tmp_path / "recovery-audit.json",
+        release_commit=CONTROLLER_COMMIT,
+    )
+
+    lifecycle.revoke_destination_access(args, client)
+
+    assert client.deploy_keys == []
+    audit = json.loads(args.audit_report.read_text(encoding="utf-8"))
+    assert audit["phase"] == "revoke"
+    assert audit["destination_deploy_key_enabled"] is False
+
+
+def test_recovery_revoke_rejects_another_handoff_before_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture_path = write_fixture(tmp_path / "fixture.json")
+    fixture = state.LifecycleFixture.read(fixture_path)
+    client = FakeGitLab(fixture)
+    client.project = client._project(404)
+    handoff_path = tmp_path / "handoff.json"
+    state.write_private_json(
+        handoff_path,
+        reset_handoff(deploy_key_id=999).document(),
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "validate_controller_checkout",
+        lambda *_args, **_kwargs: CONTROLLER_COMMIT,
+    )
+    args = Namespace(
+        fixture=fixture_path,
+        handoff=handoff_path,
+        audit_report=tmp_path / "recovery-audit.json",
+        release_commit=CONTROLLER_COMMIT,
+    )
+
+    with pytest.raises(lifecycle.LifecycleError, match="trusted recovery run"):
+        lifecycle.revoke_destination_access(args, client)
+    assert client.mutations == []
+
+
+def test_recovery_without_handoff_can_only_revoke_the_fixed_fixture_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture_path = write_fixture(tmp_path / "fixture.json")
+    fixture = state.LifecycleFixture.read(fixture_path)
+    client = FakeGitLab(fixture)
+    client.project = client._project(404)
+    client.deploy_keys = [
+        {
+            "id": 303,
+            "title": state.SURREY_DEPLOY_KEY_TITLE,
+            "key": "ssh-ed25519 AAAA",
+            "can_push": True,
+        }
+    ]
+    monkeypatch.setattr(
+        lifecycle,
+        "public_key_fingerprint",
+        lambda _record: state.SURREY_DEPLOY_KEY_FINGERPRINT,
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "validate_controller_checkout",
+        lambda *_args, **_kwargs: CONTROLLER_COMMIT,
+    )
+    args = Namespace(
+        fixture=fixture_path,
+        handoff=None,
+        audit_report=tmp_path / "recovery-audit.json",
+        release_commit=CONTROLLER_COMMIT,
+    )
+
+    lifecycle.revoke_destination_access(args, client)
+
+    assert client.deploy_keys == []
+    assert json.loads(args.audit_report.read_text(encoding="utf-8"))["project_id"] == 404
 
 
 def test_seal_rejects_a_handoff_from_another_controller_before_provider_reads(

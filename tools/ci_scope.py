@@ -149,6 +149,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/bootstrap_live_provider_github_lifecycle.py": frozenset({"bootstrap"}),
     "tools/bootstrap_live_provider_ephemeral_key.py": frozenset({"bootstrap"}),
     "tools/bootstrap_live_provider_surrey_fixture.py": frozenset({"bootstrap"}),
+    "tools/surrey_retained_state.py": frozenset({"bootstrap"}),
     "tools/canonical_wheel.py": frozenset({"bootstrap"}),
     "tools/live_provider_state.py": frozenset({"bootstrap"}),
     "tools/release_gate.py": frozenset({"bootstrap"}),
@@ -162,6 +163,11 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     ".github/workflows/pdf-built-site-wheel.yml": frozenset({"pdf"}),
     ".github/workflows/bootstrap-install.yml": frozenset({"bootstrap"}),
     ".github/workflows/bootstrap-live-provider-github.yml": frozenset({"bootstrap"}),
+    ".github/workflows/bootstrap-live-provider-surrey.yml": frozenset({"bootstrap"}),
+    ".github/workflows/bootstrap-live-provider-surrey-recovery.yml": frozenset({"bootstrap"}),
+    ".github/workflows/bootstrap-live-provider-surrey-connectivity.yml": frozenset(
+        {"bootstrap"}
+    ),
     ".github/workflows/release-gate.yml": frozenset({"bootstrap"}),
     ".gitlab-ci.yml": frozenset({"bootstrap"}),
     ".gitlab/bootstrap-live-provider-surrey.yml": frozenset({"bootstrap"}),

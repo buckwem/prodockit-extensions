@@ -372,7 +372,13 @@ class ResetHandoff:
     wheel_contents_sha256: str | None = None
 
     @classmethod
-    def read(cls, path: Path, *, now: datetime | None = None) -> ResetHandoff:
+    def read(
+        cls,
+        path: Path,
+        *,
+        now: datetime | None = None,
+        allow_expired: bool = False,
+    ) -> ResetHandoff:
         raw = read_json(path, label="reset handoff")
         if not isinstance(raw, dict):
             raise StateError("reset handoff must be one JSON object")
@@ -425,10 +431,15 @@ class ResetHandoff:
                 else None
             ),
         )
-        handoff.validate(now=now)
+        handoff.validate(now=now, allow_expired=allow_expired)
         return handoff
 
-    def validate(self, *, now: datetime | None = None) -> None:
+    def validate(
+        self,
+        *,
+        now: datetime | None = None,
+        allow_expired: bool = False,
+    ) -> None:
         expected_path = {
             "surrey": SURREY_PATH,
             GITHUB_PROVIDER: GITHUB_PATH,
@@ -459,7 +470,7 @@ class ResetHandoff:
         if expires <= completed or (expires - completed).total_seconds() > 30 * 60:
             raise StateError("the reset handoff validity window must be at most 30 minutes")
         observed_now = now or datetime.now(timezone.utc)
-        if observed_now >= expires:
+        if not allow_expired and observed_now >= expires:
             raise StateError("the reset handoff has expired")
 
     def document(self) -> dict[str, Any]:

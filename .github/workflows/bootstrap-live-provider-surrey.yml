@@ -1,0 +1,353 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+name: Bootstrap live provider — Surrey GitLab
+run-name: Surrey GitLab Bootstrap live gate for ${{ inputs.release_commit }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Full protected-main commit to test
+        required: true
+        type: string
+      previous_surrey_run_id:
+        description: Exceptional prior retained-state run override; normally leave empty
+        required: false
+        type: string
+
+concurrency:
+  group: bootstrap-live-surrey
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  reset:
+    name: Surrey trusted reset controller
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: bootstrap-live-surrey-reset
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - name: Require the exact current protected-main controller
+        shell: bash
+        run: |
+          [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          test "$(git ls-remote https://github.com/buckwem/prodockit-extensions.git refs/heads/main | cut -f1)" = "$RELEASE_COMMIT"
+          test -z "$(git status --porcelain)"
+        env:
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+      - name: List exact prior Surrey workflow runs
+        id: prior-runs
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if gh api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/bootstrap-live-provider-surrey.yml/runs?event=workflow_dispatch&branch=main&status=completed&per_page=100" \
+              > "$RUNNER_TEMP/surrey-runs.json"; then
+              break
+            fi
+            sleep $((attempt * 5))
+          done
+          test -s "$RUNNER_TEMP/surrey-runs.json"
+          args=()
+          if test -n "$PREVIOUS_RUN_ID"; then
+            [[ "$PREVIOUS_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+            args+=(--override-run-id "$PREVIOUS_RUN_ID")
+          fi
+          python tools/surrey_retained_state.py select-run \
+            --runs "$RUNNER_TEMP/surrey-runs.json" \
+            --current-run-id "$GITHUB_RUN_ID" \
+            --github-output "$GITHUB_OUTPUT" \
+            "${args[@]}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_RUN_ID: ${{ inputs.previous_surrey_run_id }}
+      - name: Select the newest valid retained-state artifact
+        id: previous
+        shell: bash
+        run: |
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          IFS=',' read -r -a run_ids <<< "$PRIOR_RUN_IDS"
+          for run_id in "${run_ids[@]}"; do
+            test -n "$run_id" || continue
+            candidate="$RUNNER_TEMP/previous-$run_id"
+            if gh run download "$run_id" \
+              --repo "$GITHUB_REPOSITORY" \
+              --name "surrey-retained-state-$run_id" \
+              --dir "$candidate" && \
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" \
+                > "$RUNNER_TEMP/previous-run-$run_id.json" && \
+              python tools/surrey_retained_state.py validate \
+                --state "$candidate/retained-state.json" \
+                --envelope "$candidate/retained-state-envelope.json" \
+                --run-document "$RUNNER_TEMP/previous-run-$run_id.json" \
+                --run-id "$run_id"; then
+              rm "$RUNNER_TEMP/previous-run-$run_id.json"
+              mv "$candidate" "$RUNNER_TEMP/previous-state"
+              chmod 600 "$RUNNER_TEMP/previous-state/retained-state.json"
+              echo "found=true" >> "$GITHUB_OUTPUT"
+              echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            rm -rf "$candidate"
+            if test -n "$PREVIOUS_RUN_ID"; then
+              echo "The requested prior run has no valid retained-state artifact." >&2
+              exit 1
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRIOR_RUN_IDS: ${{ steps.prior-runs.outputs.run_ids }}
+          PREVIOUS_RUN_ID: ${{ inputs.previous_surrey_run_id }}
+      - name: Build and identify the reset-controller wheel
+        id: wheel
+        shell: bash
+        run: |
+          python -m pip install build
+          python -m build --wheel --outdir "$RUNNER_TEMP/reset-wheel"
+          wheel=$(find "$RUNNER_TEMP/reset-wheel" -maxdepth 1 -name 'prodockit-*.whl' -type f -print -quit)
+          test -n "$wheel"
+          python tools/canonical_wheel.py "$wheel" --output "$RUNNER_TEMP/reset-wheel.json"
+          echo "path=$wheel" >> "$GITHUB_OUTPUT"
+          python -c 'import json, os; value=json.load(open(os.environ["IDENTITY"], encoding="utf-8")); output=open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8"); print("raw=" + value["wheel_sha256"], file=output); print("contents=" + value["wheel_contents_sha256"], file=output)'
+        env:
+          IDENTITY: ${{ runner.temp }}/reset-wheel.json
+      - name: Reset only the fixed Surrey project
+        shell: bash
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/reset" "$RUNNER_TEMP/evidence"
+          printf '%s\n' "$LIVE_FIXTURE" > "$RUNNER_TEMP/reset/fixture.json"
+          printf '%s\n' "$LIVE_DEPLOY_PUBLIC_KEY" > "$RUNNER_TEMP/reset/deploy-key.pub"
+          chmod 600 "$RUNNER_TEMP/reset/fixture.json" "$RUNNER_TEMP/reset/deploy-key.pub"
+          args=()
+          if test "${{ steps.previous.outputs.found }}" = true; then
+            args+=(--previous-state "$RUNNER_TEMP/previous-state/retained-state.json")
+          fi
+          printf '%s' "$LIFECYCLE_TOKEN" | env -i \
+            HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" \
+            python tools/bootstrap_live_provider_lifecycle.py reset \
+              --token-fd 0 \
+              --fixture "$RUNNER_TEMP/reset/fixture.json" \
+              --deploy-public-key "$RUNNER_TEMP/reset/deploy-key.pub" \
+              --wheel "${{ steps.wheel.outputs.path }}" \
+              --expected-wheel-sha256 "${{ steps.wheel.outputs.raw }}" \
+              --expected-wheel-contents-sha256 "${{ steps.wheel.outputs.contents }}" \
+              --release-commit "$RELEASE_COMMIT" \
+              --handoff "$RUNNER_TEMP/evidence/reset-handoff.json" \
+              --audit-report "$RUNNER_TEMP/evidence/reset-audit.json" \
+              --confirm-project-reset "assessment-liveprovider-2026/report-liveprovider-2026-mb0105" \
+              "${args[@]}"
+        env:
+          LIFECYCLE_TOKEN: ${{ secrets.PRODOCKIT_LIVE_SURREY_GROUP_TOKEN }}
+          LIVE_FIXTURE: ${{ secrets.PRODOCKIT_LIVE_SURREY_FIXTURE_JSON }}
+          LIVE_DEPLOY_PUBLIC_KEY: ${{ secrets.PRODOCKIT_LIVE_SURREY_DEPLOY_PUBLIC_KEY }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+      - name: Pass only sanitised reset evidence to the candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: surrey-reset-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/evidence/reset-handoff.json
+            ${{ runner.temp }}/evidence/reset-audit.json
+          if-no-files-found: error
+          retention-days: 30
+
+  candidate:
+    name: Surrey candidate Bootstrap paths
+    needs: reset
+    runs-on: macos-15
+    timeout-minutes: 45
+    environment: bootstrap-live-surrey-candidate
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - uses: actions/download-artifact@v4
+        with:
+          name: surrey-reset-${{ github.run_id }}
+          path: ${{ runner.temp }}/reset-evidence
+      - name: Create a failure-safe candidate report placeholder
+        shell: bash
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/candidate"
+          printf '{"candidate":"did not reach the controlled runner"}\n' > "$RUNNER_TEMP/candidate/report.json"
+          chmod 600 "$RUNNER_TEMP/candidate/report.json"
+      - name: Build an independent candidate wheel
+        id: wheel
+        shell: bash
+        run: |
+          python -m pip install build
+          python -m build --wheel --outdir "$RUNNER_TEMP/candidate-wheel"
+          wheel=$(find "$RUNNER_TEMP/candidate-wheel" -maxdepth 1 -name 'prodockit-*.whl' -type f -print -quit)
+          test -n "$wheel"
+          python tools/canonical_wheel.py "$wheel" --output "$RUNNER_TEMP/candidate-wheel.json"
+          echo "path=$wheel" >> "$GITHUB_OUTPUT"
+          python -c 'import json, os; value=json.load(open(os.environ["IDENTITY"], encoding="utf-8")); output=open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8"); print("raw=" + value["wheel_sha256"], file=output)'
+        env:
+          IDENTITY: ${{ runner.temp }}/candidate-wheel.json
+      - name: Supply non-provider prerequisites
+        shell: bash
+        run: |
+          brew install pandoc pango
+          brew install --cask visual-studio-code font-inter font-jetbrains-mono
+          code --install-extension ms-python.python
+          code --install-extension zensical.zensical-studio
+          code --install-extension tamasfe.even-better-toml
+          code --install-extension ltex-plus.vscode-ltex-plus
+      - name: Run both paths with only the reviewed repository key
+        shell: bash
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/candidate/ssh"
+          printf '%s\n' "$LIVE_DEPLOY_PRIVATE_KEY" > "$RUNNER_TEMP/candidate/ssh/id_ed25519"
+          printf '%s\n' "$LIVE_KNOWN_HOSTS" > "$RUNNER_TEMP/candidate/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/candidate/ssh/id_ed25519" "$RUNNER_TEMP/candidate/ssh/known_hosts"
+          ssh-keygen -y -f "$RUNNER_TEMP/candidate/ssh/id_ed25519" > "$RUNNER_TEMP/candidate/ssh/id_ed25519.pub"
+          fingerprint=$(ssh-keygen -lf "$RUNNER_TEMP/candidate/ssh/id_ed25519.pub" -E sha256 | awk '{print $2}')
+          eval "$(ssh-agent -s)"
+          trap 'ssh-add -D >/dev/null 2>&1 || true; ssh-agent -k >/dev/null 2>&1 || true; rm -f "$RUNNER_TEMP/candidate/ssh/id_ed25519"' EXIT
+          ssh-add "$RUNNER_TEMP/candidate/ssh/id_ed25519"
+          export GIT_SSH_COMMAND="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityFile=$RUNNER_TEMP/candidate/ssh/id_ed25519.pub -o IdentityAgent=$SSH_AUTH_SOCK -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/candidate/ssh/known_hosts"
+          source_commit=$(python -c 'import json, os; print(json.load(open(os.environ["HANDOFF"], encoding="utf-8"))["source_commit"])')
+          git clone --no-checkout --no-tags git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git "$RUNNER_TEMP/surrey-template"
+          git -C "$RUNNER_TEMP/surrey-template" checkout --detach "$source_commit"
+          python tools/bootstrap_live_provider_surrey_fixture.py \
+            --handoff "$RUNNER_TEMP/reset-evidence/reset-handoff.json" \
+            --source-checkout "$RUNNER_TEMP/surrey-template" \
+            --output "$RUNNER_TEMP/candidate/fixture.json"
+          python tools/bootstrap_live_provider_read_write.py \
+            --provider surrey \
+            --fixture "$RUNNER_TEMP/candidate/fixture.json" \
+            --wheel "${{ steps.wheel.outputs.path }}" \
+            --expected-wheel-sha256 "${{ steps.wheel.outputs.raw }}" \
+            --agent-socket "$SSH_AUTH_SOCK" \
+            --key-fingerprint "$fingerprint" \
+            --known-hosts "$RUNNER_TEMP/candidate/ssh/known_hosts" \
+            --reset-handoff "$RUNNER_TEMP/reset-evidence/reset-handoff.json" \
+            --release-commit "$RELEASE_COMMIT" \
+            --report "$RUNNER_TEMP/candidate/report.json" \
+            --confirm-read-write
+        env:
+          HANDOFF: ${{ runner.temp }}/reset-evidence/reset-handoff.json
+          LIVE_DEPLOY_PRIVATE_KEY: ${{ secrets.PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY }}
+          LIVE_KNOWN_HOSTS: ${{ secrets.PRODOCKIT_LIVE_SURREY_KNOWN_HOSTS }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+      - name: Retain only the sanitised candidate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surrey-candidate-${{ github.run_id }}
+          path: ${{ runner.temp }}/candidate/report.json
+          if-no-files-found: error
+          retention-days: 30
+
+  seal:
+    name: Surrey fresh verifier and sealer
+    needs: [reset, candidate]
+    if: always() && needs.reset.result != 'skipped'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: bootstrap-live-surrey-seal
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - uses: actions/download-artifact@v4
+        id: reset-artifact
+        continue-on-error: true
+        with:
+          name: surrey-reset-${{ github.run_id }}
+          path: ${{ runner.temp }}/reset-evidence
+      - name: Download candidate evidence when the candidate completed
+        if: needs.candidate.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: surrey-candidate-${{ github.run_id }}
+          path: ${{ runner.temp }}/candidate-evidence
+      - name: Verify provider state, revoke access and seal
+        shell: bash
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/seal" "$RUNNER_TEMP/provider" "$RUNNER_TEMP/retained"
+          printf '%s\n' "$LIVE_FIXTURE" > "$RUNNER_TEMP/seal/fixture.json"
+          chmod 600 "$RUNNER_TEMP/seal/fixture.json"
+          if ! test -f "$RUNNER_TEMP/reset-evidence/reset-handoff.json"; then
+            printf '%s' "$LIFECYCLE_TOKEN" | env -i \
+              HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" \
+              python tools/bootstrap_live_provider_lifecycle.py revoke \
+                --token-fd 0 \
+                --fixture "$RUNNER_TEMP/seal/fixture.json" \
+                --audit-report "$RUNNER_TEMP/provider/seal-audit.json" \
+                --release-commit "$RELEASE_COMMIT"
+            echo "Reset evidence was unavailable; access was revoked but the run cannot pass." >&2
+            exit 1
+          fi
+          if ! test -f "$RUNNER_TEMP/candidate-evidence/report.json"; then
+            install -m 700 -d "$RUNNER_TEMP/candidate-evidence"
+            printf '{"candidate":"artifact unavailable"}\n' > "$RUNNER_TEMP/candidate-evidence/report.json"
+          fi
+          printf '%s' "$LIFECYCLE_TOKEN" | env -i \
+            HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" \
+            python tools/bootstrap_live_provider_lifecycle.py verify-and-seal \
+              --token-fd 0 \
+              --fixture "$RUNNER_TEMP/seal/fixture.json" \
+              --handoff "$RUNNER_TEMP/reset-evidence/reset-handoff.json" \
+              --candidate-report "$RUNNER_TEMP/candidate-evidence/report.json" \
+              --retained-state "$RUNNER_TEMP/retained/retained-state.json" \
+              --audit-report "$RUNNER_TEMP/provider/seal-audit.json" \
+              --release-commit "$RELEASE_COMMIT" \
+              --provider-result "$RUNNER_TEMP/provider/provider-result.json" \
+              --workflow-run-id "$GITHUB_RUN_ID" \
+              --workflow-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          python tools/surrey_retained_state.py create-envelope \
+            --state "$RUNNER_TEMP/retained/retained-state.json" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --release-commit "$RELEASE_COMMIT" \
+            --output "$RUNNER_TEMP/retained/retained-state-envelope.json"
+        env:
+          LIFECYCLE_TOKEN: ${{ secrets.PRODOCKIT_LIVE_SURREY_GROUP_TOKEN }}
+          LIVE_FIXTURE: ${{ secrets.PRODOCKIT_LIVE_SURREY_FIXTURE_JSON }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+      - name: Retain the sanitised Surrey provider evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surrey-provider-result-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/provider/provider-result.json
+            ${{ runner.temp }}/provider/seal-audit.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Preserve the sealed state for the next exact reset
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surrey-retained-state-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/retained/retained-state.json
+            ${{ runner.temp }}/retained/retained-state-envelope.json
+          if-no-files-found: error
+          retention-days: 90

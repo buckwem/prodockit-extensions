@@ -1,0 +1,41 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+name: Bootstrap live provider — Surrey connectivity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: Surrey API from hosted Ubuntu
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require direct DNS and TLS access without redirects
+        shell: bash
+        run: |
+          host gitlab.surrey.ac.uk
+          code=$(curl --silent --show-error --max-redirs 0 \
+            --connect-timeout 10 --max-time 20 \
+            --output "$RUNNER_TEMP/gitlab-api.json" --write-out '%{http_code}' \
+            https://gitlab.surrey.ac.uk/api/v4/version)
+          test "$code" = 401 || test "$code" = 200
+
+  ssh:
+    name: Surrey SSH from hosted macOS
+    runs-on: macos-15
+    timeout-minutes: 5
+    steps:
+      - name: Observe the independently reviewed SSH fingerprint
+        shell: bash
+        run: |
+          host gitlab.surrey.ac.uk
+          nc -G 10 -z gitlab.surrey.ac.uk 22
+          ssh-keyscan -T 10 -t ed25519 gitlab.surrey.ac.uk \
+            > "$RUNNER_TEMP/surrey-observed-host-key"
+          test "$(ssh-keygen -lf "$RUNNER_TEMP/surrey-observed-host-key" -E sha256 | awk '{print $2}')" \
+            = 'SHA256:qNFkRSExCwCwfRE0H7qQHOo34h0OVr59NjgEjnjoz/o'

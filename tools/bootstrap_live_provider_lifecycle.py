@@ -1322,6 +1322,87 @@ def verify_and_seal(args: argparse.Namespace, client: GitLabClient) -> None:
     print(f"Retained state: {retained_path}")
 
 
+def revoke_destination_access(args: argparse.Namespace, client: GitLabClient) -> None:
+    """Remove the reviewed destination key without trusting candidate evidence.
+
+    This is the cancellation-recovery boundary.  It deliberately produces no
+    retained state or provider result: revocation alone does not prove that the
+    candidate repository is suitable for a later reset or release.
+    """
+
+    source_checkout = Path(__file__).resolve().parents[1]
+    fixture = LifecycleFixture.read(
+        private_metadata_path(
+            args.fixture,
+            label="Phase 3 fixture",
+            checkout=source_checkout,
+            must_exist=True,
+        )
+    )
+    handoff = None
+    if args.handoff is not None:
+        handoff = ResetHandoff.read(
+            private_metadata_path(
+                args.handoff,
+                label="reset handoff",
+                checkout=source_checkout,
+                must_exist=True,
+            ),
+            allow_expired=True,
+        )
+    controller_commit = validate_controller_checkout(
+        source_checkout,
+        environment=dict(os.environ),
+        git_executable="git",
+        expected_release_commit=args.release_commit,
+    )
+    if handoff is not None and (
+        handoff.provider != fixture.provider
+        or handoff.path_with_namespace != fixture.project.path_with_namespace
+        or handoff.deploy_key_id != fixture.deploy_key.id
+        or handoff.deploy_key_fingerprint != fixture.deploy_key.fingerprint
+        or handoff.controller_commit != controller_commit
+    ):
+        raise LifecycleError("the reset handoff differs from this trusted recovery run")
+    audit_path = private_metadata_path(
+        args.audit_report,
+        label="recovery audit report",
+        checkout=source_checkout,
+        must_exist=False,
+    )
+    project = project_value(client, fixture)
+    if project is None:
+        raise LifecycleError("the recovery destination project is absent")
+    project_id = validate_project_identity(
+        project,
+        fixture,
+        expected_id=handoff.project_id if handoff is not None else None,
+    )
+    journal = Journal([])
+    group_preflight(client, fixture)
+    disable_destination_key(client, fixture, project_id, journal)
+    snapshot = project_snapshot(client, fixture, project)
+    validate_project_identity(snapshot.project, fixture, expected_id=project_id)
+    if any(key.get("id") == fixture.deploy_key.id for key in snapshot.deploy_keys):
+        raise LifecycleError("destination deploy-key revocation could not be confirmed")
+    write_private_json(
+        audit_path,
+        {
+            "schema": 1,
+            "passed": True,
+            "phase": "revoke",
+            "provider": "surrey",
+            "project_id": project_id,
+            "path_with_namespace": fixture.project.path_with_namespace,
+            "controller_commit": controller_commit,
+            "destination_deploy_key_enabled": False,
+            "finished_at_utc": utc_now(),
+            "operations": journal.operations,
+        },
+    )
+    print(f"Phase 5 recovery revoked access: {fixture.project.path_with_namespace}")
+
+
 def _phase_two_fixture(fixture: LifecycleFixture) -> Any:
     """Build the narrow attributes needed by Phase 2 ref validation."""
 
@@ -1363,6 +1444,12 @@ def parser() -> argparse.ArgumentParser:
     seal.add_argument("--workflow-run-id", type=int)
     seal.add_argument("--workflow-url")
     seal.add_argument("--token-fd", type=int, default=0)
+    revoke = subparsers.add_parser("revoke")
+    revoke.add_argument("--fixture", required=True, type=Path)
+    revoke.add_argument("--handoff", type=Path)
+    revoke.add_argument("--audit-report", required=True, type=Path)
+    revoke.add_argument("--release-commit", required=True)
+    revoke.add_argument("--token-fd", type=int, default=0)
     return result
 
 
@@ -1447,8 +1534,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             client = GitLabClient(api_base=fixture.api_base, token=token)
             if args.command == "reset":
                 reset_project(args, client)
-            else:
+            elif args.command == "verify-and-seal":
                 verify_and_seal(args, client)
+            else:
+                revoke_destination_access(args, client)
     except (LifecycleError, StateError, LiveProviderError, OSError, ValueError) as error:
         write_failure_audit(args, error)
         fail(str(error))
