@@ -108,6 +108,35 @@ def test_macro_docs_explain_repo_and_release_compatibility_policy() -> None:
         assert phrase in macros
 
 
+def test_authoring_compares_supported_alternatives_without_calling_them_replacements() -> None:
+    authoring = _text("docs/authoring.md")
+
+    for extension in (
+        "prodockit.headings",
+        "prodockit.refs",
+        "prodockit.citations",
+        "prodockit.glossary",
+        "prodockit.tables",
+        "prodockit.steps",
+        "prodockit.tree",
+        "prodockit.bibliography",
+        "prodockit.index",
+    ):
+        assert extension in authoring
+
+    for phrase in (
+        "MkDocs plugin compatibility",
+        "Python-Markdown extension compatibility",
+        "tab-authoring-supported-alternatives",
+        "Use the supported alternative when...",
+        "not drop-in replacements",
+        "PDF page numbers",
+        "BibTeX/BibLaTeX",
+        "back-of-book index",
+    ):
+        assert phrase in authoring
+
+
 def test_release_notes_are_a_website_only_capability_record() -> None:
     changelog = _text("docs/about/changelog.md")
     prose = " ".join(changelog.split())
