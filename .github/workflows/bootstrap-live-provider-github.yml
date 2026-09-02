@@ -142,9 +142,15 @@ jobs:
             --output "$RUNNER_TEMP/candidate/fixture.json"
         env:
           HANDOFF: ${{ runner.temp }}/gate/reset-handoff.json
-      - name: Supply ordinary build prerequisites
+      - name: Supply non-provider prerequisites
         shell: bash
-        run: brew install pandoc pango
+        run: |
+          brew install pandoc pango
+          brew install --cask visual-studio-code
+          code --install-extension ms-python.python
+          code --install-extension zensical.zensical-studio
+          code --install-extension tamasfe.even-better-toml
+          code --install-extension ltex-plus.vscode-ltex-plus
       - name: Run the two candidate paths with only one repository deploy key
         shell: bash
         run: |
