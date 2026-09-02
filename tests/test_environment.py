@@ -32,8 +32,7 @@ def test_old_active_zensical_is_rejected_before_the_pdf_build(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = _project(tmp_path, "zensical>=0.0.57\n")
-    monkeypatch.setattr(environment, "_zensical_cli", lambda: "/project/.venv/bin/zensical")
-    monkeypatch.setattr(environment, "_installed_zensical_version", lambda _command: "0.0.53")
+    monkeypatch.setattr(environment, "_installed_zensical_version", lambda: "0.0.53")
 
     with pytest.raises(BuildEnvironmentError) as caught:
         check_pdf_environment(config)
@@ -49,8 +48,7 @@ def test_matching_or_newer_active_zensical_is_accepted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = _project(tmp_path, "zensical>=0.0.57\n")
-    monkeypatch.setattr(environment, "_zensical_cli", lambda: "/project/.venv/bin/zensical")
-    monkeypatch.setattr(environment, "_installed_zensical_version", lambda _command: "0.0.58")
+    monkeypatch.setattr(environment, "_installed_zensical_version", lambda: "0.0.58")
 
     check_pdf_environment(config)
 

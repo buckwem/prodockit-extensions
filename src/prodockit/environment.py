@@ -19,7 +19,6 @@ from pathlib import Path
 
 from prodockit import __version__
 from prodockit._zensical import _installed_zensical_version
-from prodockit.pdf.site import _zensical_cli
 from prodockit.template_sync import prodockit_upgrade_required
 
 
@@ -86,9 +85,10 @@ def check_pdf_environment(config_file: str | Path) -> None:
 
     installed = {
         "prodockit": __version__,
-        # Ask the same executable the public renderer will run, rather than
-        # importing Zensical or accepting an unrelated command from PATH.
-        "zensical": _installed_zensical_version(_zensical_cli()),
+        # Check the command the author can actually invoke from this active
+        # environment; the PDF command consumes an already-built site and no
+        # longer starts Zensical itself.
+        "zensical": _installed_zensical_version(),
     }
     failures = [
         floor
