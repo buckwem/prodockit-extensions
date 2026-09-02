@@ -143,6 +143,41 @@ def test_git_host_rewrites_are_attached_to_each_harness_command(
     ]
 
 
+def test_template_release_recorder_runs_from_the_installed_wheel(
+    monkeypatch, tmp_path: Path
+) -> None:
+    environment = {"PATH": os.environ["PATH"]}
+    runner = bootstrap_acceptance_driver.HarnessRunner(
+        environment,
+        "git@example.invalid:group/project.git",
+        home=tmp_path,
+    )
+    project = tmp_path / "project"
+    command = [
+        sys.executable,
+        "-m",
+        "prodockit",
+        "_record-template-release",
+        "--project-root",
+        str(project),
+    ]
+    seen: list[list[str]] = []
+
+    def execute(words, **_kwargs):  # type: ignore[no-untyped-def]
+        seen.append(list(words))
+        return bootstrap_acceptance_driver.subprocess.CompletedProcess(
+            words, 0, "recorded\n", ""
+        )
+
+    monkeypatch.setattr(bootstrap_acceptance_driver, "run", execute)
+
+    result = runner.run(command, cwd=str(tmp_path))
+
+    assert result.ok
+    assert result.stdout == "recorded\n"
+    assert seen == [command]
+
+
 @pytest.mark.parametrize(
     ("command", "revealed"),
     [
