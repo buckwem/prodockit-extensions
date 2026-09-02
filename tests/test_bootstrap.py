@@ -6438,6 +6438,77 @@ def test_bootstrap_retries_safe_downloads_after_transient_network_errors(
     assert runner.attempts == 2
 
 
+def test_bootstrap_retries_winget_after_transient_msi_1603(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.bootstrap import Stage, apply_stage
+
+    class Recovers(FakeRunner):
+        attempts = 0
+
+        def run(self, command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
+            self.attempts += 1
+            if self.attempts == 1:
+                return CommandResult(
+                    1,
+                    stderr=(
+                        "Successfully verified installer hash\n"
+                        "Installer failed with exit code: 1603"
+                    ),
+                )
+            return CommandResult(0)
+
+    delays: list[int] = []
+    monkeypatch.setattr("prodockit.bootstrap.time.sleep", delays.append)
+    runner = Recovers()
+    context = _context(tmp_path, runner=runner)
+    stage = Stage(
+        "node",
+        "Node",
+        lambda context: CheckResult(Status.OK),
+        lambda context: Plan(
+            commands=[["winget", "install", "--id", "OpenJS.NodeJS.LTS"]]
+        ),
+    )
+
+    result = apply_stage(context, stage)
+
+    assert result.ok
+    assert runner.attempts == 2
+    assert delays == [10]
+
+
+def test_bootstrap_does_not_retry_an_unrecognised_winget_installer_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.bootstrap import Stage, apply_stage
+
+    runner = FakeRunner(
+        {
+            "winget install": CommandResult(
+                1, stderr="Installer failed with exit code: 1625"
+            )
+        }
+    )
+    delays: list[int] = []
+    monkeypatch.setattr("prodockit.bootstrap.time.sleep", delays.append)
+    context = _context(tmp_path, runner=runner)
+    stage = Stage(
+        "node",
+        "Node",
+        lambda context: CheckResult(Status.MISSING, "not installed"),
+        lambda context: Plan(
+            commands=[["winget", "install", "--id", "OpenJS.NodeJS.LTS"]]
+        ),
+    )
+
+    result = apply_stage(context, stage)
+
+    assert result.failed is not None
+    assert len(runner.calls) == 1
+    assert delays == []
+
+
 def test_bootstrap_retries_sudo_apt_after_snapcraft_http_408(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
