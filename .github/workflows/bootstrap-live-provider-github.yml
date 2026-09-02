@@ -146,7 +146,7 @@ jobs:
         shell: bash
         run: |
           brew install pandoc pango
-          brew install --cask visual-studio-code
+          brew install --cask visual-studio-code font-inter font-jetbrains-mono
           code --install-extension ms-python.python
           code --install-extension zensical.zensical-studio
           code --install-extension tamasfe.even-better-toml

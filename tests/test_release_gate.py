@@ -283,6 +283,8 @@ def test_github_shadow_workflow_keeps_three_credential_boundaries() -> None:
     assert "bootstrap_live_provider_ephemeral_key.py create" in reset
     assert "bootstrap_live_provider_ephemeral_key.py unwrap" in candidate
     assert "brew install --cask visual-studio-code" in candidate
+    assert "font-inter" in candidate
+    assert "font-jetbrains-mono" in candidate
     for extension in (
         "ms-python.python",
         "zensical.zensical-studio",
