@@ -747,13 +747,26 @@ def _authorise_non_git_command(
     candidate = str(candidate_python) if candidate_python is not None else ""
     project_python = str(project / ".venv" / "bin" / "python")
     project_zensical = str(project / ".venv" / "bin" / "zensical")
+    record_template_release = [
+        candidate,
+        "-m",
+        "prodockit",
+        "_record-template-release",
+        "--project-root",
+        str(project),
+    ]
     accepted = False
-    if stage_id == "fresh-history":
-        accepted = command == [
-            "mv",
-            str(project / ".git"),
-            str(project.parent / f".{project.name}.git.pdk-template-backup"),
-        ]
+    if stage_id == "clone":
+        accepted = command == record_template_release
+    elif stage_id == "fresh-history":
+        accepted = command in (
+            record_template_release,
+            [
+                "mv",
+                str(project / ".git"),
+                str(project.parent / f".{project.name}.git.pdk-template-backup"),
+            ],
+        )
     elif stage_id == "remote":
         accepted = command == [candidate, "-m", "prodockit", "sync-repo"]
     elif stage_id == "project-env":

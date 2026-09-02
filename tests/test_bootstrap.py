@@ -3498,7 +3498,8 @@ def test_the_history_reset_preserves_a_recovery_copy(tmp_path: Path) -> None:
     backup = project.parent / ".report-al01234.git.pdk-template-backup"
     assert str(backup) in joined
     assert "recovered" in joined
-    assert plan.commands[0] == ["mv", str(project / ".git"), str(backup)]
+    assert "_record-template-release" in plan.commands[0]
+    assert plan.commands[1] == ["mv", str(project / ".git"), str(backup)]
     assert "git init -b main" in flat
     # From the guide: cloud-sync clients rewrite the executable bit, so a
     # synced project shows every file as modified without a byte changing.
@@ -3518,7 +3519,7 @@ def test_the_history_reset_never_overwrites_an_existing_recovery_copy(
         _context(tmp_path, runner=runner)
     )
 
-    assert plan.commands[0][-1] == str(project.parent / ".report-al01234.git.pdk-template-backup-3")
+    assert plan.commands[1][-1] == str(project.parent / ".report-al01234.git.pdk-template-backup-3")
 
 
 def test_the_windows_history_reset_uses_literal_escaped_paths(tmp_path: Path) -> None:
@@ -3534,7 +3535,7 @@ def test_the_windows_history_reset_uses_literal_escaped_paths(tmp_path: Path) ->
             project_dir=str(project),
         )
     )
-    command = plan.commands[0]
+    command = plan.commands[1]
 
     assert command[:3] == ["powershell", "-NoProfile", "-Command"]
     assert "Move-Item -LiteralPath" in command[3]
@@ -3549,6 +3550,15 @@ def test_the_history_reset_runs_before_the_remote_is_set() -> None:
 
     assert ids.index("fresh-history") > ids.index("clone")
     assert ids.index("fresh-history") < ids.index("remote")
+
+
+def test_cloning_the_template_records_its_release_before_history_is_reset(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    plan = next(s for s in STAGES if s.id == "clone").plan(context)
+
+    assert plan.commands[0][:2] == ["git", "clone"]
+    assert "_record-template-release" in plan.commands[1]
+    assert str(context.config.resolved_project_dir(context.home)) in plan.commands[1]
 
 
 def test_the_remote_is_added_when_the_reset_left_none(tmp_path: Path) -> None:

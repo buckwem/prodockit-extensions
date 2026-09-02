@@ -5,6 +5,39 @@
 import pytest
 
 
+def test_bootstrap_records_the_pristine_template_release(tmp_path) -> None:
+    """The tag must be persisted before bootstrap archives template history."""
+    import subprocess
+
+    from click.testing import CliRunner
+
+    from prodockit.cli import main
+    from prodockit.template_sync import read_applied_release, read_stamp
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "Test"], check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "user.email", "test@example.com"], check=True
+    )
+    (tmp_path / "template.txt").write_text("template\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "template.txt"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "template"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "tag", "template-v1.4.0"], check=True)
+
+    result = CliRunner().invoke(
+        main, ["_record-template-release", "--project-root", str(tmp_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert read_applied_release(tmp_path) == "template-v1.4.0"
+    assert read_stamp(tmp_path) == subprocess.run(
+        ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
 def test_template_sync_refuses_outside_a_repository(tmp_path, monkeypatch) -> None:
     """Run from the project, and only from its root."""
     from click.testing import CliRunner
@@ -327,7 +360,7 @@ def test_apply_commits_sets_upstream_and_publishes_the_review_branch(
     from click.testing import CliRunner
 
     from prodockit import cli
-    from prodockit.template_sync import branch_name
+    from prodockit.template_sync import branch_name, read_applied_release, read_stamp
 
     template = tmp_path / "template"
     project = tmp_path / "report"
@@ -372,6 +405,7 @@ paths = []
         ],
         check=True,
     )
+    subprocess.run(["git", "-C", str(template), "tag", "template-v1.0.0"], check=True)
     old = subprocess.run(
         ["git", "-C", str(template), "rev-parse", "HEAD"],
         capture_output=True,
@@ -403,6 +437,7 @@ paths = []
         ],
         check=True,
     )
+    subprocess.run(["git", "-C", str(template), "tag", "template-v2.0.0"], check=True)
 
     subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
     subprocess.run(
@@ -471,6 +506,13 @@ paths = []
         project / ".github" / "workflows" / "docs.yml"
     ).read_text()
     assert (project / "docs" / "stylesheets" / "pdk.css").read_text() != "outdated\n"
+    assert read_applied_release(project) == "template-v2.0.0"
+    assert read_stamp(project) == subprocess.run(
+        ["git", "-C", str(template), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
     update_branch = branch_name(old)
     upstream = subprocess.run(
         ["git", "-C", str(project), "rev-parse", "--abbrev-ref", "@{upstream}"],

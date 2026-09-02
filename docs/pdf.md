@@ -262,7 +262,7 @@ A page's own front matter `recto_title: "Short Title"` overrides its
 running header text from the *next* page onward - see
 [Double-sided (duplex) printing](#double-sided-duplex-printing). Your
 `nav`'s index page can also use `{WORDCOUNT}`/`{REPOURL}`/`{RELEASE}`/
-`{% raw %}{{ site_name }}{% endraw %}` markers - see
+`{% raw %}{{ config.site_name }}{% endraw %}` markers - see
 [Cover page markers](#cover-page-markers).
 
 ### Web-only / PDF-only content
@@ -373,7 +373,7 @@ configuration needed:
 | `{WORDCOUNT}` | The site-wide word count (the same value a `{% raw %}{{ word_count }}{% endraw %}` website [macro variable](macros.md#variables) would show), so a submission's PDF and its live website page never disagree. |
 | `{REPOURL}` | The git-detected repo URL (the same value `{% raw %}{{ repo_url }}{% endraw %}` gives a website macro). |
 | `{RELEASE}` | The latest published GitHub/GitLab release tag (e.g. `v1.2.0`). The *whole line* containing this marker is dropped instead if there isn't one - most projects never publish a release at all, so nothing shows a bare `"Release: "` label by default. |
-| `{% raw %}{{ site_name }}{% endraw %}` | Your project's own `site_name`, substituted literally - `prodockit pdf` never evaluates Jinja, so the exact same `{% raw %}{{ site_name }}{% endraw %}` text a website macro variable uses works here too, one line of markdown for both outputs. |
+| `{% raw %}{{ config.site_name }}{% endraw %}` | Your project's own `site_name`, substituted literally - `prodockit pdf` never evaluates Jinja, so the exact same native Zensical expression works here too, one line of Markdown for both outputs. The former `{% raw %}{{ site_name }}{% endraw %}` spelling remains accepted while projects migrate. |
 /// table-caption | <
     attrs: {id: tab-pdf-cover-page-markers}
 

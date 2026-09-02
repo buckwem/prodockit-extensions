@@ -228,10 +228,10 @@ when the project requires a particular typeface.
 
 ### Fetch tags only when the document uses them {: #ci-shallow-clone }
 
-The `{% raw %}{{ release }}{% endraw %}` macro reads Git tags reachable from the checked-out
+Zensical's `{% raw %}{{ git.short_tag }}{% endraw %}` variable reads Git tags reachable from the checked-out
 commit. GitHub's default shallow checkout has no tags, so the value becomes an
 empty string without failing the build. Set a full checkout only when the
-document uses tag-derived macros; the template's PDF-only `{RELEASE}` marker
+document uses tag-derived variables; the template's PDF-only `{RELEASE}` marker
 uses host release metadata instead.
 
 ### Test the artifact, not only the source {: #ci-checks-worth-adding }

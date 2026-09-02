@@ -46,6 +46,9 @@ from prodockit.bootstrap import (
     resolve_host,
 )
 from prodockit.bootstrap.fetch import Fetched
+from prodockit.template_sync import read_template_stamp
+
+TEMPLATE_RELEASE = "v1.2.3"
 
 
 class AcceptanceError(RuntimeError):
@@ -530,6 +533,27 @@ class HarnessRunner:
                 "\n".join(synced.changes),
             )
 
+        if (
+            len(words) == 6
+            and words[1:4] == ["-m", "prodockit", "_record-template-release"]
+            and words[4] == "--project-root"
+        ):
+            # This is an installed-wheel acceptance test, so exercise the
+            # wheel's real hidden command. It is local and deterministic: it
+            # reads the freshly cloned repository's tag and writes the
+            # template stamp before Bootstrap archives that Git history.
+            completed = run(
+                words,
+                cwd=working,
+                environment=self.environment,
+                check=False,
+            )
+            return CommandResult(
+                completed.returncode,
+                completed.stdout,
+                completed.stderr,
+            )
+
         if executable in {"git", "git.exe"} or executable.endswith("git.exe"):
             if self.old_software and words[1:] == ["--version"]:
                 return CommandResult(0, f"git version {self.versions['git']}\n")
@@ -805,6 +829,7 @@ def main() -> None:
         environment=environment,
         real_toolchains=args.real_software,
     )
+    git(["tag", TEMPLATE_RELEASE], cwd=template_work, environment=environment)
     bare_clone(template_work, template_bare, environment=environment)
     configure_rewrite(
         host.template_remote, template_bare, root=root, environment=environment
@@ -1011,6 +1036,14 @@ def main() -> None:
             raise AcceptanceError("the existing route unexpectedly asked for a source choice")
     elif not backups:
         raise AcceptanceError("the new route did not preserve the template history backup")
+
+    if not existing:
+        stamp = read_template_stamp(project)
+        if stamp is None or stamp.applied_release != TEMPLATE_RELEASE:
+            raise AcceptanceError(
+                "bootstrap did not preserve the successfully applied template release; "
+                f"got {stamp!r}, expected {TEMPLATE_RELEASE!r}"
+            )
 
     recovery = root / ".pdkboot.last-run.json"
     if not recovery.is_file():

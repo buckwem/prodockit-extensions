@@ -38,6 +38,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from prodockit.tools import find
+
 if sys.version_info >= (3, 11):  # pragma: no cover - one branch per interpreter
     import tomllib
 else:  # pragma: no cover - `tomllib` is 3.11+, and this package supports 3.10
@@ -88,6 +90,20 @@ class ProdockitRequirement:
 
     specifier: str
     version: str
+
+
+@dataclass(frozen=True)
+class TemplateStamp:
+    """The exact template revision and its author-facing release.
+
+    ``revision`` keeps template-sync's content comparison exact, including
+    commits made after a tag. ``applied_release`` is the stable value shown
+    to an author through ``{{ applied_release }}``; it changes only when a
+    template update has been successfully applied.
+    """
+
+    revision: str
+    applied_release: str | None = None
 
 
 @dataclass(frozen=True)
@@ -215,6 +231,43 @@ def latest_prodockit_version(
     if not isinstance(version, str) or _version_key(version) is None:
         return None
     return version
+
+
+def template_release(project_root: pathlib.Path, revision: str = "HEAD") -> str | None:
+    """The nearest release tag reachable from a template revision.
+
+    This intentionally matches Zensical's ``git.short_tag`` semantics. The
+    exact revision is recorded separately, because a template can contain
+    useful commits after its most recent release tag.
+    """
+    try:
+        completed = subprocess.run(
+            [find("git"), "-C", str(project_root), "describe", "--tags", "--abbrev=0", revision],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError:
+        return None
+    release = completed.stdout.strip()
+    return release if completed.returncode == 0 and release else None
+
+
+def template_revision(project_root: pathlib.Path) -> str | None:
+    """The exact checked-out template commit, including freshly installed Git."""
+    try:
+        completed = subprocess.run(
+            [find("git"), "-C", str(project_root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError:
+        return None
+    revision = completed.stdout.strip()
+    return revision if completed.returncode == 0 and revision else None
 
 
 def dependency_updates(
@@ -1383,8 +1436,12 @@ def append_log(
     return path
 
 
-def write_stamp(project_root: pathlib.Path, version: str) -> pathlib.Path:
-    """Records which template version this project now matches.
+def write_stamp(
+    project_root: pathlib.Path,
+    version: str,
+    applied_release: str | None = None,
+) -> pathlib.Path:
+    """Records which template revision and release this project now matches.
 
     Written last, so it describes a state that exists. Written at all so
     the next run reads it instead of deriving the answer again - the
@@ -1392,17 +1449,57 @@ def write_stamp(project_root: pathlib.Path, version: str) -> pathlib.Path:
     template's history, and it cannot tell a file somebody edited from
     one the template never had.
     """
+    revision = version.strip()
+    if not revision:
+        raise TemplateSyncError("cannot record an empty template revision")
     path = project_root / STAMP_FILE
-    path.write_text(f"{version.strip()}\n", encoding="utf-8")
+    if applied_release is None:
+        # Preserve the public helper's legacy one-line form for callers that
+        # only know a revision. A successful template-sync/bootstrap writes
+        # the structured form below and thereby migrates old projects.
+        text = f"{revision}\n"
+    else:
+        text = (
+            f"revision = {json.dumps(revision)}\n"
+            f"applied_release = {json.dumps(applied_release.strip())}\n"
+        )
+    path.write_text(text, encoding="utf-8")
     return path
 
 
-def read_stamp(project_root: pathlib.Path) -> str | None:
-    """The recorded version, or None when there is none to read."""
+def read_template_stamp(project_root: pathlib.Path) -> TemplateStamp | None:
+    """The recorded template identity, accepting the legacy one-line stamp."""
     path = project_root / STAMP_FILE
     if not path.exists():
         return None
-    return path.read_text(encoding="utf-8").strip() or None
+    text = path.read_text(encoding="utf-8").strip()
+    if not text:
+        return None
+    if not text.startswith("revision ="):
+        return TemplateStamp(text)
+    try:
+        data = tomllib.loads(text)
+    except (tomllib.TOMLDecodeError, ValueError):
+        return None
+    revision = data.get("revision")
+    applied_release = data.get("applied_release")
+    if not isinstance(revision, str) or not revision.strip():
+        return None
+    if not isinstance(applied_release, str) or not applied_release.strip():
+        applied_release = None
+    return TemplateStamp(revision.strip(), applied_release.strip() if applied_release else None)
+
+
+def read_stamp(project_root: pathlib.Path) -> str | None:
+    """The exact recorded revision, or None when there is none to read."""
+    stamp = read_template_stamp(project_root)
+    return stamp.revision if stamp else None
+
+
+def read_applied_release(project_root: pathlib.Path) -> str | None:
+    """The last template release successfully applied to this project."""
+    stamp = read_template_stamp(project_root)
+    return stamp.applied_release if stamp else None
 
 
 def publish(

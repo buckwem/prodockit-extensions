@@ -40,8 +40,8 @@ _DOC_FILES = sorted(DOCS_DIR.rglob("*.md"))
 
 _INTENTIONAL_JINJA_BY_PAGE = {
     "index.md": {
-        "{% if release %}",
-        '<p class="cover-hero-release">Release: {{ release }}</p>',
+        "{% if git.short_tag %}",
+        '<p class="cover-hero-release">Release: {{ git.short_tag }}</p>',
         "{% endif %}",
     },
     "prodockit-template.md": {

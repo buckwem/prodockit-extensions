@@ -60,7 +60,7 @@ Zensical doesn't provide out of the box, each usable independently:
   change local project files.
 - ``prodockit.zensical_macros`` - Jinja variables/macros for Zensical's own
   macros plugin: a site-wide word count, the git-detected repository URL,
-  the latest release tag, chapter/appendix numbering that continues across
+  the successfully applied template release, chapter/appendix numbering that continues across
   pages, and reference/acronym/glossary spacing that matches
   ``prodockit.pdf``'s own PDF output.
 - ``prodockit.sync_repo`` - keep ``repo_url``/``repo_name``/brand icon/
