@@ -886,7 +886,7 @@ def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
         STAMP_FILE,
         TemplateSyncError,
         load_manifest,
-        read_stamp,
+        read_template_stamp,
         resolve_template,
     )
 
@@ -911,12 +911,20 @@ def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
         except (OSError, UnicodeError, TemplateSyncError) as error:
             metadata_failures.append(str(error))
     try:
-        stamp = read_stamp(root)
+        stamp_record = read_template_stamp(root)
     except OSError as error:
-        stamp = None
+        stamp_record = None
         metadata_failures.append(f"{STAMP_FILE}: {error}")
+    stamp = stamp_record.revision if stamp_record else None
+    applied_release = stamp_record.applied_release if stamp_record else None
     if stamp:
-        metadata_details.append(f"{STAMP_FILE}: {stamp}")
+        metadata_details.append(f"{STAMP_FILE} revision: {stamp}")
+        if applied_release:
+            metadata_details.append(
+                f"Successfully applied template release: {applied_release}"
+            )
+        else:
+            metadata_details.append("Successfully applied template release: not recorded")
     elif (root / STAMP_FILE).exists():
         metadata_failures.append(f"{STAMP_FILE} is empty")
     checks.append(
@@ -928,7 +936,11 @@ def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
             if metadata_failures
             else "Local template metadata is valid or not present",
             tuple(metadata_details + metadata_failures),
-            {"stamp": stamp, "manifest_present": manifest_path.is_file()},
+            {
+                "stamp": stamp,
+                "applied_release": applied_release,
+                "manifest_present": manifest_path.is_file(),
+            },
         )
     )
 

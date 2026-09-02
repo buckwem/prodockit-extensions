@@ -5,7 +5,7 @@
 (via Zensical's `zensical.extensions.macros` plugin) - the pieces a
 professional/academic report commonly wants that aren't specific to any one
 project: a site-wide word count, the git-detected repository URL, the
-latest release tag, chapter/appendix numbering that continues across pages,
+successfully applied template release, chapter/appendix numbering that continues across pages,
 and reference/acronym/glossary list spacing that matches `prodockit.pdf`'s
 own PDF output.
 
@@ -29,6 +29,7 @@ environment - so a project with no macros of its own can just use
 from __future__ import annotations
 
 import os
+import pathlib
 import re
 import subprocess
 from collections.abc import Mapping
@@ -38,6 +39,7 @@ from urllib.parse import urlparse, urlunparse
 from prodockit.headings import prescan
 from prodockit.project_config import find_project_config, load_project_config
 from prodockit.settings import flatten_nav, reference_style_values
+from prodockit.template_sync import STAMP_FILE, read_applied_release
 from prodockit.tools import find
 from prodockit.wordcount import compute_word_count
 
@@ -155,6 +157,30 @@ def _get_release() -> str:
         return ""
 
 
+def _get_applied_release(project_root: pathlib.Path, initial_release: str = "") -> str:
+    """Return the last template release successfully applied.
+
+    A pristine template can initialise the value from Zensical's
+    ``git.short_tag``. Once a stamp exists, only its explicit
+    ``applied_release`` field is trusted: falling back to the current
+    repository tag in an older student project would conflate the student's
+    own release with the template release being audited.
+    """
+    release = read_applied_release(project_root)
+    if release:
+        return release
+    if not (project_root / STAMP_FILE).exists():
+        return initial_release
+    return ""
+
+
+def _short_tag(variables: Mapping[str, Any]) -> str:
+    """Read Zensical's built-in ``git.short_tag`` without private APIs."""
+    git = variables.get("git")
+    value = git.get("short_tag") if isinstance(git, Mapping) else getattr(git, "short_tag", None)
+    return value.strip() if isinstance(value, str) else ""
+
+
 #: Set once a shallow-clone warning has been printed, so a `zensical serve`
 #: session that rebuilds on every save doesn't repeat it endlessly.
 _warned_about_shallow_clone = False
@@ -177,12 +203,12 @@ def _repository_is_shallow() -> bool:
 
 
 def _warn_if_release_lost_to_a_shallow_clone(release: str) -> bool:
-    """Warns when `release` came back empty *because* the checkout is
+    """Warns when ``git.short_tag`` is empty because the checkout is
     shallow, and returns whether it warned.
 
     A project with no tags at all is a perfectly normal state and is not
     worth a warning. A shallow clone is different: it fetches no tags even
-    when the repository has them, so `{{ release }}` silently resolves to
+    when the repository has them, so ``{{ git.short_tag }}`` resolves to
     an empty string and the cover line simply disappears - correct-looking
     output, no error, and it works in every full local clone. That combination
     has caused this exact bug twice (see prodockit-extensions#122).
@@ -195,8 +221,8 @@ def _warn_if_release_lost_to_a_shallow_clone(release: str) -> bool:
         return False
     _warned_about_shallow_clone = True
     print(
-        "⚠️  `release` is empty because this is a shallow clone, which fetches "
-        "no git tags - any `{{ release }}` line will silently disappear. Use "
+        "⚠️  `git.short_tag` is empty because this is a shallow clone, which fetches "
+        "no git tags - any `{{ git.short_tag }}` line will silently disappear. Use "
         '`fetch-depth: 0` (GitHub Actions) or `GIT_DEPTH: "0"` (GitLab CI).'
     )
     return True
@@ -211,7 +237,9 @@ def define_env(env: Any) -> None:
     # the plugin's private ``env.conf`` attribute.  The optional mapping is a
     # useful explicit injection point for embedding and unit tests; normal
     # Zensical builds take the file-backed branch.
-    config_value = getattr(env, "variables", {}).get("config")
+    variables = getattr(env, "variables", {})
+    config_value = variables.get("config")
+    project_root = pathlib.Path.cwd()
     if isinstance(config_value, Mapping):
         config = dict(config_value)
     else:
@@ -222,13 +250,13 @@ def define_env(env: Any) -> None:
                 "zensical.yaml, mkdocs.yml or mkdocs.yaml"
             )
         config = load_project_config(config_path).as_resolved_mapping()
+        project_root = config_path.parent
 
     env.variables["word_count"] = _compute_site_word_count(config)
     env.variables["repo_url"] = _get_repo_url()
-    release = _get_release()
-    _warn_if_release_lost_to_a_shallow_clone(release)
-    env.variables["release"] = release
-    env.variables["site_name"] = config.get("site_name") or ""
+    short_tag = _short_tag(variables)
+    _warn_if_release_lost_to_a_shallow_clone(short_tag or _get_release())
+    env.variables["applied_release"] = _get_applied_release(project_root, short_tag)
 
     @env.macro  # type: ignore[untyped-decorator]
     def heading_counter_reset(page: Any) -> str:

@@ -488,6 +488,16 @@ def _prodockit_command() -> list[str]:
     return [sys.executable, "-m", "prodockit"]
 
 
+def _record_template_release_command(project: Path) -> list[str]:
+    """Persist the template tag before bootstrap separates its Git history."""
+    return [
+        *_prodockit_command(),
+        "_record-template-release",
+        "--project-root",
+        str(project),
+    ]
+
+
 def _needs_config(context: Context, *required: str) -> CheckResult | None:
     """`UNKNOWN` if any of `required` is unanswered, else None.
 
@@ -1790,6 +1800,7 @@ def _plan_clone(context: Context) -> Plan:
     reports `ok` and does nothing.
     """
     project = context.config.resolved_project_dir(context.home)
+    source = clone_source(context)
     if (
         context.guided
         and project.exists()
@@ -1814,7 +1825,12 @@ def _plan_clone(context: Context) -> Plan:
         return Plan(
             commands=[
                 _move_path_command(context, project, backup),
-                [git_command(context), "clone", clone_source(context), str(project)],
+                [git_command(context), "clone", source, str(project)],
+                *(
+                    [_record_template_release_command(project)]
+                    if source == context.host.template_remote
+                    else []
+                ),
             ],
             instructions=[
                 f"The existing directory is not a complete clone. It will be moved to {backup} "
@@ -1827,7 +1843,10 @@ def _plan_clone(context: Context) -> Plan:
     # No prompt here. `--configure` put the choice with every path named
     # and recorded it; asking again mid-run would be the same decision in
     # worse words (#332).
-    return Plan(commands=[[git_command(context), "clone", clone_source(context), str(project)]])
+    commands = [[git_command(context), "clone", source, str(project)]]
+    if source == context.host.template_remote:
+        commands.append(_record_template_release_command(project))
+    return Plan(commands=commands)
 
 
 def _ls_remote_own_project(context: Context) -> CommandResult | None:
@@ -2154,6 +2173,7 @@ def _plan_fresh_history(context: Context) -> Plan:
                 "Skip this if you want to keep the template's history.",
             ],
             commands=[
+                _record_template_release_command(project),
                 remove,
                 [git_command(context), "init", "-b", "main"],
                 [git_command(context), "config", "core.fileMode", "false"],
@@ -2179,6 +2199,7 @@ def _plan_fresh_history(context: Context) -> Plan:
             "Skip this if you want to keep the template's history.",
         ],
         commands=[
+            _record_template_release_command(project),
             archive,
             [git_command(context), "init", "-b", "main"],
             [git_command(context), "config", "core.fileMode", "false"],

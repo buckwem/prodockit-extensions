@@ -3031,6 +3031,7 @@ def _run_template_sync(
         prodockit_upgrade_required,
         publish,
         publish_blockers,
+        read_applied_release,
         read_config,
         read_stamp,
         resolve_template,
@@ -3038,6 +3039,7 @@ def _run_template_sync(
         stage_changes,
         start_branch,
         submit_for_review,
+        template_release,
         update_report,
         write_stamp,
         written_report,
@@ -3197,6 +3199,10 @@ def _run_template_sync(
             encoding="utf-8",
             check=False,
         ).stdout.split()
+        previous_applied_release = read_applied_release(project)
+        wanted_applied_release = (
+            template_release(template, versions[0]) if versions else None
+        ) or previous_applied_release
         trees: dict[str, dict[str, str]] = {}
 
         def blob_at(version: str, path: str) -> str | None:
@@ -3321,7 +3327,13 @@ def _run_template_sync(
         # run derive its baseline from the wrong place and report
         # unedited files as edited.
         wanted_stamp = versions[0] if versions else (baseline.version or "")
-        stamp_is_stale = bool(baseline.version) and read_stamp(project) != wanted_stamp
+        stamp_is_stale = bool(baseline.version) and (
+            read_stamp(project) != wanted_stamp
+            or (
+                wanted_applied_release is not None
+                and previous_applied_release != wanted_applied_release
+            )
+        )
         work_needed = bool(
             pending
             or seeds
@@ -3377,6 +3389,12 @@ def _run_template_sync(
                 say_detail(f"      {state.file.target}")
         if stamp_is_stale and not (pending or seeds or added or updated or ignores):
             say("  The saved template version needs refreshing; no project content will change.")
+        if wanted_applied_release and previous_applied_release != wanted_applied_release:
+            before = previous_applied_release or "not recorded"
+            say(
+                "  Template release after a successful apply: "
+                f"{before} -> {wanted_applied_release}"
+            )
         if package_upgrade and package_specifier and package_version:
             say("  Prodockit needs upgrading:")
             say(f"      installed: {__version__}")
@@ -3531,9 +3549,18 @@ def _run_template_sync(
         # 10, last: the stamp describes a state that now exists.
         previous_stamp = read_stamp(project)
         if baseline.version:
-            write_stamp(project, wanted_stamp)
+            write_stamp(project, wanted_stamp, wanted_applied_release)
             also_written.append(STAMP_FILE)
-        stage_changes(git, [w.path for w in written] + also_written)
+        if not stage_changes(git, [w.path for w in written] + also_written):
+            if baseline.version:
+                if previous_stamp is None:
+                    (project / STAMP_FILE).unlink(missing_ok=True)
+                else:
+                    write_stamp(project, previous_stamp, previous_applied_release)
+            raise TemplateSyncError(
+                "could not stage the applied template update; the successfully applied "
+                "release record was left unchanged"
+            )
         say()
         if local_only:
             say("The changes are ready for you to review.")
@@ -3574,7 +3601,7 @@ def _run_template_sync(
                     if previous_stamp is None:
                         (project / STAMP_FILE).unlink(missing_ok=True)
                     else:
-                        write_stamp(project, previous_stamp)
+                        write_stamp(project, previous_stamp, previous_applied_release)
                 raise
             say()
             if merge_request:
@@ -3657,6 +3684,31 @@ def _template_checkout(project: pathlib.Path, remote: str) -> tuple[pathlib.Path
         "offline": "cached copy - could not reach the host, so this may be behind",
     }[what]
     return path, how
+
+
+@main.command("_record-template-release", hidden=True)
+@click.option(
+    "--project-root",
+    type=click.Path(path_type=pathlib.Path, file_okay=False),
+    default=pathlib.Path.cwd,
+)
+def _record_template_release(project_root: pathlib.Path) -> None:
+    """Persist a pristine template's tag before bootstrap removes its history."""
+    from prodockit.template_sync import (
+        template_release,
+        template_revision,
+        write_stamp,
+    )
+
+    exact = template_revision(project_root)
+    release = template_release(project_root, exact) if exact else None
+    if not exact:
+        raise click.ClickException("could not identify the cloned template revision")
+    if not release:
+        raise click.ClickException(
+            "the cloned template has no reachable release tag for applied_release"
+        )
+    write_stamp(project_root, exact, release)
 
 
 @main.command("template-sync")

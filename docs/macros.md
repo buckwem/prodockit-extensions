@@ -10,7 +10,7 @@ icon: lucide/braces
 for Zensical's own [macros plugin](https://zensical.org/docs/authoring/macros/)
 - the pieces a professional/academic report's website commonly wants that
 aren't specific to any one project: a site-wide word count, the git-detected
-repository URL, the latest release tag, chapter/appendix numbering that
+repository URL, the successfully applied template release, chapter/appendix numbering that
 continues across pages, and reference/acronym/glossary list spacing that
 matches [`prodockit.pdf`](pdf.md)'s own PDF output.
 
@@ -44,15 +44,17 @@ returning the unrendered page and allowing a broken site to be published.
 
 ## Variables
 
-The values exposed directly to page templates are listed in
-\ref{tab-macros-variables}.
+Zensical already exposes project configuration through `config` and repository
+metadata through `git`. Prodockit adds only values with different semantics.
+The values used by Prodockit projects are listed in \ref{tab-macros-variables}.
 
 | Variable {: width="32%" } | Description |
 |---|---|
 | `{% raw %}{{ word_count }}{% endraw %}` | Prose word count across every nav page except the first (assumed to be the cover page) and any page flagged `exclude_from_word_count: true` in its own front matter - a comma-formatted string (e.g. `"9,971"`). |
 | `{% raw %}{{ repo_url }}{% endraw %}` | The fully-qualified `https://` URL for the current checkout's git `origin` remote (converted from `git@host:path.git` SSH syntax, with any embedded CI credentials stripped) - `""` if there's no git remote configured. |
-| `{% raw %}{{ release }}{% endraw %}` | The latest git tag reachable from `HEAD` (e.g. `"1.2.0"`) - `""` if this checkout has no tags at all. Resolves identically for the website and for `prodockit pdf`, since both render through this same macro environment - unlike `prodockit.pdf`'s own [`{RELEASE}` cover-page marker](pdf.md#cover-page-markers), which queries the host's GitHub/GitLab API instead, for a project whose cover page isn't part of a live, macro-rendered site at all. |
-| `{% raw %}{{ site_name }}{% endraw %}` | `project.site_name` from `zensical.toml`. |
+| `{% raw %}{{ applied_release }}{% endraw %}` | The `prodockit-template` release most recently applied successfully. Bootstrap initialises it from the pristine template's `git.short_tag`; `template-sync --apply` then updates the persisted `.prodockit-template` value only after applying a template update. A student's own repository tags cannot change it. |
+| `{% raw %}{{ config.site_name }}{% endraw %}` | Native Zensical value for `project.site_name` from `zensical.toml`. Prefer it to the removed Prodockit `site_name` alias. |
+| `{% raw %}{{ git.short_tag }}{% endraw %}` | Native Zensical value for the nearest reachable tag in the current documentation repository. Prefer it to the removed Prodockit `release` alias when showing the document's own release. This is deliberately different from `applied_release`. |
 /// table-caption | <
     attrs: {id: tab-macros-variables}
 

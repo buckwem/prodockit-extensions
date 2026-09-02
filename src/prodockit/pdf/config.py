@@ -199,10 +199,10 @@ def _find_tex2svg_script(configured: str | None) -> str | None:
 
 def _warn_if_release_sources_disagree(api_release_tag: str) -> str | None:
     """Warns when the PDF's `{RELEASE}` marker and the website's
-    `{{ release }}` will show different things, and returns the message.
+    `{{ git.short_tag }}` will show different things, and returns the message.
 
     They are resolved from deliberately different sources.
-    `{{ release }}` is `git describe --tags` on the local checkout, chosen so
+    `{{ git.short_tag }}` describes the local checkout, so
     the website's hot rebuild path - every save under `zensical serve` -
     never makes a network call. `{RELEASE}` queries the host's releases API,
     chosen for a cover page that isn't part of a macro-rendered site at all.
@@ -222,19 +222,19 @@ def _warn_if_release_sources_disagree(api_release_tag: str) -> str | None:
     if local_tag and api_release_tag:
         message = (
             f"⚠️  Release mismatch: this PDF will show {api_release_tag!r} (from "
-            f"the host's releases API) while the website's `{{{{ release }}}}` "
+            f"the host's releases API) while the website's `{{{{ git.short_tag }}}}` "
             f"shows {local_tag!r} (from `git describe --tags`)."
         )
     elif local_tag:
         message = (
-            f"⚠️  Release mismatch: the website's `{{{{ release }}}}` shows "
+            f"⚠️  Release mismatch: the website's `{{{{ git.short_tag }}}}` shows "
             f"{local_tag!r}, but no published release was found via the host's "
             "API, so this PDF's `{RELEASE}` line will be dropped entirely."
         )
     else:
         message = (
             f"⚠️  Release mismatch: this PDF will show {api_release_tag!r} (from "
-            "the host's releases API) while the website's `{{ release }}` will "
+            "the host's releases API) while the website's `{{ git.short_tag }}` will "
             "be empty - `git describe --tags` found no tag, which usually means "
             "a shallow clone."
         )
@@ -390,8 +390,8 @@ def _build_pdf_from_config(
       `prodockit.pdf.release.get_latest_release_tag()`) - the whole line
       containing this marker is dropped instead if there isn't one (most
       projects never publish a release at all).
-    - `{{ site_name }}` - this function never evaluates Jinja, so the
-      exact same literal text a website macro variable uses substitutes
+    - `{{ config.site_name }}` - this function never evaluates Jinja, so the
+      exact same literal text Zensical's built-in config variable uses substitutes
       directly here too.
     """
     project_config = None
@@ -531,7 +531,7 @@ def _build_pdf_from_config(
 
     # Cover-page markers (see this function's own docs below) - a
     # nav-driven build's own cover page (its first page, if flagged
-    # is_index) can use {WORDCOUNT}/{REPOURL}/{RELEASE}/{{ site_name }}
+    # is_index) can use {WORDCOUNT}/{REPOURL}/{RELEASE}/{{ config.site_name }}
     # literally in its markdown, substituted here once the page's real
     # HTML exists. Skipped for a single markdown_file build - there's no
     # "cover page" to speak of, just whichever one page was requested.
@@ -560,12 +560,13 @@ def _build_pdf_from_config(
                 cover_html = cover_html.replace("{RELEASE}", release_tag)
             else:
                 cover_html = re.sub(r"^.*\{RELEASE\}.*\n?", "", cover_html, flags=re.MULTILINE)
-        if "{{ site_name }}" in cover_html:
+        if "{{ config.site_name }}" in cover_html or "{{ site_name }}" in cover_html:
             # prodockit.pdf never evaluates Jinja, so the exact same
-            # literal "{{ site_name }}" text used for the website's macro
-            # variable can just be substituted directly here too - one
-            # line of markdown works for both outputs, no separate marker.
-            cover_html = cover_html.replace("{{ site_name }}", config.get("site_name") or "")
+            # literal text used for the website can be substituted directly
+            # here too. Keep the old spelling while projects migrate.
+            site_name = config.get("site_name") or ""
+            cover_html = cover_html.replace("{{ config.site_name }}", site_name)
+            cover_html = cover_html.replace("{{ site_name }}", site_name)
         cover.html = cover_html
 
     if extra.get("pdf_output"):

@@ -551,6 +551,21 @@ identical, so nothing is written - but the recorded baseline still moves
 forward, because leaving it stale would make the next run compare against
 the wrong version and report unedited files as edited.
 
+### Show the successfully applied release {: #tsync-applied-release }
+
+The `.prodockit-template` stamp records two related values: the exact template
+commit used for safe file comparison and the nearest template release tag.
+Use `{% raw %}{{ applied_release }}{% endraw %}` on a cover or information page
+to show the latter. Bootstrap initialises it before separating a new project
+from the template's Git history.
+
+`template-sync` previews the release that would be recorded, but a preview,
+failed run, or incomplete application does not advance it. A successful
+`template-sync --apply` updates it alongside the managed files. The value
+therefore answers which template fixes the project has successfully applied;
+`{% raw %}{{ git.short_tag }}{% endraw %}` answers the different question of
+which tag belongs to the student's own repository.
+
 ### After a long gap {: #tsync-long-gap }
 
 A project that has not synced for months takes every upstream release at

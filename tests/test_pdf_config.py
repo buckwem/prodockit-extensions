@@ -1088,11 +1088,12 @@ def test_release_marker_line_is_dropped_when_no_release_exists(
     assert "After" in cover_html
 
 
+@pytest.mark.parametrize("marker", ["{{ config.site_name }}", "{{ site_name }}"])
 def test_site_name_marker_is_substituted_literally(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, marker: str
 ) -> None:
     root = _write_project(tmp_path)
-    (root / "docs" / "index.md").write_text("Project: {{ site_name }}\n", encoding="utf-8")
+    (root / "docs" / "index.md").write_text(f"Project: {marker}\n", encoding="utf-8")
     captured = _capture_pages(monkeypatch)
     monkeypatch.chdir(root)
 
@@ -1328,7 +1329,7 @@ def test_site_name_passed_to_build_pdf_is_also_css_escaped(
 ) -> None:
     """The site_name kwarg passed to build_pdf() (the running header/footer
     CSS) is escaped the same way copyright_text is - separate from the
-    {{ site_name }} cover-page marker substitution, which uses the raw,
+    {{ config.site_name }} cover-page marker substitution, which uses the raw,
     unescaped value since it's substituted into HTML, not CSS."""
     root = _write_custom_project(
         tmp_path,
@@ -1352,7 +1353,7 @@ def test_site_name_passed_to_build_pdf_is_also_css_escaped(
 
 # --- Release-source disagreement (#125) ------------------------------------
 #
-# `{{ release }}` (website) is `git describe --tags` on the local checkout;
+# `{{ git.short_tag }}` (website) describes the local checkout;
 # `{RELEASE}` (PDF) queries the host's releases API. Both are deliberate, and
 # neither changes here - but a disagreement between them used to be entirely
 # invisible, so a reader could see two different release numbers with nothing

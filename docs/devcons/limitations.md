@@ -197,7 +197,7 @@ generated output rather than a place for hand-maintained files.
 
     | | Source |
     | --- | --- |
-    | `{% raw %}{{ release }}{% endraw %}` (website, and any macro-rendered page) | `git describe --tags` on the local checkout |
+    | `{% raw %}{{ git.short_tag }}{% endraw %}` (website, and any macro-rendered page) | Zensical's Git metadata for the local checkout |
     | `{RELEASE}` (PDF cover marker) | The host's releases API |
     /// table-caption | <
         attrs: {id: tab-devcons-limitations-pdf-generation}
@@ -206,7 +206,7 @@ generated output rather than a place for hand-maintained files.
     ///
 
 The two sources in \ref{tab-devcons-limitations-pdf-generation} are each right
-for their own context. `{% raw %}{{ release }}{% endraw %}` is
+for their own context. `{% raw %}{{ git.short_tag }}{% endraw %}` is
     re-evaluated on
     every website rebuild, including every save under `zensical serve`, so
     it must not make a network call. `{RELEASE}` is a PDF-only marker replaced
@@ -221,7 +221,7 @@ for their own context. `{% raw %}{{ release }}{% endraw %}` is
 
     Since 0.16.0 neither is silent about it: `prodockit pdf` warns when the
     two will show different things, and the macros pass warns when
-    `{% raw %}{{ release }}{% endraw %}` came back empty *because* the clone was
+    `{% raw %}{{ git.short_tag }}{% endraw %}` came back empty *because* the clone was
     shallow, naming
     `fetch-depth: 0` / `GIT_DEPTH`. A project with no tags at all is a
     normal state and says nothing.

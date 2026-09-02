@@ -19,8 +19,8 @@ class _MacroEnvironment:
     documented ``define_env(env)`` contract had not changed.
     """
 
-    def __init__(self, config: dict) -> None:
-        self.variables = {"config": config}
+    def __init__(self, config: dict, short_tag: str = "") -> None:
+        self.variables = {"config": config, "git": {"short_tag": short_tag}}
         self.macros: dict[str, object] = {}
 
     def macro(self, function):
@@ -28,8 +28,8 @@ class _MacroEnvironment:
         return function
 
 
-def _macro_env(config: dict) -> _MacroEnvironment:
-    return _MacroEnvironment(config)
+def _macro_env(config: dict, short_tag: str = "") -> _MacroEnvironment:
+    return _MacroEnvironment(config, short_tag)
 
 
 def _write_project(tmp_path: Path) -> dict:
@@ -71,7 +71,10 @@ def _no_real_git_remote(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(zensical_macros.subprocess, "check_output", _raise)
 
 
-def test_define_env_sets_word_count_repo_url_release_and_site_name(tmp_path: Path) -> None:
+def test_define_env_uses_native_values_and_adds_applied_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
     env = _macro_env(_write_project(tmp_path))
     define_env(env)
     # chapter1.md only ("Chapter One" + "one two three four five") - the
@@ -79,8 +82,46 @@ def test_define_env_sets_word_count_repo_url_release_and_site_name(tmp_path: Pat
     # exclude_from_word_count: true) are both left out.
     assert env.variables["word_count"] == "7"
     assert env.variables["repo_url"] == ""
-    assert env.variables["release"] == ""
-    assert env.variables["site_name"] == "Test project"
+    assert env.variables["applied_release"] == ""
+    assert "release" not in env.variables
+    assert "site_name" not in env.variables
+
+
+def test_pristine_template_initialises_applied_release_from_short_tag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    env = _macro_env(_write_project(tmp_path), "v1.6.0")
+
+    define_env(env)
+
+    assert env.variables["applied_release"] == "v1.6.0"
+
+
+def test_recorded_applied_release_does_not_follow_student_tags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".prodockit-template").write_text(
+        'revision = "abc123"\napplied_release = "v1.5.0"\n', encoding="utf-8"
+    )
+    env = _macro_env(_write_project(tmp_path), "student-v3")
+
+    define_env(env)
+
+    assert env.variables["applied_release"] == "v1.5.0"
+
+
+def test_legacy_stamp_does_not_mistake_a_student_tag_for_template_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".prodockit-template").write_text("abc123\n", encoding="utf-8")
+    env = _macro_env(_write_project(tmp_path), "student-v3")
+
+    define_env(env)
+
+    assert env.variables["applied_release"] == ""
 
 
 def test_get_repo_url_converts_ssh_syntax_to_https(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -205,7 +246,7 @@ def test_heading_counter_reset_letters_an_appendix_page(
 # --- The shallow-clone case (#125) ------------------------------------------
 #
 # `git describe --tags` returns nothing in a shallow clone even when the
-# repository has tags, so `{{ release }}` resolves to an empty string and the
+# repository has tags, so `{{ git.short_tag }}` resolves to an empty string and the
 # cover line simply disappears - correct-looking output, no error, and it
 # works in every full local clone. That combination shipped twice.
 #

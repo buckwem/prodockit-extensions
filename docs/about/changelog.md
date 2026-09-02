@@ -38,6 +38,16 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## Unreleased
+
+- Added `{% raw %}{{ applied_release }}{% endraw %}` so a template-derived site and PDF can show
+  the last `prodockit-template` release successfully applied, independently
+  of the student's own repository tags. Bootstrap records the initial release
+  and `template-sync --apply` advances it only with a successful update.
+- Replaced Prodockit's duplicate `site_name` and `release` variables with
+  Zensical's native `{% raw %}{{ config.site_name }}{% endraw %}` and
+  `{% raw %}{{ git.short_tag }}{% endraw %}` values.
+
 ## 0.54.1 (2026-09-01)
 
 - Made Bootstrap retry transient package-service failures, including Snapcraft

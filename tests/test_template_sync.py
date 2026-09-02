@@ -59,6 +59,7 @@ from prodockit.template_sync import (
     prodockit_upgrade_required,
     publish,
     publish_blockers,
+    read_applied_release,
     read_config,
     read_stamp,
     resolve_template,
@@ -68,6 +69,7 @@ from prodockit.template_sync import (
     stage_changes,
     start_branch,
     submit_for_review,
+    template_release,
     unclassified,
     update_report,
     write_stamp,
@@ -150,9 +152,7 @@ def test_dependency_updates_align_every_project_declaration(tmp_path: pathlib.Pa
     (project / "requirements.txt").write_text(
         "prodockit[index]>=0.39.0\nzensical>=0.0.53\n", encoding="utf-8"
     )
-    (project / "testrequirements.txt").write_text(
-        "prodockit[testing]>=0.39.0\n", encoding="utf-8"
-    )
+    (project / "testrequirements.txt").write_text("prodockit[testing]>=0.39.0\n", encoding="utf-8")
     (project / ".github" / "workflows" / "docs.yml").write_text(
         "run: pip install prodockit==0.39.0 zensical==0.0.53\n", encoding="utf-8"
     )
@@ -195,9 +195,7 @@ def test_dependency_updates_take_highest_version_from_an_old_inconsistent_templa
     template.mkdir()
     project.mkdir()
     (template / "requirements.txt").write_text("prodockit>=0.51.0\n", encoding="utf-8")
-    (template / "testrequirements.txt").write_text(
-        "prodockit[testing]>=0.50.0\n", encoding="utf-8"
-    )
+    (template / "testrequirements.txt").write_text("prodockit[testing]>=0.50.0\n", encoding="utf-8")
     (project / "requirements.txt").write_text("prodockit>=0.49.0\n", encoding="utf-8")
 
     updates = dependency_updates(template, project)
@@ -226,10 +224,7 @@ def test_an_unfamiliar_local_version_never_blocks_template_sync() -> None:
 
 
 def test_latest_prodockit_release_is_read_from_pypi_metadata() -> None:
-    assert (
-        latest_prodockit_version(lambda _url: b'{"info": {"version": "0.43.3"}}')
-        == "0.43.3"
-    )
+    assert latest_prodockit_version(lambda _url: b'{"info": {"version": "0.43.3"}}') == "0.43.3"
 
 
 @pytest.mark.parametrize(
@@ -271,9 +266,7 @@ def test_a_file_no_rule_claims_is_an_error_not_a_default() -> None:
     manifest = load_manifest(MANIFEST)
 
     assert unclassified(manifest, ["macros.py", "docs/index.md"]) == []
-    assert unclassified(manifest, ["tools/mermaid/package.json"]) == [
-        "tools/mermaid/package.json"
-    ]
+    assert unclassified(manifest, ["tools/mermaid/package.json"]) == ["tools/mermaid/package.json"]
 
 
 def test_the_top_level_docs_glob_catches_the_report_itself() -> None:
@@ -302,7 +295,9 @@ def test_a_manifest_that_is_not_toml_says_so() -> None:
 
 
 def test_a_list_of_the_wrong_shape_is_refused() -> None:
-    with pytest.raises(TemplateSyncError, match=re.escape("template.owns must be a list of strings")):
+    with pytest.raises(
+        TemplateSyncError, match=re.escape("template.owns must be a list of strings")
+    ):
         load_manifest('[template]\nowns = "everything"\n')
 
 
@@ -383,7 +378,9 @@ def test_a_project_with_no_remote_is_told_rather_than_guessed_at() -> None:
 
 
 def test_an_unknown_host_is_told_rather_than_guessed_at() -> None:
-    with pytest.raises(TemplateSyncError, match=re.escape("no template is known for git.example.com")):
+    with pytest.raises(
+        TemplateSyncError, match=re.escape("no template is known for git.example.com")
+    ):
         resolve_template("git@git.example.com:someone/report.git")
 
 
@@ -792,9 +789,7 @@ def test_a_renamed_file_is_matched_against_what_the_project_calls_it() -> None:
         baseline,
     )
 
-    assert [(a.action, a.project_path) for a in actions] == [
-        ("same", "docs/javascript/extra.js")
-    ]
+    assert [(a.action, a.project_path) for a in actions] == [("same", "docs/javascript/extra.js")]
 
 
 def test_files_the_manifest_does_not_own_are_not_planned() -> None:
@@ -803,8 +798,11 @@ def test_files_the_manifest_does_not_own_are_not_planned() -> None:
     baseline = Baseline(version="v1", matched=0, total=0)
 
     actions = plan_template_files(
-        manifest, ["docs/index.md", "zensical.toml", "CHANGELOG.md"],
-        lambda p: "x", lambda p: "y", baseline,
+        manifest,
+        ["docs/index.md", "zensical.toml", "CHANGELOG.md"],
+        lambda p: "x",
+        lambda p: "y",
+        baseline,
     )
 
     assert actions == []
@@ -1035,7 +1033,7 @@ def test_a_new_pdf_setting_is_added_from_the_template() -> None:
 # Applying: editing config without destroying it
 # ---------------------------------------------------------------------------
 
-CONFIG = '''# The project's own settings. Every line here was written on purpose.
+CONFIG = """# The project's own settings. Every line here was written on purpose.
 [project]
 site_name = "My Report"
 
@@ -1046,7 +1044,7 @@ pdf_page_size = "A4"
 pdf_margin_top = "2cm"
 
 [project.markdown_extensions."prodockit.tables"]
-'''
+"""
 
 
 def test_a_changed_value_leaves_every_other_line_byte_identical() -> None:
@@ -1146,9 +1144,7 @@ def test_an_update_replaces_the_file(tmp_path) -> None:
 def test_an_added_file_gets_its_directory_made(tmp_path) -> None:
     """The template can gain a whole directory, and a project that never
     had it has nowhere to put the file."""
-    apply_file_actions(
-        _actions(("tools/mermaid/package.json", "add")), tmp_path, lambda p: b"{}"
-    )
+    apply_file_actions(_actions(("tools/mermaid/package.json", "add")), tmp_path, lambda p: b"{}")
 
     assert (tmp_path / "tools/mermaid/package.json").read_bytes() == b"{}"
 
@@ -1347,9 +1343,7 @@ def test_a_branch_is_named_after_the_template_version() -> None:
 def test_a_bare_sha_is_cut_to_something_typeable() -> None:
     """`git describe` on a template whose tags belong to something else
     produced `0.0.26-12-g2ae6640`, which names a branch nobody can read."""
-    assert branch_name("6fbbbbeb87b8925623a7012e0f1e328bde71558c") == (
-        "template-update-6fbbbbeb8"
-    )
+    assert branch_name("6fbbbbeb87b8925623a7012e0f1e328bde71558c") == ("template-update-6fbbbbeb8")
 
 
 def test_a_version_that_names_nothing_is_refused() -> None:
@@ -1381,6 +1375,42 @@ def test_the_stamp_records_the_version(tmp_path) -> None:
 
     assert (tmp_path / ".prodockit-template").read_text() == "1.5.0\n"
     assert read_stamp(tmp_path) == "1.5.0"
+
+
+def test_the_stamp_records_exact_revision_and_successfully_applied_release(tmp_path) -> None:
+    write_stamp(tmp_path, "abcdef123", "template-v1.5.0")
+
+    assert (tmp_path / ".prodockit-template").read_text() == (
+        'revision = "abcdef123"\napplied_release = "template-v1.5.0"\n'
+    )
+    assert read_stamp(tmp_path) == "abcdef123"
+    assert read_applied_release(tmp_path) == "template-v1.5.0"
+
+
+def test_a_legacy_stamp_has_no_guessed_applied_release(tmp_path) -> None:
+    (tmp_path / ".prodockit-template").write_text("abcdef123\n", encoding="utf-8")
+
+    assert read_stamp(tmp_path) == "abcdef123"
+    assert read_applied_release(tmp_path) is None
+
+
+def test_template_release_matches_the_nearest_tag_without_losing_exact_revision(tmp_path) -> None:
+    import subprocess
+
+    subprocess.run(["git", "init", "--quiet"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=tmp_path, check=True)
+    (tmp_path / "seed.txt").write_text("tagged", encoding="utf-8")
+    subprocess.run(["git", "add", "seed.txt"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "tagged"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "tag", "template-v1.5.0"], cwd=tmp_path, check=True)
+    (tmp_path / "seed.txt").write_text("newer", encoding="utf-8")
+    subprocess.run(["git", "commit", "-qam", "after tag"], cwd=tmp_path, check=True)
+
+    exact = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    assert template_release(tmp_path, exact) == "template-v1.5.0"
 
 
 def test_a_project_with_no_stamp_reads_as_none(tmp_path) -> None:
@@ -1437,9 +1467,7 @@ def test_a_gitlab_review_push_creates_a_merge_request() -> None:
 
 
 def test_a_github_review_push_publishes_the_branch_without_gitlab_options() -> None:
-    command, creates_request = review_push_command(
-        "git@github.com:someone/report.git", "main"
-    )
+    command, creates_request = review_push_command("git@github.com:someone/report.git", "main")
 
     assert creates_request is False
     assert command == ["git", "push", "--set-upstream", "origin", "HEAD"]
@@ -1450,14 +1478,9 @@ def test_review_links_take_an_author_to_the_host_workflow() -> None:
 
     assert review_url(
         "git@gitlab.surrey.ac.uk:assessment-test/report-test.git", branch, "main"
-    ) == (
-        "https://gitlab.surrey.ac.uk/assessment-test/report-test/-/merge_requests"
-    )
-    assert review_url(
-        "git@github.com:someone/report.git", branch, "main"
-    ) == (
-        "https://github.com/someone/report/compare/"
-        "main...template-update-0.51.1?expand=1"
+    ) == ("https://gitlab.surrey.ac.uk/assessment-test/report-test/-/merge_requests")
+    assert review_url("git@github.com:someone/report.git", branch, "main") == (
+        "https://github.com/someone/report/compare/main...template-update-0.51.1?expand=1"
     )
 
 
@@ -1571,25 +1594,15 @@ def test_review_submission_recovers_a_deleted_remote_branch_without_git_commands
         subprocess.run(["git", "-C", str(project), "config", key, value], check=True)
     (project / "managed.txt").write_text("old\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(project), "add", "managed.txt"], check=True)
-    subprocess.run(
-        ["git", "-C", str(project), "commit", "-qm", "initial"], check=True
-    )
-    subprocess.run(
-        ["git", "-C", str(project), "remote", "add", "origin", str(remote)], check=True
-    )
-    subprocess.run(
-        ["git", "-C", str(project), "push", "-qu", "origin", "main"], check=True
-    )
+    subprocess.run(["git", "-C", str(project), "commit", "-qm", "initial"], check=True)
+    subprocess.run(["git", "-C", str(project), "remote", "add", "origin", str(remote)], check=True)
+    subprocess.run(["git", "-C", str(project), "push", "-qu", "origin", "main"], check=True)
 
     branch = "template-update-0.51.1"
-    subprocess.run(
-        ["git", "-C", str(project), "checkout", "-qb", branch], check=True
-    )
+    subprocess.run(["git", "-C", str(project), "checkout", "-qb", branch], check=True)
     # Leave a stale origin/<branch> record behind, as GitLab does locally when
     # an earlier merge request deletes the host branch between fetches.
-    subprocess.run(
-        ["git", "-C", str(project), "push", "-qu", "origin", "HEAD"], check=True
-    )
+    subprocess.run(["git", "-C", str(project), "push", "-qu", "origin", "HEAD"], check=True)
     subprocess.run(
         ["git", "-C", str(remote), "update-ref", "-d", f"refs/heads/{branch}"],
         check=True,
@@ -2020,7 +2033,9 @@ def test_the_default_branch_comes_from_the_remote_first() -> None:
     """What the host builds from is what the host says, not what happens
     to be checked out - a pipeline guarded on `$CI_DEFAULT_BRANCH` follows
     the remote's idea of default."""
-    answers = {("git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"): "refs/remotes/origin/trunk"}
+    answers = {
+        ("git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"): "refs/remotes/origin/trunk"
+    }
 
     assert default_branch(lambda c: answers.get(tuple(c))) == "trunk"
 
@@ -2048,6 +2063,7 @@ def test_uncommitted_writing_does_not_block_the_merge() -> None:
     what it was about to commit. Template-owned dirt is refused earlier,
     by `blocking_changes`; a half-written chapter is not a reason to stop.
     """
+
     def read(command: Sequence[str]) -> str | None:
         if "status" in command or "diff" in command:
             return " M docs/section2.md"
@@ -2060,6 +2076,7 @@ def test_uncommitted_writing_does_not_block_the_merge() -> None:
 
 def test_a_target_behind_its_remote_blocks_the_merge() -> None:
     """Or the push is rejected after the merge has already happened."""
+
     def read(command: Sequence[str]) -> str | None:
         if "status" in command:
             return ""
@@ -2099,6 +2116,7 @@ def test_a_failed_merge_is_never_followed_by_a_push() -> None:
 
 def test_a_failed_push_says_the_merge_is_safe() -> None:
     """The work is committed and merged; only the host is behind."""
+
     def run(command: Sequence[str]) -> bool:
         return "push" not in command
 
@@ -2126,6 +2144,7 @@ def test_the_remote_is_asked_before_the_local_cache() -> None:
     goes stale. On a test host it pointed at a `template-update-...`
     branch, which would have merged a branch into itself and pushed it.
     """
+
     def read(command: Sequence[str]) -> str | None:
         if "ls-remote" in command:
             return "ref: refs/heads/main\tHEAD\n0123456789abcdef\tHEAD"
@@ -2139,6 +2158,7 @@ def test_the_remote_is_asked_before_the_local_cache() -> None:
 def test_the_local_cache_is_used_when_the_remote_cannot_be_asked() -> None:
     """Offline, a stale answer beats no answer - the blockers below still
     refuse the case where it points somewhere absurd."""
+
     def read(command: Sequence[str]) -> str | None:
         if "ls-remote" in command:
             return None

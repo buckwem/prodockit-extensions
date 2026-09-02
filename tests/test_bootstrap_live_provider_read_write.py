@@ -816,6 +816,7 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
     git("config", "user.email", "template@example.invalid", cwd=source)
     git("add", "-f", "-A", cwd=source)
     git("commit", "-m", "Reviewed template", cwd=source)
+    git("tag", "template-v1.0.0", cwd=source)
     source_bare = tmp_path / "source.git"
     destination_bare = tmp_path / "destination.git"
     git("clone", "--bare", str(source), str(source_bare), cwd=tmp_path)
