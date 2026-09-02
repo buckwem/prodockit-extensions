@@ -38,7 +38,7 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
-## Unreleased
+## 0.55.0 (2026-09-02)
 
 - Added `{% raw %}{{ applied_release }}{% endraw %}` so a template-derived site and PDF can show
   the last `prodockit-template` release successfully applied, independently
@@ -47,6 +47,9 @@ requests rather than here.
 - Replaced Prodockit's duplicate `site_name` and `release` variables with
   Zensical's native `{% raw %}{{ config.site_name }}{% endraw %}` and
   `{% raw %}{{ git.short_tag }}{% endraw %}` values.
+- Made `prodockit pdf` stop with actionable guidance when it detects a stale
+  or mismatched Python environment, before rendering can produce misleading
+  failures or incomplete output.
 
 ## 0.54.1 (2026-09-01)
 
