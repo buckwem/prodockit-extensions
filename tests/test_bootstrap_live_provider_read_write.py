@@ -468,6 +468,54 @@ def test_plan_allows_only_the_reviewed_clone_remote_and_one_main_push(
         )
 
 
+def test_plan_allows_only_the_reviewed_node_dependency_commands(tmp_path: Path) -> None:
+    fixture = live.Fixture(**fixture_values())
+    home = tmp_path / "home"
+    project = home / "setup" / live.SURREY_PROJECT
+    project.parent.mkdir(parents=True)
+    mermaid = project / "tools" / "mermaid"
+    mathjax = project / "tools" / "mathjax"
+    reviewed = [
+        [
+            "bash",
+            "-c",
+            f"cd {mermaid} && npm ci --legacy-peer-deps"
+            " && if [ ! -d node_modules/puppeteer ]; then "
+            "npm install --no-save --package-lock=false --legacy-peer-deps "
+            "puppeteer@25.9.0; fi",
+        ],
+        ["bash", "-c", f"cd {mathjax} && npm ci --legacy-peer-deps"],
+    ]
+
+    live.authorise_plan(
+        "node",
+        reviewed,
+        str(project),
+        fixture=fixture,
+        home=home,
+        project=project,
+        allow_push=True,
+        candidate_python=Path(sys.executable),
+    )
+
+    changed_runtime = [list(command) for command in reviewed]
+    changed_runtime[0] = list(changed_runtime[0])
+    changed_runtime[0][2] = changed_runtime[0][2].replace(
+        "puppeteer@25.9.0", "puppeteer@latest"
+    )
+    with pytest.raises(live.LiveProviderError, match="unapproved non-Git"):
+        live.authorise_plan(
+            "node",
+            changed_runtime,
+            str(project),
+            fixture=fixture,
+            home=home,
+            project=project,
+            allow_push=True,
+            candidate_python=Path(sys.executable),
+        )
+
+
 def test_history_archive_allows_macos_private_var_alias(tmp_path: Path) -> None:
     """macOS may spell one temporary path as /var and another as /private/var."""
     fixture = live.Fixture(**fixture_values())

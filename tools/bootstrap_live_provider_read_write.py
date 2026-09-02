@@ -766,9 +766,23 @@ def _authorise_non_git_command(
         ):
             accepted = _safe_embedded_python(command[2])
     elif stage_id == "node":
+        # Keep these exact rather than accepting arbitrary ``bash -c`` or npm
+        # commands.  A deliberate change to Bootstrap's dependency install
+        # remains a reviewed live-provider boundary change.  Mermaid's
+        # optional peer can be omitted by npm, so Bootstrap now verifies it
+        # and installs the one pinned runtime when necessary.
         wanted = {
-            f"cd {shlex.quote(str(project / 'tools' / component))} && npm ci --legacy-peer-deps"
-            for component in ("mermaid", "mathjax")
+            (
+                f"cd {shlex.quote(str(project / 'tools' / 'mermaid'))} "
+                "&& npm ci --legacy-peer-deps"
+                " && if [ ! -d node_modules/puppeteer ]; then "
+                "npm install --no-save --package-lock=false --legacy-peer-deps "
+                "puppeteer@25.9.0; fi"
+            ),
+            (
+                f"cd {shlex.quote(str(project / 'tools' / 'mathjax'))} "
+                "&& npm ci --legacy-peer-deps"
+            ),
         }
         accepted = executable == "bash" and command[1:2] == ["-c"] and command[2] in wanted
     elif stage_id == "vscode-settings":
