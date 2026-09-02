@@ -927,12 +927,12 @@ def seal_command(args: argparse.Namespace, client: Client, *, source_client: Cli
     if existing:
         raise LifecycleError("seal output already exists: " + ", ".join(existing))
     handoff = ResetHandoff.read(args.handoff)
-    validate_controller_checkout(
-        Path(__file__).resolve().parents[1],
-        expected_commit=handoff.controller_commit,
-    )
     started = datetime.now(timezone.utc)
     try:
+        validate_controller_checkout(
+            Path(__file__).resolve().parents[1],
+            expected_commit=handoff.controller_commit,
+        )
         retained, result = seal(
             client=client,
             handoff=handoff,
@@ -943,6 +943,19 @@ def seal_command(args: argparse.Namespace, client: Client, *, source_client: Cli
             source_client=source_client,
         )
     except (LifecycleError, StateError, OSError, ValueError) as error:
+        cleanup_error: LifecycleError | StateError | OSError | ValueError | None = None
+        try:
+            # A merge can advance ``main`` between reset and seal. The
+            # controller mismatch must still reject the evidence, but the
+            # validated handoff remains sufficient to identify and remove
+            # only this run's fixed disposable repository.
+            verify_controller_identity(client)
+            remove_repository(client, expected_id=handoff.project_id)
+        except (LifecycleError, StateError, OSError, ValueError) as observed:
+            cleanup_error = observed
+        failure = str(error)
+        if cleanup_error is not None:
+            failure += f"; cleanup failed: {cleanup_error}"
         write_once_private_json(
             args.audit_report,
             {
@@ -956,11 +969,15 @@ def seal_command(args: argparse.Namespace, client: Client, *, source_client: Cli
                 "wheel_sha256": handoff.wheel_sha256,
                 "wheel_contents_sha256": handoff.wheel_contents_sha256,
                 "deploy_key_removal_attempted": True,
-                "failure": str(error),
+                "repository_removal_attempted": True,
+                "repository_removed": cleanup_error is None,
+                "failure": failure,
                 "started_at_utc": started.isoformat(),
                 "finished_at_utc": datetime.now(timezone.utc).isoformat(),
             },
         )
+        if cleanup_error is not None:
+            raise LifecycleError(failure) from error
         raise
     write_once_private_json(args.retained_state, retained.document())
     write_once_private_json(args.provider_result, result.document())
