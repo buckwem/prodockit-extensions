@@ -146,6 +146,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/bootstrap_live_provider_lifecycle.py": frozenset({"bootstrap"}),
     "tools/bootstrap_live_provider_github_fixture.py": frozenset({"bootstrap"}),
     "tools/bootstrap_live_provider_github_lifecycle.py": frozenset({"bootstrap"}),
+    "tools/bootstrap_live_provider_ephemeral_key.py": frozenset({"bootstrap"}),
     "tools/bootstrap_live_provider_surrey_fixture.py": frozenset({"bootstrap"}),
     "tools/canonical_wheel.py": frozenset({"bootstrap"}),
     "tools/live_provider_state.py": frozenset({"bootstrap"}),

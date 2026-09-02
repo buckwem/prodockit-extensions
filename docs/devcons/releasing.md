@@ -111,14 +111,41 @@ seal controllers can compare the destination's branches with the candidate
 record. Do not expose this token as a repository-wide secret or to the candidate
 environment.
 
-Use a dedicated unencrypted Ed25519 deploy key for this control; an unattended
-runner cannot answer a key-passphrase prompt. Store its public half as
-`PRODOCKIT_LIVE_GITHUB_DEPLOY_PUBLIC_KEY` in
-`bootstrap-live-github-reset`. Store its private half as
-`PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY`, and GitHub's reviewed SSH host-key
-record as `PRODOCKIT_LIVE_GITHUB_KNOWN_HOSTS`, only in
-`bootstrap-live-github-candidate`. Restrict all three environments to `main`.
-Never put the lifecycle token and private deploy key in the same environment.
+GitHub retains deleted repositories for recovery, including their deploy-key
+registrations. A fixed deploy key therefore cannot be attached when the same
+test repository is recreated. The reset job instead generates a new Ed25519
+deploy key for every run. It registers the public half and encrypts the private
+half before passing it through the workflow artifact boundary. The reset job
+removes its plaintext copy immediately after encryption. The candidate can
+decrypt the artifact, while the artifact itself and the seal job cannot provide
+Git access. The sealer revokes the run-scoped key and removes the repository.
+
+Create one 4096-bit RSA wrapping pair on a trusted computer. Keep the private
+file outside the repository:
+
+```console
+umask 077
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 \
+    -out prodockit-live-github-wrap-private.pem
+openssl pkey -in prodockit-live-github-wrap-private.pem -pubout \
+    -out prodockit-live-github-wrap-public.pem
+```
+
+Store the complete public PEM as
+`PRODOCKIT_LIVE_GITHUB_KEY_WRAP_PUBLIC_KEY` in
+`bootstrap-live-github-reset`. Store the complete private PEM as
+`PRODOCKIT_LIVE_GITHUB_KEY_WRAP_PRIVATE_KEY` only in
+`bootstrap-live-github-candidate`. Store GitHub's reviewed SSH host-key record
+as `PRODOCKIT_LIVE_GITHUB_KNOWN_HOSTS` in the candidate environment as well.
+The encrypted deploy-key artifact is bound to the public-key fingerprint in the
+reset handoff before the candidate loads it. Delete the obsolete
+`PRODOCKIT_LIVE_GITHUB_DEPLOY_PUBLIC_KEY` and
+`PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY` secrets after this change is live.
+
+Restrict all three environments to `main`. Never put the lifecycle token or RSA
+wrapping private key in the same environment. The wrapping private key cannot
+access GitHub: it can only decrypt the one-time repository credential generated
+inside a reviewed workflow run.
 
 The Surrey pipeline mutates only
 `assessment-liveprovider-2026/report-liveprovider-2026-mb0105` and runs from

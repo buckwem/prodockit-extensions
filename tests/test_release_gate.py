@@ -270,9 +270,18 @@ def test_github_shadow_workflow_keeps_three_credential_boundaries() -> None:
     assert "PRODOCKIT_LIVE_GITHUB_LIFECYCLE_TOKEN" in reset
     assert "PRODOCKIT_LIVE_GITHUB_LIFECYCLE_TOKEN" in seal
     assert "PRODOCKIT_LIVE_GITHUB_LIFECYCLE_TOKEN" not in candidate
-    assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" in candidate
-    assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" not in reset
-    assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" not in seal
+    assert "PRODOCKIT_LIVE_GITHUB_KEY_WRAP_PUBLIC_KEY" in reset
+    assert "PRODOCKIT_LIVE_GITHUB_KEY_WRAP_PUBLIC_KEY" not in candidate
+    assert "PRODOCKIT_LIVE_GITHUB_KEY_WRAP_PUBLIC_KEY" not in seal
+    assert "PRODOCKIT_LIVE_GITHUB_KEY_WRAP_PRIVATE_KEY" in candidate
+    assert "PRODOCKIT_LIVE_GITHUB_KEY_WRAP_PRIVATE_KEY" not in reset
+    assert "PRODOCKIT_LIVE_GITHUB_KEY_WRAP_PRIVATE_KEY" not in seal
+    assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY" not in workflow
+    assert "PRODOCKIT_LIVE_GITHUB_DEPLOY_PUBLIC_KEY" not in workflow
+    assert "deploy-key.enc" in reset
+    assert "deploy-key.enc" in candidate
+    assert "bootstrap_live_provider_ephemeral_key.py create" in reset
+    assert "bootstrap_live_provider_ephemeral_key.py unwrap" in candidate
     assert "if: always() && needs.reset.result == 'success'" in seal
     assert "FIXED_REPOSITORY: buckwem/bootstrap-release-gate" in workflow
     assert "previous_run_id" not in workflow
