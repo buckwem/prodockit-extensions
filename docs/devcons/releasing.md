@@ -120,6 +120,14 @@ removes its plaintext copy immediately after encryption. The candidate can
 decrypt the artifact, while the artifact itself and the seal job cannot provide
 Git access. The sealer revokes the run-scoped key and removes the repository.
 
+The fixture keeps GitHub Actions and Pages disabled throughout the candidate
+run. Bootstrap's Pages stage is therefore deferred only in this harness: an
+empty private repository cannot expose that setting to the candidate, and
+enabling it would allow untrusted candidate content to execute or publish. The
+ordinary Bootstrap tests continue to cover the user-facing Pages decision;
+the live-provider run remains focused on authenticated repository reads, the
+single permitted push, the existing-repository path and cleanup.
+
 Create one 4096-bit RSA wrapping pair on a trusted computer. Keep the private
 file outside the repository:
 
