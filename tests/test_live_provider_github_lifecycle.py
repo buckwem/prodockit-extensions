@@ -16,6 +16,7 @@ import sys
 import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, ClassVar
 
 import pytest
@@ -524,6 +525,55 @@ def test_seal_revokes_key_then_produces_closed_provider_result(tmp_path: Path) -
     assert provider_result.wheel_sha256 == candidate_wheel
     assert provider_result.wheel_contents_sha256 == CONTENTS
     assert client.repository is None
+
+
+def test_seal_command_removes_fixture_when_main_advances(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A concurrent merge must reject evidence without leaking the fixture."""
+
+    client = FakeGitHub()
+    handoff = perform_reset(client)
+    handoff_path = tmp_path / "reset-handoff.json"
+    handoff_value = handoff.document()
+    current = datetime.now(timezone.utc).replace(microsecond=0)
+    handoff_value["completed_at_utc"] = current.isoformat()
+    handoff_value["expires_at_utc"] = (current + lifecycle.HANDOFF_LIFETIME).isoformat()
+    handoff_path.write_text(json.dumps(handoff_value), encoding="utf-8")
+    report = candidate_report(tmp_path / "candidate.json")
+    audit = tmp_path / "seal-audit.json"
+    args = SimpleNamespace(
+        candidate_report=report,
+        retained_state=tmp_path / "retained-state.json",
+        provider_result=tmp_path / "provider-result.json",
+        workflow_run_id=42,
+        workflow_url="https://github.com/buckwem/prodockit-extensions/actions/runs/42",
+        audit_report=audit,
+        handoff=handoff_path,
+    )
+
+    def advanced_main(_checkout: Path, *, expected_commit: str) -> str:
+        assert expected_commit == COMMIT
+        raise lifecycle.LifecycleError(
+            "GitHub lifecycle controller must match the exact reviewed main commit"
+        )
+
+    monkeypatch.setattr(lifecycle, "validate_controller_checkout", advanced_main)
+
+    with pytest.raises(lifecycle.LifecycleError, match="exact reviewed main commit"):
+        lifecycle.seal_command(args, client, source_client=client)
+
+    assert client.repository is None
+    assert client.keys == []
+    assert not args.retained_state.exists()
+    assert not args.provider_result.exists()
+    value = json.loads(audit.read_text(encoding="utf-8"))
+    assert value["passed"] is False
+    assert value["repository_removal_attempted"] is True
+    assert value["repository_removed"] is True
+    assert value["failure"] == (
+        "GitHub lifecycle controller must match the exact reviewed main commit"
+    )
 
 
 def test_seal_revokes_key_before_rejecting_bad_candidate(tmp_path: Path) -> None:
