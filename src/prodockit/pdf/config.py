@@ -495,7 +495,7 @@ def _build_pdf_from_config(
             result = zensical_render(raw_content, docs_rel_path, docs_rel_path)
             try:
                 html = result["content"]
-                meta = result["meta"]
+                rendered_meta = result["meta"]
             except (KeyError, TypeError) as error:
                 installed = _installed_zensical_version()
                 raise RuntimeError(
@@ -503,6 +503,12 @@ def _build_pdf_from_config(
                     f"rendering {docs_rel_path!r}. Zensical {installed} appears to have "
                     "changed the result shape. prodockit cannot build the PDF without it."
                 ) from error
+            # Front matter belongs to the source file, not to the shape of
+            # Zensical's undocumented legacy render result. Zensical 0.0.58
+            # stopped returning these values unless its metadata extension is
+            # enabled, so keep any renderer-added metadata but make the direct
+            # source reading authoritative for keys the author actually wrote.
+            meta = {**rendered_meta, **source_meta}
         page_objects.append(
             Page(
                 docs_rel_path=docs_rel_path,
