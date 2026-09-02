@@ -157,9 +157,7 @@ class FakeGitHub:
             if self.repository is None:
                 return lifecycle.ApiResponse(404, {"message": "Not Found"}, headers)
             return lifecycle.ApiResponse(200, dict(self.repository), headers)
-        if method == "DELETE" and path == (
-            f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}"
-        ):
+        if method == "DELETE" and path == (f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}"):
             self.repository = None
             self.destination_refs = {}
             self.keys = []
@@ -184,9 +182,7 @@ class FakeGitHub:
         source_prefix = (
             f"/repos/{lifecycle.SOURCE_OWNER}/{lifecycle.SOURCE_REPOSITORY}/git/matching-refs/"
         )
-        destination_prefix = (
-            f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}/git/matching-refs/"
-        )
+        destination_prefix = f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}/git/matching-refs/"
         if method == "GET" and path.startswith(source_prefix):
             namespace = path.removeprefix(source_prefix).split("?", 1)[0]
             return lifecycle.ApiResponse(200, self.ref_values(self.source_refs, namespace), headers)
@@ -447,6 +443,42 @@ def test_github_api_refuses_redirects_and_anonymous_source_omits_token() -> None
     authenticated._opener = RedirectOpener()
     with pytest.raises(lifecycle.LifecycleError, match="returned 301"):
         authenticated.request("GET", f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}")
+
+
+def test_github_api_reports_safe_validation_detail() -> None:
+    class ValidationOpener:
+        @staticmethod
+        def open(request, *, timeout: float):
+            del request, timeout
+            raise urllib.error.HTTPError(
+                "https://api.github.com/repositories/1/keys",
+                422,
+                "Unprocessable Content",
+                {},
+                io.BytesIO(
+                    json.dumps(
+                        {
+                            "message": "Validation Failed",
+                            "errors": [
+                                {
+                                    "resource": "PublicKey",
+                                    "field": "key",
+                                    "code": "custom",
+                                    "message": "key is already in use",
+                                }
+                            ],
+                        }
+                    ).encode()
+                ),
+            )
+
+    client = lifecycle.GitHubAPI("installation-token")
+    client._opener = ValidationOpener()
+    with pytest.raises(
+        lifecycle.LifecycleError,
+        match="returned 422: Validation Failed; key is already in use",
+    ):
+        client.request("POST", f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}/keys")
 
 
 def test_retained_state_schema_is_closed(tmp_path: Path) -> None:

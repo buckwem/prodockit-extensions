@@ -127,7 +127,29 @@ class GitHubAPI:
         except json.JSONDecodeError as error:
             raise LifecycleError(f"GitHub API {method} {path} returned malformed JSON") from error
         if status not in expected:
-            raise LifecycleError(f"GitHub API {method} {path} returned {status}")
+            detail = ""
+            if isinstance(value, dict):
+                messages = [value.get("message")]
+                errors = value.get("errors")
+                if isinstance(errors, list):
+                    messages.extend(
+                        error.get("message")
+                        for error in errors
+                        if isinstance(error, dict)
+                    )
+                safe_messages = [
+                    message.strip()
+                    for message in messages
+                    if isinstance(message, str)
+                    and message.strip()
+                    and len(message) <= 240
+                    and not any(character in message for character in "\0\r\n")
+                ]
+                if safe_messages:
+                    detail = ": " + "; ".join(dict.fromkeys(safe_messages))
+            raise LifecycleError(
+                f"GitHub API {method} {path} returned {status}{detail}"
+            )
         return ApiResponse(status=status, value=value, headers=dict(response.headers))
 
 
@@ -848,7 +870,10 @@ def reset_command(args: argparse.Namespace, client: Client, *, source_client: Cl
     print(f"Repository:     {GITHUB_PATH}")
     print(f"Release commit: {release_commit}")
     print(f"Candidate:      prodockit {identity.version}")
-    print("Mutations:      private create, disable Actions, enable key, remove after seal")
+    print(
+        "Mutations:      private create, disable Actions, enable ephemeral key, "
+        "remove after seal"
+    )
     handoff = reset(
         client=client,
         public_key_record=record,
