@@ -250,6 +250,54 @@ def test_windows_path_starts_with_the_unregistered_old_tool(
     assert environment["HOME"] == str(tmp_path / "home")
 
 
+def test_old_winget_fixture_repairs_a_missing_source_catalogue(monkeypatch) -> None:
+    calls: list[tuple[list[str], bool]] = []
+
+    def run(command, *, check=True, **_kwargs):  # type: ignore[no-untyped-def]
+        calls.append((command, check))
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(
+                command,
+                0x8A15000F,
+                stdout="Data required by the source is missing",
+                stderr="",
+            )
+        return _completed()
+
+    monkeypatch.setattr(native, "_run", run)
+
+    native._winget_old("Microsoft.VisualStudioCode", "1.80.2")
+
+    assert calls[0][0][:4] == [
+        "winget",
+        "install",
+        "--id",
+        "Microsoft.VisualStudioCode",
+    ]
+    assert calls[0][1] is False
+    assert calls[1] == (["winget", "source", "reset", "--force"], True)
+    assert calls[2] == (["winget", "source", "update"], True)
+    assert calls[3][0] == calls[0][0]
+    assert calls[3][1] is True
+
+
+def test_old_winget_fixture_does_not_repair_an_unrelated_failure(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def run(command, *, check=True, **_kwargs):  # type: ignore[no-untyped-def]
+        calls.append(command)
+        return subprocess.CompletedProcess(
+            command, 1, stdout="No applicable installer found", stderr=""
+        )
+
+    monkeypatch.setattr(native, "_run", run)
+
+    with pytest.raises(native.NativeInstallError, match="No applicable installer"):
+        native._winget_old("Microsoft.VisualStudioCode", "1.80.2")
+
+    assert len(calls) == 1
+
+
 def test_native_upgrade_refuses_a_developer_machine(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 

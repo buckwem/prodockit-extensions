@@ -120,12 +120,18 @@ def _run(
         timeout=timeout,
     )
     if check and result.returncode:
-        raise NativeInstallError(
-            f"back-level preparation failed ({' '.join(command)}) "
-            f"with exit code {result.returncode}:\n"
-            f"{result.stdout}\n{result.stderr}"
-        )
+        _raise_command_failure(command, result)
     return result
+
+
+def _raise_command_failure(
+    command: list[str], result: subprocess.CompletedProcess[str]
+) -> None:
+    raise NativeInstallError(
+        f"back-level preparation failed ({' '.join(command)}) "
+        f"with exit code {result.returncode}:\n"
+        f"{result.stdout}\n{result.stderr}"
+    )
 
 
 def _download(url: str, destination: Path) -> Path:
@@ -298,23 +304,40 @@ def _portable_unix_software(root: Path, recipe: str) -> list[Path]:
 
 
 def _winget_old(identifier: str, version: str) -> None:
-    _run(
-        [
-            "winget",
-            "install",
-            "--id",
-            identifier,
-            "--version",
-            version,
-            "-e",
-            "--source",
-            "winget",
-            "--accept-source-agreements",
-            "--accept-package-agreements",
-            "--silent",
-            "--disable-interactivity",
-        ]
+    command = [
+        "winget",
+        "install",
+        "--id",
+        identifier,
+        "--version",
+        version,
+        "-e",
+        "--source",
+        "winget",
+        "--accept-source-agreements",
+        "--accept-package-agreements",
+        "--silent",
+        "--disable-interactivity",
+    ]
+    result = _run(command, check=False)
+    if not result.returncode:
+        return
+
+    output = f"{result.stdout}\n{result.stderr}".lower()
+    source_data_missing = (
+        "0x8a15000f" in output
+        or "data required by the source is missing" in output
     )
+    if not source_data_missing:
+        _raise_command_failure(command, result)
+
+    # GitHub's disposable Windows images occasionally retain a corrupt or
+    # incomplete WinGet source catalogue. Repair only that exact condition,
+    # then make one fresh installation attempt. This belongs to fixture
+    # preparation rather than Bootstrap: the product has not started yet.
+    _run(["winget", "source", "reset", "--force"])
+    _run(["winget", "source", "update"])
+    _run(command)
 
 
 def _windows_old_node_installer(root: Path) -> Path:
