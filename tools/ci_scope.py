@@ -102,6 +102,7 @@ _PDF_RUNTIME_FILES = {
     "src/prodockit/_zensical_page_context.py",
     "src/prodockit/bibliography.py",
     "src/prodockit/citations.py",
+    "src/prodockit/environment.py",
     "src/prodockit/glossary.py",
     "src/prodockit/headings.py",
     "src/prodockit/index.py",

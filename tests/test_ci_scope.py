@@ -71,6 +71,7 @@ def test_unit_test_only_change_does_not_start_a_native_matrix() -> None:
 
 def test_component_runtime_changes_select_only_their_native_matrix() -> None:
     assert classify(["src/prodockit/adopt.py"]) == Scope(True, True, False, True)
+    assert classify(["src/prodockit/environment.py"]) == Scope(True, False, True, False)
     assert classify(["src/prodockit/pdf/site.py"]) == Scope(True, False, True, False)
     assert classify(["src/prodockit/bootstrap/stages.py"]) == Scope(True, False, False, True)
 
