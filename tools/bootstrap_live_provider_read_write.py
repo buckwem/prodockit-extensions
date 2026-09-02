@@ -148,6 +148,28 @@ def refs_digest(refs: dict[str, str]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def stable_source_refs(refs: dict[str, str], *, provider: str) -> dict[str, str]:
+    """Return the source refs represented by the provider lifecycle snapshot.
+
+    GitHub's Git transport advertises provider-managed pull-request refs and
+    can also retain custom refs copied by a mirror. The lifecycle controller
+    deliberately reads only branches and tags through the REST API. Compare
+    that same stable set in the candidate so the two independent readers
+    prove the same state without treating unrelated provider refs as drift.
+
+    The established Surrey fixture records the complete advertised set, so
+    its behaviour remains unchanged.
+    """
+
+    if provider != "github":
+        return refs
+    return {
+        name: object_id
+        for name, object_id in refs.items()
+        if name.startswith(("refs/heads/", "refs/tags/"))
+    }
+
+
 @dataclass(frozen=True)
 class Fixture:
     """The two exact repositories authorised for one Phase 2 run."""
@@ -1403,11 +1425,14 @@ def controller(args: argparse.Namespace) -> None:
                     )
                 )
 
-            source_before = query_refs(
-                fixture.source_remote,
-                cwd=root,
-                environment=environments[0],
-                git_executable=system_git,
+            source_before = stable_source_refs(
+                query_refs(
+                    fixture.source_remote,
+                    cwd=root,
+                    environment=environments[0],
+                    git_executable=system_git,
+                ),
+                provider=fixture.provider,
             )
             if source_before.get("refs/heads/main") != fixture.source_head:
                 raise LiveProviderError("the source main ref differs from the fixture")
@@ -1452,11 +1477,14 @@ def controller(args: argparse.Namespace) -> None:
 
             # Recheck immediately before the candidate receives the identity.
             if (
-                query_refs(
-                    fixture.source_remote,
-                    cwd=root,
-                    environment=environments[0],
-                    git_executable=system_git,
+                stable_source_refs(
+                    query_refs(
+                        fixture.source_remote,
+                        cwd=root,
+                        environment=environments[0],
+                        git_executable=system_git,
+                    ),
+                    provider=fixture.provider,
                 )
                 != source_before
             ):
@@ -1514,11 +1542,14 @@ def controller(args: argparse.Namespace) -> None:
                 fixture=fixture,
                 expected_commit=commit,
             )
-            source_after = query_refs(
-                fixture.source_remote,
-                cwd=root,
-                environment=environments[0],
-                git_executable=system_git,
+            source_after = stable_source_refs(
+                query_refs(
+                    fixture.source_remote,
+                    cwd=root,
+                    environment=environments[0],
+                    git_executable=system_git,
+                ),
+                provider=fixture.provider,
             )
             if source_after != source_before:
                 raise LiveProviderError("the source refs changed during Phase 2")
@@ -1568,11 +1599,14 @@ def controller(args: argparse.Namespace) -> None:
                 )
                 try:
                     source_refs_after_failure = (
-                        query_refs(
-                            fixture.source_remote,
-                            cwd=root,
-                            environment=environments[0],
-                            git_executable=system_git,
+                        stable_source_refs(
+                            query_refs(
+                                fixture.source_remote,
+                                cwd=root,
+                                environment=environments[0],
+                                git_executable=system_git,
+                            ),
+                            provider=fixture.provider,
                         )
                         == source_before
                     )

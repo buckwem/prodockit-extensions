@@ -350,6 +350,23 @@ def test_remote_ref_query_retries_transient_command_failures(
     assert delays == [2.0, 5.0, 10.0, 20.0]
 
 
+def test_github_source_snapshot_matches_rest_branches_and_tags() -> None:
+    refs = {
+        "refs/heads/main": "1" * 40,
+        "refs/heads/topic": "2" * 40,
+        "refs/tags/v1": "3" * 40,
+        "refs/pull/12/head": "4" * 40,
+        "refs/merge-requests/7/head": "5" * 40,
+    }
+
+    assert live.stable_source_refs(refs, provider="github") == {
+        "refs/heads/main": "1" * 40,
+        "refs/heads/topic": "2" * 40,
+        "refs/tags/v1": "3" * 40,
+    }
+    assert live.stable_source_refs(refs, provider="surrey") == refs
+
+
 def test_plan_allows_only_the_reviewed_clone_remote_and_one_main_push(
     tmp_path: Path,
 ) -> None:

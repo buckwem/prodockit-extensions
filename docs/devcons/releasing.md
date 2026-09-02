@@ -106,8 +106,19 @@ both `bootstrap-live-github-reset` and `bootstrap-live-github-seal`. For a
 fine-grained personal token, select `buckwem` as the resource owner, grant
 access to all repositories so the token can create the currently absent fixed
 repository, grant repository Administration read and write, and grant Pages
-and Webhooks read-only access. Do not expose this token as a repository-wide
-secret or to the candidate environment.
+and Webhooks read-only access. Grant Contents read-only access so the reset and
+seal controllers can compare the destination's branches with the candidate
+record. Do not expose this token as a repository-wide secret or to the candidate
+environment.
+
+Use a dedicated unencrypted Ed25519 deploy key for this control; an unattended
+runner cannot answer a key-passphrase prompt. Store its public half as
+`PRODOCKIT_LIVE_GITHUB_DEPLOY_PUBLIC_KEY` in
+`bootstrap-live-github-reset`. Store its private half as
+`PRODOCKIT_LIVE_GITHUB_DEPLOY_PRIVATE_KEY`, and GitHub's reviewed SSH host-key
+record as `PRODOCKIT_LIVE_GITHUB_KNOWN_HOSTS`, only in
+`bootstrap-live-github-candidate`. Restrict all three environments to `main`.
+Never put the lifecycle token and private deploy key in the same environment.
 
 The Surrey pipeline mutates only
 `assessment-liveprovider-2026/report-liveprovider-2026-mb0105` and runs from

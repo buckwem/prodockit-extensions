@@ -23,7 +23,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, NoReturn, Protocol
 
-from canonical_wheel import WheelIdentityError, inspect_wheel
 from live_provider_state import (
     GITHUB_PATH,
     ResetHandoff,
@@ -827,7 +826,18 @@ def reset_command(args: argparse.Namespace, client: Client, *, source_client: Cl
     observed_commit = validate_controller_checkout(checkout, expected_commit=release_commit)
     if controller_commit != observed_commit:
         raise LifecycleError("--controller-commit differs from the controller checkout")
-    identity = inspect_wheel(args.wheel)
+    # The sealer must remain able to revoke the deploy key and remove the
+    # temporary repository in a fresh standard-library-only runner. Import the
+    # reset-only wheel inspector here rather than making cleanup depend on its
+    # third-party ``packaging`` dependency.
+    try:
+        from canonical_wheel import WheelIdentityError, inspect_wheel
+    except ImportError as error:
+        raise LifecycleError(f"could not load the reset wheel inspector: {error}") from error
+    try:
+        identity = inspect_wheel(args.wheel)
+    except WheelIdentityError as error:
+        raise LifecycleError(str(error)) from error
     if identity.wheel_sha256 != args.expected_wheel_sha256:
         raise LifecycleError("candidate wheel raw SHA-256 differs from the approved value")
     if identity.wheel_contents_sha256 != args.expected_wheel_contents_sha256:
@@ -970,7 +980,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             reset_command(args, client, source_client=source_client)
         else:
             seal_command(args, client, source_client=source_client)
-    except (LifecycleError, StateError, WheelIdentityError, OSError, ValueError) as error:
+    except (LifecycleError, StateError, OSError, ValueError) as error:
         fail(str(error))
 
 
