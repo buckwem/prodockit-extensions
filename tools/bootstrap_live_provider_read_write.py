@@ -139,6 +139,18 @@ def defer_inert_provider_prerequisite(*, provider: str, stage_id: str, verifiabl
     return provider == "github" and stage_id == "pages" and not verifiable
 
 
+def repeated_stage_requires_work(
+    *, provider: str, stage_id: str, needs_work: bool, verifiable: bool
+) -> bool:
+    """Whether an idempotence pass found work that the live test must reject."""
+
+    return needs_work and not defer_inert_provider_prerequisite(
+        provider=provider,
+        stage_id=stage_id,
+        verifiable=verifiable,
+    )
+
+
 FORBIDDEN_ARGUMENTS = {
     "--delete",
     "--force",
@@ -1007,7 +1019,12 @@ def apply_repository_path(
                 partial(stage.check, context),
                 lambda: forget_contacts(context),
             )
-            if result.needs_work:
+            if repeated_stage_requires_work(
+                provider=fixture.provider,
+                stage_id=stage.id,
+                needs_work=result.needs_work,
+                verifiable=result.verifiable,
+            ):
                 raise LiveProviderError(
                     f"the repeated {name} run still needs stage {stage.id}: {result.detail}"
                 )
