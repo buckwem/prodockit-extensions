@@ -124,6 +124,21 @@ PREREQUISITE_STAGE_IDS = {
     "pandoc",
     "extensions",
 }
+
+
+def defer_inert_provider_prerequisite(*, provider: str, stage_id: str, verifiable: bool) -> bool:
+    """Whether one normal prerequisite is deliberately outside this live test.
+
+    GitHub does not expose the Pages state of a private repository to the
+    candidate's anonymous check. The lifecycle controller also keeps Pages and
+    Actions disabled so an untrusted candidate cannot publish or execute
+    repository workflows. Defer only that unverifiable manual stage; every
+    other prerequisite must still be genuinely ready.
+    """
+
+    return provider == "github" and stage_id == "pages" and not verifiable
+
+
 FORBIDDEN_ARGUMENTS = {
     "--delete",
     "--force",
@@ -918,6 +933,16 @@ def apply_repository_path(
             if not result.needs_work:
                 continue
             if stage.id in PREREQUISITE_STAGE_IDS:
+                if defer_inert_provider_prerequisite(
+                    provider=fixture.provider,
+                    stage_id=stage.id,
+                    verifiable=result.verifiable,
+                ):
+                    print(
+                        "  Deferred:    GitHub Pages remains disabled inside the inert "
+                        "live-provider fixture"
+                    )
+                    continue
                 raise LiveProviderError(
                     f"Phase 2 prerequisite {stage.id} is not ready: {result.detail}"
                 )

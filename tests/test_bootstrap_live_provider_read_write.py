@@ -762,6 +762,21 @@ def test_phase_two_requires_macos_and_explicit_confirmation(
         live.controller(args)
 
 
+def test_only_unverifiable_github_pages_is_deferred() -> None:
+    assert live.defer_inert_provider_prerequisite(
+        provider="github", stage_id="pages", verifiable=False
+    )
+    assert not live.defer_inert_provider_prerequisite(
+        provider="github", stage_id="pages", verifiable=True
+    )
+    assert not live.defer_inert_provider_prerequisite(
+        provider="github", stage_id="vscode", verifiable=False
+    )
+    assert not live.defer_inert_provider_prerequisite(
+        provider="surrey", stage_id="pages", verifiable=False
+    )
+
+
 def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
