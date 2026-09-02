@@ -947,7 +947,7 @@ def apply_repository_path(
     setup = home / "setup"
     setup.mkdir(parents=True)
     with use_environment(environment):
-        config, _configure_output = configure_candidate(
+        config, configure_output = configure_candidate(
             python=python,
             fixture=fixture,
             setup=setup,
@@ -1015,7 +1015,14 @@ def apply_repository_path(
             expected_source = f"{fixture.destination_namespace}/{fixture.destination_project}"
             if config.source_url != expected_source or config.history != "keep":
                 raise LiveProviderError("the populated destination did not select option 1")
-            if "Option 1 selected automatically" not in clone_source_detail:
+            # The real questionnaire may prove that the repository is populated
+            # and record option 1 before the staged apply begins.  In that case
+            # clone-source correctly reports the already-recorded source instead
+            # of repeating the selection message.  Accept the explanation from
+            # either part of the same Bootstrap run.
+            if "Option 1 selected automatically" not in (
+                configure_output + clone_source_detail
+            ):
                 raise LiveProviderError("Bootstrap did not report automatic option 1")
             if "first-push" in applied:
                 raise LiveProviderError("the populated destination attempted another push")
