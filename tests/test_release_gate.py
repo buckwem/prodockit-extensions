@@ -282,6 +282,14 @@ def test_github_shadow_workflow_keeps_three_credential_boundaries() -> None:
     assert "deploy-key.enc" in candidate
     assert "bootstrap_live_provider_ephemeral_key.py create" in reset
     assert "bootstrap_live_provider_ephemeral_key.py unwrap" in candidate
+    assert "brew install --cask visual-studio-code" in candidate
+    for extension in (
+        "ms-python.python",
+        "zensical.zensical-studio",
+        "tamasfe.even-better-toml",
+        "ltex-plus.vscode-ltex-plus",
+    ):
+        assert f"code --install-extension {extension}" in candidate
     assert "if: always() && needs.reset.result == 'success'" in seal
     assert "FIXED_REPOSITORY: buckwem/bootstrap-release-gate" in workflow
     assert "previous_run_id" not in workflow
