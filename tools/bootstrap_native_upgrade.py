@@ -199,7 +199,11 @@ def _extract_tar(archive: Path, destination: Path) -> None:
 
 def _find(root: Path, names: tuple[str, ...]) -> Path:
     wanted = {name.lower() for name in names}
-    found = [path for path in root.rglob("*") if path.name.lower() in wanted]
+    found = [
+        path
+        for path in root.rglob("*")
+        if path.is_file() and path.name.lower() in wanted
+    ]
     if not found:
         raise NativeInstallError(f"none of {names!r} was found below {root}")
     return min(found, key=lambda path: len(path.parts))

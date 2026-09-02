@@ -594,6 +594,18 @@ Start with the symptom shown by the failed command. The following subsections
 cover missing native libraries, browser-rendered components, and output that is
 valid but laid out unexpectedly.
 
+### The active environment is older than the project requires
+
+Before it changes the generated site, `prodockit pdf` compares the active
+`prodockit` and Zensical commands with their `>=` floors in the project's
+`requirements.txt`. If either is older, the build stops and names the active
+version, the required version, the Python executable and the requirement file.
+
+Activate the project's virtual environment, install its requirements with the
+exact command printed in the error, and run `prodockit pdf` again. This is a
+live-environment check; `prodockit pins --check` remains the separate,
+deterministic check that the versions written across project files agree.
+
 ### WeasyPrint cannot load a graphics library
 
 Installing the WeasyPrint Python package does not install the operating
