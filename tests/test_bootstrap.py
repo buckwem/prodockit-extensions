@@ -6478,6 +6478,60 @@ def test_bootstrap_retries_winget_after_transient_msi_1603(
     assert delays == [10]
 
 
+def test_bootstrap_retries_shell_wrapped_homebrew_after_partial_download(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Homebrew reports curl error 18 when a vendor closes a transfer early.
+
+    Upgrade plans wrap Homebrew in a shell so an installed receipt can recover
+    from a non-zero post-install hook.  That wrapper must remain eligible for
+    the same bounded network retry as a direct package-manager command.
+    """
+    from prodockit.bootstrap import Stage, apply_stage
+
+    class Recovers(FakeRunner):
+        attempts = 0
+
+        def run(self, command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
+            self.attempts += 1
+            if self.attempts == 1:
+                return CommandResult(
+                    1,
+                    stderr=(
+                        "Download failed: https://update.code.visualstudio.com/\n"
+                        "curl: (18) transfer closed with 267829566 bytes "
+                        "remaining to read"
+                    ),
+                )
+            return CommandResult(0)
+
+    delays: list[int] = []
+    monkeypatch.setattr("prodockit.bootstrap.time.sleep", delays.append)
+    runner = Recovers()
+    context = _context(tmp_path, runner=runner)
+    stage = Stage(
+        "vscode",
+        "Visual Studio Code",
+        lambda context: CheckResult(Status.OK),
+        lambda context: Plan(
+            commands=[
+                [
+                    "bash",
+                    "-c",
+                    "brew upgrade --cask visual-studio-code || "
+                    "brew list --cask visual-studio-code",
+                ]
+            ]
+        ),
+    )
+
+    result = apply_stage(context, stage)
+
+    assert result.ok
+    assert runner.attempts == 2
+    assert delays == [2]
+
+
 def test_bootstrap_does_not_retry_an_unrecognised_winget_installer_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

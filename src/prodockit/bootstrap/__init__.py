@@ -175,6 +175,7 @@ def _temporary_network_failure(outcome: CommandResult) -> bool:
             "tls handshake timeout",
             "unexpected eof",
             "remote end closed connection",
+            "transfer closed with",
         )
     )
 
@@ -225,7 +226,16 @@ def _safe_to_retry(command: list[str]) -> bool:
     if executable in {"bash", "powershell"}:
         rendered = " ".join(command).lower()
         return any(
-            marker in rendered for marker in ("curl ", "invoke-webrequest", "npm ci", "pacman -s")
+            marker in rendered
+            for marker in (
+                "curl ",
+                "invoke-webrequest",
+                "npm ci",
+                "pacman -s",
+                "brew install",
+                "brew upgrade",
+                "brew reinstall",
+            )
         )
     return False
 
