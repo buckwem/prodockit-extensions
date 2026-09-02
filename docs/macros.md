@@ -61,6 +61,41 @@ The values used by Prodockit projects are listed in \ref{tab-macros-variables}.
 Variables
 ///
 
+### Why `repo_url` and `applied_release` remain Prodockit variables
+
+Zensical's built-in macro context already exposes the project configuration
+through `config` and repository metadata through `git`. Prodockit uses native
+values such as `config.site_name` and `git.short_tag` where their semantics
+match. The two variables below deliberately add behaviour that those values do
+not currently provide. See
+[Zensical's built-in template variables](https://zensical.org/docs/setup/extensions/macros/#built-in-template-variables)
+for the native interface they complement.
+
+`{% raw %}{{ repo_url }}{% endraw %}` describes the checkout being built, not
+only the URL last written to `zensical.toml`. It reads the active `origin`,
+converts Git's SSH form to an ordinary HTTPS link, and removes embedded CI
+credentials before the value reaches generated HTML. This keeps a fork or
+mirror pointing at its real repository and prevents a token-bearing clone URL
+from becoming a public link. The native `config.repo_url` remains the right
+choice when the configured value is intentionally different from the active
+checkout.
+
+`{% raw %}{{ applied_release }}{% endraw %}` records the version of
+`prodockit-template` most recently applied successfully, not the latest tag in
+the student's repository. The native `git.short_tag` is therefore the right
+value for the document's own release but cannot describe its template state.
+Keeping these meanings separate lets maintainers see whether a project has
+successfully received a template fix even after the project creates its own
+tags.
+
+Both Prodockit names are stable author-facing interfaces. If a future Zensical
+release provides the same normalized, credential-safe repository URL or an
+equivalent persisted template-release value, Prodockit will implement the
+matching variable as a compatibility alias to Zensical's native value. Authors
+will not need to rewrite existing `{% raw %}{{ repo_url }}{% endraw %}` or
+`{% raw %}{{ applied_release }}{% endraw %}` expressions, while Prodockit can
+stop maintaining duplicate discovery logic.
+
 ## Macros
 
 \ref{tab-macros-macros} lists the callable helpers and the content each one

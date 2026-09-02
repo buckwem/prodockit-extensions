@@ -90,6 +90,24 @@ def test_pymdown_blocks_dependency_is_visible_to_evaluators_and_authors() -> Non
         assert "prodockit.tree" in text
 
 
+def test_macro_docs_explain_repo_and_release_compatibility_policy() -> None:
+    macros = " ".join(_text("docs/macros.md").split())
+
+    for phrase in (
+        "Why `repo_url` and `applied_release` remain Prodockit variables",
+        "active `origin`",
+        "removes embedded CI credentials",
+        "prevents a token-bearing clone URL",
+        "most recently applied successfully",
+        "native `git.short_tag`",
+        "cannot describe its template state",
+        "stable author-facing interfaces",
+        "compatibility alias",
+        "Authors will not need to rewrite",
+    ):
+        assert phrase in macros
+
+
 def test_release_notes_are_a_website_only_capability_record() -> None:
     changelog = _text("docs/about/changelog.md")
     prose = " ".join(changelog.split())
