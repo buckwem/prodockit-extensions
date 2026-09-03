@@ -165,6 +165,11 @@ approve rather than containing unresolved `.new` files.
 prodockit template-sync --apply
 ```
 
+Before it fetches the template or creates a branch, the apply command checks
+that the active environment has one unambiguous Prodockit and Zensical metadata
+record. If an interrupted package upgrade left duplicates, it stops and asks
+you to run `pdk diag --fix`; no template files are changed automatically.
+
 The command makes a separate `template-update-...` branch, applies the changes,
 aligns every build input managed by `prodockit pins` with the incoming template,
 saves everything as one commit, and sends the branch to GitHub or GitLab. This

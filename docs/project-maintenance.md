@@ -12,7 +12,7 @@ inputs, GitHub Actions workflows, PyPI release, and public documentation
 deployment.
 
 For a documentation project rather than this package repository, start with
-the read-only [diagnostics guide](devcons/diagnostics.md). It maps every
+the default read-only [diagnostics guide](devcons/diagnostics.md). It maps every
 `pdk diag` result to an author remediation without requiring package-maintainer
 knowledge.
 
