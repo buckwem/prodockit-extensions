@@ -498,7 +498,7 @@ paths = []
 
     assert result.exit_code == 0, result.output
     assert "No Git commands are needed" in result.output
-    assert "Build dependencies: aligned Prodockit and Zensical" in result.output
+    assert "Build dependencies: aligned managed pins" in result.output
     assert "Shared files: refreshed 1 managed file" in result.output
     assert f"prodockit[index]>={cli.__version__}" in (project / "requirements.txt").read_text()
     assert "zensical>=0.0.57" in (project / "requirements.txt").read_text()
