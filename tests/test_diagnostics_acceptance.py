@@ -176,6 +176,15 @@ def test_all_failures_fixture_contains_every_repair_shape(
         assert not (project / "tools" / component / "node_modules").exists()
 
 
+def test_acceptance_resolves_project_absolute_and_home_report_paths(tmp_path: Path) -> None:
+    home = Path.home()
+    project = tmp_path / "project"
+
+    assert diagnostics_acceptance_driver._reported_path("file", project) == project / "file"
+    assert diagnostics_acceptance_driver._reported_path(str(home / "file"), project) == home / "file"
+    assert diagnostics_acceptance_driver._reported_path("~/file", project) == home / "file"
+
+
 def test_diagnostic_repair_workflow_has_six_installed_wheel_environments() -> None:
     workflow = (ROOT / ".github/workflows/diag-repair.yml").read_text(encoding="utf-8")
     runners = {

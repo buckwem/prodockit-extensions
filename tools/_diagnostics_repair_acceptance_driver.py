@@ -189,6 +189,12 @@ def _checks(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {check["id"]: check for check in payload["checks"]}
 
 
+def _reported_path(value: str, project: Path) -> Path:
+    """Resolve an absolute, project-relative, or home-relative report path."""
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else project / path
+
+
 def exercise(project: Path) -> dict[str, Any]:
     started = time.perf_counter()
     installed = Path(prodockit.__file__).resolve()
@@ -268,8 +274,10 @@ def exercise(project: Path) -> dict[str, Any]:
         raise AcceptanceError("the stale distribution metadata was not quarantined")
     for action in actions:
         manifest = action.get("manifest")
-        if not manifest or not (project / manifest).resolve().is_file():
-            raise AcceptanceError(f"repair has no recovery manifest: {action['candidate_id']}")
+        if not manifest or not _reported_path(manifest, project).resolve().is_file():
+            raise AcceptanceError(
+                f"repair has no recovery manifest: {action['id']} ({manifest!r})"
+            )
 
     return {
         "passed": True,
