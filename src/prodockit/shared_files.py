@@ -181,12 +181,23 @@ def resource_bytes(source: str) -> bytes:
         return fallback.read_bytes()
 
 
-def inspect(root: str | os.PathLike[str] = ".") -> list[SharedFileState]:
-    """Compare every declared destination with its packaged resource."""
+def inspect(
+    root: str | os.PathLike[str] = ".",
+    manifest_root: str | os.PathLike[str] | None = None,
+) -> list[SharedFileState]:
+    """Compare every incoming declaration with a project's destinations.
+
+    ``manifest_root`` lets template-sync inspect the new template's manifest
+    before it has copied that manifest into an older project.  Other callers
+    retain the original opt-in behaviour by omitting it.
+    """
 
     project = Path(root).resolve()
     states: list[SharedFileState] = []
-    for item in load_manifest(project):
+    declared_by = project
+    if manifest_root is not None and manifest_path(manifest_root).is_file():
+        declared_by = Path(manifest_root)
+    for item in load_manifest(declared_by):
         target = _target_path(project, item.target)
         try:
             actual = target.read_bytes() if target.is_file() else None

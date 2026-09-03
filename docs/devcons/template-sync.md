@@ -78,6 +78,16 @@ in the same review request. The MR therefore contains a complete, internally
 consistent update rather than only the files copied directly from the
 template.
 
+The same check maintains the `extra_css`, `extra_javascript`, and
+`pdf_extra_css` lists in `zensical.toml`. Missing template entries are restored
+in cascade order, cache-key changes replace the older form of the same path,
+and additional project entries are retained. If `extra.css`, `print.css`, or
+`extra.js` is missing, the template's starter copy is added. Once present,
+those three files belong to the author and `template-sync` never replaces
+their contents, including in projects made from an older template manifest.
+Managed PDK assets follow the shared-file rule instead: a
+missing or outdated copy is refreshed from the installed Prodockit release.
+
 Use `--apply` on its own when changes normally reach `main` through a pull
 request or merge request. On GitLab, the merge request is created for you; you
 only need to review and approve it. On GitHub, the branch is sent and the
@@ -223,10 +233,10 @@ that is in neither list stops the run rather than being guessed at.
 
 | Group | Examples | What happens |
 | --- | --- | --- |
-| Template-owned | `.github/workflows/`, `docs/stylesheets/pdk.css`, `docs/stylesheets/pdk-pdf.css`, `macros.py`, `tools/` | Replaced, unless you have edited it |
-| Project-owned | `docs/*.md`, `docs/assets/`, `docs/stylesheets/extra.css`, `docs/stylesheets/print.css`, `bibliography.bib` | Never written, never read |
+| Template-owned | `.github/workflows/`, `docs/stylesheets/template.css`, `macros.py`, `tools/` | Replaced, unless you have edited it |
+| Project-owned | `docs/*.md`, `docs/assets/`, `docs/stylesheets/extra.css`, `docs/stylesheets/print.css`, `docs/javascripts/extra.js`, `bibliography.bib` | Missing starter assets are created once; existing files are never replaced |
 | Seeds | `.vale.ini`, starter pages | Written only if absent |
-| Shared | `.gitignore`, `zensical.toml`, dependency declarations, packaged stylesheets | Settings are merged; Prodockit and Zensical versions are aligned across requirements and CI; declared shared files are refreshed from the installed release |
+| Shared | `.gitignore`, `zensical.toml`, dependency declarations, packaged stylesheets | Settings and asset lists are merged; Prodockit and Zensical versions are aligned across requirements and CI; declared shared files are refreshed from the installed release |
 | Excluded | `CONTRIBUTING.md`, issue templates | Not delivered at all |
 /// table-caption | <
     attrs: {id: tab-devcons-template-sync-what-it-will-and-will-not-write}
