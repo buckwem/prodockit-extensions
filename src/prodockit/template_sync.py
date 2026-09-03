@@ -77,6 +77,27 @@ LOG_FILE = ".prodockit-template.log"
 #: current/future value to its default.
 PRESERVE_CONFIG_PATTERNS = ("project.extra.pdf_*",)
 
+#: Asset lists are shared structure rather than author content.  The template
+#: defines the maintained cascade, while a project may append further files of
+#: its own.  These keys therefore need a list-aware merge instead of either the
+#: ordinary exact-value update or the blanket ``pdf_*`` preservation rule.
+ASSET_CONFIG_KEYS = (
+    "project.extra_css",
+    "project.extra_javascript",
+    "project.extra.pdf_extra_css",
+)
+
+#: Starter assets belong to the author after their first copy.  The incoming
+#: manifest still decides ownership; this list only identifies configured
+#: files eligible for missing-file seeding.
+AUTHOR_ASSET_PATHS = frozenset(
+    {
+        "docs/stylesheets/extra.css",
+        "docs/stylesheets/print.css",
+        "docs/javascripts/extra.js",
+    }
+)
+
 
 @dataclass(frozen=True)
 class ProdockitRequirement:
@@ -979,22 +1000,81 @@ def config_changes(
     restore a template default over an existing page size, margin, duplex
     layout, header/footer presentation or PDF content/output choice.
     """
-    take, never = manifest.take, manifest.never
+    take, never = (*manifest.take, *ASSET_CONFIG_KEYS), manifest.never
     theirs = {
         k: v
         for k, v in _dotted(template_config).items()
         if _taken(k, take) and not _matches(k, never)
     }
     mine = _dotted(project_config)
+    for key in ASSET_CONFIG_KEYS:
+        if key in theirs:
+            theirs[key] = _merged_asset_list(theirs[key], mine.get(key))
     added = sorted(k for k in theirs if k not in mine)
     updated = sorted(
         k
         for k in theirs
         if k in mine
         and mine[k] != theirs[k]
-        and not _matches(k, PRESERVE_CONFIG_PATTERNS)
+        and (
+            (
+                k in ASSET_CONFIG_KEYS
+                and isinstance(theirs[k], list)
+            )
+            or not _matches(k, PRESERVE_CONFIG_PATTERNS)
+        )
     )
     return added, updated
+
+
+def _asset_identity(value: str) -> str:
+    """The local file named by an asset reference, without its cache key."""
+    return value.split("#", 1)[0].split("?", 1)[0]
+
+
+def _merged_asset_list(template: object, project: object) -> object:
+    """Use the template cascade and retain additional project entries.
+
+    A cache-key-only change is an update to one reference, not a second asset:
+    ``pdk.css?v=2`` therefore replaces ``pdk.css?v=1``.  Values with an
+    unfamiliar shape are left to the normal TOML writer, which will give its
+    existing actionable error rather than guessing.
+    """
+    if not (
+        isinstance(template, list)
+        and all(isinstance(value, str) for value in template)
+        and isinstance(project, list)
+        and all(isinstance(value, str) for value in project)
+    ):
+        return template
+    maintained = {_asset_identity(value) for value in template}
+    additional = [value for value in project if _asset_identity(value) not in maintained]
+    return [*template, *additional]
+
+
+def author_asset_seeds(
+    template_config: dict[str, Any], template_files: Iterable[str]
+) -> list[str]:
+    """Author-owned configured assets that should be copied only when absent.
+
+    References may carry browser cache keys, but repository paths do not.  Only
+    files actually tracked by the incoming template are returned, so an
+    installed/ignored vendor bundle is never mistaken for a seed.
+    """
+    values = _dotted(template_config)
+    tracked = set(template_files)
+    seeds: list[str] = []
+    for key in ASSET_CONFIG_KEYS:
+        configured = values.get(key, [])
+        if not isinstance(configured, list):
+            continue
+        for value in configured:
+            if not isinstance(value, str):
+                continue
+            path = f"docs/{_asset_identity(value).lstrip('/')}"
+            if path in AUTHOR_ASSET_PATHS and path in tracked and path not in seeds:
+                seeds.append(path)
+    return seeds
 
 
 def missing_ignores(manifest: Manifest, current: Sequence[str]) -> list[str]:
@@ -1253,6 +1333,10 @@ def apply_config_changes(
     neither.
     """
     values = _dotted(template_config)
+    current = _dotted(read_config(text))
+    for key in ASSET_CONFIG_KEYS:
+        if key in values:
+            values[key] = _merged_asset_list(values[key], current.get(key))
     for key in added:
         if _table_header(key) is None:
             text = add_config_table(text, key)
@@ -1271,6 +1355,7 @@ def apply_seeds(
     manifest: Manifest,
     project_root: pathlib.Path,
     read_template: Callable[[str], bytes],
+    additional: Sequence[str] = (),
 ) -> list[Written]:
     """Writes seeded files the project does not have.
 
@@ -1279,7 +1364,11 @@ def apply_seeds(
     it obvious, since a project may rightly change its licence.
     """
     written: list[Written] = []
-    for seed in missing_seeds(manifest, lambda p: (project_root / p).exists()):
+    seeds = list(dict.fromkeys([*manifest.seed, *additional]))
+    for seed in missing_seeds(
+        Manifest(seed=tuple(seeds), project_owns=manifest.project_owns, renames=manifest.renames),
+        lambda p: (project_root / p).exists(),
+    ):
         # Under the template's own name. The rename table says what an
         # *existing* file may be called here, which is a different
         # question from what a new one should be called - writing

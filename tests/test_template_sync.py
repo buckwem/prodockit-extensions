@@ -33,6 +33,7 @@ from prodockit.template_sync import (
     apply_dependency_updates,
     apply_file_actions,
     apply_seeds,
+    author_asset_seeds,
     baseline_report,
     blocking_changes,
     branch_name,
@@ -953,6 +954,105 @@ def test_an_extension_switched_off_is_not_switched_back_on() -> None:
     assert not any("tree" in key for key in added + updated)
 
 
+def test_asset_lists_are_maintained_without_discarding_project_entries() -> None:
+    template = {
+        "project": {
+            "extra_css": ["stylesheets/pdk.css?v=2", "stylesheets/extra.css"],
+            "extra_javascript": ["javascripts/extra.js"],
+            "extra": {
+                "pdf_extra_css": ["stylesheets/pdk-pdf.css", "stylesheets/print.css"]
+            },
+        }
+    }
+    project = {
+        "project": {
+            "extra_css": ["stylesheets/pdk.css?v=1", "stylesheets/course.css"],
+            "extra_javascript": [],
+            "extra": {"pdf_extra_css": ["stylesheets/print.css"]},
+        }
+    }
+
+    added, updated = config_changes(load_manifest(MANIFEST), template, project)
+
+    assert added == []
+    assert updated == [
+        "project.extra.pdf_extra_css",
+        "project.extra_css",
+        "project.extra_javascript",
+    ]
+
+    source = """[project]
+extra_css = ["stylesheets/pdk.css?v=1", "stylesheets/course.css"]
+extra_javascript = []
+
+[project.extra]
+pdf_extra_css = ["stylesheets/print.css"]
+"""
+    after = apply_config_changes(source, template, added, updated)
+    parsed = read_config(after)["project"]
+    assert parsed["extra_css"] == [
+        "stylesheets/pdk.css?v=2",
+        "stylesheets/extra.css",
+        "stylesheets/course.css",
+    ]
+    assert parsed["extra_javascript"] == ["javascripts/extra.js"]
+    assert parsed["extra"]["pdf_extra_css"] == [
+        "stylesheets/pdk-pdf.css",
+        "stylesheets/print.css",
+    ]
+
+
+def test_missing_asset_lists_are_added_even_when_an_old_manifest_does_not_take_them() -> None:
+    template = {
+        "project": {
+            "extra_css": ["stylesheets/pdk.css", "stylesheets/extra.css"],
+            "extra_javascript": ["javascripts/extra.js"],
+        }
+    }
+
+    added, updated = config_changes(load_manifest(MANIFEST), template, {"project": {}})
+
+    assert added == ["project.extra_css", "project.extra_javascript"]
+    assert updated == []
+
+
+def test_configured_author_assets_are_seeded_but_only_when_missing(tmp_path) -> None:
+    template = {
+        "project": {
+            "extra_css": ["stylesheets/pdk.css", "stylesheets/extra.css"],
+            "extra_javascript": ["javascripts/extra.js?v=1"],
+            "extra": {"pdf_extra_css": ["stylesheets/print.css"]},
+        }
+    }
+    files = [
+        "docs/stylesheets/extra.css",
+        "docs/stylesheets/print.css",
+        "docs/javascripts/extra.js",
+    ]
+    seeds = author_asset_seeds(template, files)
+
+    assert seeds == [
+        "docs/stylesheets/extra.css",
+        "docs/javascripts/extra.js",
+        "docs/stylesheets/print.css",
+    ]
+    (tmp_path / "docs/stylesheets").mkdir(parents=True)
+    (tmp_path / "docs/stylesheets/extra.css").write_text("author edit", encoding="utf-8")
+    written = apply_seeds(
+        load_manifest(MANIFEST),
+        tmp_path,
+        lambda path: f"template {path}".encode(),
+        seeds,
+    )
+
+    assert [item.path for item in written] == [
+        "LICENSE.md",
+        "docs/javascripts/extra.js",
+        "docs/stylesheets/print.css",
+    ]
+    assert (tmp_path / "docs/stylesheets/extra.css").read_text() == "author edit"
+
+
 def test_a_dotted_extension_name_is_one_key_not_two() -> None:
     """`prodockit.tables` is a table *name* containing a dot. Split, it
     would match nothing and every extension setting would be missed."""
@@ -1009,7 +1109,6 @@ def test_existing_pdf_settings_are_preserved_even_when_the_manifest_claims_them(
         "pdf_header_footer_font_size",
         "pdf_header_footer_color",
         "pdf_header_footer_divider_color",
-        "pdf_extra_css",
         "pdf_source_bundle_output",
         "pdf_future_page_setting",
     ],

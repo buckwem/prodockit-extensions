@@ -57,6 +57,19 @@ def test_absent_manifest_opts_out() -> None:
     assert inspect(ROOT / "not-a-project") == []
 
 
+def test_an_incoming_manifest_repairs_an_older_project_without_one(tmp_path: Path) -> None:
+    template = tmp_path / "template"
+    project = tmp_path / "project"
+    template.mkdir()
+    project.mkdir()
+    _manifest(template)
+
+    states = inspect(project, template)
+
+    assert [state.status for state in states] == ["missing"]
+    assert apply(project, states) == ["docs/stylesheets/pdk.css"]
+
+
 def test_inspect_distinguishes_current_different_and_missing(tmp_path: Path) -> None:
     _manifest(tmp_path)
     target = tmp_path / "docs/stylesheets/pdk.css"

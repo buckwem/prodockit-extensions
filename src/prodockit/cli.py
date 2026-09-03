@@ -3005,6 +3005,7 @@ def _run_template_sync(
     from prodockit.template_sync import (
         MANIFEST_FILE,
         STAMP_FILE,
+        Manifest,
         TemplateSyncError,
         append_ignores,
         append_log,
@@ -3012,6 +3013,7 @@ def _run_template_sync(
         apply_dependency_updates,
         apply_file_actions,
         apply_seeds,
+        author_asset_seeds,
         baseline_report,
         blocking_changes,
         branch_name,
@@ -3179,6 +3181,13 @@ def _run_template_sync(
             encoding="utf-8",
             check=False,
         ).stdout.split()
+        template_config_path = template / "zensical.toml"
+        template_config = (
+            read_config(template_config_path.read_text(encoding="utf-8"))
+            if template_config_path.is_file()
+            else {}
+        )
+        configured_seeds = author_asset_seeds(template_config, files)
         say_report(classification_report, manifest, files, details_only=True)
         say_detail()
 
@@ -3249,7 +3258,9 @@ def _run_template_sync(
                 check=False,
             ).stdout.splitlines()
         ]
-        blocked = blocking_changes(manifest, dirty)
+        blocked = blocking_changes(
+            manifest, [path for path in dirty if path not in configured_seeds]
+        )
         if blocked:
             raise TemplateSyncError(
                 "these files have changes that have not been committed, and the "
@@ -3259,9 +3270,18 @@ def _run_template_sync(
             )
 
         # 5 and 6. What would change.
+        try:
+            incoming_shared = inspect_shared_files(project, template)
+        except SharedFileError as error:
+            raise TemplateSyncError(str(error)) from error
+        shared_targets = {state.file.target for state in incoming_shared}
         plan = plan_template_files(
             manifest,
-            files,
+            [
+                path
+                for path in files
+                if path not in shared_targets and path not in configured_seeds
+            ],
             lambda p: blob_of(project / manifest.rename(p)),
             lambda p: blob_at(versions[0], p) if versions else None,
             baseline,
@@ -3288,11 +3308,9 @@ def _run_template_sync(
         )
 
         config_path = project / "zensical.toml"
-        template_config: dict[str, Any] = {}
         added: list[str] = []
         updated: list[str] = []
         if config_path.exists():
-            template_config = read_config((template / "zensical.toml").read_text(encoding="utf-8"))
             project_config = read_config(config_path.read_text(encoding="utf-8"))
             added, updated = config_changes(manifest, template_config, project_config)
 
@@ -3318,13 +3336,17 @@ def _run_template_sync(
             package_reason = "template requires"
             package_upgrade = True
             package_specifier = f"prodockit{package_extras}>={package_version}"
-        try:
-            shared_drift = shared_file_drift(inspect_shared_files(project))
-        except SharedFileError as error:
-            raise TemplateSyncError(str(error)) from error
+        shared_drift = shared_file_drift(incoming_shared)
 
         pending = pending_writes(plan, project, lambda p: (template / p).read_bytes())
-        seeds = missing_seeds(manifest, lambda name: (project / name).exists())
+        seeds = missing_seeds(
+            Manifest(
+                project_owns=manifest.project_owns,
+                seed=tuple(dict.fromkeys([*manifest.seed, *configured_seeds])),
+                renames=manifest.renames,
+            ),
+            lambda name: (project / name).exists(),
+        )
         # The stamp counts as work of its own. A template release that
         # only reclassifies files leaves every file identical, so nothing
         # else is pending - but the project now matches a newer version
@@ -3501,7 +3523,12 @@ def _run_template_sync(
         say(f"Applying the update on a separate branch: {name}")
 
         written = apply_file_actions(plan, project, lambda p: (template / p).read_bytes())
-        written += apply_seeds(manifest, project, lambda p: (template / p).read_bytes())
+        written += apply_seeds(
+            manifest,
+            project,
+            lambda p: (template / p).read_bytes(),
+            configured_seeds,
+        )
         # Everything else a run writes: the shared files it merges, and the
         # stamp. Staged alongside, or a reader is handed a half-staged change
         # and has to work out for themselves which parts belong to it.
@@ -3538,7 +3565,7 @@ def _run_template_sync(
 
         try:
             refreshed_shared = apply_shared_files(
-                project, shared_file_drift(inspect_shared_files(project))
+                project, shared_file_drift(inspect_shared_files(project, template))
             )
         except SharedFileError as error:
             raise TemplateSyncError(str(error)) from error

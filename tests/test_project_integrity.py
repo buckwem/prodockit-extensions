@@ -57,6 +57,55 @@ def test_pdf_only_stylesheet_is_checked(tmp_path: Path) -> None:
     assert any("styles/print.css" in message for message in _messages(config))
 
 
+def test_local_stylesheets_and_javascript_must_be_configured(tmp_path: Path) -> None:
+    config = _project(
+        tmp_path,
+        'extra_css = ["stylesheets/configured.css"]\n'
+        'extra_javascript = ["javascripts/configured.js"]\n'
+        '[project.extra]\n'
+        'pdf_extra_css = ["stylesheets/print.css"]\n',
+    )
+    assets = {
+        "stylesheets/configured.css": "",
+        "stylesheets/print.css": "",
+        "stylesheets/missing-from-config.css": "",
+        "javascripts/configured.js": "",
+        "javascripts/missing-from-config.js": "",
+    }
+    for name, content in assets.items():
+        path = tmp_path / "docs" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    messages = _messages(config)
+
+    assert any(
+        "docs/stylesheets/missing-from-config.css" in message
+        and "project.extra_css or project.extra.pdf_extra_css" in message
+        for message in messages
+    )
+    assert any(
+        "docs/javascripts/missing-from-config.js" in message
+        and "project.extra_javascript" in message
+        for message in messages
+    )
+    assert not any("configured.css" in message for message in messages)
+    assert not any("configured.js" in message for message in messages)
+    assert not any("print.css" in message for message in messages)
+
+
+def test_nested_javascript_and_cache_key_references_are_matched(tmp_path: Path) -> None:
+    config = _project(
+        tmp_path,
+        'extra_javascript = ["javascripts/vendor/tool.js?v=2"]\n',
+    )
+    script = tmp_path / "docs/javascripts/vendor/tool.js"
+    script.parent.mkdir(parents=True)
+    script.write_text("", encoding="utf-8")
+
+    assert _messages(config) == []
+
+
 def test_every_nav_page_must_exist(tmp_path: Path) -> None:
     config = _project(tmp_path, 'nav = [{"Missing" = "missing.md"}]\n')
 
