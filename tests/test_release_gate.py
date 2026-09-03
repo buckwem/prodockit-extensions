@@ -419,7 +419,10 @@ def test_surrey_github_workflow_has_a_fail_closed_stale_main_exercise() -> None:
     assert "git ls-remote https://github.com/buckwem/prodockit-extensions.git" in wait
     assert 'test "$current_main" != "$RELEASE_COMMIT"' in wait
     assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" not in wait
-    assert "exercise_stale_main" not in reset
+    assert "project must be absent" in workflow
+    assert "Confirm the controlled stale-main reset starts from an absent fixture" in reset
+    assert reset.count("if: ${{ !inputs.exercise_stale_main }}") == 2
+    assert "The reset controller will continue only if the fixed Surrey project is absent" in reset
 
     stale = seal[
         seal.index('current_main=""') :
