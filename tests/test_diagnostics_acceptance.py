@@ -212,8 +212,5 @@ def test_acceptance_requires_all_six_repairable_checks_and_seven_confirmations()
         "renderer.mermaid",
         "renderer.mathjax",
     } == diagnostics_acceptance_driver.REPAIRABLE_CHECKS
-    assert tuple(
-        sorted(diagnostics_acceptance_driver.REPAIRABLE_CHECKS)
-    ) == diagnostics_acceptance_driver.REPAIRABLE_CHECK_IDS
     assert sum(diagnostics_acceptance_driver.EXPECTED_ACTIONS.values()) == 7
     assert diagnostics_acceptance_driver.EXPECTED_ACTIONS["dependencies.shared-files"] == 2

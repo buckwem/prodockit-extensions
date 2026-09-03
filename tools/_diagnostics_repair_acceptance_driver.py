@@ -34,7 +34,6 @@ REPAIRABLE_CHECKS = frozenset(
         "renderer.mathjax",
     }
 )
-REPAIRABLE_CHECK_IDS = tuple(sorted(REPAIRABLE_CHECKS))
 EXPECTED_ACTIONS = Counter(
     {
         "installation.metadata": 1,
@@ -221,10 +220,7 @@ def exercise(project: Path) -> dict[str, Any]:
             "fixture did not create every repairable diagnostic failure: " + ", ".join(missing)
         )
 
-    plan = diagnostics.build_repair_dry_run(
-        report_before,
-        check_ids=REPAIRABLE_CHECK_IDS,
-    )
+    plan = diagnostics.build_repair_dry_run(report_before)
     available = Counter(
         candidate.check_id for candidate in plan.candidates if candidate.status == "available"
     )
@@ -242,12 +238,9 @@ def exercise(project: Path) -> dict[str, Any]:
     import prodockit.cli as cli_module
 
     cli_module._is_interactive = lambda: True
-    command = ["diag", "--config-file", str(config), "--online", "--fix", "--json"]
-    for check_id in REPAIRABLE_CHECK_IDS:
-        command.extend(("--fix-check", check_id))
     result = CliRunner().invoke(
         prodockit_cli,
-        command,
+        ["diag", "--config-file", str(config), "--online", "--fix", "--json"],
         input=input_text,
         catch_exceptions=False,
     )
