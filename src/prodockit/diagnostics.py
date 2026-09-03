@@ -1110,8 +1110,23 @@ def _normalise_path(value: str, *, platform: str | None = None) -> str:
 
 
 def same_path(left: str, right: str, *, platform: str | None = None) -> bool:
-    """Cross-platform path equality used by environment diagnostics and tests."""
-    return _normalise_path(left, platform=platform) == _normalise_path(right, platform=platform)
+    """Cross-platform path equality used by environment diagnostics and tests.
+
+    Existing paths are compared by filesystem identity on the running host so
+    Windows 8.3 and long-name spellings of one virtual environment are equal.
+    Lexical normalisation remains the fallback for missing paths and simulated
+    platforms in unit tests.
+    """
+    selected_platform = sys.platform if platform is None else platform
+    if selected_platform == sys.platform:
+        try:
+            if os.path.samefile(os.path.expanduser(left), os.path.expanduser(right)):
+                return True
+        except OSError:
+            pass
+    return _normalise_path(left, platform=selected_platform) == _normalise_path(
+        right, platform=selected_platform
+    )
 
 
 def command_in_environment(

@@ -28,6 +28,15 @@ def test_path_comparison_handles_posix_and_windows_spellings() -> None:
     )
 
 
+def test_path_comparison_uses_filesystem_identity_for_existing_aliases(tmp_path: Path) -> None:
+    environment = tmp_path / "environment"
+    environment.mkdir()
+    alias = tmp_path / "environment-alias"
+    alias.symlink_to(environment, target_is_directory=True)
+
+    assert diagnostics.same_path(str(environment), str(alias))
+
+
 def test_command_location_handles_windows_and_rejects_stale_path() -> None:
     assert diagnostics.command_in_environment(
         r"C:\project\.venv\Scripts\pdk.exe",
