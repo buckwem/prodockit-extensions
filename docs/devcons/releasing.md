@@ -213,6 +213,10 @@ reset, dispatch **Bootstrap live provider — Surrey recovery seal** with that
 failed run ID and its release commit. Recovery only revokes the exact key; it
 does not make the failed run releasable.
 
+Leave the controlled candidate-failure and stale-main exercise options off
+during an ordinary run. They are maintainer tests for the fail-closed paths and
+deliberately finish with a failed workflow after repository access is revoked.
+
 Keep the GitLab pipeline as the inactive rollback route until the GitHub-hosted
 workflow has passed absent-project, repeated retained-project, candidate
 failure, stale-commit and cancellation-recovery exercises. Never run both
