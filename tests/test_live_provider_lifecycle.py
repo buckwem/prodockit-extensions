@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import importlib
+import io
 import json
 import sys
 import uuid
@@ -14,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from urllib.error import HTTPError
 
 import pytest
 
@@ -1425,6 +1427,64 @@ def test_api_client_rejects_cross_origin_and_mutation_network_failures(
     monkeypatch.setattr(client, "_opener", FailedOpener())
     with pytest.raises(lifecycle.AmbiguousMutation, match="outcome is ambiguous"):
         client.request("POST", "/projects", body={})
+
+
+def test_api_client_retries_read_only_forbidden_responses_without_retrying_mutations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    delays: list[float] = []
+    client = lifecycle.GitLabClient(
+        api_base=state.SURREY_API_BASE,
+        token="token",
+        sleep=delays.append,
+    )
+
+    class SuccessfulResponse:
+        status = 200
+
+        def __init__(self) -> None:
+            self.headers: dict[str, str] = {}
+
+        def __enter__(self) -> SuccessfulResponse:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self, _size: int) -> bytes:
+            return b'{"id":101}'
+
+    class IntermittentlyForbidden:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def open(self, request: object, **_kwargs: object) -> SuccessfulResponse:
+            self.calls += 1
+            if self.calls <= 2:
+                raise HTTPError(
+                    getattr(request, "full_url", "https://gitlab.surrey.ac.uk/api/v4"),
+                    403,
+                    "Forbidden",
+                    {},
+                    io.BytesIO(b'{"message":"403 Forbidden"}'),
+                )
+            return SuccessfulResponse()
+
+    opener = IntermittentlyForbidden()
+    monkeypatch.setattr(client, "_opener", opener)
+
+    assert client.request("GET", "/groups/assessment-liveprovider-2026").value == {
+        "id": 101
+    }
+    assert opener.calls == 3
+    assert delays == [2.0, 5.0]
+
+    opener.calls = 0
+    delays.clear()
+    with pytest.raises(lifecycle.LifecycleError, match="returned 403"):
+        client.request("POST", "/projects", body={})
+    assert opener.calls == 1
+    assert delays == []
 
 
 def test_lifecycle_tool_changes_select_bootstrap_acceptance_scope() -> None:

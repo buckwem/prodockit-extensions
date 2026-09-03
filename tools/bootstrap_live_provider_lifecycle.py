@@ -56,6 +56,7 @@ from release_gate_state import (
 
 READ_RETRY_DELAYS = (2.0, 5.0, 10.0, 20.0)
 TRANSIENT_HTTP_STATUS = {429, 502, 503, 504}
+TRANSIENT_READ_HTTP_STATUS = TRANSIENT_HTTP_STATUS | {403}
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 PROJECT_DISABLE_SETTINGS: dict[str, Any] = {
     "visibility": "private",
@@ -306,7 +307,7 @@ class GitLabClient:
                     )
                 if (
                     method == "GET"
-                    and error.code in TRANSIENT_HTTP_STATUS
+                    and error.code in TRANSIENT_READ_HTTP_STATUS
                     and attempt < attempts - 1
                 ):
                     delay = READ_RETRY_DELAYS[attempt]
