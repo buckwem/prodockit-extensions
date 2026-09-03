@@ -184,12 +184,21 @@ def test_metadata_repair_quarantines_only_provably_stale_supported_distributions
     assert unrelated.is_dir(), "--fix must leave every other distribution untouched"
     assert not stale_prodockit.exists()
     assert not stale_zensical.exists()
-    quarantine = prefix / ".prodockit-quarantine/distribution-metadata/20260903T120000.000000Z"
+    quarantine = prefix / ".prodockit-quarantine/diagnostics/20260903T120000.000000Z"
     manifest = json.loads((quarantine / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "applied"
+    assert manifest["action"] == {
+        "check_id": "installation.metadata",
+        "choice_id": "quarantine-stale-metadata",
+        "confirmation": "y",
+        "id": "installation.metadata.quarantine-stale",
+    }
     assert {entry["distribution"] for entry in manifest["entries"]} == {
         "prodockit",
         "zensical",
     }
+    assert all(len(entry["sha256"]) == 64 for entry in manifest["entries"])
+    assert all(not Path(entry["original"]).is_absolute() for entry in manifest["entries"])
 
 
 def test_metadata_repair_refuses_ambiguous_duplicates_without_moving_them(
@@ -221,6 +230,41 @@ def test_metadata_repair_refuses_ambiguous_duplicates_without_moving_them(
 
     assert first.is_dir()
     assert second.is_dir()
+    assert not (prefix / ".prodockit-quarantine").exists()
+
+
+def test_metadata_repair_revalidates_the_inspected_fingerprint_before_mutation(
+    tmp_path: Path,
+) -> None:
+    prefix = tmp_path / "venv"
+    site_packages = prefix / "lib/site-packages"
+    _dist_info(
+        site_packages,
+        "prodockit-0.56.0.dist-info",
+        name="prodockit",
+        version="0.56.0",
+    )
+    stale = _dist_info(
+        site_packages,
+        "prodockit-0.41.0.dist-info",
+        name="prodockit",
+        version="0.41.0",
+    )
+    entries = diagnostics._repair_metadata_entries((site_packages,))
+    fingerprint = diagnostics._metadata_repair_fingerprint(entries)
+    (stale / "changed-after-plan.txt").write_text("changed\n", encoding="utf-8")
+
+    with pytest.raises(diagnostics.MetadataRepairError, match="plan became stale"):
+        diagnostics.repair_distribution_metadata(
+            tmp_path,
+            prefix=prefix,
+            base_prefix=tmp_path / "system-python",
+            site_packages=(site_packages,),
+            current_versions={"prodockit": "0.56.0"},
+            expected_fingerprint=fingerprint,
+        )
+
+    assert stale.is_dir()
     assert not (prefix / ".prodockit-quarantine").exists()
 
 
@@ -280,6 +324,88 @@ def test_metadata_repair_rolls_back_when_rediscovery_is_not_clean(
 
     assert current.is_dir()
     assert stale.is_dir(), "a failed verification must restore quarantined metadata"
+
+
+def test_repair_transaction_refuses_external_and_symlinked_targets(tmp_path: Path) -> None:
+    boundary = tmp_path / "project"
+    boundary.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside\n", encoding="utf-8")
+    link = boundary / "link.txt"
+    link.symlink_to(outside)
+    transaction = diagnostics.RepairTransaction(
+        boundary,
+        action_id="example.apply",
+        check_id="dependencies.shared-files",
+        choice_id="replace",
+        timestamp="contained",
+    )
+
+    with pytest.raises(diagnostics.RepairTransactionError, match="symlinked"):
+        transaction.quarantine_path(link, backup_name="link.txt")
+    with pytest.raises(diagnostics.RepairTransactionError, match="outside"):
+        transaction.quarantine_path(outside, backup_name="outside.txt")
+    ordinary = boundary / "ordinary.txt"
+    ordinary.write_text("ordinary\n", encoding="utf-8")
+    with pytest.raises(diagnostics.RepairTransactionError, match="quarantine path outside"):
+        transaction.quarantine_path(ordinary, backup_name="../../../escape.txt")
+
+    assert outside.read_text(encoding="utf-8") == "outside\n"
+    assert ordinary.read_text(encoding="utf-8") == "ordinary\n"
+
+
+def test_repair_transaction_rolls_back_one_action_and_records_recovery(
+    tmp_path: Path,
+) -> None:
+    boundary = tmp_path / "project"
+    target = boundary / "managed.txt"
+    target.parent.mkdir()
+    target.write_text("original\n", encoding="utf-8")
+    transaction = diagnostics.RepairTransaction(
+        boundary,
+        action_id="example.apply",
+        check_id="dependencies.shared-files",
+        choice_id="replace",
+        timestamp="rollback",
+    )
+
+    transaction.begin()
+    transaction.quarantine_path(target, backup_name="managed.txt")
+    transaction.rollback("verification failed")
+
+    assert target.read_text(encoding="utf-8") == "original\n"
+    manifest = json.loads(transaction.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["status"] == "rolled-back"
+    assert manifest["entries"][0]["original"] == "managed.txt"
+    assert manifest["entries"][0]["backup"] == "files/managed.txt"
+
+
+def test_repair_transaction_stops_and_reports_both_paths_when_rollback_fails(
+    tmp_path: Path,
+) -> None:
+    boundary = tmp_path / "project"
+    target = boundary / "managed.txt"
+    target.parent.mkdir()
+    target.write_text("original\n", encoding="utf-8")
+    transaction = diagnostics.RepairTransaction(
+        boundary,
+        action_id="example.apply",
+        check_id="dependencies.shared-files",
+        choice_id="replace",
+        timestamp="rollback-failure",
+    )
+    transaction.begin()
+    transaction.quarantine_path(target, backup_name="managed.txt")
+    target.write_text("conflicting replacement\n", encoding="utf-8")
+
+    with pytest.raises(diagnostics.RepairRollbackError) as raised:
+        transaction.rollback("verification failed")
+
+    message = str(raised.value)
+    assert str(target) in message
+    assert str(transaction.quarantine / "files") in message
+    manifest = json.loads(transaction.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["status"] == "rollback-failed"
 
 
 def _project(tmp_path: Path, *, required: bool) -> ProjectConfig:
@@ -834,7 +960,25 @@ def test_diag_warnings_do_not_set_a_failure_exit_status(
 def test_diag_fix_reports_the_scoped_repair_and_reruns_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    report = DiagnosticReport(
+    before = DiagnosticReport(
+        config_file="zensical.toml",
+        project_root=".",
+        online=False,
+        checks=(
+            DiagnosticResult(
+                "installation.metadata",
+                "Environment and installation",
+                "warn",
+                "Duplicate distribution metadata found",
+                data={
+                    "fix_candidates": ["prodockit"],
+                    "repair_paths": [".venv/lib/site-packages/prodockit-0.41.0.dist-info"],
+                    "repair_fingerprint": "before-fingerprint",
+                },
+            ),
+        ),
+    )
+    after = DiagnosticReport(
         config_file="zensical.toml",
         project_root=".",
         online=False,
@@ -852,29 +996,90 @@ def test_diag_fix_reports_the_scoped_repair_and_reruns_diagnostics(
     def inspect(*_args: object, **_kwargs: object) -> DiagnosticReport:
         nonlocal calls
         calls += 1
-        return report
+        return before if calls == 1 else after
 
     monkeypatch.setattr(diagnostics, "inspect", inspect)
     monkeypatch.setattr(
         diagnostics,
         "repair_distribution_metadata",
-        lambda _root: diagnostics.MetadataRepairResult(
+        lambda _root, **_kwargs: diagnostics.MetadataRepairResult(
             "repaired",
             (".venv/lib/site-packages/prodockit-0.41.0.dist-info",),
-            ".venv/.prodockit-quarantine/distribution-metadata/run",
+            ".venv/.prodockit-quarantine/diagnostics/run",
+            ".venv/.prodockit-quarantine/diagnostics/run/manifest.json",
         ),
     )
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
 
-    result = CliRunner().invoke(main, ["diag", "--fix", "--json"])
+    result = CliRunner().invoke(main, ["diag", "--fix", "--json"], input="y\n")
 
     assert result.exit_code == 0, result.output
-    assert calls == 1
-    payload = json.loads(result.output)
+    assert calls == 2
+    payload = json.loads(result.stdout)
+    assert payload["before"]["status"] == "warn"
+    assert payload["after"]["status"] == "pass"
     assert payload["repair"]["status"] == "repaired"
-    assert payload["repair"]["moved"] == [
+    assert payload["repair"]["actions"][0]["status"] == "applied"
+    assert payload["repair"]["actions"][0]["confirmation"] == "y"
+    assert payload["repair"]["actions"][0]["changed"] == [
         ".venv/lib/site-packages/prodockit-0.41.0.dist-info"
     ]
-    assert payload["checks"][0]["status"] == "pass"
+    assert "Apply this repair? [y/N]:" in result.stderr
+    assert "WARNING:" in result.stderr
+
+
+@pytest.mark.parametrize("answer", ["\n", "n\n", "yes\n", "YEs\n", "x\n"])
+def test_diag_fix_requires_an_exact_single_character_y_for_each_action(
+    monkeypatch: pytest.MonkeyPatch, answer: str
+) -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "installation.metadata",
+                "Environment and installation",
+                "warn",
+                "Duplicate distribution metadata found",
+                data={
+                    "fix_candidates": ["prodockit"],
+                    "repair_paths": [".venv/lib/site-packages/prodockit-0.41.0.dist-info"],
+                    "repair_fingerprint": "before-fingerprint",
+                },
+            ),
+        ),
+    )
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr(
+        diagnostics,
+        "repair_distribution_metadata",
+        lambda _root, **_kwargs: pytest.fail("a declined repair mutated the environment"),
+    )
+
+    result = CliRunner().invoke(main, ["diag", "--fix", "--json"], input=answer)
+
+    payload = json.loads(result.stdout)
+    assert payload["repair"]["status"] == "declined"
+    assert payload["repair"]["actions"][0]["status"] == "declined"
+    assert not Path(".prodockit-quarantine").exists()
+
+
+def test_diag_fix_refuses_redirected_input_before_inspection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        diagnostics,
+        "inspect",
+        lambda *_args, **_kwargs: pytest.fail("non-interactive fix inspected after refusal"),
+    )
+
+    result = CliRunner().invoke(main, ["diag", "--fix"])
+
+    assert result.exit_code == 1
+    assert "requires an interactive terminal" in result.output
+    assert "--dry-run --json" in result.output
 
 
 def test_diag_without_fix_never_invokes_the_repair(

@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import importlib.metadata
 import io
@@ -16,8 +17,9 @@ import shutil
 import subprocess
 import sys
 import sysconfig
+import uuid
 from collections.abc import Callable
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout, suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -409,17 +411,202 @@ class MetadataRepairResult:
     status: Literal["not-needed", "repaired"]
     moved: tuple[str, ...] = ()
     quarantine: str | None = None
+    manifest: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "status": self.status,
             "moved": list(self.moved),
             "quarantine": self.quarantine,
+            "manifest": self.manifest,
         }
 
 
-class MetadataRepairError(RuntimeError):
+class RepairTransactionError(RuntimeError):
+    """A diagnostic repair transaction violated its safety contract."""
+
+
+class MetadataRepairError(RepairTransactionError):
     """The requested repair cannot be proved safe."""
+
+
+class RepairRollbackError(RepairTransactionError):
+    """A repair failed and its quarantined content could not be restored."""
+
+
+def _content_sha256(path: Path) -> str:
+    """Hash a file or directory tree without following symlinks."""
+    digest = hashlib.sha256()
+    if path.is_symlink():
+        raise RepairTransactionError(f"refusing symlinked repair target: {path}")
+    if path.is_file():
+        digest.update(path.read_bytes())
+        return digest.hexdigest()
+    if not path.is_dir():
+        raise RepairTransactionError(f"repair target is not a file or directory: {path}")
+    for child in sorted(path.rglob("*"), key=lambda item: item.as_posix()):
+        if child.is_symlink():
+            raise RepairTransactionError(f"refusing symlink inside repair target: {child}")
+        relative = child.relative_to(path).as_posix().encode("utf-8")
+        digest.update(relative)
+        digest.update(b"\0")
+        if child.is_file():
+            digest.update(child.read_bytes())
+    return digest.hexdigest()
+
+
+class RepairTransaction:
+    """One confirmed, independently recoverable diagnostic repair.
+
+    The transaction is deliberately filesystem-only. Repair adapters retain
+    responsibility for deciding what is safe and for verifying their own
+    postcondition; this class supplies containment, quarantine, a durable
+    credential-safe manifest, and rollback.
+    """
+
+    def __init__(
+        self,
+        boundary: Path,
+        *,
+        action_id: str,
+        check_id: str,
+        choice_id: str,
+        timestamp: str | None = None,
+    ) -> None:
+        self.boundary = boundary.resolve()
+        self.action_id = action_id
+        self.check_id = check_id
+        self.choice_id = choice_id
+        self.created = timestamp or datetime.now(timezone.utc).strftime(
+            "%Y%m%dT%H%M%S.%fZ"
+        )
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", self.created):
+            raise RepairTransactionError("invalid diagnostic transaction timestamp")
+        self.quarantine = (
+            self.boundary
+            / ".prodockit-quarantine"
+            / "diagnostics"
+            / self.created
+        )
+        self.manifest_path = self.quarantine / "manifest.json"
+        self._entries: list[dict[str, Any]] = []
+        self._moves: list[tuple[Path, Path]] = []
+        self._status = "confirmed"
+        self._begun = False
+
+    def _relative(self, path: Path) -> str:
+        try:
+            return path.relative_to(self.boundary).as_posix()
+        except ValueError as error:
+            raise RepairTransactionError(
+                f"refusing repair target outside the permitted boundary: {path}"
+            ) from error
+
+    def _write_manifest(self) -> None:
+        self.quarantine.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema_version": 1,
+            "created": self.created,
+            "prodockit_version": prodockit.__version__,
+            "status": self._status,
+            "action": {
+                "id": self.action_id,
+                "check_id": self.check_id,
+                "choice_id": self.choice_id,
+                "confirmation": "y",
+            },
+            "entries": self._entries,
+        }
+        temporary = self.quarantine / f".manifest-{uuid.uuid4().hex}.tmp"
+        try:
+            temporary.write_text(
+                json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            os.replace(temporary, self.manifest_path)
+        finally:
+            with suppress(FileNotFoundError):
+                temporary.unlink()
+
+    def begin(self) -> None:
+        """Durably record confirmation before the first mutation."""
+        if self._begun or self.manifest_path.exists():
+            raise RepairTransactionError(
+                f"diagnostic transaction already exists: {self.quarantine}"
+            )
+        self._begun = True
+        self._write_manifest()
+
+    def quarantine_path(
+        self,
+        path: Path,
+        *,
+        backup_name: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Move one contained non-symlink target into this transaction."""
+        original = path.absolute()
+        self._relative(original)
+        if original.is_symlink():
+            raise RepairTransactionError(f"refusing symlinked repair target: {original}")
+        try:
+            resolved = original.resolve(strict=True)
+        except OSError as error:
+            raise RepairTransactionError(
+                f"cannot resolve repair target {original}: {error}"
+            ) from error
+        self._relative(resolved)
+        before_hash = _content_sha256(original)
+        backup = Path(os.path.abspath(self.quarantine / "files" / backup_name))
+        try:
+            backup.relative_to(self.quarantine)
+        except ValueError as error:
+            raise RepairTransactionError(
+                f"refusing quarantine path outside the transaction: {backup}"
+            ) from error
+        if backup.exists() or backup.is_symlink():
+            raise RepairTransactionError(f"duplicate quarantine destination: {backup}")
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "original": self._relative(original),
+            "backup": backup.relative_to(self.quarantine).as_posix(),
+            "sha256": before_hash,
+            "kind": "directory" if original.is_dir() else "file",
+            **(metadata or {}),
+        }
+        self._entries.append(entry)
+        self._write_manifest()
+        shutil.move(str(original), str(backup))
+        self._moves.append((original, backup))
+        self._status = "applying"
+        self._write_manifest()
+
+    def commit(self) -> None:
+        self._status = "applied"
+        self._write_manifest()
+
+    def rollback(self, reason: str) -> None:
+        failures: list[str] = []
+        for original, backup in reversed(self._moves):
+            try:
+                if original.exists() or original.is_symlink():
+                    failures.append(f"original path already exists: {original}")
+                    continue
+                original.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(backup), str(original))
+            except OSError as error:
+                failures.append(f"{backup} -> {original}: {error}")
+        self._status = "rollback-failed" if failures else "rolled-back"
+        try:
+            self._write_manifest()
+        except OSError as error:
+            failures.append(f"could not update {self.manifest_path}: {error}")
+        if failures:
+            detail = "; ".join(failures)
+            raise RepairRollbackError(
+                f"repair failed ({reason}) and rollback also failed: {detail}. "
+                f"Recover the original paths from {self.quarantine / 'files'} "
+                f"using {self.manifest_path}"
+            )
 
 
 if set(REPAIR_REGISTRY) != DIAGNOSTIC_IDS:
@@ -482,6 +669,17 @@ def _generic_candidate(check: DiagnosticResult) -> RepairCandidate:
 def _metadata_candidate(check: DiagnosticResult) -> RepairCandidate:
     policy = REPAIR_REGISTRY[check.id]
     candidates = tuple(str(item) for item in check.data.get("fix_candidates", ()))
+    repair_error = check.data.get("repair_error")
+    if repair_error:
+        return RepairCandidate(
+            "installation.metadata.refused",
+            check.id,
+            "prohibited",
+            "refused",
+            check.summary,
+            str(repair_error),
+            policy.remediation,
+        )
     if not candidates:
         return RepairCandidate(
             "installation.metadata.manual",
@@ -490,6 +688,17 @@ def _metadata_candidate(check: DiagnosticResult) -> RepairCandidate:
             "manual",
             check.summary,
             "No supported distribution was proved to be a repair candidate.",
+            policy.remediation,
+        )
+    repair_paths = tuple(str(path) for path in check.data.get("repair_paths", ()))
+    if not repair_paths:
+        return RepairCandidate(
+            "installation.metadata.manual",
+            check.id,
+            "manual",
+            "manual",
+            check.summary,
+            "No obsolete metadata path was proved safe to quarantine.",
             policy.remediation,
         )
     return RepairCandidate(
@@ -505,9 +714,7 @@ def _metadata_candidate(check: DiagnosticResult) -> RepairCandidate:
                 "quarantine-stale-metadata",
                 "Quarantine provably stale Prodockit or Zensical metadata",
                 internal_operation="installation.metadata.quarantine-stale",
-                affected_paths=tuple(
-                    f"active site-packages/{name}-*.dist-info" for name in candidates
-                ),
+                affected_paths=repair_paths,
                 warning=(
                     "Distribution metadata will move inside the active virtual "
                     "environment; ambiguous entries are refused."
@@ -963,6 +1170,46 @@ def _running_repair_versions() -> dict[str, str]:
     return versions
 
 
+def _classify_metadata_repair(
+    entries: list[DistributionMetadataEntry], versions: dict[str, str]
+) -> tuple[list[DistributionMetadataEntry], set[str], list[str]]:
+    """Separate provably stale entries from ambiguous metadata groups."""
+    stale: list[DistributionMetadataEntry] = []
+    ambiguous: list[str] = []
+    affected: set[str] = set()
+    for distribution in REPAIRABLE_DISTRIBUTIONS:
+        group = [entry for entry in entries if entry.distribution == distribution]
+        if len(group) <= 1 and all(entry.valid for entry in group):
+            continue
+        if not group:
+            continue
+        affected.add(distribution)
+        current = versions.get(distribution)
+        matching = [entry for entry in group if entry.valid and entry.version == current]
+        obsolete = [
+            entry for entry in group if entry.version is not None and entry.version != current
+        ]
+        if current is None or len(matching) != 1 or len(obsolete) != len(group) - 1:
+            found = ", ".join(
+                f"{entry.path.name} ({entry.version or 'unknown version'})" for entry in group
+            )
+            ambiguous.append(f"{distribution}: {found}")
+        else:
+            stale.extend(obsolete)
+    return stale, affected, ambiguous
+
+
+def _metadata_repair_fingerprint(entries: list[DistributionMetadataEntry]) -> str:
+    """Bind a repair plan to exact metadata paths and their current bytes."""
+    digest = hashlib.sha256()
+    for entry in sorted(entries, key=lambda item: str(item.path)):
+        digest.update(str(entry.path.resolve()).encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(_content_sha256(entry.path).encode("ascii"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def _active_site_packages(prefix: Path) -> tuple[Path, ...]:
     paths = sysconfig.get_paths()
     libraries: list[Path] = []
@@ -1014,6 +1261,7 @@ def repair_distribution_metadata(
     site_packages: tuple[Path, ...] | None = None,
     current_versions: dict[str, str] | None = None,
     timestamp: str | None = None,
+    expected_fingerprint: str | None = None,
 ) -> MetadataRepairResult:
     """Quarantine only provably stale Prodockit or Zensical metadata.
 
@@ -1048,29 +1296,7 @@ def repair_distribution_metadata(
             resolved_libraries.append(resolved)
     entries = _repair_metadata_entries(tuple(resolved_libraries))
     versions = current_versions or _running_repair_versions()
-
-    stale: list[DistributionMetadataEntry] = []
-    ambiguous: list[str] = []
-    affected: set[str] = set()
-    for distribution in REPAIRABLE_DISTRIBUTIONS:
-        group = [entry for entry in entries if entry.distribution == distribution]
-        if len(group) <= 1 and all(entry.valid for entry in group):
-            continue
-        if not group:
-            continue
-        affected.add(distribution)
-        current = versions.get(distribution)
-        matching = [entry for entry in group if entry.valid and entry.version == current]
-        obsolete = [
-            entry for entry in group if entry.version is not None and entry.version != current
-        ]
-        if current is None or len(matching) != 1 or len(obsolete) != len(group) - 1:
-            found = ", ".join(
-                f"{entry.path.name} ({entry.version or 'unknown version'})" for entry in group
-            )
-            ambiguous.append(f"{distribution}: {found}")
-        else:
-            stale.extend(obsolete)
+    stale, affected, ambiguous = _classify_metadata_repair(entries, versions)
     if ambiguous:
         detail = "; ".join(ambiguous)
         raise MetadataRepairError(
@@ -1080,19 +1306,34 @@ def repair_distribution_metadata(
         )
     if not stale:
         return MetadataRepairResult("not-needed")
+    if expected_fingerprint is not None:
+        current_fingerprint = _metadata_repair_fingerprint(entries)
+        if current_fingerprint != expected_fingerprint:
+            raise MetadataRepairError(
+                "the metadata repair plan became stale after inspection; rerun `pdk diag --fix`"
+            )
 
-    moment = timestamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-    quarantine = active_prefix / ".prodockit-quarantine" / "distribution-metadata" / moment
-    moved: list[tuple[DistributionMetadataEntry, Path]] = []
+    transaction = RepairTransaction(
+        active_prefix,
+        action_id="installation.metadata.quarantine-stale",
+        check_id="installation.metadata",
+        choice_id="quarantine-stale-metadata",
+        timestamp=timestamp,
+    )
+    moved: list[DistributionMetadataEntry] = []
     try:
-        for entry in stale:
-            if entry.path.is_symlink():
-                raise MetadataRepairError(f"refusing symlinked metadata: {entry.path}")
+        transaction.begin()
+        for entry_index, entry in enumerate(stale):
             library_index = resolved_libraries.index(entry.path.parent.resolve())
-            destination = quarantine / f"site-{library_index}" / entry.path.name
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(entry.path), str(destination))
-            moved.append((entry, destination))
+            transaction.quarantine_path(
+                entry.path,
+                backup_name=f"site-{library_index}/{entry_index}-{entry.path.name}",
+                metadata={
+                    "distribution": entry.distribution,
+                    "version": entry.version,
+                },
+            )
+            moved.append(entry)
 
         importlib.invalidate_caches()
         remaining = _repair_metadata_entries(tuple(resolved_libraries))
@@ -1103,35 +1344,19 @@ def repair_distribution_metadata(
                 raise MetadataRepairError(
                     f"verification still found ambiguous {distribution} metadata"
                 )
-
-        manifest = {
-            "created": moment,
-            "entries": [
-                {
-                    "distribution": entry.distribution,
-                    "version": entry.version,
-                    "original": str(entry.path),
-                    "quarantined": str(destination),
-                }
-                for entry, destination in moved
-            ],
-        }
-        (quarantine / "manifest.json").write_text(
-            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
-    except (MetadataRepairError, OSError) as error:
-        for entry, destination in reversed(moved):
-            if destination.exists() and not entry.path.exists():
-                shutil.move(str(destination), str(entry.path))
-        importlib.invalidate_caches()
-        if isinstance(error, MetadataRepairError):
-            raise
+        transaction.commit()
+    except (RepairTransactionError, OSError) as error:
+        try:
+            transaction.rollback(str(error))
+        finally:
+            importlib.invalidate_caches()
         raise MetadataRepairError(f"metadata repair failed and was rolled back: {error}") from error
 
     return MetadataRepairResult(
         "repaired",
-        tuple(_display_path(entry.path, root) for entry, _destination in moved),
-        _display_path(quarantine, root),
+        tuple(_display_path(entry.path, root) for entry in moved),
+        _display_path(transaction.quarantine, root),
+        _display_path(transaction.manifest_path, root),
     )
 
 
@@ -1311,6 +1536,29 @@ def _installation_checks(root: Path) -> list[DiagnosticResult]:
         repair_distribution, _version, _remnant = _metadata_filename(Path(item))
         if repair_distribution is not None:
             repair_candidates.add(repair_distribution)
+    repair_paths: list[str] = []
+    repair_fingerprint: str | None = None
+    repair_error: str | None = None
+    if repair_candidates:
+        try:
+            prefix = Path(sys.prefix).resolve()
+            if prefix == Path(sys.base_prefix).resolve():
+                raise MetadataRepairError(
+                    "metadata repair requires an active virtual environment"
+                )
+            repair_entries = _repair_metadata_entries(_active_site_packages(prefix))
+            stale, _affected, ambiguous = _classify_metadata_repair(
+                repair_entries, _running_repair_versions()
+            )
+            if ambiguous:
+                raise MetadataRepairError(
+                    "cannot prove which metadata is stale: " + "; ".join(ambiguous)
+                )
+            repair_paths = [_display_path(entry.path, root) for entry in stale]
+            if stale:
+                repair_fingerprint = _metadata_repair_fingerprint(repair_entries)
+        except (RepairTransactionError, OSError) as error:
+            repair_error = _sanitise_text(str(error), root)
     if repair_candidates:
         metadata_details.append(
             "run `pdk diag --fix` to quarantine stale Prodockit or Zensical metadata "
@@ -1329,6 +1577,9 @@ def _installation_checks(root: Path) -> list[DiagnosticResult]:
                 "invalid_count": len(invalid),
                 "duplicate_names": sorted(duplicates),
                 "fix_candidates": sorted(repair_candidates),
+                "repair_paths": sorted(dict.fromkeys(repair_paths)),
+                "repair_fingerprint": repair_fingerprint,
+                "repair_error": repair_error,
             },
         )
     )
@@ -1522,6 +1773,7 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
             )
         )
     except Exception as error:  # native-loader failures are not ImportError
+        safe_error = _sanitise_text(f"{type(error).__name__}: {error}", root)
         checks.append(
             DiagnosticResult(
                 "renderer.weasyprint",
@@ -1529,7 +1781,7 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
                 "fail" if pdf_required else "warn",
                 "WeasyPrint cannot import"
                 + (" but is required by this project" if pdf_required else " (optional)"),
-                (f"{type(error).__name__}: {error}",),
+                (safe_error,),
                 {"required": pdf_required},
             )
         )
@@ -1556,6 +1808,11 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
         )
     mmdc_probe = probe_mermaid(mmdc) if mmdc else None
     mmdc_ok = bool(mmdc_probe and mmdc_probe.ok)
+    mmdc_error = (
+        _sanitise_text(mmdc_probe.error, root)
+        if mmdc_probe and mmdc_probe.error
+        else None
+    )
     checks.append(
         DiagnosticResult(
             "renderer.mermaid",
@@ -1569,9 +1826,7 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
                 detail
                 for detail in (
                     f"path: {_display_path(mmdc, root)}" if mmdc else None,
-                    f"health probe: {mmdc_probe.error}"
-                    if mmdc_probe and mmdc_probe.error
-                    else None,
+                    f"health probe: {mmdc_error}" if mmdc_error else None,
                 )
                 if detail
             ),
@@ -1579,7 +1834,7 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
                 "required": mermaid_required,
                 "path": _display_path(mmdc, root) if mmdc else None,
                 "version": mmdc_probe.version if mmdc_probe else None,
-                "error": mmdc_probe.error if mmdc_probe else None,
+                "error": mmdc_error,
             },
         )
     )
@@ -1596,13 +1851,15 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
                 if part.strip()
             )
             if browser_result.returncode:
-                browser_error = browser_output or f"exited {browser_result.returncode}"
+                browser_error = _sanitise_text(
+                    browser_output or f"exited {browser_result.returncode}", root
+                )
             else:
                 browser_version = _first_version(browser_output)
                 if browser_version is None:
                     browser_error = "reported no version"
         except (OSError, subprocess.SubprocessError) as error:
-            browser_error = str(error)
+            browser_error = _sanitise_text(str(error), root)
     browser_ok = bool(browser and not browser_error)
     browser_status: Status = (
         "pass" if browser_ok else ("fail" if browser and mermaid_required else "warn")
@@ -1645,6 +1902,11 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
     node = shutil.which("node")
     mathjax_probe = probe_mathjax(node, tex2svg) if node and tex2svg else None
     mathjax_ok = bool(mathjax_modules.is_dir() and mathjax_probe and mathjax_probe.ok)
+    mathjax_error = (
+        _sanitise_text(mathjax_probe.error, root)
+        if mathjax_probe and mathjax_probe.error
+        else None
+    )
     math_details = []
     if tex2svg:
         math_details.append(f"script: {_display_path(tex2svg, root)}")
@@ -1652,8 +1914,8 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
         math_details.append(f"inputs: {_display_path(mathjax_modules, root)}")
     if tex2svg and node is None:
         math_details.append("health probe: node is not found on PATH")
-    elif mathjax_probe and mathjax_probe.error:
-        math_details.append(f"health probe: {mathjax_probe.error}")
+    elif mathjax_error:
+        math_details.append(f"health probe: {mathjax_error}")
     checks.append(
         DiagnosticResult(
             "renderer.mathjax",
@@ -1671,7 +1933,7 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
                 if mathjax_modules.is_dir()
                 else None,
                 "error": (
-                    mathjax_probe.error
+                    mathjax_error
                     if mathjax_probe
                     else "node is not found on PATH" if tex2svg else None
                 ),
@@ -2036,6 +2298,9 @@ __all__ = [
     "RepairChoice",
     "RepairDryRun",
     "RepairPolicy",
+    "RepairRollbackError",
+    "RepairTransaction",
+    "RepairTransactionError",
     "build_repair_dry_run",
     "command_in_environment",
     "inspect",

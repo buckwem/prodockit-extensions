@@ -29,9 +29,11 @@ configuration section fails, `pdk config --check` provides the individual
 `zensical.toml` paths and complete source-project report.
 
 The default command remains read-only. If `installation.metadata` reports stale
-Prodockit or Zensical metadata, `pdk diag --fix` can quarantine only entries it
-can prove obsolete, then rerun distribution discovery and the complete
-diagnostic report. The explicit flag does not repair any other check.
+Prodockit or Zensical metadata, interactive `pdk diag --fix` can quarantine only
+entries it can prove obsolete, then rerun distribution discovery and the
+complete diagnostic report. It first prints the whole repair plan and requires
+a separate `Apply this repair? [y/N]:` response for every supported action. Only
+the exact response `y` or `Y` applies; every other response declines.
 
 Use `pdk diag --dry-run` to see every repair that could be considered without
 choosing an option, prompting, running a repair command, or changing anything.
@@ -41,12 +43,28 @@ affected paths, prerequisites, network requirement, recovery boundary, and the
 public command or internal typed operation that could perform it.
 
 The repair registry classifies every stable check as confirmable, online,
-manual, ambiguous, prohibited, or not applicable. A source-level coverage guard rejects
-a new diagnostic without a disposition. This first implementation stage plans
-future repairs but does not apply them. Project-local, template-independent
-problems preferentially route through Adoption or the existing `pins`,
-`shared-files`, `init-tools`, and `init-mathjax` services. Template metadata and
-updates remain manual: no diagnostic fix depends on `prodockit-template`.
+manual, ambiguous, prohibited, or not applicable. A source-level coverage guard
+rejects a new diagnostic without a disposition. Stage 2 adds the shared
+transaction and rollback layer and adapts only distribution metadata to it;
+other candidates are reported and skipped pending their later implementation
+stages. Project-local, template-independent problems preferentially route
+through Adoption or the existing `pins`, `shared-files`, `init-tools`, and
+`init-mathjax` services. Template metadata and updates remain manual: no
+diagnostic fix depends on `prodockit-template`.
+
+The first confirmed action creates
+`.prodockit-quarantine/diagnostics/<UTC timestamp>/manifest.json` inside its
+permitted boundary. The manifest records the stable repair/check/choice IDs,
+the explicit confirmation, Prodockit version, original and backup paths, and
+SHA-256 hashes without recording file contents, environment variables, or
+credentials. Metadata retains the stricter active-virtual-environment boundary.
+Each target must resolve within that boundary and must not be a symlink. A
+failed verification restores that action; a rollback failure stops the run and
+reports both the original and quarantine locations for manual recovery.
+
+`--fix` refuses redirected standard input and CI use before inspection or
+mutation. Use `pdk diag --dry-run --json` there. There is deliberately no blanket
+confirmation option.
 
 For structured preview output, use:
 

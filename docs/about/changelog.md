@@ -47,6 +47,12 @@ requests rather than here.
   focused Prodockit commands; no diagnostic fix depends on
   `prodockit-template`. Diagnostic JSON schema version 2 exposes the same
   policy and unselected choices for automation.
+- Added the generic diagnostic repair transaction and adapted stale
+  distribution metadata to it. Interactive `pdk diag --fix` now prints its
+  complete plan, repeats warnings, and requires an exact default-No confirmation
+  for each supported mutation. Confirmed actions receive an atomic recovery
+  manifest with hashes; verification failures roll back, redirected input is
+  refused, and JSON mode keeps prompts off stdout.
 
 ## 0.57.0 (2026-09-03)
 
