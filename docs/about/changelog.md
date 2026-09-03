@@ -38,6 +38,17 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## 0.57.0 (2026-09-03)
+
+- Added an explicit `pdk diag --fix` repair for unambiguous stale Prodockit
+  and Zensical distribution metadata in the active virtual environment. The
+  repair quarantines recoverable entries, refuses ambiguous or external
+  environments, and makes `template-sync --apply` stop with targeted guidance
+  when metadata must be repaired first.
+- Made `template-sync --apply` copy the template's complete managed dependency
+  pins non-interactively, preserving version operators and extras so an
+  adopted project receives the same reviewed toolchain as the template.
+
 ## 0.56.0 (2026-09-03)
 
 - Made `template-sync` repair missing or outdated stylesheet and JavaScript
