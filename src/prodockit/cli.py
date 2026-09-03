@@ -88,6 +88,7 @@ from prodockit.bootstrap import build_context as build_bootstrap_context
 from prodockit.bootstrap import load as load_bootstrap_config
 from prodockit.bootstrap import save as save_bootstrap_config
 from prodockit.bootstrap.config import keep_out_of_git
+from prodockit.bootstrap.model import WINDOWS
 from prodockit.bootstrap.recovery import (
     BootstrapRunJournal,
     bootstrap_report_path,
@@ -1069,6 +1070,15 @@ def _apply_outstanding(
         journal.settle()
     click.echo("")
     click.echo("Finished. Run `prodockit bootstrap` to confirm.")
+    if context.guided and context.platform == WINDOWS:
+        project = context.config.resolved_project_dir(context.home)
+        click.echo(
+            _bootstrap_warning(
+                "Windows PATH changes cannot update this PowerShell. Close it, open a new "
+                f"PowerShell, activate {project / '.venv' / 'Scripts' / 'Activate.ps1'}, "
+                "then run `pdk diag`."
+            )
+        )
     if journal is not None:
         click.echo(f"Recovery report: {journal.path}")
 

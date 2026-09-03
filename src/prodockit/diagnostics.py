@@ -2673,25 +2673,16 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
     )
 
     browser = find_browser()
-    browser_version = None
     browser_error = None
     if browser:
+        # Do not execute a desktop browser merely to ask for its version.
+        # Microsoft Edge can open a visible window for ``--version`` on
+        # Windows and return no text. The Mermaid health probe above already
+        # exercises the browser when the project needs it (#712, #713).
         try:
-            browser_result = _run([browser, "--version"])
-            browser_output = "\n".join(
-                part.strip()
-                for part in (browser_result.stdout, browser_result.stderr)
-                if part.strip()
-            )
-            if browser_result.returncode:
-                browser_error = _sanitise_text(
-                    browser_output or f"exited {browser_result.returncode}", root
-                )
-            else:
-                browser_version = _first_version(browser_output)
-                if browser_version is None:
-                    browser_error = "reported no version"
-        except (OSError, subprocess.SubprocessError) as error:
+            if not Path(browser).is_file():
+                browser_error = "path does not name a file"
+        except OSError as error:
             browser_error = _sanitise_text(str(error), root)
     browser_ok = bool(browser and not browser_error)
     browser_status: Status = (
@@ -2702,7 +2693,7 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
             "renderer.browser",
             "Rendering toolchain",
             browser_status,
-            "Browser executable can run"
+            "Browser executable found"
             if browser_ok
             else (
                 "Browser executable is unusable"
@@ -2727,7 +2718,7 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
             {
                 "required": mermaid_required,
                 "path": _display_path(browser, root) if browser else None,
-                "version": browser_version,
+                "version": None,
                 "error": browser_error,
             },
         )

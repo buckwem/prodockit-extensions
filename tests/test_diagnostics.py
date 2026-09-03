@@ -684,7 +684,7 @@ def test_mathjax_diagnostic_rejects_inputs_that_cannot_render(
     assert check.data["error"] == "Cannot find module"
 
 
-def test_browser_diagnostic_executes_the_configured_browser(
+def test_browser_diagnostic_rejects_a_configured_path_that_is_not_a_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PUPPETEER_EXECUTABLE_PATH", "/broken/chromium")
@@ -694,11 +694,7 @@ def test_browser_diagnostic_executes_the_configured_browser(
         lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
     )
     monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda _name: None)
-    monkeypatch.setattr(
-        diagnostics,
-        "_run",
-        lambda command, **kwargs: subprocess.CompletedProcess(command, 1, "", "loader error"),
-    )
+    monkeypatch.setattr(diagnostics, "_run", lambda *_args, **_kwargs: pytest.fail("ran browser"))
 
     check = next(
         item
@@ -708,7 +704,37 @@ def test_browser_diagnostic_executes_the_configured_browser(
 
     assert check.status == "fail"
     assert check.summary == "Browser executable is unusable"
-    assert check.data["error"] == "loader error"
+    assert check.data["error"] == "path does not name a file"
+
+
+def test_browser_diagnostic_does_not_launch_a_configured_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    browser = tmp_path / "msedge.exe"
+    browser.touch()
+    monkeypatch.setenv("PUPPETEER_EXECUTABLE_PATH", str(browser))
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
+    )
+    monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda _name: None)
+    monkeypatch.setattr(diagnostics, "_run", lambda *_args, **_kwargs: pytest.fail("ran browser"))
+
+    check = next(
+        item
+        for item in diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
+        if item.id == "renderer.browser"
+    )
+
+    assert check.status == "pass"
+    assert check.summary == "Browser executable found"
+    assert check.data == {
+        "required": True,
+        "path": "msedge.exe",
+        "version": None,
+        "error": None,
+    }
 
 
 def test_mermaid_security_audit_is_explicitly_skipped_offline(

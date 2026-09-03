@@ -24,7 +24,7 @@ from prodockit.bootstrap import (
     build_context,
     load,
 )
-from prodockit.bootstrap.model import MACOS
+from prodockit.bootstrap.model import MACOS, WINDOWS
 from prodockit.cli import (
     _announce_apply,
     _apply_outstanding,
@@ -556,6 +556,32 @@ def test_apply_records_skipped_work_and_exact_resume_command(tmp_path: Path) -> 
     ignored = (tmp_path / ".gitignore").read_text(encoding="utf-8")
     assert report_path.name in ignored.splitlines()
     assert "recovery state" in ignored
+
+
+def test_windows_apply_completion_requires_a_fresh_powershell(tmp_path: Path) -> None:
+    context = build_context(
+        _config(),
+        runner=CliFakeRunner({"installer": CommandResult(0)}),
+        platform=WINDOWS,
+        home=tmp_path,
+        fetch=unreachable,
+        guided=True,
+    )
+    checks = iter((CheckResult(Status.MISSING, "not installed"), CheckResult(Status.OK, "ready")))
+    stage = _stage(
+        lambda context: next(checks),
+        lambda context: Plan(commands=[["installer"]]),
+    )
+    report = StageReport(stage, CheckResult(Status.MISSING), stage.plan(context))
+
+    _, output, _ = _isolated(
+        lambda: _apply_outstanding(context, [report], tmp_path / ".pdkboot.toml"),
+        input="y\n",
+    )
+
+    assert "Windows PATH changes cannot update this PowerShell" in output
+    assert "Activate.ps1" in output
+    assert "pdk diag" in output
 
 
 def test_apply_failure_records_stage_exit_status_and_message(tmp_path: Path) -> None:
