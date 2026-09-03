@@ -60,6 +60,17 @@ requests rather than here.
   uses the existing typed service, is atomically written and verified, and is
   independently recoverable without consulting a template. Repair output now
   uses bootstrap's phase boundaries, stage headings, and warning/failure colours.
+- Added Stage 4 locked renderer recovery. With explicit `--online` and two
+  default-No decisions, diagnostics can rebuild project-local Mermaid or
+  MathJax dependencies using immutable `npm ci`, regenerate MathJax website
+  assets, verify a real render, and roll back on failure. Custom paths,
+  partial or unpinned manifests, author lifecycle scripts, and symlinks are
+  refused.
+- Added Stage 5 narrowly lossless `zensical.toml` repairs for uniquely
+  suggested Prodockit spellings, obsolete index settings, extensions proved
+  necessary by author syntax, and recognized existing Prodockit assets. Each
+  edit preserves unrelated formatting and comments, verifies the parsed
+  result, and remains independent of `prodockit-template`.
 
 ## 0.57.0 (2026-09-03)
 

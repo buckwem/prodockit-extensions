@@ -29,6 +29,8 @@ from packaging.version import InvalidVersion, Version
 
 import prodockit
 from prodockit.config_diagnostics import inspect_config
+from prodockit.init_tools import COMPONENT_FILES, init_tools
+from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.pins import DEFAULT_PACKAGES, PinError, apply_version, discover, resolve_latest
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
@@ -36,6 +38,11 @@ from prodockit.renderer_health import find_browser, probe_mathjax, probe_mermaid
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
 from prodockit.shared_files import inspect as inspect_shared_files
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover - exercised by Python 3.10 CI
+    import tomli as tomllib
 
 Status = Literal["pass", "warn", "fail"]
 RepairDisposition = Literal[
@@ -328,9 +335,7 @@ class DiagnosticResult:
 
     def __post_init__(self) -> None:
         if self.id not in DIAGNOSTIC_IDS:
-            raise ValueError(
-                f"diagnostic {self.id!r} has no registered repair disposition"
-            )
+            raise ValueError(f"diagnostic {self.id!r} has no registered repair disposition")
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -425,7 +430,7 @@ class MetadataRepairResult:
 
 @dataclass(frozen=True)
 class RepairApplyResult:
-    """Outcome shared by project-local Stage 3 repair adapters."""
+    """Outcome shared by project-local diagnostic repair adapters."""
 
     status: Literal["not-needed", "applied"]
     changed: tuple[str, ...] = ()
@@ -488,17 +493,10 @@ class RepairTransaction:
         self.action_id = action_id
         self.check_id = check_id
         self.choice_id = choice_id
-        self.created = timestamp or datetime.now(timezone.utc).strftime(
-            "%Y%m%dT%H%M%S.%fZ"
-        )
+        self.created = timestamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
         if not re.fullmatch(r"[A-Za-z0-9._-]+", self.created):
             raise RepairTransactionError("invalid diagnostic transaction timestamp")
-        self.quarantine = (
-            self.boundary
-            / ".prodockit-quarantine"
-            / "diagnostics"
-            / self.created
-        )
+        self.quarantine = self.boundary / ".prodockit-quarantine" / "diagnostics" / self.created
         self.manifest_path = self.quarantine / "manifest.json"
         self._entries: list[dict[str, Any]] = []
         self._restores: list[tuple[str, Path, Path | None]] = []
@@ -726,29 +724,6 @@ def _generic_candidate(check: DiagnosticResult) -> RepairCandidate:
     policy = REPAIR_REGISTRY[check.id]
     status: DryRunStatus = "refused" if policy.disposition == "prohibited" else "manual"
     choices: tuple[RepairChoice, ...] = ()
-    if check.id == "project.configuration":
-        choices = (
-            RepairChoice(
-                "adopt-project-repair",
-                "Use Adoption to repair independent Prodockit project integration",
-                command_argv=("prodockit", "adopt", "--apply"),
-                affected_paths=("zensical.toml", ".prodockit-components.toml"),
-                warning=(
-                    "Adoption can change project configuration and generated "
-                    "tool files; it asks before each stage and does not use prodockit-template."
-                ),
-                warning_severity="warning",
-                rollback="restore the changed project files from version control",
-            ),
-            RepairChoice(
-                "inspect-configuration",
-                "Show the detailed configuration findings",
-                command_argv=("pdk", "config", "--check"),
-                rollback="read-only",
-            ),
-            _leave_unchanged(),
-        )
-        status = "available"
     return RepairCandidate(
         f"{check.id}.remediation",
         check.id,
@@ -898,9 +873,7 @@ def _pin_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
             dict.fromkeys(
                 str(site.get("version"))
                 for site in package_data.get("sites", ())
-                if isinstance(site, dict)
-                and site.get("operator") == "=="
-                and site.get("version")
+                if isinstance(site, dict) and site.get("operator") == "==" and site.get("version")
             )
         )
         paths = tuple(
@@ -964,12 +937,84 @@ def _pin_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
     return candidates or [_generic_candidate(check)]
 
 
-def _renderer_candidate(check: DiagnosticResult) -> RepairCandidate:
+def _configuration_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
+    """Expose only configuration edits already proved lossless by inspection."""
     policy = REPAIR_REGISTRY[check.id]
-    feature = "mermaid" if check.id == "renderer.mermaid" else "maths"
-    paths = ("tools/mermaid",) if feature == "mermaid" else ("tools/mathjax", "docs/javascripts")
+    candidates: list[RepairCandidate] = []
+    for problem in check.data.get("repairable_problems", ()):
+        if not isinstance(problem, dict):
+            continue
+        operation = str(problem.get("operation", ""))
+        problem_id = str(problem.get("id", ""))
+        label = str(problem.get("label", ""))
+        path = str(check.data.get("config_file", "zensical.toml"))
+        if not operation or not problem_id or not label:
+            continue
+        candidates.append(
+            RepairCandidate(
+                f"project.configuration.{problem_id}",
+                check.id,
+                "confirmable",
+                "available",
+                label,
+                policy.reason,
+                policy.remediation,
+                (
+                    RepairChoice(
+                        problem_id,
+                        label,
+                        internal_operation=f"project.configuration.{operation}",
+                        affected_paths=(path,),
+                        warning=(
+                            "This edits only the identified TOML construct and preserves "
+                            "comments and unrelated formatting. Rebuild and review the output."
+                        ),
+                        warning_severity="warning",
+                        rollback=(
+                            "restore the original configuration from the diagnostic quarantine"
+                        ),
+                    ),
+                    _leave_unchanged(),
+                ),
+            )
+        )
+    return candidates or [_generic_candidate(check)]
+
+
+def _renderer_candidate(check: DiagnosticResult, report: DiagnosticReport) -> RepairCandidate:
+    policy = REPAIR_REGISTRY[check.id]
+    component = "mermaid" if check.id == "renderer.mermaid" else "mathjax"
+    if not report.online:
+        return RepairCandidate(
+            f"{check.id}.online-required",
+            check.id,
+            "online",
+            "manual",
+            check.summary,
+            "Renderer installation is disabled unless --online is explicitly supplied.",
+            f"Rerun `pdk diag --online --fix --fix-check {check.id}`.",
+        )
+    node = next((item for item in report.checks if item.id == "renderer.node"), None)
+    npm = next((item for item in report.checks if item.id == "renderer.npm"), None)
+    refusal = check.data.get("repair_refusal")
+    if refusal or node is None or npm is None or node.status != "pass" or npm.status != "pass":
+        reason = str(refusal or "Node and npm must both pass their health checks.")
+        return RepairCandidate(
+            f"{check.id}.refused",
+            check.id,
+            "prohibited",
+            "refused",
+            check.summary,
+            reason,
+            policy.remediation,
+        )
+    paths = (
+        ("tools/mermaid",)
+        if component == "mermaid"
+        else ("tools/mathjax", "docs/javascripts/mathjax.js", "docs/javascripts/vendor/mathjax")
+    )
     return RepairCandidate(
-        f"{check.id}.adopt-project-repair",
+        f"{check.id}.install-locked",
         check.id,
         policy.disposition,
         "available",
@@ -978,15 +1023,18 @@ def _renderer_candidate(check: DiagnosticResult) -> RepairCandidate:
         policy.remediation,
         (
             RepairChoice(
-                "adopt-project-repair",
-                f"Use Adoption to repair project-local {feature} support",
-                command_argv=("prodockit", "adopt", "--apply", f"--{feature}"),
+                f"install-locked-{component}",
+                f"Rebuild project-local {component} support from its lockfile",
+                internal_operation=f"{check.id}.install-locked",
                 affected_paths=paths,
-                prerequisites=("Node and npm are healthy", "the project lockfile is valid"),
+                prerequisites=(
+                    "Node and npm passed diagnostics",
+                    "package.json and package-lock.json are valid and mutually consistent",
+                    "no author package lifecycle scripts are present",
+                ),
                 warning=(
-                    "This can download and execute locked third-party packages and "
-                    "replace incomplete generated tooling; Adoption remains independent of "
-                    "prodockit-template and asks before each stage."
+                    "npm ci can download and execute locked third-party package install "
+                    "scripts. Existing generated files are quarantined before replacement."
                 ),
                 warning_severity="warning",
                 network=True,
@@ -1032,7 +1080,9 @@ def build_repair_dry_run(
         elif check.id == "dependencies.pins":
             candidates.extend(_pin_candidates(check))
         elif check.id in {"renderer.mermaid", "renderer.mathjax"}:
-            candidates.append(_renderer_candidate(check))
+            candidates.append(_renderer_candidate(check, report))
+        elif check.id == "project.configuration" and check.data.get("repairable_problems"):
+            candidates.extend(_configuration_candidates(check))
         else:
             candidates.append(_generic_candidate(check))
     for check_id in sorted(selected - seen):
@@ -1239,9 +1289,7 @@ def _repair_metadata_entries(site_packages: tuple[Path, ...]) -> list[Distributi
             normalized = (
                 _normalise_distribution_name(metadata_name) if metadata_name is not None else None
             )
-            distribution = (
-                normalized if normalized in REPAIRABLE_DISTRIBUTIONS else filename_name
-            )
+            distribution = normalized if normalized in REPAIRABLE_DISTRIBUTIONS else filename_name
             if distribution is None:
                 continue
             try:
@@ -1528,17 +1576,11 @@ def repair_shared_file(
             transaction.backup_path(destination, backup_name=target)
         changed = apply_shared_files(project, [state])
         verified = next(
-            (
-                item
-                for item in inspect_shared_files(project)
-                if item.file.target == target
-            ),
+            (item for item in inspect_shared_files(project) if item.file.target == target),
             None,
         )
         if changed != [target] or verified is None or verified.status != "current":
-            raise RepairTransactionError(
-                f"verification still found shared-file drift at {target}"
-            )
+            raise RepairTransactionError(f"verification still found shared-file drift at {target}")
         transaction.commit()
     except (RepairTransactionError, SharedFileError, OSError) as error:
         try:
@@ -1588,9 +1630,7 @@ def repair_pin_declarations(
     states = discover(str(project), (package,))
     state = states[package]
     if version not in state.versions:
-        raise RepairTransactionError(
-            f"{version} is not a bounded detected choice for {package}"
-        )
+        raise RepairTransactionError(f"{version} is not a bounded detected choice for {package}")
     if _pin_state_fingerprint(project, package) != expected_fingerprint:
         raise RepairTransactionError(
             f"pin repair plan became stale for {package}; rerun `pdk diag --fix`"
@@ -1623,12 +1663,360 @@ def repair_pin_declarations(
             transaction.rollback(str(error))
         except RepairRollbackError:
             raise
-        raise RepairTransactionError(
-            f"pin repair failed and was rolled back: {error}"
-        ) from error
+        raise RepairTransactionError(f"pin repair failed and was rolled back: {error}") from error
     return RepairApplyResult(
         "applied",
         changed_paths,
+        _display_path(transaction.quarantine, project),
+        _display_path(transaction.manifest_path, project),
+    )
+
+
+def _renderer_plan_fingerprint(root: Path, component: str) -> str:
+    digest = hashlib.sha256()
+    tool_root = root / "tools" / component
+    for filename in COMPONENT_FILES[component]:
+        path = tool_root / filename
+        digest.update(filename.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(_content_sha256(path).encode("ascii") if path.exists() else b"missing")
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def repair_locked_renderer(
+    root: Path,
+    component: Literal["mermaid", "mathjax"],
+    *,
+    expected_fingerprint: str,
+    timestamp: str | None = None,
+) -> RepairApplyResult:
+    """Rebuild one project-local renderer from a validated lockfile."""
+    project = root.resolve()
+    try:
+        config_path = next(
+            path
+            for name in (
+                "zensical.toml",
+                "zensical.yml",
+                "zensical.yaml",
+                "mkdocs.yml",
+                "mkdocs.yaml",
+            )
+            if (path := project / name).is_file()
+        )
+        config = load_project_config(config_path)
+    except (StopIteration, ProjectConfigError) as error:
+        raise RepairTransactionError(f"cannot load project configuration: {error}") from error
+    refusal = _locked_renderer_refusal(project, config, component)
+    if refusal:
+        raise RepairTransactionError(f"renderer repair refused: {refusal}")
+    if _renderer_plan_fingerprint(project, component) != expected_fingerprint:
+        raise RepairTransactionError(
+            f"{component} repair plan became stale; rerun `pdk diag --online --fix`"
+        )
+    npm = shutil.which("npm")
+    node = shutil.which("node")
+    if npm is None or node is None:
+        raise RepairTransactionError("Node and npm must both be available on PATH")
+    for command_name in ("node", "npm"):
+        command = _command(command_name)
+        if command.path is None or command.error is not None:
+            raise RepairTransactionError(
+                f"{command_name} health check failed: {command.error or 'not found'}"
+            )
+
+    tool_root = project / "tools" / component
+    transaction = RepairTransaction(
+        project,
+        action_id=f"renderer.{component}.install-locked",
+        check_id=f"renderer.{component}",
+        choice_id=f"install-locked-{component}",
+        timestamp=timestamp,
+    )
+    changed: list[str] = []
+    try:
+        transaction.begin()
+        if not tool_root.exists():
+            transaction.record_creation(tool_root)
+        else:
+            if tool_root.is_symlink():
+                raise RepairTransactionError(f"refusing symlinked repair target: {tool_root}")
+            for filename in COMPONENT_FILES[component]:
+                path = tool_root / filename
+                if not path.exists():
+                    transaction.record_creation(path)
+        modules = tool_root / "node_modules"
+        if modules.exists() or modules.is_symlink():
+            transaction.quarantine_path(modules, backup_name=f"tools/{component}/node_modules")
+        elif tool_root.exists():
+            transaction.record_creation(modules)
+
+        scaffold = init_tools(project / "tools", components=(component,))
+        changed.extend(_display_path(path, project) for path in scaffold.written)
+        refusal = _locked_renderer_refusal(project, config, component)
+        if refusal:
+            raise RepairTransactionError(f"renderer scaffold verification failed: {refusal}")
+        environment = dict(os.environ)
+        environment["PUPPETEER_SKIP_DOWNLOAD"] = "true"
+        completed = subprocess.run(
+            [
+                npm,
+                "ci",
+                "--legacy-peer-deps",
+                "--no-audit",
+                "--no-fund",
+                "--prefer-offline",
+            ],
+            cwd=tool_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=600,
+            check=False,
+            env=environment,
+        )
+        if completed.returncode:
+            detail = (completed.stderr or completed.stdout).strip()
+            raise RepairTransactionError(f"npm ci failed: {_sanitise_text(detail, project)}")
+        changed.append(_display_path(modules, project))
+
+        if component == "mermaid":
+            binary = _project_tool(
+                project,
+                None,
+                ("tools/mermaid/node_modules/.bin/mmdc",),
+            )
+            probe = probe_mermaid(binary) if binary else None
+            if probe is None or not probe.ok:
+                raise RepairTransactionError(
+                    f"Mermaid verification failed: {probe.error if probe else 'mmdc is missing'}"
+                )
+        else:
+            asset_paths = (
+                project / "docs" / "javascripts" / "mathjax.js",
+                project / "docs" / "javascripts" / "vendor" / "mathjax" / "tex-svg-full.js",
+                project / "docs" / "javascripts" / "vendor" / "mathjax" / "LICENSE",
+            )
+            for path in asset_paths:
+                if path.exists() or path.is_symlink():
+                    transaction.backup_path(path, backup_name=_display_path(path, project))
+                else:
+                    transaction.record_creation(path)
+            try:
+                installed = install_mathjax(project, update_gitignore=False)
+            except MathJaxError as error:
+                raise RepairTransactionError(str(error)) from error
+            changed.extend(
+                _display_path(path, project)
+                for path in (installed.config, installed.bundle, installed.license)
+            )
+            probe = probe_mathjax(node, tool_root / "tex2svg.js")
+            if not probe.ok:
+                raise RepairTransactionError(f"MathJax verification failed: {probe.error}")
+        transaction.commit()
+    except (OSError, subprocess.SubprocessError, RepairTransactionError) as error:
+        try:
+            transaction.rollback(str(error))
+        except RepairRollbackError:
+            raise
+        raise RepairTransactionError(
+            f"{component} repair failed and was rolled back: {error}"
+        ) from error
+    return RepairApplyResult(
+        "applied",
+        tuple(dict.fromkeys(changed)),
+        _display_path(transaction.quarantine, project),
+        _display_path(transaction.manifest_path, project),
+    )
+
+
+def _toml_section(source: str, table: str) -> tuple[int, int] | None:
+    header = re.search(rf"(?m)^\[{re.escape(table)}\][ \t]*(?:#.*)?$", source)
+    if header is None:
+        return None
+    following = re.search(r"(?m)^\[", source[header.end() :])
+    return header.start(), header.end() + (
+        following.start() if following else len(source[header.end() :])
+    )
+
+
+def _toml_add_array_value(source: str, key: str, value: str) -> str:
+    section = _toml_section(source, "project")
+    if section is None:
+        raise RepairTransactionError("zensical.toml has no [project] table")
+    start, end = section
+    region = source[start:end]
+    assignment = re.search(rf"(?m)^{re.escape(key)}\s*=\s*\[", region)
+    rendered = json.dumps(value)
+    if assignment is None:
+        header_end = source.find("\n", start) + 1
+        return source[:header_end] + f"{key} = [{rendered}]\n" + source[header_end:]
+    array_start = start + assignment.end() - 1
+    depth = 0
+    quote = ""
+    escaped = False
+    array_end = -1
+    for position in range(array_start, len(source)):
+        char = source[position]
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = ""
+        elif char in "\"'":
+            quote = char
+        elif char == "[":
+            depth += 1
+        elif char == "]":
+            depth -= 1
+            if depth == 0:
+                array_end = position
+                break
+    if array_end < 0:
+        raise RepairTransactionError(f"cannot find the end of project.{key}")
+    if value in (tomllib.loads(source).get("project", {}).get(key) or []):
+        return source
+    body = source[array_start + 1 : array_end]
+    separator = "" if not body.strip() or body.rstrip().endswith(",") else ","
+    return source[:array_end] + f"{separator}\n  {rendered},\n" + source[array_end:]
+
+
+def _plan_configuration_source(source: str, problem: dict[str, str]) -> str:
+    operation = problem["operation"]
+    if operation == "rename":
+        old, new = problem["old"], problem["new"]
+        if problem["kind"] == "rename-extension":
+            pattern = re.compile(
+                rf'(?m)^\[project\.markdown_extensions\."{re.escape(old)}"\]([ \t]*(?:#.*)?)$'
+            )
+            replacement = rf'[project.markdown_extensions."{new}"]\1'
+        elif problem["path"].startswith("project.extra."):
+            section_name = "project.extra"
+            located = _toml_section(source, section_name)
+            if located is None:
+                raise RepairTransactionError(f"cannot find [{section_name}]")
+            start, end = located
+            region = source[start:end]
+            pattern = re.compile(rf"(?m)^{re.escape(old)}([ \t]*=)")
+            if pattern.search(region) is None or re.search(rf"(?m)^{re.escape(new)}\s*=", region):
+                raise RepairTransactionError("the proposed setting rename is no longer unique")
+            return source[:start] + pattern.sub(rf"{new}\1", region, count=1) + source[end:]
+        else:
+            extension = problem["path"].split('"', 2)[1]
+            section_name = f'project.markdown_extensions."{extension}"'
+            located = _toml_section(source, section_name)
+            if located is None:
+                raise RepairTransactionError(f"cannot find [{section_name}]")
+            start, end = located
+            region = source[start:end]
+            pattern = re.compile(rf"(?m)^{re.escape(old)}([ \t]*=)")
+            if pattern.search(region) is None or re.search(rf"(?m)^{re.escape(new)}\s*=", region):
+                raise RepairTransactionError("the proposed option rename is no longer unique")
+            return source[:start] + pattern.sub(rf"{new}\1", region, count=1) + source[end:]
+        if len(pattern.findall(source)) != 1 or f'project.markdown_extensions."{new}"' in source:
+            raise RepairTransactionError("the proposed extension rename is no longer unique")
+        return pattern.sub(replacement, source, count=1)
+    if operation == "move-index-setting":
+        old, new = problem["old"], problem["new"]
+        extra = _toml_section(source, "project.extra")
+        if extra is None:
+            raise RepairTransactionError("cannot find [project.extra]")
+        start, end = extra
+        region = source[start:end]
+        match = re.search(rf"(?m)^{re.escape(old)}\s*=\s*(.+)$", region)
+        if match is None:
+            raise RepairTransactionError(f"cannot find project.extra.{old}")
+        assignment = f"{new} = {match.group(1)}"
+        region = region[: match.start()] + region[match.end() :]
+        source = source[:start] + region + source[end:]
+        table = 'project.markdown_extensions."prodockit.index"'
+        target = _toml_section(source, table)
+        if target is None:
+            lead = "" if source.endswith("\n") else "\n"
+            return f"{source}{lead}\n[{table}]\n{assignment}\n"
+        target_start, target_end = target
+        target_region = source[target_start:target_end]
+        if re.search(rf"(?m)^{re.escape(new)}\s*=", target_region):
+            raise RepairTransactionError(f"{table}.{new} already exists")
+        header_end = source.find("\n", target_start) + 1
+        return source[:header_end] + assignment + "\n" + source[header_end:]
+    if operation == "enable-extension":
+        table = f'project.markdown_extensions."{problem["new"]}"'
+        if _toml_section(source, table) is not None:
+            return source
+        lead = "" if source.endswith("\n") else "\n"
+        return f"{source}{lead}\n[{table}]\n"
+    if operation == "add-asset":
+        current = tomllib.loads(source).get("project", {}).get(problem["setting"])
+        if current is not None and not isinstance(current, list):
+            raise RepairTransactionError(
+                f"project.{problem['setting']} is not a list; author intent is required"
+            )
+        return _toml_add_array_value(source, problem["setting"], problem["new"])
+    raise RepairTransactionError(f"unknown configuration repair operation: {operation}")
+
+
+def repair_project_configuration(
+    root: Path,
+    problem: dict[str, str],
+    *,
+    expected_fingerprint: str,
+    timestamp: str | None = None,
+) -> RepairApplyResult:
+    """Apply one lossless TOML edit and verify the configuration remains valid."""
+    project = root.resolve()
+    config_path = project / "zensical.toml"
+    if not config_path.is_file() or config_path.is_symlink():
+        raise RepairTransactionError("configuration repair supports a regular zensical.toml only")
+    if _content_sha256(config_path) != expected_fingerprint:
+        raise RepairTransactionError(
+            "configuration repair plan became stale; rerun `pdk diag --fix`"
+        )
+    source = config_path.read_text(encoding="utf-8")
+    planned = _plan_configuration_source(source, problem)
+    if planned == source:
+        return RepairApplyResult("not-needed")
+    try:
+        tomllib.loads(planned)
+    except tomllib.TOMLDecodeError as error:
+        raise RepairTransactionError(f"planned configuration would be invalid: {error}") from error
+    transaction = RepairTransaction(
+        project,
+        action_id=f"project.configuration.{problem['id']}",
+        check_id="project.configuration",
+        choice_id=problem["id"],
+        timestamp=timestamp,
+    )
+    try:
+        transaction.begin()
+        transaction.backup_path(config_path, backup_name="zensical.toml")
+        temporary = config_path.with_name(f".{config_path.name}-{uuid.uuid4().hex}.tmp")
+        temporary.write_text(planned, encoding="utf-8")
+        os.replace(temporary, config_path)
+        verified = load_project_config(config_path)
+        remaining = _configuration_repairable_problems(
+            verified, inspect_config(verified).diagnostics
+        )
+        if any(item.get("id") == problem["id"] for item in remaining):
+            raise RepairTransactionError(
+                "verification still found the selected configuration problem"
+            )
+        transaction.commit()
+    except (OSError, UnicodeError, ProjectConfigError, RepairTransactionError) as error:
+        try:
+            transaction.rollback(str(error))
+        except RepairRollbackError:
+            raise
+        raise RepairTransactionError(
+            f"configuration repair failed and was rolled back: {error}"
+        ) from error
+    return RepairApplyResult(
+        "applied",
+        ("zensical.toml",),
         _display_path(transaction.quarantine, project),
         _display_path(transaction.manifest_path, project),
     )
@@ -1817,9 +2205,7 @@ def _installation_checks(root: Path) -> list[DiagnosticResult]:
         try:
             prefix = Path(sys.prefix).resolve()
             if prefix == Path(sys.base_prefix).resolve():
-                raise MetadataRepairError(
-                    "metadata repair requires an active virtual environment"
-                )
+                raise MetadataRepairError("metadata repair requires an active virtual environment")
             repair_entries = _repair_metadata_entries(_active_site_packages(prefix))
             stale, _affected, ambiguous = _classify_metadata_repair(
                 repair_entries, _running_repair_versions()
@@ -1873,6 +2259,7 @@ def _configuration_check(config_file: Path) -> tuple[ProjectConfig | None, Diagn
             (str(error), "run `pdk config --check` for the detailed configuration report"),
         )
     details = tuple(f"{item.path}: {item.message}" for item in report.diagnostics)
+    repairable = _configuration_repairable_problems(config, report.diagnostics)
     return config, DiagnosticResult(
         "project.configuration",
         "Project configuration and inputs",
@@ -1881,8 +2268,118 @@ def _configuration_check(config_file: Path) -> tuple[ProjectConfig | None, Diagn
         if details
         else "Configuration and local project inputs pass",
         details + (("run `pdk config --check` for the complete report",) if details else ()),
-        {"config_file": _display_path(report.path, config.root), "problem_count": len(details)},
+        {
+            "config_file": _display_path(report.path, config.root),
+            "problem_count": len(details),
+            "repair_fingerprint": _content_sha256(report.path),
+            "repairable_problems": repairable,
+        },
     )
+
+
+def _configuration_repairable_problems(
+    config: ProjectConfig, problems: tuple[Any, ...]
+) -> list[dict[str, str]]:
+    """Classify exact TOML-only fixes; every other finding remains manual."""
+    if config.path.suffix.casefold() != ".toml":
+        return []
+    found: list[dict[str, str]] = []
+    for problem in problems:
+        path = str(problem.path)
+        message = str(problem.message)
+        suggestion = re.search(r"did you mean '([^']+)'\?", message)
+        if suggestion and (
+            path.startswith("project.extra.") or path.startswith("project.markdown_extensions.")
+        ):
+            new = suggestion.group(1)
+            kind = (
+                "rename-extension"
+                if message.startswith("unknown Prodockit extension")
+                else "rename-key"
+            )
+            old = (
+                path.removeprefix("project.markdown_extensions.")
+                if kind == "rename-extension"
+                else path.rsplit(".", 1)[-1].strip('"')
+            )
+            found.append(
+                {
+                    "id": f"rename-{hashlib.sha256(path.encode()).hexdigest()[:10]}",
+                    "operation": "rename",
+                    "kind": kind,
+                    "path": path,
+                    "old": old,
+                    "new": new,
+                    "label": f"Rename {old!r} to the unique supported name {new!r}",
+                }
+            )
+            continue
+        obsolete = {
+            "project.extra.pdf_include_index": (
+                "include",
+                "Move pdf_include_index to prodockit.index.include",
+            ),
+            "project.extra.pdf_index_title": (
+                "title",
+                "Move pdf_index_title to prodockit.index.title",
+            ),
+        }.get(path)
+        if obsolete:
+            target, label = obsolete
+            found.append(
+                {
+                    "id": f"move-{path.rsplit('.', 1)[-1]}",
+                    "operation": "move-index-setting",
+                    "path": path,
+                    "old": path.rsplit(".", 1)[-1],
+                    "new": target,
+                    "label": label,
+                }
+            )
+            continue
+        extension = re.search(r"uses .+ syntax but (prodockit\.[a-z_-]+) is not enabled$", message)
+        if extension:
+            name = extension.group(1)
+            found.append(
+                {
+                    "id": f"enable-{name.replace('.', '-')}",
+                    "operation": "enable-extension",
+                    "path": path,
+                    "new": name,
+                    "label": f"Enable {name}, uniquely required by detected author syntax",
+                }
+            )
+            continue
+        missing_stylesheet = (
+            "local stylesheet is not configured in project.extra_css or project.extra.pdf_extra_css"
+        )
+        if message == missing_stylesheet and path.endswith("/stylesheets/pdk.css"):
+            found.append(
+                {
+                    "id": "configure-pdk-css",
+                    "operation": "add-asset",
+                    "path": path,
+                    "new": "stylesheets/pdk.css",
+                    "setting": "extra_css",
+                    "label": "Add the existing Prodockit stylesheet to project.extra_css",
+                }
+            )
+        elif message == "local JavaScript file is not configured in project.extra_javascript" and (
+            path.endswith("/javascripts/mathjax.js")
+            or path.endswith("/javascripts/vendor/mathjax/tex-svg-full.js")
+        ):
+            marker = path.split("/javascripts/", 1)[1]
+            found.append(
+                {
+                    "id": f"configure-{hashlib.sha256(path.encode()).hexdigest()[:10]}",
+                    "operation": "add-asset",
+                    "path": path,
+                    "new": f"javascripts/{marker}",
+                    "setting": "extra_javascript",
+                    "label": f"Add the existing Prodockit MathJax asset {marker}",
+                }
+            )
+    return found
 
 
 def _pin_checks(root: Path, online: bool) -> list[DiagnosticResult]:
@@ -1997,6 +2494,52 @@ def _project_tool(root: Path, configured: object, defaults: tuple[str, ...]) -> 
     return None
 
 
+def _locked_renderer_refusal(
+    root: Path, config: ProjectConfig | None, component: str
+) -> str | None:
+    """Return why a renderer cannot be rebuilt without resolving author intent."""
+    if config is None:
+        return "Project configuration is not readable."
+    custom_key = "pdf_mmdc_bin" if component == "mermaid" else "pdf_tex2svg_script"
+    if config.extra.get(custom_key):
+        return f"project.extra.{custom_key} selects a custom executable path"
+    tool_root = root / "tools" / component
+    manifest = tool_root / "package.json"
+    lockfile = tool_root / "package-lock.json"
+    if manifest.exists() != lockfile.exists():
+        return "package.json and package-lock.json must either both exist or both be absent"
+    if not manifest.exists():
+        return None
+    if manifest.is_symlink() or lockfile.is_symlink():
+        return "renderer manifests must not be symlinks"
+    try:
+        package = json.loads(manifest.read_text(encoding="utf-8"))
+        lock = json.loads(lockfile.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        return f"renderer manifest is not valid UTF-8 JSON: {error}"
+    if not isinstance(package, dict) or not isinstance(lock, dict):
+        return "renderer manifests must contain JSON objects"
+    if package.get("scripts"):
+        return "package.json contains author lifecycle scripts"
+    dependencies = package.get("dependencies")
+    root_package = (
+        (lock.get("packages") or {}).get("") if isinstance(lock.get("packages"), dict) else None
+    )
+    if not isinstance(dependencies, dict) or not isinstance(root_package, dict):
+        return "renderer manifests do not declare a locked dependency graph"
+    if root_package.get("dependencies") != dependencies:
+        return "package.json and package-lock.json dependency declarations do not match"
+    package_name = "@mermaid-js/mermaid-cli" if component == "mermaid" else "mathjax-full"
+    locked = (lock.get("packages") or {}).get(f"node_modules/{package_name}")
+    if not isinstance(locked, dict) or not locked.get("version") or not locked.get("integrity"):
+        return f"package-lock.json does not pin {package_name} with an integrity hash"
+    for filename in COMPONENT_FILES[component]:
+        candidate = tool_root / filename
+        if candidate.exists() and candidate.is_symlink():
+            return f"{candidate.relative_to(root)} must not be a symlink"
+    return None
+
+
 def _tool_result(
     check_id: str,
     name: str,
@@ -2090,11 +2633,7 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
         )
     mmdc_probe = probe_mermaid(mmdc) if mmdc else None
     mmdc_ok = bool(mmdc_probe and mmdc_probe.ok)
-    mmdc_error = (
-        _sanitise_text(mmdc_probe.error, root)
-        if mmdc_probe and mmdc_probe.error
-        else None
-    )
+    mmdc_error = _sanitise_text(mmdc_probe.error, root) if mmdc_probe and mmdc_probe.error else None
     checks.append(
         DiagnosticResult(
             "renderer.mermaid",
@@ -2117,6 +2656,8 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
                 "path": _display_path(mmdc, root) if mmdc else None,
                 "version": mmdc_probe.version if mmdc_probe else None,
                 "error": mmdc_error,
+                "repair_refusal": _locked_renderer_refusal(root, config, "mermaid"),
+                "repair_fingerprint": _renderer_plan_fingerprint(root, "mermaid"),
             },
         )
     )
@@ -2161,7 +2702,9 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
             + (
                 "; Mermaid CLI may use its bundled browser"
                 if not browser and mermaid_required
-                else " (optional)" if not mermaid_required else ""
+                else " (optional)"
+                if not mermaid_required
+                else ""
             ),
             tuple(
                 detail
@@ -2185,9 +2728,7 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
     mathjax_probe = probe_mathjax(node, tex2svg) if node and tex2svg else None
     mathjax_ok = bool(mathjax_modules.is_dir() and mathjax_probe and mathjax_probe.ok)
     mathjax_error = (
-        _sanitise_text(mathjax_probe.error, root)
-        if mathjax_probe and mathjax_probe.error
-        else None
+        _sanitise_text(mathjax_probe.error, root) if mathjax_probe and mathjax_probe.error else None
     )
     math_details = []
     if tex2svg:
@@ -2217,8 +2758,12 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
                 "error": (
                     mathjax_error
                     if mathjax_probe
-                    else "node is not found on PATH" if tex2svg else None
+                    else "node is not found on PATH"
+                    if tex2svg
+                    else None
                 ),
+                "repair_refusal": _locked_renderer_refusal(root, config, "mathjax"),
+                "repair_fingerprint": _renderer_plan_fingerprint(root, "mathjax"),
             },
         )
     )
@@ -2416,9 +2961,7 @@ def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
     if stamp:
         metadata_details.append(f"{STAMP_FILE} revision: {stamp}")
         if applied_release:
-            metadata_details.append(
-                f"Successfully applied template release: {applied_release}"
-            )
+            metadata_details.append(f"Successfully applied template release: {applied_release}")
         else:
             metadata_details.append("Successfully applied template release: not recorded")
     elif (root / STAMP_FILE).exists():
@@ -2587,7 +3130,9 @@ __all__ = [
     "build_repair_dry_run",
     "command_in_environment",
     "inspect",
+    "repair_locked_renderer",
     "repair_pin_declarations",
+    "repair_project_configuration",
     "repair_shared_file",
     "same_path",
 ]

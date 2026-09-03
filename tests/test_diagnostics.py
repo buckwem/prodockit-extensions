@@ -413,8 +413,7 @@ def test_stage3_shared_file_adapter_reuses_installed_bytes_transactionally(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / shared_file_module.MANIFEST).write_text(
-        'version = 1\n\n[[files]]\nsource = "pdk.css"\n'
-        'target = "docs/stylesheets/pdk.css"\n',
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\ntarget = "docs/stylesheets/pdk.css"\n',
         encoding="utf-8",
     )
     target = tmp_path / "docs/stylesheets/pdk.css"
@@ -444,8 +443,7 @@ def test_stage3_shared_file_adapter_refuses_a_stale_plan_without_backup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / shared_file_module.MANIFEST).write_text(
-        'version = 1\n\n[[files]]\nsource = "pdk.css"\n'
-        'target = "docs/stylesheets/pdk.css"\n',
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\ntarget = "docs/stylesheets/pdk.css"\n',
         encoding="utf-8",
     )
     target = tmp_path / "docs/stylesheets/pdk.css"
@@ -472,8 +470,7 @@ def test_stage3_shared_file_adapter_can_create_and_roll_back_a_missing_target(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / shared_file_module.MANIFEST).write_text(
-        'version = 1\n\n[[files]]\nsource = "pdk.css"\n'
-        'target = "new/path/pdk.css"\n',
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\ntarget = "new/path/pdk.css"\n',
         encoding="utf-8",
     )
     monkeypatch.setattr(shared_file_module, "resource_bytes", lambda _source: b"installed\n")
@@ -503,10 +500,9 @@ def test_stage3_shared_file_adapter_can_create_and_roll_back_a_missing_target(
     assert not (tmp_path / state.file.target).exists()
     assert not (tmp_path / "new").exists()
     manifest = json.loads(
-        (
-            tmp_path
-            / ".prodockit-quarantine/diagnostics/missing-rollback/manifest.json"
-        ).read_text(encoding="utf-8")
+        (tmp_path / ".prodockit-quarantine/diagnostics/missing-rollback/manifest.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert manifest["status"] == "rolled-back"
 
@@ -515,9 +511,7 @@ def test_stage3_pin_adapter_uses_a_detected_version_and_preserves_crlf(
     tmp_path: Path,
 ) -> None:
     pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_bytes(
-        b'dependencies = [\r\n  "zensical>=0.0.57", # keep this comment\r\n]\r\n'
-    )
+    pyproject.write_bytes(b'dependencies = [\r\n  "zensical>=0.0.57", # keep this comment\r\n]\r\n')
     workflow = tmp_path / ".github/workflows/docs.yml"
     workflow.parent.mkdir(parents=True)
     workflow.write_bytes(b'jobs:\r\n  docs:\r\n    run: pip install "zensical==0.0.58"\r\n')
@@ -703,9 +697,7 @@ def test_browser_diagnostic_executes_the_configured_browser(
     monkeypatch.setattr(
         diagnostics,
         "_run",
-        lambda command, **kwargs: subprocess.CompletedProcess(
-            command, 1, "", "loader error"
-        ),
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 1, "", "loader error"),
     )
 
     check = next(
@@ -828,12 +820,8 @@ def test_repair_choice_requires_one_operation_and_one_default() -> None:
             "Example",
             "Example",
             (
-                diagnostics.RepairChoice(
-                    "one", "One", command_argv=("pdk", "pins", "--check")
-                ),
-                diagnostics.RepairChoice(
-                    "two", "Two", internal_operation="no-op"
-                ),
+                diagnostics.RepairChoice("one", "One", command_argv=("pdk", "pins", "--check")),
+                diagnostics.RepairChoice("two", "Two", internal_operation="no-op"),
             ),
         )
 
@@ -899,11 +887,11 @@ def test_dry_run_lists_each_pin_choice_without_selecting_one() -> None:
     assert all(choice.id != "selected" for choice in candidate.choices)
 
 
-def test_independent_project_repairs_prefer_adoption_not_template_sync() -> None:
+def test_independent_project_repairs_never_use_template_sync() -> None:
     report = DiagnosticReport(
         "zensical.toml",
         ".",
-        False,
+        True,
         (
             DiagnosticResult(
                 "project.configuration",
@@ -911,17 +899,21 @@ def test_independent_project_repairs_prefer_adoption_not_template_sync() -> None
                 "fail",
                 "Prodockit integration is incomplete",
             ),
+            DiagnosticResult("renderer.node", "Rendering toolchain", "pass", "Node is available"),
+            DiagnosticResult("renderer.npm", "Rendering toolchain", "pass", "npm is available"),
             DiagnosticResult(
                 "renderer.mermaid",
                 "Rendering toolchain",
                 "fail",
                 "Mermaid is required",
+                data={"repair_refusal": None},
             ),
             DiagnosticResult(
                 "renderer.mathjax",
                 "Rendering toolchain",
                 "fail",
                 "MathJax is required",
+                data={"repair_refusal": None},
             ),
             DiagnosticResult(
                 "repository.template-metadata",
@@ -933,17 +925,16 @@ def test_independent_project_repairs_prefer_adoption_not_template_sync() -> None
     )
 
     dry_run = diagnostics.build_repair_dry_run(report)
-    commands = [
-        choice.command_argv
+    operations = [
+        choice.internal_operation
         for candidate in dry_run.candidates
         for choice in candidate.choices
-        if choice.command_argv is not None
+        if choice.internal_operation is not None
     ]
 
-    assert ("prodockit", "adopt", "--apply") in commands
-    assert ("prodockit", "adopt", "--apply", "--mermaid") in commands
-    assert ("prodockit", "adopt", "--apply", "--maths") in commands
-    assert not any("template-sync" in command for command in commands)
+    assert "renderer.mermaid.install-locked" in operations
+    assert "renderer.mathjax.install-locked" in operations
+    assert not any(operation and "template-sync" in operation for operation in operations)
     template = next(
         candidate
         for candidate in dry_run.candidates
@@ -997,14 +988,10 @@ def test_diag_dry_run_is_structured_read_only_and_filterable(
                 data={
                     "declared": 1,
                     "drifted": 1,
-                    "drifted_files": [
-                        {"path": "docs/stylesheets/pdk.css", "status": "different"}
-                    ],
+                    "drifted_files": [{"path": "docs/stylesheets/pdk.css", "status": "different"}],
                 },
             ),
-            DiagnosticResult(
-                "renderer.browser", "Rendering toolchain", "warn", "browser missing"
-            ),
+            DiagnosticResult("renderer.browser", "Rendering toolchain", "warn", "browser missing"),
         ),
     )
     monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
@@ -1032,9 +1019,7 @@ def test_diag_dry_run_is_structured_read_only_and_filterable(
         "shared-files",
         "--verbose",
     ]
-    assert candidate["choices"][1]["internal_operation"] == (
-        "dependencies.shared-files.apply"
-    )
+    assert candidate["choices"][1]["internal_operation"] == ("dependencies.shared-files.apply")
     assert candidate["choices"][1]["warning_severity"] == "warning"
     assert "replaces existing managed file bytes" in candidate["choices"][1]["warning"]
     assert "Apply this repair?" not in result.output
@@ -1062,10 +1047,8 @@ def test_diag_dry_run_text_says_commands_could_run(
 
     assert result.exit_code == 1
     assert "nothing will be changed" in result.output
-    assert "Could run: prodockit adopt --apply --mermaid" in result.output
-    assert "Option leave-unchanged (default): Leave unchanged" in result.output
-    assert "WARNING:" in result.output
-    assert "prodockit-template" in result.output
+    assert "--online --fix --fix-check renderer.mermaid" in result.output
+    assert "MANUAL — online" in result.output
     assert "Apply this repair?" not in result.output
 
 
@@ -1104,12 +1087,8 @@ def test_diag_rejects_incompatible_or_unknown_dry_run_options(
     monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
 
     incompatible = CliRunner().invoke(main, ["diag", "--dry-run", "--fix"])
-    unscoped = CliRunner().invoke(
-        main, ["diag", "--fix-check", "installation.metadata"]
-    )
-    unknown = CliRunner().invoke(
-        main, ["diag", "--dry-run", "--fix-check", "future.unknown"]
-    )
+    unscoped = CliRunner().invoke(main, ["diag", "--fix-check", "installation.metadata"])
+    unknown = CliRunner().invoke(main, ["diag", "--dry-run", "--fix-check", "future.unknown"])
 
     assert incompatible.exit_code == 2
     assert "mutually exclusive" in incompatible.output
@@ -1428,6 +1407,179 @@ def test_pdk_diag_reports_local_assets_omitted_from_zensical_toml(tmp_path: Path
     assert check.status == "fail"
     assert any("docs/stylesheets/unused.css" in detail for detail in check.details)
     assert any("docs/javascripts/unused.js" in detail for detail in check.details)
+
+
+def test_stage5_repairs_unique_setting_typo_without_losing_comments(tmp_path: Path) -> None:
+    config = tmp_path / "zensical.toml"
+    config.write_text(
+        '[project]\nsite_name = "Example" # author comment\n\n'
+        '[project.extra]\npdf_magin_left = "3cm" # retain me\n',
+        encoding="utf-8",
+    )
+    _loaded, check = diagnostics._configuration_check(config)
+    problem = check.data["repairable_problems"][0]
+
+    result = diagnostics.repair_project_configuration(
+        tmp_path,
+        problem,
+        expected_fingerprint=check.data["repair_fingerprint"],
+        timestamp="stage5-rename",
+    )
+
+    source = config.read_text(encoding="utf-8")
+    assert result.status == "applied"
+    assert 'pdf_margin_left = "3cm" # retain me' in source
+    assert 'site_name = "Example" # author comment' in source
+
+
+def test_stage5_moves_obsolete_index_setting_losslessly(tmp_path: Path) -> None:
+    config = tmp_path / "zensical.toml"
+    config.write_text(
+        '[project]\nsite_name = "Example"\n\n'
+        "[project.extra]\npdf_include_index = true # retain me\n",
+        encoding="utf-8",
+    )
+    _loaded, check = diagnostics._configuration_check(config)
+    problem = check.data["repairable_problems"][0]
+
+    diagnostics.repair_project_configuration(
+        tmp_path,
+        problem,
+        expected_fingerprint=check.data["repair_fingerprint"],
+        timestamp="stage5-obsolete",
+    )
+
+    source = config.read_text(encoding="utf-8")
+    assert "pdf_include_index" not in source
+    assert '[project.markdown_extensions."prodockit.index"]' in source
+    assert "include = true # retain me" in source
+
+
+def test_stage5_enables_only_extension_proved_by_author_syntax(tmp_path: Path) -> None:
+    config = tmp_path / "zensical.toml"
+    config.write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "index.md").write_text("See \\ref{target}.\n", encoding="utf-8")
+    _loaded, check = diagnostics._configuration_check(config)
+    problem = next(
+        item
+        for item in check.data["repairable_problems"]
+        if item["operation"] == "enable-extension"
+    )
+
+    diagnostics.repair_project_configuration(
+        tmp_path,
+        problem,
+        expected_fingerprint=check.data["repair_fingerprint"],
+        timestamp="stage5-extension",
+    )
+
+    assert '[project.markdown_extensions."prodockit.refs"]' in config.read_text(encoding="utf-8")
+
+
+def test_stage5_refuses_yaml_and_unknown_local_assets(tmp_path: Path) -> None:
+    yaml_config = tmp_path / "zensical.yml"
+    yaml_config.write_text("site_name: Example\n", encoding="utf-8")
+    docs = tmp_path / "docs" / "stylesheets"
+    docs.mkdir(parents=True)
+    (docs / "author.css").write_text("/* mine */\n", encoding="utf-8")
+
+    _loaded, check = diagnostics._configuration_check(yaml_config)
+
+    assert check.data["repairable_problems"] == []
+
+
+def test_stage4_requires_online_mode_and_rejects_custom_renderer_paths() -> None:
+    base_checks = (
+        DiagnosticResult("renderer.node", "Rendering toolchain", "pass", "Node available"),
+        DiagnosticResult("renderer.npm", "Rendering toolchain", "pass", "npm available"),
+        DiagnosticResult(
+            "renderer.mermaid",
+            "Rendering toolchain",
+            "fail",
+            "Mermaid missing",
+            data={"repair_refusal": "project.extra.pdf_mmdc_bin selects a custom path"},
+        ),
+    )
+
+    offline = diagnostics.build_repair_dry_run(
+        DiagnosticReport("zensical.toml", ".", False, base_checks)
+    )
+    online = diagnostics.build_repair_dry_run(
+        DiagnosticReport("zensical.toml", ".", True, base_checks)
+    )
+
+    assert (
+        next(c for c in offline.candidates if c.check_id == "renderer.mermaid").status == "manual"
+    )
+    assert (
+        next(c for c in online.candidates if c.check_id == "renderer.mermaid").status == "refused"
+    )
+
+
+def test_stage4_locked_mermaid_repair_uses_npm_ci_and_verifies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "zensical.toml"
+    config.write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mermaid")
+    monkeypatch.setattr(
+        "prodockit.diagnostics.shutil.which",
+        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
+    )
+    commands: list[list[str]] = []
+
+    def npm_ci(command: list[str], **kwargs):
+        commands.append(command)
+        binary = tmp_path / "tools/mermaid/node_modules/.bin/mmdc"
+        binary.parent.mkdir(parents=True)
+        binary.write_text("installed", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("prodockit.diagnostics.subprocess.run", npm_ci)
+    monkeypatch.setattr(
+        "prodockit.diagnostics.probe_mermaid",
+        lambda path: SimpleNamespace(ok=True, error=None, version="11.0", path=path),
+    )
+
+    result = diagnostics.repair_locked_renderer(
+        tmp_path,
+        "mermaid",
+        expected_fingerprint=expected,
+        timestamp="stage4-mermaid",
+    )
+
+    assert result.status == "applied"
+    assert commands[0][1] == "ci"
+    assert (tmp_path / "tools/mermaid/package-lock.json").is_file()
+
+
+def test_stage4_refuses_author_package_scripts(tmp_path: Path) -> None:
+    config = ProjectConfig(
+        path=tmp_path / "zensical.toml",
+        project={},
+        nav_pages=(),
+        markdown_extensions={},
+    )
+    tools = tmp_path / "tools/mermaid"
+    tools.mkdir(parents=True)
+    (tools / "package.json").write_text(
+        '{"scripts":{"postinstall":"do-something"},"dependencies":{}}',
+        encoding="utf-8",
+    )
+    (tools / "package-lock.json").write_text(
+        '{"packages":{"":{"dependencies":{}}}}', encoding="utf-8"
+    )
+
+    refusal = diagnostics._locked_renderer_refusal(tmp_path, config, "mermaid")
+
+    assert refusal == "package.json contains author lifecycle scripts"
 
 
 def test_one_unreadable_area_does_not_prevent_the_remaining_diagnostics(

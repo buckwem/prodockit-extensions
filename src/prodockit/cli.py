@@ -28,7 +28,7 @@ import threading
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, ParamSpec, TypeVar
+from typing import Any, Literal, ParamSpec, TypeVar
 
 import click
 
@@ -971,8 +971,7 @@ def _announce_apply(
     click.echo("")
     click.echo(
         click.style(
-            f"prodockit {__version__} - setting up this machine and a "
-            "prodockit-template project",
+            f"prodockit {__version__} - setting up this machine and a prodockit-template project",
             bold=True,
         )
     )
@@ -1146,9 +1145,7 @@ def _work_through(
             # a prerequisite. Both have no safe action, but the reader needs
             # different information to recover.
             detail = f" - {report.result.detail}" if report.result.detail else ""
-            symbol = (
-                "WAIT" if context.guided and report.result.status is Status.BLOCKED else "?   "
-            )
+            symbol = "WAIT" if context.guided and report.result.status is Status.BLOCKED else "?   "
             line = f"{number:2}  {symbol}  {report.stage.summary}{detail}"
             click.echo(_bootstrap_status(line, report.result.status))
             if journal is not None:
@@ -1665,9 +1662,7 @@ def _shared_file_report(states: Sequence[Any], *, verbose: bool = False) -> None
         label = {"current": "ok", "missing": "MISS", "different": "WRONG"}[status]
         click.echo(f"  {label:<5} {target}")
         if verbose:
-            click.echo(
-                f"        expected sha256 {state.expected_sha256}"
-            )
+            click.echo(f"        expected sha256 {state.expected_sha256}")
             actual = state.actual_sha256
             click.echo(f"        actual   sha256 {actual or 'missing'}")
 
@@ -1741,9 +1736,7 @@ def config_command(config_file: str, check: bool) -> None:
     if report.diagnostics:
         click.echo(_bootstrap_error("\nProblems"))
         for diagnostic in report.diagnostics:
-            click.echo(
-                _bootstrap_error(f"  ERROR {diagnostic.path}: {diagnostic.message}")
-            )
+            click.echo(_bootstrap_error(f"  ERROR {diagnostic.path}: {diagnostic.message}"))
         if check:
             raise click.exceptions.Exit(1)
         click.echo("\nRun `prodockit config --check` in automation to reject these problems.")
@@ -1764,9 +1757,7 @@ def _diagnostic_phase_heading(number: int, total: int, name: str, *, err: bool) 
     click.echo(boundary, err=err)
 
 
-def _diagnostic_stage_heading(
-    number: int, total: int, summary: str, *, err: bool
-) -> None:
+def _diagnostic_stage_heading(number: int, total: int, summary: str, *, err: bool) -> None:
     """Use bootstrap's blue stage divider for one diagnostic finding."""
     click.echo("", err=err)
     click.echo(click.style("─" * 78, fg="blue"), err=err)
@@ -1776,9 +1767,7 @@ def _diagnostic_stage_heading(
     )
 
 
-def _render_diagnostic_repair_plan(
-    plan: Any, *, verbose: bool, err: bool, dry_run: bool
-) -> None:
+def _render_diagnostic_repair_plan(plan: Any, *, verbose: bool, err: bool, dry_run: bool) -> None:
     """Render the immutable repair plan to the selected human stream."""
     import shlex
     import subprocess
@@ -1789,9 +1778,7 @@ def _render_diagnostic_repair_plan(
     else:
         click.echo("  The complete plan is shown before any confirmation.", err=err)
     visible = [
-        candidate
-        for candidate in plan.candidates
-        if verbose or candidate.status != "not-needed"
+        candidate for candidate in plan.candidates if verbose or candidate.status != "not-needed"
     ]
     for number, candidate in enumerate(visible, 1):
         _diagnostic_stage_heading(
@@ -1861,21 +1848,15 @@ def _choose_diagnostic_repair(candidate: Any) -> Any:
     click.echo(f"Decision: {candidate.check_id} — {candidate.summary}", err=True)
     for choice in candidate.choices:
         if choice.warning:
-            click.echo(
-                _bootstrap_warning(f"WARNING ({choice.id}): {choice.warning}"), err=True
-            )
+            click.echo(_bootstrap_warning(f"WARNING ({choice.id}): {choice.warning}"), err=True)
             click.echo(f"  Scope: {', '.join(choice.affected_paths)}", err=True)
-            click.echo(
-                f"  Network: {'required' if choice.network else 'not required'}", err=True
-            )
+            click.echo(f"  Network: {'required' if choice.network else 'not required'}", err=True)
             click.echo(f"  Recovery: {choice.rollback}", err=True)
     for number, choice in enumerate(candidate.choices, 1):
         default = " (default)" if choice.default else ""
         click.echo(f"  {number}. {choice.label} [{choice.id}]{default}", err=True)
     default_number = next(
-        number
-        for number, choice in enumerate(candidate.choices, 1)
-        if choice.default
+        number for number, choice in enumerate(candidate.choices, 1) if choice.default
     )
     click.echo(f"Choose an option [{default_number}]: ", nl=False, err=True)
     try:
@@ -1950,11 +1931,11 @@ def diag_command(
     one concise report without making changes. ``--dry-run`` shows every
     bounded repair option and command that could be used without choosing or
     executing one. ``--fix`` prints the same complete plan, then asks a
-    separate default-No question before each supported mutation. Stage 3
-    applies transaction-backed metadata, declared shared-file, and bounded pin
-    repairs; later repair candidates remain explanatory. Use ``pdk config
-    --check`` when the configuration section needs its full resolved-setting
-    report.
+    separate default-No question before each supported mutation. The completed
+    repair stages cover transaction-backed metadata, shared files, bounded
+    pins, locked project-local renderers, and narrowly lossless TOML fixes.
+    Use ``pdk config --check`` when the configuration section needs its full
+    resolved-setting report.
     """
     import json
 
@@ -1962,11 +1943,14 @@ def diag_command(
         DIAGNOSTIC_IDS,
         RepairRollbackError,
         RepairTransactionError,
+        _content_sha256,
         _sanitise_text,
         build_repair_dry_run,
         inspect,
         repair_distribution_metadata,
+        repair_locked_renderer,
         repair_pin_declarations,
+        repair_project_configuration,
         repair_shared_file,
     )
 
@@ -1988,11 +1972,7 @@ def diag_command(
 
     before = inspect(config_file, online=online)
     try:
-        repair_plan = (
-            build_repair_dry_run(before, check_ids=fix_check)
-            if dry_run or fix
-            else None
-        )
+        repair_plan = build_repair_dry_run(before, check_ids=fix_check) if dry_run or fix else None
     except ValueError as error:
         raise click.BadParameter(str(error), param_hint="--fix-check") from error
 
@@ -2002,9 +1982,7 @@ def diag_command(
     repair_quarantine: str | None = None
     if fix:
         assert repair_plan is not None
-        _render_diagnostic_repair_plan(
-            repair_plan, verbose=verbose, err=json_output, dry_run=False
-        )
+        _render_diagnostic_repair_plan(repair_plan, verbose=verbose, err=json_output, dry_run=False)
         _diagnostic_phase_heading(2, 3, "Decide and repair", err=True)
         eligible_total = sum(
             candidate.status == "available"
@@ -2012,10 +1990,21 @@ def diag_command(
                 candidate.id == "installation.metadata.quarantine-stale"
                 or candidate.id.startswith("dependencies.shared-files.")
                 or candidate.id.startswith("dependencies.pins.align-")
+                or candidate.id.startswith("renderer.mermaid.install-locked")
+                or candidate.id.startswith("renderer.mathjax.install-locked")
+                or candidate.id.startswith("project.configuration.")
             )
             for candidate in repair_plan.candidates
         )
         eligible_number = 0
+        configuration_fingerprint = next(
+            (
+                check.data.get("repair_fingerprint")
+                for check in before.checks
+                if check.id == "project.configuration"
+            ),
+            None,
+        )
         for candidate in repair_plan.candidates:
             base_action: dict[str, Any] = {
                 **candidate.as_dict(),
@@ -2032,6 +2021,9 @@ def diag_command(
                 candidate.id == "installation.metadata.quarantine-stale"
                 or candidate.id.startswith("dependencies.shared-files.")
                 or candidate.id.startswith("dependencies.pins.align-")
+                or candidate.id.startswith("renderer.mermaid.install-locked")
+                or candidate.id.startswith("renderer.mathjax.install-locked")
+                or candidate.id.startswith("project.configuration.")
             )
             if candidate.status != "available" or not supported:
                 base_action["status"] = "skipped"
@@ -2064,9 +2056,7 @@ def diag_command(
                     item for item in before.checks if item.id == "dependencies.shared-files"
                 )
                 detail = next(
-                    item
-                    for item in check.data["drifted_files"]
-                    if item["path"] == target
+                    item for item in check.data["drifted_files"] if item["path"] == target
                 )
                 click.echo(f"Review: {target}", err=True)
                 click.echo(f"  project SHA-256: {detail['actual_sha256']}", err=True)
@@ -2092,14 +2082,17 @@ def diag_command(
                 "installation.metadata": "distribution discovery is readable and unique",
                 "dependencies.shared-files": "the selected file matches the installed bytes",
                 "dependencies.pins": "all selected package declarations use the chosen version",
+                "renderer.mermaid": "mmdc renders a health-check diagram",
+                "renderer.mathjax": (
+                    "MathJax renders a health-check expression and website assets exist"
+                ),
+                "project.configuration": "the edited TOML parses and the selected problem is gone",
             }[candidate.check_id]
             click.echo(f"Verify: {verification}", err=True)
             if choice.warning:
                 click.echo(_bootstrap_warning(f"WARNING: {choice.warning}"), err=True)
                 click.echo(f"Recovery: {choice.rollback}", err=True)
-                click.echo(
-                    f"Network: {'required' if choice.network else 'not required'}", err=True
-                )
+                click.echo(f"Network: {'required' if choice.network else 'not required'}", err=True)
             confirmed, supplied = _strict_diagnostic_confirmation()
             base_action["confirmation"] = supplied
             if not confirmed:
@@ -2114,9 +2107,7 @@ def diag_command(
                 action_quarantine: str | None
                 if candidate.check_id == "installation.metadata":
                     metadata_check = next(
-                        check
-                        for check in before.checks
-                        if check.id == "installation.metadata"
+                        check for check in before.checks if check.id == "installation.metadata"
                     )
                     metadata_repair = repair_distribution_metadata(
                         project_root,
@@ -2129,9 +2120,7 @@ def diag_command(
                 elif candidate.check_id == "dependencies.shared-files":
                     target = choice.affected_paths[0]
                     shared_check = next(
-                        check
-                        for check in before.checks
-                        if check.id == "dependencies.shared-files"
+                        check for check in before.checks if check.id == "dependencies.shared-files"
                     )
                     shared_data = next(
                         item
@@ -2149,18 +2138,14 @@ def diag_command(
                     changed = shared_repair.changed
                     action_manifest = shared_repair.manifest
                     action_quarantine = shared_repair.quarantine
-                else:
+                elif candidate.check_id == "dependencies.pins":
                     assert choice.command_argv is not None
                     package, version = choice.command_argv[-1].split("=", 1)
                     pins_check = next(
-                        check
-                        for check in before.checks
-                        if check.id == "dependencies.pins"
+                        check for check in before.checks if check.id == "dependencies.pins"
                     )
                     package_data = next(
-                        item
-                        for item in pins_check.data["packages"]
-                        if item["package"] == package
+                        item for item in pins_check.data["packages"] if item["package"] == package
                     )
                     pin_repair = repair_pin_declarations(
                         project_root,
@@ -2172,6 +2157,42 @@ def diag_command(
                     changed = pin_repair.changed
                     action_manifest = pin_repair.manifest
                     action_quarantine = pin_repair.quarantine
+                elif candidate.check_id in {"renderer.mermaid", "renderer.mathjax"}:
+                    renderer_check = next(
+                        check for check in before.checks if check.id == candidate.check_id
+                    )
+                    component: Literal["mermaid", "mathjax"] = (
+                        "mermaid" if candidate.check_id == "renderer.mermaid" else "mathjax"
+                    )
+                    renderer_repair = repair_locked_renderer(
+                        project_root,
+                        component,
+                        expected_fingerprint=renderer_check.data["repair_fingerprint"],
+                    )
+                    result_status = renderer_repair.status
+                    changed = renderer_repair.changed
+                    action_manifest = renderer_repair.manifest
+                    action_quarantine = renderer_repair.quarantine
+                else:
+                    configuration_check = next(
+                        check for check in before.checks if check.id == "project.configuration"
+                    )
+                    problem = next(
+                        item
+                        for item in configuration_check.data["repairable_problems"]
+                        if item["id"] == choice.id
+                    )
+                    assert configuration_fingerprint is not None
+                    configuration_repair = repair_project_configuration(
+                        project_root,
+                        problem,
+                        expected_fingerprint=configuration_fingerprint,
+                    )
+                    result_status = configuration_repair.status
+                    changed = configuration_repair.changed
+                    action_manifest = configuration_repair.manifest
+                    action_quarantine = configuration_repair.quarantine
+                    configuration_fingerprint = _content_sha256(project_root / "zensical.toml")
             except RepairTransactionError as error:
                 base_action["status"] = (
                     "rolled-back"
@@ -2227,15 +2248,11 @@ def diag_command(
         click.echo(json.dumps(payload, indent=2, sort_keys=True))
     else:
         if dry_run and repair_plan is not None:
-            _render_diagnostic_repair_plan(
-                repair_plan, verbose=verbose, err=False, dry_run=True
-            )
+            _render_diagnostic_repair_plan(repair_plan, verbose=verbose, err=False, dry_run=True)
         if fix:
             applied = [item for item in repair_actions if item["status"] == "applied"]
             declined = [item for item in repair_actions if item["status"] == "declined"]
-            click.echo(
-                f"Repair result: {len(applied)} applied, {len(declined)} declined"
-            )
+            click.echo(f"Repair result: {len(applied)} applied, {len(declined)} declined")
             if repair_quarantine:
                 click.echo(f"Recovery manifest: {repair_quarantine}/manifest.json")
         click.echo("Prodockit diagnostics")
@@ -3581,9 +3598,7 @@ def _run_template_sync(
             template = pathlib.Path(template_path).resolve()
             say_detail(f"Template source: {template} (--template-path)")
         else:
-            template_remote = resolve_template(
-                origin_remote or None, github=github, surrey=surrey
-            )
+            template_remote = resolve_template(origin_remote or None, github=github, surrey=surrey)
             say_detail(f"Template source: {template_remote}")
             template, how = _template_checkout(project, template_remote)
             say_detail(f"Template checkout: {template} ({how})")
@@ -3735,11 +3750,7 @@ def _run_template_sync(
         shared_targets = {state.file.target for state in incoming_shared}
         plan = plan_template_files(
             manifest,
-            [
-                path
-                for path in files
-                if path not in shared_targets and path not in configured_seeds
-            ],
+            [path for path in files if path not in shared_targets and path not in configured_seeds],
             lambda p: blob_of(project / manifest.rename(p)),
             lambda p: blob_at(versions[0], p) if versions else None,
             baseline,
@@ -3787,12 +3798,15 @@ def _run_template_sync(
         ):
             required_prodockit = planned_prodockit
         required_package_upgrade = bool(
-            required_prodockit
-            and prodockit_upgrade_required(__version__, required_prodockit)
+            required_prodockit and prodockit_upgrade_required(__version__, required_prodockit)
         )
-        if required_package_upgrade and required_prodockit and (
-            package_version is None
-            or prodockit_upgrade_required(package_version, required_prodockit)
+        if (
+            required_package_upgrade
+            and required_prodockit
+            and (
+                package_version is None
+                or prodockit_upgrade_required(package_version, required_prodockit)
+            )
         ):
             package_version = required_prodockit
             package_reason = "template requires"
@@ -3881,8 +3895,7 @@ def _run_template_sync(
         if wanted_applied_release and previous_applied_release != wanted_applied_release:
             before = previous_applied_release or "not recorded"
             say(
-                "  Template release after a successful apply: "
-                f"{before} -> {wanted_applied_release}"
+                f"  Template release after a successful apply: {before} -> {wanted_applied_release}"
             )
         if package_upgrade and package_specifier and package_version:
             say("  Prodockit needs upgrading:")
@@ -4020,10 +4033,7 @@ def _run_template_sync(
         dependency_files = apply_dependency_updates(project, dependency_plan)
         if dependency_files:
             also_written.extend(dependency_files)
-            say(
-                "Build dependencies: aligned managed pins in "
-                f"{len(dependency_files)} file(s)"
-            )
+            say(f"Build dependencies: aligned managed pins in {len(dependency_files)} file(s)")
 
         try:
             refreshed_shared = apply_shared_files(
@@ -4081,9 +4091,7 @@ def _run_template_sync(
                 )
             say("Saving the template update and sending it for review...")
             try:
-                merge_request = submit_for_review(
-                    git, origin_remote, target, message
-                )
+                merge_request = submit_for_review(git, origin_remote, target, message)
             except TemplateSyncError:
                 # Keep a failed network submission retryable through the same
                 # author-facing command. The files may already be committed,
@@ -4103,10 +4111,7 @@ def _run_template_sync(
                 say("Open the project in GitLab, review the update, and approve its merge.")
             else:
                 say("Sent the update branch to GitHub.")
-                say(
-                    "Open the project in GitHub and choose Compare & pull request for "
-                    f"{name}."
-                )
+                say(f"Open the project in GitHub and choose Compare & pull request for {name}.")
             if url := review_url(origin_remote, name, target):
                 say(f"Review it here: {url}")
             say("No Git commands are needed.")

@@ -46,7 +46,7 @@ write behaviour of each public command.
 
 | Command {: width="34%" } | Use it when | Safe first run | Writes |
 |---|---|---|---|
-| [`prodockit diag`](#diagnose-an-environment-and-project) | A command, dependency, renderer, configuration, or checkout does not behave as expected | `prodockit diag` | Nothing by default or with `--dry-run`; `--fix` asks before each supported metadata, shared-file, or bounded pin repair |
+| [`prodockit diag`](#diagnose-an-environment-and-project) | A command, dependency, renderer, configuration, or checkout does not behave as expected | `prodockit diag` | Nothing by default or with `--dry-run`; `--fix` asks before each supported repair |
 | [`prodockit config`](#check-resolved-configuration) | You need to see the Prodockit settings that will actually be used, or check that the source project is complete | `prodockit config` | Nothing; add `--check` for a CI-friendly non-zero exit when problems exist |
 | [`prodockit adopt`](adopt.md) | An existing Zensical document needs selected prodockit components without machine, Git or editor setup | `prodockit adopt` | Local project files only with `--apply`; optional choices use `--configure` |
 | [`prodockit bootstrap`](devcons/bootstrap.md) | A machine or a project based on `prodockit-template` is not ready to build and publish | `prodockit bootstrap` | Only with `--apply`; configuration questions use `--configure` |
@@ -128,11 +128,15 @@ identifies a repair or rollback failure. Redirected logs retain the same phase
 and stage labels without relying on colour.
 
 The repair engine can apply unambiguous `installation.metadata` repairs,
-restore one declared shared file at a time from the installed Prodockit release,
-and align one package's declarations to a bounded version already present in
-the project. A uniquely established exact-build pin is the only proposed
-version; genuinely conflicting exact pins receive a numbered choice. An online
-“new version available” result is never a repair choice.
+restore one declared shared file at a time, align bounded dependency pins,
+rebuild project-local Mermaid or MathJax installations from valid lockfiles,
+and make narrowly lossless `zensical.toml` corrections. Renderer installation
+requires `--online`, healthy Node and npm, and a lockfile consistent with a
+script-free project manifest. Configuration repair is limited to unique
+Prodockit spelling corrections, obsolete index-setting moves, extensions
+uniquely required by detected syntax, and known existing Prodockit CSS or
+MathJax assets. Invalid values, missing author files, YAML, custom renderer
+paths, and ambiguous choices remain unchanged with remediation guidance.
 
 Each confirmed action records hashes and relative recovery paths under
 `.prodockit-quarantine/diagnostics/<UTC timestamp>/manifest.json`, verifies
@@ -140,9 +144,7 @@ its postcondition, and rolls that action back if verification fails. Existing
 shared-file bytes and pin declaration files are backed up before the existing
 typed `shared-files` or `pins` service is called. Writes are atomic and pin
 rewrites preserve operators, extras, comments, encoding, and CRLF/LF endings.
-Other planned actions remain visible but are skipped until their independently
-reviewed stages are implemented. No diagnostic repair reads or invokes
-`prodockit-template` or `template-sync`.
+No diagnostic repair reads or invokes `prodockit-template` or `template-sync`.
 
 When asking for support, attach the machine-readable report rather than a
 screenshot:
