@@ -80,6 +80,14 @@ def _command(
                 return _command(sibling, *arguments, platform=platform)
     command = [str(path), *arguments]
     if platform == "nt" and path.suffix.casefold() in {".bat", ".cmd"}:
+        # npm's mmdc.cmd delegates to this JavaScript entry point. Calling it
+        # through Node avoids cmd.exe's special /S /C quote stripping, which
+        # splits a perfectly valid project path containing spaces.
+        mermaid_cli = (
+            path.parent.parent / "@mermaid-js" / "mermaid-cli" / "src" / "cli.js"
+        )
+        if path.stem.casefold() == "mmdc" and mermaid_cli.is_file():
+            return ["node", str(mermaid_cli), *arguments]
         return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", *command]
     return command
 
