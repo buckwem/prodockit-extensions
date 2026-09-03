@@ -38,6 +38,16 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## Unreleased
+
+- Added a repair-disposition registry and read-only `pdk diag --dry-run`
+  preview. It lists every bounded repair option, warning, affected path,
+  recovery boundary, and command that could be used without choosing or
+  executing one. Independent project repairs prefer Adoption and the existing
+  focused Prodockit commands; no diagnostic fix depends on
+  `prodockit-template`. Diagnostic JSON schema version 2 exposes the same
+  policy and unselected choices for automation.
+
 ## 0.57.0 (2026-09-03)
 
 - Added an explicit `pdk diag --fix` repair for unambiguous stale Prodockit

@@ -1777,22 +1777,37 @@ def config_command(config_file: str, check: bool) -> None:
     help="Write stable structured output for CI and support requests.",
 )
 @click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show every repair option and command that could be used; change nothing.",
+)
+@click.option(
     "--fix",
     is_flag=True,
     help="Quarantine only provably stale Prodockit or Zensical metadata.",
+)
+@click.option(
+    "--fix-check",
+    multiple=True,
+    metavar="CHECK_ID",
+    help="Limit a dry run or repair to a stable diagnostic check ID. Repeat as needed.",
 )
 def diag_command(
     config_file: str,
     verbose: bool,
     online: bool,
     json_output: bool,
+    dry_run: bool,
     fix: bool,
+    fix_check: tuple[str, ...],
 ) -> None:
     """Diagnose the active environment and project.
 
     The default run is deterministic and offline. It combines installation,
     configuration, project-integrity, pins, renderer and repository checks in
-    one concise report without making changes. ``--fix`` is limited to
+    one concise report without making changes. ``--dry-run`` shows every
+    bounded repair option and command that could be used without choosing or
+    executing one. ``--fix`` is currently limited to
     quarantining demonstrably stale Prodockit or Zensical distribution
     metadata in the active virtual environment. Use ``pdk config --check``
     when the configuration section needs its full resolved-setting report.
@@ -1800,10 +1815,30 @@ def diag_command(
     import json
 
     from prodockit.diagnostics import (
+        DIAGNOSTIC_IDS,
         MetadataRepairError,
+        build_repair_dry_run,
         inspect,
         repair_distribution_metadata,
     )
+
+    if dry_run and fix:
+        raise click.UsageError("--dry-run and --fix are mutually exclusive")
+    if fix_check and not (dry_run or fix):
+        raise click.UsageError("--fix-check requires --dry-run or --fix")
+    unknown_checks = sorted(set(fix_check) - DIAGNOSTIC_IDS)
+    if unknown_checks:
+        raise click.BadParameter(
+            f"unknown diagnostic check ID(s): {', '.join(unknown_checks)}",
+            param_hint="--fix-check",
+        )
+    unsupported_fixes = sorted(set(fix_check) - {"installation.metadata"})
+    if fix and unsupported_fixes:
+        names = ", ".join(unsupported_fixes)
+        raise click.ClickException(
+            f"Stage 1 can preview but cannot yet apply these checks: {names}; "
+            "run `pdk diag --dry-run --fix-check CHECK_ID`"
+        )
 
     repair = None
     if fix:
@@ -1813,12 +1848,68 @@ def diag_command(
             raise click.ClickException(str(error)) from error
 
     report = inspect(config_file, online=online)
+    try:
+        dry_run_report = (
+            build_repair_dry_run(report, check_ids=fix_check) if dry_run else None
+        )
+    except ValueError as error:
+        raise click.BadParameter(str(error), param_hint="--fix-check") from error
     if json_output:
         payload = report.as_dict()
+        if dry_run_report is not None:
+            payload["dry_run"] = dry_run_report.as_dict()
         if repair is not None:
             payload["repair"] = repair.as_dict()
         click.echo(json.dumps(payload, indent=2, sort_keys=True))
     else:
+        if dry_run_report is not None:
+            import shlex
+            import subprocess
+
+            click.echo("Prodockit diagnostic repair dry run")
+            click.echo("  No decisions have been made and nothing will be changed.")
+            for candidate in dry_run_report.candidates:
+                if candidate.status == "not-needed" and not verbose:
+                    continue
+                click.echo(f"\n  {candidate.check_id} — {candidate.summary}")
+                click.echo(
+                    f"    {candidate.status}; disposition: {candidate.disposition}"
+                )
+                if not candidate.choices:
+                    click.echo(f"    {candidate.remediation}")
+                    continue
+                for choice in candidate.choices:
+                    default = " (default)" if choice.default else ""
+                    click.echo(f"    Option {choice.id}{default}: {choice.label}")
+                    if choice.command_argv is not None:
+                        command = (
+                            subprocess.list2cmdline(choice.command_argv)
+                            if sys.platform == "win32"
+                            else shlex.join(choice.command_argv)
+                        )
+                        click.echo(f"      Could run: {command}")
+                    else:
+                        click.echo(f"      Could use: {choice.internal_operation}")
+                    if choice.affected_paths:
+                        click.echo(f"      Affects: {', '.join(choice.affected_paths)}")
+                    if choice.prerequisites:
+                        click.echo(
+                            f"      Requires: {', '.join(choice.prerequisites)}"
+                        )
+                    if choice.network:
+                        click.echo("      Network: required")
+                    if choice.warning:
+                        assert choice.warning_severity is not None
+                        click.echo(
+                            f"      {choice.warning_severity.upper()}: {choice.warning}"
+                        )
+                    click.echo(f"      Recovery: {choice.rollback}")
+            counts = dry_run_report.counts
+            click.echo(
+                "\nDry-run result: "
+                f"{counts['available']} available, {counts['manual']} manual, "
+                f"{counts['refused']} refused, {counts['not-needed']} not needed\n"
+            )
         if repair is not None:
             click.echo("Prodockit metadata repair")
             if repair.status == "repaired":

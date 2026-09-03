@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import NoReturn
@@ -523,9 +524,290 @@ def test_diag_json_is_stable_and_failures_set_the_exit_status(
 
     assert result.exit_code == 1
     payload = json.loads(result.output)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["status"] == "fail"
     assert payload["summary"] == {"fail": 1, "pass": 0, "warn": 0}
+    assert payload["checks"][0]["repair"]["disposition"] == "ambiguous"
+
+
+def test_every_diagnostic_has_one_registered_repair_disposition() -> None:
+    assert set(diagnostics.REPAIR_REGISTRY) == diagnostics.DIAGNOSTIC_IDS
+    with pytest.raises(ValueError, match="no registered repair disposition"):
+        DiagnosticResult("future.unclassified", "Future", "warn", "not registered")
+
+
+def test_repair_choice_requires_one_operation_and_one_default() -> None:
+    with pytest.raises(ValueError, match="exactly one command or internal operation"):
+        diagnostics.RepairChoice("broken", "Broken")
+    with pytest.raises(ValueError, match="exactly one default"):
+        diagnostics.RepairCandidate(
+            "example",
+            "dependencies.pins",
+            "ambiguous",
+            "available",
+            "Example",
+            "Example",
+            "Example",
+            (
+                diagnostics.RepairChoice(
+                    "one", "One", command_argv=("pdk", "pins", "--check")
+                ),
+                diagnostics.RepairChoice(
+                    "two", "Two", internal_operation="no-op"
+                ),
+            ),
+        )
+
+
+def test_dry_run_lists_each_pin_choice_without_selecting_one() -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "dependencies.pins",
+                "Dependency and managed-file consistency",
+                "fail",
+                "zensical declarations disagree",
+                data={
+                    "inconsistent": ["zensical"],
+                    "updates": [],
+                    "packages": [
+                        {
+                            "package": "zensical",
+                            "versions": ["0.0.57", "0.0.58"],
+                            "latest": None,
+                            "sites": [
+                                {
+                                    "path": "pyproject.toml",
+                                    "line": 10,
+                                    "operator": ">=",
+                                    "version": "0.0.57",
+                                    "kind": "pip",
+                                },
+                                {
+                                    "path": ".github/workflows/docs.yml",
+                                    "line": 20,
+                                    "operator": "==",
+                                    "version": "0.0.58",
+                                    "kind": "pip",
+                                },
+                            ],
+                        }
+                    ],
+                },
+            ),
+        ),
+    )
+
+    dry_run = diagnostics.build_repair_dry_run(report)
+
+    candidate = dry_run.candidates[0]
+    assert candidate.status == "available"
+    assert candidate.disposition == "ambiguous"
+    assert [choice.id for choice in candidate.choices] == [
+        "align-zensical-0.0.57",
+        "align-zensical-0.0.58",
+        "leave-unchanged",
+    ]
+    assert candidate.choices[0].command_argv == (
+        "pdk",
+        "pins",
+        "--set",
+        "zensical=0.0.57",
+    )
+    assert candidate.choices[-1].default
+    assert all(choice.id != "selected" for choice in candidate.choices)
+
+
+def test_independent_project_repairs_prefer_adoption_not_template_sync() -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "project.configuration",
+                "Project configuration and inputs",
+                "fail",
+                "Prodockit integration is incomplete",
+            ),
+            DiagnosticResult(
+                "renderer.mermaid",
+                "Rendering toolchain",
+                "fail",
+                "Mermaid is required",
+            ),
+            DiagnosticResult(
+                "renderer.mathjax",
+                "Rendering toolchain",
+                "fail",
+                "MathJax is required",
+            ),
+            DiagnosticResult(
+                "repository.template-metadata",
+                "Repository and template maintenance",
+                "fail",
+                "Template metadata is invalid",
+            ),
+        ),
+    )
+
+    dry_run = diagnostics.build_repair_dry_run(report)
+    commands = [
+        choice.command_argv
+        for candidate in dry_run.candidates
+        for choice in candidate.choices
+        if choice.command_argv is not None
+    ]
+
+    assert ("prodockit", "adopt", "--apply") in commands
+    assert ("prodockit", "adopt", "--apply", "--mermaid") in commands
+    assert ("prodockit", "adopt", "--apply", "--maths") in commands
+    assert not any("template-sync" in command for command in commands)
+    template = next(
+        candidate
+        for candidate in dry_run.candidates
+        if candidate.check_id == "repository.template-metadata"
+    )
+    assert template.status == "refused"
+    assert template.disposition == "prohibited"
+    assert not template.choices
+
+
+def test_weasyprint_import_banner_never_corrupts_diagnostic_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def noisy_import(name: str) -> NoReturn:
+        assert name == "weasyprint"
+        print("third-party stdout banner")
+        print("third-party stderr banner", file=sys.stderr)
+        raise OSError("native library unavailable")
+
+    monkeypatch.setattr(diagnostics.importlib, "import_module", noisy_import)
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
+    )
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda _name: None)
+
+    checks = diagnostics._renderer_checks(None, tmp_path)
+
+    assert next(check for check in checks if check.id == "renderer.weasyprint").status == "warn"
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+def test_diag_dry_run_is_structured_read_only_and_filterable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "dependencies.shared-files",
+                "Dependency and managed-file consistency",
+                "fail",
+                "one managed file has drifted",
+                data={
+                    "declared": 1,
+                    "drifted": 1,
+                    "drifted_files": [
+                        {"path": "docs/stylesheets/pdk.css", "status": "different"}
+                    ],
+                },
+            ),
+            DiagnosticResult(
+                "renderer.browser", "Rendering toolchain", "warn", "browser missing"
+            ),
+        ),
+    )
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+    monkeypatch.setattr(
+        diagnostics,
+        "repair_distribution_metadata",
+        lambda _root: pytest.fail("dry-run invoked a mutating repair"),
+    )
+
+    result = CliRunner().invoke(
+        main,
+        ["diag", "--dry-run", "--fix-check", "dependencies.shared-files", "--json"],
+    )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == 2
+    assert payload["dry_run"]["mutated"] is False
+    assert payload["dry_run"]["selected_checks"] == ["dependencies.shared-files"]
+    assert len(payload["dry_run"]["candidates"]) == 1
+    candidate = payload["dry_run"]["candidates"][0]
+    assert candidate["status"] == "available"
+    assert candidate["choices"][0]["command_argv"] == [
+        "pdk",
+        "shared-files",
+        "--apply",
+    ]
+    assert candidate["choices"][0]["warning_severity"] == "warning"
+    assert "replaces existing managed file bytes" in candidate["choices"][0]["warning"]
+    assert "Apply this repair?" not in result.output
+
+
+def test_diag_dry_run_text_says_commands_could_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "renderer.mermaid",
+                "Rendering toolchain",
+                "fail",
+                "Mermaid is required",
+            ),
+        ),
+    )
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+
+    result = CliRunner().invoke(main, ["diag", "--dry-run"])
+
+    assert result.exit_code == 1
+    assert "nothing will be changed" in result.output
+    assert "Could run: prodockit adopt --apply --mermaid" in result.output
+    assert "Option leave-unchanged (default): Leave unchanged" in result.output
+    assert "WARNING:" in result.output
+    assert "prodockit-template" in result.output
+    assert "Apply this repair?" not in result.output
+
+
+def test_diag_rejects_incompatible_or_unknown_dry_run_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport("zensical.toml", ".", False, ())
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+
+    incompatible = CliRunner().invoke(main, ["diag", "--dry-run", "--fix"])
+    unscoped = CliRunner().invoke(
+        main, ["diag", "--fix-check", "installation.metadata"]
+    )
+    unknown = CliRunner().invoke(
+        main, ["diag", "--dry-run", "--fix-check", "future.unknown"]
+    )
+
+    assert incompatible.exit_code == 2
+    assert "mutually exclusive" in incompatible.output
+    assert unscoped.exit_code == 2
+    assert "requires --dry-run or --fix" in unscoped.output
+    assert unknown.exit_code == 2
+    assert "unknown diagnostic check ID" in unknown.output
 
 
 def test_diag_warnings_do_not_set_a_failure_exit_status(

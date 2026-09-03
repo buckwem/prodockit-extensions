@@ -33,6 +33,31 @@ Prodockit or Zensical metadata, `pdk diag --fix` can quarantine only entries it
 can prove obsolete, then rerun distribution discovery and the complete
 diagnostic report. The explicit flag does not repair any other check.
 
+Use `pdk diag --dry-run` to see every repair that could be considered without
+choosing an option, prompting, running a repair command, or changing anything.
+Where several versions or remediations are valid, it lists all of them and
+marks **Leave unchanged** as the default. Each option includes its warning,
+affected paths, prerequisites, network requirement, recovery boundary, and the
+public command or internal typed operation that could perform it.
+
+The repair registry classifies every stable check as confirmable, online,
+manual, ambiguous, prohibited, or not applicable. A source-level coverage guard rejects
+a new diagnostic without a disposition. This first implementation stage plans
+future repairs but does not apply them. Project-local, template-independent
+problems preferentially route through Adoption or the existing `pins`,
+`shared-files`, `init-tools`, and `init-mathjax` services. Template metadata and
+updates remain manual: no diagnostic fix depends on `prodockit-template`.
+
+For structured preview output, use:
+
+```bash
+pdk diag --dry-run --json
+```
+
+Schema version 2 adds repair policy to every check and includes unselected
+dry-run choices as command argument arrays. It never emits a shell command
+containing credentials.
+
 ## Environment and installation
 
 \ref{tab-diagnostics-environment-and-installation} explains every environment

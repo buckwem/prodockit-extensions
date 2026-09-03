@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.metadata
+import io
 import json
 import ntpath
 import os
@@ -16,6 +17,7 @@ import subprocess
 import sys
 import sysconfig
 from collections.abc import Callable
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,8 +35,281 @@ from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import inspect as inspect_shared_files
 
 Status = Literal["pass", "warn", "fail"]
+RepairDisposition = Literal[
+    "confirmable", "online", "manual", "ambiguous", "prohibited", "not-applicable"
+]
+DryRunStatus = Literal["available", "manual", "refused", "not-needed"]
 NODE_AUDIT_LEVEL = "moderate"
 REPAIRABLE_DISTRIBUTIONS = ("prodockit", "zensical")
+
+DIAGNOSTIC_IDS = frozenset(
+    {
+        "environment.python",
+        "environment.virtual-env",
+        "environment.inspection",
+        "installation.commands",
+        "installation.dependencies",
+        "installation.metadata",
+        "installation.inspection",
+        "project.configuration",
+        "dependencies.pins",
+        "dependencies.shared-files",
+        "dependencies.inspection",
+        "renderer.pandoc",
+        "renderer.weasyprint",
+        "renderer.node",
+        "renderer.npm",
+        "renderer.mermaid",
+        "renderer.browser",
+        "renderer.mathjax",
+        "renderer.mermaid-security",
+        "renderer.inspection",
+        "renderer.security-inspection",
+        "repository.git",
+        "repository.template-metadata",
+        "repository.template-update",
+        "repository.inspection",
+    }
+)
+
+
+@dataclass(frozen=True)
+class RepairPolicy:
+    """The permanent repair boundary for one stable diagnostic check."""
+
+    disposition: RepairDisposition
+    reason: str
+    remediation: str
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "disposition": self.disposition,
+            "reason": self.reason,
+            "remediation": self.remediation,
+        }
+
+
+@dataclass(frozen=True)
+class RepairChoice:
+    """One bounded option a dry run can present without selecting it."""
+
+    id: str
+    label: str
+    default: bool = False
+    command_argv: tuple[str, ...] | None = None
+    internal_operation: str | None = None
+    affected_paths: tuple[str, ...] = ()
+    prerequisites: tuple[str, ...] = ()
+    warning: str | None = None
+    warning_severity: Literal["warning", "danger"] | None = None
+    network: bool = False
+    rollback: str = "not-applicable"
+
+    def __post_init__(self) -> None:
+        if (self.command_argv is None) == (self.internal_operation is None):
+            raise ValueError("a repair choice needs exactly one command or internal operation")
+        if (self.warning is None) != (self.warning_severity is None):
+            raise ValueError("repair warning text and severity must be provided together")
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "label": self.label,
+            "default": self.default,
+            "command_argv": list(self.command_argv) if self.command_argv is not None else None,
+            "internal_operation": self.internal_operation,
+            "affected_paths": list(self.affected_paths),
+            "prerequisites": list(self.prerequisites),
+            "warning": self.warning,
+            "warning_severity": self.warning_severity,
+            "network": self.network,
+            "rollback": self.rollback,
+        }
+
+
+@dataclass(frozen=True)
+class RepairCandidate:
+    """Dry-run result for one diagnostic problem or bounded decision."""
+
+    id: str
+    check_id: str
+    disposition: RepairDisposition
+    status: DryRunStatus
+    summary: str
+    reason: str
+    remediation: str
+    choices: tuple[RepairChoice, ...] = ()
+
+    def __post_init__(self) -> None:
+        defaults = sum(choice.default for choice in self.choices)
+        if self.choices and defaults != 1:
+            raise ValueError("repair choices need exactly one default")
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "check_id": self.check_id,
+            "disposition": self.disposition,
+            "status": self.status,
+            "summary": self.summary,
+            "reason": self.reason,
+            "remediation": self.remediation,
+            "choices": [choice.as_dict() for choice in self.choices],
+        }
+
+
+@dataclass(frozen=True)
+class RepairDryRun:
+    """Every possible repair for one immutable diagnostic report."""
+
+    candidates: tuple[RepairCandidate, ...]
+    selected_checks: tuple[str, ...] = ()
+
+    @property
+    def counts(self) -> dict[str, int]:
+        return {
+            status: sum(candidate.status == status for candidate in self.candidates)
+            for status in ("available", "manual", "refused", "not-needed")
+        }
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "mode": "dry-run",
+            "mutated": False,
+            "selected_checks": list(self.selected_checks),
+            "summary": self.counts,
+            "candidates": [candidate.as_dict() for candidate in self.candidates],
+        }
+
+
+REPAIR_REGISTRY: dict[str, RepairPolicy] = {
+    "environment.python": RepairPolicy(
+        "manual",
+        "Prodockit cannot replace or reselect the Python process that is running it.",
+        "Repair or select Python outside Prodockit, then rerun diagnostics.",
+    ),
+    "environment.virtual-env": RepairPolicy(
+        "prohibited",
+        "Changing the caller's active shell or editor interpreter is outside the process.",
+        "Activate the intended environment and reopen the shell or editor.",
+    ),
+    "environment.inspection": RepairPolicy(
+        "manual",
+        "The environment must be inspectable before a safe repair can be planned.",
+        "Correct the reported path or permission problem and rerun diagnostics.",
+    ),
+    "installation.commands": RepairPolicy(
+        "prohibited",
+        "PATH selection and package reinstallation can affect software outside the project.",
+        "Activate the intended environment and compare the reported command locations.",
+    ),
+    "installation.dependencies": RepairPolicy(
+        "prohibited",
+        "Resolving package conflicts requires choosing a compatible dependency set.",
+        "Run the active Python's `pip check`, then install the project's reviewed pins.",
+    ),
+    "installation.metadata": RepairPolicy(
+        "confirmable",
+        "Only metadata proved stale by the active package can be quarantined safely.",
+        "Use the scoped metadata quarantine repair from issue #697.",
+    ),
+    "installation.inspection": RepairPolicy(
+        "manual",
+        "Installation discovery must succeed before mutation can be bounded.",
+        "Correct the reported installation error and rerun diagnostics.",
+    ),
+    "project.configuration": RepairPolicy(
+        "ambiguous",
+        "Configuration findings may have several author-valid remediations.",
+        "Use `pdk config --check`; prefer Adoption for independent Prodockit integration repairs.",
+    ),
+    "dependencies.pins": RepairPolicy(
+        "ambiguous",
+        "A version must be selected before declarations can be aligned.",
+        "Choose a detected version and apply it with `pdk pins --set`.",
+    ),
+    "dependencies.shared-files": RepairPolicy(
+        "confirmable",
+        "Declared managed files have one installed Prodockit source of truth.",
+        "Review, back up, and apply them with `pdk shared-files --apply`.",
+    ),
+    "dependencies.inspection": RepairPolicy(
+        "manual",
+        "Unreadable declarations cannot be rewritten safely.",
+        "Correct the reported path, encoding, syntax, or permission problem.",
+    ),
+    "renderer.pandoc": RepairPolicy(
+        "prohibited",
+        "Pandoc is system software and its installer is platform-dependent.",
+        "Install the project's pinned Pandoc version outside diagnostics.",
+    ),
+    "renderer.weasyprint": RepairPolicy(
+        "prohibited",
+        "WeasyPrint failures may require native system libraries or architecture changes.",
+        "Repair the active Python package and platform libraries outside diagnostics.",
+    ),
+    "renderer.node": RepairPolicy(
+        "prohibited",
+        "Node is system software and cannot be replaced as a project-local repair.",
+        "Install the supported Node version, then rerun diagnostics.",
+    ),
+    "renderer.npm": RepairPolicy(
+        "prohibited",
+        "npm belongs to the system Node installation.",
+        "Repair or reinstall the selected Node distribution.",
+    ),
+    "renderer.mermaid": RepairPolicy(
+        "online",
+        "A valid project lockfile permits a bounded project-local reinstall.",
+        "Prefer Adoption or `pdk init-tools --mermaid`; no template is required.",
+    ),
+    "renderer.browser": RepairPolicy(
+        "prohibited",
+        "Browser installation and executable selection affect the host environment.",
+        "Install or select Chrome/Chromium outside diagnostics.",
+    ),
+    "renderer.mathjax": RepairPolicy(
+        "online",
+        "Committed project inputs can rebuild project-local MathJax tooling and assets.",
+        "Prefer Adoption, `pdk init-tools --mathjax`, or `pdk init-mathjax`; "
+        "no template is required.",
+    ),
+    "renderer.mermaid-security": RepairPolicy(
+        "prohibited",
+        "Security upgrades require advisory and rendered-output review.",
+        "Review `npm audit --omit=dev` and update the lockfile explicitly.",
+    ),
+    "renderer.inspection": RepairPolicy(
+        "manual",
+        "The renderer must be inspectable before a safe repair can be planned.",
+        "Correct the reported path or permission problem and rerun diagnostics.",
+    ),
+    "renderer.security-inspection": RepairPolicy(
+        "manual",
+        "An unavailable advisory inspection cannot justify dependency mutation.",
+        "Make `npm audit --omit=dev --json` work, then rerun online diagnostics.",
+    ),
+    "repository.git": RepairPolicy(
+        "prohibited",
+        "Repository creation and remote selection require author intent.",
+        "Install or configure Git and remotes explicitly.",
+    ),
+    "repository.template-metadata": RepairPolicy(
+        "prohibited",
+        "A diagnostic repair must not depend on or infer state from prodockit-template.",
+        "Recover exact template metadata from this project's version control history.",
+    ),
+    "repository.template-update": RepairPolicy(
+        "manual",
+        "A template update is a separately reviewed repository-wide change.",
+        "Run `pdk template-sync` to preview it before applying it.",
+    ),
+    "repository.inspection": RepairPolicy(
+        "manual",
+        "Repository state must be inspectable before a repair can be bounded.",
+        "Correct the reported Git or metadata error and rerun diagnostics.",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -48,6 +323,12 @@ class DiagnosticResult:
     details: tuple[str, ...] = ()
     data: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if self.id not in DIAGNOSTIC_IDS:
+            raise ValueError(
+                f"diagnostic {self.id!r} has no registered repair disposition"
+            )
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
@@ -56,6 +337,7 @@ class DiagnosticResult:
             "summary": self.summary,
             "details": list(self.details),
             "data": self.data,
+            "repair": REPAIR_REGISTRY[self.id].as_dict(),
         }
 
 
@@ -86,7 +368,7 @@ class DiagnosticReport:
 
     def as_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "prodockit_version": prodockit.__version__,
             "status": self.status,
             "config_file": self.config_file,
@@ -138,6 +420,311 @@ class MetadataRepairResult:
 
 class MetadataRepairError(RuntimeError):
     """The requested repair cannot be proved safe."""
+
+
+if set(REPAIR_REGISTRY) != DIAGNOSTIC_IDS:
+    missing = sorted(DIAGNOSTIC_IDS - set(REPAIR_REGISTRY))
+    unexpected = sorted(set(REPAIR_REGISTRY) - DIAGNOSTIC_IDS)
+    raise RuntimeError(
+        f"repair registry does not cover every diagnostic; missing={missing}, "
+        f"unexpected={unexpected}"
+    )
+
+
+def _leave_unchanged() -> RepairChoice:
+    return RepairChoice(
+        "leave-unchanged",
+        "Leave unchanged",
+        default=True,
+        internal_operation="no-op",
+    )
+
+
+def _generic_candidate(check: DiagnosticResult) -> RepairCandidate:
+    policy = REPAIR_REGISTRY[check.id]
+    status: DryRunStatus = "refused" if policy.disposition == "prohibited" else "manual"
+    choices: tuple[RepairChoice, ...] = ()
+    if check.id == "project.configuration":
+        choices = (
+            RepairChoice(
+                "adopt-project-repair",
+                "Use Adoption to repair independent Prodockit project integration",
+                command_argv=("prodockit", "adopt", "--apply"),
+                affected_paths=("zensical.toml", ".prodockit-components.toml"),
+                warning=(
+                    "Adoption can change project configuration and generated "
+                    "tool files; it asks before each stage and does not use prodockit-template."
+                ),
+                warning_severity="warning",
+                rollback="restore the changed project files from version control",
+            ),
+            RepairChoice(
+                "inspect-configuration",
+                "Show the detailed configuration findings",
+                command_argv=("pdk", "config", "--check"),
+                rollback="read-only",
+            ),
+            _leave_unchanged(),
+        )
+        status = "available"
+    return RepairCandidate(
+        f"{check.id}.remediation",
+        check.id,
+        policy.disposition,
+        status,
+        check.summary,
+        policy.reason,
+        policy.remediation,
+        choices,
+    )
+
+
+def _metadata_candidate(check: DiagnosticResult) -> RepairCandidate:
+    policy = REPAIR_REGISTRY[check.id]
+    candidates = tuple(str(item) for item in check.data.get("fix_candidates", ()))
+    if not candidates:
+        return RepairCandidate(
+            "installation.metadata.manual",
+            check.id,
+            "manual",
+            "manual",
+            check.summary,
+            "No supported distribution was proved to be a repair candidate.",
+            policy.remediation,
+        )
+    return RepairCandidate(
+        "installation.metadata.quarantine-stale",
+        check.id,
+        policy.disposition,
+        "available",
+        check.summary,
+        policy.reason,
+        policy.remediation,
+        (
+            RepairChoice(
+                "quarantine-stale-metadata",
+                "Quarantine provably stale Prodockit or Zensical metadata",
+                internal_operation="installation.metadata.quarantine-stale",
+                affected_paths=tuple(
+                    f"active site-packages/{name}-*.dist-info" for name in candidates
+                ),
+                warning=(
+                    "Distribution metadata will move inside the active virtual "
+                    "environment; ambiguous entries are refused."
+                ),
+                warning_severity="warning",
+                rollback="restore paths using the quarantine manifest",
+            ),
+            _leave_unchanged(),
+        ),
+    )
+
+
+def _shared_files_candidate(check: DiagnosticResult) -> RepairCandidate:
+    policy = REPAIR_REGISTRY[check.id]
+    raw_files = check.data.get("drifted_files", ())
+    paths = tuple(
+        str(item.get("path"))
+        for item in raw_files
+        if isinstance(item, dict) and item.get("path")
+    )
+    changed_existing = any(
+        isinstance(item, dict) and item.get("status") == "different" for item in raw_files
+    )
+    return RepairCandidate(
+        "dependencies.shared-files.apply",
+        check.id,
+        policy.disposition,
+        "available",
+        check.summary,
+        policy.reason,
+        policy.remediation,
+        (
+            RepairChoice(
+                "apply-installed-shared-files",
+                "Apply the installed Prodockit shared files",
+                command_argv=("pdk", "shared-files", "--apply"),
+                affected_paths=paths,
+                warning=(
+                    "This replaces existing managed file bytes; review local "
+                    "changes first."
+                    if changed_existing
+                    else None
+                ),
+                warning_severity="warning" if changed_existing else None,
+                rollback="restore replaced files from the diagnostic quarantine",
+            ),
+            _leave_unchanged(),
+        ),
+    )
+
+
+def _pin_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
+    policy = REPAIR_REGISTRY[check.id]
+    candidates: list[RepairCandidate] = []
+    packages = check.data.get("packages", ())
+    for package_data in packages:
+        if not isinstance(package_data, dict):
+            continue
+        package = str(package_data.get("package", ""))
+        versions = tuple(str(item) for item in package_data.get("versions", ()))
+        latest = package_data.get("latest")
+        paths = tuple(
+            dict.fromkeys(
+                str(site.get("path"))
+                for site in package_data.get("sites", ())
+                if isinstance(site, dict) and site.get("path")
+            )
+        )
+        if len(versions) > 1:
+            choices = (
+                *(
+                    RepairChoice(
+                        f"align-{package}-{version}",
+                        f"Align every {package} declaration to {version}",
+                        command_argv=("pdk", "pins", "--set", f"{package}={version}"),
+                        affected_paths=paths,
+                        warning=(
+                            "Changing version declarations can change website "
+                            "and PDF output; rebuild and review both artifacts."
+                        ),
+                        warning_severity="warning",
+                        rollback=(
+                            "restore changed declaration files from the diagnostic quarantine"
+                        ),
+                    )
+                    for version in versions
+                ),
+                _leave_unchanged(),
+            )
+            candidates.append(
+                RepairCandidate(
+                    f"dependencies.pins.align-{package}",
+                    check.id,
+                    "ambiguous",
+                    "available",
+                    f"Choose a version for inconsistent {package} declarations",
+                    policy.reason,
+                    policy.remediation,
+                    choices,
+                )
+            )
+        elif latest and versions and str(latest) != versions[0]:
+            candidates.append(
+                RepairCandidate(
+                    f"dependencies.pins.review-{package}-update",
+                    check.id,
+                    "manual",
+                    "manual",
+                    f"Review {package} {versions[0]} -> {latest}",
+                    "A newer version is an author decision, not a diagnostic repair.",
+                    f"Review output before running `pdk pins --set {package}={latest}`.",
+                    (
+                        RepairChoice(
+                            f"review-{package}-{latest}",
+                            f"Set every {package} declaration to {latest} after review",
+                            command_argv=("pdk", "pins", "--set", f"{package}={latest}"),
+                            affected_paths=paths,
+                            warning=(
+                                "This adopts an online version and can change "
+                                "website and PDF output."
+                            ),
+                            warning_severity="warning",
+                            network=True,
+                            rollback="restore changed declaration files from version control",
+                        ),
+                        _leave_unchanged(),
+                    ),
+                )
+            )
+    return candidates or [_generic_candidate(check)]
+
+
+def _renderer_candidate(check: DiagnosticResult) -> RepairCandidate:
+    policy = REPAIR_REGISTRY[check.id]
+    feature = "mermaid" if check.id == "renderer.mermaid" else "maths"
+    paths = ("tools/mermaid",) if feature == "mermaid" else ("tools/mathjax", "docs/javascripts")
+    return RepairCandidate(
+        f"{check.id}.adopt-project-repair",
+        check.id,
+        policy.disposition,
+        "available",
+        check.summary,
+        policy.reason,
+        policy.remediation,
+        (
+            RepairChoice(
+                "adopt-project-repair",
+                f"Use Adoption to repair project-local {feature} support",
+                command_argv=("prodockit", "adopt", "--apply", f"--{feature}"),
+                affected_paths=paths,
+                prerequisites=("Node and npm are healthy", "the project lockfile is valid"),
+                warning=(
+                    "This can download and execute locked third-party packages and "
+                    "replace incomplete generated tooling; Adoption remains independent of "
+                    "prodockit-template and asks before each stage."
+                ),
+                warning_severity="warning",
+                network=True,
+                rollback="restore project files and the quarantined generated directory",
+            ),
+            _leave_unchanged(),
+        ),
+    )
+
+
+def build_repair_dry_run(
+    report: DiagnosticReport, *, check_ids: tuple[str, ...] = ()
+) -> RepairDryRun:
+    """Describe every possible repair without selecting or executing one."""
+    requested = tuple(dict.fromkeys(check_ids))
+    unknown = sorted(set(requested) - DIAGNOSTIC_IDS)
+    if unknown:
+        raise ValueError(f"unknown diagnostic check ID(s): {', '.join(unknown)}")
+    selected = set(requested)
+    candidates: list[RepairCandidate] = []
+    seen: set[str] = set()
+    for check in report.checks:
+        if selected and check.id not in selected:
+            continue
+        seen.add(check.id)
+        policy = REPAIR_REGISTRY[check.id]
+        if check.status == "pass":
+            candidates.append(
+                RepairCandidate(
+                    f"{check.id}.not-needed",
+                    check.id,
+                    "not-applicable",
+                    "not-needed",
+                    check.summary,
+                    "The diagnostic passed, so no repair is applicable.",
+                    policy.remediation,
+                )
+            )
+        elif check.id == "installation.metadata":
+            candidates.append(_metadata_candidate(check))
+        elif check.id == "dependencies.shared-files" and check.data.get("drifted"):
+            candidates.append(_shared_files_candidate(check))
+        elif check.id == "dependencies.pins":
+            candidates.extend(_pin_candidates(check))
+        elif check.id in {"renderer.mermaid", "renderer.mathjax"}:
+            candidates.append(_renderer_candidate(check))
+        else:
+            candidates.append(_generic_candidate(check))
+    for check_id in sorted(selected - seen):
+        policy = REPAIR_REGISTRY[check_id]
+        candidates.append(
+            RepairCandidate(
+                f"{check_id}.not-emitted",
+                check_id,
+                "not-applicable",
+                "not-needed",
+                "The selected check is not applicable to this diagnostic run",
+                "The check was not emitted in the current offline or project context.",
+                policy.remediation,
+            )
+        )
+    return RepairDryRun(tuple(candidates), requested)
 
 
 def _normalise_path(value: str, *, platform: str | None = None) -> str:
@@ -807,6 +1394,25 @@ def _pin_checks(root: Path, online: bool) -> list[DiagnosticResult]:
                 "online": online,
                 "inconsistent": [state.package for state in inconsistent],
                 "updates": [state.package for state in behind],
+                "packages": [
+                    {
+                        "package": state.package,
+                        "versions": state.versions,
+                        "latest": state.latest,
+                        "sites": [
+                            {
+                                "path": site.path,
+                                "line": site.line,
+                                "operator": site.op,
+                                "version": site.version,
+                                "kind": site.kind,
+                            }
+                            for site in state.sites
+                        ],
+                    }
+                    for state in states.values()
+                    if state.sites
+                ],
             },
         )
     ]
@@ -822,7 +1428,14 @@ def _pin_checks(root: Path, online: bool) -> list[DiagnosticResult]:
                 if drift
                 else "Managed shared files match the installed release",
                 tuple(f"{state.file.target}: {state.status}" for state in drift),
-                {"declared": len(shared), "drifted": len(drift)},
+                {
+                    "declared": len(shared),
+                    "drifted": len(drift),
+                    "drifted_files": [
+                        {"path": state.file.target, "status": state.status}
+                        for state in drift
+                    ],
+                },
             )
         )
     except SharedFileError as error:
@@ -892,7 +1505,11 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
     checks = [_tool_result("renderer.pandoc", "Pandoc", "pandoc", root=root, required=pdf_required)]
 
     try:
-        module = importlib.import_module("weasyprint")
+        # WeasyPrint prints a multi-line native-library help banner as an import
+        # side effect before raising. That corrupts `pdk diag --json` and
+        # `--dry-run --json`, whose stdout must contain one JSON document.
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            module = importlib.import_module("weasyprint")
         version = str(getattr(module, "__version__", "unknown"))
         checks.append(
             DiagnosticResult(
@@ -1410,9 +2027,16 @@ def inspect(config_file: str | Path = "zensical.toml", *, online: bool = False) 
 
 
 __all__ = [
+    "DIAGNOSTIC_IDS",
+    "REPAIR_REGISTRY",
     "CommandInfo",
     "DiagnosticReport",
     "DiagnosticResult",
+    "RepairCandidate",
+    "RepairChoice",
+    "RepairDryRun",
+    "RepairPolicy",
+    "build_repair_dry_run",
     "command_in_environment",
     "inspect",
     "same_path",
