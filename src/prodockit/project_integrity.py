@@ -178,6 +178,58 @@ def _configured_local_files(config: ProjectConfig) -> list[tuple[str, str]]:
     return found
 
 
+def _unconfigured_assets(config: ProjectConfig) -> list[ProjectProblem]:
+    """Local stylesheets and JavaScript omitted from ``zensical.toml``.
+
+    The forward check above catches a configured path whose file is absent.
+    This is its reverse: an asset in the conventional source directories is
+    easy to create or restore without noticing that no output loads it.  Both
+    directions belong in one integrity report because either fault otherwise
+    presents as a silent website/PDF difference.
+    """
+    configured_css: set[Path] = set()
+    configured_javascript: set[Path] = set()
+    for setting, value in _configured_local_files(config):
+        target = _local_target(config, value)
+        if target is None:
+            continue
+        resolved = target.resolve()
+        if setting == "project.extra_javascript":
+            configured_javascript.add(resolved)
+        else:
+            configured_css.add(resolved)
+
+    problems: list[ProjectProblem] = []
+    groups = (
+        (
+            config.docs_dir / "stylesheets",
+            ".css",
+            configured_css,
+            "stylesheet",
+            "project.extra_css or project.extra.pdf_extra_css",
+        ),
+        (
+            config.docs_dir / "javascripts",
+            ".js",
+            configured_javascript,
+            "JavaScript file",
+            "project.extra_javascript",
+        ),
+    )
+    for directory, suffix, configured, label, settings in groups:
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.rglob(f"*{suffix}")):
+            if path.is_file() and path.resolve() not in configured:
+                problems.append(
+                    ProjectProblem(
+                        _display(config, path),
+                        f"local {label} is not configured in {settings}",
+                    )
+                )
+    return problems
+
+
 def _markdown_image_sources(source: str) -> list[str]:
     clean = _scannable_markdown(source)
     references = {
@@ -255,6 +307,8 @@ def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
                     f"local file does not exist: {_display(config, target)}",
                 )
             )
+
+    problems.extend(_unconfigured_assets(config))
 
     for page in config.nav_pages:
         target = _local_target(config, page.source_path)

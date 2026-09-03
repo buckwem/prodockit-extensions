@@ -408,6 +408,23 @@ def test_diag_does_not_change_project_files(
     assert after == before
 
 
+def test_pdk_diag_reports_local_assets_omitted_from_zensical_toml(tmp_path: Path) -> None:
+    config = tmp_path / "zensical.toml"
+    config.write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    stylesheet = tmp_path / "docs/stylesheets/unused.css"
+    script = tmp_path / "docs/javascripts/unused.js"
+    stylesheet.parent.mkdir(parents=True)
+    script.parent.mkdir(parents=True)
+    stylesheet.write_text("", encoding="utf-8")
+    script.write_text("", encoding="utf-8")
+
+    _loaded, check = diagnostics._configuration_check(config)
+
+    assert check.status == "fail"
+    assert any("docs/stylesheets/unused.css" in detail for detail in check.details)
+    assert any("docs/javascripts/unused.js" in detail for detail in check.details)
+
+
 def test_one_unreadable_area_does_not_prevent_the_remaining_diagnostics(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
