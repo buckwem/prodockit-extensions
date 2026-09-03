@@ -382,7 +382,7 @@ def test_surrey_github_workflow_has_a_fail_closed_candidate_exercise() -> None:
 
     assert "exercise_candidate_failure:" in workflow
     assert "default: false" in workflow
-    assert "controlled candidate failure' || ''" in workflow
+    assert "controlled candidate failure" in workflow
     assert "if: inputs.exercise_candidate_failure" in candidate
     failure = candidate[
         candidate.index("Exercise candidate failure before receiving repository credentials") :
@@ -399,6 +399,36 @@ def test_surrey_github_workflow_has_a_fail_closed_candidate_exercise() -> None:
     assert "needs.candidate.result == 'failure'" in seal
     assert "bootstrap_live_provider_lifecycle.py verify-and-seal" in seal
     assert "bootstrap_live_provider_lifecycle.py revoke" in seal
+
+
+def test_surrey_github_workflow_has_a_fail_closed_stale_main_exercise() -> None:
+    workflow = (
+        ROOT / ".github" / "workflows" / "bootstrap-live-provider-surrey.yml"
+    ).read_text(encoding="utf-8")
+    reset = workflow[workflow.index("  reset:") : workflow.index("  candidate:")]
+    candidate = workflow[workflow.index("  candidate:") : workflow.index("  seal:")]
+    seal = workflow[workflow.index("  seal:") :]
+
+    assert "exercise_stale_main:" in workflow
+    assert "controlled stale main' || ''" in workflow
+    wait = candidate[
+        candidate.index("Wait for protected main to advance") :
+        candidate.index("Build an independent candidate wheel")
+    ]
+    assert "if: inputs.exercise_stale_main" in wait
+    assert "git ls-remote https://github.com/buckwem/prodockit-extensions.git" in wait
+    assert 'test "$current_main" != "$RELEASE_COMMIT"' in wait
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" not in wait
+    assert "exercise_stale_main" not in reset
+
+    stale = seal[
+        seal.index('current_main=""') :
+        seal.index("bootstrap_live_provider_lifecycle.py verify-and-seal")
+    ]
+    assert "git ls-remote https://github.com/buckwem/prodockit-extensions.git" in stale
+    assert "bootstrap_live_provider_lifecycle.py revoke" in stale
+    assert stale.index("bootstrap_live_provider_lifecycle.py revoke") < stale.index("exit 1")
+    assert "access was revoked and stale evidence was rejected" in stale
 
 
 def test_surrey_recovery_workflow_can_only_revoke_exact_failed_run() -> None:

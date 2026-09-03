@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 name: Bootstrap live provider — Surrey GitLab
-run-name: Surrey GitLab Bootstrap live gate for ${{ inputs.release_commit }}${{ inputs.exercise_candidate_failure && ' — controlled candidate failure' || '' }}
+run-name: Surrey GitLab Bootstrap live gate for ${{ inputs.release_commit }}${{ inputs.exercise_candidate_failure && ' — controlled candidate failure' || inputs.exercise_stale_main && ' — controlled stale main' || '' }}
 
 on:
   workflow_dispatch:
@@ -17,6 +17,11 @@ on:
         type: string
       exercise_candidate_failure:
         description: Controlled test only — fail after reset and prove sealing revokes access
+        required: false
+        default: false
+        type: boolean
+      exercise_stale_main:
+        description: Controlled test only — wait after reset for main to advance, then prove sealing rejects stale evidence
         required: false
         default: false
         type: boolean
@@ -203,6 +208,22 @@ jobs:
           printf '{"candidate":"controlled failure exercise before repository access"}\n' > "$RUNNER_TEMP/candidate/report.json"
           echo "Controlled candidate-failure exercise: reset completed; candidate repository access was not attempted." >&2
           exit 1
+      - name: Wait for protected main to advance during the controlled stale-main exercise
+        if: inputs.exercise_stale_main
+        shell: bash
+        run: |
+          for attempt in $(seq 1 60); do
+            current_main=$(git ls-remote https://github.com/buckwem/prodockit-extensions.git refs/heads/main | cut -f1)
+            if test -n "$current_main" && test "$current_main" != "$RELEASE_COMMIT"; then
+              echo "Protected main advanced to $current_main; continuing with the reviewed stale release commit."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Protected main did not advance within 10 minutes; stopping the controlled exercise." >&2
+          exit 1
+        env:
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
       - name: Build an independent candidate wheel
         id: wheel
         shell: bash
@@ -319,6 +340,23 @@ jobs:
           if ! test -f "$RUNNER_TEMP/candidate-evidence/report.json"; then
             install -m 700 -d "$RUNNER_TEMP/candidate-evidence"
             printf '{"candidate":"artifact unavailable"}\n' > "$RUNNER_TEMP/candidate-evidence/report.json"
+          fi
+          current_main=""
+          for attempt in 1 2 3; do
+            current_main=$(git ls-remote https://github.com/buckwem/prodockit-extensions.git refs/heads/main | cut -f1) && test -n "$current_main" && break
+            sleep $((attempt * 5))
+          done
+          if test "$current_main" != "$RELEASE_COMMIT"; then
+            printf '%s' "$LIFECYCLE_TOKEN" | env -i \
+              HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" \
+              python tools/bootstrap_live_provider_lifecycle.py revoke \
+                --token-fd 0 \
+                --fixture "$RUNNER_TEMP/seal/fixture.json" \
+                --handoff "$RUNNER_TEMP/reset-evidence/reset-handoff.json" \
+                --audit-report "$RUNNER_TEMP/provider/seal-audit.json" \
+                --release-commit "$RELEASE_COMMIT"
+            echo "Protected main is $current_main rather than $RELEASE_COMMIT; access was revoked and stale evidence was rejected." >&2
+            exit 1
           fi
           printf '%s' "$LIFECYCLE_TOKEN" | env -i \
             HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" \
