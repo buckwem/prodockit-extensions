@@ -28,6 +28,11 @@ ID in the report, apply its remediation, then run `pdk diag` again. When the
 configuration section fails, `pdk config --check` provides the individual
 `zensical.toml` paths and complete source-project report.
 
+The default command remains read-only. If `installation.metadata` reports stale
+Prodockit or Zensical metadata, `pdk diag --fix` can quarantine only entries it
+can prove obsolete, then rerun distribution discovery and the complete
+diagnostic report. The explicit flag does not repair any other check.
+
 ## Environment and installation
 
 \ref{tab-diagnostics-environment-and-installation} explains every environment
@@ -39,7 +44,7 @@ and Python-installation result.
 | `environment.virtual-env` | `VIRTUAL_ENV` names a different environment from the Python running Prodockit. This commonly follows activating one environment while an older command remains on `PATH`. | Deactivate the stale environment, activate the project's intended environment, and reopen the shell or select that interpreter in the editor. Confirm with `python -c "import sys; print(sys.prefix)"`, then rerun diagnostics. Do not create a `.venv` merely to remove the message: matching pipx, Conda, system-Python, and CI installations are valid. |
 | `installation.commands` | `pdk`, `prodockit`, or `zensical` is missing, reports a different version from the distribution loaded by Python, or resolves outside the active Python environment. | Activate the intended environment. Compare `python -m pip show prodockit zensical` with `pdk --version`, `prodockit --version`, and `zensical --version`; use `which` on macOS/Linux or `where` on Windows to find stale commands. Remove the stale installation or put the active environment's scripts directory first on `PATH`, then reinstall with `python -m pip install --upgrade prodockit` if required. |
 | `installation.dependencies` | `python -m pip check` found a missing or incompatible installed dependency, or could not run. | Read the named package constraint in the detail. Use `python -m pip check` to reproduce it, then install a compatible set in the active environment. Prefer the versions pinned by the project; do not blindly upgrade one package when another explicitly constrains it. |
-| `installation.metadata` | Installed distribution metadata is invalid or the same normalized package name appears in more than one location. This is a warning because unrelated duplicate metadata need not prevent a build. | Run `python -m pip show PACKAGE` for each name shown. Remove obsolete editable installs or duplicate package directories from the active environment. If the duplicate is unrelated and the project builds, record it when requesting support rather than deleting it speculatively. |
+| `installation.metadata` | Installed distribution metadata is invalid or the same normalized package name appears in more than one location. This is a warning because unrelated duplicate metadata need not prevent a build. | For duplicate Prodockit or Zensical metadata in an active virtual environment, run `pdk diag --fix`. It keeps the single entry matching the loaded package, moves known older entries to `.prodockit-quarantine`, and refuses ambiguous cases. For another package, run `python -m pip show PACKAGE` and investigate manually; the fixer deliberately leaves it unchanged. |
 | `environment.inspection` / `installation.inspection` | An operating-system or metadata error prevented that whole diagnostic area from being read. Other sections still run. | Use the error detail to correct permissions or the damaged installation. Rerun with `--verbose`; if it persists, attach the JSON report and the output of `python -m pip check` to a support request. |
 /// table-caption | <
     attrs: {id: tab-diagnostics-environment-and-installation}

@@ -1776,25 +1776,59 @@ def config_command(config_file: str, check: bool) -> None:
     is_flag=True,
     help="Write stable structured output for CI and support requests.",
 )
+@click.option(
+    "--fix",
+    is_flag=True,
+    help="Quarantine only provably stale Prodockit or Zensical metadata.",
+)
 def diag_command(
     config_file: str,
     verbose: bool,
     online: bool,
     json_output: bool,
+    fix: bool,
 ) -> None:
-    """Diagnose the active environment and project without changing either.
+    """Diagnose the active environment and project.
 
     The default run is deterministic and offline. It combines installation,
     configuration, project-integrity, pins, renderer and repository checks in
-    one concise report. Use ``pdk config --check`` when the configuration
-    section needs its full resolved-setting report.
+    one concise report without making changes. ``--fix`` is limited to
+    quarantining demonstrably stale Prodockit or Zensical distribution
+    metadata in the active virtual environment. Use ``pdk config --check``
+    when the configuration section needs its full resolved-setting report.
     """
-    from prodockit.diagnostics import inspect
+    import json
+
+    from prodockit.diagnostics import (
+        MetadataRepairError,
+        inspect,
+        repair_distribution_metadata,
+    )
+
+    repair = None
+    if fix:
+        try:
+            repair = repair_distribution_metadata(pathlib.Path(config_file).resolve().parent)
+        except MetadataRepairError as error:
+            raise click.ClickException(str(error)) from error
 
     report = inspect(config_file, online=online)
     if json_output:
-        click.echo(report.to_json())
+        payload = report.as_dict()
+        if repair is not None:
+            payload["repair"] = repair.as_dict()
+        click.echo(json.dumps(payload, indent=2, sort_keys=True))
     else:
+        if repair is not None:
+            click.echo("Prodockit metadata repair")
+            if repair.status == "repaired":
+                click.echo(f"  Quarantined {len(repair.moved)} stale metadata path(s):")
+                for path in repair.moved:
+                    click.echo(f"    {path}")
+                click.echo(f"  Recovery manifest: {repair.quarantine}/manifest.json")
+                click.echo("  Distribution discovery was rerun successfully.\n")
+            else:
+                click.echo("  No repairable Prodockit or Zensical metadata was found.\n")
         click.echo("Prodockit diagnostics")
         click.echo(f"  Project: {report.project_root}")
         click.echo(f"  Config:  {report.config_file}")
@@ -2998,6 +3032,7 @@ def _run_template_sync(
     import subprocess
     from collections.abc import Iterable
 
+    from prodockit.diagnostics import MetadataRepairError, distribution_metadata_problems
     from prodockit.shared_files import SharedFileError
     from prodockit.shared_files import apply as apply_shared_files
     from prodockit.shared_files import drift as shared_file_drift
@@ -3074,6 +3109,20 @@ def _run_template_sync(
         raise TemplateSyncError(
             "--local-only and --push choose different destinations. Use one or the other"
         )
+    if do_apply:
+        try:
+            metadata_problems = distribution_metadata_problems()
+        except MetadataRepairError as error:
+            raise TemplateSyncError(
+                f"the active environment's distribution metadata could not be checked: {error}. "
+                "Run `pdk diag` before applying the template update"
+            ) from error
+        if metadata_problems:
+            raise TemplateSyncError(
+                "the active environment has ambiguous Prodockit or Zensical metadata: "
+                f"{'; '.join(metadata_problems)}. Run `pdk diag --fix`, then rerun "
+                "`pdk template-sync --apply`; nothing has been changed"
+            )
     git = git_runner(project)
 
     origin_remote = subprocess.run(

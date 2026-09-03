@@ -107,6 +107,180 @@ def test_installation_detects_stale_path_and_dependency_conflict(
     assert "broken-package" in dependencies.details[0]
 
 
+def _dist_info(
+    site_packages: Path,
+    directory: str,
+    *,
+    name: str | None,
+    version: str | None,
+) -> Path:
+    path = site_packages / directory
+    path.mkdir(parents=True)
+    fields = []
+    if name is not None:
+        fields.append(f"Name: {name}")
+    if version is not None:
+        fields.append(f"Version: {version}")
+    if fields:
+        (path / "METADATA").write_text("\n".join(fields) + "\n", encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize(
+    "library_path",
+    ("lib/python3.14/site-packages", "Lib/site-packages"),
+)
+def test_metadata_repair_quarantines_only_provably_stale_supported_distributions(
+    tmp_path: Path,
+    library_path: str,
+) -> None:
+    prefix = tmp_path / "environment"
+    site_packages = prefix / library_path
+    current_prodockit = _dist_info(
+        site_packages,
+        "prodockit-0.56.0.dist-info",
+        name="Prodockit",
+        version="0.56.0",
+    )
+    stale_prodockit = _dist_info(
+        site_packages,
+        "prodockit-0.41.0.dist-info",
+        name="prodockit",
+        version="0.41.0",
+    )
+    current_zensical = _dist_info(
+        site_packages,
+        "zensical-0.0.58.dist-info",
+        name="Zensical",
+        version="0.0.58",
+    )
+    stale_zensical = _dist_info(
+        site_packages,
+        "~ensical-0.0.55.dist-info",
+        name=None,
+        version=None,
+    )
+    unrelated = _dist_info(
+        site_packages,
+        "example-1.0.dist-info",
+        name="example",
+        version="1.0",
+    )
+
+    result = diagnostics.repair_distribution_metadata(
+        tmp_path,
+        prefix=prefix,
+        base_prefix=tmp_path / "system-python",
+        site_packages=(site_packages,),
+        current_versions={"prodockit": "0.56.0", "zensical": "0.0.58"},
+        timestamp="20260903T120000.000000Z",
+    )
+
+    assert result.status == "repaired"
+    assert len(result.moved) == 2
+    assert current_prodockit.is_dir()
+    assert current_zensical.is_dir()
+    assert unrelated.is_dir(), "--fix must leave every other distribution untouched"
+    assert not stale_prodockit.exists()
+    assert not stale_zensical.exists()
+    quarantine = prefix / ".prodockit-quarantine/distribution-metadata/20260903T120000.000000Z"
+    manifest = json.loads((quarantine / "manifest.json").read_text(encoding="utf-8"))
+    assert {entry["distribution"] for entry in manifest["entries"]} == {
+        "prodockit",
+        "zensical",
+    }
+
+
+def test_metadata_repair_refuses_ambiguous_duplicates_without_moving_them(
+    tmp_path: Path,
+) -> None:
+    prefix = tmp_path / "venv"
+    site_packages = prefix / "lib/site-packages"
+    first = _dist_info(
+        site_packages,
+        "prodockit-0.56.0.dist-info",
+        name="prodockit",
+        version="0.56.0",
+    )
+    second = _dist_info(
+        site_packages,
+        "prodockit-copy-0.56.0.dist-info",
+        name="prodockit",
+        version="0.56.0",
+    )
+
+    with pytest.raises(diagnostics.MetadataRepairError, match="cannot prove which metadata"):
+        diagnostics.repair_distribution_metadata(
+            tmp_path,
+            prefix=prefix,
+            base_prefix=tmp_path / "system-python",
+            site_packages=(site_packages,),
+            current_versions={"prodockit": "0.56.0"},
+        )
+
+    assert first.is_dir()
+    assert second.is_dir()
+    assert not (prefix / ".prodockit-quarantine").exists()
+
+
+def test_metadata_repair_refuses_system_python_and_paths_outside_the_environment(
+    tmp_path: Path,
+) -> None:
+    prefix = tmp_path / "python"
+    with pytest.raises(diagnostics.MetadataRepairError, match="active virtual environment"):
+        diagnostics.repair_distribution_metadata(
+            tmp_path,
+            prefix=prefix,
+            base_prefix=prefix,
+            site_packages=(prefix / "lib/site-packages",),
+        )
+
+    outside = tmp_path / "elsewhere/site-packages"
+    outside.mkdir(parents=True)
+    with pytest.raises(diagnostics.MetadataRepairError, match="outside the active environment"):
+        diagnostics.repair_distribution_metadata(
+            tmp_path,
+            prefix=prefix,
+            base_prefix=tmp_path / "system-python",
+            site_packages=(outside,),
+        )
+
+
+def test_metadata_repair_rolls_back_when_rediscovery_is_not_clean(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prefix = tmp_path / "venv"
+    site_packages = prefix / "lib/site-packages"
+    current = _dist_info(
+        site_packages,
+        "prodockit-0.56.0.dist-info",
+        name="prodockit",
+        version="0.56.0",
+    )
+    stale = _dist_info(
+        site_packages,
+        "prodockit-0.41.0.dist-info",
+        name="prodockit",
+        version="0.41.0",
+    )
+    discovered = diagnostics._repair_metadata_entries((site_packages,))
+    monkeypatch.setattr(diagnostics, "_repair_metadata_entries", lambda _roots: discovered)
+
+    with pytest.raises(diagnostics.MetadataRepairError, match="verification still found"):
+        diagnostics.repair_distribution_metadata(
+            tmp_path,
+            prefix=prefix,
+            base_prefix=tmp_path / "system-python",
+            site_packages=(site_packages,),
+            current_versions={"prodockit": "0.56.0"},
+            timestamp="failed-verification",
+        )
+
+    assert current.is_dir()
+    assert stale.is_dir(), "a failed verification must restore quarantined metadata"
+
+
 def _project(tmp_path: Path, *, required: bool) -> ProjectConfig:
     extensions = (
         {
@@ -373,6 +547,68 @@ def test_diag_warnings_do_not_set_a_failure_exit_status(
 
     assert result.exit_code == 0
     assert "Result: WARN" in result.output
+
+
+def test_diag_fix_reports_the_scoped_repair_and_reruns_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport(
+        config_file="zensical.toml",
+        project_root=".",
+        online=False,
+        checks=(
+            DiagnosticResult(
+                "installation.metadata",
+                "Environment and installation",
+                "pass",
+                "Distribution metadata is readable and unique",
+            ),
+        ),
+    )
+    calls = 0
+
+    def inspect(*_args: object, **_kwargs: object) -> DiagnosticReport:
+        nonlocal calls
+        calls += 1
+        return report
+
+    monkeypatch.setattr(diagnostics, "inspect", inspect)
+    monkeypatch.setattr(
+        diagnostics,
+        "repair_distribution_metadata",
+        lambda _root: diagnostics.MetadataRepairResult(
+            "repaired",
+            (".venv/lib/site-packages/prodockit-0.41.0.dist-info",),
+            ".venv/.prodockit-quarantine/distribution-metadata/run",
+        ),
+    )
+
+    result = CliRunner().invoke(main, ["diag", "--fix", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert calls == 1
+    payload = json.loads(result.output)
+    assert payload["repair"]["status"] == "repaired"
+    assert payload["repair"]["moved"] == [
+        ".venv/lib/site-packages/prodockit-0.41.0.dist-info"
+    ]
+    assert payload["checks"][0]["status"] == "pass"
+
+
+def test_diag_without_fix_never_invokes_the_repair(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport("zensical.toml", ".", False, ())
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+    monkeypatch.setattr(
+        diagnostics,
+        "repair_distribution_metadata",
+        lambda _root: pytest.fail("read-only diagnostics invoked the repair"),
+    )
+
+    result = CliRunner().invoke(main, ["diag"])
+
+    assert result.exit_code == 0, result.output
 
 
 def test_diag_does_not_change_project_files(

@@ -197,7 +197,7 @@ prodockit --version
 which prodockit          # `where prodockit` on Windows
 ```
 
-For the complete read-only answer, run `pdk diag`. It compares both command
+For the complete default read-only answer, run `pdk diag`. It compares both command
 locations with the active interpreter and distribution metadata, reports a
 stale `VIRTUAL_ENV` or `PATH`, and checks the current project's dependencies,
 configuration, renderers, pins, shared files, and repository metadata. Add

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Read-only, composable diagnostics for a Prodockit project environment."""
+"""Composable diagnostics and explicitly requested, narrowly scoped repairs."""
 
 from __future__ import annotations
 
@@ -17,8 +17,11 @@ import sys
 import sysconfig
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
+
+from packaging.version import InvalidVersion, Version
 
 import prodockit
 from prodockit.config_diagnostics import inspect_config
@@ -31,6 +34,7 @@ from prodockit.shared_files import inspect as inspect_shared_files
 
 Status = Literal["pass", "warn", "fail"]
 NODE_AUDIT_LEVEL = "moderate"
+REPAIRABLE_DISTRIBUTIONS = ("prodockit", "zensical")
 
 
 @dataclass(frozen=True)
@@ -104,6 +108,36 @@ class CommandInfo:
     path: str | None
     version: str | None
     error: str | None = None
+
+
+@dataclass(frozen=True)
+class DistributionMetadataEntry:
+    """One repair-relevant metadata path found in active site-packages."""
+
+    distribution: str
+    version: str | None
+    path: Path
+    valid: bool
+
+
+@dataclass(frozen=True)
+class MetadataRepairResult:
+    """Outcome of the opt-in duplicate metadata repair."""
+
+    status: Literal["not-needed", "repaired"]
+    moved: tuple[str, ...] = ()
+    quarantine: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "moved": list(self.moved),
+            "quarantine": self.quarantine,
+        }
+
+
+class MetadataRepairError(RuntimeError):
+    """The requested repair cannot be proved safe."""
 
 
 def _normalise_path(value: str, *, platform: str | None = None) -> str:
@@ -225,6 +259,293 @@ def _distribution_version(name: str) -> str | None:
         return importlib.metadata.version(name)
     except importlib.metadata.PackageNotFoundError:
         return None
+
+
+def _normalise_distribution_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _metadata_filename(path: Path) -> tuple[str | None, str | None, bool]:
+    """Return a repairable name/version hinted by a dist-info filename."""
+    suffix = ".dist-info"
+    if not path.name.casefold().endswith(suffix):
+        return None, None, False
+    stem = path.name[: -len(suffix)].casefold().replace("_", "-")
+    for distribution in REPAIRABLE_DISTRIBUTIONS:
+        ordinary = f"{distribution}-"
+        remnant = f"~{distribution[1:]}-"
+        if stem.startswith(ordinary):
+            return distribution, stem[len(ordinary) :] or None, False
+        if stem.startswith(remnant):
+            return distribution, stem[len(remnant) :] or None, True
+    return None, None, False
+
+
+def _metadata_headers(path: Path) -> tuple[str | None, str | None]:
+    try:
+        source = (path / "METADATA").read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None, None
+    name: str | None = None
+    version: str | None = None
+    for line in source.splitlines():
+        key, separator, value = line.partition(":")
+        if not separator:
+            continue
+        if key.casefold() == "name":
+            name = value.strip() or None
+        elif key.casefold() == "version":
+            version = value.strip() or None
+        if name is not None and version is not None:
+            break
+    return name, version
+
+
+def _known_distribution_version(value: str | None) -> str | None:
+    if value is None:
+        return None
+    try:
+        Version(value)
+    except InvalidVersion:
+        return None
+    return value
+
+
+def _repair_metadata_entries(site_packages: tuple[Path, ...]) -> list[DistributionMetadataEntry]:
+    """Scan only direct children of the active environment's library roots."""
+    entries: list[DistributionMetadataEntry] = []
+    seen: set[Path] = set()
+    for library in site_packages:
+        try:
+            children = tuple(library.iterdir())
+        except OSError as error:
+            raise MetadataRepairError(
+                f"cannot inspect active site-packages {library}: {error}"
+            ) from error
+        for path in children:
+            filename_name, filename_version, remnant = _metadata_filename(path)
+            metadata_name, metadata_version = _metadata_headers(path)
+            normalized = (
+                _normalise_distribution_name(metadata_name) if metadata_name is not None else None
+            )
+            distribution = (
+                normalized if normalized in REPAIRABLE_DISTRIBUTIONS else filename_name
+            )
+            if distribution is None:
+                continue
+            try:
+                identity = path.resolve()
+            except OSError:
+                identity = path.absolute()
+            if identity in seen:
+                continue
+            seen.add(identity)
+            versions_disagree = bool(
+                metadata_version and filename_version and metadata_version != filename_version
+            )
+            version = _known_distribution_version(
+                None if versions_disagree else metadata_version or filename_version
+            )
+            entries.append(
+                DistributionMetadataEntry(
+                    distribution,
+                    version,
+                    path,
+                    bool(
+                        not remnant
+                        and normalized == distribution
+                        and metadata_version
+                        and not versions_disagree
+                    ),
+                )
+            )
+    return entries
+
+
+def _running_repair_versions() -> dict[str, str]:
+    versions = {"prodockit": prodockit.__version__}
+    zensical = _command("zensical")
+    scripts = sysconfig.get_path("scripts")
+    if (
+        zensical.path is not None
+        and zensical.version is not None
+        and zensical.error is None
+        and command_in_environment(zensical.path, sys.prefix, scripts)
+    ):
+        versions["zensical"] = zensical.version
+    return versions
+
+
+def _active_site_packages(prefix: Path) -> tuple[Path, ...]:
+    paths = sysconfig.get_paths()
+    libraries: list[Path] = []
+    for key in ("purelib", "platlib"):
+        value = paths.get(key)
+        if not value:
+            continue
+        library = Path(value).resolve()
+        try:
+            library.relative_to(prefix)
+        except ValueError as error:
+            raise MetadataRepairError(
+                f"active {key} path is outside the running environment: {library}"
+            ) from error
+        if library not in libraries:
+            libraries.append(library)
+    if not libraries:
+        raise MetadataRepairError("the running environment has no site-packages directory")
+    return tuple(libraries)
+
+
+def distribution_metadata_problems() -> tuple[str, ...]:
+    """Describe supported metadata ambiguity in the active virtualenv.
+
+    System and externally managed installations remain the responsibility of
+    their package manager. This preflight exists for workflows that must not
+    continue with ambiguous Prodockit or Zensical versions.
+    """
+    prefix = Path(sys.prefix).resolve()
+    if prefix == Path(sys.base_prefix).resolve():
+        return ()
+    entries = _repair_metadata_entries(_active_site_packages(prefix))
+    problems: list[str] = []
+    for distribution in REPAIRABLE_DISTRIBUTIONS:
+        group = [entry for entry in entries if entry.distribution == distribution]
+        if len(group) > 1 or any(not entry.valid for entry in group):
+            found = ", ".join(
+                f"{entry.path.name} ({entry.version or 'unknown version'})" for entry in group
+            )
+            problems.append(f"{distribution}: {found}")
+    return tuple(problems)
+
+
+def repair_distribution_metadata(
+    root: Path,
+    *,
+    prefix: Path | None = None,
+    base_prefix: Path | None = None,
+    site_packages: tuple[Path, ...] | None = None,
+    current_versions: dict[str, str] | None = None,
+    timestamp: str | None = None,
+) -> MetadataRepairResult:
+    """Quarantine only provably stale Prodockit or Zensical metadata.
+
+    Optional arguments make the filesystem safety rules directly testable;
+    the CLI always uses the running interpreter's own environment.
+    """
+    active_prefix = (prefix or Path(sys.prefix)).resolve()
+    running_base = (base_prefix or Path(sys.base_prefix)).resolve()
+    if active_prefix == running_base:
+        raise MetadataRepairError(
+            "metadata repair is only available inside an active virtual environment; "
+            "no system or externally managed Python files were changed"
+        )
+    declared = os.environ.get("VIRTUAL_ENV")
+    if prefix is None and declared and not same_path(declared, str(active_prefix)):
+        raise MetadataRepairError(
+            "VIRTUAL_ENV does not match the Python running Prodockit; activate the intended "
+            "environment before using `pdk diag --fix`"
+        )
+
+    libraries = site_packages or _active_site_packages(active_prefix)
+    resolved_libraries: list[Path] = []
+    for library in libraries:
+        resolved = library.resolve()
+        try:
+            resolved.relative_to(active_prefix)
+        except ValueError as error:
+            raise MetadataRepairError(
+                f"refusing metadata outside the active environment: {resolved}"
+            ) from error
+        if resolved not in resolved_libraries:
+            resolved_libraries.append(resolved)
+    entries = _repair_metadata_entries(tuple(resolved_libraries))
+    versions = current_versions or _running_repair_versions()
+
+    stale: list[DistributionMetadataEntry] = []
+    ambiguous: list[str] = []
+    affected: set[str] = set()
+    for distribution in REPAIRABLE_DISTRIBUTIONS:
+        group = [entry for entry in entries if entry.distribution == distribution]
+        if len(group) <= 1 and all(entry.valid for entry in group):
+            continue
+        if not group:
+            continue
+        affected.add(distribution)
+        current = versions.get(distribution)
+        matching = [entry for entry in group if entry.valid and entry.version == current]
+        obsolete = [
+            entry for entry in group if entry.version is not None and entry.version != current
+        ]
+        if current is None or len(matching) != 1 or len(obsolete) != len(group) - 1:
+            found = ", ".join(
+                f"{entry.path.name} ({entry.version or 'unknown version'})" for entry in group
+            )
+            ambiguous.append(f"{distribution}: {found}")
+        else:
+            stale.extend(obsolete)
+    if ambiguous:
+        detail = "; ".join(ambiguous)
+        raise MetadataRepairError(
+            "cannot prove which metadata is stale: "
+            f"{detail}. Rebuild the active virtual environment at {active_prefix}, "
+            "reinstall the project requirements, then rerun `pdk diag`"
+        )
+    if not stale:
+        return MetadataRepairResult("not-needed")
+
+    moment = timestamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    quarantine = active_prefix / ".prodockit-quarantine" / "distribution-metadata" / moment
+    moved: list[tuple[DistributionMetadataEntry, Path]] = []
+    try:
+        for entry in stale:
+            if entry.path.is_symlink():
+                raise MetadataRepairError(f"refusing symlinked metadata: {entry.path}")
+            library_index = resolved_libraries.index(entry.path.parent.resolve())
+            destination = quarantine / f"site-{library_index}" / entry.path.name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(entry.path), str(destination))
+            moved.append((entry, destination))
+
+        importlib.invalidate_caches()
+        remaining = _repair_metadata_entries(tuple(resolved_libraries))
+        for distribution in affected:
+            group = [entry for entry in remaining if entry.distribution == distribution]
+            current = versions.get(distribution)
+            if len(group) != 1 or not group[0].valid or group[0].version != current:
+                raise MetadataRepairError(
+                    f"verification still found ambiguous {distribution} metadata"
+                )
+
+        manifest = {
+            "created": moment,
+            "entries": [
+                {
+                    "distribution": entry.distribution,
+                    "version": entry.version,
+                    "original": str(entry.path),
+                    "quarantined": str(destination),
+                }
+                for entry, destination in moved
+            ],
+        }
+        (quarantine / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    except (MetadataRepairError, OSError) as error:
+        for entry, destination in reversed(moved):
+            if destination.exists() and not entry.path.exists():
+                shutil.move(str(destination), str(entry.path))
+        importlib.invalidate_caches()
+        if isinstance(error, MetadataRepairError):
+            raise
+        raise MetadataRepairError(f"metadata repair failed and was rolled back: {error}") from error
+
+    return MetadataRepairResult(
+        "repaired",
+        tuple(_display_path(entry.path, root) for entry, _destination in moved),
+        _display_path(quarantine, root),
+    )
 
 
 def _environment_checks(root: Path) -> list[DiagnosticResult]:
@@ -384,7 +705,7 @@ def _installation_checks(root: Path) -> list[DiagnosticResult]:
             if not name or not version:
                 invalid.append(str(getattr(distribution, "_path", "unknown metadata")))
                 continue
-            normalized = re.sub(r"[-_.]+", "-", name).lower()
+            normalized = _normalise_distribution_name(name)
             locations.setdefault(normalized, set()).add(
                 str(getattr(distribution, "_path", distribution.locate_file("")))
             )
@@ -398,6 +719,16 @@ def _installation_checks(root: Path) -> list[DiagnosticResult]:
         f"duplicate {name}: {', '.join(_display_path(path, root) for path in paths)}"
         for name, paths in sorted(duplicates.items())
     )
+    repair_candidates = set(duplicates).intersection(REPAIRABLE_DISTRIBUTIONS)
+    for item in invalid:
+        repair_distribution, _version, _remnant = _metadata_filename(Path(item))
+        if repair_distribution is not None:
+            repair_candidates.add(repair_distribution)
+    if repair_candidates:
+        metadata_details.append(
+            "run `pdk diag --fix` to quarantine stale Prodockit or Zensical metadata "
+            "when exactly one entry matches the loaded package"
+        )
     checks.append(
         DiagnosticResult(
             "installation.metadata",
@@ -407,7 +738,11 @@ def _installation_checks(root: Path) -> list[DiagnosticResult]:
             if metadata_details
             else "Distribution metadata is readable and unique",
             tuple(metadata_details),
-            {"invalid_count": len(invalid), "duplicate_names": sorted(duplicates)},
+            {
+                "invalid_count": len(invalid),
+                "duplicate_names": sorted(duplicates),
+                "fix_candidates": sorted(repair_candidates),
+            },
         )
     )
     return checks

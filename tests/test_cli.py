@@ -121,6 +121,32 @@ def test_template_sync_help_is_written_for_an_author() -> None:
     assert "does not require a PR/MR" in result.output
 
 
+def test_template_sync_apply_stops_before_writing_when_metadata_is_ambiguous(
+    tmp_path, monkeypatch
+) -> None:
+    from click.testing import CliRunner
+
+    from prodockit import diagnostics
+    from prodockit.cli import main
+
+    (tmp_path / ".git").mkdir()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        diagnostics,
+        "distribution_metadata_problems",
+        lambda: (
+            "prodockit: prodockit-0.41.0.dist-info, prodockit-0.56.0.dist-info",
+        ),
+    )
+
+    result = CliRunner().invoke(main, ["template-sync", "--apply"])
+
+    assert result.exit_code == 1
+    assert "pdk diag --fix" in result.output
+    assert "nothing has been changed" in result.output
+    assert not any(path.name.startswith("template-update-") for path in tmp_path.iterdir())
+
+
 def test_template_sync_survives_a_directory_it_cannot_read(tmp_path, monkeypatch) -> None:
     """`/tmp` holds mounted images whose entries raise on stat, and the
     first real run outside a repository crashed there rather than
