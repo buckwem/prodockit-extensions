@@ -258,8 +258,17 @@ def exercise(project: Path) -> dict[str, Any]:
     actions = [action for action in payload["repair"]["actions"] if action["status"] == "applied"]
     applied = Counter(action["check_id"] for action in actions)
     if applied != EXPECTED_ACTIONS:
+        observed = [
+            {
+                key: action.get(key)
+                for key in ("id", "status", "selected_choice", "confirmation", "reason")
+            }
+            for action in payload["repair"]["actions"]
+            if action["check_id"] in REPAIRABLE_CHECKS
+        ]
         raise AcceptanceError(
-            f"expected applied actions {dict(EXPECTED_ACTIONS)}, found {dict(applied)}"
+            f"expected applied actions {dict(EXPECTED_ACTIONS)}, found {dict(applied)}; "
+            f"observed {observed}; prompt transcript:\n{result.stderr[-8000:]}"
         )
     if any(action["confirmation"] != "y" for action in actions):
         raise AcceptanceError("one or more mutating repairs did not record an explicit y")
