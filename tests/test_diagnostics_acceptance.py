@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 
@@ -14,6 +15,12 @@ from click.testing import CliRunner
 from prodockit import diagnostics
 from prodockit.cli import main
 from prodockit.diagnostics import DiagnosticReport
+
+diagnostics_acceptance = importlib.import_module("tools.diagnostics_repair_acceptance")
+diagnostics_acceptance_driver = importlib.import_module(
+    "tools._diagnostics_repair_acceptance_driver"
+)
+ROOT = Path(__file__).parents[1]
 
 
 def _report(config: Path) -> DiagnosticReport:
@@ -133,3 +140,68 @@ def test_yaml_dry_run_reports_manual_and_never_rewrites(tmp_path: Path) -> None:
     assert plan.candidates[0].status == "manual"
     assert not plan.candidates[0].choices
     assert config.read_bytes() == source
+
+
+def test_diagnostic_acceptance_resolves_one_wheel_and_checks_architecture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wheel = tmp_path / "prodockit-1.2.3-py3-none-any.whl"
+    wheel.write_bytes(b"wheel")
+
+    assert diagnostics_acceptance.resolve_wheel(wheel) == wheel.resolve()
+    assert diagnostics_acceptance.resolve_wheel(tmp_path) == wheel.resolve()
+    monkeypatch.setattr(diagnostics_acceptance.platform, "machine", lambda: "ARM64")
+    assert diagnostics_acceptance.require_architecture(x64=False, arm64=True) == "arm64"
+    with pytest.raises(diagnostics_acceptance.AcceptanceError, match="expected x64"):
+        diagnostics_acceptance.require_architecture(x64=True, arm64=False)
+
+
+def test_all_failures_fixture_contains_every_repair_shape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    site_packages = tmp_path / "wheel-environment" / "site-packages"
+    monkeypatch.setattr(diagnostics_acceptance_driver, "_site_packages", lambda: site_packages)
+    project = tmp_path / "project with spaces"
+
+    stale = diagnostics_acceptance_driver.write_fixture(project)
+
+    assert stale == site_packages / "prodockit-0.0.1.dist-info"
+    assert stale.is_dir()
+    assert "\\ref{target}" in (project / "docs/index.md").read_text(encoding="utf-8")
+    assert (project / "docs/stylesheets/pdk.css").is_file()
+    assert not (project / "docs/stylesheets/pdk-pdf.css").exists()
+    for component in ("mermaid", "mathjax"):
+        assert (project / "tools" / component / "package.json").is_file()
+        assert (project / "tools" / component / "package-lock.json").is_file()
+        assert not (project / "tools" / component / "node_modules").exists()
+
+
+def test_diagnostic_repair_workflow_has_six_installed_wheel_environments() -> None:
+    workflow = (ROOT / ".github/workflows/diag-repair.yml").read_text(encoding="utf-8")
+    runners = {
+        "ubuntu-24.04",
+        "ubuntu-24.04-arm",
+        "windows-2025",
+        "windows-11-arm",
+        "macos-15-intel",
+        "macos-15",
+    }
+
+    assert sum(f"runner: {runner}" in workflow for runner in runners) == 6
+    assert workflow.count("architecture_check:") == 6
+    assert "python -m build --wheel" in workflow
+    assert "tools/diagnostics_repair_acceptance.py" in workflow
+    assert 'pip install -e ".[dev]"' not in workflow
+
+
+def test_acceptance_requires_all_six_repairable_checks_and_seven_confirmations() -> None:
+    assert {
+        "installation.metadata",
+        "project.configuration",
+        "dependencies.pins",
+        "dependencies.shared-files",
+        "renderer.mermaid",
+        "renderer.mathjax",
+    } == diagnostics_acceptance_driver.REPAIRABLE_CHECKS
+    assert sum(diagnostics_acceptance_driver.EXPECTED_ACTIONS.values()) == 7
+    assert diagnostics_acceptance_driver.EXPECTED_ACTIONS["dependencies.shared-files"] == 2

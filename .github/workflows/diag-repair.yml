@@ -15,29 +15,75 @@ concurrency:
 
 jobs:
   acceptance:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.name }} ${{ matrix.architecture }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: Ubuntu 24.04
             runner: ubuntu-24.04
+            architecture: x64
+            architecture_check: --require-x64
+          - name: Ubuntu 24.04
+            runner: ubuntu-24.04-arm
+            architecture: arm64
+            architecture_check: --require-arm64
           - name: Windows 2025
             runner: windows-2025
+            architecture: x64
+            architecture_check: --require-x64
+          - name: Windows 11
+            runner: windows-11-arm
+            architecture: arm64
+            architecture_check: --require-arm64
+          - name: macOS 15
+            runner: macos-15-intel
+            architecture: x64
+            architecture_check: --require-x64
           - name: macOS 15
             runner: macos-15
+            architecture: arm64
+            architecture_check: --require-arm64
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
+          architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
-      - run: python -m pip install -e ".[dev]"
-      - name: Run diagnostic repair acceptance suite
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            src/prodockit/_tools_template/mermaid/package-lock.json
+            src/prodockit/_tools_template/mathjax/package-lock.json
+      - name: Install Chromium for Mermaid on Linux ARM64
+        if: runner.os == 'Linux' && matrix.architecture == 'arm64'
+        run: sudo apt -o DPkg::Lock::Timeout=600 install -y chromium-browser
+      - name: Use a Chromium-accessible temporary directory on Linux
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "$HOME/prodockit-diagnostics-tmp"
+          echo "TMPDIR=$HOME/prodockit-diagnostics-tmp" >> "$GITHUB_ENV"
+      - name: Build the candidate wheel
+        run: |
+          python -m pip install build
+          python -m build --wheel
+      - name: Repair every fixable diagnostic from the installed wheel
         run: >-
-          python -m pytest
-          tests/test_diagnostics.py
-          tests/test_diagnostics_acceptance.py
+          python tools/diagnostics_repair_acceptance.py
+          --wheel dist
+          ${{ matrix.architecture_check }}
+          --report diagnostics-repair-acceptance-report.json
+          --keep-on-failure
+      - name: Keep the acceptance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-repair-${{ matrix.runner }}-${{ matrix.architecture }}
+          path: diagnostics-repair-acceptance-report.json
+          if-no-files-found: warn
