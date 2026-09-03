@@ -39,6 +39,8 @@ import os
 import re
 import urllib.error
 import urllib.request
+import uuid
+from contextlib import suppress
 from dataclasses import dataclass, field
 
 #: Build inputs whose version a prodockit project normally pins. Zensical
@@ -509,7 +511,7 @@ def apply_version(root: str, state: PackageState, version: str) -> list[PinSite]
     for rel_path, sites in by_path.items():
         abs_path = os.path.join(root, rel_path)
         try:
-            with open(abs_path, encoding="utf-8") as handle:
+            with open(abs_path, encoding="utf-8", newline="") as handle:
                 lines = handle.read().split("\n")
         except OSError as error:
             raise PinError(f"could not read {rel_path}: {error}") from error
@@ -564,10 +566,19 @@ def apply_version(root: str, state: PackageState, version: str) -> list[PinSite]
             lines[index] = replaced
             changed.append(site)
 
+        temporary: str | None = None
         try:
-            with open(abs_path, "w", encoding="utf-8") as handle:
+            temporary = f"{abs_path}.{uuid.uuid4().hex}.tmp"
+            mode = os.stat(abs_path).st_mode
+            with open(temporary, "w", encoding="utf-8", newline="") as handle:
                 handle.write("\n".join(lines))
+            os.chmod(temporary, mode)
+            os.replace(temporary, abs_path)
         except OSError as error:
             raise PinError(f"could not write {rel_path}: {error}") from error
+        finally:
+            if temporary is not None:
+                with suppress(FileNotFoundError):
+                    os.unlink(temporary)
 
     return changed

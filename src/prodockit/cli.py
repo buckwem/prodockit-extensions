@@ -1752,6 +1752,30 @@ def config_command(config_file: str, check: bool) -> None:
     click.echo("\nConfiguration check passed; project integrity checks passed.")
 
 
+def _diagnostic_phase_heading(number: int, total: int, name: str, *, err: bool) -> None:
+    """Use bootstrap's prominent phase boundary for diagnostic repairs."""
+    click.echo("", err=err)
+    boundary = click.style("═" * 78, bold=True, fg="bright_blue")
+    click.echo(boundary, err=err)
+    click.echo(
+        click.style(f"Phase {number}/{total} — {name}", bold=True, fg="bright_blue"),
+        err=err,
+    )
+    click.echo(boundary, err=err)
+
+
+def _diagnostic_stage_heading(
+    number: int, total: int, summary: str, *, err: bool
+) -> None:
+    """Use bootstrap's blue stage divider for one diagnostic finding."""
+    click.echo("", err=err)
+    click.echo(click.style("─" * 78, fg="blue"), err=err)
+    click.echo(
+        click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="blue"),
+        err=err,
+    )
+
+
 def _render_diagnostic_repair_plan(
     plan: Any, *, verbose: bool, err: bool, dry_run: bool
 ) -> None:
@@ -1759,27 +1783,32 @@ def _render_diagnostic_repair_plan(
     import shlex
     import subprocess
 
-    click.echo(
-        "Prodockit diagnostic repair dry run" if dry_run else "Prodockit diagnostic repair plan",
-        err=err,
-    )
+    _diagnostic_phase_heading(1, 2 if dry_run else 3, "Inspect and plan", err=err)
     if dry_run:
         click.echo("  No decisions have been made and nothing will be changed.", err=err)
     else:
         click.echo("  The complete plan is shown before any confirmation.", err=err)
-    for candidate in plan.candidates:
-        if candidate.status == "not-needed" and not verbose:
-            continue
-        click.echo(f"\n  {candidate.check_id} — {candidate.summary}", err=err)
-        click.echo(
-            f"    {candidate.status}; disposition: {candidate.disposition}", err=err
+    visible = [
+        candidate
+        for candidate in plan.candidates
+        if verbose or candidate.status != "not-needed"
+    ]
+    for number, candidate in enumerate(visible, 1):
+        _diagnostic_stage_heading(
+            number, len(visible), f"{candidate.check_id} — {candidate.summary}", err=err
         )
+        status = f"  {candidate.status.upper()} — {candidate.disposition}"
+        if candidate.status == "refused":
+            status = _bootstrap_error(status)
+        elif candidate.status in {"available", "manual"}:
+            status = _bootstrap_warning(status)
+        click.echo(status, err=err)
         if not candidate.choices:
-            click.echo(f"    {candidate.remediation}", err=err)
+            click.echo(f"  {candidate.remediation}", err=err)
             continue
         for choice in candidate.choices:
             default = " (default)" if choice.default else ""
-            click.echo(f"    Option {choice.id}{default}: {choice.label}", err=err)
+            click.echo(f"  Option {choice.id}{default}: {choice.label}", err=err)
             if choice.command_argv is not None:
                 command = (
                     subprocess.list2cmdline(choice.command_argv)
@@ -1797,12 +1826,17 @@ def _render_diagnostic_repair_plan(
                 click.echo("      Network: required", err=err)
             if choice.warning:
                 click.echo(
-                    f"      {choice.warning_severity.upper()}: {choice.warning}", err=err
+                    _bootstrap_warning(
+                        f"      {choice.warning_severity.upper()}: {choice.warning}"
+                    ),
+                    err=err,
                 )
             click.echo(f"      Recovery: {choice.rollback}", err=err)
     counts = plan.counts
+    if dry_run:
+        _diagnostic_phase_heading(2, 2, "Summary", err=err)
     click.echo(
-        "\nPlan result: "
+        "Plan result: "
         f"{counts['available']} available, {counts['manual']} manual, "
         f"{counts['refused']} refused, {counts['not-needed']} not needed\n",
         err=err,
@@ -1820,6 +1854,44 @@ def _strict_diagnostic_confirmation() -> tuple[bool, str | None]:
         return False, None
     supplied = answer.rstrip("\r\n")
     return supplied.casefold() == "y", supplied
+
+
+def _choose_diagnostic_repair(candidate: Any) -> Any:
+    """Ask one numbered default-unchanged decision without granting consent."""
+    click.echo(f"Decision: {candidate.check_id} — {candidate.summary}", err=True)
+    for choice in candidate.choices:
+        if choice.warning:
+            click.echo(
+                _bootstrap_warning(f"WARNING ({choice.id}): {choice.warning}"), err=True
+            )
+            click.echo(f"  Scope: {', '.join(choice.affected_paths)}", err=True)
+            click.echo(
+                f"  Network: {'required' if choice.network else 'not required'}", err=True
+            )
+            click.echo(f"  Recovery: {choice.rollback}", err=True)
+    for number, choice in enumerate(candidate.choices, 1):
+        default = " (default)" if choice.default else ""
+        click.echo(f"  {number}. {choice.label} [{choice.id}]{default}", err=True)
+    default_number = next(
+        number
+        for number, choice in enumerate(candidate.choices, 1)
+        if choice.default
+    )
+    click.echo(f"Choose an option [{default_number}]: ", nl=False, err=True)
+    try:
+        supplied = sys.stdin.readline()
+    except (OSError, ValueError):
+        supplied = ""
+    answer = supplied.rstrip("\r\n")
+    if not answer:
+        return candidate.choices[default_number - 1]
+    try:
+        selected = int(answer)
+    except ValueError:
+        return candidate.choices[default_number - 1]
+    if not 1 <= selected <= len(candidate.choices):
+        return candidate.choices[default_number - 1]
+    return candidate.choices[selected - 1]
 
 
 @main.command("diag")
@@ -1878,10 +1950,11 @@ def diag_command(
     one concise report without making changes. ``--dry-run`` shows every
     bounded repair option and command that could be used without choosing or
     executing one. ``--fix`` prints the same complete plan, then asks a
-    separate default-No question before each supported mutation. Stage 2
-    applies only the transaction-backed distribution-metadata repair; later
-    repair candidates remain explanatory. Use ``pdk config --check`` when the
-    configuration section needs its full resolved-setting report.
+    separate default-No question before each supported mutation. Stage 3
+    applies transaction-backed metadata, declared shared-file, and bounded pin
+    repairs; later repair candidates remain explanatory. Use ``pdk config
+    --check`` when the configuration section needs its full resolved-setting
+    report.
     """
     import json
 
@@ -1893,6 +1966,8 @@ def diag_command(
         build_repair_dry_run,
         inspect,
         repair_distribution_metadata,
+        repair_pin_declarations,
+        repair_shared_file,
     )
 
     if dry_run and fix:
@@ -1930,6 +2005,17 @@ def diag_command(
         _render_diagnostic_repair_plan(
             repair_plan, verbose=verbose, err=json_output, dry_run=False
         )
+        _diagnostic_phase_heading(2, 3, "Decide and repair", err=True)
+        eligible_total = sum(
+            candidate.status == "available"
+            and (
+                candidate.id == "installation.metadata.quarantine-stale"
+                or candidate.id.startswith("dependencies.shared-files.")
+                or candidate.id.startswith("dependencies.pins.align-")
+            )
+            for candidate in repair_plan.candidates
+        )
+        eligible_number = 0
         for candidate in repair_plan.candidates:
             base_action: dict[str, Any] = {
                 **candidate.as_dict(),
@@ -1942,7 +2028,12 @@ def diag_command(
                 base_action["status"] = "not-needed"
                 repair_actions.append(base_action)
                 continue
-            if candidate.id != "installation.metadata.quarantine-stale":
+            supported = (
+                candidate.id == "installation.metadata.quarantine-stale"
+                or candidate.id.startswith("dependencies.shared-files.")
+                or candidate.id.startswith("dependencies.pins.align-")
+            )
+            if candidate.status != "available" or not supported:
                 base_action["status"] = "skipped"
                 base_action["reason"] = (
                     "This repairer is scheduled for a later delivery stage."
@@ -1952,20 +2043,59 @@ def diag_command(
                 repair_actions.append(base_action)
                 continue
 
-            choice = next(
-                item for item in candidate.choices if item.id == "quarantine-stale-metadata"
+            eligible_number += 1
+            _diagnostic_stage_heading(
+                eligible_number,
+                eligible_total,
+                f"{candidate.check_id} — {candidate.summary}",
+                err=True,
             )
+            choice = _choose_diagnostic_repair(candidate)
             base_action["selected_choice"] = choice.id
+            if choice.id == "leave-unchanged":
+                base_action["status"] = "declined"
+                base_action["reason"] = "Leave unchanged was selected."
+                repair_actions.append(base_action)
+                click.echo(_bootstrap_warning("  DECLINED — left unchanged"), err=True)
+                continue
+            if choice.id == "review-difference":
+                target = choice.affected_paths[0]
+                check = next(
+                    item for item in before.checks if item.id == "dependencies.shared-files"
+                )
+                detail = next(
+                    item
+                    for item in check.data["drifted_files"]
+                    if item["path"] == target
+                )
+                click.echo(f"Review: {target}", err=True)
+                click.echo(f"  project SHA-256: {detail['actual_sha256']}", err=True)
+                click.echo(f"  installed SHA-256: {detail['expected_sha256']}", err=True)
+                base_action["status"] = "selected"
+                base_action["reason"] = "Read-only hash comparison shown; nothing changed."
+                repair_actions.append(base_action)
+                click.echo("  ok — review completed without changes", err=True)
+                continue
             click.echo(f"Repair: {candidate.check_id} — {choice.label}", err=True)
             if choice.affected_paths:
                 click.echo(f"Scope: {', '.join(choice.affected_paths)}", err=True)
+            boundary = (
+                "active environment"
+                if candidate.check_id == "installation.metadata"
+                else "project root"
+            )
             click.echo(
-                "Backup: active environment/.prodockit-quarantine/diagnostics/<UTC timestamp>",
+                f"Backup: {boundary}/.prodockit-quarantine/diagnostics/<UTC timestamp>",
                 err=True,
             )
-            click.echo("Verify: distribution discovery is readable and unique", err=True)
+            verification = {
+                "installation.metadata": "distribution discovery is readable and unique",
+                "dependencies.shared-files": "the selected file matches the installed bytes",
+                "dependencies.pins": "all selected package declarations use the chosen version",
+            }[candidate.check_id]
+            click.echo(f"Verify: {verification}", err=True)
             if choice.warning:
-                click.echo(f"WARNING: {choice.warning}", err=True)
+                click.echo(_bootstrap_warning(f"WARNING: {choice.warning}"), err=True)
                 click.echo(f"Recovery: {choice.rollback}", err=True)
                 click.echo(
                     f"Network: {'required' if choice.network else 'not required'}", err=True
@@ -1978,15 +2108,70 @@ def diag_command(
                 repair_actions.append(base_action)
                 continue
             try:
-                metadata_check = next(
-                    check
-                    for check in before.checks
-                    if check.id == "installation.metadata"
-                )
-                repair = repair_distribution_metadata(
-                    pathlib.Path(config_file).resolve().parent,
-                    expected_fingerprint=metadata_check.data.get("repair_fingerprint"),
-                )
+                project_root = pathlib.Path(config_file).resolve().parent
+                result_status: str
+                action_manifest: str | None
+                action_quarantine: str | None
+                if candidate.check_id == "installation.metadata":
+                    metadata_check = next(
+                        check
+                        for check in before.checks
+                        if check.id == "installation.metadata"
+                    )
+                    metadata_repair = repair_distribution_metadata(
+                        project_root,
+                        expected_fingerprint=metadata_check.data.get("repair_fingerprint"),
+                    )
+                    result_status = metadata_repair.status
+                    changed = metadata_repair.moved
+                    action_manifest = metadata_repair.manifest
+                    action_quarantine = metadata_repair.quarantine
+                elif candidate.check_id == "dependencies.shared-files":
+                    target = choice.affected_paths[0]
+                    shared_check = next(
+                        check
+                        for check in before.checks
+                        if check.id == "dependencies.shared-files"
+                    )
+                    shared_data = next(
+                        item
+                        for item in shared_check.data["drifted_files"]
+                        if item["path"] == target
+                    )
+                    shared_repair = repair_shared_file(
+                        project_root,
+                        target,
+                        expected_status=shared_data["status"],
+                        expected_actual_sha256=shared_data["actual_sha256"],
+                        expected_sha256=shared_data["expected_sha256"],
+                    )
+                    result_status = shared_repair.status
+                    changed = shared_repair.changed
+                    action_manifest = shared_repair.manifest
+                    action_quarantine = shared_repair.quarantine
+                else:
+                    assert choice.command_argv is not None
+                    package, version = choice.command_argv[-1].split("=", 1)
+                    pins_check = next(
+                        check
+                        for check in before.checks
+                        if check.id == "dependencies.pins"
+                    )
+                    package_data = next(
+                        item
+                        for item in pins_check.data["packages"]
+                        if item["package"] == package
+                    )
+                    pin_repair = repair_pin_declarations(
+                        project_root,
+                        package,
+                        version,
+                        expected_fingerprint=package_data["fingerprint"],
+                    )
+                    result_status = pin_repair.status
+                    changed = pin_repair.changed
+                    action_manifest = pin_repair.manifest
+                    action_quarantine = pin_repair.quarantine
             except RepairTransactionError as error:
                 base_action["status"] = (
                     "rolled-back"
@@ -1999,16 +2184,20 @@ def diag_command(
                 repair_actions.append(base_action)
                 repair_failed = True
                 repair_failure_status = base_action["status"]
+                click.echo(_bootstrap_error(f"  FAILED — {base_action['reason']}"), err=True)
                 break
             base_action["status"] = (
-                "applied" if repair.status == "repaired" else "not-needed"
+                "applied" if result_status in {"repaired", "applied"} else "not-needed"
             )
-            base_action["changed"] = list(repair.moved)
-            base_action["manifest"] = repair.manifest
-            repair_quarantine = repair.quarantine
+            base_action["changed"] = list(changed)
+            base_action["manifest"] = action_manifest
+            repair_quarantine = action_quarantine
             repair_actions.append(base_action)
+            click.echo("  ok — applied and verified", err=True)
 
     report = inspect(config_file, online=online) if fix else before
+    if fix:
+        _diagnostic_phase_heading(3, 3, "Verify final state", err=json_output)
     if json_output:
         if fix:
             payload = {

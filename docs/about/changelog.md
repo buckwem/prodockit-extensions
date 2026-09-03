@@ -53,6 +53,13 @@ requests rather than here.
   for each supported mutation. Confirmed actions receive an atomic recovery
   manifest with hashes; verification failures roll back, redirected input is
   refused, and JSON mode keeps prompts off stdout.
+- Added Stage 3 diagnostic repairs for individually declared shared files and
+  inconsistent pins. Shared files can be reviewed, created, or restored from
+  the installed release; pins can only align to an already detected bounded
+  version. Each decision remains separate from its exact-`y` confirmation,
+  uses the existing typed service, is atomically written and verified, and is
+  independently recoverable without consulting a template. Repair output now
+  uses bootstrap's phase boundaries, stage headings, and warning/failure colours.
 
 ## 0.57.0 (2026-09-03)
 

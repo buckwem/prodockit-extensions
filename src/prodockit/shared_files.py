@@ -15,6 +15,8 @@ import hashlib
 import os
 import re
 import sys
+import uuid
+from contextlib import suppress
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path, PurePosixPath
@@ -218,11 +220,18 @@ def apply(root: str | os.PathLike[str], states: list[SharedFileState]) -> list[s
         if state.status == "current":
             continue
         target = _target_path(project, state.file.target)
+        temporary: Path | None = None
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(state.expected)
+            temporary = target.parent / f".{target.name}.{uuid.uuid4().hex}.tmp"
+            temporary.write_bytes(state.expected)
+            os.replace(temporary, target)
         except OSError as error:
             raise SharedFileError(f"could not write {state.file.target}: {error}") from error
+        finally:
+            if temporary is not None:
+                with suppress(FileNotFoundError):
+                    temporary.unlink()
         changed.append(state.file.target)
     return changed
 

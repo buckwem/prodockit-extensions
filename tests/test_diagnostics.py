@@ -15,6 +15,7 @@ from click.testing import CliRunner
 
 import prodockit
 from prodockit import diagnostics
+from prodockit import shared_files as shared_file_module
 from prodockit.cli import main
 from prodockit.diagnostics import DiagnosticReport, DiagnosticResult
 from prodockit.project_config import ProjectConfig
@@ -408,6 +409,158 @@ def test_repair_transaction_stops_and_reports_both_paths_when_rollback_fails(
     assert manifest["status"] == "rollback-failed"
 
 
+def test_stage3_shared_file_adapter_reuses_installed_bytes_transactionally(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / shared_file_module.MANIFEST).write_text(
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\n'
+        'target = "docs/stylesheets/pdk.css"\n',
+        encoding="utf-8",
+    )
+    target = tmp_path / "docs/stylesheets/pdk.css"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"author copy\n")
+    monkeypatch.setattr(shared_file_module, "resource_bytes", lambda _source: b"installed\n")
+    state = shared_file_module.inspect(tmp_path)[0]
+
+    result = diagnostics.repair_shared_file(
+        tmp_path,
+        state.file.target,
+        expected_status=state.status,
+        expected_actual_sha256=state.actual_sha256,
+        expected_sha256=state.expected_sha256,
+        timestamp="shared-file",
+    )
+
+    assert result.status == "applied"
+    assert target.read_bytes() == b"installed\n"
+    manifest = json.loads((tmp_path / result.manifest).read_text(encoding="utf-8"))
+    assert manifest["status"] == "applied"
+    assert manifest["entries"][0]["original"] == "docs/stylesheets/pdk.css"
+    assert manifest["entries"][0]["operation"] == "backup"
+
+
+def test_stage3_shared_file_adapter_refuses_a_stale_plan_without_backup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / shared_file_module.MANIFEST).write_text(
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\n'
+        'target = "docs/stylesheets/pdk.css"\n',
+        encoding="utf-8",
+    )
+    target = tmp_path / "docs/stylesheets/pdk.css"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"before\n")
+    monkeypatch.setattr(shared_file_module, "resource_bytes", lambda _source: b"installed\n")
+    state = shared_file_module.inspect(tmp_path)[0]
+    target.write_bytes(b"changed after inspection\n")
+
+    with pytest.raises(diagnostics.RepairTransactionError, match="became stale"):
+        diagnostics.repair_shared_file(
+            tmp_path,
+            state.file.target,
+            expected_status=state.status,
+            expected_actual_sha256=state.actual_sha256,
+            expected_sha256=state.expected_sha256,
+        )
+
+    assert target.read_bytes() == b"changed after inspection\n"
+    assert not (tmp_path / ".prodockit-quarantine").exists()
+
+
+def test_stage3_shared_file_adapter_can_create_and_roll_back_a_missing_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / shared_file_module.MANIFEST).write_text(
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\n'
+        'target = "new/path/pdk.css"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(shared_file_module, "resource_bytes", lambda _source: b"installed\n")
+    state = shared_file_module.inspect(tmp_path)[0]
+    real_inspect = diagnostics.inspect_shared_files
+    calls = 0
+
+    def never_verifies(root: Path) -> list[shared_file_module.SharedFileState]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return real_inspect(root)
+        return [state]
+
+    monkeypatch.setattr(diagnostics, "inspect_shared_files", never_verifies)
+
+    with pytest.raises(diagnostics.RepairTransactionError, match="rolled back"):
+        diagnostics.repair_shared_file(
+            tmp_path,
+            state.file.target,
+            expected_status="missing",
+            expected_actual_sha256=None,
+            expected_sha256=state.expected_sha256,
+            timestamp="missing-rollback",
+        )
+
+    assert not (tmp_path / state.file.target).exists()
+    assert not (tmp_path / "new").exists()
+    manifest = json.loads(
+        (
+            tmp_path
+            / ".prodockit-quarantine/diagnostics/missing-rollback/manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["status"] == "rolled-back"
+
+
+def test_stage3_pin_adapter_uses_a_detected_version_and_preserves_crlf(
+    tmp_path: Path,
+) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_bytes(
+        b'dependencies = [\r\n  "zensical>=0.0.57", # keep this comment\r\n]\r\n'
+    )
+    workflow = tmp_path / ".github/workflows/docs.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_bytes(b'jobs:\r\n  docs:\r\n    run: pip install "zensical==0.0.58"\r\n')
+    fingerprint = diagnostics._pin_state_fingerprint(tmp_path, "zensical")
+
+    result = diagnostics.repair_pin_declarations(
+        tmp_path,
+        "zensical",
+        "0.0.58",
+        expected_fingerprint=fingerprint,
+        timestamp="pin",
+    )
+
+    assert result.status == "applied"
+    assert b'"zensical>=0.0.58", # keep this comment\r\n' in pyproject.read_bytes()
+    assert workflow.read_bytes().count(b"\r\n") == 3
+    manifest = json.loads((tmp_path / result.manifest).read_text(encoding="utf-8"))
+    assert manifest["entries"][0]["original"] == "pyproject.toml"
+
+
+def test_stage3_pin_adapter_refuses_an_undetected_or_stale_version(tmp_path: Path) -> None:
+    requirement = tmp_path / "requirements.txt"
+    requirement.write_text("zensical==0.0.57\nzensical==0.0.58\n", encoding="utf-8")
+    fingerprint = diagnostics._pin_state_fingerprint(tmp_path, "zensical")
+
+    with pytest.raises(diagnostics.RepairTransactionError, match="not a bounded"):
+        diagnostics.repair_pin_declarations(
+            tmp_path,
+            "zensical",
+            "9.9.9",
+            expected_fingerprint=fingerprint,
+        )
+    requirement.write_text("zensical==0.0.57\n", encoding="utf-8")
+    with pytest.raises(diagnostics.RepairTransactionError, match="became stale"):
+        diagnostics.repair_pin_declarations(
+            tmp_path,
+            "zensical",
+            "0.0.57",
+            expected_fingerprint=fingerprint,
+        )
+    assert not (tmp_path / ".prodockit-quarantine").exists()
+
+
 def _project(tmp_path: Path, *, required: bool) -> ProjectConfig:
     extensions = (
         {
@@ -731,9 +884,8 @@ def test_dry_run_lists_each_pin_choice_without_selecting_one() -> None:
 
     candidate = dry_run.candidates[0]
     assert candidate.status == "available"
-    assert candidate.disposition == "ambiguous"
+    assert candidate.disposition == "confirmable"
     assert [choice.id for choice in candidate.choices] == [
-        "align-zensical-0.0.57",
         "align-zensical-0.0.58",
         "leave-unchanged",
     ]
@@ -741,7 +893,7 @@ def test_dry_run_lists_each_pin_choice_without_selecting_one() -> None:
         "pdk",
         "pins",
         "--set",
-        "zensical=0.0.57",
+        "zensical=0.0.58",
     )
     assert candidate.choices[-1].default
     assert all(choice.id != "selected" for choice in candidate.choices)
@@ -878,10 +1030,13 @@ def test_diag_dry_run_is_structured_read_only_and_filterable(
     assert candidate["choices"][0]["command_argv"] == [
         "pdk",
         "shared-files",
-        "--apply",
+        "--verbose",
     ]
-    assert candidate["choices"][0]["warning_severity"] == "warning"
-    assert "replaces existing managed file bytes" in candidate["choices"][0]["warning"]
+    assert candidate["choices"][1]["internal_operation"] == (
+        "dependencies.shared-files.apply"
+    )
+    assert candidate["choices"][1]["warning_severity"] == "warning"
+    assert "replaces existing managed file bytes" in candidate["choices"][1]["warning"]
     assert "Apply this repair?" not in result.output
 
 
@@ -912,6 +1067,34 @@ def test_diag_dry_run_text_says_commands_could_run(
     assert "WARNING:" in result.output
     assert "prodockit-template" in result.output
     assert "Apply this repair?" not in result.output
+
+
+def test_diag_repair_output_uses_bootstrap_phases_stages_and_colours(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "renderer.mermaid",
+                "Rendering toolchain",
+                "fail",
+                "Mermaid is required",
+            ),
+        ),
+    )
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+
+    result = CliRunner().invoke(main, ["diag", "--dry-run"], color=True)
+
+    assert "Phase 1/2 — Inspect and plan" in result.output
+    assert "Stage [1/1] renderer.mermaid" in result.output
+    assert "Phase 2/2 — Summary" in result.output
+    assert "\x1b[94m" in result.output  # bootstrap bright-blue phase boundary
+    assert "\x1b[34m" in result.output  # bootstrap blue stage boundary
+    assert "\x1b[93m" in result.output  # bootstrap yellow warning/action styling
 
 
 def test_diag_rejects_incompatible_or_unknown_dry_run_options(
@@ -1011,7 +1194,7 @@ def test_diag_fix_reports_the_scoped_repair_and_reruns_diagnostics(
     )
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
 
-    result = CliRunner().invoke(main, ["diag", "--fix", "--json"], input="y\n")
+    result = CliRunner().invoke(main, ["diag", "--fix", "--json"], input="1\ny\n")
 
     assert result.exit_code == 0, result.output
     assert calls == 2
@@ -1028,7 +1211,7 @@ def test_diag_fix_reports_the_scoped_repair_and_reruns_diagnostics(
     assert "WARNING:" in result.stderr
 
 
-@pytest.mark.parametrize("answer", ["\n", "n\n", "yes\n", "YEs\n", "x\n"])
+@pytest.mark.parametrize("answer", ["", "n\n", "yes\n", "YEs\n", "x\n"])
 def test_diag_fix_requires_an_exact_single_character_y_for_each_action(
     monkeypatch: pytest.MonkeyPatch, answer: str
 ) -> None:
@@ -1058,7 +1241,7 @@ def test_diag_fix_requires_an_exact_single_character_y_for_each_action(
         lambda _root, **_kwargs: pytest.fail("a declined repair mutated the environment"),
     )
 
-    result = CliRunner().invoke(main, ["diag", "--fix", "--json"], input=answer)
+    result = CliRunner().invoke(main, ["diag", "--fix", "--json"], input="1\n" + answer)
 
     payload = json.loads(result.stdout)
     assert payload["repair"]["status"] == "declined"
@@ -1080,6 +1263,105 @@ def test_diag_fix_refuses_redirected_input_before_inspection(
     assert result.exit_code == 1
     assert "requires an interactive terminal" in result.output
     assert "--dry-run --json" in result.output
+
+
+def test_stage3_choices_and_confirmations_are_separate_for_each_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "dependencies.shared-files",
+                "Dependency and managed-file consistency",
+                "fail",
+                "one managed file differs",
+                data={
+                    "drifted": 1,
+                    "drifted_files": [
+                        {
+                            "path": "docs/stylesheets/pdk.css",
+                            "status": "different",
+                            "actual_sha256": "old",
+                            "expected_sha256": "new",
+                        }
+                    ],
+                },
+            ),
+            DiagnosticResult(
+                "dependencies.pins",
+                "Dependency and managed-file consistency",
+                "fail",
+                "zensical declarations disagree",
+                data={
+                    "packages": [
+                        {
+                            "package": "zensical",
+                            "versions": ["0.0.57", "0.0.58"],
+                            "latest": None,
+                            "fingerprint": "pins-before",
+                            "sites": [
+                                {
+                                    "path": "pyproject.toml",
+                                    "line": 1,
+                                    "operator": ">=",
+                                    "version": "0.0.57",
+                                    "kind": "pip",
+                                },
+                                {
+                                    "path": ".github/workflows/docs.yml",
+                                    "line": 1,
+                                    "operator": "==",
+                                    "version": "0.0.58",
+                                    "kind": "pip",
+                                },
+                            ],
+                        }
+                    ]
+                },
+            ),
+        ),
+    )
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr(
+        diagnostics,
+        "repair_shared_file",
+        lambda *_args, **_kwargs: diagnostics.RepairApplyResult(
+            "applied",
+            ("docs/stylesheets/pdk.css",),
+            ".prodockit-quarantine/diagnostics/shared",
+            ".prodockit-quarantine/diagnostics/shared/manifest.json",
+        ),
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "repair_pin_declarations",
+        lambda *_args, **_kwargs: pytest.fail(
+            "selecting a pin choice without confirming applied it"
+        ),
+    )
+
+    result = CliRunner().invoke(
+        main,
+        ["diag", "--fix", "--json"],
+        input="2\ny\n1\nn\n",
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    actions = [
+        action for action in payload["repair"]["actions"] if action["status"] != "not-needed"
+    ]
+    assert [action["selected_choice"] for action in actions] == [
+        "replace-installed-shared-file",
+        "align-zensical-0.0.58",
+    ]
+    assert [action["status"] for action in actions] == ["applied", "declined"]
+    assert result.stderr.count("Apply this repair? [y/N]:") == 2
+    assert result.stderr.count("WARNING:") >= 2
 
 
 def test_diag_without_fix_never_invokes_the_repair(

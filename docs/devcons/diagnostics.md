@@ -44,15 +44,16 @@ public command or internal typed operation that could perform it.
 
 The repair registry classifies every stable check as confirmable, online,
 manual, ambiguous, prohibited, or not applicable. A source-level coverage guard
-rejects a new diagnostic without a disposition. Stage 2 adds the shared
-transaction and rollback layer and adapts only distribution metadata to it;
-other candidates are reported and skipped pending their later implementation
-stages. Project-local, template-independent problems preferentially route
+rejects a new diagnostic without a disposition. Stage 2 added the shared
+transaction and rollback layer; Stage 3 adapts distribution metadata, declared
+shared files, and bounded inconsistent pins to it. Other candidates are
+reported and skipped pending their later implementation stages. Project-local,
+template-independent problems preferentially route
 through Adoption or the existing `pins`, `shared-files`, `init-tools`, and
 `init-mathjax` services. Template metadata and updates remain manual: no
 diagnostic fix depends on `prodockit-template`.
 
-The first confirmed action creates
+Each confirmed action creates
 `.prodockit-quarantine/diagnostics/<UTC timestamp>/manifest.json` inside its
 permitted boundary. The manifest records the stable repair/check/choice IDs,
 the explicit confirmation, Prodockit version, original and backup paths, and
@@ -65,6 +66,22 @@ reports both the original and quarantine locations for manual recovery.
 `--fix` refuses redirected standard input and CI use before inspection or
 mutation. Use `pdk diag --dry-run --json` there. There is deliberately no blanket
 confirmation option.
+
+For `dependencies.shared-files`, each missing target has a create-or-leave
+decision. Each changed target offers a read-only expected/actual hash review,
+replacement from the installed release, or leave unchanged. Replacement warns
+before the decision and confirmation because it changes existing bytes. The
+adapter passes only the selected state to the existing typed shared-file
+service; it cannot touch an undeclared file.
+
+For `dependencies.pins`, diagnostics only offers versions already detected in
+the project's declarations. If one `==` build pin uniquely establishes the
+reviewed version, that is the sole alignment option. If exact pins conflict,
+every detected version remains a numbered option and **Leave unchanged** is the
+default. Selection is not confirmation. The adapter rediscovers the package,
+checks the inspected file fingerprint, backs up every file it will change, and
+delegates one package and version to the existing typed pin service. It never
+selects an online latest release.
 
 For structured preview output, use:
 

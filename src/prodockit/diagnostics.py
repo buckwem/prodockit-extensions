@@ -29,11 +29,12 @@ from packaging.version import InvalidVersion, Version
 
 import prodockit
 from prodockit.config_diagnostics import inspect_config
-from prodockit.pins import DEFAULT_PACKAGES, discover, resolve_latest
+from prodockit.pins import DEFAULT_PACKAGES, PinError, apply_version, discover, resolve_latest
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
 from prodockit.renderer_health import find_browser, probe_mathjax, probe_mermaid
 from prodockit.shared_files import SharedFileError
+from prodockit.shared_files import apply as apply_shared_files
 from prodockit.shared_files import inspect as inspect_shared_files
 
 Status = Literal["pass", "warn", "fail"]
@@ -422,6 +423,16 @@ class MetadataRepairResult:
         }
 
 
+@dataclass(frozen=True)
+class RepairApplyResult:
+    """Outcome shared by project-local Stage 3 repair adapters."""
+
+    status: Literal["not-needed", "applied"]
+    changed: tuple[str, ...] = ()
+    quarantine: str | None = None
+    manifest: str | None = None
+
+
 class RepairTransactionError(RuntimeError):
     """A diagnostic repair transaction violated its safety contract."""
 
@@ -490,7 +501,7 @@ class RepairTransaction:
         )
         self.manifest_path = self.quarantine / "manifest.json"
         self._entries: list[dict[str, Any]] = []
-        self._moves: list[tuple[Path, Path]] = []
+        self._restores: list[tuple[str, Path, Path | None]] = []
         self._status = "confirmed"
         self._begun = False
 
@@ -576,7 +587,72 @@ class RepairTransaction:
         self._entries.append(entry)
         self._write_manifest()
         shutil.move(str(original), str(backup))
-        self._moves.append((original, backup))
+        self._restores.append(("move", original, backup))
+        self._status = "applying"
+        self._write_manifest()
+
+    def backup_path(self, path: Path, *, backup_name: str) -> None:
+        """Copy one existing target so a later typed service can edit it."""
+        original = path.absolute()
+        self._relative(original)
+        if original.is_symlink():
+            raise RepairTransactionError(f"refusing symlinked repair target: {original}")
+        resolved = original.resolve(strict=True)
+        self._relative(resolved)
+        before_hash = _content_sha256(original)
+        backup = Path(os.path.abspath(self.quarantine / "files" / backup_name))
+        try:
+            backup.relative_to(self.quarantine)
+        except ValueError as error:
+            raise RepairTransactionError(
+                f"refusing quarantine path outside the transaction: {backup}"
+            ) from error
+        if backup.exists() or backup.is_symlink():
+            raise RepairTransactionError(f"duplicate quarantine destination: {backup}")
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        if original.is_dir():
+            shutil.copytree(original, backup)
+            kind = "directory"
+        else:
+            shutil.copy2(original, backup)
+            kind = "file"
+        self._entries.append(
+            {
+                "original": self._relative(original),
+                "backup": backup.relative_to(self.quarantine).as_posix(),
+                "sha256": before_hash,
+                "kind": kind,
+                "operation": "backup",
+            }
+        )
+        self._restores.append(("copy", original, backup))
+        self._status = "applying"
+        self._write_manifest()
+
+    def record_creation(self, path: Path) -> None:
+        """Record a contained missing path that the repair is about to create."""
+        original = path.absolute()
+        self._relative(original)
+        if original.exists() or original.is_symlink():
+            raise RepairTransactionError(f"creation target already exists: {original}")
+        ancestor = original.parent
+        while not ancestor.exists() and not ancestor.is_symlink():
+            if ancestor == self.boundary:
+                break
+            ancestor = ancestor.parent
+        if ancestor.is_symlink():
+            raise RepairTransactionError(f"refusing symlinked repair parent: {ancestor}")
+        self._relative(ancestor.resolve(strict=True))
+        self._entries.append(
+            {
+                "original": self._relative(original),
+                "backup": None,
+                "sha256": None,
+                "kind": "missing",
+                "operation": "create",
+            }
+        )
+        self._restores.append(("create", original, None))
         self._status = "applying"
         self._write_manifest()
 
@@ -586,9 +662,28 @@ class RepairTransaction:
 
     def rollback(self, reason: str) -> None:
         failures: list[str] = []
-        for original, backup in reversed(self._moves):
+        for operation, original, backup in reversed(self._restores):
             try:
-                if original.exists() or original.is_symlink():
+                if operation == "create":
+                    if original.is_dir() and not original.is_symlink():
+                        shutil.rmtree(original)
+                    elif original.exists() or original.is_symlink():
+                        original.unlink()
+                    parent = original.parent
+                    while parent != self.boundary:
+                        try:
+                            parent.rmdir()
+                        except OSError:
+                            break
+                        parent = parent.parent
+                    continue
+                assert backup is not None
+                if operation == "copy" and (original.exists() or original.is_symlink()):
+                    if original.is_dir() and not original.is_symlink():
+                        shutil.rmtree(original)
+                    else:
+                        original.unlink()
+                elif original.exists() or original.is_symlink():
                     failures.append(f"original path already exists: {original}")
                     continue
                 original.parent.mkdir(parents=True, exist_ok=True)
@@ -727,43 +822,66 @@ def _metadata_candidate(check: DiagnosticResult) -> RepairCandidate:
     )
 
 
-def _shared_files_candidate(check: DiagnosticResult) -> RepairCandidate:
+def _shared_files_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
     policy = REPAIR_REGISTRY[check.id]
     raw_files = check.data.get("drifted_files", ())
-    paths = tuple(
-        str(item.get("path"))
-        for item in raw_files
-        if isinstance(item, dict) and item.get("path")
-    )
-    changed_existing = any(
-        isinstance(item, dict) and item.get("status") == "different" for item in raw_files
-    )
-    return RepairCandidate(
-        "dependencies.shared-files.apply",
-        check.id,
-        policy.disposition,
-        "available",
-        check.summary,
-        policy.reason,
-        policy.remediation,
-        (
-            RepairChoice(
-                "apply-installed-shared-files",
-                "Apply the installed Prodockit shared files",
-                command_argv=("pdk", "shared-files", "--apply"),
-                affected_paths=paths,
-                warning=(
-                    "This replaces existing managed file bytes; review local "
-                    "changes first."
-                    if changed_existing
-                    else None
+    candidates: list[RepairCandidate] = []
+    for item in raw_files:
+        if not isinstance(item, dict) or not item.get("path"):
+            continue
+        path = str(item["path"])
+        status = str(item.get("status"))
+        path_id = hashlib.sha256(path.encode("utf-8")).hexdigest()[:12]
+        choices: tuple[RepairChoice, ...]
+        if status == "different":
+            choices = (
+                RepairChoice(
+                    "review-difference",
+                    "Review the installed and project file hashes",
+                    command_argv=("pdk", "shared-files", "--verbose"),
+                    affected_paths=(path,),
+                    rollback="read-only",
                 ),
-                warning_severity="warning" if changed_existing else None,
-                rollback="restore replaced files from the diagnostic quarantine",
-            ),
-            _leave_unchanged(),
-        ),
-    )
+                RepairChoice(
+                    "replace-installed-shared-file",
+                    "Replace this file from the installed Prodockit release",
+                    internal_operation="dependencies.shared-files.apply",
+                    affected_paths=(path,),
+                    warning=(
+                        "This replaces existing managed file bytes and can change "
+                        "website or PDF output; review local changes first."
+                    ),
+                    warning_severity="warning",
+                    rollback="restore the original file from the diagnostic quarantine",
+                ),
+                _leave_unchanged(),
+            )
+        else:
+            choices = (
+                RepairChoice(
+                    "create-installed-shared-file",
+                    "Create this file from the installed Prodockit release",
+                    internal_operation="dependencies.shared-files.apply",
+                    affected_paths=(path,),
+                    warning="This creates a managed file and can change rendered output.",
+                    warning_severity="warning",
+                    rollback="remove the created file using the diagnostic manifest",
+                ),
+                _leave_unchanged(),
+            )
+        candidates.append(
+            RepairCandidate(
+                f"dependencies.shared-files.{path_id}",
+                check.id,
+                policy.disposition,
+                "available",
+                f"Managed shared file is {status}: {path}",
+                policy.reason,
+                policy.remediation,
+                choices,
+            )
+        )
+    return candidates or [_generic_candidate(check)]
 
 
 def _pin_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
@@ -776,6 +894,15 @@ def _pin_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
         package = str(package_data.get("package", ""))
         versions = tuple(str(item) for item in package_data.get("versions", ()))
         latest = package_data.get("latest")
+        exact_versions = tuple(
+            dict.fromkeys(
+                str(site.get("version"))
+                for site in package_data.get("sites", ())
+                if isinstance(site, dict)
+                and site.get("operator") == "=="
+                and site.get("version")
+            )
+        )
         paths = tuple(
             dict.fromkeys(
                 str(site.get("path"))
@@ -784,6 +911,7 @@ def _pin_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
             )
         )
         if len(versions) > 1:
+            bounded_versions = exact_versions if len(exact_versions) == 1 else versions
             choices = (
                 *(
                     RepairChoice(
@@ -800,7 +928,7 @@ def _pin_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
                             "restore changed declaration files from the diagnostic quarantine"
                         ),
                     )
-                    for version in versions
+                    for version in bounded_versions
                 ),
                 _leave_unchanged(),
             )
@@ -808,9 +936,14 @@ def _pin_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
                 RepairCandidate(
                     f"dependencies.pins.align-{package}",
                     check.id,
-                    "ambiguous",
+                    "confirmable" if len(exact_versions) == 1 else "ambiguous",
                     "available",
-                    f"Choose a version for inconsistent {package} declarations",
+                    (
+                        f"Align inconsistent {package} declarations to the unique "
+                        f"exact-build version {bounded_versions[0]}"
+                        if len(exact_versions) == 1
+                        else f"Choose a version for inconsistent {package} declarations"
+                    ),
                     policy.reason,
                     policy.remediation,
                     choices,
@@ -826,22 +959,6 @@ def _pin_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
                     f"Review {package} {versions[0]} -> {latest}",
                     "A newer version is an author decision, not a diagnostic repair.",
                     f"Review output before running `pdk pins --set {package}={latest}`.",
-                    (
-                        RepairChoice(
-                            f"review-{package}-{latest}",
-                            f"Set every {package} declaration to {latest} after review",
-                            command_argv=("pdk", "pins", "--set", f"{package}={latest}"),
-                            affected_paths=paths,
-                            warning=(
-                                "This adopts an online version and can change "
-                                "website and PDF output."
-                            ),
-                            warning_severity="warning",
-                            network=True,
-                            rollback="restore changed declaration files from version control",
-                        ),
-                        _leave_unchanged(),
-                    ),
                 )
             )
     return candidates or [_generic_candidate(check)]
@@ -911,7 +1028,7 @@ def build_repair_dry_run(
         elif check.id == "installation.metadata":
             candidates.append(_metadata_candidate(check))
         elif check.id == "dependencies.shared-files" and check.data.get("drifted"):
-            candidates.append(_shared_files_candidate(check))
+            candidates.extend(_shared_files_candidates(check))
         elif check.id == "dependencies.pins":
             candidates.extend(_pin_candidates(check))
         elif check.id in {"renderer.mermaid", "renderer.mathjax"}:
@@ -1360,6 +1477,163 @@ def repair_distribution_metadata(
     )
 
 
+def repair_shared_file(
+    root: Path,
+    target: str,
+    *,
+    expected_status: str,
+    expected_actual_sha256: str | None,
+    expected_sha256: str,
+    timestamp: str | None = None,
+) -> RepairApplyResult:
+    """Apply one declared installed shared file through a transaction."""
+    project = root.resolve()
+    try:
+        states = list(inspect_shared_files(project))
+    except SharedFileError as error:
+        raise RepairTransactionError(str(error)) from error
+    matches = [state for state in states if state.file.target == target]
+    if len(matches) != 1:
+        raise RepairTransactionError(
+            f"shared-file repair plan became stale for {target}; rerun `pdk diag --fix`"
+        )
+    state = matches[0]
+    if (
+        state.status != expected_status
+        or state.actual_sha256 != expected_actual_sha256
+        or state.expected_sha256 != expected_sha256
+    ):
+        raise RepairTransactionError(
+            f"shared-file repair plan became stale for {target}; rerun `pdk diag --fix`"
+        )
+    if state.status == "current":
+        return RepairApplyResult("not-needed")
+    destination = project / target
+    transaction = RepairTransaction(
+        project,
+        action_id=f"dependencies.shared-files.{hashlib.sha256(target.encode()).hexdigest()[:12]}",
+        check_id="dependencies.shared-files",
+        choice_id=(
+            "create-installed-shared-file"
+            if state.status == "missing"
+            else "replace-installed-shared-file"
+        ),
+        timestamp=timestamp,
+    )
+    try:
+        transaction.begin()
+        if state.status == "missing":
+            transaction.record_creation(destination)
+        else:
+            transaction.backup_path(destination, backup_name=target)
+        changed = apply_shared_files(project, [state])
+        verified = next(
+            (
+                item
+                for item in inspect_shared_files(project)
+                if item.file.target == target
+            ),
+            None,
+        )
+        if changed != [target] or verified is None or verified.status != "current":
+            raise RepairTransactionError(
+                f"verification still found shared-file drift at {target}"
+            )
+        transaction.commit()
+    except (RepairTransactionError, SharedFileError, OSError) as error:
+        try:
+            transaction.rollback(str(error))
+        except RepairRollbackError:
+            raise
+        raise RepairTransactionError(
+            f"shared-file repair failed and was rolled back: {error}"
+        ) from error
+    return RepairApplyResult(
+        "applied",
+        (target,),
+        _display_path(transaction.quarantine, project),
+        _display_path(transaction.manifest_path, project),
+    )
+
+
+def _pin_state_fingerprint(root: Path, package: str) -> str:
+    """Bind one package plan to every declaration file's current bytes."""
+    state = discover(str(root), (package,))[package]
+    digest = hashlib.sha256()
+    for path in sorted({site.path for site in state.sites}):
+        candidate = (root / path).absolute()
+        try:
+            candidate.resolve(strict=True).relative_to(root.resolve())
+        except (OSError, ValueError) as error:
+            raise RepairTransactionError(
+                f"pin declaration must stay inside the project: {path}"
+            ) from error
+        digest.update(path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(_content_sha256(candidate).encode("ascii"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def repair_pin_declarations(
+    root: Path,
+    package: str,
+    version: str,
+    *,
+    expected_fingerprint: str,
+    timestamp: str | None = None,
+) -> RepairApplyResult:
+    """Align one package to one already-detected version transactionally."""
+    project = root.resolve()
+    states = discover(str(project), (package,))
+    state = states[package]
+    if version not in state.versions:
+        raise RepairTransactionError(
+            f"{version} is not a bounded detected choice for {package}"
+        )
+    if _pin_state_fingerprint(project, package) != expected_fingerprint:
+        raise RepairTransactionError(
+            f"pin repair plan became stale for {package}; rerun `pdk diag --fix`"
+        )
+    changed_paths = tuple(
+        dict.fromkeys(site.path for site in state.sites if site.version != version)
+    )
+    if not changed_paths:
+        return RepairApplyResult("not-needed")
+    transaction = RepairTransaction(
+        project,
+        action_id=f"dependencies.pins.align-{package}",
+        check_id="dependencies.pins",
+        choice_id=f"align-{package}-{version}",
+        timestamp=timestamp,
+    )
+    try:
+        transaction.begin()
+        for path in changed_paths:
+            transaction.backup_path(project / path, backup_name=path)
+        changed = apply_version(str(project), state, version)
+        verified = discover(str(project), (package,))[package]
+        if not changed or verified.versions != [version]:
+            raise RepairTransactionError(
+                f"verification still found inconsistent {package} declarations"
+            )
+        transaction.commit()
+    except (RepairTransactionError, PinError, OSError) as error:
+        try:
+            transaction.rollback(str(error))
+        except RepairRollbackError:
+            raise
+        raise RepairTransactionError(
+            f"pin repair failed and was rolled back: {error}"
+        ) from error
+    return RepairApplyResult(
+        "applied",
+        changed_paths,
+        _display_path(transaction.quarantine, project),
+        _display_path(transaction.manifest_path, project),
+    )
+
+
 def _environment_checks(root: Path) -> list[DiagnosticResult]:
     executable = _display_path(sys.executable, root)
     prefix = _display_path(sys.prefix, root)
@@ -1650,6 +1924,9 @@ def _pin_checks(root: Path, online: bool) -> list[DiagnosticResult]:
                         "package": state.package,
                         "versions": state.versions,
                         "latest": state.latest,
+                        "fingerprint": _pin_state_fingerprint(root, state.package)
+                        if len(state.versions) > 1
+                        else None,
                         "sites": [
                             {
                                 "path": site.path,
@@ -1683,7 +1960,12 @@ def _pin_checks(root: Path, online: bool) -> list[DiagnosticResult]:
                     "declared": len(shared),
                     "drifted": len(drift),
                     "drifted_files": [
-                        {"path": state.file.target, "status": state.status}
+                        {
+                            "path": state.file.target,
+                            "status": state.status,
+                            "expected_sha256": state.expected_sha256,
+                            "actual_sha256": state.actual_sha256,
+                        }
                         for state in drift
                     ],
                 },
@@ -2294,6 +2576,7 @@ __all__ = [
     "CommandInfo",
     "DiagnosticReport",
     "DiagnosticResult",
+    "RepairApplyResult",
     "RepairCandidate",
     "RepairChoice",
     "RepairDryRun",
@@ -2304,5 +2587,7 @@ __all__ = [
     "build_repair_dry_run",
     "command_in_environment",
     "inspect",
+    "repair_pin_declarations",
+    "repair_shared_file",
     "same_path",
 ]
