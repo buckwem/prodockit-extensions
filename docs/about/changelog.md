@@ -38,6 +38,13 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## 0.56.0 (2026-09-03)
+
+- Made `template-sync` repair missing or outdated stylesheet and JavaScript
+  configuration while preserving author additions, seed absent author-owned
+  assets without replacing existing content, and refresh managed PDK styles.
+  `pdk diag` now reports local CSS and JavaScript omitted from `zensical.toml`.
+
 ## 0.55.0 (2026-09-02)
 
 - Added `{% raw %}{{ applied_release }}{% endraw %}` so a template-derived site and PDF can show
