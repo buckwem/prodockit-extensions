@@ -166,9 +166,12 @@ prodockit template-sync --apply
 ```
 
 The command makes a separate `template-update-...` branch, applies the changes,
-saves them as one commit, and sends the branch to GitHub or GitLab. On GitLab it
-also creates the merge request. It prints a link to the review page, and no Git
-commands are needed.
+aligns every build input managed by `prodockit pins` with the incoming template,
+saves everything as one commit, and sends the branch to GitHub or GitLab. This
+offline, non-interactive alignment applies the template's tested versions while
+preserving each declaration's operator. It does not contact PyPI or prompt for
+newer versions. On GitLab it also creates the merge request. It prints a link to
+the review page, and no Git commands are needed.
 
 ////
 

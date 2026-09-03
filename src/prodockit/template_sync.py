@@ -294,30 +294,31 @@ def template_revision(project_root: pathlib.Path) -> str | None:
 def dependency_updates(
     template_root: pathlib.Path,
     project_root: pathlib.Path,
-    packages: tuple[str, ...] = ("prodockit", "zensical"),
+    packages: tuple[str, ...] | None = None,
 ) -> list[DependencyUpdate]:
-    """Plan consistent project declarations from the incoming template.
+    """Plan consistent managed build inputs from the incoming template.
 
     Only versions are borrowed; every declaration keeps its existing
-    operator and extras.  A project already ahead of the template is never
-    downgraded.  If an older template itself contains several declarations,
-    its highest one is the safe floor; the destination is made consistent
-    rather than inheriting that historical drift.
+    operator and extras. The template is authoritative even when a project
+    declaration is newer: its complete pin set is the baseline tested
+    together. If an older template itself contains several declarations,
+    its highest one is the safe target; the destination is made consistent
+    rather than inheriting that historical drift. By default this uses the
+    same complete build-input inventory as ``prodockit pins`` so a template
+    update cannot leave Python, Pandoc or a rendering dependency out of step.
     """
-    from prodockit.pins import discover, version_key
+    from prodockit.pins import DEFAULT_PACKAGES, discover
 
-    template_states = discover(str(template_root), packages)
-    project_states = discover(str(project_root), packages)
+    selected = DEFAULT_PACKAGES if packages is None else packages
+    template_states = discover(str(template_root), selected)
+    project_states = discover(str(project_root), selected)
     planned: list[DependencyUpdate] = []
-    for package in packages:
+    for package in selected:
         template_state = template_states[package]
         project_state = project_states[package]
         if template_state.current is None or not project_state.sites:
             continue
-        candidates = [template_state.current]
-        if project_state.current is not None:
-            candidates.append(project_state.current)
-        target = max(candidates, key=version_key)
+        target = template_state.current
         changed_paths = tuple(
             dict.fromkeys(site.path for site in project_state.sites if site.version != target)
         )

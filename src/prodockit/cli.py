@@ -3314,6 +3314,10 @@ def _run_template_sync(
             project_config = read_config(config_path.read_text(encoding="utf-8"))
             added, updated = config_changes(manifest, template_config, project_config)
 
+        # Treat the incoming template as the reviewed source for every build
+        # input managed by `pdk pins`, not only Prodockit and Zensical. The
+        # resulting deterministic, offline alignment is applied below before
+        # the branch is committed and sent for review (#705).
         dependency_plan = dependency_updates(template, project)
         required_prodockit = package_requirement.version if package_requirement else None
         planned_prodockit = next(
@@ -3559,7 +3563,7 @@ def _run_template_sync(
         if dependency_files:
             also_written.extend(dependency_files)
             say(
-                "Build dependencies: aligned Prodockit and Zensical in "
+                "Build dependencies: aligned managed pins in "
                 f"{len(dependency_files)} file(s)"
             )
 

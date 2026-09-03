@@ -145,39 +145,66 @@ def test_dependency_updates_align_every_project_declaration(tmp_path: pathlib.Pa
         (root / ".github" / "workflows").mkdir(parents=True)
 
     (template / "requirements.txt").write_text(
-        "prodockit>=0.51.0\nzensical>=0.0.57\n", encoding="utf-8"
+        "prodockit>=0.51.0\n"
+        "zensical>=0.0.57\n"
+        "weasyprint>=69.0\n"
+        "pymdown-extensions>=11.0.2\n",
+        encoding="utf-8",
     )
     (template / ".github" / "workflows" / "docs.yml").write_text(
-        "run: pip install prodockit==0.51.0 zensical==0.0.57\n", encoding="utf-8"
+        "env:\n"
+        "  PANDOC_VERSION: 3.10.1\n"
+        "run: pip install prodockit==0.51.0 zensical==0.0.57 weasyprint==69.0\n",
+        encoding="utf-8",
     )
+    (template / ".python-version").write_text("3.14\n", encoding="utf-8")
     (project / "requirements.txt").write_text(
-        "prodockit[index]>=0.39.0\nzensical>=0.0.53\n", encoding="utf-8"
+        "prodockit[index]>=0.39.0\n"
+        "zensical>=0.0.53\n"
+        "weasyprint>=68.0\n"
+        "pymdown-extensions>=10.16.1\n",
+        encoding="utf-8",
     )
     (project / "testrequirements.txt").write_text("prodockit[testing]>=0.39.0\n", encoding="utf-8")
     (project / ".github" / "workflows" / "docs.yml").write_text(
-        "run: pip install prodockit==0.39.0 zensical==0.0.53\n", encoding="utf-8"
+        "env:\n"
+        "  PANDOC_VERSION: 3.9.0\n"
+        "run: pip install prodockit==0.39.0 zensical==0.0.53 weasyprint==68.0\n",
+        encoding="utf-8",
     )
+    (project / ".python-version").write_text("3.13\n", encoding="utf-8")
 
     updates = dependency_updates(template, project)
 
     assert [(item.package, item.version) for item in updates] == [
-        ("prodockit", "0.51.0"),
         ("zensical", "0.0.57"),
+        ("weasyprint", "69.0"),
+        ("prodockit", "0.51.0"),
+        ("pymdown-extensions", "11.0.2"),
+        ("pandoc", "3.10.1"),
+        ("python", "3.14"),
     ]
     changed = apply_dependency_updates(project, updates)
     assert set(changed) == {
         "requirements.txt",
         "testrequirements.txt",
         ".github/workflows/docs.yml",
+        ".python-version",
     }
     assert "prodockit[index]>=0.51.0" in (project / "requirements.txt").read_text()
     assert "prodockit[testing]>=0.51.0" in (project / "testrequirements.txt").read_text()
     workflow = (project / ".github" / "workflows" / "docs.yml").read_text()
     assert "prodockit==0.51.0" in workflow
     assert "zensical==0.0.57" in workflow
+    assert "weasyprint==69.0" in workflow
+    assert "PANDOC_VERSION: 3.10.1" in workflow
+    assert (project / ".python-version").read_text() == "3.14\n"
+    assert "pymdown-extensions>=11.0.2" in (project / "requirements.txt").read_text()
 
 
-def test_dependency_updates_never_downgrade_a_project(tmp_path: pathlib.Path) -> None:
+def test_dependency_updates_apply_the_template_even_when_a_project_is_ahead(
+    tmp_path: pathlib.Path,
+) -> None:
     template = tmp_path / "template"
     project = tmp_path / "project"
     template.mkdir()
@@ -185,7 +212,11 @@ def test_dependency_updates_never_downgrade_a_project(tmp_path: pathlib.Path) ->
     (template / "requirements.txt").write_text("prodockit>=0.51.0\n", encoding="utf-8")
     (project / "requirements.txt").write_text("prodockit>=0.52.0\n", encoding="utf-8")
 
-    assert dependency_updates(template, project) == []
+    updates = dependency_updates(template, project)
+
+    assert [(item.package, item.version) for item in updates] == [("prodockit", "0.51.0")]
+    apply_dependency_updates(project, updates)
+    assert (project / "requirements.txt").read_text() == "prodockit>=0.51.0\n"
 
 
 def test_dependency_updates_take_highest_version_from_an_old_inconsistent_template(
