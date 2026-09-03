@@ -102,11 +102,23 @@ def main(arguments: list[str] | None = None) -> int:
         venv.EnvBuilder(with_pip=True).create(environment)
         python = environment_python(environment)
         run([str(python), "-m", "pip", "install", str(wheel)], cwd=root)
+        prefix_result = run(
+            [str(python), "-c", "import sys; print(sys.prefix)"],
+            cwd=root,
+        )
+        running_environment = Path(prefix_result.stdout.strip())
+        if not running_environment.is_absolute():
+            raise AcceptanceError(
+                f"wheel interpreter reported a non-absolute prefix: {running_environment}"
+            )
 
         child_environment = dict(os.environ)
-        child_environment["VIRTUAL_ENV"] = str(environment.resolve())
+        child_environment["VIRTUAL_ENV"] = str(running_environment)
         child_environment["PATH"] = os.pathsep.join(
-            (str(environment_scripts(environment).resolve()), child_environment.get("PATH", ""))
+            (
+                str(environment_scripts(running_environment)),
+                child_environment.get("PATH", ""),
+            )
         )
         child_environment["PUPPETEER_SKIP_DOWNLOAD"] = "true"
         driver = Path(__file__).with_name("_diagnostics_repair_acceptance_driver.py").resolve()
