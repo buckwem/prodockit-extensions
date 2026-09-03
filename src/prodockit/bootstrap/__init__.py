@@ -175,8 +175,32 @@ def _temporary_network_failure(outcome: CommandResult) -> bool:
             "tls handshake timeout",
             "unexpected eof",
             "remote end closed connection",
+            "transfer closed with",
         )
     )
+
+
+def _temporary_windows_installer_failure(
+    command: list[str], outcome: CommandResult
+) -> bool:
+    """Whether Winget reports the intermittent MSI 1603 failure.
+
+    Windows Installer can briefly reject a new MSI after an earlier package
+    operation has completed.  Winget then reports installer exit 1603 even
+    though the package download and signature check succeeded.  Repeating an
+    exact Winget install, upgrade or repair is idempotent; other commands and
+    other installer failures remain non-retryable.
+    """
+
+    if not command:
+        return False
+    executable = Path(command[0]).name.lower().removesuffix(".exe")
+    if executable != "winget" or len(command) < 2:
+        return False
+    if command[1].lower() not in {"install", "upgrade", "repair"}:
+        return False
+    output = f"{outcome.stdout}\n{outcome.stderr}".lower()
+    return "installer failed with exit code: 1603" in output
 
 
 def _safe_to_retry(command: list[str]) -> bool:
@@ -202,7 +226,16 @@ def _safe_to_retry(command: list[str]) -> bool:
     if executable in {"bash", "powershell"}:
         rendered = " ".join(command).lower()
         return any(
-            marker in rendered for marker in ("curl ", "invoke-webrequest", "npm ci", "pacman -s")
+            marker in rendered
+            for marker in (
+                "curl ",
+                "invoke-webrequest",
+                "npm ci",
+                "pacman -s",
+                "brew install",
+                "brew upgrade",
+                "brew reinstall",
+            )
         )
     return False
 
@@ -360,7 +393,9 @@ def apply_stage(
             progress("start", command_number, command_count, list(command))
         try:
             outcome = CommandResult(1)
-            for delay in (0, 2, 5):
+            retry_delay = 0
+            for attempt in range(3):
+                delay = retry_delay
                 if delay:
                     time.sleep(delay)
                 outcome = context.runner.run(
@@ -383,11 +418,15 @@ def apply_stage(
                     # genuinely needs the terminal must still own it.
                     capture=(context.guided and progress is not None and not plan.needs_terminal),
                 )
-                if (
-                    not context.guided
-                    or not _safe_to_retry(command)
-                    or not _temporary_network_failure(outcome)
-                ):
+                if not context.guided or not _safe_to_retry(command):
+                    break
+                if _temporary_network_failure(outcome):
+                    retry_delay = (2, 5)[attempt] if attempt < 2 else 0
+                elif _temporary_windows_installer_failure(command, outcome):
+                    retry_delay = (10, 30)[attempt] if attempt < 2 else 0
+                else:
+                    break
+                if attempt == 2:
                     break
         except BaseException:
             # In particular, stop prodockit bootstrap's background spinner when the user

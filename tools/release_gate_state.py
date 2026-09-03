@@ -274,15 +274,26 @@ class ProviderGateResult:
 
         parsed_url = urlparse(self.workflow_url)
         if self.provider == "github":
-            expected_path = f"/{RELEASE_REPOSITORY}/actions/runs/{self.workflow_run_id}"
-            expected_host = "github.com"
+            allowed_workflow_locations = {
+                (
+                    "github.com",
+                    f"/{RELEASE_REPOSITORY}/actions/runs/{self.workflow_run_id}",
+                )
+            }
         else:
-            expected_path = f"/{SURREY_WORKFLOW_PROJECT}/-/pipelines/{self.workflow_run_id}"
-            expected_host = "gitlab.surrey.ac.uk"
+            allowed_workflow_locations = {
+                (
+                    "gitlab.surrey.ac.uk",
+                    f"/{SURREY_WORKFLOW_PROJECT}/-/pipelines/{self.workflow_run_id}",
+                ),
+                (
+                    "github.com",
+                    f"/{RELEASE_REPOSITORY}/actions/runs/{self.workflow_run_id}",
+                ),
+            }
         if (
             parsed_url.scheme != "https"
-            or parsed_url.hostname != expected_host
-            or parsed_url.path != expected_path
+            or (parsed_url.hostname, parsed_url.path) not in allowed_workflow_locations
             or parsed_url.params
             or parsed_url.query
             or parsed_url.fragment

@@ -129,6 +129,19 @@ def test_provider_result_accepts_only_the_two_exact_clean_paths(tmp_path: Path) 
     assert result.destination_deploy_key_enabled is False
 
 
+def test_surrey_provider_result_accepts_exact_github_actions_orchestration(
+    tmp_path: Path,
+) -> None:
+    result = read_result(
+        tmp_path,
+        "surrey",
+        workflow_url=f"https://github.com/{state.RELEASE_REPOSITORY}/actions/runs/43",
+    )
+
+    assert result.provider == "surrey"
+    assert result.workflow_run_id == 43
+
+
 def test_provider_result_rejects_unknown_fields_and_stale_runs(tmp_path: Path) -> None:
     unknown = result_document("github")
     unknown["secret"] = "not allowed"
@@ -324,6 +337,66 @@ def test_surrey_shadow_pipeline_keeps_three_credential_boundaries() -> None:
     assert '--release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT"' in reset
     assert '--release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT"' in candidate
     assert '--release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT"' in seal
+
+
+def test_surrey_github_workflow_keeps_three_credential_boundaries() -> None:
+    workflow = (
+        ROOT / ".github" / "workflows" / "bootstrap-live-provider-surrey.yml"
+    ).read_text(encoding="utf-8")
+    reset = workflow[workflow.index("  reset:") : workflow.index("  candidate:")]
+    candidate = workflow[workflow.index("  candidate:") : workflow.index("  seal:")]
+    seal = workflow[workflow.index("  seal:") :]
+
+    assert "  workflow_dispatch:" in workflow
+    for forbidden in ("  pull_request:", "  push:", "  schedule:", "  release:"):
+        assert forbidden not in workflow
+    assert "cancel-in-progress: false" in workflow
+    assert "environment: bootstrap-live-surrey-reset" in reset
+    assert "environment: bootstrap-live-surrey-candidate" in candidate
+    assert "environment: bootstrap-live-surrey-seal" in seal
+    assert "PRODOCKIT_LIVE_SURREY_GROUP_TOKEN" in reset
+    assert "PRODOCKIT_LIVE_SURREY_GROUP_TOKEN" in seal
+    assert "PRODOCKIT_LIVE_SURREY_GROUP_TOKEN" not in candidate
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" in candidate
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" not in reset
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" not in seal
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PUBLIC_KEY" in reset
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PUBLIC_KEY" not in candidate
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PUBLIC_KEY" not in seal
+    assert "if: always() && needs.reset.result != 'skipped'" in seal
+    assert "continue-on-error: true" in seal
+    assert "bootstrap_live_provider_lifecycle.py revoke" in seal
+    assert "surrey-retained-state-${{ github.run_id }}" in seal
+    assert "surrey_retained_state.py validate" in reset
+    assert "assessment-liveprovider-2026/report-liveprovider-2026-mb0105" in reset
+    assert "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git" in candidate
+
+
+def test_surrey_recovery_workflow_can_only_revoke_exact_failed_run() -> None:
+    workflow = (
+        ROOT / ".github" / "workflows" / "bootstrap-live-provider-surrey-recovery.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "  workflow_dispatch:" in workflow
+    for forbidden in ("  pull_request:", "  push:", "  schedule:", "  release:"):
+        assert forbidden not in workflow
+    assert "environment: bootstrap-live-surrey-seal" in workflow
+    assert "PRODOCKIT_LIVE_SURREY_GROUP_TOKEN" in workflow
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" not in workflow
+    assert "validate-recovery-run" in workflow
+    assert "bootstrap_live_provider_lifecycle.py revoke" in workflow
+    assert "delete" not in workflow.casefold()
+
+
+def test_surrey_connectivity_probe_has_no_provider_credentials() -> None:
+    workflow = (
+        ROOT / ".github" / "workflows" / "bootstrap-live-provider-surrey-connectivity.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "  workflow_dispatch:" in workflow
+    assert "secrets." not in workflow
+    assert "gitlab.surrey.ac.uk/api/v4/version" in workflow
+    assert "SHA256:qNFkRSExCwCwfRE0H7qQHOo34h0OVr59NjgEjnjoz/o" in workflow
 
 
 def test_github_shadow_does_not_authorise_current_publication() -> None:

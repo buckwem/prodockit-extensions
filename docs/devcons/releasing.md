@@ -49,6 +49,9 @@ schedule. The other boxes are actions or workflow stages that follow.
 | [`adopt-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/adopt-install.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on Ubuntu and Windows x64, plus Ubuntu, Windows and macOS ARM64. Both Windows architectures run one complete TOML scenario with Mermaid and maths; Ubuntu and macOS retain the wider TOML/YAML option coverage. Canonical npm lockfiles and the hosted cache avoid resolving and downloading the same Node packages afresh on every run. |
 | [`bootstrap-install.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-install.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on the same five native runners, then exercise the new- and existing-repository routes for Surrey GitLab and public GitHub against hermetic local Git remotes. A version-changing release pull request also removes the runner's existing tools and executes Bootstrap's real VS Code, Git, Pandoc/Pango/font, Python-environment, Node/toolchain and editor-extension installs on all five runners. |
 | [`bootstrap-live-provider-github.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-live-provider-github.yml) | Protected manual dispatch for one exact `main` commit | Run the shadow GitHub live-provider gate in three fresh jobs: a user-authorised reset, the two Bootstrap paths with only the destination deploy key, and an independently authenticated seal that removes the test repository before accepting the result. The shadow result does not yet authorise publication. |
+| [`bootstrap-live-provider-surrey-connectivity.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-live-provider-surrey-connectivity.yml) | Manual dispatch without secrets | Prove that GitHub-hosted Ubuntu and macOS runners can reach the Surrey API and SSH service and observe the independently reviewed SSH fingerprint before any Surrey credential is stored in GitHub. |
+| [`bootstrap-live-provider-surrey.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-live-provider-surrey.yml) | Protected manual dispatch for one exact `main` commit | Run the Surrey GitLab live-provider gate from three fresh GitHub-hosted jobs. Reset and seal receive the isolated-group token; the candidate receives only the fixed repository key. A successful seal retains closed state for the next exact reset. |
+| [`bootstrap-live-provider-surrey-recovery.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/bootstrap-live-provider-surrey-recovery.yml) | Protected manual dispatch after an interrupted Surrey run | Validate the exact unsuccessful workflow, use its reset handoff when available, then remove the fixed reviewed destination deploy key. It cannot delete the project or produce release evidence. |
 | [`.gitlab-ci.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.gitlab-ci.yml) | Protected manual pipeline in the fixed Surrey mirror for one exact public GitHub `main` commit | Hold one non-cancelling lifecycle lock while a child pipeline runs three credential-separated jobs: a group-token reset, both Bootstrap paths with only the Surrey deploy key, and a fresh group-token seal. The pipeline fetches the exact public source rather than assuming that the mirror is current. Its shadow result does not yet authorise publication. |
 | [`release-gate.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/release-gate.yml) | Protected manual dispatch after both live-provider runs | Resolve the immutable GitHub run and Surrey child pipeline through their APIs, require the five ordinary release workflows and any active protected-main status checks, rebuild the wheel, compare canonical contents and retain public-safe combined evidence. This remains a shadow and cannot publish. |
 | [`pdf-built-site-wheel.yml`](https://github.com/buckwem/prodockit-extensions/blob/main/.github/workflows/pdf-built-site-wheel.yml) | Relevant pull requests and pushes to `main`; weekly schedule; manual dispatch | Build and install the wheel on the same x64 and ARM64 operating-system matrix, exercise the renderer used by public `prodockit pdf` through Zensical's documented clean build, and verify it can consume navigation, rendered extensions and page metadata without a Git host |
@@ -169,6 +172,52 @@ retains combined public-safe evidence. Until the dual-provider shadow
 acceptance criteria have passed, these workflows supply evidence only:
 `publish.yml` remains unchanged and cannot treat a provider or coordinator
 result as release approval.
+
+The Phase 5 migration also makes the Surrey test available as a protected
+GitHub Actions workflow. Run **Bootstrap live provider — Surrey connectivity**
+before configuring credentials. It performs only DNS, TLS, port and public
+host-key observations. A failed probe means the hosted-runner design is not
+usable on the current Surrey network; do not weaken SSH verification or expose
+the service more widely to make the test pass.
+
+Create the GitHub Environments listed in
+\ref{tab-devcons-releasing-surrey-github-environments}, restrict each to
+protected `main`, and store the named values as environment secrets.
+
+| Environment | Secrets |
+|---|---|
+| `bootstrap-live-surrey-reset` | `PRODOCKIT_LIVE_SURREY_GROUP_TOKEN`, `PRODOCKIT_LIVE_SURREY_FIXTURE_JSON`, `PRODOCKIT_LIVE_SURREY_DEPLOY_PUBLIC_KEY` |
+| `bootstrap-live-surrey-candidate` | `PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY`, `PRODOCKIT_LIVE_SURREY_KNOWN_HOSTS` |
+| `bootstrap-live-surrey-seal` | `PRODOCKIT_LIVE_SURREY_GROUP_TOKEN`, `PRODOCKIT_LIVE_SURREY_FIXTURE_JSON` |
+/// table-caption | <
+    attrs: {id: tab-devcons-releasing-surrey-github-environments}
+
+Separate the Surrey GitHub workflow credentials
+///
+
+The reset environment is the one human approval boundary. Do not require a
+second approval for candidate or seal: a waiting seal could leave repository
+write access active. The group token must be restricted to the otherwise empty
+`assessment-liveprovider-2026` test group. The candidate key must be dedicated
+to this fixture and usable non-interactively on a disposable runner; never use
+a personal SSH key or export a 1Password-managed identity. Enter the group
+token separately in reset and seal so the candidate environment cannot resolve
+it. Disable administrator bypass where the repository settings permit it.
+
+Normally dispatch **Bootstrap live provider — Surrey GitLab** with only the
+full commit currently at protected GitHub `main`. It discovers the newest
+valid sealed state from earlier runs. The optional prior-run field is for an
+authorised recovery from artifact-discovery failure and still accepts only a
+successful earlier run of this exact workflow. If a run is cancelled after
+reset, dispatch **Bootstrap live provider — Surrey recovery seal** with that
+failed run ID and its release commit. Recovery only revokes the exact key; it
+does not make the failed run releasable.
+
+Keep the GitLab pipeline as the inactive rollback route until the GitHub-hosted
+workflow has passed absent-project, repeated retained-project, candidate
+failure, stale-commit and cancellation-recovery exercises. Never run both
+Surrey lifecycle controllers at the same time because their concurrency locks
+belong to different providers.
 
 This is the deliberate balance between time and maintenance complexity. The
 native matrices remain complete once selected rather than introducing a

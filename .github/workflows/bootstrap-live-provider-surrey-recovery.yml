@@ -1,0 +1,95 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+
+name: Bootstrap live provider — Surrey recovery seal
+run-name: Revoke Surrey access left by run ${{ inputs.failed_run_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      failed_run_id:
+        description: Cancelled, failed or timed-out Surrey workflow run ID
+        required: true
+        type: string
+      release_commit:
+        description: Full commit used by that failed run
+        required: true
+        type: string
+
+concurrency:
+  group: bootstrap-live-surrey
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  revoke:
+    name: Revoke the exact interrupted Surrey key
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: bootstrap-live-surrey-seal
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - name: Validate the exact unsuccessful Surrey run
+        shell: bash
+        run: |
+          [[ "$FAILED_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$FAILED_RUN_ID" \
+            > "$RUNNER_TEMP/failed-run.json"
+          python tools/surrey_retained_state.py validate-recovery-run \
+            --document "$RUNNER_TEMP/failed-run.json" \
+            --run-id "$FAILED_RUN_ID" \
+            --release-commit "$RELEASE_COMMIT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILED_RUN_ID: ${{ inputs.failed_run_id }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+      - name: Download only that run's reset handoff
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: surrey-reset-${{ inputs.failed_run_id }}
+          path: ${{ runner.temp }}/reset-evidence
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.failed_run_id }}
+      - name: Revoke access without trusting or deleting candidate state
+        shell: bash
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/recovery"
+          printf '%s\n' "$LIVE_FIXTURE" > "$RUNNER_TEMP/recovery/fixture.json"
+          chmod 600 "$RUNNER_TEMP/recovery/fixture.json"
+          args=()
+          if test -f "$RUNNER_TEMP/reset-evidence/reset-handoff.json"; then
+            args+=(--handoff "$RUNNER_TEMP/reset-evidence/reset-handoff.json")
+          fi
+          printf '%s' "$LIFECYCLE_TOKEN" | env -i \
+            HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" \
+            python tools/bootstrap_live_provider_lifecycle.py revoke \
+              --token-fd 0 \
+              --fixture "$RUNNER_TEMP/recovery/fixture.json" \
+              --audit-report "$RUNNER_TEMP/recovery/recovery-audit.json" \
+              --release-commit "$RELEASE_COMMIT" \
+              "${args[@]}"
+        env:
+          LIFECYCLE_TOKEN: ${{ secrets.PRODOCKIT_LIVE_SURREY_GROUP_TOKEN }}
+          LIVE_FIXTURE: ${{ secrets.PRODOCKIT_LIVE_SURREY_FIXTURE_JSON }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+      - name: Retain only the sanitised recovery audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: surrey-recovery-${{ inputs.failed_run_id }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/recovery/recovery-audit.json
+          if-no-files-found: error
+          retention-days: 30
