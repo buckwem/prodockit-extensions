@@ -372,6 +372,35 @@ def test_surrey_github_workflow_keeps_three_credential_boundaries() -> None:
     assert "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git" in candidate
 
 
+def test_surrey_github_workflow_has_a_fail_closed_candidate_exercise() -> None:
+    workflow = (
+        ROOT / ".github" / "workflows" / "bootstrap-live-provider-surrey.yml"
+    ).read_text(encoding="utf-8")
+    reset = workflow[workflow.index("  reset:") : workflow.index("  candidate:")]
+    candidate = workflow[workflow.index("  candidate:") : workflow.index("  seal:")]
+    seal = workflow[workflow.index("  seal:") :]
+
+    assert "exercise_candidate_failure:" in workflow
+    assert "default: false" in workflow
+    assert "controlled candidate failure' || ''" in workflow
+    assert "if: inputs.exercise_candidate_failure" in candidate
+    failure = candidate[
+        candidate.index("Exercise candidate failure before receiving repository credentials") :
+        candidate.index("Build an independent candidate wheel")
+    ]
+    assert '"controlled failure exercise before repository access"' in failure
+    assert "exit 1" in failure
+    assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" not in failure
+    assert candidate.index("Exercise candidate failure") < candidate.index(
+        "LIVE_DEPLOY_PRIVATE_KEY:"
+    )
+    assert "Retain only the sanitised candidate report\n        if: always()" in candidate
+    assert "exercise_candidate_failure" not in reset
+    assert "needs.candidate.result == 'failure'" in seal
+    assert "bootstrap_live_provider_lifecycle.py verify-and-seal" in seal
+    assert "bootstrap_live_provider_lifecycle.py revoke" in seal
+
+
 def test_surrey_recovery_workflow_can_only_revoke_exact_failed_run() -> None:
     workflow = (
         ROOT / ".github" / "workflows" / "bootstrap-live-provider-surrey-recovery.yml"

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 name: Bootstrap live provider — Surrey GitLab
-run-name: Surrey GitLab Bootstrap live gate for ${{ inputs.release_commit }}
+run-name: Surrey GitLab Bootstrap live gate for ${{ inputs.release_commit }}${{ inputs.exercise_candidate_failure && ' — controlled candidate failure' || '' }}
 
 on:
   workflow_dispatch:
@@ -12,9 +12,14 @@ on:
         required: true
         type: string
       previous_surrey_run_id:
-        description: Exceptional prior retained-state run override; normally leave empty
+        description: Optional numeric recovery run ID; otherwise leave this field completely blank
         required: false
         type: string
+      exercise_candidate_failure:
+        description: Controlled test only — fail after reset and prove sealing revokes access
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: bootstrap-live-surrey
@@ -191,6 +196,13 @@ jobs:
           install -m 700 -d "$RUNNER_TEMP/candidate"
           printf '{"candidate":"did not reach the controlled runner"}\n' > "$RUNNER_TEMP/candidate/report.json"
           chmod 600 "$RUNNER_TEMP/candidate/report.json"
+      - name: Exercise candidate failure before receiving repository credentials
+        if: inputs.exercise_candidate_failure
+        shell: bash
+        run: |
+          printf '{"candidate":"controlled failure exercise before repository access"}\n' > "$RUNNER_TEMP/candidate/report.json"
+          echo "Controlled candidate-failure exercise: reset completed; candidate repository access was not attempted." >&2
+          exit 1
       - name: Build an independent candidate wheel
         id: wheel
         shell: bash
@@ -282,7 +294,7 @@ jobs:
           name: surrey-reset-${{ github.run_id }}
           path: ${{ runner.temp }}/reset-evidence
       - name: Download candidate evidence when the candidate completed
-        if: needs.candidate.result == 'success'
+        if: needs.candidate.result == 'success' || needs.candidate.result == 'failure'
         uses: actions/download-artifact@v4
         with:
           name: surrey-candidate-${{ github.run_id }}
