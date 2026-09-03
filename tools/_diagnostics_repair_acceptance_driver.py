@@ -34,6 +34,7 @@ REPAIRABLE_CHECKS = frozenset(
         "renderer.mathjax",
     }
 )
+REPAIRABLE_CHECK_IDS = tuple(sorted(REPAIRABLE_CHECKS))
 EXPECTED_ACTIONS = Counter(
     {
         "installation.metadata": 1,
@@ -220,7 +221,10 @@ def exercise(project: Path) -> dict[str, Any]:
             "fixture did not create every repairable diagnostic failure: " + ", ".join(missing)
         )
 
-    plan = diagnostics.build_repair_dry_run(report_before)
+    plan = diagnostics.build_repair_dry_run(
+        report_before,
+        check_ids=REPAIRABLE_CHECK_IDS,
+    )
     available = Counter(
         candidate.check_id for candidate in plan.candidates if candidate.status == "available"
     )
@@ -238,17 +242,26 @@ def exercise(project: Path) -> dict[str, Any]:
     import prodockit.cli as cli_module
 
     cli_module._is_interactive = lambda: True
+    command = ["diag", "--config-file", str(config), "--online", "--fix", "--json"]
+    for check_id in REPAIRABLE_CHECK_IDS:
+        command.extend(("--fix-check", check_id))
     result = CliRunner().invoke(
         prodockit_cli,
-        ["diag", "--config-file", str(config), "--online", "--fix", "--json"],
+        command,
         input=input_text,
         catch_exceptions=False,
     )
-    if result.exit_code:
+    if result.exit_code not in {0, 1}:
         raise AcceptanceError(
             f"pdk diag --fix exited {result.exit_code}:\n{result.stdout}\n{result.stderr}"
         )
-    payload = json.loads(result.stdout)
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise AcceptanceError(
+            f"pdk diag --fix returned invalid JSON with exit {result.exit_code}:\n"
+            f"{result.stdout}\n{result.stderr}"
+        ) from error
     actions = [action for action in payload["repair"]["actions"] if action["status"] == "applied"]
     applied = Counter(action["check_id"] for action in actions)
     if applied != EXPECTED_ACTIONS:
@@ -270,6 +283,10 @@ def exercise(project: Path) -> dict[str, Any]:
         raise AcceptanceError(
             "repairs did not clear every selected diagnostic: " + ", ".join(failed)
         )
+    if payload["repair"]["status"] != "repaired":
+        raise AcceptanceError(
+            f"targeted repair status was {payload['repair']['status']!r}, not 'repaired'"
+        )
     if stale_metadata.exists():
         raise AcceptanceError("the stale distribution metadata was not quarantined")
     for action in actions:
@@ -279,6 +296,17 @@ def exercise(project: Path) -> dict[str, Any]:
                 f"repair has no recovery manifest: {action['id']} ({manifest!r})"
             )
 
+    non_target_failures = sorted(
+        check_id
+        for check_id, check in after.items()
+        if check_id not in REPAIRABLE_CHECKS and check["status"] == "fail"
+    )
+    if result.exit_code != (1 if non_target_failures else 0):
+        raise AcceptanceError(
+            "diagnostic exit code did not match the remaining non-target failures: "
+            f"exit={result.exit_code}, failures={non_target_failures}"
+        )
+
     return {
         "passed": True,
         "prodockit_version": prodockit.__version__,
@@ -286,6 +314,8 @@ def exercise(project: Path) -> dict[str, Any]:
         "repairable_checks": sorted(REPAIRABLE_CHECKS),
         "actions": dict(applied),
         "confirmations": expected_confirmations,
+        "command_exit_code": result.exit_code,
+        "non_target_failures": non_target_failures,
         "after_status": payload["after"]["status"],
         "after_counts": payload["after"]["summary"],
         "duration_seconds": round(time.perf_counter() - started, 3),
