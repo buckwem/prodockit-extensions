@@ -38,8 +38,6 @@ from bootstrap_live_provider_read_write import (
     validate_controller_checkout,
     validate_destination_refs,
 )
-from canonical_wheel import WheelIdentityError
-from canonical_wheel import inspect_wheel as inspect_canonical_wheel
 from live_provider_state import (
     SURREY_PATH,
     LifecycleFixture,
@@ -93,6 +91,19 @@ PHASE_TWO_REPORT_KEYS = {
     "started_at_utc",
     "wheel_sha256",
 }
+
+
+def inspect_canonical_wheel(path: Path) -> Any:
+    """Inspect a reset wheel without burdening the safety-only entry points."""
+
+    from canonical_wheel import WheelIdentityError, inspect_wheel
+
+    try:
+        return inspect_wheel(path)
+    except WheelIdentityError as error:
+        raise LifecycleError(str(error)) from error
+
+
 PATH_RESULT_KEYS = {
     "name",
     "configured_source",
@@ -907,10 +918,7 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
             "protected reset requires both the canonical wheel digest and release commit"
         )
     if expected_contents is not None:
-        try:
-            canonical_identity = inspect_canonical_wheel(args.wheel)
-        except WheelIdentityError as error:
-            raise LifecycleError(str(error)) from error
+        canonical_identity = inspect_canonical_wheel(args.wheel)
         if canonical_identity.wheel_contents_sha256 != expected_contents:
             raise LifecycleError("candidate wheel contents differ from the approved value")
     controller_commit = validate_controller_checkout(

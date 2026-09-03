@@ -53,8 +53,6 @@ from bootstrap_live_provider_read_only import (
     utc_now,
     validate_known_hosts,
 )
-from canonical_wheel import WheelIdentityError
-from canonical_wheel import inspect_wheel as inspect_canonical_wheel
 from live_provider_state import ResetHandoff, StateError
 
 SURREY_HOSTNAME = "gitlab.surrey.ac.uk"
@@ -606,7 +604,12 @@ def validate_controller_checkout(
             raise LiveProviderError("the release commit must be one complete Git object ID")
         if values["branch"] not in {"", "main"}:
             raise LiveProviderError("the release controller is on an unexpected branch")
-        if values["origin"] != RELEASE_SOURCE:
+        # GitHub Actions checkout records the same HTTPS repository without
+        # the optional ``.git`` suffix.  Keep the allowlist exact apart from
+        # that Git-equivalent spelling.
+        if values["origin"].removesuffix(".git") != RELEASE_SOURCE.removesuffix(
+            ".git"
+        ):
             raise LiveProviderError("the release controller did not come from the public source")
         if values["head"] != expected_release_commit:
             raise LiveProviderError(
@@ -1427,6 +1430,12 @@ def controller(args: argparse.Namespace) -> None:
         except StateError as error:
             raise LiveProviderError(str(error)) from error
         if handoff.wheel_contents_sha256 is not None:
+            # Keep canonical-wheel's third-party ``packaging`` dependency out
+            # of the import path used by the emergency revocation controller.
+            # Candidate validation is the only path that needs it.
+            from canonical_wheel import WheelIdentityError
+            from canonical_wheel import inspect_wheel as inspect_canonical_wheel
+
             try:
                 canonical_identity = inspect_canonical_wheel(args.wheel)
             except WheelIdentityError as error:

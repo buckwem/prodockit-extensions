@@ -67,6 +67,41 @@ def write_executable(path: Path, body: str) -> Path:
     return path
 
 
+def test_revocation_import_does_not_require_wheel_dependencies(tmp_path: Path) -> None:
+    """The fresh safety controller must start without third-party wheel tooling."""
+
+    (tmp_path / "sitecustomize.py").write_text(
+        """\
+import builtins
+
+original_import = builtins.__import__
+
+def guarded_import(name, *args, **kwargs):
+    if name == "packaging" or name.startswith("packaging."):
+        raise ModuleNotFoundError("packaging deliberately unavailable")
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+""",
+        encoding="utf-8",
+    )
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(tmp_path)
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "bootstrap_live_provider_lifecycle.py"),
+            "--help",
+        ],
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_surrey_fixture_is_the_exact_configured_destination(tmp_path: Path) -> None:
     fixture = live.Fixture.read(write_fixture(tmp_path / "fixture.json"))
 
@@ -671,7 +706,12 @@ def test_controller_checkout_must_be_clean_main_at_origin_main(tmp_path: Path) -
         )
 
 
-def test_release_controller_accepts_exact_detached_public_commit(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "origin", [live.RELEASE_SOURCE, live.RELEASE_SOURCE.removesuffix(".git")]
+)
+def test_release_controller_accepts_exact_detached_public_commit(
+    tmp_path: Path, origin: str
+) -> None:
     remote = tmp_path / "controller.git"
     source = tmp_path / "source"
     checkout = tmp_path / "controller"
@@ -687,7 +727,7 @@ def test_release_controller_accepts_exact_detached_public_commit(tmp_path: Path)
     head = git("rev-parse", "HEAD", cwd=source)
     git("clone", str(remote), str(checkout), cwd=tmp_path)
     git("checkout", "--detach", head, cwd=checkout)
-    git("remote", "set-url", "origin", live.RELEASE_SOURCE, cwd=checkout)
+    git("remote", "set-url", "origin", origin, cwd=checkout)
 
     assert (
         live.validate_controller_checkout(
