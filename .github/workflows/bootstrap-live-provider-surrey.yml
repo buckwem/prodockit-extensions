@@ -21,7 +21,7 @@ on:
         default: false
         type: boolean
       exercise_stale_main:
-        description: Controlled test only — wait after reset for main to advance, then prove sealing rejects stale evidence
+        description: Controlled test only — project must be absent; wait after reset for main to advance, then reject stale evidence
         required: false
         default: false
         type: boolean
@@ -61,6 +61,7 @@ jobs:
         env:
           RELEASE_COMMIT: ${{ inputs.release_commit }}
       - name: List exact prior Surrey workflow runs
+        if: ${{ !inputs.exercise_stale_main }}
         id: prior-runs
         shell: bash
         run: |
@@ -87,6 +88,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PREVIOUS_RUN_ID: ${{ inputs.previous_surrey_run_id }}
       - name: Select the newest valid retained-state artifact
+        if: ${{ !inputs.exercise_stale_main }}
         id: previous
         shell: bash
         run: |
@@ -136,6 +138,12 @@ jobs:
           python -c 'import json, os; value=json.load(open(os.environ["IDENTITY"], encoding="utf-8")); output=open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8"); print("raw=" + value["wheel_sha256"], file=output); print("contents=" + value["wheel_contents_sha256"], file=output)'
         env:
           IDENTITY: ${{ runner.temp }}/reset-wheel.json
+      - name: Confirm the controlled stale-main reset starts from an absent fixture
+        if: inputs.exercise_stale_main
+        shell: bash
+        run: |
+          echo "The controlled stale-main exercise deliberately ignores historical retained state."
+          echo "The reset controller will continue only if the fixed Surrey project is absent."
       - name: Reset only the fixed Surrey project
         shell: bash
         run: |
