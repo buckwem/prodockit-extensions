@@ -25,7 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -113,6 +113,29 @@ def _winget_remove(identifier: str) -> None:
             "--accept-source-agreements",
         ]
     )
+
+
+def _remove_windows_registered_node(
+    run: Callable[..., subprocess.CompletedProcess[str]],
+) -> None:
+    """Remove runner-image Node registrations that WinGet cannot see."""
+    script = (
+        "$roots = @("  # machine x64, machine x86, and current user
+        "'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',"
+        "'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',"
+        "'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'); "
+        "$entries = Get-ItemProperty -Path $roots -ErrorAction SilentlyContinue | "
+        "Where-Object { $_.DisplayName -like 'Node.js*' }; "
+        "foreach ($entry in $entries) { "
+        "if ($entry.UninstallString -match '\\{[0-9A-Fa-f-]+\\}') { "
+        "$product = $Matches[0]; "
+        "Write-Host \"Removing registered $($entry.DisplayName) $product\"; "
+        "$process = Start-Process msiexec.exe -ArgumentList "
+        "@('/x', $product, '/qn', '/norestart') -Wait -PassThru; "
+        "if ($process.ExitCode -notin @(0, 1605, 1614, 3010)) { "
+        "exit $process.ExitCode } } }; exit 0"
+    )
+    run(["powershell", "-NoProfile", "-Command", script])
 
 
 def _ensure_windows_winget() -> None:
@@ -268,6 +291,10 @@ def cleanup_ephemeral_runner(
             identifiers.remove("MSYS2.MSYS2")
         for identifier in identifiers:
             _winget_remove(identifier)
+        # Hosted images sometimes register Node with Windows Installer but
+        # not WinGet. Leaving that hidden product behind makes the subsequent
+        # clean-install MSI fail with 1603 even after bounded retries.
+        _remove_windows_registered_node(_run)
         # Hosted images can retain the MSYS2 directory and the per-user DLL
         # setting after the package registration is removed. Bootstrap then
         # sees an apparently usable Pango during an intermediate recheck and

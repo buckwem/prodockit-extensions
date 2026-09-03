@@ -38,6 +38,7 @@ try:
         NativeInstallError,
         _ensure_windows_winget,
         _is_arm64,
+        _remove_windows_registered_node,
         _resolve_wheel,
         cleanup_ephemeral_runner,
     )
@@ -49,6 +50,7 @@ except ImportError:  # executed directly by the release workflow
         NativeInstallError,
         _ensure_windows_winget,
         _is_arm64,
+        _remove_windows_registered_node,
         _resolve_wheel,
         cleanup_ephemeral_runner,
     )
@@ -354,36 +356,6 @@ def _windows_old_node_installer(root: Path) -> Path:
     )
 
 
-def _remove_windows_registered_node() -> None:
-    """Remove a runner-image Node MSI that WinGet does not own.
-
-    GitHub's Windows images can contain Node under an Add/Remove Programs
-    registration without a matching WinGet package registration.  WinGet
-    cleanup therefore leaves it behind, and Windows Installer correctly
-    refuses to put the deliberately old Node 18 fixture over a newer product.
-    Read the uninstall registrations and remove only Node's MSI product before
-    seeding the old version.  ``run_native_upgrades`` has already restricted
-    this helper to a disposable GitHub Actions runner.
-    """
-    script = (
-        "$roots = @("  # machine x64, machine x86, and current user
-        "'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',"
-        "'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',"
-        "'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'); "
-        "$entries = Get-ItemProperty -Path $roots -ErrorAction SilentlyContinue | "
-        "Where-Object { $_.DisplayName -like 'Node.js*' }; "
-        "foreach ($entry in $entries) { "
-        "if ($entry.UninstallString -match '\\{[0-9A-Fa-f-]+\\}') { "
-        "$product = $Matches[0]; "
-        "Write-Host \"Removing registered $($entry.DisplayName) $product\"; "
-        "$process = Start-Process msiexec.exe -ArgumentList "
-        "@('/x', $product, '/qn', '/norestart') -Wait -PassThru; "
-        "if ($process.ExitCode -notin @(0, 1605, 1614, 3010)) { "
-        "exit $process.ExitCode } } }; exit 0"
-    )
-    _run(["powershell", "-NoProfile", "-Command", script])
-
-
 def _install_windows_old_software(node_installer: Path) -> None:
     _ensure_windows_winget()
     for identifier, version in (
@@ -392,7 +364,7 @@ def _install_windows_old_software(node_installer: Path) -> None:
         ("JohnMacFarlane.Pandoc", OLD_PANDOC),
     ):
         _winget_old(identifier, version)
-    _remove_windows_registered_node()
+    _remove_windows_registered_node(_run)
     _run(["msiexec.exe", "/i", str(node_installer), "/qn", "/norestart"])
     refresh_windows_path()
 

@@ -184,6 +184,33 @@ def test_windows_inter_route_cleanup_keeps_msys2_but_removes_pango(
     assert "winget uninstall --id MSYS2.MSYS2" not in rendered
 
 
+def test_windows_cleanup_removes_node_registration_hidden_from_winget(
+    monkeypatch, tmp_path: Path
+) -> None:
+    commands: list[list[str]] = []
+
+    def record(command, *, check=True):  # type: ignore[no-untyped-def]
+        del check
+        commands.append(list(command))
+        return _completed(returncode=1)
+
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setattr(_MODULE, "_run", record)
+    monkeypatch.setattr(_MODULE.shutil, "which", lambda _name: "winget")
+
+    _MODULE.cleanup_ephemeral_runner(_MODULE.WINDOWS, tmp_path)
+
+    registry_commands = [
+        command
+        for command in commands
+        if command[:3] == ["powershell", "-NoProfile", "-Command"]
+        and "UninstallString" in command[-1]
+    ]
+    assert len(registry_commands) == 1
+    assert "Where-Object { $_.DisplayName -like 'Node.js*' }" in registry_commands[0][-1]
+    assert "msiexec.exe" in registry_commands[0][-1]
+
+
 def test_wheel_resolution_requires_exactly_one_candidate(tmp_path: Path) -> None:
     with pytest.raises(_MODULE.NativeInstallError, match="expected one"):
         _MODULE._resolve_wheel(tmp_path)
