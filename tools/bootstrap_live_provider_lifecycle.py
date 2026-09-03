@@ -441,8 +441,29 @@ def group_preflight(client: GitLabClient, fixture: LifecycleFixture) -> None:
             raise LifecycleError(f"the isolated Surrey group contains an unexpected {label}")
 
 
-def template_preflight(client: GitLabClient, fixture: LifecycleFixture) -> None:
-    """Confirm the group-token bot can see the deploy key's source project."""
+def repository_branches_and_tags(
+    client: GitLabClient, project_id: int
+) -> dict[str, str]:
+    """Return GitLab's canonical branch and peeled-tag commit snapshot."""
+
+    branches = client.list_all(f"/projects/{project_id}/repository/branches")
+    tags = client.list_all(f"/projects/{project_id}/repository/tags")
+    refs: dict[str, str] = {}
+    for prefix, records in (("refs/heads", branches), ("refs/tags", tags)):
+        for record in records:
+            name = record.get("name")
+            commit = record.get("commit")
+            object_id = commit.get("id") if isinstance(commit, dict) else None
+            if not isinstance(name, str) or not isinstance(object_id, str):
+                raise LifecycleError("GitLab returned an invalid repository ref")
+            refs[f"{prefix}/{name}"] = object_id
+    return dict(sorted(refs.items()))
+
+
+def template_preflight(
+    client: GitLabClient, fixture: LifecycleFixture
+) -> dict[str, str]:
+    """Return a fresh snapshot of the exact reviewed template project."""
 
     template = client.get_optional(f"/projects/{encoded(fixture.template.path_with_namespace)}")
     if not isinstance(template, dict):
@@ -456,6 +477,10 @@ def template_preflight(client: GitLabClient, fixture: LifecycleFixture) -> None:
         or template.get("path_with_namespace") != fixture.template.path_with_namespace
     ):
         raise LifecycleError("the visible template project differs from the reviewed fixture")
+    refs = repository_branches_and_tags(client, fixture.template.id)
+    if refs.get("refs/heads/main") != fixture.template.commit:
+        raise LifecycleError("the reviewed template main commit has changed")
+    return refs
 
 
 def project_value(client: GitLabClient, fixture: LifecycleFixture) -> dict[str, Any] | None:
@@ -482,8 +507,7 @@ def project_snapshot(
     project_id = project.get("id")
     if isinstance(project_id, bool) or not isinstance(project_id, int) or project_id <= 0:
         raise LifecycleError("GitLab returned an invalid project ID")
-    branches = client.list_all(f"/projects/{project_id}/repository/branches")
-    tags = client.list_all(f"/projects/{project_id}/repository/tags")
+    refs = repository_branches_and_tags(client, project_id)
     # GitLab returns 403 from the pipelines endpoint after CI/CD has been
     # disabled.  That is the required state for this isolated fixture, and a
     # project created with builds disabled cannot have provider-created
@@ -495,15 +519,6 @@ def project_snapshot(
         if project.get("builds_access_level") == "disabled"
         else client.list_all(f"/projects/{project_id}/pipelines")
     )
-    refs: dict[str, str] = {}
-    for prefix, records in (("refs/heads", branches), ("refs/tags", tags)):
-        for record in records:
-            name = record.get("name")
-            commit = record.get("commit")
-            object_id = commit.get("id") if isinstance(commit, dict) else None
-            if not isinstance(name, str) or not isinstance(object_id, str):
-                raise LifecycleError("GitLab returned an invalid repository ref")
-            refs[f"{prefix}/{name}"] = object_id
     for pipeline in pipelines:
         pipeline_id = pipeline.get("id")
         sha = pipeline.get("sha")
@@ -954,7 +969,7 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
     journal = Journal([])
     started = utc_now()
     group_preflight(client, fixture)
-    template_preflight(client, fixture)
+    template_refs = template_preflight(client, fixture)
     project = project_value(client, fixture)
     previous_id: int | None = None
     before = "absent"
@@ -1010,7 +1025,7 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
             deploy_key_id=fixture.deploy_key.id,
             deploy_key_fingerprint=fixture.deploy_key.fingerprint,
             source_commit=fixture.template.commit,
-            source_refs_digest=fixture.template.refs_digest,
+            source_refs_digest=canonical_sha256(template_refs),
             candidate_version=wheel.version,
             wheel_sha256=wheel.sha256,
             controller_commit=controller_commit,
@@ -1152,7 +1167,6 @@ def verify_and_seal(args: argparse.Namespace, client: GitLabClient) -> None:
         or handoff.deploy_key_id != fixture.deploy_key.id
         or handoff.deploy_key_fingerprint != fixture.deploy_key.fingerprint
         or handoff.source_commit != fixture.template.commit
-        or handoff.source_refs_digest != fixture.template.refs_digest
         or handoff.controller_commit != controller_commit
     ):
         raise LifecycleError("the reset handoff differs from this trusted controller run")
@@ -1238,7 +1252,9 @@ def verify_and_seal(args: argparse.Namespace, client: GitLabClient) -> None:
     validate_no_project_content(snapshot)
     if any(key.get("id") == fixture.deploy_key.id for key in snapshot.deploy_keys):
         raise LifecycleError("the destination write key remains enabled after sealing")
-    template_preflight(client, fixture)
+    template_refs = template_preflight(client, fixture)
+    if canonical_sha256(template_refs) != handoff.source_refs_digest:
+        raise LifecycleError("the template refs changed during the protected run")
     sealed = RetainedState(
         schema=1,
         provider="surrey",

@@ -176,23 +176,25 @@ def refs_digest(refs: dict[str, str]) -> str:
 def stable_source_refs(refs: dict[str, str], *, provider: str) -> dict[str, str]:
     """Return the source refs represented by the provider lifecycle snapshot.
 
-    GitHub's Git transport advertises provider-managed pull-request refs and
-    can also retain custom refs copied by a mirror. The lifecycle controller
-    deliberately reads only branches and tags through the REST API. Compare
-    that same stable set in the candidate so the two independent readers
-    prove the same state without treating unrelated provider refs as drift.
-
-    The established Surrey fixture records the complete advertised set, so
-    its behaviour remains unchanged.
+    Git transports advertise provider-managed refs that REST branch and tag
+    endpoints do not represent. Annotated tags also advertise both the tag
+    object and its peeled commit, while those REST endpoints report the
+    commit. Canonicalise both providers to branches and peeled tags so the two
+    independent readers can compare the same stable repository state.
     """
 
-    if provider != "github":
-        return refs
-    return {
-        name: object_id
-        for name, object_id in refs.items()
-        if name.startswith(("refs/heads/", "refs/tags/"))
+    if provider not in {"github", "surrey"}:
+        raise LiveProviderError(f"unsupported source-ref provider: {provider}")
+    stable = {
+        name: object_id for name, object_id in refs.items() if name.startswith("refs/heads/")
     }
+    for name, object_id in refs.items():
+        if not name.startswith("refs/tags/"):
+            continue
+        canonical = name.removesuffix("^{}")
+        if name.endswith("^{}") or canonical not in stable:
+            stable[canonical] = object_id
+    return dict(sorted(stable.items()))
 
 
 @dataclass(frozen=True)
@@ -299,6 +301,7 @@ def query_refs(
     cwd: Path,
     environment: dict[str, str],
     git_executable: str = "git",
+    source: bool = False,
 ) -> dict[str, str]:
     """Return sorted advertised refs, accepting a genuinely empty repository."""
     failure: LiveProviderError | None = None
@@ -306,8 +309,9 @@ def query_refs(
         if delay:
             time.sleep(delay)
         try:
+            options = ["--heads", "--tags"] if source else ["--refs"]
             result = run(
-                [git_executable, "ls-remote", "--refs", remote],
+                [git_executable, "ls-remote", *options, remote],
                 cwd=cwd,
                 environment=environment,
             )
@@ -332,6 +336,28 @@ def query_refs(
             raise LiveProviderError(f"unexpected ls-remote output on line {number}")
         refs[fields[1]] = fields[0]
     return dict(sorted(refs.items()))
+
+
+def query_source_refs(
+    remote: str,
+    *,
+    cwd: Path,
+    environment: dict[str, str],
+    provider: str,
+    git_executable: str = "git",
+) -> dict[str, str]:
+    """Read the canonical branches and tags used by the lifecycle controller."""
+
+    return stable_source_refs(
+        query_refs(
+            remote,
+            cwd=cwd,
+            environment=environment,
+            git_executable=git_executable,
+            source=True,
+        ),
+        provider=provider,
+    )
 
 
 def validate_destination_refs(
@@ -1510,14 +1536,12 @@ def controller(args: argparse.Namespace) -> None:
                     )
                 )
 
-            source_before = stable_source_refs(
-                query_refs(
-                    fixture.source_remote,
-                    cwd=root,
-                    environment=environments[0],
-                    git_executable=system_git,
-                ),
+            source_before = query_source_refs(
+                fixture.source_remote,
+                cwd=root,
+                environment=environments[0],
                 provider=fixture.provider,
+                git_executable=system_git,
             )
             if source_before.get("refs/heads/main") != fixture.source_head:
                 raise LiveProviderError("the source main ref differs from the fixture")
@@ -1562,14 +1586,12 @@ def controller(args: argparse.Namespace) -> None:
 
             # Recheck immediately before the candidate receives the identity.
             if (
-                stable_source_refs(
-                    query_refs(
-                        fixture.source_remote,
-                        cwd=root,
-                        environment=environments[0],
-                        git_executable=system_git,
-                    ),
+                query_source_refs(
+                    fixture.source_remote,
+                    cwd=root,
+                    environment=environments[0],
                     provider=fixture.provider,
+                    git_executable=system_git,
                 )
                 != source_before
             ):
@@ -1627,14 +1649,12 @@ def controller(args: argparse.Namespace) -> None:
                 fixture=fixture,
                 expected_commit=commit,
             )
-            source_after = stable_source_refs(
-                query_refs(
-                    fixture.source_remote,
-                    cwd=root,
-                    environment=environments[0],
-                    git_executable=system_git,
-                ),
+            source_after = query_source_refs(
+                fixture.source_remote,
+                cwd=root,
+                environment=environments[0],
                 provider=fixture.provider,
+                git_executable=system_git,
             )
             if source_after != source_before:
                 raise LiveProviderError("the source refs changed during Phase 2")
@@ -1684,14 +1704,12 @@ def controller(args: argparse.Namespace) -> None:
                 )
                 try:
                     source_refs_after_failure = (
-                        stable_source_refs(
-                            query_refs(
-                                fixture.source_remote,
-                                cwd=root,
-                                environment=environments[0],
-                                git_executable=system_git,
-                            ),
+                        query_source_refs(
+                            fixture.source_remote,
+                            cwd=root,
+                            environment=environments[0],
                             provider=fixture.provider,
+                            git_executable=system_git,
                         )
                         == source_before
                     )

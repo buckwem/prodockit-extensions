@@ -25,7 +25,8 @@ state = importlib.import_module("live_provider_state")
 COMMIT = "1" * 40
 TREE = "2" * 40
 WHEEL_SHA = "a" * 64
-SOURCE_REFS_SHA = "b" * 64
+FIXTURE_REFS_SHA = "b" * 64
+SOURCE_REFS_SHA = state.canonical_sha256({"refs/heads/main": COMMIT})
 CONTROLLER_COMMIT = "3" * 40
 VERSION = "0.53.0"
 
@@ -47,7 +48,7 @@ def fixture_value(**updates: object) -> dict[str, object]:
             "path_with_namespace": state.SURREY_TEMPLATE,
             "ssh_url": state.SURREY_TEMPLATE_REMOTE,
             "commit": COMMIT,
-            "refs_digest": SOURCE_REFS_SHA,
+            "refs_digest": FIXTURE_REFS_SHA,
         },
         "deploy_key": {
             "id": 303,
@@ -127,6 +128,7 @@ class FakeGitLab:
 
     def __init__(self, fixture: state.LifecycleFixture) -> None:
         self.fixture = fixture
+        self.template_refs = {"refs/heads/main": fixture.template.commit}
         self.project: dict[str, Any] | None = None
         self.refs: dict[str, str] = {}
         self.deploy_keys: list[dict[str, Any]] = []
@@ -175,6 +177,19 @@ class FakeGitLab:
             f"{group}/deploy_tokens",
         }:
             return []
+        template_prefix = f"/projects/{self.fixture.template.id}"
+        if path == f"{template_prefix}/repository/branches":
+            return [
+                {"name": name.removeprefix("refs/heads/"), "commit": {"id": sha}}
+                for name, sha in self.template_refs.items()
+                if name.startswith("refs/heads/")
+            ]
+        if path == f"{template_prefix}/repository/tags":
+            return [
+                {"name": name.removeprefix("refs/tags/"), "commit": {"id": sha}}
+                for name, sha in self.template_refs.items()
+                if name.startswith("refs/tags/")
+            ]
         project_id = 404 if self.project is None else self.project["id"]
         prefix = f"/projects/{project_id}"
         if path == f"{prefix}/repository/branches":
@@ -720,6 +735,8 @@ def test_empty_reset_candidate_and_seal_form_one_bounded_lifecycle(
 
     handoff = state.ResetHandoff.read(handoff_path)
     assert handoff.repository_empty is True
+    assert handoff.source_refs_digest == SOURCE_REFS_SHA
+    assert handoff.source_refs_digest != fixture.template.refs_digest
     assert client.deploy_keys[0]["can_push"] is True
     client.refs = {"refs/heads/main": COMMIT}
     report = candidate_report(tmp_path / "candidate.json")
@@ -738,6 +755,62 @@ def test_empty_reset_candidate_and_seal_form_one_bounded_lifecycle(
     assert sealed.head == COMMIT
     assert sealed.tree == TREE
     assert client.deploy_keys == []
+    assert ("DELETE", "/projects/404/deploy_keys/303") in client.mutations
+
+
+def test_seal_revokes_write_access_when_template_refs_change_after_reset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture_path = write_fixture(tmp_path / "fixture.json")
+    fixture = state.LifecycleFixture.read(fixture_path)
+    client = FakeGitLab(fixture)
+    monkeypatch.setattr(
+        lifecycle,
+        "inspect_wheel",
+        lambda *_args: SimpleNamespace(version=VERSION, sha256=WHEEL_SHA),
+    )
+    monkeypatch.setattr(
+        lifecycle, "validate_controller_checkout", lambda *_args, **_kwargs: CONTROLLER_COMMIT
+    )
+    monkeypatch.setattr(lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA")
+    monkeypatch.setattr(
+        lifecycle,
+        "public_key_fingerprint",
+        lambda _record: state.SURREY_DEPLOY_KEY_FINGERPRINT,
+    )
+    handoff_path = tmp_path / "handoff.json"
+    lifecycle.reset_project(
+        Namespace(
+            fixture=fixture_path,
+            previous_state=None,
+            deploy_public_key=tmp_path / "key.pub",
+            wheel=tmp_path / "candidate.whl",
+            expected_wheel_sha256=WHEEL_SHA,
+            handoff=handoff_path,
+            audit_report=tmp_path / "reset-audit.json",
+            confirm_project_reset=state.SURREY_PATH,
+        ),
+        client,
+    )
+
+    client.refs = {"refs/heads/main": COMMIT}
+    client.template_refs["refs/heads/maintenance"] = "4" * 40
+    retained = tmp_path / "retained.json"
+
+    with pytest.raises(lifecycle.LifecycleError, match="template refs changed"):
+        lifecycle.verify_and_seal(
+            Namespace(
+                fixture=fixture_path,
+                handoff=handoff_path,
+                candidate_report=candidate_report(tmp_path / "candidate.json"),
+                retained_state=retained,
+                audit_report=tmp_path / "seal-audit.json",
+            ),
+            client,
+        )
+
+    assert client.deploy_keys == []
+    assert not retained.exists()
     assert ("DELETE", "/projects/404/deploy_keys/303") in client.mutations
 
 
