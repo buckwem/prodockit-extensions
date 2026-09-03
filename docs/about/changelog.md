@@ -71,6 +71,11 @@ requests rather than here.
   necessary by author syntax, and recognized existing Prodockit assets. Each
   edit preserves unrelated formatting and comments, verifies the parsed
   result, and remains independent of `prodockit-template`.
+- Completed Stage 6 with Ubuntu, Windows, and macOS diagnostic-repair
+  acceptance coverage for fully repairable, mixed, and ambiguous projects;
+  renderer rollback and MathJax regeneration tests; UTF-8, CRLF, and paths
+  containing spaces; and complete author, recovery, JSON compatibility, and
+  template-sync preflight guidance.
 
 ## 0.57.0 (2026-09-03)
 

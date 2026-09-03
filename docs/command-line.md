@@ -160,6 +160,9 @@ than executable shell strings. Interactive `pdk diag --fix --json` keeps its
 plan and result as valid JSON on stdout while human context and prompts go to
 stderr; its top-level `before`, `repair`, and `after` objects record selections,
 confirmations, outcomes, changed paths, and the recovery manifest. The
+schema number is a compatibility boundary: consumers may accept added fields
+within version 2 but must reject a larger `schema_version` until reviewed.
+Existing version-2 fields retain their meaning and type. The
 command exits non-zero only for an actionable failure; warnings alone still
 exit zero. The ordinary and dry-run forms never install, repair, generate, or
 change project files.

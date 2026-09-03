@@ -1560,6 +1560,91 @@ def test_stage4_locked_mermaid_repair_uses_npm_ci_and_verifies(
     assert (tmp_path / "tools/mermaid/package-lock.json").is_file()
 
 
+def test_stage4_mathjax_repair_regenerates_browser_assets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mathjax")
+    monkeypatch.setattr(
+        "prodockit.diagnostics.shutil.which",
+        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
+    )
+
+    def npm_ci(command: list[str], **kwargs):
+        package = tmp_path / "tools/mathjax/node_modules/mathjax-full"
+        bundle = package / "es5/tex-svg-full.js"
+        bundle.parent.mkdir(parents=True)
+        bundle.write_text("locked browser bundle", encoding="utf-8")
+        (package / "LICENSE").write_text("licence", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("prodockit.diagnostics.subprocess.run", npm_ci)
+    monkeypatch.setattr(
+        "prodockit.diagnostics.probe_mathjax",
+        lambda node, path: SimpleNamespace(ok=True, error=None, path=path),
+    )
+
+    result = diagnostics.repair_locked_renderer(
+        tmp_path,
+        "mathjax",
+        expected_fingerprint=expected,
+        timestamp="stage4-mathjax",
+    )
+
+    assert result.status == "applied"
+    assert (tmp_path / "docs/javascripts/mathjax.js").is_file()
+    assert (tmp_path / "docs/javascripts/vendor/mathjax/tex-svg-full.js").read_text(
+        encoding="utf-8"
+    ) == "locked browser bundle"
+
+
+def test_stage4_failed_install_restores_generated_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    diagnostics.init_tools(tmp_path / "tools", components=("mermaid",))
+    marker = tmp_path / "tools/mermaid/node_modules/author-marker"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("restore me", encoding="utf-8")
+    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mermaid")
+    monkeypatch.setattr(
+        "prodockit.diagnostics.shutil.which",
+        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
+    )
+    monkeypatch.setattr(
+        "prodockit.diagnostics.subprocess.run",
+        lambda command, **kwargs: subprocess.CompletedProcess(
+            command, 1, "", "registry unavailable"
+        ),
+    )
+
+    with pytest.raises(diagnostics.RepairTransactionError, match="rolled back"):
+        diagnostics.repair_locked_renderer(
+            tmp_path,
+            "mermaid",
+            expected_fingerprint=expected,
+            timestamp="stage4-rollback",
+        )
+
+    assert marker.read_text(encoding="utf-8") == "restore me"
+    manifest = json.loads(
+        (tmp_path / ".prodockit-quarantine/diagnostics/stage4-rollback/manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifest["status"] == "rolled-back"
+
+
 def test_stage4_refuses_author_package_scripts(tmp_path: Path) -> None:
     config = ProjectConfig(
         path=tmp_path / "zensical.toml",

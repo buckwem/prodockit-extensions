@@ -62,6 +62,30 @@ Each target must resolve within that boundary and must not be a symlink. A
 failed verification restores that action; a rollback failure stops the run and
 reports both the original and quarantine locations for manual recovery.
 
+### Recover a confirmed repair
+
+Normally no manual recovery is needed: a failed postcondition restores the
+current action automatically, while earlier confirmed actions remain applied.
+Keep the quarantine until the website and PDF have been rebuilt and reviewed.
+
+If diagnostics reports `rollback-failed`, stop making changes and open the
+reported `manifest.json`. Its `entries` are the recovery instructions:
+
+1. Confirm the manifest's `status`, action ID, project root, and UTC timestamp
+   identify the failed action.
+2. For an entry whose `backup` is present, verify the quarantined path's
+   SHA-256 against `sha256`. Move the current `original` aside if it exists,
+   then copy the backup back to that exact project-relative original path.
+3. For an entry whose `kind` is `missing` and `operation` is `create`, remove
+   only the named original path that the repair created.
+4. Rerun `pdk diag`, then rebuild and inspect both website and PDF output.
+5. Retain the manifest until the repaired project has been reviewed and
+   committed. Never restore a backup into a different project or environment.
+
+Distribution-metadata manifests live beneath the active virtual environment,
+not the project. Recreate that environment instead of manually restoring it if
+the recorded prefix no longer matches the interpreter running `pdk`.
+
 `--fix` refuses redirected standard input and CI use before inspection or
 mutation. Use `pdk diag --dry-run --json` there. There is deliberately no blanket
 confirmation option.

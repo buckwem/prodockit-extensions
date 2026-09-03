@@ -126,7 +126,7 @@ Match the maintenance need to its safest starting tool in
 
 | Need | Start with | What changes |
 |---|---|---|
-| A project, installation, or renderer fails unexpectedly | `pdk diag` | Nothing; follow the remediation for the reported stable check ID |
+| A project, installation, or renderer fails unexpectedly | `pdk diag`, then `pdk diag --dry-run` | Nothing until interactive `--fix`; every eligible action has a separate default-No decision and confirmation |
 | A fork, mirror, or renamed repository points at the wrong place | `prodockit sync-repo --check` | Repository URLs, edit links, host icon, and managed README badges |
 | CI files disagree about dependency versions | `prodockit pins --check --offline` | Version declarations, preserving each file's existing operator |
 | A newer dependency may change published output | GitHub's `drift.yml` result | Nothing automatically; it opens or updates an issue with the comparison |

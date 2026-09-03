@@ -1833,13 +1833,17 @@ def repair_locked_renderer(
 
 
 def _toml_section(source: str, table: str) -> tuple[int, int] | None:
-    header = re.search(rf"(?m)^\[{re.escape(table)}\][ \t]*(?:#.*)?$", source)
+    header = re.search(rf"(?m)^\[{re.escape(table)}\][ \t]*(?:#.*)?\r?$", source)
     if header is None:
         return None
     following = re.search(r"(?m)^\[", source[header.end() :])
     return header.start(), header.end() + (
         following.start() if following else len(source[header.end() :])
     )
+
+
+def _line_ending(source: str) -> str:
+    return "\r\n" if "\r\n" in source and "\n" not in source.replace("\r\n", "") else "\n"
 
 
 def _toml_add_array_value(source: str, key: str, value: str) -> str:
@@ -1850,9 +1854,10 @@ def _toml_add_array_value(source: str, key: str, value: str) -> str:
     region = source[start:end]
     assignment = re.search(rf"(?m)^{re.escape(key)}\s*=\s*\[", region)
     rendered = json.dumps(value)
+    newline = _line_ending(source)
     if assignment is None:
         header_end = source.find("\n", start) + 1
-        return source[:header_end] + f"{key} = [{rendered}]\n" + source[header_end:]
+        return source[:header_end] + f"{key} = [{rendered}]{newline}" + source[header_end:]
     array_start = start + assignment.end() - 1
     depth = 0
     quote = ""
@@ -1882,7 +1887,7 @@ def _toml_add_array_value(source: str, key: str, value: str) -> str:
         return source
     body = source[array_start + 1 : array_end]
     separator = "" if not body.strip() or body.rstrip().endswith(",") else ","
-    return source[:array_end] + f"{separator}\n  {rendered},\n" + source[array_end:]
+    return source[:array_end] + f"{separator}{newline}  {rendered},{newline}" + source[array_end:]
 
 
 def _plan_configuration_source(source: str, problem: dict[str, str]) -> str:
@@ -1934,22 +1939,24 @@ def _plan_configuration_source(source: str, problem: dict[str, str]) -> str:
         region = region[: match.start()] + region[match.end() :]
         source = source[:start] + region + source[end:]
         table = 'project.markdown_extensions."prodockit.index"'
+        newline = _line_ending(source)
         target = _toml_section(source, table)
         if target is None:
-            lead = "" if source.endswith("\n") else "\n"
-            return f"{source}{lead}\n[{table}]\n{assignment}\n"
+            lead = "" if source.endswith(("\n", "\r")) else newline
+            return f"{source}{lead}{newline}[{table}]{newline}{assignment}{newline}"
         target_start, target_end = target
         target_region = source[target_start:target_end]
         if re.search(rf"(?m)^{re.escape(new)}\s*=", target_region):
             raise RepairTransactionError(f"{table}.{new} already exists")
         header_end = source.find("\n", target_start) + 1
-        return source[:header_end] + assignment + "\n" + source[header_end:]
+        return source[:header_end] + assignment + newline + source[header_end:]
     if operation == "enable-extension":
         table = f'project.markdown_extensions."{problem["new"]}"'
         if _toml_section(source, table) is not None:
             return source
-        lead = "" if source.endswith("\n") else "\n"
-        return f"{source}{lead}\n[{table}]\n"
+        newline = _line_ending(source)
+        lead = "" if source.endswith(("\n", "\r")) else newline
+        return f"{source}{lead}{newline}[{table}]{newline}"
     if operation == "add-asset":
         current = tomllib.loads(source).get("project", {}).get(problem["setting"])
         if current is not None and not isinstance(current, list):
@@ -1976,7 +1983,10 @@ def repair_project_configuration(
         raise RepairTransactionError(
             "configuration repair plan became stale; rerun `pdk diag --fix`"
         )
-    source = config_path.read_text(encoding="utf-8")
+    try:
+        source = config_path.read_bytes().decode("utf-8")
+    except UnicodeError as error:
+        raise RepairTransactionError("zensical.toml is not valid UTF-8") from error
     planned = _plan_configuration_source(source, problem)
     if planned == source:
         return RepairApplyResult("not-needed")
@@ -1995,7 +2005,7 @@ def repair_project_configuration(
         transaction.begin()
         transaction.backup_path(config_path, backup_name="zensical.toml")
         temporary = config_path.with_name(f".{config_path.name}-{uuid.uuid4().hex}.tmp")
-        temporary.write_text(planned, encoding="utf-8")
+        temporary.write_bytes(planned.encode("utf-8"))
         os.replace(temporary, config_path)
         verified = load_project_config(config_path)
         remaining = _configuration_repairable_problems(
