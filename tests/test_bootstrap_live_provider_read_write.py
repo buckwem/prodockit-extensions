@@ -16,6 +16,8 @@ from typing import Any
 
 import pytest
 
+from prodockit.bootstrap.stages import WEASYPRINT_MIN_VERSION
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 live = importlib.import_module("bootstrap_live_provider_read_write")
@@ -560,6 +562,74 @@ def test_plan_allows_only_the_reviewed_clone_remote_and_one_main_push(
                     ),
                 ]
             ],
+            str(project),
+            fixture=fixture,
+            home=home,
+            project=project,
+            allow_push=True,
+            candidate_python=Path(sys.executable),
+        )
+
+
+def test_project_environment_allows_only_the_reviewed_template_repairs(
+    tmp_path: Path,
+) -> None:
+    fixture = live.Fixture(**fixture_values())
+    home = tmp_path / "home"
+    project = home / "setup" / live.SURREY_PROJECT
+    project_python = str(project / ".venv" / "bin" / "python")
+    project_pdk = str(project / ".venv" / "bin" / "pdk")
+
+    live.authorise_plan(
+        "project-env",
+        [
+            [
+                project_python,
+                "-m",
+                "pip",
+                "install",
+                f"weasyprint>={WEASYPRINT_MIN_VERSION}",
+            ],
+            [project_pdk, "shared-files", "--apply"],
+        ],
+        str(project),
+        fixture=fixture,
+        home=home,
+        project=project,
+        allow_push=True,
+        candidate_python=Path(sys.executable),
+    )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["python", "-m", "pip", "install", "weasyprint>=69.0"],
+        ["{python}", "-m", "pip", "install", "weasyprint"],
+        ["{python}", "-m", "pip", "install", "weasyprint>=0"],
+        ["{python}", "-m", "pip", "install", "another-package>=69.0"],
+        ["{python}", "-m", "pip", "install", "--upgrade", "weasyprint>=69.0"],
+        ["{pdk}", "shared-files", "--apply", "--check"],
+    ],
+)
+def test_project_environment_rejects_broader_dependency_commands(
+    tmp_path: Path, command: list[str]
+) -> None:
+    fixture = live.Fixture(**fixture_values())
+    home = tmp_path / "home"
+    project = home / "setup" / live.SURREY_PROJECT
+    rendered = [
+        part.format(
+            python=project / ".venv" / "bin" / "python",
+            pdk=project / ".venv" / "bin" / "pdk",
+        )
+        for part in command
+    ]
+
+    with pytest.raises(live.LiveProviderError, match="unapproved non-Git"):
+        live.authorise_plan(
+            "project-env",
+            [rendered],
             str(project),
             fixture=fixture,
             home=home,

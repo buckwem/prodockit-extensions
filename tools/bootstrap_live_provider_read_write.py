@@ -789,6 +789,7 @@ def _authorise_non_git_command(
     executable = Path(command[0]).name.casefold()
     candidate = str(candidate_python) if candidate_python is not None else ""
     project_python = str(project / ".venv" / "bin" / "python")
+    project_pdk = str(project / ".venv" / "bin" / "pdk")
     project_zensical = str(project / ".venv" / "bin" / "zensical")
     record_template_release = [
         candidate,
@@ -823,7 +824,23 @@ def _authorise_non_git_command(
                 "-r",
                 str(project / "requirements.txt"),
             ],
+            [project_pdk, "shared-files", "--apply"],
         )
+        # The first Bootstrap path is deliberately independent of the
+        # provider's template freshness.  It may therefore install the
+        # renderer floor and restore only Prodockit's declared shared files
+        # before the first build.  Keep this structural rather than copying a
+        # version constant into the harness: the reviewed candidate wheel and
+        # controller commit determine the floor, while this boundary permits
+        # only one named package, one numeric lower bound and no pip options.
+        if (
+            not accepted
+            and len(command) == 5
+            and command[:4] == [project_python, "-m", "pip", "install"]
+        ):
+            accepted = bool(
+                re.fullmatch(r"weasyprint>=[1-9][0-9]*(?:\.[0-9]+){1,2}", command[4])
+            )
         if (
             not accepted
             and len(command) == 6
