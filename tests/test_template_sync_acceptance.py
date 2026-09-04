@@ -5,8 +5,11 @@ from __future__ import annotations
 
 import csv
 import io
+import shutil
 import zipfile
 from pathlib import Path
+
+import pytest
 
 from tools import template_sync_acceptance as acceptance
 
@@ -56,3 +59,25 @@ def test_versioned_wheel_rewrites_code_from_a_windows_checkout(tmp_path) -> None
         package = archive.read("prodockit/__init__.py")
 
     assert package == b'__version__ = "0.57.999"\r\n'
+
+
+def test_remove_tree_retries_transient_windows_permission_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = 0
+    real_rmtree = shutil.rmtree
+
+    def flaky_rmtree(path: Path, *, onerror: object) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise PermissionError("temporary checkout handle")
+        real_rmtree(path, onerror=onerror)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(acceptance.shutil, "rmtree", flaky_rmtree)
+    monkeypatch.setattr(acceptance.time, "sleep", lambda _seconds: None)
+
+    acceptance.remove_tree(tmp_path)
+
+    assert calls == 2
+    assert not tmp_path.exists()

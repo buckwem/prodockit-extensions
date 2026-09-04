@@ -23,15 +23,17 @@ import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import venv
 import zipfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from types import TracebackType
 from typing import Any
 
 if __package__:
@@ -212,6 +214,32 @@ def loaded_version(python: Path, root: Path) -> str:
     ).stdout.strip()
 
 
+def _remove_readonly(
+    function: Callable[[str], object],
+    path: str,
+    error: tuple[type[BaseException], BaseException, TracebackType],
+) -> None:
+    """Make a Windows read-only checkout entry writable and retry its removal."""
+
+    if not isinstance(error[1], PermissionError):
+        raise error[1]
+    Path(path).chmod(stat.S_IWRITE)
+    function(path)
+
+
+def remove_tree(root: Path, *, attempts: int = 5) -> None:
+    """Remove a temporary checkout despite brief Windows handle contention."""
+
+    for attempt in range(1, attempts + 1):
+        try:
+            shutil.rmtree(root, onerror=_remove_readonly)
+            return
+        except PermissionError:
+            if attempt == attempts:
+                raise
+            time.sleep(0.25 * attempt)
+
+
 def scenario(
     root: Path,
     candidate: Path,
@@ -361,7 +389,7 @@ def main(arguments: list[str] | None = None) -> int:
         print(f"Work directory preserved for diagnosis: {temporary}", file=sys.stderr)
         raise
     else:
-        shutil.rmtree(temporary)
+        remove_tree(temporary)
 
     report = {
         "wheel": str(candidate),
