@@ -3182,8 +3182,8 @@ def adopt_command(
     multiple=True,
     help=(
         "Package to manage, repeatable. Defaults to zensical, weasyprint, "
-        "prodockit, markdown, pymdown-extensions and pandoc - the build inputs whose "
-        "version changes this project's own published output."
+        "prodockit, markdown, pymdown-extensions, pandoc and python - the build "
+        "inputs whose version changes this project's own published output."
     ),
 )
 @click.option(
@@ -3248,11 +3248,13 @@ def pins(
     operator, so a floor stays a floor and an exact pin stays exact.
 
     Run it with no options for an interactive prompt per package: press
-    Enter to take the newest release, or type a version. With `--set`,
-    `--latest` or `--no-input` it never prompts, so it can run unattended.
+    Enter to take the version tested with this installed Prodockit release,
+    or type a version. With `--set`, `--latest` or `--no-input` it never
+    prompts, so it can run unattended.
     """
     from prodockit.pins import (
         DEFAULT_PACKAGES,
+        TESTED_VERSIONS,
         PinError,
         apply_version,
         discover,
@@ -3290,12 +3292,18 @@ def pins(
         if not state.on_pypi:
             # A runner label or image tag - inventoried and rewritable, but
             # there is no package index to ask what is newest.
-            click.echo("  not on PyPI - set the version yourself")
+            click.echo("  newest release: not available from PyPI")
         elif state.latest:
             marker = "  <- newer available" if state.is_behind else ""
             click.echo(f"  newest on PyPI: {state.latest}{marker}")
         elif state.latest_error:
             click.echo(f"  newest on PyPI: unknown - {state.latest_error}")
+        tested_version = TESTED_VERSIONS.get(state.package)
+        if tested_version is not None:
+            click.echo(
+                f"  tested with installed prodockit {__version__}: "
+                f"{tested_version}  <- interactive default"
+            )
         if not state.is_consistent:
             click.echo(f"  ⚠ declared inconsistently: {', '.join(state.versions)}")
 
@@ -3365,7 +3373,7 @@ def pins(
         if quiet:
             skipped.append(state.package)
             continue
-        default = state.latest or state.current
+        default = TESTED_VERSIONS.get(state.package) or state.latest or state.current
         if default is None:
             continue
         try:

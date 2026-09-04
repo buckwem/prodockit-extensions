@@ -26,6 +26,15 @@ requests rather than here.
   observations and prerequisite downloads now share bounded transient-failure
   handling, retain prior failure evidence, and reconcile ambiguous GitHub
   mutations without blindly repeating writes.
+- Changed `prodockit pins` so every standard interactive suggestion uses the
+  complete software combination tested by the installed Prodockit release,
+  including Zensical, WeasyPrint, Markdown, PyMdown Extensions, Pandoc, and
+  Python. Newer PyPI releases remain visible and can still be selected
+  explicitly with typed input or `--latest`; accepting the defaults restores a
+  project to the supported combination even offline.
+- Made `pdk diag` warn when declared tool versions do not match that supported
+  combination and direct the author to `pdk pins`. Diagnostics reports this as
+  manual remediation and does not offer it as a `pdk diag --fix` action.
 
 ## Implemented functionality
 
