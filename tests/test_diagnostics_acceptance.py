@@ -264,7 +264,7 @@ def test_acceptance_resolves_project_absolute_and_home_report_paths(tmp_path: Pa
     assert diagnostics_acceptance_driver._reported_path("~/file", project) == home / "file"
 
 
-def test_diagnostic_repair_workflow_has_six_installed_wheel_environments() -> None:
+def test_diagnostic_repair_workflow_has_six_repair_and_twelve_toolchain_environments() -> None:
     workflow = (ROOT / ".github/workflows/diag-repair.yml").read_text(encoding="utf-8")
     runners = {
         "ubuntu-24.04",
@@ -276,7 +276,8 @@ def test_diagnostic_repair_workflow_has_six_installed_wheel_environments() -> No
     }
 
     assert sum(f"runner: {runner}" in workflow for runner in runners) == 6
-    assert workflow.count("architecture_check:") == 6
+    assert workflow.count("architecture_check:") == 12
+    assert "scenario: [upgrade, downgrade]" in workflow
     assert "python -m build --wheel" in workflow
     assert "tools/diagnostics_repair_acceptance.py" in workflow
     assert "timeout-minutes: 35" in workflow

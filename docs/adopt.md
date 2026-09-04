@@ -7,9 +7,10 @@ icon: lucide/package-plus
 # Add prodockit to an existing document
 
 `prodockit adopt` is for an existing Zensical document whose normal working
-environment is already established. It adds prodockit's authoring
-extensions and their website styles without turning the project into a copy
-of prodockit-template.
+environment is already established. It aligns that environment with the exact
+software combination supported by the installed Prodockit release, then adds
+Prodockit's authoring extensions and website styles without turning the
+project into a copy of prodockit-template.
 
 Use [machine bootstrap](devcons/bootstrap.md) for a new computer or a new
 repository. Adoption assumes that Git, SSH and the editor you prefer already
@@ -32,9 +33,15 @@ Adopting Prodockit into an existing document
 
 The standard installation adds:
 
-- A `prodockit>=...` floor to the site's existing requirements file. It uses
+- Exact declarations for Zensical, WeasyPrint, Prodockit, Markdown and PyMdown
+    Extensions to the site's existing requirements file. It uses
     `requirements.txt`, `requirements/docs.txt` or `docs/requirements.txt`, in
-    that order, and creates `requirements.txt` when none exists.
+    that order, and creates `requirements.txt` when none exists. An existing
+    operator and extras, such as `prodockit[index]>=...`, are preserved while
+    its version is aligned; a missing declaration is added with `==`.
+- `.python-version` and `.prodockit-toolchain.toml`. The latter records every
+    managed version, including Python and Pandoc, from the same tested-version
+    manifest used by `prodockit pins` and `pdk diag`.
 - The standard prodockit Markdown extensions to the existing
     `zensical.toml`, `zensical.yml` or `zensical.yaml`.
 - `docs/stylesheets/pdk.css`, loaded before any project stylesheet so
@@ -54,11 +61,17 @@ unchanged and uses its existing lockfile when one is present.
 
 The command never commits, pushes, changes a remote, or writes editor settings.
 
-Adoption is not a whole-machine PDF installer. Selecting Mermaid or
-mathematics installs those project-local Node renderers, but Pandoc,
-WeasyPrint, its native Pango libraries, and document fonts remain part of the
-existing working environment. Follow the adoption row under
-[Prepare the PDF tools](pdf.md#pdf-requirements) before building a PDF.
+Adoption installs, upgrades or downgrades the managed Python packages in the
+active virtual environment and installs the supported Pandoc executable into
+that environment. It does not replace the Python interpreter that is running
+it: a different Python minor release blocks the whole stage before packages or
+project files are changed, and the report gives the exact Bootstrap or virtual
+environment remediation.
+
+Adoption is not a whole-machine native-library installer. WeasyPrint's Pango,
+GLib, HarfBuzz and fontconfig libraries, and the document fonts, remain part of
+the existing machine setup. Follow the adoption row under [Prepare the PDF
+tools](pdf.md#pdf-requirements) before building a PDF.
 
 ## Review the existing project
 
@@ -125,8 +138,9 @@ Confirm that the command comes from the active project environment:
 prodockit --version
 ```
 
-Adoption later records a `prodockit>=...` floor in the project's requirements
-file. This installation step makes the command available for the first run.
+Adoption later aligns Prodockit and the other managed versions with the
+combination supported by this installed command. This installation step makes
+the command available for the first run.
 
 ////
 
@@ -186,8 +200,9 @@ build the result yourself so the review remains under your control.
 prodockit adopt --dry-run
 ```
 
-No files or packages are changed. Add `--verbose` to see the files and commands
-behind the concise descriptions.
+No files or packages are changed. The supported-toolchain stage always lists
+its affected files and exact commands. Add `--verbose` to expose the equivalent
+detail for the other stages.
 
 ////
 
@@ -197,16 +212,43 @@ behind the concise descriptions.
 prodockit adopt --apply
 ```
 
-The command asks before each stage that writes files or installs an optional
-renderer. Routine npm output is captured; a failure is reported with its own
-error rather than leaving an apparently successful stage. After npm completes,
-Adoption renders a minimal Mermaid diagram through its browser and converts a
-minimal expression through MathJax. An incomplete npm extraction or unusable
-browser therefore keeps both the renderer stage and Ready stage incomplete.
+The command asks before each stage that writes files or installs software. The
+toolchain stage says which tools will be installed, upgraded or downgraded,
+then verifies their versions before writing the matching declarations. A
+failed installation therefore cannot leave the project claiming a combination
+that was not reached.
+
+Pip uses its normal wheel cache, five request retries and bounded request
+timeouts. Set `PDK_PYPI_MIRROR` to add an institutional Python package mirror.
+Pandoc downloads are validated as archives, retained in Prodockit's native
+download cache and retried before moving from a configured
+`PDK_PANDOC_MIRROR` to the official release source. A rerun reuses any valid
+cached download rather than fetching it again.
+
+Routine npm output is captured; a failure is reported with its own error rather
+than leaving an apparently successful stage. After npm completes, Adoption
+renders a minimal Mermaid diagram through its browser and converts a minimal
+expression through MathJax. An incomplete npm extraction or unusable browser
+therefore keeps both the renderer stage and Ready stage incomplete.
 
 If Mermaid or mathematics is selected, its Node packages are installed below
 `tools/`. These are project-local dependencies, not global software shared
 with unrelated documents.
+
+////
+
+//// step | Work from prepared caches when offline
+
+Use offline mode only after putting the exact Python wheels in a directory and
+retaining a validated Pandoc archive in Prodockit's native download cache:
+
+```bash
+PDK_WHEELHOUSE=/path/to/wheels prodockit adopt --apply --offline
+```
+
+Offline mode passes `--no-index` to pip and does not silently contact PyPI or a
+Pandoc source. If either cache is incomplete, the stage fails clearly and does
+not update the declarations.
 
 ////
 
@@ -260,6 +302,6 @@ alone. If an installation is interrupted, run the same command again:
 prodockit adopt --apply
 ```
 
-It reassesses the files and continues with stages that still need work. It does
-not overwrite an existing project stylesheet or remove existing Zensical
-configuration.
+It reassesses installed versions and files, reuses valid caches, and continues
+with stages that still need work. It does not remove unrelated requirements or
+existing Zensical configuration.

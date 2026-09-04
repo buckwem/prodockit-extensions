@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -160,6 +161,26 @@ def test_a_deterministic_failure_is_not_retried(tmp_path: Path, monkeypatch) -> 
         )
 
     assert len(attempts) == 1
+
+
+def test_absolute_venv_python_activates_its_executable_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    environment = tmp_path / "venv"
+    scripts = environment / ("Scripts" if os.name == "nt" else "bin")
+    python = scripts / ("python.exe" if os.name == "nt" else "python")
+    observed: dict[str, str] = {}
+
+    def completed(command, **kwargs):
+        observed.update(kwargs["env"])
+        return subprocess.CompletedProcess(command, 0, stdout="passed", stderr="")
+
+    monkeypatch.setattr(adopt_acceptance.subprocess, "run", completed)
+
+    adopt_acceptance.run([str(python), "-V"], cwd=tmp_path)
+
+    assert observed["VIRTUAL_ENV"] == str(environment.resolve())
+    assert observed["PATH"].split(os.pathsep)[0] == str(scripts.resolve())
 
 
 def test_a_failed_run_still_writes_an_acceptance_report(

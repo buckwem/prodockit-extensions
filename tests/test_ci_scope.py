@@ -127,6 +127,9 @@ def test_diagnostic_wheel_scope_is_narrow_and_fail_closed() -> None:
         "src/prodockit/settings.py",
         "tools/diagnostics_repair_acceptance.py",
         "tools/_diagnostics_repair_acceptance_driver.py",
+        "tools/adopt_toolchain_acceptance.py",
+        "tools/_adopt_toolchain_acceptance_driver.py",
+        "src/prodockit/toolchain.py",
         ".github/workflows/diag-repair.yml",
     ):
         assert classify([path]).diagnostics, path
@@ -409,6 +412,11 @@ def test_diagnostic_wheel_matrix_runs_only_for_its_selected_scope() -> None:
     assert "python tools/ci_scope.py --github-event" in workflow
     assert "relevant: ${{ steps.scope.outputs.diagnostics }}" in workflow
     assert "if: needs.scope.outputs.relevant == 'true'" in workflow
+    assert "scenario: [upgrade, downgrade]" in workflow
+    assert "python tools/adopt_toolchain_acceptance.py" in workflow
+    assert "PDK_NATIVE_DOWNLOAD_CACHE" in workflow
+    assert "PIP_RETRIES: 5" in workflow
+    assert "timeout-minutes: 40" in workflow
 
 
 def test_adopt_release_gate_upgrades_an_old_full_project_on_every_runner() -> None:

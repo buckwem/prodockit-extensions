@@ -54,6 +54,19 @@ requests rather than here.
 - Made `pdk diag` warn when declared tool versions do not match that supported
   combination and direct the author to `pdk pins`. Diagnostics reports this as
   manual remediation and does not offer it as a `pdk diag --fix` action.
+- Made `prodockit adopt` install, upgrade or downgrade its active Python
+  packages and project-local Pandoc to the exact combination carried by the
+  installed release. Adopt now aligns complete project declarations without a
+  template dependency, blocks safely under the wrong Python before mutation,
+  exposes commands and files in `--dry-run`, verifies the result, and supports
+  bounded retries, configured mirrors, validated caches and explicit offline
+  operation. Separate six-platform installed-wheel jobs exercise genuine
+  upgrades from unmodified previous PyPI packages and Pandoc, plus genuine
+  Pandoc downgrades from the adjacent newer release. The harness never changes
+  installed metadata or substitutes fixture code. Existing managed Python
+  packages are replaced directly without re-resolving unchanged dependencies,
+  avoiding unavailable optional transitive wheels such as Brotli on Windows
+  ARM64; genuinely missing packages retain normal dependency resolution.
 
 ## Implemented functionality
 
