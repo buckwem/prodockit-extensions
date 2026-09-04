@@ -38,6 +38,14 @@ from bootstrap_live_provider_read_write import (
     validate_controller_checkout,
     validate_destination_refs,
 )
+from live_provider_resilience import (
+    READ_RETRY_DELAYS,
+    TRANSIENT_HTTP_STATUS,
+    failure_with_history,
+    retry_delay,
+    safe_failure_detail,
+    transient_http_read,
+)
 from live_provider_state import (
     SURREY_PATH,
     LifecycleFixture,
@@ -54,9 +62,6 @@ from release_gate_state import (
     ProviderPathResult,
 )
 
-READ_RETRY_DELAYS = (2.0, 5.0, 10.0, 20.0)
-TRANSIENT_HTTP_STATUS = {429, 502, 503, 504}
-TRANSIENT_READ_HTTP_STATUS = TRANSIENT_HTTP_STATUS | {403}
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 PROJECT_DISABLE_SETTINGS: dict[str, Any] = {
     "visibility": "private",
@@ -283,6 +288,7 @@ class GitLabClient:
             headers["Content-Type"] = "application/json"
         url = self._url(path, query)
         attempts = 1 + (len(READ_RETRY_DELAYS) if method == "GET" else 0)
+        failures: list[str] = []
         for attempt in range(attempts):
             request = Request(url, data=payload, headers=headers, method=method)
             try:
@@ -305,29 +311,30 @@ class GitLabClient:
                         value=_decode_json(raw, status=error.code),
                         headers=dict(error.headers),
                     )
-                if (
-                    method == "GET"
-                    and error.code in TRANSIENT_READ_HTTP_STATUS
-                    and attempt < attempts - 1
-                ):
-                    delay = READ_RETRY_DELAYS[attempt]
-                    retry_after = error.headers.get("Retry-After", "").strip()
-                    if retry_after.isdecimal():
-                        delay = min(delay, float(retry_after))
+                headers = dict(error.headers)
+                if method == "GET" and transient_http_read(
+                    error.code,
+                    headers,
+                    retry_forbidden=True,
+                ) and attempt < attempts - 1:
+                    failures.append(f"HTTP {error.code}")
+                    delay = retry_delay(READ_RETRY_DELAYS[attempt], headers)
                     self._sleep(delay)
                     continue
                 if method != "GET" and error.code in TRANSIENT_HTTP_STATUS:
                     raise AmbiguousMutation(
                         f"GitLab API {method} {path} returned {error.code}; outcome is ambiguous"
                     ) from error
-                raise LifecycleError(f"GitLab API {method} {path} returned {error.code}") from error
+                message = f"GitLab API {method} {path} returned {error.code}"
+                raise LifecycleError(failure_with_history(message, failures)) from error
             except (TimeoutError, URLError, OSError) as error:
                 if method == "GET" and attempt < attempts - 1:
+                    failures.append(safe_failure_detail(error))
                     self._sleep(READ_RETRY_DELAYS[attempt])
                     continue
                 message = f"GitLab API {method} {path} could not be observed"
                 if method == "GET":
-                    raise LifecycleError(message) from error
+                    raise LifecycleError(failure_with_history(message, failures)) from error
                 raise AmbiguousMutation(f"{message}; outcome is ambiguous") from error
         raise AssertionError("unreachable API retry state")
 

@@ -93,7 +93,15 @@ download, architecture and native-library failures before publication without
 making every ordinary pull request wait for five fresh machine installations.
 
 The separate live-provider workflows are protected shadow controls rather
-than pull-request tests. The GitHub workflow mutates only the fixed private
+than pull-request tests. They are not a step in the normal package-release
+procedure and publishing a release does not require or start them. Run one
+only for a deliberate live-provider validation exercise. Each dispatch now
+requires the operator to type its complete fixed destination before any job
+can reach a credential-bearing environment; this prevents a release commit or
+an unrelated workflow choice from being mistaken for authorisation to mutate
+a provider.
+
+The GitHub workflow mutates only the fixed private
 repository `buckwem/bootstrap-release-gate`. The GitHub App installation token
 originally designed for this control cannot create a repository in a personal
 namespace: GitHub supports that endpoint with a fine-grained personal token or
@@ -159,6 +167,11 @@ wrapping private key in the same environment. The wrapping private key cannot
 access GitHub: it can only decrypt the one-time repository credential generated
 inside a reviewed workflow run.
 
+For a deliberate GitHub exercise, dispatch **Bootstrap live provider — GitHub
+shadow** with the full commit currently at protected `main` and type
+`buckwem/bootstrap-release-gate` in the live target confirmation field. Do not
+use this workflow merely because the same commit is being released.
+
 The Surrey pipeline mutates only
 `assessment-liveprovider-2026/report-liveprovider-2026-mb0105` and runs from
 the fixed `mb0105/prodockit-extensions` mirror. Each provider separates reset,
@@ -173,6 +186,11 @@ retains combined public-safe evidence. Until the dual-provider shadow
 acceptance criteria have passed, these workflows supply evidence only:
 `publish.yml` remains unchanged and cannot treat a provider or coordinator
 result as release approval.
+
+The protected GitLab pipeline has the same deliberate-dispatch boundary. Set
+`PRODOCKIT_LIVE_CONFIRM_TARGET` to
+`assessment-liveprovider-2026/report-liveprovider-2026-mb0105`; leave it blank
+for every ordinary pipeline and release.
 
 The Phase 5 migration also makes the Surrey test available as a protected
 GitHub Actions workflow. Run **Bootstrap live provider — Surrey connectivity**
@@ -206,7 +224,9 @@ token separately in reset and seal so the candidate environment cannot resolve
 it. Disable administrator bypass where the repository settings permit it.
 
 Normally dispatch **Bootstrap live provider — Surrey GitLab** with only the
-full commit currently at protected GitHub `main`. It discovers the newest
+full commit currently at protected GitHub `main`, then type
+`assessment-liveprovider-2026/report-liveprovider-2026-mb0105` in the live
+target confirmation field. It discovers the newest
 valid sealed state from earlier runs. The optional prior-run field is for an
 authorised recovery from artifact-discovery failure and still accepts only a
 successful earlier run of this exact workflow. If a run is cancelled after

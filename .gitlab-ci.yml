@@ -9,6 +9,7 @@ workflow:
         $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH &&
         $CI_PROJECT_PATH == "mb0105/prodockit-extensions" &&
         $PRODOCKIT_LIVE_RELEASE_COMMIT =~ /^[0-9a-f]{40}$/ &&
+        $PRODOCKIT_LIVE_CONFIRM_TARGET == "assessment-liveprovider-2026/report-liveprovider-2026-mb0105" &&
         $PRODOCKIT_LIVE_PREVIOUS_SEAL_JOB_ID =~ /^(0|[1-9][0-9]*)$/
     - when: never
 
@@ -19,6 +20,9 @@ variables:
   PRODOCKIT_LIVE_PREVIOUS_SEAL_JOB_ID:
     value: "0"
     description: "Previous successful Surrey seal job ID, or 0 when the fixture is absent"
+  PRODOCKIT_LIVE_CONFIRM_TARGET:
+    value: ""
+    description: "Type assessment-liveprovider-2026/report-liveprovider-2026-mb0105 to confirm mutation"
 
 stages:
   - protected-live-gate

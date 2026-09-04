@@ -269,11 +269,17 @@ def test_github_shadow_workflow_keeps_three_credential_boundaries() -> None:
     workflow = (ROOT / ".github" / "workflows" / "bootstrap-live-provider-github.yml").read_text(
         encoding="utf-8"
     )
+    preflight = workflow[workflow.index("  preflight:") : workflow.index("  reset:")]
     reset = workflow[workflow.index("  reset:") : workflow.index("  candidate:")]
     candidate = workflow[workflow.index("  candidate:") : workflow.index("  seal:")]
     seal = workflow[workflow.index("  seal:") :]
 
     assert "  workflow_dispatch:" in workflow
+    assert "confirm_live_target:" in workflow
+    assert 'test "$CONFIRM_LIVE_TARGET" = "$FIXED_REPOSITORY"' in workflow
+    assert "needs: preflight" in reset
+    assert "environment:" not in preflight
+    assert "secrets." not in preflight
     for forbidden in ("  pull_request:", "  push:", "  schedule:", "  release:"):
         assert forbidden not in workflow
     assert "cancel-in-progress: false" in workflow
@@ -295,16 +301,8 @@ def test_github_shadow_workflow_keeps_three_credential_boundaries() -> None:
     assert "deploy-key.enc" in candidate
     assert "bootstrap_live_provider_ephemeral_key.py create" in reset
     assert "bootstrap_live_provider_ephemeral_key.py unwrap" in candidate
-    assert "brew install --cask visual-studio-code" in candidate
-    assert "font-inter" in candidate
-    assert "font-jetbrains-mono" in candidate
-    for extension in (
-        "ms-python.python",
-        "zensical.zensical-studio",
-        "tamasfe.even-better-toml",
-        "ltex-plus.vscode-ltex-plus",
-    ):
-        assert f"code --install-extension {extension}" in candidate
+    assert "bootstrap_live_provider_prerequisites.py" in candidate
+    assert "prerequisites.json" in candidate
     assert "if: always() && needs.reset.result == 'success'" in seal
     assert "FIXED_REPOSITORY: buckwem/bootstrap-release-gate" in workflow
     assert "previous_run_id" not in workflow
@@ -319,11 +317,17 @@ def test_surrey_shadow_pipeline_keeps_three_credential_boundaries() -> None:
     seal = pipeline[pipeline.index("surrey_seal:") :]
 
     assert '$CI_PIPELINE_SOURCE == "web"' in parent
+    assert "PRODOCKIT_LIVE_CONFIRM_TARGET" in parent
+    assert (
+        'PRODOCKIT_LIVE_CONFIRM_TARGET == '
+        '"assessment-liveprovider-2026/report-liveprovider-2026-mb0105"'
+    ) in parent
     for forbidden in ('"push"', '"merge_request_event"', '"schedule"'):
         assert forbidden not in parent
     assert "resource_group: bootstrap-live-surrey" in parent
     assert "strategy: mirror" in parent
     assert '$CI_PIPELINE_SOURCE == "parent_pipeline"' in pipeline
+    assert "PRODOCKIT_LIVE_CONFIRM_TARGET" in pipeline
     assert "environment:\n    name: bootstrap-live-surrey-reset" in reset
     assert "environment:\n    name: bootstrap-live-surrey-candidate" in candidate
     assert "environment:\n    name: bootstrap-live-surrey-seal" in seal
@@ -337,17 +341,25 @@ def test_surrey_shadow_pipeline_keeps_three_credential_boundaries() -> None:
     assert '--release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT"' in reset
     assert '--release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT"' in candidate
     assert '--release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT"' in seal
+    assert "bootstrap_live_provider_prerequisites.py" in candidate
+    assert "--pdf-only" in candidate
 
 
 def test_surrey_github_workflow_keeps_three_credential_boundaries() -> None:
     workflow = (
         ROOT / ".github" / "workflows" / "bootstrap-live-provider-surrey.yml"
     ).read_text(encoding="utf-8")
+    preflight = workflow[workflow.index("  preflight:") : workflow.index("  reset:")]
     reset = workflow[workflow.index("  reset:") : workflow.index("  candidate:")]
     candidate = workflow[workflow.index("  candidate:") : workflow.index("  seal:")]
     seal = workflow[workflow.index("  seal:") :]
 
     assert "  workflow_dispatch:" in workflow
+    assert "confirm_live_target:" in workflow
+    assert 'test "$CONFIRM_LIVE_TARGET" = "$FIXED_PROJECT"' in workflow
+    assert "needs: preflight" in reset
+    assert "environment:" not in preflight
+    assert "secrets." not in preflight
     for forbidden in ("  pull_request:", "  push:", "  schedule:", "  release:"):
         assert forbidden not in workflow
     assert "cancel-in-progress: false" in workflow
@@ -370,6 +382,8 @@ def test_surrey_github_workflow_keeps_three_credential_boundaries() -> None:
     assert "surrey_retained_state.py validate" in reset
     assert "assessment-liveprovider-2026/report-liveprovider-2026-mb0105" in reset
     assert "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git" in candidate
+    assert "bootstrap_live_provider_prerequisites.py" in candidate
+    assert "prerequisites.json" in candidate
 
 
 def test_surrey_github_workflow_has_a_fail_closed_candidate_exercise() -> None:

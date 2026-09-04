@@ -11,6 +11,10 @@ on:
         description: Full protected-main commit to test
         required: true
         type: string
+      confirm_live_target:
+        description: Type buckwem/bootstrap-release-gate to confirm a live repository mutation
+        required: true
+        type: string
 
 concurrency:
   group: bootstrap-live-github
@@ -24,8 +28,23 @@ env:
   FIXED_REPOSITORY: buckwem/bootstrap-release-gate
 
 jobs:
+  preflight:
+    name: Confirm the fixed live GitHub target
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require deliberate live-provider dispatch
+        shell: bash
+        run: |
+          test "$CONFIRM_LIVE_TARGET" = "$FIXED_REPOSITORY"
+          [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+        env:
+          CONFIRM_LIVE_TARGET: ${{ inputs.confirm_live_target }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+
   reset:
     name: Trusted reset controller
+    needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: bootstrap-live-github-reset
@@ -145,12 +164,8 @@ jobs:
       - name: Supply non-provider prerequisites
         shell: bash
         run: |
-          brew install pandoc pango
-          brew install --cask visual-studio-code font-inter font-jetbrains-mono
-          code --install-extension ms-python.python
-          code --install-extension zensical.zensical-studio
-          code --install-extension tamasfe.even-better-toml
-          code --install-extension ltex-plus.vscode-ltex-plus
+          python tools/bootstrap_live_provider_prerequisites.py \
+            --report "$RUNNER_TEMP/candidate/prerequisites.json"
       - name: Run the two candidate paths with only one repository deploy key
         shell: bash
         run: |
@@ -187,7 +202,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: github-candidate-${{ github.run_id }}
-          path: ${{ runner.temp }}/candidate/report.json
+          path: |
+            ${{ runner.temp }}/candidate/report.json
+            ${{ runner.temp }}/candidate/prerequisites.json
           if-no-files-found: error
           retention-days: 30
 

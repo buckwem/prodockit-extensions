@@ -1465,7 +1465,7 @@ def test_api_client_retries_read_only_forbidden_responses_without_retrying_mutat
                     getattr(request, "full_url", "https://gitlab.surrey.ac.uk/api/v4"),
                     403,
                     "Forbidden",
-                    {},
+                    {"Retry-After": "7"} if self.calls == 1 else {},
                     io.BytesIO(b'{"message":"403 Forbidden"}'),
                 )
             return SuccessfulResponse()
@@ -1477,7 +1477,7 @@ def test_api_client_retries_read_only_forbidden_responses_without_retrying_mutat
         "id": 101
     }
     assert opener.calls == 3
-    assert delays == [2.0, 5.0]
+    assert delays == [7.0, 5.0]
 
     opener.calls = 0
     delays.clear()
@@ -1491,6 +1491,12 @@ def test_lifecycle_tool_changes_select_bootstrap_acceptance_scope() -> None:
     scope = importlib.import_module("ci_scope")
 
     assert scope.owners_for_path("tools/live_provider_state.py") == frozenset({"bootstrap"})
+    assert scope.owners_for_path("tools/live_provider_resilience.py") == frozenset(
+        {"bootstrap"}
+    )
+    assert scope.owners_for_path(
+        "tools/bootstrap_live_provider_prerequisites.py"
+    ) == frozenset({"bootstrap"})
     assert scope.owners_for_path("tools/bootstrap_live_provider_lifecycle.py") == frozenset(
         {"bootstrap"}
     )

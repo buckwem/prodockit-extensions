@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import hashlib
 import json
 import os
@@ -23,6 +24,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, NoReturn, Protocol
 
+from live_provider_resilience import (
+    READ_RETRY_DELAYS,
+    TRANSIENT_HTTP_STATUS,
+    failure_with_history,
+    retry_delay,
+    safe_failure_detail,
+    transient_http_read,
+)
 from live_provider_state import (
     GITHUB_PATH,
     ResetHandoff,
@@ -48,6 +57,10 @@ DELETE_RECONCILIATION_DELAYS = (1.0, 2.0, 5.0, 10.0)
 
 class LifecycleError(RuntimeError):
     """The GitHub fixture is unsafe, ambiguous or unavailable."""
+
+
+class AmbiguousMutation(LifecycleError):
+    """A GitHub mutation may have succeeded although its response was lost."""
 
 
 @dataclass(frozen=True)
@@ -78,11 +91,18 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 class GitHubAPI:
     """Small exact-host GitHub REST client without mutation retries."""
 
-    def __init__(self, token: str | None, *, timeout: float = 30.0) -> None:
+    def __init__(
+        self,
+        token: str | None,
+        *,
+        timeout: float = 30.0,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
         if token is not None and (not token or any(character in token for character in "\0\r\n")):
             raise LifecycleError("the GitHub installation token is missing or malformed")
         self._token = token
         self._timeout = timeout
+        self._sleep = sleep
         self._opener = urllib.request.build_opener(NoRedirect())
 
     def request(
@@ -111,46 +131,92 @@ class GitHubAPI:
         if body is not None:
             payload = json.dumps(body, separators=(",", ":")).encode("utf-8")
             headers["Content-Type"] = "application/json"
-        request = urllib.request.Request(url, data=payload, headers=headers, method=method.upper())
-        try:
-            response = self._opener.open(request, timeout=self._timeout)
-        except urllib.error.HTTPError as error:
-            response = error
-        except (OSError, TimeoutError, urllib.error.URLError) as error:
-            raise LifecycleError(f"GitHub API {method} {path} failed: {error}") from error
-        status = response.status
-        raw = response.read(MAX_RESPONSE_BYTES + 1)
-        if len(raw) > MAX_RESPONSE_BYTES:
-            raise LifecycleError("GitHub API response exceeded the inspection limit")
-        try:
-            value = json.loads(raw) if raw else None
-        except json.JSONDecodeError as error:
-            raise LifecycleError(f"GitHub API {method} {path} returned malformed JSON") from error
-        if status not in expected:
-            detail = ""
-            if isinstance(value, dict):
-                messages = [value.get("message")]
-                errors = value.get("errors")
-                if isinstance(errors, list):
-                    messages.extend(
-                        error.get("message")
-                        for error in errors
-                        if isinstance(error, dict)
-                    )
-                safe_messages = [
-                    message.strip()
-                    for message in messages
-                    if isinstance(message, str)
-                    and message.strip()
-                    and len(message) <= 240
-                    and not any(character in message for character in "\0\r\n")
-                ]
-                if safe_messages:
-                    detail = ": " + "; ".join(dict.fromkeys(safe_messages))
-            raise LifecycleError(
-                f"GitHub API {method} {path} returned {status}{detail}"
-            )
-        return ApiResponse(status=status, value=value, headers=dict(response.headers))
+        method = method.upper()
+        attempts = 1 + (len(READ_RETRY_DELAYS) if method == "GET" else 0)
+        failures: list[str] = []
+        for attempt in range(attempts):
+            request = urllib.request.Request(url, data=payload, headers=headers, method=method)
+            try:
+                response = self._opener.open(request, timeout=self._timeout)
+            except urllib.error.HTTPError as error:
+                response = error
+            except (OSError, TimeoutError, urllib.error.URLError) as error:
+                message = f"GitHub API {method} {path} could not be observed"
+                if method == "GET" and attempt < attempts - 1:
+                    failures.append(safe_failure_detail(error))
+                    self._sleep(READ_RETRY_DELAYS[attempt])
+                    continue
+                if method == "GET":
+                    raise LifecycleError(failure_with_history(message, failures)) from error
+                raise AmbiguousMutation(f"{message}; outcome is ambiguous") from error
+            status = response.status
+            response_headers = dict(response.headers)
+            try:
+                raw = response.read(MAX_RESPONSE_BYTES + 1)
+            except (OSError, TimeoutError, urllib.error.URLError) as error:
+                message = f"GitHub API {method} {path} response could not be read"
+                if method == "GET" and attempt < attempts - 1:
+                    failures.append(safe_failure_detail(error))
+                    self._sleep(READ_RETRY_DELAYS[attempt])
+                    continue
+                if method == "GET":
+                    raise LifecycleError(failure_with_history(message, failures)) from error
+                raise AmbiguousMutation(f"{message}; outcome is ambiguous") from error
+            if len(raw) > MAX_RESPONSE_BYTES:
+                raise LifecycleError("GitHub API response exceeded the inspection limit")
+            try:
+                value = json.loads(raw) if raw else None
+            except json.JSONDecodeError as error:
+                if method == "GET" and transient_http_read(
+                    status, response_headers
+                ) and attempt < attempts - 1:
+                    failures.append(f"HTTP {status} with malformed JSON")
+                    self._sleep(retry_delay(READ_RETRY_DELAYS[attempt], response_headers))
+                    continue
+                if method != "GET" and status in TRANSIENT_HTTP_STATUS:
+                    raise AmbiguousMutation(
+                        f"GitHub API {method} {path} returned {status} with an unreadable "
+                        "response; outcome is ambiguous"
+                    ) from error
+                raise LifecycleError(
+                    f"GitHub API {method} {path} returned malformed JSON"
+                ) from error
+            if status in expected:
+                return ApiResponse(status=status, value=value, headers=response_headers)
+            detail = _api_detail(value)
+            if method == "GET" and transient_http_read(
+                status, response_headers, detail
+            ) and attempt < attempts - 1:
+                failures.append(f"HTTP {status}{detail}")
+                self._sleep(retry_delay(READ_RETRY_DELAYS[attempt], response_headers))
+                continue
+            message = f"GitHub API {method} {path} returned {status}{detail}"
+            if method != "GET" and status in TRANSIENT_HTTP_STATUS:
+                raise AmbiguousMutation(f"{message}; outcome is ambiguous")
+            raise LifecycleError(failure_with_history(message, failures))
+        raise AssertionError("unreachable API retry state")
+
+
+def _api_detail(value: Any) -> str:
+    """Return bounded provider validation messages without reflecting headers."""
+
+    if not isinstance(value, dict):
+        return ""
+    messages = [value.get("message")]
+    errors = value.get("errors")
+    if isinstance(errors, list):
+        messages.extend(
+            error.get("message") for error in errors if isinstance(error, dict)
+        )
+    safe_messages = [
+        message.strip()
+        for message in messages
+        if isinstance(message, str)
+        and message.strip()
+        and len(message) <= 240
+        and not any(character in message for character in "\0\r\n")
+    ]
+    return ": " + "; ".join(dict.fromkeys(safe_messages)) if safe_messages else ""
 
 
 def text(value: Any, *, label: str) -> str:
@@ -449,6 +515,21 @@ def wait_until_absent(client: Client, sleep: Callable[[float], None]) -> None:
         raise LifecycleError("GitHub repository deletion did not become observable")
 
 
+def wait_until_present(
+    client: Client,
+    sleep: Callable[[float], None],
+) -> dict[str, Any] | None:
+    """Observe whether an ambiguously created fixed repository became visible."""
+
+    for delay in (0.0, *DELETE_RECONCILIATION_DELAYS):
+        if delay:
+            sleep(delay)
+        current = repository(client)
+        if current is not None:
+            return current
+    return None
+
+
 def remove_repository(
     client: Client,
     *,
@@ -462,11 +543,14 @@ def remove_repository(
         return
     if positive_id(current.get("id"), label="repository.id") != expected_id:
         raise LifecycleError("GitHub repository identity changed before removal")
-    client.request(
-        "DELETE",
-        f"/repos/{ACCOUNT}/{REPOSITORY}",
-        expected={204},
-    )
+    with contextlib.suppress(AmbiguousMutation):
+        client.request(
+            "DELETE",
+            f"/repos/{ACCOUNT}/{REPOSITORY}",
+            expected={204},
+        )
+    # Never repeat a provider mutation.  The exact immutable repository ID
+    # was checked above; reconcile the lost response through bounded reads.
     wait_until_absent(client, sleep)
 
 
@@ -496,40 +580,47 @@ def reset(
         )
 
     source_commit, source_digest = source_state(source_client or client)
-    created = object_value(
-        client.request(
+    create_body = {
+        "name": REPOSITORY,
+        "private": True,
+        "has_issues": False,
+        "has_projects": False,
+        "has_wiki": False,
+        "has_discussions": False,
+        "auto_init": False,
+    }
+    try:
+        created_value = client.request(
             "POST",
             "/user/repos",
-            body={
-                "name": REPOSITORY,
-                "private": True,
-                "has_issues": False,
-                "has_projects": False,
-                "has_wiki": False,
-                "has_discussions": False,
-                "auto_init": False,
-            },
+            body=create_body,
             expected={201},
-        ).value,
-        label="created GitHub repository",
-    )
+        ).value
+    except AmbiguousMutation:
+        created_value = wait_until_present(client, sleep)
+        if created_value is None:
+            raise
+    created = object_value(created_value, label="created GitHub repository")
     repository_id = positive_id(created.get("id"), label="created repository.id")
     if created.get("full_name") != GITHUB_PATH or created.get("private") is not True:
         raise LifecycleError("GitHub created another or non-private repository")
     try:
-        client.request(
-            "PUT",
-            f"/repos/{ACCOUNT}/{REPOSITORY}/actions/permissions",
-            body={"enabled": False},
-            expected={204},
-        )
+        with contextlib.suppress(AmbiguousMutation):
+            client.request(
+                "PUT",
+                f"/repos/{ACCOUNT}/{REPOSITORY}/actions/permissions",
+                body={"enabled": False},
+                expected={204},
+            )
+        # The following complete inert-state inspection proves whether the
+        # idempotent setting reached GitHub; do not send the PUT again.
         verify_inert_configuration(client)
         if refs(client, ACCOUNT, REPOSITORY):
             raise LifecycleError("new GitHub destination repository is not empty")
         if deploy_keys(client):
             raise LifecycleError("new GitHub destination unexpectedly contains a deploy key")
-        key = object_value(
-            client.request(
+        try:
+            key_value = client.request(
                 "POST",
                 f"/repos/{ACCOUNT}/{REPOSITORY}/keys",
                 body={
@@ -538,9 +629,19 @@ def reset(
                     "read_only": False,
                 },
                 expected={201},
-            ).value,
-            label="created GitHub deploy key",
-        )
+            ).value
+        except AmbiguousMutation:
+            matches = [
+                record
+                for record in deploy_keys(client)
+                if record.get("title") == DEPLOY_KEY_TITLE
+                and record.get("read_only") is False
+                and record.get("key") == public_key_record
+            ]
+            if len(matches) != 1:
+                raise
+            key_value = matches[0]
+        key = object_value(key_value, label="created GitHub deploy key")
         key_id = positive_id(key.get("id"), label="deploy_key.id")
         if key.get("title") != DEPLOY_KEY_TITLE or key.get("read_only") is not False:
             raise LifecycleError("GitHub created the destination key with unsafe properties")
@@ -702,12 +803,14 @@ def revoke_handoff_key(client: Client, handoff: ResetHandoff) -> None:
     observed = public_key_fingerprint(key_record)
     if observed != handoff.deploy_key_fingerprint:
         raise LifecycleError("GitHub destination deploy key fingerprint changed")
-    client.request(
-        "DELETE",
-        f"/repos/{ACCOUNT}/{REPOSITORY}/keys/{handoff.deploy_key_id}",
-        expected={204},
-    )
-    if deploy_keys(client):
+    with contextlib.suppress(AmbiguousMutation):
+        client.request(
+            "DELETE",
+            f"/repos/{ACCOUNT}/{REPOSITORY}/keys/{handoff.deploy_key_id}",
+            expected={204},
+        )
+    remaining = deploy_keys(client)
+    if remaining:
         raise LifecycleError("GitHub destination deploy key removal was not confirmed")
 
 

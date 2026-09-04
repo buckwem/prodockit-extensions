@@ -11,6 +11,10 @@ on:
         description: Full protected-main commit to test
         required: true
         type: string
+      confirm_live_target:
+        description: Type assessment-liveprovider-2026/report-liveprovider-2026-mb0105 to confirm a live project mutation
+        required: true
+        type: string
       previous_surrey_run_id:
         description: Optional numeric recovery run ID; otherwise leave this field completely blank
         required: false
@@ -35,8 +39,24 @@ permissions:
   contents: read
 
 jobs:
+  preflight:
+    name: Confirm the fixed live Surrey target
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require deliberate live-provider dispatch
+        shell: bash
+        run: |
+          test "$CONFIRM_LIVE_TARGET" = "$FIXED_PROJECT"
+          [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+        env:
+          CONFIRM_LIVE_TARGET: ${{ inputs.confirm_live_target }}
+          FIXED_PROJECT: assessment-liveprovider-2026/report-liveprovider-2026-mb0105
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+
   reset:
     name: Surrey trusted reset controller
+    needs: preflight
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -248,12 +268,8 @@ jobs:
       - name: Supply non-provider prerequisites
         shell: bash
         run: |
-          brew install pandoc pango
-          brew install --cask visual-studio-code font-inter font-jetbrains-mono
-          code --install-extension ms-python.python
-          code --install-extension zensical.zensical-studio
-          code --install-extension tamasfe.even-better-toml
-          code --install-extension ltex-plus.vscode-ltex-plus
+          python tools/bootstrap_live_provider_prerequisites.py \
+            --report "$RUNNER_TEMP/candidate/prerequisites.json"
       - name: Run both paths with only the reviewed repository key
         shell: bash
         run: |
@@ -296,7 +312,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: surrey-candidate-${{ github.run_id }}
-          path: ${{ runner.temp }}/candidate/report.json
+          path: |
+            ${{ runner.temp }}/candidate/report.json
+            ${{ runner.temp }}/candidate/prerequisites.json
           if-no-files-found: error
           retention-days: 30
 
