@@ -81,8 +81,21 @@ For a quick inventory from a terminal:
 prodockit pins
 ```
 
-This contacts PyPI and offers the newest version, but it does not compare
-rendered artifacts for you.
+This reports the newest releases from PyPI, but offers the complete version
+combination tested by the installed Prodockit release as its defaults. It does
+not compare rendered artifacts for you.
+
+!!! tip "Restore the supported software combination"
+    If a build starts failing, its output changes unexpectedly, or dependency
+    versions have drifted, run `prodockit pins`. Review the inventory, then
+    press ++enter++ at each prompt to bring every declared build input back to
+    the combination supported by the installed Prodockit release. This covers
+    Zensical, WeasyPrint, Prodockit, Markdown, PyMdown Extensions, Pandoc, and
+    Python wherever the project declares them.
+
+    A newer version shown by PyPI is information, not the default. Type a
+    different version only when you intend to test that combination, or use
+    `--latest` to opt into the newest PyPI releases explicitly.
 
 ////
 
@@ -164,25 +177,29 @@ zensical
   pyproject.toml:34  zensical>=0.0.53
   .github/workflows/docs.yml:164  zensical==0.0.53
   .github/workflows/drift.yml:69  zensical==0.0.53
-  newest on PyPI: 0.0.53  <- newer available
+  newest on PyPI: 0.0.60  <- newer available
+  tested with installed prodockit 0.58.0: 0.0.59  <- interactive default
 
 weasyprint
   .github/workflows/ci.yml:59  weasyprint==69.0
   .github/workflows/docs.yml:164  weasyprint==69.0
-  newest on PyPI: 69.0
+  newest on PyPI: 70.0  <- newer available
+  tested with installed prodockit 0.58.0: 69.0  <- interactive default
 
 markdown
   pyproject.toml:25  markdown>=3.10.3
   .github/workflows/docs.yml:164  markdown==3.10.3
   .github/workflows/drift.yml:69  markdown==3.10.3
   newest on PyPI: 3.10.3
+  tested with installed prodockit 0.58.0: 3.10.3  <- interactive default
 
 pymdown-extensions
   .github/workflows/docs.yml:164  pymdown-extensions==11.0.2
   .github/workflows/drift.yml:69  pymdown-extensions==11.0.2
   newest on PyPI: 11.0.2
+  tested with installed prodockit 0.58.0: 11.0.2  <- interactive default
 
-zensical: version to set [0.0.53]:
+zensical: version to set [0.0.59]:
 ```
 
 `Markdown` and `pymdown-extensions` are in that list even though nothing
@@ -190,9 +207,11 @@ installs them directly - they arrive under Zensical, which declares only
 floors for them. See [the limitations below](#pinning-limitations) for why
 pinning Zensical alone left them free to move.
 
-Press ++enter++ to take the newest release, or type a version. Each site
-keeps **its own operator** - the floor stays a floor, the pins stay
-pinned - so one answer updates every file correctly.
+Press ++enter++ to take the version tested by the installed Prodockit release,
+or type another version deliberately. Each site keeps **its own operator** -
+the floor stays a floor, the pins stay pinned - so one answer updates every
+file correctly. The supported defaults are carried inside the installed wheel,
+so restoring them does not depend on the template or on PyPI being available.
 
 ### Options {: #pinning-options }
 
@@ -202,7 +221,7 @@ The command's reporting, write, and network controls are summarised in
 | Option {: width="38%" } | What it does |
 | --- | --- |
 | `-r`, `--root` | Project root to scan. Defaults to the current directory. |
-| `-p`, `--package` | Package to manage, repeatable. Defaults to `zensical`, `weasyprint`, `prodockit`, `Markdown`, `pymdown-extensions` and `pandoc`. |
+| `-p`, `--package` | Package to manage, repeatable. Defaults to `zensical`, `weasyprint`, `prodockit`, `Markdown`, `pymdown-extensions`, `pandoc`, and `python`. |
 | `--set PACKAGE=VERSION` | Set a version without prompting, repeatable. Implies `--no-input`. |
 | `--latest` | Take PyPI's newest for every package without prompting. Implies `--no-input`. |
 | `--no-input` | Never prompt. Packages given a version are updated; the rest are reported and left untouched. |
@@ -663,6 +682,7 @@ Specific to pinning:
   ([#184](https://github.com/buckwem/prodockit-extensions/issues/184)); a
   trailing comment after a real declaration still leaves that declaration
   findable.
-- **`prodockit pins` needs network** for `--latest` and the suggested
-  default. Use `--offline` to report what the files declare without asking
-  PyPI.
+- **The supported defaults work offline.** `prodockit pins` only needs network
+  to report newer PyPI releases or use `--latest`. The combination tested by
+  the installed Prodockit release is carried in its wheel, so `--offline`
+  still offers those versions interactively.

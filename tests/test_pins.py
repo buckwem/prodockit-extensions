@@ -381,6 +381,27 @@ def test_is_behind_is_false_when_no_latest_is_known() -> None:
     assert state.is_behind is False
 
 
+def test_every_standard_build_input_has_a_tested_version() -> None:
+    """One installed release must represent a complete supported combination,
+    not make only the easiest-to-query packages safe defaults."""
+    assert set(pins.TESTED_VERSIONS) == set(pins.DEFAULT_PACKAGES)
+
+
+def test_tested_versions_match_this_releases_build_declarations() -> None:
+    """A release cannot retain the preceding wheel's suggestions after its
+    own build pins move. The package itself is represented by its version;
+    all other standard inputs are declared in this repository."""
+    from prodockit import __version__
+
+    assert pins.TESTED_VERSIONS["prodockit"] == __version__
+    root = Path(__file__).parents[1]
+    states = discover(str(root))
+    for package, tested in pins.TESTED_VERSIONS.items():
+        if package == "prodockit":
+            continue
+        assert states[package].versions == [tested], package
+
+
 def test_discover_finds_github_runner_labels(tmp_path: Path) -> None:
     """`runs-on: ubuntu-24.04` is a build input like any other - it carries
     pandoc, the fonts a PDF embeds and the Chrome that rasterises diagrams -
@@ -667,6 +688,112 @@ def _both_packages(root: Path) -> None:
             "pyproject.toml": 'dependencies = [\n  "zensical>=0.0.52",\n]\n',
             "requirements.txt": "weasyprint==69.0\n",
         },
+    )
+
+
+def _report_newer_zensical(
+    states: dict[str, PackageState], *, offline: bool = False, timeout: float = 10.0
+) -> None:
+    del offline, timeout
+    states["zensical"].latest = "0.0.60"
+
+
+@pytest.mark.parametrize(
+    ("package", "declaration", "tested", "newest"),
+    [
+        ("zensical", "zensical==0.0.56", "0.0.57", "0.0.60"),
+        ("weasyprint", "weasyprint==68.0", "69.0", "70.0"),
+    ],
+)
+def test_interactive_default_is_the_version_tested_by_installed_prodockit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    package: str,
+    declaration: str,
+    tested: str,
+    newest: str,
+) -> None:
+    _project(tmp_path, {"requirements.txt": f"{declaration}\n"})
+
+    def report_latest(
+        states: dict[str, PackageState], *, offline: bool = False, timeout: float = 10.0
+    ) -> None:
+        del offline, timeout
+        states[package].latest = newest
+
+    monkeypatch.setattr(pins, "resolve_latest", report_latest)
+    monkeypatch.setitem(pins.TESTED_VERSIONS, package, tested)
+
+    result = CliRunner().invoke(
+        main,
+        ["pins", "--root", str(tmp_path), "--package", package],
+        input="\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"newest on PyPI: {newest}" in result.output
+    assert f"tested with installed prodockit {pins.__version__}: {tested}" in result.output
+    assert f"version to set [{tested}]" in result.output
+    assert (tmp_path / "requirements.txt").read_text(encoding="utf-8") == (
+        f"{package}=={tested}\n"
+    )
+
+
+def test_non_pypi_build_input_uses_the_installed_releases_tested_version(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _project(tmp_path, {".github/workflows/docs.yml": 'env:\n  PANDOC_VERSION: "3.9.0"\n'})
+    monkeypatch.setitem(pins.TESTED_VERSIONS, "pandoc", "3.10.1")
+
+    result = CliRunner().invoke(
+        main,
+        ["pins", "--root", str(tmp_path), "--package", "pandoc", "--offline"],
+        input="\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"tested with installed prodockit {pins.__version__}: 3.10.1" in result.output
+    assert "version to set [3.10.1]" in result.output
+    assert 'PANDOC_VERSION: "3.10.1"' in (
+        tmp_path / ".github" / "workflows" / "docs.yml"
+    ).read_text(encoding="utf-8")
+
+
+def test_interactive_zensical_accepts_an_explicit_version_above_the_tested_default(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _project(tmp_path, {"requirements.txt": "zensical==0.0.57\n"})
+    monkeypatch.setattr(pins, "resolve_latest", _report_newer_zensical)
+    monkeypatch.setitem(pins.TESTED_VERSIONS, "zensical", "0.0.57")
+
+    result = CliRunner().invoke(
+        main,
+        ["pins", "--root", str(tmp_path), "--package", "zensical"],
+        input="0.0.60\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "requirements.txt").read_text(encoding="utf-8") == (
+        "zensical==0.0.60\n"
+    )
+
+
+def test_latest_still_explicitly_selects_pypis_newest_zensical(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _project(tmp_path, {"requirements.txt": "zensical==0.0.57\n"})
+    monkeypatch.setattr(pins, "resolve_latest", _report_newer_zensical)
+    monkeypatch.setitem(pins.TESTED_VERSIONS, "zensical", "0.0.57")
+
+    result = CliRunner().invoke(
+        main,
+        ["pins", "--root", str(tmp_path), "--package", "zensical", "--latest"],
+        input="",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "requirements.txt").read_text(encoding="utf-8") == (
+        "zensical==0.0.60\n"
     )
 
 

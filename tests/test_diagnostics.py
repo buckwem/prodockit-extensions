@@ -1833,6 +1833,39 @@ def test_one_unreadable_area_does_not_prevent_the_remaining_diagnostics(
     assert failure.details == ("cannot read pins",)
 
 
+def test_pins_warn_when_declarations_are_outside_installed_supported_combination(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "requirements.txt").write_text("zensical==0.0.58\n", encoding="utf-8")
+
+    check = diagnostics._pin_checks(tmp_path, online=False)[0]
+
+    assert check.id == "dependencies.pins"
+    assert check.status == "warn"
+    assert "outside the supported combination" in check.summary
+    assert "supported with installed prodockit" in check.details[0]
+    assert "run `pdk pins` and accept the tested default" in check.details[0]
+    assert check.data["supported_mismatches"] == ["zensical"]
+
+
+def test_supported_combination_warning_is_manual_not_a_diag_fix(tmp_path: Path) -> None:
+    (tmp_path / "requirements.txt").write_text("weasyprint==68.0\n", encoding="utf-8")
+    check = diagnostics._pin_checks(tmp_path, online=False)[0]
+
+    dry_run = diagnostics.build_repair_dry_run(
+        DiagnosticReport("zensical.toml", str(tmp_path), False, (check,))
+    )
+
+    candidate = next(
+        item
+        for item in dry_run.candidates
+        if item.id == "dependencies.pins.restore-supported-combination"
+    )
+    assert candidate.status == "manual"
+    assert candidate.choices == ()
+    assert "Run `pdk pins`" in candidate.remediation
+
+
 def test_author_guide_documents_every_stable_check_id() -> None:
     guide = (
         Path(__file__).resolve().parent.parent / "docs" / "devcons" / "diagnostics.md"

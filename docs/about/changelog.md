@@ -30,6 +30,15 @@ requests rather than here.
   and candidate, allowed a deliberately removed Surrey test project to be
   recreated from historical retained state, and preserved the candidate's
   original failure reason after trusted cleanup.
+- Changed `prodockit pins` so every standard interactive suggestion uses the
+  complete software combination tested by the installed Prodockit release,
+  including Zensical, WeasyPrint, Markdown, PyMdown Extensions, Pandoc, and
+  Python. Newer PyPI releases remain visible and can still be selected
+  explicitly with typed input or `--latest`; accepting the defaults restores a
+  project to the supported combination even offline.
+- Made `pdk diag` warn when declared tool versions do not match that supported
+  combination and direct the author to `pdk pins`. Diagnostics reports this as
+  manual remediation and does not offer it as a `pdk diag --fix` action.
 
 ## Implemented functionality
 
