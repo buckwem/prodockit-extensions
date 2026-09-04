@@ -35,6 +35,7 @@ from prodockit.pins import DEFAULT_PACKAGES, PinError, apply_version, discover, 
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
 from prodockit.renderer_health import find_browser, probe_mathjax, probe_mermaid
+from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
 from prodockit.shared_files import inspect as inspect_shared_files
@@ -1705,6 +1706,7 @@ def repair_locked_renderer(
     *,
     expected_fingerprint: str,
     timestamp: str | None = None,
+    retry_reporter: RetryReporter | None = None,
 ) -> RepairApplyResult:
     """Rebuild one project-local renderer from a validated lockfile."""
     project = root.resolve()
@@ -1774,7 +1776,7 @@ def repair_locked_renderer(
             raise RepairTransactionError(f"renderer scaffold verification failed: {refusal}")
         environment = dict(os.environ)
         environment["PUPPETEER_SKIP_DOWNLOAD"] = "true"
-        completed = subprocess.run(
+        npm_result = run_npm_with_retries(
             [
                 npm,
                 "ci",
@@ -1784,17 +1786,16 @@ def repair_locked_renderer(
                 "--prefer-offline",
             ],
             cwd=tool_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=600,
-            check=False,
-            env=environment,
+            environment=environment,
+            reporter=retry_reporter,
         )
+        completed = npm_result.completed
         if completed.returncode:
-            detail = (completed.stderr or completed.stdout).strip()
-            raise RepairTransactionError(f"npm ci failed: {_sanitise_text(detail, project)}")
+            detail = npm_result.failure_detail
+            raise RepairTransactionError(
+                f"npm ci failed: {_sanitise_text(detail, project)}"
+            )
         changed.append(_display_path(modules, project))
 
         if component == "mermaid":
@@ -1803,7 +1804,15 @@ def repair_locked_renderer(
                 None,
                 ("tools/mermaid/node_modules/.bin/mmdc",),
             )
-            probe = probe_mermaid(binary) if binary else None
+            probe = (
+                (
+                    probe_mermaid(binary, reporter=retry_reporter)
+                    if retry_reporter is not None
+                    else probe_mermaid(binary)
+                )
+                if binary
+                else None
+            )
             if probe is None or not probe.ok:
                 raise RepairTransactionError(
                     f"Mermaid verification failed: {probe.error if probe else 'mmdc is missing'}"
@@ -2593,7 +2602,12 @@ def _tool_result(
     )
 
 
-def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[DiagnosticResult]:
+def _renderer_checks(
+    config: ProjectConfig | None,
+    root: Path,
+    *,
+    retry_reporter: RetryReporter | None = None,
+) -> list[DiagnosticResult]:
     pdf_required = bool(
         config
         and any(
@@ -2656,15 +2670,30 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
             config.extra.get("pdf_tex2svg_script"),
             ("tools/mathjax/tex2svg.js",),
         )
-    mmdc_probe = probe_mermaid(mmdc) if mmdc else None
+    mmdc_probe = (
+        (
+            probe_mermaid(mmdc, reporter=retry_reporter)
+            if retry_reporter is not None
+            else probe_mermaid(mmdc)
+        )
+        if mmdc
+        else None
+    )
     mmdc_ok = bool(mmdc_probe and mmdc_probe.ok)
+    mmdc_retried = bool(
+        mmdc_ok and mmdc_probe and getattr(mmdc_probe, "attempts", 1) > 1
+    )
     mmdc_error = _sanitise_text(mmdc_probe.error, root) if mmdc_probe and mmdc_probe.error else None
     checks.append(
         DiagnosticResult(
             "renderer.mermaid",
             "Rendering toolchain",
-            "pass" if mmdc_ok else ("fail" if mermaid_required else "warn"),
-            "Mermaid CLI is available"
+            "warn" if mmdc_retried else (
+                "pass" if mmdc_ok else ("fail" if mermaid_required else "warn")
+            ),
+            "Mermaid CLI recovered after a transient failure"
+            if mmdc_retried
+            else "Mermaid CLI is available"
             if mmdc_ok
             else ("Mermaid CLI is unusable" if mmdc else "Mermaid CLI is missing")
             + (" but required by this project" if mermaid_required else " (optional)"),
@@ -2672,6 +2701,11 @@ def _renderer_checks(config: ProjectConfig | None, root: Path) -> list[Diagnosti
                 detail
                 for detail in (
                     f"path: {_display_path(mmdc, root)}" if mmdc else None,
+                    (
+                        f"health probe: recovered after {mmdc_probe.attempts} attempts"
+                        if mmdc_retried and mmdc_probe
+                        else None
+                    ),
                     f"health probe: {mmdc_error}" if mmdc_error else None,
                 )
                 if detail
@@ -3046,7 +3080,12 @@ def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
     return checks
 
 
-def inspect(config_file: str | Path = "zensical.toml", *, online: bool = False) -> DiagnosticReport:
+def inspect(
+    config_file: str | Path = "zensical.toml",
+    *,
+    online: bool = False,
+    retry_reporter: RetryReporter | None = None,
+) -> DiagnosticReport:
     """Inspect the active environment and project without changing either."""
     requested = Path(config_file).expanduser().resolve()
     root = requested.parent
@@ -3107,7 +3146,11 @@ def inspect(config_file: str | Path = "zensical.toml", *, online: bool = False) 
         "renderer.inspection",
         "Rendering toolchain",
         "The rendering toolchain",
-        lambda: _renderer_checks(config, root),
+        lambda: (
+            _renderer_checks(config, root, retry_reporter=retry_reporter)
+            if retry_reporter is not None
+            else _renderer_checks(config, root)
+        ),
     )
     collect(
         "renderer.security-inspection",

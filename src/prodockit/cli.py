@@ -113,6 +113,7 @@ from prodockit.pdf.config import (
 from prodockit.pdf.site import BuiltSiteError
 from prodockit.pdf.source_bundle import SourceBundleError
 from prodockit.project_config import ProjectConfigError, load_project_config
+from prodockit.renderer_resilience import RetryNotice
 from prodockit.revision_dates import RevisionDateError, update_built_site_revision_dates
 from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 
@@ -1980,7 +1981,11 @@ def diag_command(
             "`pdk diag --dry-run --json` to inspect repair alternatives"
         )
 
-    before = inspect(config_file, online=online)
+    before = inspect(
+        config_file,
+        online=online,
+        retry_reporter=_renderer_retry_warning,
+    )
     try:
         repair_plan = build_repair_dry_run(before, check_ids=fix_check) if dry_run or fix else None
     except ValueError as error:
@@ -2178,6 +2183,7 @@ def diag_command(
                         project_root,
                         component,
                         expected_fingerprint=renderer_check.data["repair_fingerprint"],
+                        retry_reporter=_renderer_retry_warning,
                     )
                     result_status = renderer_repair.status
                     changed = renderer_repair.changed
@@ -2226,7 +2232,15 @@ def diag_command(
             repair_actions.append(base_action)
             click.echo("  ok — applied and verified", err=True)
 
-    report = inspect(config_file, online=online) if fix else before
+    report = (
+        inspect(
+            config_file,
+            online=online,
+            retry_reporter=_renderer_retry_warning,
+        )
+        if fix
+        else before
+    )
     if fix:
         _diagnostic_phase_heading(3, 3, "Verify final state", err=json_output)
     if json_output:
@@ -2928,6 +2942,19 @@ def _adopt_stage_heading(number: int, total: int, summary: str) -> None:
     click.echo(click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="blue"))
 
 
+def _renderer_retry_warning(notice: RetryNotice) -> None:
+    """Show a bounded external retry without echoing pages of tool output."""
+
+    delay = int(notice.delay) if notice.delay.is_integer() else notice.delay
+    click.echo(
+        _bootstrap_warning(
+            f"  warning: transient {notice.operation} failure on attempt "
+            f"{notice.attempt}/{notice.maximum_attempts}; retrying in {delay}s"
+        ),
+        err=True,
+    )
+
+
 @main.command("adopt")
 @click.option(
     "--configure",
@@ -3013,7 +3040,7 @@ def adopt_command(
         return
 
     try:
-        steps = assess_adoption(root, options)
+        steps = assess_adoption(root, options, retry_reporter=_renderer_retry_warning)
     except AdoptError as error:
         raise click.ClickException(str(error)) from error
     build_command = adopt_build_command(root)
@@ -3047,7 +3074,13 @@ def adopt_command(
         # --apply run. Refresh the final read-only readiness check so its
         # status describes the files now on disk rather than the initial plan.
         if apply and step.id == "verify":
-            step = next(item for item in assess_adoption(root, options) if item.id == "verify")
+            step = next(
+                item
+                for item in assess_adoption(
+                    root, options, retry_reporter=_renderer_retry_warning
+                )
+                if item.id == "verify"
+            )
 
         if not step.selected:
             click.echo(f"{number:2}  SKIP  {step.summary} — {step.detail}")
@@ -3091,7 +3124,12 @@ def adopt_command(
             click.echo("  skipped")
             continue
         try:
-            written = apply_adopt_step(root, options, step.id)
+            written = apply_adopt_step(
+                root,
+                options,
+                step.id,
+                retry_reporter=_renderer_retry_warning,
+            )
         except AdoptError as error:
             raise click.ClickException(str(error)) from error
         applied_stages += 1

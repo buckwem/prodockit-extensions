@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 from click.testing import CliRunner
 
+import prodockit.renderer_resilience as renderer_resilience
 from prodockit import __version__
 from prodockit.adopt import (
     CORE_EXTENSIONS,
@@ -768,6 +769,43 @@ def test_mermaid_install_rejects_npm_success_when_cli_probe_fails(
         install_tool(project, "mermaid")
 
 
+def test_mermaid_install_retries_a_completed_transient_npm_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path)
+    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
+    attempts = []
+
+    def npm(command, **_kwargs):
+        attempts.append(command)
+        modules = project / "tools/mermaid/node_modules"
+        if len(attempts) == 1:
+            modules.mkdir(parents=True)
+            (modules / "partial").write_text("partial", encoding="utf-8")
+            return subprocess.CompletedProcess(command, 1, "", "npm ERR! code ECONNRESET")
+        assert not modules.exists()
+        binary = modules / ".bin/mmdc"
+        binary.parent.mkdir(parents=True)
+        binary.write_text("renderer", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr(renderer_resilience.time, "sleep", lambda _delay: None)
+    monkeypatch.setattr(
+        "prodockit.adopt.probe_mermaid",
+        lambda path, **_kwargs: SimpleNamespace(
+            path=path, ok=True, version="11.0.0", error=None
+        ),
+    )
+    notices = []
+
+    install_tool(project, "mermaid", retry_reporter=notices.append)
+
+    assert len(attempts) == 2
+    assert len(notices) == 1
+    assert notices[0].attempt == 1
+
+
 def test_adoption_readiness_rejects_an_unusable_mermaid_cli(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -1002,7 +1040,9 @@ markdown_extensions:
     (project / "requirements.txt").write_text("mkdocs-material==9.7.7\n", encoding="utf-8")
     monkeypatch.chdir(project)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
-    monkeypatch.setattr("prodockit.adopt.install_tool", lambda root, component: [])
+    monkeypatch.setattr(
+        "prodockit.adopt.install_tool", lambda root, component, **_kwargs: []
+    )
 
     preview = CliRunner().invoke(main, ["adopt", "--dry-run", "--mermaid", "--no-maths"])
     assert preview.exit_code == 0, preview.output

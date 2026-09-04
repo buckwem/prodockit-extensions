@@ -109,6 +109,7 @@ def test_shared_packaging_and_command_files_select_every_matrix() -> None:
         "pyproject.toml",
         "src/prodockit/cli.py",
         "src/prodockit/renderer_health.py",
+        "src/prodockit/renderer_resilience.py",
         "requirements.txt",
     ):
         scope = classify([path])

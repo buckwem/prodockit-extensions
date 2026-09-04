@@ -35,6 +35,7 @@ import shlex
 import socket
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -51,6 +52,13 @@ from prodockit.bootstrap.model import (
     Stage,
     Status,
     windows_system_ssh,
+)
+from prodockit.renderer_resilience import (
+    DEFAULT_RETRY_DELAYS,
+    RetryNotice,
+    RetryReporter,
+    failure_with_history,
+    run_with_retries,
 )
 
 #: The VS Code extensions the User Guide installs. Kept here rather than
@@ -3353,6 +3361,36 @@ def resolve_for_execution(context: Context, command: Sequence[str]) -> list[str]
     return [resolver(context), *command[1:]]
 
 
+def _run_mermaid_probe(
+    context: Context,
+    command: list[str],
+    *,
+    cwd: str,
+    reporter: RetryReporter | None = None,
+) -> tuple[CommandResult, int, tuple[str, ...]]:
+    """Run a read-only Mermaid probe with narrowly classified retries."""
+
+    result = run_with_retries(
+        "Mermaid browser health probe",
+        lambda: context.runner.run(command, cwd=cwd, timeout=30),
+        succeeded=lambda completed: completed.ok,
+        failure_detail=lambda completed: completed.stderr.strip()
+        or completed.stdout.strip(),
+        retry_delays=DEFAULT_RETRY_DELAYS,
+        reporter=reporter,
+        sleeper=time.sleep,
+    )
+    return result.value, result.attempts, result.transient_failures
+
+
+def _mermaid_retry_warning(notice: RetryNotice) -> str:
+    return (
+        "transient Mermaid browser probe failure on attempt "
+        f"{notice.attempt}/{notice.maximum_attempts}; retry delayed "
+        f"by {notice.delay:g}s"
+    )
+
+
 def _check_node(context: Context) -> CheckResult:
     if (unknown := _needs_config(context, "project_name")) is not None:
         return unknown
@@ -3420,18 +3458,30 @@ def _check_node(context: Context) -> CheckResult:
                     "prodockit-mermaid-probe",
                     *mermaid_command,
                 ]
-            mermaid_result = context.runner.run(
+            mermaid_retry_warnings: list[str] = []
+            mermaid_result, mermaid_attempts, mermaid_failures = _run_mermaid_probe(
+                context,
                 mermaid_command,
                 cwd=str(project / "tools" / "mermaid"),
-                timeout=30,
+                reporter=lambda notice: mermaid_retry_warnings.append(
+                    _mermaid_retry_warning(notice)
+                ),
             )
         if not mermaid_result.ok:
             detail = mermaid_result.stderr.strip() or mermaid_result.stdout.strip()
+            detail = failure_with_history(
+                detail,
+                mermaid_attempts,
+                mermaid_failures,
+            )
+            if mermaid_retry_warnings:
+                detail = f"{detail}\nRetry warnings: {' | '.join(mermaid_retry_warnings)}"
             return _wrong(
                 f"node {raw}, but Mermaid cannot render a diagram"
                 + (" with system Chromium" if context.platform == UBUNTU else "")
                 + (f": {detail}" if detail else "")
             )
+        warnings.extend(mermaid_retry_warnings)
         # Loading the modules used by tex2svg catches partial npm extracts
         # without modifying the project or relying on shell input redirection.
         mathjax_result = context.runner.run(

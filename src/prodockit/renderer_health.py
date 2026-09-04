@@ -11,8 +11,17 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+
+from prodockit.renderer_resilience import (
+    DEFAULT_RETRY_DELAYS,
+    RetryReporter,
+    failure_with_history,
+    run_with_retries,
+)
 
 
 @dataclass(frozen=True)
@@ -22,6 +31,8 @@ class RendererProbe:
     path: Path
     version: str | None = None
     error: str | None = None
+    attempts: int = 1
+    transient_failures: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -99,8 +110,8 @@ def _output(completed: subprocess.CompletedProcess[str]) -> str:
     )
 
 
-def probe_mermaid(path: str | Path, *, timeout: float = 60.0) -> RendererProbe:
-    """Render a minimal diagram, exercising Mermaid and its browser."""
+def _probe_mermaid_once(path: str | Path, *, timeout: float) -> RendererProbe:
+    """Render one minimal diagram, exercising Mermaid and its browser."""
     executable = Path(path)
     environment = _renderer_environment()
     try:
@@ -172,6 +183,43 @@ def probe_mermaid(path: str | Path, *, timeout: float = 60.0) -> RendererProbe:
     except (OSError, subprocess.SubprocessError) as error:
         return RendererProbe(executable, version=version or None, error=str(error))
     return RendererProbe(executable, version=version or None)
+
+
+def probe_mermaid(
+    path: str | Path,
+    *,
+    timeout: float = 60.0,
+    retry_delays: Sequence[float] = DEFAULT_RETRY_DELAYS,
+    reporter: RetryReporter | None = None,
+) -> RendererProbe:
+    """Probe Mermaid, retrying only recognized transient external failures."""
+
+    retried = run_with_retries(
+        "Mermaid browser health probe",
+        lambda: _probe_mermaid_once(path, timeout=timeout),
+        succeeded=lambda result: result.ok,
+        failure_detail=lambda result: result.error or "health probe failed",
+        retry_delays=retry_delays,
+        reporter=reporter,
+        sleeper=time.sleep,
+    )
+    result = retried.value
+    detail = (
+        None
+        if result.ok
+        else failure_with_history(
+            result.error or "health probe failed",
+            retried.attempts,
+            retried.transient_failures,
+        )
+    )
+    return RendererProbe(
+        result.path,
+        result.version,
+        detail,
+        retried.attempts,
+        retried.transient_failures,
+    )
 
 
 def probe_mathjax(

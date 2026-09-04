@@ -14,6 +14,7 @@ import pytest
 from click.testing import CliRunner
 
 import prodockit
+import prodockit.renderer_resilience as renderer_resilience
 from prodockit import diagnostics
 from prodockit import shared_files as shared_file_module
 from prodockit.cli import main
@@ -658,6 +659,44 @@ def test_mermaid_diagnostic_rejects_an_unusable_local_cli(
     assert check.summary == "Mermaid CLI is unusable but required by this project"
     assert "health probe: ERR_MODULE_NOT_FOUND" in check.details
     assert check.data["error"] == "ERR_MODULE_NOT_FOUND"
+
+
+def test_mermaid_diagnostic_warns_when_a_transient_probe_recovers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _project(tmp_path, required=True)
+    binary = tmp_path / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("installed", encoding="utf-8")
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
+    )
+    notices = []
+    monkeypatch.setattr(
+        "prodockit.diagnostics.probe_mermaid",
+        lambda path, **_kwargs: SimpleNamespace(
+            path=path,
+            ok=True,
+            version="11.12.0",
+            error=None,
+            attempts=2,
+            transient_failures=("ensure slot is connected",),
+        ),
+    )
+
+    check = next(
+        item
+        for item in diagnostics._renderer_checks(
+            config, tmp_path, retry_reporter=notices.append
+        )
+        if item.id == "renderer.mermaid"
+    )
+
+    assert check.status == "warn"
+    assert check.summary == "Mermaid CLI recovered after a transient failure"
+    assert "health probe: recovered after 2 attempts" in check.details
 
 
 def test_mathjax_diagnostic_rejects_inputs_that_cannot_render(
@@ -1593,6 +1632,67 @@ def test_stage4_locked_mermaid_repair_uses_npm_ci_and_verifies(
     assert result.status == "applied"
     assert commands[0][1] == "ci"
     assert (tmp_path / "tools/mermaid/package-lock.json").is_file()
+
+
+def test_stage4_renderer_repair_retries_transient_npm_inside_one_transaction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "zensical.toml").write_text(
+        '[project]\nsite_name = "Example"\n', encoding="utf-8"
+    )
+    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mermaid")
+    monkeypatch.setattr(
+        "prodockit.diagnostics.shutil.which",
+        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
+    )
+    attempts = []
+
+    def npm_ci(command: list[str], **_kwargs):
+        attempts.append(command)
+        modules = tmp_path / "tools/mermaid/node_modules"
+        if len(attempts) == 1:
+            modules.mkdir(parents=True)
+            (modules / "partial").write_text("partial", encoding="utf-8")
+            return subprocess.CompletedProcess(command, 1, "", "npm ERR! code EAI_AGAIN")
+        assert not modules.exists()
+        binary = modules / ".bin/mmdc"
+        binary.parent.mkdir(parents=True)
+        binary.write_text("installed", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("prodockit.diagnostics.subprocess.run", npm_ci)
+    monkeypatch.setattr(renderer_resilience.time, "sleep", lambda _delay: None)
+    monkeypatch.setattr(
+        "prodockit.diagnostics.probe_mermaid",
+        lambda path, **_kwargs: SimpleNamespace(
+            ok=True, error=None, version="11.0", path=path
+        ),
+    )
+    notices = []
+
+    result = diagnostics.repair_locked_renderer(
+        tmp_path,
+        "mermaid",
+        expected_fingerprint=expected,
+        timestamp="stage4-mermaid-retry",
+        retry_reporter=notices.append,
+    )
+
+    assert result.status == "applied"
+    assert len(attempts) == 2
+    assert len(notices) == 1
+    manifest = json.loads(
+        (
+            tmp_path
+            / ".prodockit-quarantine/diagnostics/stage4-mermaid-retry/manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["status"] == "applied"
 
 
 def test_stage4_mathjax_repair_regenerates_browser_assets(
