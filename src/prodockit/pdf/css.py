@@ -161,6 +161,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 pre, code {
     font-family: "__MONO_FONT__", monospace !important;
+    font-weight: 500 !important;
 }
 /* Scale inline and fenced code relative to its surrounding text, following
    Zensical's 0.85em convention. Apply the size to code only: setting it on
@@ -662,7 +663,7 @@ img.pdf-only {
     page-break-after: avoid !important; break-after: avoid !important;
 }
 .tabbox-body {
-    background-color: rgba(0, 0, 0, 0.02) !important; padding: 12px;
+    background-color: rgba(0, 0, 0, 0.01) !important; padding: 12px;
     border-radius: 0 0 4px 4px;
     page-break-inside: auto !important; break-inside: auto !important;
     -webkit-box-decoration-break: clone !important; box-decoration-break: clone !important;
@@ -740,9 +741,10 @@ div.grid.cards > ul > li > p:first-child {
     color: #111111 !important; page-break-after: avoid !important; break-after: avoid !important;
 }
 
-/* Use a 5% foreground shade for both inline and fenced code. The nested code
+/* Use a 4% foreground shade for both inline and fenced code. The nested code
    inside pre is transparent so two rgba backgrounds cannot compound into a
-   much darker, nearly 10% shade. */
+   much darker shade. A medium weight gives the glyphs enough print contrast
+   without making them as prominent as bold text. */
 pre, code { font-family: "__MONO_FONT__", monospace !important; }
 /* text-align isn't otherwise set anywhere on pre/code, so a fenced code
    block nested inside a centered ancestor (figure {}, div.prodockit-*-caption,
@@ -761,12 +763,15 @@ pre { text-align: left !important; }
    directly. Overridden back to auto here, inherited "avoid" (if any, from
    the caller's own website print CSS) kept for img/blockquote. */
 pre { page-break-inside: auto !important; break-inside: auto !important; }
-pre { padding: 10px !important; border-radius: 4px !important; margin: 1em 0 !important; white-space: pre-wrap !important; background-color: rgba(0, 0, 0, 0.05) !important; }
-code { padding: 2px 4px !important; border-radius: 3px !important; background-color: rgba(0, 0, 0, 0.05) !important; }
+pre { padding: 10px !important; border-radius: 4px !important; margin: 1em 0 !important; white-space: pre-wrap !important; background-color: rgba(0, 0, 0, 0.04) !important; }
+/* The reduced mono face shares the text baseline but sits optically low beside
+   the larger proportional face. Raise inline code by half a point; reset the
+   multi-line fenced child below so every code line stays on its normal grid. */
+code { padding: 2px 4px !important; border-radius: 3px !important; background-color: rgba(0, 0, 0, 0.04) !important; vertical-align: 0.05em !important; }
 /* Multi-line <code> inside <pre> is a single inline box split across hard line
    breaks; without this, the padding above lands only on the first line (default
    box-decoration-break: slice), making it look indented relative to the rest. */
-pre code { padding: 0 !important; background-color: transparent !important; }
+pre code { padding: 0 !important; background-color: transparent !important; vertical-align: baseline !important; }
 
 /* Syntax colours match Zensical's light website palette. Zensical/Pygments
    token classes are preserved across Pandoc by the HTML/Lua bridge; scoping

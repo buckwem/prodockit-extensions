@@ -22,17 +22,22 @@ def test_fenced_and_inline_code_scale_relative_to_surrounding_text() -> None:
     assert "pre, code { font-size:" not in css
 
 
-def test_fenced_and_inline_code_use_a_single_five_percent_shade() -> None:
+def test_fenced_and_inline_code_use_medium_weight_and_a_single_four_percent_shade() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
 
     fenced = css.split("pre { padding: 10px", 1)[1].split("}", 1)[0]
     inline = css.split("code { padding: 2px", 1)[1].split("}", 1)[0]
-    shade = "background-color: rgba(0, 0, 0, 0.05) !important;"
+    shade = "background-color: rgba(0, 0, 0, 0.04) !important;"
+    assert "font-weight: 500 !important;" in css.split("pre, code {", 1)[1].split(
+        "}", 1
+    )[0]
     assert shade in fenced
     assert shade in inline
+    assert "vertical-align: 0.05em !important;" in inline
     assert (
         "pre code { padding: 0 !important; "
-        "background-color: transparent !important; }"
+        "background-color: transparent !important; "
+        "vertical-align: baseline !important; }"
     ) in css
 
 
@@ -66,7 +71,7 @@ def test_content_tabs_use_subtle_shading_and_rounded_outside_corners() -> None:
     body = css.split(".tabbox-body {")[1].split("}")[0]
     assert "background-color: rgba(0, 0, 0, 0.05) !important;" in header
     assert "border-radius: 4px 4px 0 0;" in header
-    assert "background-color: rgba(0, 0, 0, 0.02) !important;" in body
+    assert "background-color: rgba(0, 0, 0, 0.01) !important;" in body
     assert "border-radius: 0 0 4px 4px;" in body
 
 

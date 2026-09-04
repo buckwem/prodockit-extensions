@@ -438,8 +438,9 @@ elsewhere in this project only ever affects one of the two outputs.
 ### Syntax-highlighted code
 
 Fenced code blocks use Zensical's light-theme syntax palette in the PDF, with
-name tokens slightly darkened for print contrast. The PDF conversion reuses the
-tokens produced for the website, so it does not need to guess the language and
+medium-weight characters and name tokens slightly darkened for print contrast.
+The PDF conversion reuses the tokens produced for the website, so it does not
+need to guess the language and
 preserves the same distinction between keywords, names, operators and strings.
 Plain code blocks remain plain. Inline and fenced code use Zensical's relative
 `0.85em` scale, so their font size follows the surrounding text rather than
