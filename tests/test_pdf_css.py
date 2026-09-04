@@ -45,6 +45,17 @@ def test_short_content_tabs_can_be_kept_together_in_the_pdf() -> None:
     assert "break-inside: avoid-page !important;" in rule
 
 
+def test_content_tabs_use_subtle_shading_and_rounded_outside_corners() -> None:
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    header = css.split(".tabbox-header {")[1].split("}")[0]
+    body = css.split(".tabbox-body {")[1].split("}")[0]
+    assert "background-color: rgba(0, 0, 0, 0.05) !important;" in header
+    assert "border-radius: 4px 4px 0 0;" in header
+    assert "background-color: rgba(0, 0, 0, 0.02) !important;" in body
+    assert "border-radius: 0 0 4px 4px;" in body
+
+
 def test_web_only_content_is_always_hidden() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
     assert ".web-only {" in css

@@ -26,6 +26,11 @@ requests rather than here.
   website without losing line breaks or guessing the source language.
 - Changed PDF code from a fixed point size to Zensical's relative `0.85em`
   scale, so code follows changes to the surrounding text size.
+- Gave complete website content-tab groups a persistent table-style border and
+  theme-aware hover shadow, 3% selected-tab shading and balanced content
+  spacing, and made PDF tab panels use subtler 5%/2% header and content shading
+  with matching rounded outside corners. Copy-to-clipboard controls are now
+  visible before hover as well.
 - Made live-provider Bootstrap controls require an exact destination
   confirmation before entering a credential-bearing environment. Provider
   observations and prerequisite downloads now share bounded transient-failure

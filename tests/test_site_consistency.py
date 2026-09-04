@@ -120,6 +120,44 @@ def test_reference_site_enables_website_heading_numbering() -> None:
     assert "config.extra.website_heading_numbering == false" in _text("overrides/main.html")
 
 
+def test_content_tabs_have_a_persistent_border_and_theme_hover_shadow() -> None:
+    stylesheet = _text("docs/stylesheets/pdk.css")
+
+    tab_set = stylesheet.split(".md-typeset .tabbed-set {", 1)[1].split("}", 1)[0]
+    interaction = stylesheet.split(
+        ".md-typeset .tabbed-set:hover,\n.md-typeset .tabbed-set:focus-within {", 1
+    )[1].split("}", 1)[0]
+    assert "border: 0.025rem solid var(--md-typeset-table-color);" in tab_set
+    assert "border-radius: 0.4rem;" in tab_set
+    assert "transition: box-shadow 125ms;" in tab_set
+    assert "box-shadow: var(--md-shadow-z1);" in interaction
+    labels = stylesheet.split(".md-typeset .tabbed-labels {", 1)[1].split("}", 1)[0]
+    assert "border-bottom: 0.025rem solid var(--md-typeset-table-color);" in labels
+    assert "box-shadow: none;" in labels
+    selected = stylesheet.split(
+        ".md-typeset .tabbed-labels::after {", 1
+    )[1].split("}", 1)[0]
+    assert "width: var(--md-indicator-width);" in selected
+    assert "border-radius: 0.4rem 0.4rem 0 0;" in selected
+    assert "rgba(var(--prodockit-table-shade-rgb), 0.03)" in selected
+    assert "transform: translateX(var(--md-indicator-x));" in selected
+    block = stylesheet.split(".md-typeset .tabbed-block {", 1)[1].split("}", 1)[0]
+    assert "padding: 0.6rem;" in block
+
+
+def test_copy_button_is_visible_without_losing_its_hover_colour() -> None:
+    stylesheet = _text("docs/stylesheets/pdk.css")
+
+    resting = stylesheet.split(
+        '.md-code__button[data-md-type="copy"] {', 1
+    )[1].split("}", 1)[0]
+    hover = stylesheet.split(
+        '.md-code__button[data-md-type="copy"]:hover {', 1
+    )[1].split("}", 1)[0]
+    assert "color: var(--md-default-fg-color--light);" in resting
+    assert "color: var(--md-accent-fg-color);" in hover
+
+
 def test_reference_site_keeps_shared_rules_out_of_author_overrides() -> None:
     managed = _text("docs/stylesheets/pdk.css")
     branding = _text("docs/stylesheets/branding.css")

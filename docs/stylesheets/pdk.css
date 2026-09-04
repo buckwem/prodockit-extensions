@@ -19,6 +19,59 @@
   }
 }
 
+/* Content tabs retain a visible outer boundary without relying on hover. The
+   border encloses both the labels and body, uses the theme's table colour at
+   half the table-rule width, and shares the 0.4rem fenced-code radius. The
+   theme shadow follows both light and dark colour schemes; focus-within gives
+   keyboard navigation the same cue as hover. */
+.md-typeset .tabbed-set {
+  border: 0.025rem solid var(--md-typeset-table-color);
+  border-radius: 0.4rem;
+  transition: box-shadow 125ms;
+}
+.md-typeset .tabbed-set:hover,
+.md-typeset .tabbed-set:focus-within {
+  box-shadow: var(--md-shadow-z1);
+}
+.md-typeset .tabbed-labels {
+  border-bottom: 0.025rem solid var(--md-typeset-table-color);
+  box-shadow: none;
+}
+.md-typeset .tabbed-labels::before {
+  z-index: 2;
+}
+.md-typeset .tabbed-labels::after {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--md-indicator-width);
+  border-radius: 0.4rem 0.4rem 0 0;
+  background-color: rgba(var(--prodockit-table-shade-rgb), 0.03);
+  content: "";
+  transform: translateX(var(--md-indicator-x));
+  transition: width 225ms, transform 250ms;
+}
+.md-typeset .tabbed-labels > label {
+  position: relative;
+  z-index: 1;
+}
+.md-typeset .tabbed-block {
+  padding: 0.6rem;
+}
+
+/* Zensical's resting copy icon is only 5% foreground opacity on pointer
+   devices, making an available control almost invisible until hover. Keep it
+   theme-aware but use the readable light foreground; retain Zensical's accent
+   hover and active-copy confirmation states. */
+.md-code__button[data-md-type="copy"] {
+  color: var(--md-default-fg-color--light);
+}
+.md-code__button[data-md-type="copy"]:hover {
+  color: var(--md-accent-fg-color);
+}
+
 /* prodockit.tables' own <colgroup>-based column widths only take effect
    under table-layout: fixed - scoped to its own marker class so a plain
    table's existing auto-layout/content-driven column sizing is unaffected.

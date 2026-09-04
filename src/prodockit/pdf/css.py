@@ -656,12 +656,14 @@ img.pdf-only {
     -webkit-box-decoration-break: clone !important; box-decoration-break: clone !important;
 }
 .tabbox-header {
-    background-color: #e5e5e5 !important; color: #000000 !important;
+    background-color: rgba(0, 0, 0, 0.05) !important; color: #000000 !important;
+    border-radius: 4px 4px 0 0;
     font-weight: bold; padding: 8px 12px; font-size: 10pt;
     page-break-after: avoid !important; break-after: avoid !important;
 }
 .tabbox-body {
-    background-color: #f2f2f2 !important; padding: 12px;
+    background-color: rgba(0, 0, 0, 0.02) !important; padding: 12px;
+    border-radius: 0 0 4px 4px;
     page-break-inside: auto !important; break-inside: auto !important;
     -webkit-box-decoration-break: clone !important; box-decoration-break: clone !important;
 }
