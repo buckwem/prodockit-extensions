@@ -3556,8 +3556,14 @@ def _run_template_sync_resume(command: Sequence[str], project: pathlib.Path) -> 
     # parent's redirected output more aggressively than POSIX, and without an
     # explicit flush the reviewed UPGRADE/DOWNGRADE plan can disappear when
     # the freshly installed process starts writing to the same pipe (#733).
-    sys.stdout.flush()
-    sys.stderr.flush()
+    # Flush Click's Windows Unicode wrappers, not merely the underlying
+    # ``sys`` streams: the wrapper owns the pending encoded text when stdout
+    # is redirected by a CI harness.
+    for name in ("stdout", "stderr"):
+        flush = getattr(click.get_text_stream(name), "flush", None)
+        if not callable(flush):  # pragma: no cover - every Click stream flushes
+            raise TypeError(f"Click {name} stream cannot be flushed")
+        flush()
     return subprocess.run(list(command), cwd=project, check=False).returncode
 
 
