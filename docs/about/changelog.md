@@ -42,7 +42,9 @@ requests rather than here.
 - Aligned annotated-tag snapshots across the GitHub live-provider controller
   and candidate, allowed a deliberately removed Surrey test project to be
   recreated from historical retained state, and preserved the candidate's
-  original failure reason after trusted cleanup.
+  original failure reason after trusted cleanup. The shared candidate boundary
+  now also recognises Bootstrap's narrowly constrained renderer-floor and
+  shared-file repair commands without allowing arbitrary package installation.
 - Changed `prodockit pins` so every standard interactive suggestion uses the
   complete software combination tested by the installed Prodockit release,
   including Zensical, WeasyPrint, Markdown, PyMdown Extensions, Pandoc, and
