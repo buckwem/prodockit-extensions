@@ -19,6 +19,14 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Made live-provider Bootstrap controls require an exact destination
+  confirmation before entering a credential-bearing environment. Provider
+  observations and prerequisite downloads now share bounded transient-failure
+  handling, retain prior failure evidence, and reconcile ambiguous GitHub
+  mutations without blindly repeating writes.
+
 ## Implemented functionality
 
 - **Authoring:** Markdown extensions provide numbered headings, references,

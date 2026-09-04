@@ -371,6 +371,77 @@ def test_reset_removes_its_new_repository_when_configuration_fails() -> None:
     assert ("DELETE", f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}") in client.mutations
 
 
+def test_reset_reconciles_lost_mutation_responses_without_repeating_writes() -> None:
+    class LostResponses(FakeGitHub):
+        def __init__(self) -> None:
+            super().__init__()
+            self.lost = {"POST /user/repos", "PUT actions", "POST key"}
+
+        def request(
+            self,
+            method: str,
+            path: str,
+            *,
+            body: dict[str, Any] | None = None,
+            expected: set[int] | None = None,
+        ) -> lifecycle.ApiResponse:
+            response = super().request(method, path, body=body, expected=expected)
+            label = (
+                "POST /user/repos"
+                if method == "POST" and path == "/user/repos"
+                else "PUT actions"
+                if method == "PUT" and path.endswith("/actions/permissions")
+                else "POST key"
+                if method == "POST" and path.endswith("/keys")
+                else ""
+            )
+            if label in self.lost:
+                self.lost.remove(label)
+                raise lifecycle.AmbiguousMutation(f"lost {label} response")
+            return response
+
+    client = LostResponses()
+
+    handoff = perform_reset(client)
+
+    assert handoff.project_id == 501
+    assert len(client.keys) == 1
+    assert client.mutations.count(("POST", "/user/repos")) == 1
+    assert sum(method == "PUT" for method, _path in client.mutations) == 1
+    assert sum(
+        method == "POST" and path.endswith("/keys")
+        for method, path in client.mutations
+    ) == 1
+
+
+def test_cleanup_reconciles_lost_delete_response_without_repeating_it() -> None:
+    class LostDelete(FakeGitHub):
+        lost = True
+
+        def request(
+            self,
+            method: str,
+            path: str,
+            *,
+            body: dict[str, Any] | None = None,
+            expected: set[int] | None = None,
+        ) -> lifecycle.ApiResponse:
+            response = super().request(method, path, body=body, expected=expected)
+            if method == "DELETE" and path.endswith(lifecycle.REPOSITORY) and self.lost:
+                self.lost = False
+                raise lifecycle.AmbiguousMutation("lost delete response")
+            return response
+
+    client = LostDelete(destination=True)
+
+    lifecycle.remove_repository(client, expected_id=500, sleep=lambda _seconds: None)
+
+    assert client.repository is None
+    assert client.mutations.count(
+        ("DELETE", f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}")
+    ) == 1
+
+
 def test_public_key_requires_ed25519_wire_encoding(tmp_path: Path) -> None:
     record, expected = key_record()
     path = tmp_path / "key.pub"
@@ -444,6 +515,108 @@ def test_github_api_refuses_redirects_and_anonymous_source_omits_token() -> None
     authenticated._opener = RedirectOpener()
     with pytest.raises(lifecycle.LifecycleError, match="returned 301"):
         authenticated.request("GET", f"/repos/{lifecycle.ACCOUNT}/{lifecycle.REPOSITORY}")
+
+
+def test_github_api_retries_throttled_reads_and_honours_retry_after() -> None:
+    class Response:
+        status = 200
+        headers: ClassVar[dict[str, str]] = {}
+
+        @staticmethod
+        def read(_limit: int) -> bytes:
+            return b"{}"
+
+    class ThrottledThenReady:
+        attempts = 0
+
+        def open(self, request, *, timeout: float):
+            del request, timeout
+            self.attempts += 1
+            if self.attempts == 1:
+                raise urllib.error.HTTPError(
+                    "https://api.github.com/user",
+                    403,
+                    "Forbidden",
+                    {"Retry-After": "7", "X-RateLimit-Remaining": "0"},
+                    io.BytesIO(b'{"message":"secondary rate limit"}'),
+                )
+            return Response()
+
+    delays: list[float] = []
+    client = lifecycle.GitHubAPI("installation-token", sleep=delays.append)
+    opener = ThrottledThenReady()
+    client._opener = opener
+
+    assert client.request("GET", "/user").status == 200
+    assert opener.attempts == 2
+    assert delays == [7.0]
+
+
+def test_github_api_retries_transient_non_json_gateway_response() -> None:
+    class Response:
+        status = 200
+        headers: ClassVar[dict[str, str]] = {}
+
+        @staticmethod
+        def read(_limit: int) -> bytes:
+            return b"{}"
+
+    class GatewayThenReady:
+        attempts = 0
+
+        def open(self, request, *, timeout: float):
+            del request, timeout
+            self.attempts += 1
+            if self.attempts == 1:
+                raise urllib.error.HTTPError(
+                    "https://api.github.com/user",
+                    503,
+                    "Service Unavailable",
+                    {},
+                    io.BytesIO(b"upstream unavailable"),
+                )
+            return Response()
+
+    delays: list[float] = []
+    client = lifecycle.GitHubAPI("installation-token", sleep=delays.append)
+    opener = GatewayThenReady()
+    client._opener = opener
+
+    assert client.request("GET", "/user").status == 200
+    assert opener.attempts == 2
+    assert delays == [2.0]
+
+
+def test_github_api_does_not_retry_permission_denial_or_mutation_uncertainty() -> None:
+    class Rejected:
+        attempts = 0
+
+        def open(self, request, *, timeout: float):
+            del timeout
+            self.attempts += 1
+            if request.method == "POST":
+                raise urllib.error.URLError("connection reset")
+            raise urllib.error.HTTPError(
+                "https://api.github.com/user",
+                403,
+                "Forbidden",
+                {},
+                io.BytesIO(b'{"message":"Resource not accessible by token"}'),
+            )
+
+    opener = Rejected()
+    client = lifecycle.GitHubAPI(
+        "installation-token",
+        sleep=lambda _delay: pytest.fail("deterministic failure was retried"),
+    )
+    client._opener = opener
+    with pytest.raises(lifecycle.LifecycleError, match="returned 403"):
+        client.request("GET", "/user")
+    assert opener.attempts == 1
+
+    with pytest.raises(lifecycle.AmbiguousMutation, match="outcome is ambiguous"):
+        client.request("POST", "/user/repos", body={"name": lifecycle.REPOSITORY})
+    assert opener.attempts == 2
 
 
 def test_github_api_reports_safe_validation_detail() -> None:

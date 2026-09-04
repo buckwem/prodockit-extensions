@@ -9,6 +9,7 @@ workflow:
         $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH &&
         $CI_PROJECT_PATH == "mb0105/prodockit-extensions" &&
         $PRODOCKIT_LIVE_RELEASE_COMMIT =~ /^[0-9a-f]{40}$/ &&
+        $PRODOCKIT_LIVE_CONFIRM_TARGET == "assessment-liveprovider-2026/report-liveprovider-2026-mb0105" &&
         $PRODOCKIT_LIVE_PREVIOUS_SEAL_JOB_ID =~ /^(0|[1-9][0-9]*)$/
     - when: never
 
@@ -128,7 +129,7 @@ surrey_candidate:
     - test -n "$LIVE_WHEEL"
     - python3 "$LIVE_ROOT/controller/tools/canonical_wheel.py" "$LIVE_WHEEL" --output "$LIVE_ROOT/candidate-wheel.json"
     - export LIVE_RAW_SHA="$(IDENTITY="$LIVE_ROOT/candidate-wheel.json" python3 -c 'import json,os; print(json.load(open(os.environ["IDENTITY"], encoding="utf-8"))["wheel_sha256"])')"
-    - brew install pandoc pango
+    - python3 "$LIVE_ROOT/controller/tools/bootstrap_live_provider_prerequisites.py" --pdf-only --report "$CI_PROJECT_DIR/surrey-candidate/prerequisites.json"
     - python3 "$LIVE_ROOT/controller/tools/bootstrap_live_provider_read_write.py" --provider surrey --fixture "$LIVE_ROOT/candidate/fixture.json" --wheel "$LIVE_WHEEL" --expected-wheel-sha256 "$LIVE_RAW_SHA" --agent-socket "$SSH_AUTH_SOCK" --key-fingerprint "$LIVE_FINGERPRINT" --known-hosts "$LIVE_ROOT/candidate/ssh/known_hosts" --reset-handoff "$CI_PROJECT_DIR/surrey-reset/reset-handoff.json" --release-commit "$PRODOCKIT_LIVE_RELEASE_COMMIT" --report "$CI_PROJECT_DIR/surrey-candidate/report.json" --confirm-read-write
   after_script:
     - ssh-add -D >/dev/null 2>&1 || true
@@ -137,6 +138,7 @@ surrey_candidate:
     expire_in: 30 days
     paths:
       - surrey-candidate/report.json
+      - surrey-candidate/prerequisites.json
   cache: []
 
 surrey_seal:

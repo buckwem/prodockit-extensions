@@ -53,6 +53,12 @@ from bootstrap_live_provider_read_only import (
     utc_now,
     validate_known_hosts,
 )
+from live_provider_resilience import (
+    READ_RETRY_DELAYS,
+    failure_with_history,
+    safe_failure_detail,
+    transient_command_read,
+)
 from live_provider_state import ResetHandoff, StateError
 
 SURREY_HOSTNAME = "gitlab.surrey.ac.uk"
@@ -74,7 +80,6 @@ REQUIRED_VSCODE_EXTENSIONS = (
 # Provider reads immediately after a push can remain temporarily unavailable
 # while GitLab creates its pipeline ref. Keep this bounded and read-only: no
 # commit or push operation is ever repeated.
-READ_RETRY_DELAYS = (2.0, 5.0, 10.0, 20.0)
 TRANSIENT_ORIGIN_DETAIL = "could not reach origin to see what is there"
 GITLAB_PIPELINE_REF_RE = re.compile(r"refs/pipelines/[1-9][0-9]*")
 VSCODE_SETTINGS_SCRIPT = """
@@ -305,6 +310,7 @@ def query_refs(
 ) -> dict[str, str]:
     """Return sorted advertised refs, accepting a genuinely empty repository."""
     failure: LiveProviderError | None = None
+    failures: list[str] = []
     for delay in (0.0, *READ_RETRY_DELAYS):
         if delay:
             time.sleep(delay)
@@ -317,11 +323,16 @@ def query_refs(
             )
         except LiveProviderError as error:
             failure = error
+            if not transient_command_read(str(error)):
+                raise
+            failures.append(safe_failure_detail(error))
             continue
         break
     else:
         assert failure is not None
-        raise failure
+        raise LiveProviderError(
+            failure_with_history(str(failure), failures[:-1])
+        ) from failure
     refs: dict[str, str] = {}
     for number, line in enumerate(result.stdout.splitlines(), start=1):
         if not line.strip():

@@ -367,7 +367,7 @@ def test_remote_ref_query_retries_transient_command_failures(
         nonlocal attempts
         attempts += 1
         if attempts < 5:
-            raise live.LiveProviderError("temporary provider read failure")
+            raise live.LiveProviderError("temporary failure resolving provider host")
         return subprocess.CompletedProcess(
             ["git", "ls-remote"],
             0,
@@ -383,6 +383,51 @@ def test_remote_ref_query_retries_transient_command_failures(
     assert refs == {"refs/heads/main": "1" * 40}
     assert attempts == 5
     assert delays == [2.0, 5.0, 10.0, 20.0]
+
+
+def test_remote_ref_query_does_not_retry_identity_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    attempts = 0
+
+    def rejected(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal attempts
+        attempts += 1
+        raise live.LiveProviderError("Permission denied (publickey)")
+
+    monkeypatch.setattr(live, "run", rejected)
+    monkeypatch.setattr(
+        live.time,
+        "sleep",
+        lambda _delay: pytest.fail("deterministic authentication failure was retried"),
+    )
+
+    with pytest.raises(live.LiveProviderError, match="Permission denied"):
+        live.query_refs("fixture", cwd=tmp_path, environment={})
+
+    assert attempts == 1
+
+
+def test_remote_ref_query_retains_bounded_transient_attempt_history(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    attempts = 0
+
+    def unavailable(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal attempts
+        attempts += 1
+        raise live.LiveProviderError(f"temporary failure attempt {attempts}")
+
+    monkeypatch.setattr(live, "run", unavailable)
+    monkeypatch.setattr(live.time, "sleep", lambda _delay: None)
+
+    with pytest.raises(
+        live.LiveProviderError,
+        match=r"earlier transient observations:.*attempt 1.*attempt 4",
+    ):
+        live.query_refs("fixture", cwd=tmp_path, environment={})
+
+    assert attempts == 5
 
 
 @pytest.mark.parametrize("provider", ["github", "surrey"])
