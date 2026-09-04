@@ -789,7 +789,6 @@ def _authorise_non_git_command(
     executable = Path(command[0]).name.casefold()
     candidate = str(candidate_python) if candidate_python is not None else ""
     project_python = str(project / ".venv" / "bin" / "python")
-    project_pdk = str(project / ".venv" / "bin" / "pdk")
     project_zensical = str(project / ".venv" / "bin" / "zensical")
     record_template_release = [
         candidate,
@@ -824,7 +823,7 @@ def _authorise_non_git_command(
                 "-r",
                 str(project / "requirements.txt"),
             ],
-            [project_pdk, "shared-files", "--apply"],
+            [candidate, "-m", "prodockit", "shared-files", "--apply"],
         )
         # The first Bootstrap path is deliberately independent of the
         # provider's template freshness.  It may therefore install the

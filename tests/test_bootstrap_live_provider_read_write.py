@@ -578,7 +578,7 @@ def test_project_environment_allows_only_the_reviewed_template_repairs(
     home = tmp_path / "home"
     project = home / "setup" / live.SURREY_PROJECT
     project_python = str(project / ".venv" / "bin" / "python")
-    project_pdk = str(project / ".venv" / "bin" / "pdk")
+    candidate_python = Path(sys.executable)
 
     live.authorise_plan(
         "project-env",
@@ -590,14 +590,14 @@ def test_project_environment_allows_only_the_reviewed_template_repairs(
                 "install",
                 f"weasyprint>={WEASYPRINT_MIN_VERSION}",
             ],
-            [project_pdk, "shared-files", "--apply"],
+            [str(candidate_python), "-m", "prodockit", "shared-files", "--apply"],
         ],
         str(project),
         fixture=fixture,
         home=home,
         project=project,
         allow_push=True,
-        candidate_python=Path(sys.executable),
+        candidate_python=candidate_python,
     )
 
 
@@ -609,7 +609,9 @@ def test_project_environment_allows_only_the_reviewed_template_repairs(
         ["{python}", "-m", "pip", "install", "weasyprint>=0"],
         ["{python}", "-m", "pip", "install", "another-package>=69.0"],
         ["{python}", "-m", "pip", "install", "--upgrade", "weasyprint>=69.0"],
+        ["{pdk}", "shared-files", "--apply"],
         ["{pdk}", "shared-files", "--apply", "--check"],
+        ["{candidate}", "-m", "prodockit", "shared-files", "--apply", "--check"],
     ],
 )
 def test_project_environment_rejects_broader_dependency_commands(
@@ -622,6 +624,7 @@ def test_project_environment_rejects_broader_dependency_commands(
         part.format(
             python=project / ".venv" / "bin" / "python",
             pdk=project / ".venv" / "bin" / "pdk",
+            candidate=sys.executable,
         )
         for part in command
     ]

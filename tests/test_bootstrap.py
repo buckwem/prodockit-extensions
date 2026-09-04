@@ -3651,7 +3651,10 @@ def test_first_path_project_environment_is_independent_of_template_dependencies(
     ] in plan.commands
 
 
-def test_first_path_project_environment_refreshes_declared_shared_files(tmp_path: Path) -> None:
+@pytest.mark.parametrize("platform", [MACOS, WINDOWS, UBUNTU])
+def test_first_path_project_environment_refreshes_shared_files_from_candidate(
+    tmp_path: Path, platform: str
+) -> None:
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True)
     (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
@@ -3660,9 +3663,16 @@ def test_first_path_project_environment_refreshes_declared_shared_files(tmp_path
         encoding="utf-8",
     )
 
-    plan = next(s for s in STAGES if s.id == "project-env").plan(_context(tmp_path))
+    plan = next(s for s in STAGES if s.id == "project-env").plan(
+        _context(tmp_path, platform=platform)
+    )
 
-    assert [str(project / ".venv" / "bin" / "pdk"), "shared-files", "--apply"] in plan.commands
+    assert [sys.executable, "-m", "prodockit", "shared-files", "--apply"] in plan.commands
+    assert not any(
+        Path(command[0]).name.casefold() in {"pdk", "pdk.exe"}
+        and command[1:] == ["shared-files", "--apply"]
+        for command in plan.commands
+    )
 
 
 def test_existing_repository_project_environment_preserves_its_dependency_choices(
