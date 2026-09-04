@@ -1233,7 +1233,12 @@ def verify_and_seal(args: argparse.Namespace, client: GitLabClient) -> None:
             checkout=source_checkout,
             must_exist=False,
         )
-    project = project_value(client, fixture)
+    # The reset handoff binds this run to the immutable project ID.  Do not
+    # resolve the mutable namespace path again during sealing: GitLab may keep
+    # path redirects after fixture cleanup, and that endpoint has proved less
+    # reliable under provider throttling.  Identity validation below still
+    # checks the returned namespace and project names as well as the ID.
+    project = project_id_value(client, handoff.project_id)
     if project is None:
         raise LifecycleError("the candidate destination project disappeared")
     validate_project_identity(project, fixture, expected_id=handoff.project_id)
@@ -1281,7 +1286,7 @@ def verify_and_seal(args: argparse.Namespace, client: GitLabClient) -> None:
     disable_destination_key(client, fixture, handoff.project_id, journal)
     # Re-read the provider after the protective mutation. The retained record
     # is written only from this sealed state, never from the candidate report.
-    sealed_project = project_value(client, fixture)
+    sealed_project = project_id_value(client, handoff.project_id)
     if sealed_project is None:
         raise LifecycleError("the verified project disappeared while it was being sealed")
     snapshot = project_snapshot(client, fixture, sealed_project)
@@ -1432,7 +1437,11 @@ def revoke_destination_access(args: argparse.Namespace, client: GitLabClient) ->
         must_exist=False,
     )
     group_preflight(client, fixture)
-    project = project_value(client, fixture)
+    project = (
+        project_id_value(client, handoff.project_id)
+        if handoff is not None
+        else project_value(client, fixture)
+    )
     if project is None:
         write_private_json(
             audit_path,

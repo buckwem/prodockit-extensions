@@ -136,6 +136,7 @@ class FakeGitLab:
         self.deploy_keys: list[dict[str, Any]] = []
         self.pages: dict[str, Any] | None = None
         self.mutations: list[tuple[str, str]] = []
+        self.observations: list[str] = []
         self._sleep = lambda _delay: None
 
     def _project(self, project_id: int = 404) -> dict[str, Any]:
@@ -152,6 +153,7 @@ class FakeGitLab:
         }
 
     def get_optional(self, path: str) -> Any | None:
+        self.observations.append(path)
         if path == f"/groups/{state.SURREY_GROUP}":
             return {"id": self.fixture.group.id, "full_path": state.SURREY_GROUP}
         if path == f"/projects/{lifecycle.encoded(state.SURREY_TEMPLATE)}":
@@ -786,6 +788,7 @@ def test_empty_reset_candidate_and_seal_form_one_bounded_lifecycle(
         audit_report=tmp_path / "seal-audit.json",
     )
 
+    observations_before_seal = len(client.observations)
     lifecycle.verify_and_seal(seal_args, client)
 
     sealed = state.RetainedState.read(retained)
@@ -793,6 +796,9 @@ def test_empty_reset_candidate_and_seal_form_one_bounded_lifecycle(
     assert sealed.tree == TREE
     assert client.deploy_keys == []
     assert ("DELETE", "/projects/404/deploy_keys/303") in client.mutations
+    seal_observations = client.observations[observations_before_seal:]
+    assert seal_observations.count("/projects/404") == 2
+    assert f"/projects/{lifecycle.encoded(state.SURREY_PATH)}" not in seal_observations
 
 
 def test_seal_revokes_write_access_when_template_refs_change_after_reset(
@@ -1383,6 +1389,8 @@ def test_recovery_revoke_removes_only_the_reviewed_destination_key(
     lifecycle.revoke_destination_access(args, client)
 
     assert client.deploy_keys == []
+    assert "/projects/404" in client.observations
+    assert f"/projects/{lifecycle.encoded(state.SURREY_PATH)}" not in client.observations
     audit = json.loads(args.audit_report.read_text(encoding="utf-8"))
     assert audit["phase"] == "revoke"
     assert audit["destination_deploy_key_enabled"] is False
