@@ -35,7 +35,9 @@ jobs:
     if: needs.scope.outputs.relevant == 'true'
     name: ${{ matrix.name }} ${{ matrix.architecture }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 25
+    # One apply attempt may use the harness's full 15-minute command budget.
+    # Keep enough job time for its single bounded transient-renderer retry.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:

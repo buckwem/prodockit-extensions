@@ -394,6 +394,7 @@ def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_c
     ) == 3
     assert "runner: windows-2025" in workflow
     assert "runner: windows-11-arm" in workflow
+    assert "timeout-minutes: 40" in workflow
 
 
 def test_diagnostic_wheel_matrix_runs_only_for_its_selected_scope() -> None:

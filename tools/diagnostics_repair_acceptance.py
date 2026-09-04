@@ -49,6 +49,15 @@ def require_architecture(*, x64: bool, arm64: bool) -> str:
     return machine
 
 
+def positive_integer(value: str) -> int:
+    """Parse a strictly positive command-line integer."""
+
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return parsed
+
+
 def run(
     command: list[str],
     *,
@@ -149,6 +158,12 @@ def parser() -> argparse.ArgumentParser:
     architecture.add_argument("--require-x64", action="store_true")
     architecture.add_argument("--require-arm64", action="store_true")
     result.add_argument("--report", type=Path, required=True)
+    result.add_argument(
+        "--driver-timeout-seconds",
+        type=positive_integer,
+        default=900,
+        help="maximum time for the installed-wheel repair scenario (default: 900)",
+    )
     result.add_argument("--keep-on-failure", action="store_true")
     return result
 
@@ -203,7 +218,7 @@ def main(arguments: list[str] | None = None) -> int:
             environment=child_environment,
             stdout_path=driver_stdout,
             stderr_path=driver_stderr,
-            timeout=1200 if os.name == "nt" else 900,
+            timeout=args.driver_timeout_seconds,
         )
         scenario = json.loads(driver_report.read_text(encoding="utf-8"))
         summary = {

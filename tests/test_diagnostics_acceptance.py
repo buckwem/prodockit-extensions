@@ -157,6 +157,32 @@ def test_diagnostic_acceptance_resolves_one_wheel_and_checks_architecture(
         diagnostics_acceptance.require_architecture(x64=True, arm64=False)
 
 
+def test_driver_timeout_is_configurable_and_positive() -> None:
+    arguments = diagnostics_acceptance.parser().parse_args(
+        [
+            "--wheel",
+            "dist",
+            "--report",
+            "report.json",
+            "--driver-timeout-seconds",
+            "1800",
+        ]
+    )
+
+    assert arguments.driver_timeout_seconds == 1800
+    with pytest.raises(SystemExit):
+        diagnostics_acceptance.parser().parse_args(
+            [
+                "--wheel",
+                "dist",
+                "--report",
+                "report.json",
+                "--driver-timeout-seconds",
+                "0",
+            ]
+        )
+
+
 def test_driver_uses_file_backed_output_instead_of_windows_sensitive_pipes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -253,6 +279,8 @@ def test_diagnostic_repair_workflow_has_six_installed_wheel_environments() -> No
     assert workflow.count("architecture_check:") == 6
     assert "python -m build --wheel" in workflow
     assert "tools/diagnostics_repair_acceptance.py" in workflow
+    assert "timeout-minutes: 35" in workflow
+    assert "--driver-timeout-seconds 1800" in workflow
     assert 'pip install -e ".[dev]"' not in workflow
 
 
