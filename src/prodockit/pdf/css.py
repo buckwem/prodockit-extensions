@@ -740,10 +740,9 @@ div.grid.cards > ul > li > p:first-child {
     color: #111111 !important; page-break-after: avoid !important; break-after: avoid !important;
 }
 
-/* #dddddd is a 5% darker shade of a Material/Zensical default theme's own
-   --md-code-bg-color (#f5f5f5) - kept identical between inline code and
-   code blocks here, matching the website's own convention if a caller's
-   own stylesheet uses the same variable. */
+/* Use a 5% foreground shade for both inline and fenced code. The nested code
+   inside pre is transparent so two rgba backgrounds cannot compound into a
+   much darker, nearly 10% shade. */
 pre, code { font-family: "__MONO_FONT__", monospace !important; }
 /* text-align isn't otherwise set anywhere on pre/code, so a fenced code
    block nested inside a centered ancestor (figure {}, div.prodockit-*-caption,
@@ -762,12 +761,12 @@ pre { text-align: left !important; }
    directly. Overridden back to auto here, inherited "avoid" (if any, from
    the caller's own website print CSS) kept for img/blockquote. */
 pre { page-break-inside: auto !important; break-inside: auto !important; }
-pre { padding: 10px !important; border-radius: 4px !important; margin: 1em 0 !important; white-space: pre-wrap !important; background-color: #dddddd !important; }
-code { padding: 2px 4px !important; border-radius: 3px !important; background-color: #dddddd !important; }
+pre { padding: 10px !important; border-radius: 4px !important; margin: 1em 0 !important; white-space: pre-wrap !important; background-color: rgba(0, 0, 0, 0.05) !important; }
+code { padding: 2px 4px !important; border-radius: 3px !important; background-color: rgba(0, 0, 0, 0.05) !important; }
 /* Multi-line <code> inside <pre> is a single inline box split across hard line
    breaks; without this, the padding above lands only on the first line (default
    box-decoration-break: slice), making it look indented relative to the rest. */
-pre code { padding: 0 !important; }
+pre code { padding: 0 !important; background-color: transparent !important; }
 
 /* Syntax colours match Zensical's light website palette. Zensical/Pygments
    token classes are preserved across Pandoc by the HTML/Lua bridge; scoping
@@ -790,7 +789,7 @@ pre code { padding: 0 !important; }
 .prodockit-highlight .ni, .prodockit-highlight .nl,
 .prodockit-highlight .nn, .prodockit-highlight .nx,
 .prodockit-highlight .py, .prodockit-highlight .bp {
-    color: #36464e !important;
+    color: #263238 !important;
 }
 .prodockit-highlight .o, .prodockit-highlight .ow,
 .prodockit-highlight .p { color: #0000008c !important; }

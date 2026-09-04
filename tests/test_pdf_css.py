@@ -22,12 +22,26 @@ def test_fenced_and_inline_code_scale_relative_to_surrounding_text() -> None:
     assert "pre, code { font-size:" not in css
 
 
+def test_fenced_and_inline_code_use_a_single_five_percent_shade() -> None:
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    fenced = css.split("pre { padding: 10px", 1)[1].split("}", 1)[0]
+    inline = css.split("code { padding: 2px", 1)[1].split("}", 1)[0]
+    shade = "background-color: rgba(0, 0, 0, 0.05) !important;"
+    assert shade in fenced
+    assert shade in inline
+    assert (
+        "pre code { padding: 0 !important; "
+        "background-color: transparent !important; }"
+    ) in css
+
+
 def test_highlighted_code_uses_the_zensical_light_theme_palette() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
 
     expected_tokens = {
         ".prodockit-highlight .k": "#3f6ec6",
-        ".prodockit-highlight .n": "#36464e",
+        ".prodockit-highlight .n": "#263238",
         ".prodockit-highlight .o": "#0000008c",
         ".prodockit-highlight .s2": "#1c7d4d",
     }
