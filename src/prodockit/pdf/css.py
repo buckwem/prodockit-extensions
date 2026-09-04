@@ -162,10 +162,12 @@ h1, h2, h3, h4, h5, h6 {
 pre, code {
     font-family: "__MONO_FONT__", monospace !important;
 }
-/* Keep inline and fenced code one point smaller than the explicit body size:
-   the monospace face otherwise appears optically larger than the surrounding
-   proportional face at the same nominal size. */
-pre, code { font-size: 10pt !important; }
+/* Scale inline and fenced code relative to its surrounding text, following
+   Zensical's 0.85em convention. Apply the size to code only: setting it on
+   both pre and its code child would compound the relative scale for fenced
+   blocks. The monospace face otherwise appears optically larger than the
+   surrounding proportional face at the same nominal size. */
+code { font-size: 0.85em !important; }
 
 /* ==========================================================================
    WEB-ONLY / PDF-ONLY CONTENT

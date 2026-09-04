@@ -24,6 +24,8 @@ requests rather than here.
 - Preserved Zensical's syntax-token markup through the Pandoc conversion so
   highlighted code blocks in PDFs use the same light-theme colours as the
   website without losing line breaks or guessing the source language.
+- Changed PDF code from a fixed point size to Zensical's relative `0.85em`
+  scale, so code follows changes to the surrounding text size.
 - Made live-provider Bootstrap controls require an exact destination
   confirmation before entering a credential-bearing environment. Provider
   observations and prerequisite downloads now share bounded transient-failure

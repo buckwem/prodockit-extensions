@@ -14,11 +14,12 @@ def test_font_family_placeholders_are_substituted() -> None:
     assert "__MONO_FONT__" not in css
 
 
-def test_fenced_and_inline_code_are_one_point_smaller_than_body_text() -> None:
+def test_fenced_and_inline_code_scale_relative_to_surrounding_text() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
 
     assert 'body {\n    font-family: "Inter", sans-serif !important;\n    font-size: 11pt !important;' in css
-    assert "pre, code { font-size: 10pt !important;" in css
+    assert "code { font-size: 0.85em !important;" in css
+    assert "pre, code { font-size:" not in css
 
 
 def test_highlighted_code_uses_the_zensical_light_theme_palette() -> None:
