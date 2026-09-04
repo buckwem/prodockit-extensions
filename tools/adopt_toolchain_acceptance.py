@@ -194,6 +194,7 @@ def install_real_fixture(
             "install",
             "--force-reinstall",
             "--only-binary=:all:",
+            "--no-deps",
             "--retries",
             "5",
             "--timeout",

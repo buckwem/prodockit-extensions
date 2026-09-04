@@ -239,7 +239,12 @@ def _declarations(root: Path) -> tuple[tuple[str, ...], tuple[Path, ...]]:
     return tuple(sorted(changed)), paths
 
 
-def pip_install_command(packages: Sequence[str], *, offline: bool = False) -> tuple[str, ...]:
+def pip_install_command(
+    packages: Sequence[str],
+    *,
+    offline: bool = False,
+    dependencies: bool = True,
+) -> tuple[str, ...]:
     command = [
         sys.executable,
         "-m",
@@ -254,6 +259,13 @@ def pip_install_command(packages: Sequence[str], *, offline: bool = False) -> tu
         "--upgrade-strategy",
         "only-if-needed",
     ]
+    if not dependencies:
+        # These distributions are already installed, so their dependency set
+        # has already been provisioned. Re-resolving it can make an otherwise
+        # valid exact upgrade/downgrade impossible on platforms where an
+        # optional transitive wheel is unavailable (notably Brotli on Windows
+        # ARM64). Pip still installs the genuine requested distribution wheel.
+        command.append("--no-deps")
     wheelhouse = os.environ.get(WHEELHOUSE_ENV, "").strip()
     mirror = os.environ.get(PYPI_MIRROR_ENV, "").strip()
     if offline:
@@ -310,12 +322,27 @@ def plan(root: Path, *, offline: bool = False, fresh: bool = False) -> Toolchain
         for package in (*PYTHON_PACKAGES, "pandoc")
         if (action := _action(package, installed[package])) is not None
     )
-    package_actions = tuple(
-        action.package for action in actions if action.package in PYTHON_PACKAGES
+    missing_packages = tuple(
+        action.package
+        for action in actions
+        if action.package in PYTHON_PACKAGES and action.installed is None
+    )
+    installed_packages = tuple(
+        action.package
+        for action in actions
+        if action.package in PYTHON_PACKAGES and action.installed is not None
     )
     commands: list[tuple[str, ...]] = []
-    if package_actions:
-        commands.append(pip_install_command(package_actions, offline=offline))
+    if missing_packages:
+        commands.append(pip_install_command(missing_packages, offline=offline))
+    if installed_packages:
+        commands.append(
+            pip_install_command(
+                installed_packages,
+                offline=offline,
+                dependencies=False,
+            )
+        )
     if any(action.package == "pandoc" for action in actions):
         commands.append(pandoc_install_command(TESTED_VERSIONS["pandoc"], offline=offline))
     return ToolchainPlan(actions, declaration_changes, tuple(commands), files, offline=offline)

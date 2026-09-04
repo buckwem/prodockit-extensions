@@ -61,7 +61,10 @@ requests rather than here.
   operation. Separate six-platform installed-wheel jobs exercise genuine
   upgrades from unmodified previous PyPI packages and Pandoc, plus genuine
   Pandoc downgrades from the adjacent newer release. The harness never changes
-  installed metadata or substitutes fixture code.
+  installed metadata or substitutes fixture code. Existing managed Python
+  packages are replaced directly without re-resolving unchanged dependencies,
+  avoiding unavailable optional transitive wheels such as Brotli on Windows
+  ARM64; genuinely missing packages retain normal dependency resolution.
 
 ## Implemented functionality
 

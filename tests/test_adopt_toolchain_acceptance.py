@@ -62,3 +62,6 @@ def test_acceptance_uses_only_real_published_starting_versions() -> None:
     assert "_fake_pandoc" not in source
     assert 'write_text(f"Version:' not in source
     assert "directory.replace" not in source
+    harness_source = Path(acceptance.__file__).read_text(encoding="utf-8")
+    assert '"--only-binary=:all:"' in harness_source
+    assert '"--no-deps"' in harness_source

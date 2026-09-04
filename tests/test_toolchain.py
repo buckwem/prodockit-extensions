@@ -98,6 +98,38 @@ def test_offline_pip_plan_requires_only_the_configured_wheelhouse(
     assert "--extra-index-url" not in command
 
 
+def test_plan_does_not_resolve_dependencies_again_for_installed_packages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _supported(monkeypatch)
+    monkeypatch.setattr(
+        toolchain,
+        "installed_distribution_version",
+        lambda package: "0.0.1" if package == "weasyprint" else TESTED_VERSIONS[package],
+    )
+
+    planned = toolchain.plan(tmp_path)
+
+    command = next(command for command in planned.commands if "weasyprint==69.0" in command)
+    assert "--no-deps" in command
+
+
+def test_plan_resolves_dependencies_for_missing_packages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _supported(monkeypatch)
+    monkeypatch.setattr(
+        toolchain,
+        "installed_distribution_version",
+        lambda package: None if package == "weasyprint" else TESTED_VERSIONS[package],
+    )
+
+    planned = toolchain.plan(tmp_path)
+
+    command = next(command for command in planned.commands if "weasyprint==69.0" in command)
+    assert "--no-deps" not in command
+
+
 def test_declarations_are_complete_and_preserve_operators_extras_and_unrelated_lines(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
