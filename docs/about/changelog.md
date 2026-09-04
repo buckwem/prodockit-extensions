@@ -21,6 +21,19 @@ requests rather than here.
 
 ## Unreleased
 
+- Preserved Zensical's syntax-token markup through the Pandoc conversion so
+  highlighted code blocks in PDFs use its light-theme palette, with darker
+  name text for print contrast, without losing line breaks or guessing the
+  source language.
+- Changed PDF code from a fixed point size to Zensical's relative `0.85em`
+  scale, so code follows changes to the surrounding text size, increased its
+  character weight to medium for print clarity, and reduced its background
+  from about 13% to 4% shading. Inline code is optically aligned with body text.
+- Gave complete website content-tab groups a persistent table-style border and
+  theme-aware hover shadow, 3% selected-tab shading and balanced content
+  spacing, and made PDF tab panels use subtler 5%/1% header and content shading
+  with matching rounded outside corners. Copy-to-clipboard controls are now
+  visible before hover as well.
 - Made live-provider Bootstrap controls require an exact destination
   confirmation before entering a credential-bearing environment. Provider
   observations and prerequisite downloads now share bounded transient-failure

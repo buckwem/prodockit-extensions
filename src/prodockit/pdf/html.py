@@ -393,7 +393,9 @@ def fix_up_page_html(
                 img = soup.new_tag("img", src=img_src, alt="Mermaid diagram")
                 pre.replace_with(img)
 
-    # Code blocks: reduce each <pre> to a single plain-text <code> child.
+    # Code blocks: reduce each <pre> to a single plain-text <code> child for
+    # Pandoc, while carrying any syntax-token markup through as hex data for
+    # the Lua filter to restore after Pandoc has parsed the block.
     #
     # Pandoc's HTML reader only recognises <pre><code> as a code block when
     # that <code> contains nothing but text. Zensical's highlighter emits
@@ -411,16 +413,39 @@ def fix_up_page_html(
     # justified prose with `".[dev]"` split across two rows
     # (prodockit-extensions#207).
     #
-    # The token markup is worth nothing here in any case: the PDF stylesheet
-    # gives it no colours, so flattening loses no rendering that was ever
-    # happening - it only stops the block being destroyed.
+    # The token spans cannot remain as children during the HTML read, but they
+    # already contain exactly the language-aware work Zensical/Pygments did.
+    # Encoding that small HTML fragment as hex is deterministic, survives as a
+    # Pandoc CodeBlock attribute without quoting ambiguity, and avoids trying
+    # to guess a lexer when a project's highlighting configuration emitted no
+    # `language-*` class. The Lua filter decodes it into a raw HTML block only
+    # on Pandoc's output side, where WeasyPrint can apply the matching palette.
     for pre in soup.find_all("pre"):
         if "mermaid" in (pre.get("class") or []):
             continue
         text = pre.get_text()
+        original_code = pre.find("code")
+        highlighted_markup = ""
+        if isinstance(original_code, Tag) and any(
+            span.get("class") for span in original_code.find_all("span")
+        ):
+            # Line-number anchors and wrapper spans have no presentation in a
+            # PDF. Remove/unwrap them while retaining Pygments' classed token
+            # spans and their already HTML-escaped text.
+            for anchor in original_code.find_all("a"):
+                anchor.decompose()
+            for span in original_code.find_all("span"):
+                if span.get("class"):
+                    span.attrs.pop("id", None)
+                    span.attrs.pop("name", None)
+                else:
+                    span.unwrap()
+            highlighted_markup = original_code.decode_contents()
         pre.clear()
         code = soup.new_tag("code")
         code.string = text
+        if highlighted_markup:
+            code["data-prodockit-highlight"] = highlighted_markup.encode("utf-8").hex()
         pre.append(code)
 
     # Zensical rewrites every page-relative reference - not just <a href>

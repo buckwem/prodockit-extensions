@@ -34,12 +34,19 @@ def test_pdf_contents_nested_levels_have_compact_configurable_spacing() -> None:
     contents = PDK_PDF_CSS.read_text(encoding="utf-8")
 
     level_one = contents.split("#TOC > ul > li > a {", 1)[1].split("}", 1)[0]
+    level_two_list = contents.split("#TOC > ul > li > ul {", 1)[1].split("}", 1)[0]
     level_two = contents.split("#TOC > ul > li > ul > li {", 1)[1].split("}", 1)[0]
+    level_three_list = contents.split(
+        "#TOC > ul > li > ul > li > ul {", 1
+    )[1].split("}", 1)[0]
     level_three = contents.split("#TOC > ul > li > ul > li > ul > li {", 1)[1].split(
         "}", 1
     )[0]
 
+    assert "font-size: 12pt !important;" in level_one
     assert "font-weight: bold !important;" in level_one
+    assert "padding-inline-start: 1.21em !important;" in level_two_list
     assert "line-height: 1.1 !important;" in level_two
-    assert "line-height: 1 !important;" in level_three
+    assert "padding-inline-start: 1.64em !important;" in level_three_list
+    assert "line-height: 1.1 !important;" in level_three
     assert "margin-block: 0 !important;" in level_three
