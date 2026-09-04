@@ -96,7 +96,7 @@ def versioned_wheel(candidate: Path, version: str, destination: Path) -> Path:
                 )
             elif name == "prodockit/__init__.py":
                 data = re.sub(
-                    rb'(?m)^__version__ = "[^"]+"$',
+                    rb'(?m)^__version__ = "[^"]+"(?=\r?$)',
                     f'__version__ = "{version}"'.encode(),
                     data,
                     count=1,

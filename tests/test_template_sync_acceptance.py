@@ -11,10 +11,12 @@ from pathlib import Path
 from tools import template_sync_acceptance as acceptance
 
 
-def _candidate_wheel(root: Path) -> Path:
+def _candidate_wheel(root: Path, *, newline: str = "\n") -> Path:
     wheel = root / "prodockit-0.58.0-py3-none-any.whl"
-    metadata = "Metadata-Version: 2.4\nName: prodockit\nVersion: 0.58.0\n"
-    package = '__version__ = "0.58.0"\n'
+    metadata = newline.join(
+        ("Metadata-Version: 2.4", "Name: prodockit", "Version: 0.58.0", "")
+    )
+    package = f'__version__ = "0.58.0"{newline}'
     with zipfile.ZipFile(wheel, "w") as archive:
         archive.writestr("prodockit/__init__.py", package)
         archive.writestr("prodockit-0.58.0.dist-info/METADATA", metadata)
@@ -44,3 +46,13 @@ def test_versioned_wheel_contains_real_code_and_coherent_new_metadata(tmp_path) 
 
 def test_adjacent_versions_straddle_the_candidate() -> None:
     assert acceptance.adjacent_versions("0.58.0") == ("0.57.999", "0.58.1")
+
+
+def test_versioned_wheel_rewrites_code_from_a_windows_checkout(tmp_path) -> None:
+    candidate = _candidate_wheel(tmp_path, newline="\r\n")
+    rewritten = acceptance.versioned_wheel(candidate, "0.57.999", tmp_path)
+
+    with zipfile.ZipFile(rewritten) as archive:
+        package = archive.read("prodockit/__init__.py")
+
+    assert package == b'__version__ = "0.57.999"\r\n'

@@ -30,10 +30,9 @@ import threading
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Literal, ParamSpec, Protocol, TypeVar, cast
+from typing import Any, Literal, ParamSpec, TypeVar
 
 import click
-from click.utils import get_text_stream
 
 import prodockit
 from prodockit import __version__
@@ -3528,16 +3527,6 @@ _TEMPLATE_SYNC_PHASES = (
 )
 
 
-class _Flushable(Protocol):
-    def flush(self) -> object: ...
-
-
-def _flush_template_sync_stream(stream: object) -> None:
-    """Bridge Click's old ``TextIO`` and new ``object`` return annotations."""
-
-    cast(_Flushable, stream).flush()
-
-
 def _template_sync_phase_heading(number: int) -> None:
     """Use bootstrap's phase boundary for one coherent update command."""
 
@@ -3563,15 +3552,6 @@ def _template_sync_stage_heading(number: int, total: int, summary: str) -> None:
 def _run_template_sync_resume(command: Sequence[str], project: pathlib.Path) -> int:
     """Run the remainder under freshly imported code from the installed wheel."""
 
-    # The replacement process inherits these handles.  Windows buffers the
-    # parent's redirected output more aggressively than POSIX, and without an
-    # explicit flush the reviewed UPGRADE/DOWNGRADE plan can disappear when
-    # the freshly installed process starts writing to the same pipe (#733).
-    # Flush Click's Windows Unicode wrappers, not merely the underlying
-    # ``sys`` streams: the wrapper owns the pending encoded text when stdout
-    # is redirected by a CI harness.
-    for name in ("stdout", "stderr"):
-        _flush_template_sync_stream(get_text_stream(name))
     return subprocess.run(list(command), cwd=project, check=False).returncode
 
 
