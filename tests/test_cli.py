@@ -5,6 +5,36 @@
 import pytest
 
 
+def test_template_sync_flushes_progress_before_fresh_process(tmp_path, monkeypatch) -> None:
+    """Redirected Windows output must survive the package handoff (#733)."""
+    from types import SimpleNamespace
+
+    from prodockit import cli
+
+    flushed: list[str] = []
+
+    class Stream:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def flush(self) -> None:
+            flushed.append(self.name)
+
+    monkeypatch.setattr(cli.sys, "stdout", Stream("stdout"))
+    monkeypatch.setattr(cli.sys, "stderr", Stream("stderr"))
+
+    def run(command, *, cwd, check):
+        assert flushed == ["stdout", "stderr"]
+        assert command == ["python", "-m", "prodockit"]
+        assert cwd == tmp_path
+        assert check is False
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(cli.subprocess, "run", run)
+
+    assert cli._run_template_sync_resume(["python", "-m", "prodockit"], tmp_path) == 0
+
+
 def test_bootstrap_records_the_pristine_template_release(tmp_path) -> None:
     """The tag must be persisted before bootstrap archives template history."""
     import subprocess

@@ -3552,13 +3552,22 @@ def _template_sync_stage_heading(number: int, total: int, summary: str) -> None:
 def _run_template_sync_resume(command: Sequence[str], project: pathlib.Path) -> int:
     """Run the remainder under freshly imported code from the installed wheel."""
 
+    # The replacement process inherits these handles.  Windows buffers the
+    # parent's redirected output more aggressively than POSIX, and without an
+    # explicit flush the reviewed UPGRADE/DOWNGRADE plan can disappear when
+    # the freshly installed process starts writing to the same pipe (#733).
+    sys.stdout.flush()
+    sys.stderr.flush()
     return subprocess.run(list(command), cwd=project, check=False).returncode
 
 
 def _template_sync_is_interactive() -> bool:
     """Whether confirmations can be completed without partial unattended work."""
 
-    return click.get_text_stream("stdin").isatty()
+    # Click 8.2 types ``get_text_stream`` as ``object`` whereas earlier
+    # releases exposed a text stream.  ``sys.stdin`` is the same stream here
+    # (and is replaced by CliRunner in tests), with a stable typed interface.
+    return sys.stdin.isatty()
 
 
 def _template_sync_command(command: Sequence[str]) -> str:
