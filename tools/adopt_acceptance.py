@@ -68,6 +68,10 @@ _TRANSIENT_RENDERER_MARKERS = (
     "service unavailable",
     "bad gateway",
     "gateway timeout",
+    # Ubuntu's Chromium snap occasionally starts before its automatically
+    # connected graphics content snap is mounted on a fresh hosted runner.
+    "content snap gpu wrapper",
+    "ensure slot is connected",
 )
 
 

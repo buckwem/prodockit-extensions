@@ -82,6 +82,9 @@ def test_only_external_renderer_failures_are_classified_as_transient() -> None:
         "npm completed but Mermaid CLI timed out after 30 seconds"
     )
     assert adopt_acceptance.transient_renderer_failure("npm ERR! code ECONNRESET")
+    assert adopt_acceptance.transient_renderer_failure(
+        "Mermaid failed: Content snap GPU wrapper missing; ensure slot is connected"
+    )
     assert not adopt_acceptance.transient_renderer_failure(
         "configuration changed beyond the selected assets"
     )

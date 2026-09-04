@@ -55,6 +55,31 @@ class AcceptanceError(RuntimeError):
     """One route did not leave the repository in its promised state."""
 
 
+_TRANSIENT_MERMAID_PROBE_MARKERS = (
+    "timed out",
+    "content snap gpu wrapper",
+    "ensure slot is connected",
+)
+
+
+def transient_mermaid_probe_failure(
+    command: Sequence[str], result: CommandResult
+) -> bool:
+    """Whether a real renderer probe is safe to repeat on the same fixture.
+
+    Keep this deliberately narrow. In particular, a generic browser launch or
+    Mermaid error can be a product regression and must fail on its first
+    occurrence. The accepted signatures are hosted-runner timing and Ubuntu
+    snap content-mount races observed in the release matrices.
+    """
+
+    rendered = " ".join(command).casefold()
+    if "prodockit-mermaid-probe" not in rendered and "mmdc" not in rendered:
+        return False
+    detail = f"{result.stdout}\n{result.stderr}".casefold()
+    return any(marker in detail for marker in _TRANSIENT_MERMAID_PROBE_MARKERS)
+
+
 def run(
     command: Sequence[str],
     *,
@@ -264,6 +289,33 @@ class HarnessRunner:
                 if re.search(pattern, script):
                     upgraded.add(name)
         self._reveal_installed_tools(*upgraded)
+
+    def _run_real_machine_command(
+        self,
+        words: list[str],
+        *,
+        cwd: str | None,
+        timeout: float | None,
+        capture: bool,
+    ) -> CommandResult:
+        """Run a real command, retrying only known transient renderer probes."""
+
+        result = self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
+        for attempt, delay in enumerate((5, 15), start=1):
+            if not transient_mermaid_probe_failure(words, result):
+                break
+            print(
+                "Transient Mermaid browser probe failure "
+                f"on attempt {attempt}/3; retrying in {delay}s.",
+                file=sys.stderr,
+                flush=True,
+            )
+            time.sleep(delay)
+            self.calls.append(list(words))
+            result = self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
+        if result.returncode == 0:
+            self._record_real_machine_install(words)
+        return result
 
     def _upgrade(self, *names: str) -> None:
         targets = {
@@ -490,10 +542,9 @@ class HarnessRunner:
             shutil.move(paths[0].replace("''", "'"), paths[1].replace("''", "'"))
             return CommandResult(0)
         if self.real_software and executable in {"powershell", "powershell.exe", "pwsh"}:
-            result = self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
-            if result.returncode == 0:
-                self._record_real_machine_install(words)
-            return result
+            return self._run_real_machine_command(
+                words, cwd=cwd, timeout=timeout, capture=capture
+            )
         if self.old_software and executable in {"powershell", "powershell.exe"}:
             if "pacman -S" in words[-1]:
                 self._upgrade("pango")
@@ -602,10 +653,9 @@ class HarnessRunner:
             return CommandResult(completed.returncode, completed.stdout, completed.stderr)
 
         if self.real_software and executable in real_machine_commands:
-            result = self.system.run(words, cwd=cwd, timeout=timeout, capture=capture)
-            if result.returncode == 0:
-                self._record_real_machine_install(words)
-            return result
+            return self._run_real_machine_command(
+                words, cwd=cwd, timeout=timeout, capture=capture
+            )
 
         if (
             self.real_software
