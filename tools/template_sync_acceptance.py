@@ -212,33 +212,6 @@ def loaded_version(python: Path, root: Path) -> str:
     ).stdout.strip()
 
 
-def clear_package_bytecode(python: Path, root: Path) -> None:
-    """Remove bytecode left by the earlier candidate install.
-
-    Windows can preserve a rapidly replaced ``__init__.pyc`` whose timestamp
-    still matches the source.  That made distribution metadata genuinely old
-    while the next interpreter loaded the target candidate's cached version,
-    so the wheel test did not actually start under the code it claimed to
-    exercise.
-    """
-
-    package = Path(
-        acceptance.run(
-            [
-                str(python),
-                "-c",
-                (
-                    "import importlib.util; "
-                    "s=importlib.util.find_spec('prodockit'); "
-                    "print(next(iter(s.submodule_search_locations)))"
-                ),
-            ],
-            cwd=root,
-        ).stdout.strip()
-    )
-    shutil.rmtree(package / "__pycache__", ignore_errors=True)
-
-
 def scenario(
     root: Path,
     candidate: Path,
@@ -257,23 +230,29 @@ def scenario(
         [str(python), "-m", "pip", "install", "--force-reinstall", "--no-deps", str(starting)],
         cwd=root,
     )
-    clear_package_bytecode(python, root)
     before = installed_version(python, root)
     if before == target:
         raise acceptance.AcceptanceError(f"{action}: starting wheel did not change version")
-    loaded = loaded_version(python, root)
-    if loaded != before:
-        raise acceptance.AcceptanceError(
-            f"{action}: loaded code is {loaded}, but installed metadata is {before}"
-        )
 
     wheelhouse = root / "wheelhouse"
     wheelhouse.mkdir()
     shutil.copy2(candidate, wheelhouse / candidate.name)
+    # A candidate import during setup leaves bytecode behind. On Windows a
+    # rapid force-reinstall can preserve a still-valid timestamp for that
+    # cache even though the starting wheel's source has changed. Point every
+    # test interpreter, including the child handoff, at a new empty cache so
+    # it must execute the installed starting wheel's source.
+    bytecode_cache = root / "fresh bytecode cache"
     with environment(
         PDK_WHEELHOUSE=str(wheelhouse),
         PDK_NATIVE_DOWNLOAD_CACHE=str(cache),
+        PYTHONPYCACHEPREFIX=str(bytecode_cache),
     ):
+        loaded = loaded_version(python, root)
+        if loaded != before:
+            raise acceptance.AcceptanceError(
+                f"{action}: loaded code is {loaded}, but installed metadata is {before}"
+            )
         completed = acceptance.run(
             [
                 str(python),
@@ -328,6 +307,7 @@ def scenario(
     return {
         "action": action,
         "starting_version": before,
+        "loaded_starting_version": loaded,
         "target_version": target,
         "duration_seconds": round(time.perf_counter() - started, 3),
     }
