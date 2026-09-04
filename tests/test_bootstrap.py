@@ -104,6 +104,33 @@ class FakeRunner:
         return CommandResult(returncode=127, stderr="not found")
 
 
+class SequentialMermaidRunner(FakeRunner):
+    """Return successive results for the renderer probe and table results otherwise."""
+
+    def __init__(
+        self,
+        responses: dict[str, CommandResult],
+        mermaid_results: Sequence[CommandResult],
+    ) -> None:
+        super().__init__(responses)
+        self.mermaid_results = iter(mermaid_results)
+
+    def run(
+        self,
+        command: Sequence[str],
+        cwd: str | None = None,
+        timeout: float | None = None,
+        capture: bool = True,
+    ) -> CommandResult:
+        if "prodockit-mermaid-probe" not in " ".join(command):
+            return super().run(command, cwd=cwd, timeout=timeout, capture=capture)
+        self.timeouts.append(timeout)
+        self.captures.append(capture)
+        self.calls.append(list(command))
+        self.cwds.append(cwd)
+        return next(self.mermaid_results)
+
+
 #: What `ssh-add -l` prints for a loaded key, and what `ssh-keygen -lf`
 #: prints for the same one - the fingerprint has to match between them.
 LOADED_FINGERPRINT = "SHA256:AAAAfingerprintAAAA"
@@ -4319,6 +4346,93 @@ def test_ubuntu_notices_puppeteer_has_no_browser_to_point_at(tmp_path: Path) -> 
         }
     )
     assert stage.check(_context(tmp_path, runner=both, platform=UBUNTU)).status is Status.OK
+
+
+def test_ubuntu_mermaid_probe_retries_a_transient_snap_mount_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transient = CommandResult(
+        1,
+        stderr="Content snap GPU wrapper is missing; ensure slot is connected",
+    )
+    responses = _ready_machine(tmp_path) | {
+        "command -v chromium-browser": CommandResult(
+            0, f"Chromium {CHROMIUM_MIN_VERSION}\n"
+        ),
+        f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
+    }
+    runner = SequentialMermaidRunner(
+        responses,
+        (transient, CommandResult(0)),
+    )
+    delays = []
+    monkeypatch.setattr(stages_module.time, "sleep", delays.append)
+
+    result = next(stage for stage in STAGES if stage.id == "node").check(
+        _context(tmp_path, runner=runner, platform=UBUNTU)
+    )
+
+    assert result.status is Status.WARNING
+    assert "attempt 1/3" in result.detail
+    assert "retry delayed by 2s" in result.detail
+    assert delays == [2.0]
+    probes = [call for call in runner.calls if "prodockit-mermaid-probe" in " ".join(call)]
+    assert len(probes) == 2
+
+
+def test_ubuntu_mermaid_probe_does_not_retry_a_deterministic_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = SequentialMermaidRunner(
+        _ready_machine(tmp_path),
+        (CommandResult(1, stderr="Mermaid syntax is invalid"),),
+    )
+    monkeypatch.setattr(
+        stages_module.time,
+        "sleep",
+        lambda _delay: pytest.fail("a deterministic failure was retried"),
+    )
+
+    result = next(stage for stage in STAGES if stage.id == "node").check(
+        _context(tmp_path, runner=runner, platform=UBUNTU)
+    )
+
+    assert result.status is Status.WRONG
+    probes = [call for call in runner.calls if "prodockit-mermaid-probe" in " ".join(call)]
+    assert len(probes) == 1
+
+
+def test_ubuntu_mermaid_probe_exhaustion_keeps_attempt_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    responses = _ready_machine(tmp_path) | {
+        "command -v chromium-browser": CommandResult(
+            0, f"Chromium {CHROMIUM_MIN_VERSION}\n"
+        ),
+        f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
+    }
+    runner = SequentialMermaidRunner(
+        responses,
+        (
+            CommandResult(1, stderr="EAI_AGAIN first"),
+            CommandResult(1, stderr="ECONNRESET second"),
+            CommandResult(1, stderr="ETIMEDOUT final"),
+        ),
+    )
+    delays = []
+    monkeypatch.setattr(stages_module.time, "sleep", delays.append)
+
+    result = next(stage for stage in STAGES if stage.id == "node").check(
+        _context(tmp_path, runner=runner, platform=UBUNTU)
+    )
+
+    assert result.status is Status.WRONG
+    assert "ETIMEDOUT final" in result.detail
+    assert "EAI_AGAIN first" in result.detail
+    assert "ECONNRESET second" in result.detail
+    assert "attempt 1/3" in result.detail
+    assert "retry delayed by 5s" in result.detail
+    assert delays == [2.0, 5.0]
 
 
 def test_ubuntu_rejects_chromium_older_than_the_puppeteer_floor(tmp_path: Path) -> None:

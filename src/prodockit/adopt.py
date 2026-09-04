@@ -33,6 +33,7 @@ from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
+from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries
 from prodockit.shared_files import resource_bytes
 
 if sys.version_info >= (3, 11):
@@ -1035,16 +1036,27 @@ def _mermaid_bin(root: Path) -> Path | None:
     )
 
 
-def _tool_health(root: Path, component: str) -> tuple[bool, str]:
+def _tool_health(
+    root: Path,
+    component: str,
+    *,
+    retry_reporter: RetryReporter | None = None,
+) -> tuple[bool, str]:
     if not _tool_files_ok(root, component):
         return False, "renderer scaffold is incomplete"
     if component == "mermaid":
         binary = _mermaid_bin(root)
         if binary is None:
             return False, "mmdc executable is missing"
-        probe = probe_mermaid(binary)
+        probe = (
+            probe_mermaid(binary, reporter=retry_reporter)
+            if retry_reporter is not None
+            else probe_mermaid(binary)
+        )
+        attempts = getattr(probe, "attempts", 1)
+        recovered = f" after {attempts} attempts" if attempts > 1 else ""
         return (
-            (True, f"mmdc {probe.version or 'is available'}")
+            (True, f"mmdc {probe.version or 'is available'}{recovered}")
             if probe.ok
             else (False, f"mmdc health check failed: {probe.error}")
         )
@@ -1086,7 +1098,12 @@ def ensure_tools(root: Path, options: AdoptOptions) -> list[Path]:
     return [*result.written, *([ignore] if missing else [])]
 
 
-def install_tool(root: Path, component: str) -> list[Path]:
+def install_tool(
+    root: Path,
+    component: str,
+    *,
+    retry_reporter: RetryReporter | None = None,
+) -> list[Path]:
     """Install one selected Node renderer after writing its scaffold."""
     if component not in COMPONENT_FILES:
         raise AdoptError(f"unknown optional renderer: {component}")
@@ -1119,22 +1136,29 @@ def install_tool(root: Path, component: str) -> list[Path]:
         "--prefer-offline",
     ]
     try:
-        completed = subprocess.run(
+        npm_result = run_npm_with_retries(
             command,
             cwd=tool_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
             timeout=600,
+            reporter=retry_reporter,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise AdoptError(f"could not install {component}: {error}") from error
+    completed = npm_result.completed
     if completed.returncode != 0:
-        detail = (completed.stderr or completed.stdout).strip()
+        detail = npm_result.failure_detail
         raise AdoptError(f"npm could not install {component}: {detail}")
     if component == "mermaid":
         binary = _mermaid_bin(root)
-        probe = probe_mermaid(binary) if binary else None
+        probe = (
+            (
+                probe_mermaid(binary, reporter=retry_reporter)
+                if retry_reporter is not None
+                else probe_mermaid(binary)
+            )
+            if binary
+            else None
+        )
         if probe is None or not probe.ok:
             health_detail = (
                 probe.error or "health probe failed"
@@ -1170,7 +1194,12 @@ def install_tool(root: Path, component: str) -> list[Path]:
     return written
 
 
-def assess(root: Path, options: AdoptOptions) -> list[Step]:
+def assess(
+    root: Path,
+    options: AdoptOptions,
+    *,
+    retry_reporter: RetryReporter | None = None,
+) -> list[Step]:
     try:
         config_path, _source, parsed = _config(root)
         config_status = ("ok", f"{config_path.name} is valid")
@@ -1210,7 +1239,9 @@ def assess(root: Path, options: AdoptOptions) -> list[Step]:
             else "add the standard extensions and shared website styles"
         )
     )
-    mermaid_tool_ok, mermaid_detail = _tool_health(root, "mermaid")
+    mermaid_tool_ok, mermaid_detail = _tool_health(
+        root, "mermaid", retry_reporter=retry_reporter
+    )
     maths_tool_ok, maths_detail = _tool_health(root, "mathjax")
     mermaid_ok = mermaid_tool_ok and "pymdownx.superfences" in configured
     maths_ok = maths_tool_ok and "pymdownx.arithmatex" in configured
@@ -1306,7 +1337,13 @@ def build_command(root: Path) -> str:
     return _build_command(config_path)
 
 
-def apply_step(root: Path, options: AdoptOptions, step_id: str) -> list[Path]:
+def apply_step(
+    root: Path,
+    options: AdoptOptions,
+    step_id: str,
+    *,
+    retry_reporter: RetryReporter | None = None,
+) -> list[Path]:
     if step_id == "dependency":
         return [ensure_requirement(root)]
     if step_id == "core":
@@ -1319,13 +1356,13 @@ def apply_step(root: Path, options: AdoptOptions, step_id: str) -> list[Path]:
         return [
             ensure_zensical_config(root, options),
             write_manifest(root, options),
-            *install_tool(root, "mermaid"),
+            *install_tool(root, "mermaid", retry_reporter=retry_reporter),
         ]
     if step_id == "maths":
         return [
             ensure_zensical_config(root, options),
             write_manifest(root, options),
-            *install_tool(root, "mathjax"),
+            *install_tool(root, "mathjax", retry_reporter=retry_reporter),
         ]
     return []
 

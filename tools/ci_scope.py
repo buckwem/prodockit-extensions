@@ -84,6 +84,7 @@ _ALL_RUNTIME_FILES = {
     "src/prodockit/cli.py",
     "src/prodockit/diagnostics.py",
     "src/prodockit/renderer_health.py",
+    "src/prodockit/renderer_resilience.py",
     "src/prodockit/shared_files.py",
     "src/prodockit/util.py",
     "src/prodockit/py.typed",
