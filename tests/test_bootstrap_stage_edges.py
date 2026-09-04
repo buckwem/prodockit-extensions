@@ -625,6 +625,8 @@ def test_node_setup_recovers_puppeteer_omitted_by_legacy_peer_install(
     assert "npm" in mermaid
     assert "install --no-save --package-lock=false --legacy-peer-deps" in mermaid
     assert stages.PUPPETEER_RUNTIME in mermaid
+    if platform != UBUNTU:
+        assert "puppeteer browsers install" in mermaid
 
 
 @pytest.mark.parametrize(
