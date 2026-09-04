@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Run one Adopt upgrade or downgrade from an installed candidate wheel."""
+"""Run one genuine Adopt upgrade or downgrade from an installed wheel."""
 
 from __future__ import annotations
 
@@ -17,6 +17,25 @@ import time
 import venv
 from pathlib import Path
 from typing import Any
+
+# Real published wheels immediately below the supported combination. They are
+# installed intact for the upgrade scenario; no metadata or package files are
+# altered by the harness.
+PREVIOUS_PYTHON_VERSIONS = {
+    "zensical": "0.0.58",
+    "weasyprint": "68.1",
+    "markdown": "3.10.2",
+    "pymdown-extensions": "11.0.1",
+}
+
+# All managed Python pins are currently the newest published releases, so no
+# genuine newer Python distribution exists. Pandoc publishes both adjacent
+# releases on every target platform, giving the downgrade scenario one real
+# newer executable to install and replace without simulation.
+PANDOC_FIXTURE_VERSIONS = {
+    "upgrade": "3.10",
+    "downgrade": "3.10.2",
+}
 
 
 class AcceptanceError(RuntimeError):
@@ -114,6 +133,99 @@ def run_logged(
         )
 
 
+def _supported_versions(
+    python: Path,
+    *,
+    root: Path,
+    environment: dict[str, str],
+) -> dict[str, str]:
+    stdout = root / "supported-versions.stdout.log"
+    stderr = root / "supported-versions.stderr.log"
+    run_logged(
+        [
+            str(python),
+            "-c",
+            (
+                "import json; from prodockit.pins import TESTED_VERSIONS; "
+                "print(json.dumps(TESTED_VERSIONS))"
+            ),
+        ],
+        cwd=root,
+        environment=environment,
+        stdout_path=stdout,
+        stderr_path=stderr,
+        timeout=30,
+    )
+    try:
+        value = json.loads(stdout.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise AcceptanceError("could not read the candidate supported-version manifest") from error
+    if not isinstance(value, dict) or not all(
+        isinstance(package, str) and isinstance(version, str)
+        for package, version in value.items()
+    ):
+        raise AcceptanceError("candidate supported versions are not a string mapping")
+    return value
+
+
+def install_real_fixture(
+    python: Path,
+    *,
+    root: Path,
+    environment: dict[str, str],
+    scenario: str,
+    supported: dict[str, str],
+) -> dict[str, str]:
+    """Install only unmodified, published package and Pandoc artifacts."""
+
+    python_versions = {
+        package: (
+            PREVIOUS_PYTHON_VERSIONS[package]
+            if scenario == "upgrade"
+            else supported[package]
+        )
+        for package in PREVIOUS_PYTHON_VERSIONS
+    }
+    run_logged(
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--force-reinstall",
+            "--only-binary=:all:",
+            "--retries",
+            "5",
+            "--timeout",
+            "30",
+            "--prefer-binary",
+            *(f"{package}=={version}" for package, version in python_versions.items()),
+        ],
+        cwd=root,
+        environment=environment,
+        stdout_path=root / "fixture-python.stdout.log",
+        stderr_path=root / "fixture-python.stderr.log",
+        timeout=900,
+    )
+    pandoc = PANDOC_FIXTURE_VERSIONS[scenario]
+    run_logged(
+        [
+            str(python),
+            "-m",
+            "prodockit.toolchain",
+            "install-pandoc",
+            "--version",
+            pandoc,
+        ],
+        cwd=root,
+        environment=environment,
+        stdout_path=root / "fixture-pandoc.stdout.log",
+        stderr_path=root / "fixture-pandoc.stderr.log",
+        timeout=900,
+    )
+    return {**python_versions, "pandoc": pandoc}
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(
         description="Test Adopt toolchain alignment from an installed candidate wheel."
@@ -173,6 +285,23 @@ def main(arguments: list[str] | None = None) -> int:
             stderr_path=install_stderr,
             timeout=900,
         )
+        supported = _supported_versions(
+            python,
+            root=root,
+            environment=child_environment,
+        )
+        fixture_versions = install_real_fixture(
+            python,
+            root=root,
+            environment=child_environment,
+            scenario=args.scenario,
+            supported=supported,
+        )
+        fixture_manifest = root / "fixture-versions.json"
+        fixture_manifest.write_text(
+            json.dumps(fixture_versions, indent=2) + "\n",
+            encoding="utf-8",
+        )
         driver = Path(__file__).with_name("_adopt_toolchain_acceptance_driver.py").resolve()
         driver_report = root / "driver-report.json"
         run_logged(
@@ -185,6 +314,8 @@ def main(arguments: list[str] | None = None) -> int:
                 str(root / "project with spaces"),
                 "--report",
                 str(driver_report),
+                "--fixture-versions",
+                str(fixture_manifest),
             ],
             cwd=root,
             environment=child_environment,

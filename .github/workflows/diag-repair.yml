@@ -110,8 +110,9 @@ jobs:
     if: needs.scope.outputs.relevant == 'true'
     name: Adopt ${{ matrix.scenario }} · ${{ matrix.name }} ${{ matrix.architecture }}
     runs-on: ${{ matrix.runner }}
-    # Upgrade and downgrade are separate installed-wheel jobs. The Windows
-    # ARM64 path can use most of this while downloading and verifying Pandoc.
+    # Upgrade and downgrade are separate installed-wheel jobs. Every starting
+    # package and executable is an unmodified published artifact: previous
+    # Python/Pandoc releases for upgrade, and newer Pandoc for downgrade.
     timeout-minutes: 40
     strategy:
       fail-fast: false
@@ -167,7 +168,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache/native-downloads
-          key: adopt-pandoc-${{ runner.os }}-${{ matrix.architecture }}-3.10.1
+          key: adopt-pandoc-real-${{ runner.os }}-${{ matrix.architecture }}-${{ matrix.scenario }}-3.10-3.10.1-3.10.2
       - name: Build the candidate wheel
         env:
           PIP_RETRIES: 5

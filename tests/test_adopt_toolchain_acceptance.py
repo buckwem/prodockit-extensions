@@ -40,3 +40,25 @@ def test_architecture_guard_covers_x64_and_arm64(monkeypatch: pytest.MonkeyPatch
 def test_positive_timeout_rejects_zero() -> None:
     with pytest.raises(acceptance.argparse.ArgumentTypeError):
         acceptance.positive_integer("0")
+
+
+def test_acceptance_uses_only_real_published_starting_versions() -> None:
+    assert acceptance.PREVIOUS_PYTHON_VERSIONS == {
+        "zensical": "0.0.58",
+        "weasyprint": "68.1",
+        "markdown": "3.10.2",
+        "pymdown-extensions": "11.0.1",
+    }
+    assert acceptance.PANDOC_FIXTURE_VERSIONS == {
+        "upgrade": "3.10",
+        "downgrade": "3.10.2",
+    }
+    source = (
+        Path(acceptance.__file__)
+        .with_name("_adopt_toolchain_acceptance_driver.py")
+        .read_text(encoding="utf-8")
+    )
+    assert "_set_installed_version" not in source
+    assert "_fake_pandoc" not in source
+    assert 'write_text(f"Version:' not in source
+    assert "directory.replace" not in source

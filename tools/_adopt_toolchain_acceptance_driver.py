@@ -1,21 +1,18 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Create and align one older or newer installed-toolchain fixture."""
+"""Align genuine published package and Pandoc installations."""
 
 from __future__ import annotations
 
 import argparse
-import importlib
+import hashlib
 import importlib.metadata
 import json
 import os
-import re
 import shutil
-import stat
 import subprocess
 import sys
-import sysconfig
 import time
 from pathlib import Path
 from typing import Any
@@ -23,7 +20,11 @@ from typing import Any
 import prodockit
 from prodockit import diagnostics
 from prodockit.pins import DEFAULT_PACKAGES, TESTED_VERSIONS, discover
-from prodockit.toolchain import PYTHON_PACKAGES, TOOLCHAIN_MANIFEST
+from prodockit.toolchain import (
+    PYTHON_PACKAGES,
+    TOOLCHAIN_MANIFEST,
+    installed_pandoc_version,
+)
 
 
 class AcceptanceError(RuntimeError):
@@ -35,79 +36,61 @@ def _write(path: Path, value: str) -> None:
     path.write_text(value, encoding="utf-8")
 
 
-def _metadata_path(package: str, fixture_version: str) -> Path:
-    try:
-        distribution = importlib.metadata.distribution(package)
-    except importlib.metadata.PackageNotFoundError:
-        purelib = sysconfig.get_path("purelib")
-        if not purelib:
-            raise AcceptanceError("the wheel environment has no site-packages directory") from None
-        path = Path(purelib) / f"{package.replace('-', '_')}-{fixture_version}.dist-info"
-        _write(
-            path / "METADATA",
-            f"Metadata-Version: 2.1\nName: {package}\nVersion: {fixture_version}\n",
+def _distribution_fingerprint(package: str) -> dict[str, str | int]:
+    """Hash installed package code while excluding all metadata."""
+
+    distribution = importlib.metadata.distribution(package)
+    digest = hashlib.sha256()
+    count = 0
+    for entry in sorted(distribution.files or (), key=str):
+        if any(part.endswith(".dist-info") for part in entry.parts):
+            continue
+        path = Path(distribution.locate_file(entry))
+        if not path.is_file() or path.suffix == ".pyc" or "__pycache__" in path.parts:
+            continue
+        digest.update(str(entry).encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        count += 1
+    if count == 0:
+        raise AcceptanceError(f"published {package} distribution installed no code files")
+    return {"files": count, "sha256": digest.hexdigest()}
+
+
+def _pandoc_fingerprint() -> dict[str, str]:
+    executable = shutil.which("pandoc")
+    version = installed_pandoc_version()
+    if executable is None or version is None:
+        raise AcceptanceError("a working published Pandoc executable is not installed")
+    return {
+        "version": version,
+        "sha256": hashlib.sha256(Path(executable).read_bytes()).hexdigest(),
+    }
+
+
+def _install_cached_pandoc(project: Path, version: str) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "prodockit.toolchain",
+            "install-pandoc",
+            "--version",
+            version,
+            "--offline",
+        ],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=900,
+        check=False,
+    )
+    if result.returncode:
+        raise AcceptanceError(
+            f"could not reinstall genuine cached Pandoc {version}:\n{_output(result)}"
         )
-        _write(path / "WHEEL", "Wheel-Version: 1.0\nTag: py3-none-any\n")
-        _write(
-            path / "RECORD",
-            "\n".join(
-                (
-                    f"{path.name}/METADATA,,",
-                    f"{path.name}/WHEEL,,",
-                    f"{path.name}/RECORD,,",
-                    "",
-                )
-            ),
-        )
-        importlib.invalidate_caches()
-        return path / "METADATA"
-    dist_path_value = getattr(distribution, "_path", None)
-    dist_path = dist_path_value if isinstance(dist_path_value, Path) else Path(str(dist_path_value))
-    metadata = dist_path / "METADATA"
-    if not metadata.is_file():
-        raise AcceptanceError(f"cannot locate installed metadata for {package}: {metadata}")
-    return metadata
-
-
-def _set_installed_version(package: str, version: str) -> None:
-    metadata = _metadata_path(package, version)
-    source = metadata.read_text(encoding="utf-8")
-    current = re.search(r"(?m)^Version: (.+)$", source)
-    if current is None:
-        raise AcceptanceError(f"cannot read installed fixture version for {package}")
-    updated, count = re.subn(r"(?m)^Version: .+$", f"Version: {version}", source, count=1)
-    if count != 1:
-        raise AcceptanceError(f"cannot alter installed fixture version for {package}")
-    metadata.write_text(updated, encoding="utf-8")
-    directory = metadata.parent
-    suffix = f"-{current.group(1)}.dist-info"
-    if directory.name.endswith(suffix) and current.group(1) != version:
-        renamed = directory.with_name(directory.name[: -len(suffix)] + f"-{version}.dist-info")
-        record = directory / "RECORD"
-        if record.is_file():
-            record.write_text(
-                record.read_text(encoding="utf-8").replace(directory.name, renamed.name),
-                encoding="utf-8",
-            )
-        directory.replace(renamed)
-    importlib.invalidate_caches()
-
-
-def _fake_pandoc(version: str) -> Path:
-    scripts_value = sysconfig.get_path("scripts")
-    if not scripts_value:
-        raise AcceptanceError("the wheel environment has no scripts directory")
-    scripts = Path(scripts_value)
-    scripts.mkdir(parents=True, exist_ok=True)
-    if os.name == "nt":
-        (scripts / "pandoc.exe").unlink(missing_ok=True)
-        path = scripts / "pandoc.cmd"
-        _write(path, f"@echo off\necho pandoc {version}\n")
-    else:
-        path = scripts / "pandoc"
-        _write(path, f"#!/bin/sh\nprintf 'pandoc {version}\\n'\n")
-        path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    return path
 
 
 def _run_cli(
@@ -133,7 +116,7 @@ def _output(result: subprocess.CompletedProcess[str]) -> str:
     return "\n".join(part for part in (result.stdout, result.stderr) if part)
 
 
-def write_fixture(project: Path, scenario: str) -> dict[str, str]:
+def write_fixture(project: Path) -> None:
     project.mkdir(parents=True)
     _write(
         project / "zensical.toml",
@@ -149,16 +132,6 @@ nav = [{ Home = "index.md" }]
         project / "requirements.txt",
         "sphinx==8.0\nprodockit[index]>=0.1  # preserve extras and operator\n",
     )
-    fixture_version = "0.0.1" if scenario == "upgrade" else "999.0.0"
-    changed: dict[str, str] = {}
-    for package in PYTHON_PACKAGES:
-        if package == "prodockit":
-            continue
-        _set_installed_version(package, fixture_version)
-        changed[package] = fixture_version
-    _fake_pandoc("2.19" if scenario == "upgrade" else "999.0")
-    changed["pandoc"] = "2.19" if scenario == "upgrade" else "999.0"
-    return changed
 
 
 def _versions() -> dict[str, str | None]:
@@ -190,7 +163,11 @@ print(json.dumps(versions))
     return {package: value.get(package) for package in PYTHON_PACKAGES}
 
 
-def exercise(project: Path, scenario: str) -> dict[str, Any]:
+def exercise(
+    project: Path,
+    scenario: str,
+    fixture_versions: dict[str, str],
+) -> dict[str, Any]:
     started = time.perf_counter()
     installed = Path(prodockit.__file__).resolve()
     try:
@@ -202,7 +179,32 @@ def exercise(project: Path, scenario: str) -> dict[str, Any]:
     if active_python != expected_python:
         raise AcceptanceError(f"fixture needs Python {expected_python}, found {active_python}")
 
-    before = write_fixture(project, scenario)
+    before_versions = _versions()
+    expected_before = {
+        package: fixture_versions.get(package, TESTED_VERSIONS[package])
+        for package in PYTHON_PACKAGES
+    }
+    version_mismatches = {
+        package: (before_versions[package], expected)
+        for package, expected in expected_before.items()
+        if before_versions[package] != expected
+    }
+    if version_mismatches:
+        raise AcceptanceError(
+            f"published Python fixture installation failed: {version_mismatches}"
+        )
+    before_code = {
+        package: _distribution_fingerprint(package)
+        for package in PYTHON_PACKAGES
+        if package != "prodockit"
+    }
+    before_pandoc = _pandoc_fingerprint()
+    if before_pandoc["version"] != fixture_versions["pandoc"]:
+        raise AcceptanceError(
+            f"published Pandoc fixture installation failed: {before_pandoc['version']}"
+        )
+    before = {**before_versions, "pandoc": before_pandoc["version"]}
+    write_fixture(project)
     os.chdir(project)
     dry_run = _run_cli(
         project,
@@ -232,6 +234,34 @@ def exercise(project: Path, scenario: str) -> dict[str, Any]:
     }
     if mismatches:
         raise AcceptanceError(f"Python package verification failed: {mismatches}")
+    after_code = {
+        package: _distribution_fingerprint(package)
+        for package in PYTHON_PACKAGES
+        if package != "prodockit"
+    }
+    expected_code_changes = {
+        package
+        for package, version in fixture_versions.items()
+        if package in PYTHON_PACKAGES and version != TESTED_VERSIONS[package]
+    }
+    unchanged_code = {
+        package
+        for package in expected_code_changes
+        if before_code[package] == after_code[package]
+    }
+    if unchanged_code:
+        raise AcceptanceError(
+            "package versions changed without changing their installed code: "
+            + ", ".join(sorted(unchanged_code))
+        )
+    after_pandoc = _pandoc_fingerprint()
+    if after_pandoc["version"] != TESTED_VERSIONS["pandoc"]:
+        raise AcceptanceError(
+            f"Pandoc verification failed: expected {TESTED_VERSIONS['pandoc']}, "
+            f"found {after_pandoc['version']}"
+        )
+    if before_pandoc["sha256"] == after_pandoc["sha256"]:
+        raise AcceptanceError("Pandoc version changed without replacing its executable code")
     states = discover(str(project))
     declaration_mismatches = {
         package: state.versions
@@ -246,9 +276,9 @@ def exercise(project: Path, scenario: str) -> dict[str, Any]:
     if not (project / TOOLCHAIN_MANIFEST).is_file():
         raise AcceptanceError("Adopt did not write its supported-toolchain manifest")
 
-    # Break Pandoc alone, then prove the validated archive retained by the
-    # first run is sufficient with networking explicitly disabled.
-    _fake_pandoc("2.18" if scenario == "upgrade" else "999.1")
+    # Reinstall the genuine starting Pandoc from its validated cache, then
+    # prove the supported release can also be restored without networking.
+    _install_cached_pandoc(project, fixture_versions["pandoc"])
     cached = _run_cli(
         project,
         ["adopt", "--apply", "--offline", "--no-mermaid", "--no-maths"],
@@ -257,20 +287,8 @@ def exercise(project: Path, scenario: str) -> dict[str, Any]:
     if cached.returncode:
         raise AcceptanceError(f"offline Pandoc cache repair failed:\n{_output(cached)}")
 
-    pandoc_command = shutil.which("pandoc")
-    if pandoc_command is None:
-        raise AcceptanceError("Pandoc is absent after the cached repair")
-    pandoc_result = subprocess.run(
-        [pandoc_command, "--version"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
-    pandoc_version = pandoc_result.stdout.splitlines()[0].removeprefix("pandoc ").strip()
-    if pandoc_result.returncode or pandoc_version != TESTED_VERSIONS["pandoc"]:
+    pandoc_version = installed_pandoc_version()
+    if pandoc_version != TESTED_VERSIONS["pandoc"]:
         raise AcceptanceError(
             f"Pandoc verification failed: expected {TESTED_VERSIONS['pandoc']}, "
             f"found {pandoc_version or 'unreadable'}"
@@ -302,6 +320,10 @@ def exercise(project: Path, scenario: str) -> dict[str, Any]:
         "before": before,
         "after": versions,
         "pandoc": pandoc_version,
+        "code_fingerprints": {
+            "before": {**before_code, "pandoc": before_pandoc},
+            "after": {**after_code, "pandoc": after_pandoc},
+        },
         "offline_cache_hit": True,
         "declarations": {name: states[name].versions for name in DEFAULT_PACKAGES},
         "duration_seconds": round(time.perf_counter() - started, 3),
@@ -313,14 +335,21 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--scenario", choices=("upgrade", "downgrade"), required=True)
     result.add_argument("--root", type=Path, required=True)
     result.add_argument("--report", type=Path, required=True)
+    result.add_argument("--fixture-versions", type=Path, required=True)
     return result
 
 
 def main(arguments: list[str] | None = None) -> int:
     options = parser().parse_args(arguments)
     try:
-        result = exercise(options.root.resolve(), options.scenario)
-    except (AcceptanceError, OSError, ValueError) as error:
+        fixture_versions = json.loads(options.fixture_versions.read_text(encoding="utf-8"))
+        if not isinstance(fixture_versions, dict) or not all(
+            isinstance(package, str) and isinstance(version, str)
+            for package, version in fixture_versions.items()
+        ):
+            raise AcceptanceError("fixture versions are not a string mapping")
+        result = exercise(options.root.resolve(), options.scenario, fixture_versions)
+    except (AcceptanceError, OSError, ValueError, json.JSONDecodeError) as error:
         options.report.write_text(
             json.dumps({"passed": False, "error": str(error)}, indent=2) + "\n",
             encoding="utf-8",

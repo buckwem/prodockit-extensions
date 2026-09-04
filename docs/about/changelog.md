@@ -58,8 +58,10 @@ requests rather than here.
   template dependency, blocks safely under the wrong Python before mutation,
   exposes commands and files in `--dry-run`, verifies the result, and supports
   bounded retries, configured mirrors, validated caches and explicit offline
-  operation. Separate six-platform installed-wheel jobs exercise the upgrade
-  and downgrade paths.
+  operation. Separate six-platform installed-wheel jobs exercise genuine
+  upgrades from unmodified previous PyPI packages and Pandoc, plus genuine
+  Pandoc downgrades from the adjacent newer release. The harness never changes
+  installed metadata or substitutes fixture code.
 
 ## Implemented functionality
 
