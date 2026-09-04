@@ -43,6 +43,8 @@ import uuid
 from contextlib import suppress
 from dataclasses import dataclass, field
 
+from prodockit import __version__
+
 #: Build inputs whose version a prodockit project normally pins. Zensical
 #: renders the site prodockit builds from, and WeasyPrint decides
 #: pagination - which is content here, since page numbers resolve into the
@@ -99,6 +101,27 @@ DEFAULT_PACKAGES = (
     "pandoc",
     "python",
 )
+
+#: Versions used to validate the installed Prodockit release.  Keep this
+#: manifest in the wheel rather than deriving suggestions from whichever
+#: project happens to invoke ``prodockit pins``: a consuming project's floors
+#: can legally be older and PyPI's newest packages may not have been tested
+#: together at all.  The interactive command reports newer releases, but Enter
+#: selects this known combination.  Explicit input, ``--set`` and ``--latest``
+#: remain the deliberate routes to a different version.
+#:
+#: Update this map whenever the release's own pinned build inputs move.  The
+#: test suite checks it against this repository's declarations so a new wheel
+#: cannot accidentally retain the preceding release's suggestions.
+TESTED_VERSIONS: dict[str, str] = {
+    "zensical": "0.0.59",
+    "weasyprint": "69.0",
+    "prodockit": __version__,
+    "markdown": "3.10.3",
+    "pymdown-extensions": "11.0.2",
+    "pandoc": "3.10.1",
+    "python": "3.14",
+}
 
 #: Directories never worth scanning - build output, virtualenvs, caches.
 #: A stale copy of a workflow inside one of these would otherwise be
@@ -235,7 +258,6 @@ PYPI_URL = "https://pypi.org/pypi/{package}/json"
 class PinError(Exception):
     """Raised when a declaration site cannot be read or written."""
 
-
 @dataclass(frozen=True)
 class PinSite:
     """One place a managed package's version is declared.
@@ -323,8 +345,8 @@ class PackageState:
         """Whether PyPI can answer what the newest release is. A runner
         label, image tag or Python version file is still worth inventorying
         and rewriting - it is a build input like any other - but there is no
-        package index to ask, so the current value is the only sensible
-        default."""
+        package index to ask. Its interactive default instead comes from the
+        installed Prodockit release's tested-version manifest."""
         if self.package == "python":
             return False
         return any(site.kind == "pip" for site in self.sites) or not self.sites

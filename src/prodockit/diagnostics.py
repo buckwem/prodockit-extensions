@@ -31,7 +31,14 @@ import prodockit
 from prodockit.config_diagnostics import inspect_config
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
-from prodockit.pins import DEFAULT_PACKAGES, PinError, apply_version, discover, resolve_latest
+from prodockit.pins import (
+    DEFAULT_PACKAGES,
+    TESTED_VERSIONS,
+    PinError,
+    apply_version,
+    discover,
+    resolve_latest,
+)
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
 from prodockit.renderer_health import find_browser, probe_mathjax, probe_mermaid
@@ -863,6 +870,25 @@ def _shared_files_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
 def _pin_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
     policy = REPAIR_REGISTRY[check.id]
     candidates: list[RepairCandidate] = []
+    supported_mismatches = check.data.get("supported_mismatches", ())
+    if supported_mismatches:
+        candidates.append(
+            RepairCandidate(
+                "dependencies.pins.restore-supported-combination",
+                check.id,
+                "manual",
+                "manual",
+                (
+                    "Declared versions do not match the installed Prodockit "
+                    "release's supported combination"
+                ),
+                (
+                    "Selecting and applying a complete dependency combination is a "
+                    "dedicated pins workflow, not a diagnostic repair."
+                ),
+                "Run `pdk pins`, review the declarations, and accept each tested default.",
+            )
+        )
     packages = check.data.get("packages", ())
     for package_data in packages:
         if not isinstance(package_data, dict):
@@ -923,7 +949,12 @@ def _pin_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
                     choices,
                 )
             )
-        elif latest and versions and str(latest) != versions[0]:
+        elif (
+            latest
+            and versions
+            and str(latest) != versions[0]
+            and package not in supported_mismatches
+        ):
             candidates.append(
                 RepairCandidate(
                     f"dependencies.pins.review-{package}-update",
@@ -2420,6 +2451,13 @@ def _pin_checks(root: Path, online: bool) -> list[DiagnosticResult]:
     states = discover(str(root), DEFAULT_PACKAGES)
     resolve_latest(states, offline=not online)
     inconsistent = [state for state in states.values() if not state.is_consistent]
+    unsupported = [
+        state
+        for state in states.values()
+        if state.sites
+        and state.is_consistent
+        and state.current != TESTED_VERSIONS.get(state.package)
+    ]
     behind = [state for state in states.values() if state.is_behind]
     lookup_errors = [
         f"{state.package}: {state.latest_error}"
@@ -2428,13 +2466,25 @@ def _pin_checks(root: Path, online: bool) -> list[DiagnosticResult]:
     ]
     details = [f"{state.package}: {', '.join(state.versions)}" for state in inconsistent]
     details.extend(
+        (
+            f"{state.package}: declared {state.current}; supported with installed "
+            f"prodockit {prodockit.__version__}: {TESTED_VERSIONS[state.package]}; "
+            "run `pdk pins` and accept the tested default"
+        )
+        for state in unsupported
+    )
+    details.extend(
         f"{state.package}: {state.current} -> {state.latest} available" for state in behind
     )
     details.extend(lookup_errors)
-    status: Status = "fail" if inconsistent else ("warn" if behind or lookup_errors else "pass")
+    status: Status = (
+        "fail" if inconsistent else ("warn" if unsupported or behind or lookup_errors else "pass")
+    )
     summary = (
         f"{len(inconsistent)} package declaration(s) are inconsistent"
         if inconsistent
+        else f"{len(unsupported)} declared version(s) are outside the supported combination"
+        if unsupported
         else f"{len(behind)} package update(s) are available"
         if behind
         else "Package declarations are consistent"
@@ -2449,12 +2499,14 @@ def _pin_checks(root: Path, online: bool) -> list[DiagnosticResult]:
             {
                 "online": online,
                 "inconsistent": [state.package for state in inconsistent],
+                "supported_mismatches": [state.package for state in unsupported],
                 "updates": [state.package for state in behind],
                 "packages": [
                     {
                         "package": state.package,
                         "versions": state.versions,
                         "latest": state.latest,
+                        "tested": TESTED_VERSIONS.get(state.package),
                         "fingerprint": _pin_state_fingerprint(root, state.package)
                         if len(state.versions) > 1
                         else None,
