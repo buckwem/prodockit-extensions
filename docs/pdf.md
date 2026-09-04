@@ -435,6 +435,17 @@ This is PDF-only - the same wrapped content renders completely normally
 on the live website, the same way `.web-only` content
 elsewhere in this project only ever affects one of the two outputs.
 
+### Syntax-highlighted code
+
+Fenced code blocks keep Zensical's light-theme syntax colours in the PDF. The
+PDF conversion reuses the tokens produced for the website, so it does not need
+to guess the language and preserves the same distinction between keywords,
+names, operators and strings. Plain code blocks remain plain.
+
+If a block is not coloured on the website, add its language after the opening
+fence (for example, `` ```toml ``). The PDF deliberately does not invent
+highlighting that is absent from the generated website.
+
 ### Double-sided (duplex) printing
 
 Set `pdf_double_sided = true` under `[project.extra]` for a document meant

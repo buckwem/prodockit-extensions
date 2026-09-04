@@ -21,6 +21,20 @@ def test_fenced_and_inline_code_are_one_point_smaller_than_body_text() -> None:
     assert "pre, code { font-size: 10pt !important;" in css
 
 
+def test_highlighted_code_uses_the_zensical_light_theme_palette() -> None:
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    expected_tokens = {
+        ".prodockit-highlight .k": "#3f6ec6",
+        ".prodockit-highlight .n": "#36464e",
+        ".prodockit-highlight .o": "#0000008c",
+        ".prodockit-highlight .s2": "#1c7d4d",
+    }
+    for selector, colour in expected_tokens.items():
+        assert selector in css
+        assert colour in css
+
+
 def test_short_content_tabs_can_be_kept_together_in_the_pdf() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
 

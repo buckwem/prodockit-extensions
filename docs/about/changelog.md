@@ -21,6 +21,9 @@ requests rather than here.
 
 ## Unreleased
 
+- Preserved Zensical's syntax-token markup through the Pandoc conversion so
+  highlighted code blocks in PDFs use the same light-theme colours as the
+  website without losing line breaks or guessing the source language.
 - Made live-provider Bootstrap controls require an exact destination
   confirmation before entering a credential-bearing environment. Provider
   observations and prerequisite downloads now share bounded transient-failure

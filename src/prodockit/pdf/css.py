@@ -765,6 +765,59 @@ code { padding: 2px 4px !important; border-radius: 3px !important; background-co
    box-decoration-break: slice), making it look indented relative to the rest. */
 pre code { padding: 0 !important; }
 
+/* Syntax colours match Zensical's light website palette. Zensical/Pygments
+   token classes are preserved across Pandoc by the HTML/Lua bridge; scoping
+   these rules to the restored wrapper keeps unrelated author classes free. */
+.prodockit-highlight .hll { background-color: #4287ff1a !important; }
+.prodockit-highlight .c, .prodockit-highlight .ch,
+.prodockit-highlight .cm, .prodockit-highlight .cp,
+.prodockit-highlight .cpf, .prodockit-highlight .c1,
+.prodockit-highlight .cs { color: #0000008c !important; }
+.prodockit-highlight .k, .prodockit-highlight .kc,
+.prodockit-highlight .kd, .prodockit-highlight .kn,
+.prodockit-highlight .kp, .prodockit-highlight .kr,
+.prodockit-highlight .kt { color: #3f6ec6 !important; }
+.prodockit-highlight .l, .prodockit-highlight .ld,
+.prodockit-highlight .ne, .prodockit-highlight .nt {
+    color: #db1457 !important;
+}
+.prodockit-highlight .n, .prodockit-highlight .na,
+.prodockit-highlight .nb, .prodockit-highlight .nc,
+.prodockit-highlight .ni, .prodockit-highlight .nl,
+.prodockit-highlight .nn, .prodockit-highlight .nx,
+.prodockit-highlight .py, .prodockit-highlight .bp {
+    color: #36464e !important;
+}
+.prodockit-highlight .o, .prodockit-highlight .ow,
+.prodockit-highlight .p { color: #0000008c !important; }
+.prodockit-highlight .m, .prodockit-highlight .mb,
+.prodockit-highlight .mf, .prodockit-highlight .mh,
+.prodockit-highlight .mi, .prodockit-highlight .mo,
+.prodockit-highlight .il { color: #d52a2a !important; }
+.prodockit-highlight .s, .prodockit-highlight .sa,
+.prodockit-highlight .sb, .prodockit-highlight .sc,
+.prodockit-highlight .dl, .prodockit-highlight .sd,
+.prodockit-highlight .s2, .prodockit-highlight .se,
+.prodockit-highlight .sh, .prodockit-highlight .si,
+.prodockit-highlight .sx, .prodockit-highlight .sr,
+.prodockit-highlight .s1, .prodockit-highlight .ss {
+    color: #1c7d4d !important;
+}
+.prodockit-highlight .no { color: #6e59d9 !important; }
+.prodockit-highlight .nd, .prodockit-highlight .nf,
+.prodockit-highlight .fm { color: #a846b9 !important; }
+.prodockit-highlight .nv, .prodockit-highlight .vc,
+.prodockit-highlight .vg, .prodockit-highlight .vi,
+.prodockit-highlight .vm, .prodockit-highlight .gd,
+.prodockit-highlight .ge, .prodockit-highlight .gr,
+.prodockit-highlight .gh, .prodockit-highlight .gi,
+.prodockit-highlight .go, .prodockit-highlight .gp,
+.prodockit-highlight .gs, .prodockit-highlight .gu,
+.prodockit-highlight .gt { color: #0000008c !important; }
+.prodockit-highlight .ge { font-style: italic !important; }
+.prodockit-highlight .gh, .prodockit-highlight .gs,
+.prodockit-highlight .gu { font-weight: bold !important; }
+
 /* pymdownx.keys (++key+combo++) box styling - reproduces a common
    --md-typeset-kbd-* look, since a caller's own website theme CSS may not
    reach a standalone PDF (e.g. only configured project CSS is pulled in, not
