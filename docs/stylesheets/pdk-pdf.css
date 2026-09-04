@@ -16,7 +16,17 @@
 
 #TOC li > ul {
   margin-block: 0.15em 0 !important;
-  padding-inline-start: 1.5em !important;
+  padding-inline-start: 0 !important;
+}
+
+/* Follow the width of the visible numbering at each level: an L2 number
+   begins beneath the L1 title, and an L3 number beneath the L2 title. */
+#TOC > ul > li > ul {
+  padding-inline-start: 1.21em !important;
+}
+
+#TOC > ul > li > ul > li > ul {
+  padding-inline-start: 1.64em !important;
 }
 
 #TOC a,
@@ -40,6 +50,7 @@
 }
 
 #TOC > ul > li > a {
+  font-size: 12pt !important;
   font-weight: bold !important;
 }
 
@@ -53,6 +64,6 @@
 }
 
 #TOC > ul > li > ul > li > ul > li {
-  line-height: 1 !important;
+  line-height: 1.1 !important;
   margin-block: 0 !important;
 }

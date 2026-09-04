@@ -621,6 +621,26 @@ def test_flattening_keeps_the_text_and_its_line_breaks() -> None:
     assert "gitclone" not in text
 
 
+def test_flattening_carries_highlight_tokens_for_writer_side_restoration() -> None:
+    """The Pandoc-readable block stays plain, but the website's already
+    language-aware token markup is not discarded (#724)."""
+    soup = BeautifulSoup(_fix(_HIGHLIGHTED), "html.parser")
+    code = soup.find("pre").find("code")
+    encoded = code["data-prodockit-highlight"]
+    markup = bytes.fromhex(encoded).decode("utf-8")
+
+    assert '<span class="nb">cd</span>' in markup
+    assert '<span class="w"> </span>' in markup
+    assert "__codelineno" not in markup
+    assert code.find("span") is None, "Pandoc must still receive plain text"
+
+
+def test_plain_code_does_not_gain_a_highlight_payload() -> None:
+    soup = BeautifulSoup(_fix("<pre><code>plain text</code></pre>"), "html.parser")
+
+    assert "data-prodockit-highlight" not in soup.find("code").attrs
+
+
 def test_flattening_leaves_mermaid_pre_alone() -> None:
     """`pre.mermaid` carries diagram source that a separate step replaces
     with a rendered image - flattening it here would be harmless but

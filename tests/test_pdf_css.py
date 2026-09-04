@@ -14,11 +14,45 @@ def test_font_family_placeholders_are_substituted() -> None:
     assert "__MONO_FONT__" not in css
 
 
-def test_fenced_and_inline_code_are_one_point_smaller_than_body_text() -> None:
+def test_fenced_and_inline_code_scale_relative_to_surrounding_text() -> None:
     css = build_css("Inter", "Fira Code", "My Site")
 
     assert 'body {\n    font-family: "Inter", sans-serif !important;\n    font-size: 11pt !important;' in css
-    assert "pre, code { font-size: 10pt !important;" in css
+    assert "code { font-size: 0.85em !important;" in css
+    assert "pre, code { font-size:" not in css
+
+
+def test_fenced_and_inline_code_use_medium_weight_and_a_single_four_percent_shade() -> None:
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    fenced = css.split("pre { padding: 10px", 1)[1].split("}", 1)[0]
+    inline = css.split("code { padding: 2px", 1)[1].split("}", 1)[0]
+    shade = "background-color: rgba(0, 0, 0, 0.04) !important;"
+    assert "font-weight: 500 !important;" in css.split("pre, code {", 1)[1].split(
+        "}", 1
+    )[0]
+    assert shade in fenced
+    assert shade in inline
+    assert "vertical-align: 0.05em !important;" in inline
+    assert (
+        "pre code { padding: 0 !important; "
+        "background-color: transparent !important; "
+        "vertical-align: baseline !important; }"
+    ) in css
+
+
+def test_highlighted_code_uses_the_zensical_light_theme_palette() -> None:
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    expected_tokens = {
+        ".prodockit-highlight .k": "#3f6ec6",
+        ".prodockit-highlight .n": "#263238",
+        ".prodockit-highlight .o": "#0000008c",
+        ".prodockit-highlight .s2": "#1c7d4d",
+    }
+    for selector, colour in expected_tokens.items():
+        assert selector in css
+        assert colour in css
 
 
 def test_short_content_tabs_can_be_kept_together_in_the_pdf() -> None:
@@ -28,6 +62,17 @@ def test_short_content_tabs_can_be_kept_together_in_the_pdf() -> None:
     rule = css.split(".pdf-keep-tab-pages .tabbox-container {")[1].split("}")[0]
     assert "page-break-inside: avoid !important;" in rule
     assert "break-inside: avoid-page !important;" in rule
+
+
+def test_content_tabs_use_subtle_shading_and_rounded_outside_corners() -> None:
+    css = build_css("Inter", "Fira Code", "My Site")
+
+    header = css.split(".tabbox-header {")[1].split("}")[0]
+    body = css.split(".tabbox-body {")[1].split("}")[0]
+    assert "background-color: rgba(0, 0, 0, 0.05) !important;" in header
+    assert "border-radius: 4px 4px 0 0;" in header
+    assert "background-color: rgba(0, 0, 0, 0.01) !important;" in body
+    assert "border-radius: 0 0 4px 4px;" in body
 
 
 def test_web_only_content_is_always_hidden() -> None:

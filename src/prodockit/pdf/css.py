@@ -161,11 +161,14 @@ h1, h2, h3, h4, h5, h6 {
 }
 pre, code {
     font-family: "__MONO_FONT__", monospace !important;
+    font-weight: 500 !important;
 }
-/* Keep inline and fenced code one point smaller than the explicit body size:
-   the monospace face otherwise appears optically larger than the surrounding
-   proportional face at the same nominal size. */
-pre, code { font-size: 10pt !important; }
+/* Scale inline and fenced code relative to its surrounding text, following
+   Zensical's 0.85em convention. Apply the size to code only: setting it on
+   both pre and its code child would compound the relative scale for fenced
+   blocks. The monospace face otherwise appears optically larger than the
+   surrounding proportional face at the same nominal size. */
+code { font-size: 0.85em !important; }
 
 /* ==========================================================================
    WEB-ONLY / PDF-ONLY CONTENT
@@ -654,12 +657,14 @@ img.pdf-only {
     -webkit-box-decoration-break: clone !important; box-decoration-break: clone !important;
 }
 .tabbox-header {
-    background-color: #e5e5e5 !important; color: #000000 !important;
+    background-color: rgba(0, 0, 0, 0.05) !important; color: #000000 !important;
+    border-radius: 4px 4px 0 0;
     font-weight: bold; padding: 8px 12px; font-size: 10pt;
     page-break-after: avoid !important; break-after: avoid !important;
 }
 .tabbox-body {
-    background-color: #f2f2f2 !important; padding: 12px;
+    background-color: rgba(0, 0, 0, 0.01) !important; padding: 12px;
+    border-radius: 0 0 4px 4px;
     page-break-inside: auto !important; break-inside: auto !important;
     -webkit-box-decoration-break: clone !important; box-decoration-break: clone !important;
 }
@@ -736,10 +741,10 @@ div.grid.cards > ul > li > p:first-child {
     color: #111111 !important; page-break-after: avoid !important; break-after: avoid !important;
 }
 
-/* #dddddd is a 5% darker shade of a Material/Zensical default theme's own
-   --md-code-bg-color (#f5f5f5) - kept identical between inline code and
-   code blocks here, matching the website's own convention if a caller's
-   own stylesheet uses the same variable. */
+/* Use a 4% foreground shade for both inline and fenced code. The nested code
+   inside pre is transparent so two rgba backgrounds cannot compound into a
+   much darker shade. A medium weight gives the glyphs enough print contrast
+   without making them as prominent as bold text. */
 pre, code { font-family: "__MONO_FONT__", monospace !important; }
 /* text-align isn't otherwise set anywhere on pre/code, so a fenced code
    block nested inside a centered ancestor (figure {}, div.prodockit-*-caption,
@@ -758,12 +763,68 @@ pre { text-align: left !important; }
    directly. Overridden back to auto here, inherited "avoid" (if any, from
    the caller's own website print CSS) kept for img/blockquote. */
 pre { page-break-inside: auto !important; break-inside: auto !important; }
-pre { padding: 10px !important; border-radius: 4px !important; margin: 1em 0 !important; white-space: pre-wrap !important; background-color: #dddddd !important; }
-code { padding: 2px 4px !important; border-radius: 3px !important; background-color: #dddddd !important; }
+pre { padding: 10px !important; border-radius: 4px !important; margin: 1em 0 !important; white-space: pre-wrap !important; background-color: rgba(0, 0, 0, 0.04) !important; }
+/* The reduced mono face shares the text baseline but sits optically low beside
+   the larger proportional face. Raise inline code by half a point; reset the
+   multi-line fenced child below so every code line stays on its normal grid. */
+code { padding: 2px 4px !important; border-radius: 3px !important; background-color: rgba(0, 0, 0, 0.04) !important; vertical-align: 0.05em !important; }
 /* Multi-line <code> inside <pre> is a single inline box split across hard line
    breaks; without this, the padding above lands only on the first line (default
    box-decoration-break: slice), making it look indented relative to the rest. */
-pre code { padding: 0 !important; }
+pre code { padding: 0 !important; background-color: transparent !important; vertical-align: baseline !important; }
+
+/* Syntax colours match Zensical's light website palette. Zensical/Pygments
+   token classes are preserved across Pandoc by the HTML/Lua bridge; scoping
+   these rules to the restored wrapper keeps unrelated author classes free. */
+.prodockit-highlight .hll { background-color: #4287ff1a !important; }
+.prodockit-highlight .c, .prodockit-highlight .ch,
+.prodockit-highlight .cm, .prodockit-highlight .cp,
+.prodockit-highlight .cpf, .prodockit-highlight .c1,
+.prodockit-highlight .cs { color: #0000008c !important; }
+.prodockit-highlight .k, .prodockit-highlight .kc,
+.prodockit-highlight .kd, .prodockit-highlight .kn,
+.prodockit-highlight .kp, .prodockit-highlight .kr,
+.prodockit-highlight .kt { color: #3f6ec6 !important; }
+.prodockit-highlight .l, .prodockit-highlight .ld,
+.prodockit-highlight .ne, .prodockit-highlight .nt {
+    color: #db1457 !important;
+}
+.prodockit-highlight .n, .prodockit-highlight .na,
+.prodockit-highlight .nb, .prodockit-highlight .nc,
+.prodockit-highlight .ni, .prodockit-highlight .nl,
+.prodockit-highlight .nn, .prodockit-highlight .nx,
+.prodockit-highlight .py, .prodockit-highlight .bp {
+    color: #263238 !important;
+}
+.prodockit-highlight .o, .prodockit-highlight .ow,
+.prodockit-highlight .p { color: #0000008c !important; }
+.prodockit-highlight .m, .prodockit-highlight .mb,
+.prodockit-highlight .mf, .prodockit-highlight .mh,
+.prodockit-highlight .mi, .prodockit-highlight .mo,
+.prodockit-highlight .il { color: #d52a2a !important; }
+.prodockit-highlight .s, .prodockit-highlight .sa,
+.prodockit-highlight .sb, .prodockit-highlight .sc,
+.prodockit-highlight .dl, .prodockit-highlight .sd,
+.prodockit-highlight .s2, .prodockit-highlight .se,
+.prodockit-highlight .sh, .prodockit-highlight .si,
+.prodockit-highlight .sx, .prodockit-highlight .sr,
+.prodockit-highlight .s1, .prodockit-highlight .ss {
+    color: #1c7d4d !important;
+}
+.prodockit-highlight .no { color: #6e59d9 !important; }
+.prodockit-highlight .nd, .prodockit-highlight .nf,
+.prodockit-highlight .fm { color: #a846b9 !important; }
+.prodockit-highlight .nv, .prodockit-highlight .vc,
+.prodockit-highlight .vg, .prodockit-highlight .vi,
+.prodockit-highlight .vm, .prodockit-highlight .gd,
+.prodockit-highlight .ge, .prodockit-highlight .gr,
+.prodockit-highlight .gh, .prodockit-highlight .gi,
+.prodockit-highlight .go, .prodockit-highlight .gp,
+.prodockit-highlight .gs, .prodockit-highlight .gu,
+.prodockit-highlight .gt { color: #0000008c !important; }
+.prodockit-highlight .ge { font-style: italic !important; }
+.prodockit-highlight .gh, .prodockit-highlight .gs,
+.prodockit-highlight .gu { font-weight: bold !important; }
 
 /* pymdownx.keys (++key+combo++) box styling - reproduces a common
    --md-typeset-kbd-* look, since a caller's own website theme CSS may not
