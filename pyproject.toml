@@ -39,7 +39,7 @@ dependencies = [
   # committed. 0.0.52 silently redrew the GitHub brand icon (Font Awesome
   # 7.2.0 -> 7.3.1) on every page. Reproducibility needs a pin on the
   # *build* side - a constraint in docs.yml - not in library metadata.
-  "zensical>=0.0.57",
+  "zensical>=0.0.59",
   # Declared since 0.34.0, and it was deliberately absent before that.
   # The old reasoning was that prodockit never imported it - it only
   # matched the class shapes pymdownx emits, from a stylesheet and a Lua
