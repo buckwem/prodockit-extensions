@@ -203,6 +203,42 @@ def installed_version(python: Path, root: Path) -> str:
     ).stdout.strip()
 
 
+def loaded_version(python: Path, root: Path) -> str:
+    """Read the version from package code in a genuinely fresh interpreter."""
+
+    return acceptance.run(
+        [str(python), "-c", "import prodockit; print(prodockit.__version__)"],
+        cwd=root,
+    ).stdout.strip()
+
+
+def clear_package_bytecode(python: Path, root: Path) -> None:
+    """Remove bytecode left by the earlier candidate install.
+
+    Windows can preserve a rapidly replaced ``__init__.pyc`` whose timestamp
+    still matches the source.  That made distribution metadata genuinely old
+    while the next interpreter loaded the target candidate's cached version,
+    so the wheel test did not actually start under the code it claimed to
+    exercise.
+    """
+
+    package = Path(
+        acceptance.run(
+            [
+                str(python),
+                "-c",
+                (
+                    "import importlib.util; "
+                    "s=importlib.util.find_spec('prodockit'); "
+                    "print(next(iter(s.submodule_search_locations)))"
+                ),
+            ],
+            cwd=root,
+        ).stdout.strip()
+    )
+    shutil.rmtree(package / "__pycache__", ignore_errors=True)
+
+
 def scenario(
     root: Path,
     candidate: Path,
@@ -221,9 +257,15 @@ def scenario(
         [str(python), "-m", "pip", "install", "--force-reinstall", "--no-deps", str(starting)],
         cwd=root,
     )
+    clear_package_bytecode(python, root)
     before = installed_version(python, root)
     if before == target:
         raise acceptance.AcceptanceError(f"{action}: starting wheel did not change version")
+    loaded = loaded_version(python, root)
+    if loaded != before:
+        raise acceptance.AcceptanceError(
+            f"{action}: loaded code is {loaded}, but installed metadata is {before}"
+        )
 
     wheelhouse = root / "wheelhouse"
     wheelhouse.mkdir()
