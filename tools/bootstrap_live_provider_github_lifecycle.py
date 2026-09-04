@@ -27,6 +27,7 @@ from typing import Any, NoReturn, Protocol
 from live_provider_resilience import (
     READ_RETRY_DELAYS,
     TRANSIENT_HTTP_STATUS,
+    candidate_failure_detail,
     failure_with_history,
     retry_delay,
     safe_failure_detail,
@@ -725,6 +726,18 @@ class CandidateEvidence:
 
 def candidate_evidence(path: Path, handoff: ResetHandoff) -> CandidateEvidence:
     value = read_json(path, label="GitHub candidate report")
+    try:
+        failure = candidate_failure_detail(
+            value,
+            provider="github",
+            repository=GITHUB_PATH,
+            candidate_version=handoff.candidate_version,
+            wheel_sha256=handoff.wheel_sha256,
+        )
+    except ValueError as error:
+        raise LifecycleError(str(error)) from error
+    if failure is not None:
+        raise LifecycleError(f"GitHub candidate failed: {failure}")
     if not isinstance(value, dict) or set(value) != CANDIDATE_REPORT_KEYS:
         raise LifecycleError("GitHub candidate report has an invalid closed schema")
     if (

@@ -182,10 +182,10 @@ def stable_source_refs(refs: dict[str, str], *, provider: str) -> dict[str, str]
     """Return the source refs represented by the provider lifecycle snapshot.
 
     Git transports advertise provider-managed refs that REST branch and tag
-    endpoints do not represent. Annotated tags also advertise both the tag
-    object and its peeled commit, while those REST endpoints report the
-    commit. Canonicalise both providers to branches and peeled tags so the two
-    independent readers can compare the same stable repository state.
+    endpoints do not represent. Annotated tags advertise both the tag object
+    and its peeled commit. GitHub's matching-refs endpoint reports the tag
+    object, whereas GitLab's tags endpoint reports the peeled commit. Match
+    each independent Git reader to its provider controller's representation.
     """
 
     if provider not in {"github", "surrey"}:
@@ -197,7 +197,10 @@ def stable_source_refs(refs: dict[str, str], *, provider: str) -> dict[str, str]
         if not name.startswith("refs/tags/"):
             continue
         canonical = name.removesuffix("^{}")
-        if name.endswith("^{}") or canonical not in stable:
+        if name.endswith("^{}"):
+            if provider == "surrey":
+                stable[canonical] = object_id
+        elif provider == "github" or canonical not in stable:
             stable[canonical] = object_id
     return dict(sorted(stable.items()))
 

@@ -41,6 +41,7 @@ from bootstrap_live_provider_read_write import (
 from live_provider_resilience import (
     READ_RETRY_DELAYS,
     TRANSIENT_HTTP_STATUS,
+    candidate_failure_detail,
     failure_with_history,
     retry_delay,
     safe_failure_detail,
@@ -998,7 +999,23 @@ def reset_project(args: argparse.Namespace, client: GitLabClient) -> None:
         print(f"Audit report:  {audit_path}")
         delete_exact_project(client, fixture, project, journal)
     elif previous is not None:
-        raise LifecycleError("the retained-state record exists but the project is absent")
+        # Retained state is immutable evidence from an earlier sealed run, not
+        # proof that its provider resource still exists.  An authorised human
+        # may delete the disposable project between exercises.  The exact-path
+        # 404 above is a safe absent starting state; create a new resource and
+        # require its new provider ID rather than making the old artifact a
+        # permanent recovery blocker.
+        before = "absent-after-retained"
+        previous_id = previous.project_id
+        print(f"Provider:       {fixture.ssh_host}")
+        print(f"Project reset: {fixture.project.path_with_namespace}")
+        print(
+            "Current state: project absent; retained record for "
+            f"former project {previous.project_id} is historical"
+        )
+        print("Mutations:     create private project, disable features, enable key")
+        print(f"Handoff:       {handoff_path}")
+        print(f"Audit report:  {audit_path}")
     else:
         print(f"Provider:       {fixture.ssh_host}")
         print(f"Project reset: {fixture.project.path_with_namespace}")
@@ -1085,6 +1102,18 @@ def phase_two_report(path: Path, handoff: ResetHandoff) -> dict[str, Any]:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise LifecycleError(f"could not read the candidate report: {error}") from error
+    try:
+        failure = candidate_failure_detail(
+            value,
+            provider="surrey",
+            repository=SURREY_PATH,
+            candidate_version=handoff.candidate_version,
+            wheel_sha256=handoff.wheel_sha256,
+        )
+    except ValueError as error:
+        raise LifecycleError(str(error)) from error
+    if failure is not None:
+        raise LifecycleError(f"Surrey candidate failed: {failure}")
     if not isinstance(value, dict) or set(value) != PHASE_TWO_REPORT_KEYS:
         raise LifecycleError("the candidate report does not match the closed Phase 3 schema")
     if value.get("passed") is not True:
@@ -1402,16 +1431,36 @@ def revoke_destination_access(args: argparse.Namespace, client: GitLabClient) ->
         checkout=source_checkout,
         must_exist=False,
     )
+    group_preflight(client, fixture)
     project = project_value(client, fixture)
     if project is None:
-        raise LifecycleError("the recovery destination project is absent")
+        write_private_json(
+            audit_path,
+            {
+                "schema": 1,
+                "passed": True,
+                "phase": "revoke",
+                "provider": "surrey",
+                "project_id": handoff.project_id if handoff is not None else None,
+                "path_with_namespace": fixture.project.path_with_namespace,
+                "controller_commit": controller_commit,
+                "destination_deploy_key_enabled": False,
+                "cleanup_outcome": "project-already-absent",
+                "finished_at_utc": utc_now(),
+                "operations": [],
+            },
+        )
+        print(
+            "Phase 5 recovery found no destination project or write access: "
+            f"{fixture.project.path_with_namespace}"
+        )
+        return
     project_id = validate_project_identity(
         project,
         fixture,
         expected_id=handoff.project_id if handoff is not None else None,
     )
     journal = Journal([])
-    group_preflight(client, fixture)
     disable_destination_key(client, fixture, project_id, journal)
     snapshot = project_snapshot(client, fixture, project)
     validate_project_identity(snapshot.project, fixture, expected_id=project_id)

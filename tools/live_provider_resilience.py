@@ -14,10 +14,30 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from typing import Any
 
 READ_RETRY_DELAYS = (2.0, 5.0, 10.0, 20.0)
 TRANSIENT_HTTP_STATUS = frozenset({429, 502, 503, 504})
 MAX_RETRY_AFTER_SECONDS = 60.0
+CANDIDATE_FAILURE_KEYS = frozenset(
+    {
+        "candidate_version",
+        "failure",
+        "finished_at_utc",
+        "manual_provider_review_required",
+        "passed",
+        "provider",
+        "repository",
+        "source_refs_digest",
+        "source_refs_unchanged",
+        "started_at_utc",
+        "wheel_sha256",
+        "write_outcome",
+    }
+)
+_WRITE_OUTCOMES = frozenset(
+    {"not attempted", "not pushed", "pushed and verified", "inconclusive"}
+)
 
 _TRANSIENT_COMMAND_MARKERS = (
     "bad gateway",
@@ -136,9 +156,63 @@ def transient_command_read(detail: str) -> bool:
     return transient_external_failure(detail)
 
 
+def candidate_failure_detail(
+    value: Any,
+    *,
+    provider: str,
+    repository: str,
+    candidate_version: str,
+    wheel_sha256: str,
+) -> str | None:
+    """Validate and summarize the candidate controller's closed failure report.
+
+    A failed candidate cannot supply release evidence, but its bounded reason
+    remains useful after the trusted sealer independently removes write access.
+    Return ``None`` for a non-failure document so the caller can validate its
+    provider-specific success schema.
+    """
+
+    if not isinstance(value, dict) or value.get("passed") is not False:
+        return None
+    if set(value) != CANDIDATE_FAILURE_KEYS:
+        raise ValueError("candidate failure report has an invalid closed schema")
+    if (
+        value["provider"] != provider
+        or value["repository"] != repository
+        or value["candidate_version"] != candidate_version
+        or value["wheel_sha256"] != wheel_sha256
+        or value["manual_provider_review_required"] is not True
+        or not isinstance(value["write_outcome"], str)
+        or value["write_outcome"] not in _WRITE_OUTCOMES
+        or (
+            value["source_refs_unchanged"] is not True
+            and value["source_refs_unchanged"] is not False
+            and value["source_refs_unchanged"] is not None
+        )
+    ):
+        raise ValueError("candidate failure report differs from the reset handoff")
+    digest = value["source_refs_digest"]
+    if digest is not None and (
+        not isinstance(digest, str)
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+    ):
+        raise ValueError("candidate failure report contains an invalid source digest")
+    for name in ("started_at_utc", "finished_at_utc"):
+        timestamp = value[name]
+        if not isinstance(timestamp, str) or not timestamp.strip():
+            raise ValueError(f"candidate failure report contains an invalid {name}")
+    if not isinstance(value["failure"], str) or not value["failure"].strip():
+        raise ValueError("candidate failure report has no failure reason")
+    failure = safe_failure_detail(value["failure"], limit=1000)
+    return f"{failure}; write outcome: {value['write_outcome']}"
+
+
 __all__ = [
+    "CANDIDATE_FAILURE_KEYS",
     "READ_RETRY_DELAYS",
     "TRANSIENT_HTTP_STATUS",
+    "candidate_failure_detail",
     "failure_with_history",
     "retry_after_seconds",
     "retry_delay",
