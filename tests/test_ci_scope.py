@@ -112,19 +112,38 @@ def test_shared_packaging_and_command_files_select_every_matrix() -> None:
         "requirements.txt",
     ):
         scope = classify([path])
-        assert scope.adopt and scope.pdf and scope.bootstrap, path
+        assert scope.adopt and scope.pdf and scope.bootstrap and scope.diagnostics, path
+
+
+def test_diagnostic_wheel_scope_is_narrow_and_fail_closed() -> None:
+    for path in (
+        "src/prodockit/diagnostics.py",
+        "src/prodockit/renderer_health.py",
+        "src/prodockit/pins.py",
+        "src/prodockit/project_config.py",
+        "src/prodockit/settings.py",
+        "tools/diagnostics_repair_acceptance.py",
+        "tools/_diagnostics_repair_acceptance_driver.py",
+        ".github/workflows/diag-repair.yml",
+    ):
+        assert classify([path]).diagnostics, path
+
+    assert not classify(["docs/adopt.md"]).diagnostics
+    assert not classify(["src/prodockit/adopt.py"]).diagnostics
 
 
 def test_styles_and_project_configuration_have_narrow_explicit_owners() -> None:
     assert classify(["docs/stylesheets/pdk.css"]) == Scope(False, True, True, False)
     assert classify(["docs/stylesheets/pdk-pdf.css"]) == Scope(False, False, True, False)
-    assert classify(["src/prodockit/project_config.py"]) == Scope(True, True, True, False)
+    assert classify(["src/prodockit/project_config.py"]) == Scope(
+        True, True, True, False, diagnostics=True
+    )
 
 
 def test_unknown_implementation_path_fails_closed_to_every_matrix() -> None:
     scope = classify(["src/prodockit/a_future_component.py"])
 
-    assert scope == Scope(True, True, True, True, True)
+    assert scope == Scope(True, True, True, True, True, True)
 
 
 def test_every_runtime_asset_and_ci_tool_has_an_explicit_owner_or_exemption() -> None:
@@ -212,6 +231,7 @@ def test_all_scope_emits_every_supported_python_and_acceptance_suite() -> None:
         "adopt=true",
         "pdf=true",
         "bootstrap=true",
+        "diagnostics=true",
         "adopt-native=false",
         "bootstrap-native=false",
     )
@@ -369,8 +389,23 @@ def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_c
     assert "src/prodockit/_tools_template/mermaid/package-lock.json" in workflow
     assert "src/prodockit/_tools_template/mathjax/package-lock.json" in workflow
     assert workflow.count("scenario_args: --scenario toml-both") == 2
+    assert workflow.count(
+        "scenario_args: --scenario toml-core --scenario yaml-core --scenario toml-both"
+    ) == 3
     assert "runner: windows-2025" in workflow
     assert "runner: windows-11-arm" in workflow
+    assert "timeout-minutes: 40" in workflow
+
+
+def test_diagnostic_wheel_matrix_runs_only_for_its_selected_scope() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "diag-repair.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "fetch-depth: 0" in workflow
+    assert "python tools/ci_scope.py --github-event" in workflow
+    assert "relevant: ${{ steps.scope.outputs.diagnostics }}" in workflow
+    assert "if: needs.scope.outputs.relevant == 'true'" in workflow
 
 
 def test_adopt_release_gate_upgrades_an_old_full_project_on_every_runner() -> None:

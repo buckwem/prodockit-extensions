@@ -19,6 +19,18 @@ bootstrap_acceptance = importlib.import_module("tools.bootstrap_acceptance")
 bootstrap_acceptance_driver = importlib.import_module("tools._bootstrap_acceptance_driver")
 
 
+class SequentialSystemRunner:
+    """Return declared command outcomes in order."""
+
+    def __init__(self, outcomes):
+        self.outcomes = iter(outcomes)
+        self.calls = []
+
+    def run(self, command, cwd=None, timeout=None, capture=True):
+        self.calls.append((list(command), cwd, timeout, capture))
+        return next(self.outcomes)
+
+
 def test_all_host_and_repository_routes_are_declared() -> None:
     assert bootstrap_acceptance.SCENARIOS == (
         ("surrey-new", "surrey", "new", False),
@@ -52,6 +64,60 @@ def test_real_software_keeps_the_same_machine_and_repository_scope() -> None:
 
     for stage_id in ("vscode", "git", "pandoc", "node", "extensions"):
         assert stages[stage_id].check.__module__ != bootstrap_acceptance_driver.__name__
+
+
+def test_real_mermaid_probe_retries_the_ubuntu_snap_content_race(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transient = bootstrap_acceptance_driver.CommandResult(
+        1,
+        stderr=(
+            "Content snap GPU wrapper '/snap/chromium/gpu-2404/bin/"
+            "gpu-2404-provider-wrapper' not found: ensure slot is connected"
+        ),
+    )
+    passed = bootstrap_acceptance_driver.CommandResult(0)
+    system = SequentialSystemRunner((transient, passed))
+    runner = bootstrap_acceptance_driver.HarnessRunner(
+        {}, "git@example.invalid:group/project.git", home=tmp_path, real_software=True
+    )
+    runner.system = system
+    delays = []
+    monkeypatch.setattr(bootstrap_acceptance_driver.time, "sleep", delays.append)
+    command = ["bash", "-c", "exec \"$@\"", "prodockit-mermaid-probe", "mmdc"]
+
+    result = runner.run(command, timeout=30)
+
+    assert result.returncode == 0
+    assert len(system.calls) == 2
+    assert delays == [5]
+    assert runner.calls == [command, command]
+
+
+def test_real_mermaid_probe_does_not_retry_a_deterministic_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    failure = bootstrap_acceptance_driver.CommandResult(
+        1, stderr="Error: Mermaid syntax is invalid"
+    )
+    system = SequentialSystemRunner((failure,))
+    runner = bootstrap_acceptance_driver.HarnessRunner(
+        {}, "git@example.invalid:group/project.git", home=tmp_path, real_software=True
+    )
+    runner.system = system
+    monkeypatch.setattr(
+        bootstrap_acceptance_driver.time,
+        "sleep",
+        lambda _delay: pytest.fail("a deterministic failure was retried"),
+    )
+
+    result = runner.run(
+        ["bash", "-c", "exec \"$@\"", "prodockit-mermaid-probe", "mmdc"],
+        timeout=30,
+    )
+
+    assert result.returncode == 1
+    assert len(system.calls) == 1
 
 
 def test_real_software_repository_fixture_has_actual_toolchain_locks(

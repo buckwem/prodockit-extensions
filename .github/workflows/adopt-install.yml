@@ -35,7 +35,9 @@ jobs:
     if: needs.scope.outputs.relevant == 'true'
     name: ${{ matrix.name }} ${{ matrix.architecture }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 25
+    # One apply attempt may use the harness's full 15-minute command budget.
+    # Keep enough job time for its single bounded transient-renderer retry.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -44,7 +46,7 @@ jobs:
             runner: ubuntu-24.04
             architecture: x64
             architecture_check: --require-x64
-            scenario_args: --scenario all
+            scenario_args: --scenario toml-core --scenario yaml-core --scenario toml-both
           - name: Windows 2025
             runner: windows-2025
             architecture: x64
@@ -54,7 +56,7 @@ jobs:
             runner: ubuntu-24.04-arm
             architecture: arm64
             architecture_check: --require-arm64
-            scenario_args: --scenario all
+            scenario_args: --scenario toml-core --scenario yaml-core --scenario toml-both
           - name: Windows 11
             runner: windows-11-arm
             architecture: arm64
@@ -64,7 +66,7 @@ jobs:
             runner: macos-15
             architecture: arm64
             architecture_check: --require-arm64
-            scenario_args: --scenario all
+            scenario_args: --scenario toml-core --scenario yaml-core --scenario toml-both
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5

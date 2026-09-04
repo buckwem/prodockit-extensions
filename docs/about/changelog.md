@@ -40,6 +40,11 @@ requests rather than here.
 
 ## Unreleased
 
+- Made Adopt's installed-wheel checks tolerate one classified transient npm or
+  Mermaid failure without hiding deterministic regressions. Mermaid health
+  probes now use the PDF renderer's browser sandbox settings and a less brittle
+  timeout, failed checks retain a structured report, and repeated scenarios no
+  longer reinstall identical renderer combinations unnecessarily.
 - Added a repair-disposition registry and read-only `pdk diag --dry-run`
   preview. It lists every bounded repair option, warning, affected path,
   recovery boundary, and command that could be used without choosing or

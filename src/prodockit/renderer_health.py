@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -98,7 +99,7 @@ def _output(completed: subprocess.CompletedProcess[str]) -> str:
     )
 
 
-def probe_mermaid(path: str | Path, *, timeout: float = 30.0) -> RendererProbe:
+def probe_mermaid(path: str | Path, *, timeout: float = 60.0) -> RendererProbe:
     """Render a minimal diagram, exercising Mermaid and its browser."""
     executable = Path(path)
     environment = _renderer_environment()
@@ -126,9 +127,24 @@ def probe_mermaid(path: str | Path, *, timeout: float = 30.0) -> RendererProbe:
             directory = Path(temporary)
             source = directory / "health.mmd"
             rendered = directory / "health.svg"
+            puppeteer = directory / "puppeteer.json"
             source.write_text("graph LR\n  A --> B\n", encoding="utf-8")
+            puppeteer.write_text(
+                json.dumps(
+                    {"args": ["--no-sandbox", "--disable-setuid-sandbox"]}
+                ),
+                encoding="utf-8",
+            )
             render_result = subprocess.run(
-                _command(executable, "-i", str(source), "-o", str(rendered)),
+                _command(
+                    executable,
+                    "-i",
+                    str(source),
+                    "-o",
+                    str(rendered),
+                    "-p",
+                    str(puppeteer),
+                ),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

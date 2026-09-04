@@ -14,10 +14,26 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      relevant: ${{ steps.scope.outputs.diagnostics }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: scope
+        name: Check whether diagnostic repair or packaging changed
+        run: python tools/ci_scope.py --github-event >> "$GITHUB_OUTPUT"
+
   acceptance:
+    needs: scope
+    if: needs.scope.outputs.relevant == 'true'
     name: ${{ matrix.name }} ${{ matrix.architecture }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 25
+    # Windows x64 can exceed 20 minutes while repairing both renderers. Leave
+    # five minutes after the driver limit to publish its report and logs.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -79,6 +95,7 @@ jobs:
           --wheel dist
           ${{ matrix.architecture_check }}
           --report diagnostics-repair-acceptance-report.json
+          --driver-timeout-seconds 1800
           --keep-on-failure
       - name: Keep the acceptance report
         if: always()

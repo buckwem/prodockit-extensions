@@ -49,6 +49,15 @@ def require_architecture(*, x64: bool, arm64: bool) -> str:
     return machine
 
 
+def positive_integer(value: str) -> int:
+    """Parse a strictly positive command-line integer."""
+
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return parsed
+
+
 def run(
     command: list[str],
     *,
@@ -75,6 +84,71 @@ def run(
     return completed
 
 
+def _log_excerpt(path: Path, *, limit: int = 8000) -> str:
+    """Return the useful tail of a subprocess log, even after a timeout."""
+
+    try:
+        value = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return value[-limit:]
+
+
+def run_logged(
+    command: list[str],
+    *,
+    cwd: Path,
+    stdout_path: Path,
+    stderr_path: Path,
+    environment: dict[str, str] | None = None,
+    timeout: int = 900,
+) -> subprocess.CompletedProcess[str]:
+    """Run a process with file-backed output that cannot deadlock on pipe EOF.
+
+    npm and browser descendants can inherit redirected handles on Windows. A
+    pipe-backed ``communicate`` then waits for every descendant to close the
+    pipe, even after the driver has exited. Regular files let the wrapper wait
+    for the driver process itself while retaining complete diagnostic output.
+    """
+
+    configured = dict(os.environ if environment is None else environment)
+    configured.pop("PYTHONPATH", None)
+    configured["PYTHONUTF8"] = "1"
+    try:
+        with (
+            stdout_path.open("w", encoding="utf-8", errors="replace") as stdout,
+            stderr_path.open("w", encoding="utf-8", errors="replace") as stderr,
+        ):
+            completed = subprocess.run(
+                command,
+                cwd=cwd,
+                env=configured,
+                stdout=stdout,
+                stderr=stderr,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+            )
+    except subprocess.TimeoutExpired as error:
+        detail = "\n".join(
+            part
+            for part in (_log_excerpt(stdout_path), _log_excerpt(stderr_path))
+            if part
+        )
+        raise AcceptanceError(
+            f"command timed out after {timeout} seconds ({' '.join(command)}):\n{detail}"
+        ) from error
+    if completed.returncode:
+        detail = "\n".join(
+            part
+            for part in (_log_excerpt(stdout_path), _log_excerpt(stderr_path))
+            if part
+        )
+        raise AcceptanceError(f"command failed ({' '.join(command)}):\n{detail}")
+    return completed
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(
         description="Test every safe pdk diag repair from an installed candidate wheel."
@@ -84,6 +158,12 @@ def parser() -> argparse.ArgumentParser:
     architecture.add_argument("--require-x64", action="store_true")
     architecture.add_argument("--require-arm64", action="store_true")
     result.add_argument("--report", type=Path, required=True)
+    result.add_argument(
+        "--driver-timeout-seconds",
+        type=positive_integer,
+        default=900,
+        help="maximum time for the installed-wheel repair scenario (default: 900)",
+    )
     result.add_argument("--keep-on-failure", action="store_true")
     return result
 
@@ -94,6 +174,8 @@ def main(arguments: list[str] | None = None) -> int:
     machine = require_architecture(x64=args.require_x64, arm64=args.require_arm64)
     report_path = args.report.resolve()
     root = Path(tempfile.mkdtemp(prefix="prodockit-diagnostics-repair-"))
+    driver_stdout = root / "driver.stdout.log"
+    driver_stderr = root / "driver.stderr.log"
     started = time.perf_counter()
     failed = True
     summary: dict[str, Any] = {}
@@ -123,7 +205,7 @@ def main(arguments: list[str] | None = None) -> int:
         child_environment["PUPPETEER_SKIP_DOWNLOAD"] = "true"
         driver = Path(__file__).with_name("_diagnostics_repair_acceptance_driver.py").resolve()
         driver_report = root / "driver-report.json"
-        completed = run(
+        run_logged(
             [
                 str(python),
                 str(driver),
@@ -134,6 +216,9 @@ def main(arguments: list[str] | None = None) -> int:
             ],
             cwd=root,
             environment=child_environment,
+            stdout_path=driver_stdout,
+            stderr_path=driver_stderr,
+            timeout=args.driver_timeout_seconds,
         )
         scenario = json.loads(driver_report.read_text(encoding="utf-8"))
         summary = {
@@ -144,7 +229,7 @@ def main(arguments: list[str] | None = None) -> int:
             "wheel": wheel.name,
             "duration_seconds": round(time.perf_counter() - started, 3),
             "scenario": scenario,
-            "output": completed.stdout.strip(),
+            "output": _log_excerpt(driver_stdout).strip(),
             "temporary_root": None,
         }
         failed = False
@@ -158,6 +243,8 @@ def main(arguments: list[str] | None = None) -> int:
             "wheel": wheel.name,
             "duration_seconds": round(time.perf_counter() - started, 3),
             "error": str(error),
+            "driver_stdout": _log_excerpt(driver_stdout),
+            "driver_stderr": _log_excerpt(driver_stderr),
             "temporary_root": str(root),
         }
         print(f"acceptance failed: {error}", file=sys.stderr)

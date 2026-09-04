@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import contextlib
 import hashlib
 import json
 import os
@@ -56,6 +57,71 @@ class AcceptanceError(RuntimeError):
     """A candidate wheel failed an acceptance condition."""
 
 
+_TRANSIENT_RENDERER_MARKERS = (
+    "timed out",
+    "econnreset",
+    "econnrefused",
+    "etimedout",
+    "eai_again",
+    "socket hang up",
+    "temporary failure",
+    "service unavailable",
+    "bad gateway",
+    "gateway timeout",
+    # Ubuntu's Chromium snap occasionally starts before its automatically
+    # connected graphics content snap is mounted on a fresh hosted runner.
+    "content snap gpu wrapper",
+    "ensure slot is connected",
+)
+
+
+def transient_renderer_failure(detail: str) -> bool:
+    """Return whether an Adopt failure is safe to repeat in its fixture.
+
+    Only external npm, Puppeteer, browser and Mermaid availability failures
+    qualify. Assertions and project/configuration failures remain immediate so
+    a retry cannot hide a deterministic regression.
+    """
+
+    lowered = detail.casefold()
+    renderer = any(
+        name in lowered for name in ("npm", "mermaid", "mmdc", "puppeteer", "chrome")
+    )
+    return renderer and any(marker in lowered for marker in _TRANSIENT_RENDERER_MARKERS)
+
+
+def prepare_renderer_retry(project: Path, detail: str) -> None:
+    """Discard a partial renderer install and validate npm's shared cache."""
+
+    lowered = detail.casefold()
+    components = [
+        component for component in ("mermaid", "mathjax") if component in lowered
+    ]
+    if not components and "npm" in lowered:
+        components = ["mermaid", "mathjax"]
+    for component in components:
+        shutil.rmtree(project / "tools" / component / "node_modules", ignore_errors=True)
+
+    npm_install_failed = any(
+        marker in lowered
+        for marker in ("could not install", "npm ci", "npm err", "npm error")
+    )
+    if npm_install_failed and (npm := shutil.which("npm")):
+        # The locked install is the evidence that matters. Cache verification
+        # is best-effort preparation for that retry.
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            subprocess.run(
+                [npm, "cache", "verify"],
+                cwd=project,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=120,
+                check=False,
+            )
+
+
 @dataclass(frozen=True)
 class Result:
     name: str
@@ -74,25 +140,39 @@ def run(
     cwd: Path,
     input_text: str | None = None,
     timeout: int = 900,
+    transient_attempts: int = 1,
 ) -> subprocess.CompletedProcess[str]:
     environment = dict(os.environ)
     environment.pop("PYTHONPATH", None)
     environment["PYTHONUTF8"] = "1"
-    completed = subprocess.run(
-        command,
-        cwd=cwd,
-        input=input_text,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-        env=environment,
-    )
-    if completed.returncode:
+    for attempt in range(1, transient_attempts + 1):
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            input=input_text,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            env=environment,
+        )
+        if not completed.returncode:
+            return completed
         detail = "\n".join(part for part in (completed.stdout, completed.stderr) if part)
-        raise AcceptanceError(f"command failed ({' '.join(command)}):\n{detail}")
-    return completed
+        if attempt < transient_attempts and transient_renderer_failure(detail):
+            print(
+                f"Transient renderer failure on attempt {attempt}/{transient_attempts}; "
+                "resetting the affected renderer state and retrying the same fixture.",
+                file=sys.stderr,
+            )
+            prepare_renderer_retry(cwd, detail)
+            continue
+        attempts = f" after {attempt} attempts" if attempt > 1 else ""
+        raise AcceptanceError(
+            f"command failed{attempts} ({' '.join(command)}):\n{detail}"
+        )
+    raise AssertionError("unreachable")
 
 
 def venv_python(environment: Path) -> Path:
@@ -286,7 +366,12 @@ def adopt(
     command.append("--apply" if apply else "--dry-run")
     command.append("--mermaid" if mermaid else "--no-mermaid")
     command.append("--maths" if maths else "--no-maths")
-    completed = run(command, cwd=project, input_text=("y\n" * 20 if apply else None))
+    completed = run(
+        command,
+        cwd=project,
+        input_text=("y\n" * 20 if apply else None),
+        transient_attempts=2 if apply else 1,
+    )
     return completed.stdout
 
 
@@ -424,6 +509,7 @@ def main(arguments: list[str] | None = None) -> int:
         raise AcceptanceError("--project and --output must be supplied together")
 
     temporary_path = Path(tempfile.mkdtemp(prefix="prodockit-adopt-acceptance-"))
+    result_items: list[Result] = []
     try:
         environment = temporary_path / "venv"
         venv.EnvBuilder(with_pip=True, clear=True).create(environment)
@@ -437,7 +523,7 @@ def main(arguments: list[str] | None = None) -> int:
             output = args.output.resolve()
             copy_project(source, output)
             install_candidate(python, wheel, output)
-            result_items = [
+            result_items.append(
                 exercise(
                     python,
                     output,
@@ -445,7 +531,7 @@ def main(arguments: list[str] | None = None) -> int:
                     mermaid=args.mermaid,
                     maths=args.maths,
                 )
-            ]
+            )
             if snapshot(source) != original_source:
                 raise AcceptanceError("source project changed during acceptance testing")
         else:
@@ -455,10 +541,10 @@ def main(arguments: list[str] | None = None) -> int:
             workers = min(args.scenario_workers, len(scenarios))
             print(f"Scenario workers: {workers}")
             if workers == 1:
-                result_items = [
-                    exercise_fixture(python, temporary_path, scenario)
-                    for scenario in scenarios
-                ]
+                for scenario in scenarios:
+                    result_items.append(
+                        exercise_fixture(python, temporary_path, scenario)
+                    )
             else:
                 with concurrent.futures.ThreadPoolExecutor(
                     max_workers=workers
@@ -471,7 +557,21 @@ def main(arguments: list[str] | None = None) -> int:
                             scenarios,
                         )
                     )
-    except Exception:
+    except Exception as error:
+        if args.report:
+            failure_report: dict[str, Any] = {
+                "wheel": str(wheel),
+                "platform": platform.platform(),
+                "architecture": machine,
+                "duration_seconds": round(time.perf_counter() - acceptance_started, 3),
+                "passed": False,
+                "error": str(error),
+                "results": [asdict(item) for item in result_items],
+            }
+            args.report.parent.mkdir(parents=True, exist_ok=True)
+            args.report.write_text(
+                json.dumps(failure_report, indent=2) + "\n", encoding="utf-8"
+            )
         print(f"Work directory preserved for diagnosis: {temporary_path}", file=sys.stderr)
         raise
     else:
@@ -482,6 +582,7 @@ def main(arguments: list[str] | None = None) -> int:
         "platform": platform.platform(),
         "architecture": machine,
         "duration_seconds": round(time.perf_counter() - acceptance_started, 3),
+        "passed": True,
         "results": [asdict(item) for item in result_items],
     }
     if args.report:

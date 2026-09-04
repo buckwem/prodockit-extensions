@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -156,6 +157,84 @@ def test_diagnostic_acceptance_resolves_one_wheel_and_checks_architecture(
         diagnostics_acceptance.require_architecture(x64=True, arm64=False)
 
 
+def test_driver_timeout_is_configurable_and_positive() -> None:
+    arguments = diagnostics_acceptance.parser().parse_args(
+        [
+            "--wheel",
+            "dist",
+            "--report",
+            "report.json",
+            "--driver-timeout-seconds",
+            "1800",
+        ]
+    )
+
+    assert arguments.driver_timeout_seconds == 1800
+    with pytest.raises(SystemExit):
+        diagnostics_acceptance.parser().parse_args(
+            [
+                "--wheel",
+                "dist",
+                "--report",
+                "report.json",
+                "--driver-timeout-seconds",
+                "0",
+            ]
+        )
+
+
+def test_driver_uses_file_backed_output_instead_of_windows_sensitive_pipes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stdout_path = tmp_path / "driver.stdout.log"
+    stderr_path = tmp_path / "driver.stderr.log"
+
+    def completed(command, **kwargs):
+        assert "capture_output" not in kwargs
+        kwargs["stdout"].write("driver passed\n")
+        kwargs["stderr"].write("driver detail\n")
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(diagnostics_acceptance.subprocess, "run", completed)
+
+    result = diagnostics_acceptance.run_logged(
+        ["python", "driver.py"],
+        cwd=tmp_path,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+    )
+
+    assert result.returncode == 0
+    assert stdout_path.read_text(encoding="utf-8") == "driver passed\n"
+    assert stderr_path.read_text(encoding="utf-8") == "driver detail\n"
+
+
+def test_driver_timeout_reports_preserved_file_backed_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stdout_path = tmp_path / "driver.stdout.log"
+    stderr_path = tmp_path / "driver.stderr.log"
+
+    def timeout(command, **kwargs):
+        kwargs["stdout"].write("last completed phase\n")
+        kwargs["stdout"].flush()
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(diagnostics_acceptance.subprocess, "run", timeout)
+
+    with pytest.raises(
+        diagnostics_acceptance.AcceptanceError,
+        match=r"(?s)timed out after 12 seconds.*last completed phase",
+    ):
+        diagnostics_acceptance.run_logged(
+            ["python", "driver.py"],
+            cwd=tmp_path,
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            timeout=12,
+        )
+
+
 def test_all_failures_fixture_contains_every_repair_shape(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -200,6 +279,8 @@ def test_diagnostic_repair_workflow_has_six_installed_wheel_environments() -> No
     assert workflow.count("architecture_check:") == 6
     assert "python -m build --wheel" in workflow
     assert "tools/diagnostics_repair_acceptance.py" in workflow
+    assert "timeout-minutes: 35" in workflow
+    assert "--driver-timeout-seconds 1800" in workflow
     assert 'pip install -e ".[dev]"' not in workflow
 
 
