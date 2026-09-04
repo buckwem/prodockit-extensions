@@ -21,6 +21,7 @@ from prodockit.adopt import (
     STYLESHEET,
     AdoptError,
     AdoptOptions,
+    Step,
     _mermaid_bin,
     assess,
     ensure_requirement,
@@ -29,6 +30,9 @@ from prodockit.adopt import (
     ensure_zensical_config,
     install_tool,
     load_manifest,
+)
+from prodockit.adopt import (
+    apply as apply_adoption,
 )
 from prodockit.cli import main
 from prodockit.pins import TESTED_VERSIONS
@@ -114,6 +118,56 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     assert "zensical build --clean --strict" in result.output
     assert "active project environment and local project files" in result.output
     assert "Git, SSH, remotes, editors, commits and pushes" in result.output
+
+
+def test_reusable_apply_runs_selected_stages_and_verifies(monkeypatch, tmp_path) -> None:
+    completed: set[str] = set()
+
+    def planned(*args, **kwargs):
+        ready = {"dependency", "core"} <= completed
+        return [
+            Step(
+                "dependency",
+                "Integrate",
+                "Supported toolchain",
+                "ok" if "dependency" in completed else "missing",
+                "toolchain",
+            ),
+            Step(
+                "core",
+                "Integrate",
+                "Standard components",
+                "ok" if "core" in completed else "missing",
+                "configuration",
+            ),
+            Step("verify", "Verify", "Ready", "ok" if ready else "wait", "ready"),
+        ]
+
+    def apply_one(root, options, step_id, **kwargs):
+        completed.add(step_id)
+        path = root / f"{step_id}.txt"
+        path.write_text(step_id, encoding="utf-8")
+        return [path]
+
+    monkeypatch.setattr("prodockit.adopt.assess", planned)
+    monkeypatch.setattr("prodockit.adopt.apply_step", apply_one)
+
+    written = apply_adoption(tmp_path, AdoptOptions())
+
+    assert completed == {"dependency", "core"}
+    assert {path.name for path in written} == {"dependency.txt", "core.txt"}
+
+
+def test_reusable_apply_refuses_a_blocking_assessment(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        "prodockit.adopt.assess",
+        lambda *args, **kwargs: [
+            Step("environment", "Assess", "Active environment", "wrong", "not active")
+        ],
+    )
+
+    with pytest.raises(AdoptError, match="Active environment: not active"):
+        apply_adoption(tmp_path, AdoptOptions())
 
 
 def test_configure_records_mermaid_and_maths_as_independent_choices(

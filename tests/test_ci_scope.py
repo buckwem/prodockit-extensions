@@ -79,6 +79,9 @@ def test_component_runtime_changes_select_only_their_native_matrix() -> None:
 def test_component_acceptance_and_workflow_files_select_their_own_matrix() -> None:
     for path, component in (
         ("tools/adopt_acceptance.py", "adopt"),
+        ("tools/template_sync_acceptance.py", "adopt"),
+        ("src/prodockit/template_sync.py", "adopt"),
+        ("src/prodockit/template_prerequisites.py", "adopt"),
         ("tools/pdf_from_site_acceptance.py", "pdf"),
         ("tools/bootstrap_acceptance.py", "bootstrap"),
         ("tools/bootstrap_live_provider_read_only.py", "bootstrap"),
@@ -401,6 +404,28 @@ def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_c
     assert "runner: windows-2025" in workflow
     assert "runner: windows-11-arm" in workflow
     assert "timeout-minutes: 40" in workflow
+
+
+def test_template_sync_wheel_handoff_runs_on_all_six_environments() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "adopt-install.yml").read_text(
+        encoding="utf-8"
+    )
+    section = workflow.split("  template-sync:", 1)[1].split("\n  result:", 1)[0]
+
+    assert "python tools/template_sync_acceptance.py" in section
+    assert "Exercise real upgrade, downgrade and fresh-process handoff" in section
+    assert "timeout-minutes: 60" in section
+    assert section.count("architecture_check: --require-x64") == 3
+    assert section.count("architecture_check: --require-arm64") == 3
+    for runner in (
+        "ubuntu-24.04",
+        "ubuntu-24.04-arm",
+        "windows-2025",
+        "windows-11-arm",
+        "macos-15-intel",
+        "macos-15",
+    ):
+        assert f"runner: {runner}" in section
 
 
 def test_diagnostic_wheel_matrix_runs_only_for_its_selected_scope() -> None:

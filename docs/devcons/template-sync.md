@@ -46,6 +46,8 @@ The progression from preview to a pushed update is shown in
 | `prodockit template-sync --apply --push` | Makes the changes and, after asking you, updates `main` directly | Your usual practice is to update `main` without a pull or merge request |
 | `prodockit template-sync --apply --local-only` | Applies and stages the changes without committing or sending them | You are comfortable finishing the Git workflow yourself |
 | `prodockit template-sync --apply --force FILE-PATH` | Also replaces the named file even though it differs from the template | You have checked that file and want the template's complete version |
+| `prodockit template-sync --apply --offline` | Applies using only the configured wheelhouse and validated native cache | The environment has no network access and the required downloads have already been cached |
+| `prodockit template-sync --apply --accept-prodockit --accept-adopt` | Explicitly permits both prerequisite mutations without prompts | An unattended job has been deliberately authorised to change its active environment and project |
 /// table-caption | <
     attrs: {id: tab-devcons-template-sync-choose-how-far-the-command-should-go}
 
@@ -57,21 +59,29 @@ If you are unsure, use the first command in
 a preview. The output tells
 you whether an update is available and which command to run next.
 
-The preview also checks the version of prodockit installed in the activated
-project environment against the latest release on PyPI and the minimum needed
-by the template. If a newer version is needed, it shows the installed and
-available versions and the exact `python -m pip install --upgrade ...` command
-to run. This is advice rather than an automatic package installation, so you
-remain in control of the project's environment. An apply that needs the newer
-version stops before changing anything: this prevents an older installed
-package from supplying styles that do not belong with the incoming template.
-If PyPI cannot be reached, the template check continues and only the
-latest-release part of the package check is omitted.
+The preview is presented in the same phase-and-stage layout as bootstrap. It
+first resolves the incoming template, then identifies the **exact** Prodockit
+release paired with it, previews Adopt's supported-toolchain work, and finally
+shows the template update. Each action includes the current and required
+versions, command, affected environment or files, and network requirement.
+The target is taken from the template's coordinated version declarations, not
+from the newest release on PyPI.
 
-The same preview checks every Prodockit and Zensical declaration in the
-project. During apply, requirements files and build workflows are moved to the
-same version while keeping their existing operators and extras. A project
-already using a newer compatible version is never downgraded. Files declared
+During apply, an older package is upgraded and a newer package is downgraded
+to that exact release. The command asks first, with **No** as the default. If
+you agree, it installs through the active interpreter with the same mirrors,
+wheelhouse, retries, and cache policy as Adopt. It then transparently hands
+the remaining work to a fresh Python process and verifies the loaded release.
+This is still one command: there is no manual restart or second invocation,
+but code imported from the replaced release is never used to change the
+project.
+
+The fresh process previews Adopt and asks separately before it changes the
+rest of the active environment or Adopt-managed project files. **No** is again
+the default. Adopt installs and verifies the complete combination supported by
+that Prodockit release, including exact upgrades and downgrades, while keeping
+its installation logic independent of the template. Template-sync only
+orchestrates that implementation; it does not duplicate it. Files declared
 in `.prodockit-shared-files.toml`, including the managed website and PDF
 stylesheets, are refreshed from the installed Prodockit release and included
 in the same review request. The MR therefore contains a complete, internally
@@ -165,20 +175,21 @@ approve rather than containing unresolved `.new` files.
 prodockit template-sync --apply
 ```
 
-Before it fetches the template or creates a branch, the apply command checks
+Before it creates a branch, the apply command checks
 that the active environment has one unambiguous Prodockit and Zensical metadata
 record. If an interrupted package upgrade left duplicates, it stops and asks
 you to run `pdk diag --fix --fix-check installation.metadata`; no template
 files are changed automatically. This repair uses only the active environment's
 installed-package evidence. It does not inspect, fetch, or apply a template.
 
-The command makes a separate `template-update-...` branch, applies the changes,
-aligns every build input managed by `prodockit pins` with the incoming template,
-saves everything as one commit, and sends the branch to GitHub or GitLab. This
-offline, non-interactive alignment applies the template's tested versions while
-preserving each declaration's operator. It does not contact PyPI or prompt for
-newer versions. On GitLab it also creates the merge request. It prints a link to
-the review page, and no Git commands are needed.
+The command then asks separately before aligning Prodockit and before running
+Adopt. Both questions default to **No**. A required package replacement is
+followed automatically by a fresh-process handoff, not a manual restart. Only
+after the exact Prodockit and its supported toolchain verify successfully does
+the command make a `template-update-...` branch, apply the template changes,
+save the Adopt and template file changes as one commit, and send the branch to
+GitHub or GitLab. On GitLab it also creates the merge request. It prints a link
+to the review page, and no Git commands are needed.
 
 ////
 
@@ -221,17 +232,35 @@ you deliberately kept.
 
 ///
 
-### When only prodockit needs upgrading {: #tsync-package-only }
+### When only the environment needs aligning {: #tsync-package-only }
 
-Sometimes a release changes the prodockit package but none of the files owned
-by the template. In that case the preview says that no template files need
-changing and gives you the package upgrade command. There is no template
-change to commit or push.
+Sometimes the paired Prodockit release or its supported toolchain changes but
+none of the files owned by the template does. In that case the preview says
+that no template files need changing and still shows the exact package and
+Adopt stages. There is no template change to commit or push.
 
-After upgrading, start the **Pages** or **documentation** pipeline in GitHub or
+After alignment, start the **Pages** or **documentation** pipeline in GitHub or
 GitLab. This manual rebuild is still necessary: it republishes the website and
-PDF using the newer prodockit package. A successful local upgrade alone does
+PDF using the supported combination. A successful local alignment alone does
 not replace outputs that were already published.
+
+### Resume a stopped prerequisite {: #tsync-resume-prerequisite }
+
+Declining either confirmation leaves the template files, applied-release
+stamp, and update branches untouched. A failed download, verification, or
+Adopt stage also prevents template application. The Prodockit package may
+already have reached its exact version when a later Adopt stage stops; that is
+a safe resumable state, not a partially applied template. Correct the reported
+problem and run the same `prodockit template-sync --apply` command again. The
+next preview reports the completed package stage as `CHECK` and continues from
+Adopt.
+
+For an offline retry, first place the required wheels in the directory named
+by `PDK_WHEELHOUSE` and any native downloads in the validated Prodockit cache,
+then add `--offline`. Offline mode never falls back to the network. For an
+unattended run, both `--accept-prodockit` and `--accept-adopt` are required
+before the first environment change; omitting either fails before a partial
+update can begin.
 
 ## What it will and will not write {: #tsync-what-it-writes }
 
@@ -530,11 +559,10 @@ answers. A run on a train still shows
 you what your project would do - it just says plainly that the template
 it compared against may be behind.
 
-!!! note "A checkout beside your project wins"
-    If a `prodockit-template` checkout sits next to the project, that is
-    used instead of the cache. This is how the repositories are laid out
-    during development, so a maintainer working across them gets the copy
-    they are editing. `--template-path` names one outright.
+!!! note "Local template development is explicit"
+    A `prodockit-template` checkout beside the project is never selected
+    automatically: it may be old or edited. A maintainer who deliberately
+    wants a local checkout names it with `--template-path`.
 
 ## Running it through a project {: #tsync-repeatedly }
 

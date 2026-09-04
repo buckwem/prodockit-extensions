@@ -204,10 +204,77 @@ jobs:
           path: adopt-native-upgrade-report.json
           if-no-files-found: warn
 
+  template-sync:
+    needs: scope
+    if: needs.scope.outputs.relevant == 'true'
+    name: Template sync — ${{ matrix.name }} ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
+    # Each job genuinely prepares two supported toolchains and then exercises
+    # one pip upgrade and one pip downgrade. Windows ARM64 is normally longest.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu 24.04
+            runner: ubuntu-24.04
+            architecture: x64
+            architecture_check: --require-x64
+          - name: Ubuntu 24.04
+            runner: ubuntu-24.04-arm
+            architecture: arm64
+            architecture_check: --require-arm64
+          - name: Windows 2025
+            runner: windows-2025
+            architecture: x64
+            architecture_check: --require-x64
+          - name: Windows 11
+            runner: windows-11-arm
+            architecture: arm64
+            architecture_check: --require-arm64
+          - name: macOS 15 Intel
+            runner: macos-15-intel
+            architecture: x64
+            architecture_check: --require-x64
+          - name: macOS 15
+            runner: macos-15
+            architecture: arm64
+            architecture_check: --require-arm64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          architecture: ${{ matrix.architecture }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Restore validated native download cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/native-downloads
+          key: template-sync-${{ runner.os }}-${{ matrix.architecture }}-3.10.1
+      - name: Build the candidate wheel
+        run: |
+          python -m pip install build
+          python -m build --wheel
+      - name: Exercise real upgrade, downgrade and fresh-process handoff
+        run: >-
+          python tools/template_sync_acceptance.py
+          --wheel dist
+          ${{ matrix.architecture_check }}
+          --report template-sync-acceptance-report.json
+      - name: Keep the acceptance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: template-sync-${{ matrix.runner }}-${{ matrix.architecture }}
+          path: template-sync-acceptance-report.json
+          if-no-files-found: warn
+
   result:
     name: Adopt installed-wheel result
     if: always()
-    needs: [scope, installed-wheel, native-upgrade]
+    needs: [scope, installed-wheel, native-upgrade, template-sync]
     runs-on: ubuntu-24.04
     steps:
       - name: Report the selected scope
@@ -217,6 +284,7 @@ jobs:
           NATIVE: ${{ needs.scope.outputs.native }}
           MATRIX_RESULT: ${{ needs.installed-wheel.result }}
           UPGRADE_RESULT: ${{ needs.native-upgrade.result }}
+          TEMPLATE_SYNC_RESULT: ${{ needs.template-sync.result }}
         run: |
           if [ "$SCOPE_RESULT" != success ]; then
             echo "The changed-file classifier failed."
@@ -228,6 +296,10 @@ jobs:
           fi
           if [ "$NATIVE" = true ] && [ "$UPGRADE_RESULT" != success ]; then
             echo "The Adopt real-upgrade release matrix did not pass."
+            exit 1
+          fi
+          if [ "$RELEVANT" = true ] && [ "$TEMPLATE_SYNC_RESULT" != success ]; then
+            echo "The template-sync prerequisite matrix did not pass."
             exit 1
           fi
           if [ "$RELEVANT" != true ]; then
