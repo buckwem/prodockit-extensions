@@ -3291,7 +3291,13 @@ def _plan_project_env(context: Context) -> Plan:
             [str(python), "-m", "pip", "install", f"weasyprint>={WEASYPRINT_MIN_VERSION}"]
         )
         if shared_files.manifest_path(project).is_file():
-            commands.append([str(_venv_command(context, "pdk")), "shared-files", "--apply"])
+            # Use the Prodockit release running Bootstrap, not the release from
+            # the template's requirements.  A deliberately old template is a
+            # supported first-path input; its project environment must not be
+            # allowed to restore old managed files over the candidate release.
+            commands.append(
+                [sys.executable, "-m", "prodockit", "shared-files", "--apply"]
+            )
     if context.guided and context.platform == MACOS:
         activate = venv / "bin" / "activate"
         library = _homebrew_library_path(context)
