@@ -38,7 +38,7 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
-## Unreleased
+## 0.58.0 (2026-09-04)
 
 - Made Adopt's installed-wheel checks tolerate one classified transient npm or
   Mermaid failure without hiding deterministic regressions. Mermaid health
