@@ -19,7 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.59.0 (2026-09-05)
+
+- Raised the supported Zensical floor to 0.0.59 after comparing the generated
+  Extensions website and PDF with the previous supported release.
 
 - Preserved Zensical's syntax-token markup through the Pandoc conversion so
   highlighted code blocks in PDFs use its light-theme palette, with darker
@@ -34,17 +37,6 @@ requests rather than here.
   spacing, and made PDF tab panels use subtler 5%/1% header and content shading
   with matching rounded outside corners. Copy-to-clipboard controls are now
   visible before hover as well.
-- Made live-provider Bootstrap controls require an exact destination
-  confirmation before entering a credential-bearing environment. Provider
-  observations and prerequisite downloads now share bounded transient-failure
-  handling, retain prior failure evidence, and reconcile ambiguous GitHub
-  mutations without blindly repeating writes.
-- Aligned annotated-tag snapshots across the GitHub live-provider controller
-  and candidate, allowed a deliberately removed Surrey test project to be
-  recreated from historical retained state, and preserved the candidate's
-  original failure reason after trusted cleanup. The shared candidate boundary
-  now also recognises Bootstrap's narrowly constrained renderer-floor and
-  shared-file repair commands without allowing arbitrary package installation.
 - Changed `prodockit pins` so every standard interactive suggestion uses the
   complete software combination tested by the installed Prodockit release,
   including Zensical, WeasyPrint, Markdown, PyMdown Extensions, Pandoc, and
@@ -67,6 +59,15 @@ requests rather than here.
   packages are replaced directly without re-resolving unchanged dependencies,
   avoiding unavailable optional transitive wheels such as Brotli on Windows
   ARM64; genuinely missing packages retain normal dependency resolution.
+- Made Bootstrap refresh managed shared files from the running candidate
+  release rather than allowing an older template environment to restore stale
+  copies during first-time setup.
+- Made `prodockit template-sync --apply` align the active environment to the
+  exact Prodockit release paired with the selected template, continue safely
+  in a fresh process, and run Adopt before changing template files. Package and
+  Adopt changes have separate default-No confirmations; explicit flags support
+  deliberately unattended and offline runs, and failed prerequisites leave the
+  template update untouched and resumable.
 
 ## Implemented functionality
 
