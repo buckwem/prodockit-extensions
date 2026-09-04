@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import NoReturn
@@ -14,6 +15,7 @@ from click.testing import CliRunner
 
 import prodockit
 from prodockit import diagnostics
+from prodockit import shared_files as shared_file_module
 from prodockit.cli import main
 from prodockit.diagnostics import DiagnosticReport, DiagnosticResult
 from prodockit.project_config import ProjectConfig
@@ -24,6 +26,15 @@ def test_path_comparison_handles_posix_and_windows_spellings() -> None:
     assert diagnostics.same_path(
         r"C:\Users\Writer\.venv", r"c:/users/writer/.venv", platform="win32"
     )
+
+
+def test_path_comparison_uses_filesystem_identity_for_existing_aliases(tmp_path: Path) -> None:
+    environment = tmp_path / "environment"
+    environment.mkdir()
+    alias = tmp_path / "environment-alias"
+    alias.symlink_to(environment, target_is_directory=True)
+
+    assert diagnostics.same_path(str(environment), str(alias))
 
 
 def test_command_location_handles_windows_and_rejects_stale_path() -> None:
@@ -183,12 +194,21 @@ def test_metadata_repair_quarantines_only_provably_stale_supported_distributions
     assert unrelated.is_dir(), "--fix must leave every other distribution untouched"
     assert not stale_prodockit.exists()
     assert not stale_zensical.exists()
-    quarantine = prefix / ".prodockit-quarantine/distribution-metadata/20260903T120000.000000Z"
+    quarantine = prefix / ".prodockit-quarantine/diagnostics/20260903T120000.000000Z"
     manifest = json.loads((quarantine / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "applied"
+    assert manifest["action"] == {
+        "check_id": "installation.metadata",
+        "choice_id": "quarantine-stale-metadata",
+        "confirmation": "y",
+        "id": "installation.metadata.quarantine-stale",
+    }
     assert {entry["distribution"] for entry in manifest["entries"]} == {
         "prodockit",
         "zensical",
     }
+    assert all(len(entry["sha256"]) == 64 for entry in manifest["entries"])
+    assert all(not Path(entry["original"]).is_absolute() for entry in manifest["entries"])
 
 
 def test_metadata_repair_refuses_ambiguous_duplicates_without_moving_them(
@@ -220,6 +240,41 @@ def test_metadata_repair_refuses_ambiguous_duplicates_without_moving_them(
 
     assert first.is_dir()
     assert second.is_dir()
+    assert not (prefix / ".prodockit-quarantine").exists()
+
+
+def test_metadata_repair_revalidates_the_inspected_fingerprint_before_mutation(
+    tmp_path: Path,
+) -> None:
+    prefix = tmp_path / "venv"
+    site_packages = prefix / "lib/site-packages"
+    _dist_info(
+        site_packages,
+        "prodockit-0.56.0.dist-info",
+        name="prodockit",
+        version="0.56.0",
+    )
+    stale = _dist_info(
+        site_packages,
+        "prodockit-0.41.0.dist-info",
+        name="prodockit",
+        version="0.41.0",
+    )
+    entries = diagnostics._repair_metadata_entries((site_packages,))
+    fingerprint = diagnostics._metadata_repair_fingerprint(entries)
+    (stale / "changed-after-plan.txt").write_text("changed\n", encoding="utf-8")
+
+    with pytest.raises(diagnostics.MetadataRepairError, match="plan became stale"):
+        diagnostics.repair_distribution_metadata(
+            tmp_path,
+            prefix=prefix,
+            base_prefix=tmp_path / "system-python",
+            site_packages=(site_packages,),
+            current_versions={"prodockit": "0.56.0"},
+            expected_fingerprint=fingerprint,
+        )
+
+    assert stale.is_dir()
     assert not (prefix / ".prodockit-quarantine").exists()
 
 
@@ -279,6 +334,234 @@ def test_metadata_repair_rolls_back_when_rediscovery_is_not_clean(
 
     assert current.is_dir()
     assert stale.is_dir(), "a failed verification must restore quarantined metadata"
+
+
+def test_repair_transaction_refuses_external_and_symlinked_targets(tmp_path: Path) -> None:
+    boundary = tmp_path / "project"
+    boundary.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside\n", encoding="utf-8")
+    link = boundary / "link.txt"
+    link.symlink_to(outside)
+    transaction = diagnostics.RepairTransaction(
+        boundary,
+        action_id="example.apply",
+        check_id="dependencies.shared-files",
+        choice_id="replace",
+        timestamp="contained",
+    )
+
+    with pytest.raises(diagnostics.RepairTransactionError, match="symlinked"):
+        transaction.quarantine_path(link, backup_name="link.txt")
+    with pytest.raises(diagnostics.RepairTransactionError, match="outside"):
+        transaction.quarantine_path(outside, backup_name="outside.txt")
+    ordinary = boundary / "ordinary.txt"
+    ordinary.write_text("ordinary\n", encoding="utf-8")
+    with pytest.raises(diagnostics.RepairTransactionError, match="quarantine path outside"):
+        transaction.quarantine_path(ordinary, backup_name="../../../escape.txt")
+
+    assert outside.read_text(encoding="utf-8") == "outside\n"
+    assert ordinary.read_text(encoding="utf-8") == "ordinary\n"
+
+
+def test_repair_transaction_rolls_back_one_action_and_records_recovery(
+    tmp_path: Path,
+) -> None:
+    boundary = tmp_path / "project"
+    target = boundary / "managed.txt"
+    target.parent.mkdir()
+    target.write_text("original\n", encoding="utf-8")
+    transaction = diagnostics.RepairTransaction(
+        boundary,
+        action_id="example.apply",
+        check_id="dependencies.shared-files",
+        choice_id="replace",
+        timestamp="rollback",
+    )
+
+    transaction.begin()
+    transaction.quarantine_path(target, backup_name="managed.txt")
+    transaction.rollback("verification failed")
+
+    assert target.read_text(encoding="utf-8") == "original\n"
+    manifest = json.loads(transaction.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["status"] == "rolled-back"
+    assert manifest["entries"][0]["original"] == "managed.txt"
+    assert manifest["entries"][0]["backup"] == "files/managed.txt"
+
+
+def test_repair_transaction_stops_and_reports_both_paths_when_rollback_fails(
+    tmp_path: Path,
+) -> None:
+    boundary = tmp_path / "project"
+    target = boundary / "managed.txt"
+    target.parent.mkdir()
+    target.write_text("original\n", encoding="utf-8")
+    transaction = diagnostics.RepairTransaction(
+        boundary,
+        action_id="example.apply",
+        check_id="dependencies.shared-files",
+        choice_id="replace",
+        timestamp="rollback-failure",
+    )
+    transaction.begin()
+    transaction.quarantine_path(target, backup_name="managed.txt")
+    target.write_text("conflicting replacement\n", encoding="utf-8")
+
+    with pytest.raises(diagnostics.RepairRollbackError) as raised:
+        transaction.rollback("verification failed")
+
+    message = str(raised.value)
+    assert str(target) in message
+    assert str(transaction.quarantine / "files") in message
+    manifest = json.loads(transaction.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["status"] == "rollback-failed"
+
+
+def test_stage3_shared_file_adapter_reuses_installed_bytes_transactionally(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / shared_file_module.MANIFEST).write_text(
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\ntarget = "docs/stylesheets/pdk.css"\n',
+        encoding="utf-8",
+    )
+    target = tmp_path / "docs/stylesheets/pdk.css"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"author copy\n")
+    monkeypatch.setattr(shared_file_module, "resource_bytes", lambda _source: b"installed\n")
+    state = shared_file_module.inspect(tmp_path)[0]
+
+    result = diagnostics.repair_shared_file(
+        tmp_path,
+        state.file.target,
+        expected_status=state.status,
+        expected_actual_sha256=state.actual_sha256,
+        expected_sha256=state.expected_sha256,
+        timestamp="shared-file",
+    )
+
+    assert result.status == "applied"
+    assert target.read_bytes() == b"installed\n"
+    manifest = json.loads((tmp_path / result.manifest).read_text(encoding="utf-8"))
+    assert manifest["status"] == "applied"
+    assert manifest["entries"][0]["original"] == "docs/stylesheets/pdk.css"
+    assert manifest["entries"][0]["operation"] == "backup"
+
+
+def test_stage3_shared_file_adapter_refuses_a_stale_plan_without_backup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / shared_file_module.MANIFEST).write_text(
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\ntarget = "docs/stylesheets/pdk.css"\n',
+        encoding="utf-8",
+    )
+    target = tmp_path / "docs/stylesheets/pdk.css"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"before\n")
+    monkeypatch.setattr(shared_file_module, "resource_bytes", lambda _source: b"installed\n")
+    state = shared_file_module.inspect(tmp_path)[0]
+    target.write_bytes(b"changed after inspection\n")
+
+    with pytest.raises(diagnostics.RepairTransactionError, match="became stale"):
+        diagnostics.repair_shared_file(
+            tmp_path,
+            state.file.target,
+            expected_status=state.status,
+            expected_actual_sha256=state.actual_sha256,
+            expected_sha256=state.expected_sha256,
+        )
+
+    assert target.read_bytes() == b"changed after inspection\n"
+    assert not (tmp_path / ".prodockit-quarantine").exists()
+
+
+def test_stage3_shared_file_adapter_can_create_and_roll_back_a_missing_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / shared_file_module.MANIFEST).write_text(
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\ntarget = "new/path/pdk.css"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(shared_file_module, "resource_bytes", lambda _source: b"installed\n")
+    state = shared_file_module.inspect(tmp_path)[0]
+    real_inspect = diagnostics.inspect_shared_files
+    calls = 0
+
+    def never_verifies(root: Path) -> list[shared_file_module.SharedFileState]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return real_inspect(root)
+        return [state]
+
+    monkeypatch.setattr(diagnostics, "inspect_shared_files", never_verifies)
+
+    with pytest.raises(diagnostics.RepairTransactionError, match="rolled back"):
+        diagnostics.repair_shared_file(
+            tmp_path,
+            state.file.target,
+            expected_status="missing",
+            expected_actual_sha256=None,
+            expected_sha256=state.expected_sha256,
+            timestamp="missing-rollback",
+        )
+
+    assert not (tmp_path / state.file.target).exists()
+    assert not (tmp_path / "new").exists()
+    manifest = json.loads(
+        (tmp_path / ".prodockit-quarantine/diagnostics/missing-rollback/manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifest["status"] == "rolled-back"
+
+
+def test_stage3_pin_adapter_uses_a_detected_version_and_preserves_crlf(
+    tmp_path: Path,
+) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_bytes(b'dependencies = [\r\n  "zensical>=0.0.57", # keep this comment\r\n]\r\n')
+    workflow = tmp_path / ".github/workflows/docs.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_bytes(b'jobs:\r\n  docs:\r\n    run: pip install "zensical==0.0.58"\r\n')
+    fingerprint = diagnostics._pin_state_fingerprint(tmp_path, "zensical")
+
+    result = diagnostics.repair_pin_declarations(
+        tmp_path,
+        "zensical",
+        "0.0.58",
+        expected_fingerprint=fingerprint,
+        timestamp="pin",
+    )
+
+    assert result.status == "applied"
+    assert b'"zensical>=0.0.58", # keep this comment\r\n' in pyproject.read_bytes()
+    assert workflow.read_bytes().count(b"\r\n") == 3
+    manifest = json.loads((tmp_path / result.manifest).read_text(encoding="utf-8"))
+    assert manifest["entries"][0]["original"] == "pyproject.toml"
+
+
+def test_stage3_pin_adapter_refuses_an_undetected_or_stale_version(tmp_path: Path) -> None:
+    requirement = tmp_path / "requirements.txt"
+    requirement.write_text("zensical==0.0.57\nzensical==0.0.58\n", encoding="utf-8")
+    fingerprint = diagnostics._pin_state_fingerprint(tmp_path, "zensical")
+
+    with pytest.raises(diagnostics.RepairTransactionError, match="not a bounded"):
+        diagnostics.repair_pin_declarations(
+            tmp_path,
+            "zensical",
+            "9.9.9",
+            expected_fingerprint=fingerprint,
+        )
+    requirement.write_text("zensical==0.0.57\n", encoding="utf-8")
+    with pytest.raises(diagnostics.RepairTransactionError, match="became stale"):
+        diagnostics.repair_pin_declarations(
+            tmp_path,
+            "zensical",
+            "0.0.57",
+            expected_fingerprint=fingerprint,
+        )
+    assert not (tmp_path / ".prodockit-quarantine").exists()
 
 
 def _project(tmp_path: Path, *, required: bool) -> ProjectConfig:
@@ -410,7 +693,7 @@ def test_mathjax_diagnostic_rejects_inputs_that_cannot_render(
     assert check.data["error"] == "Cannot find module"
 
 
-def test_browser_diagnostic_executes_the_configured_browser(
+def test_browser_diagnostic_rejects_a_configured_path_that_is_not_a_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PUPPETEER_EXECUTABLE_PATH", "/broken/chromium")
@@ -420,13 +703,7 @@ def test_browser_diagnostic_executes_the_configured_browser(
         lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
     )
     monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda _name: None)
-    monkeypatch.setattr(
-        diagnostics,
-        "_run",
-        lambda command, **kwargs: subprocess.CompletedProcess(
-            command, 1, "", "loader error"
-        ),
-    )
+    monkeypatch.setattr(diagnostics, "_run", lambda *_args, **_kwargs: pytest.fail("ran browser"))
 
     check = next(
         item
@@ -436,7 +713,37 @@ def test_browser_diagnostic_executes_the_configured_browser(
 
     assert check.status == "fail"
     assert check.summary == "Browser executable is unusable"
-    assert check.data["error"] == "loader error"
+    assert check.data["error"] == "path does not name a file"
+
+
+def test_browser_diagnostic_does_not_launch_a_configured_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    browser = tmp_path / "msedge.exe"
+    browser.touch()
+    monkeypatch.setenv("PUPPETEER_EXECUTABLE_PATH", str(browser))
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
+    )
+    monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda _name: None)
+    monkeypatch.setattr(diagnostics, "_run", lambda *_args, **_kwargs: pytest.fail("ran browser"))
+
+    check = next(
+        item
+        for item in diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
+        if item.id == "renderer.browser"
+    )
+
+    assert check.status == "pass"
+    assert check.summary == "Browser executable found"
+    assert check.data == {
+        "required": True,
+        "path": "msedge.exe",
+        "version": None,
+        "error": None,
+    }
 
 
 def test_mermaid_security_audit_is_explicitly_skipped_offline(
@@ -523,9 +830,307 @@ def test_diag_json_is_stable_and_failures_set_the_exit_status(
 
     assert result.exit_code == 1
     payload = json.loads(result.output)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["status"] == "fail"
     assert payload["summary"] == {"fail": 1, "pass": 0, "warn": 0}
+    assert payload["checks"][0]["repair"]["disposition"] == "ambiguous"
+
+
+def test_every_diagnostic_has_one_registered_repair_disposition() -> None:
+    assert set(diagnostics.REPAIR_REGISTRY) == diagnostics.DIAGNOSTIC_IDS
+    with pytest.raises(ValueError, match="no registered repair disposition"):
+        DiagnosticResult("future.unclassified", "Future", "warn", "not registered")
+
+
+def test_repair_choice_requires_one_operation_and_one_default() -> None:
+    with pytest.raises(ValueError, match="exactly one command or internal operation"):
+        diagnostics.RepairChoice("broken", "Broken")
+    with pytest.raises(ValueError, match="exactly one default"):
+        diagnostics.RepairCandidate(
+            "example",
+            "dependencies.pins",
+            "ambiguous",
+            "available",
+            "Example",
+            "Example",
+            "Example",
+            (
+                diagnostics.RepairChoice("one", "One", command_argv=("pdk", "pins", "--check")),
+                diagnostics.RepairChoice("two", "Two", internal_operation="no-op"),
+            ),
+        )
+
+
+def test_dry_run_lists_each_pin_choice_without_selecting_one() -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "dependencies.pins",
+                "Dependency and managed-file consistency",
+                "fail",
+                "zensical declarations disagree",
+                data={
+                    "inconsistent": ["zensical"],
+                    "updates": [],
+                    "packages": [
+                        {
+                            "package": "zensical",
+                            "versions": ["0.0.57", "0.0.58"],
+                            "latest": None,
+                            "sites": [
+                                {
+                                    "path": "pyproject.toml",
+                                    "line": 10,
+                                    "operator": ">=",
+                                    "version": "0.0.57",
+                                    "kind": "pip",
+                                },
+                                {
+                                    "path": ".github/workflows/docs.yml",
+                                    "line": 20,
+                                    "operator": "==",
+                                    "version": "0.0.58",
+                                    "kind": "pip",
+                                },
+                            ],
+                        }
+                    ],
+                },
+            ),
+        ),
+    )
+
+    dry_run = diagnostics.build_repair_dry_run(report)
+
+    candidate = dry_run.candidates[0]
+    assert candidate.status == "available"
+    assert candidate.disposition == "confirmable"
+    assert [choice.id for choice in candidate.choices] == [
+        "align-zensical-0.0.58",
+        "leave-unchanged",
+    ]
+    assert candidate.choices[0].command_argv == (
+        "pdk",
+        "pins",
+        "--set",
+        "zensical=0.0.58",
+    )
+    assert candidate.choices[-1].default
+    assert all(choice.id != "selected" for choice in candidate.choices)
+
+
+def test_independent_project_repairs_never_use_template_sync() -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        True,
+        (
+            DiagnosticResult(
+                "project.configuration",
+                "Project configuration and inputs",
+                "fail",
+                "Prodockit integration is incomplete",
+            ),
+            DiagnosticResult("renderer.node", "Rendering toolchain", "pass", "Node is available"),
+            DiagnosticResult("renderer.npm", "Rendering toolchain", "pass", "npm is available"),
+            DiagnosticResult(
+                "renderer.mermaid",
+                "Rendering toolchain",
+                "fail",
+                "Mermaid is required",
+                data={"repair_refusal": None},
+            ),
+            DiagnosticResult(
+                "renderer.mathjax",
+                "Rendering toolchain",
+                "fail",
+                "MathJax is required",
+                data={"repair_refusal": None},
+            ),
+            DiagnosticResult(
+                "repository.template-metadata",
+                "Repository and template maintenance",
+                "fail",
+                "Template metadata is invalid",
+            ),
+        ),
+    )
+
+    dry_run = diagnostics.build_repair_dry_run(report)
+    operations = [
+        choice.internal_operation
+        for candidate in dry_run.candidates
+        for choice in candidate.choices
+        if choice.internal_operation is not None
+    ]
+
+    assert "renderer.mermaid.install-locked" in operations
+    assert "renderer.mathjax.install-locked" in operations
+    assert not any(operation and "template-sync" in operation for operation in operations)
+    template = next(
+        candidate
+        for candidate in dry_run.candidates
+        if candidate.check_id == "repository.template-metadata"
+    )
+    assert template.status == "refused"
+    assert template.disposition == "prohibited"
+    assert not template.choices
+
+
+def test_weasyprint_import_banner_never_corrupts_diagnostic_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def noisy_import(name: str) -> NoReturn:
+        assert name == "weasyprint"
+        print("third-party stdout banner")
+        print("third-party stderr banner", file=sys.stderr)
+        raise OSError("native library unavailable")
+
+    monkeypatch.setattr(diagnostics.importlib, "import_module", noisy_import)
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, None, None, "not found"),
+    )
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda _name: None)
+
+    checks = diagnostics._renderer_checks(None, tmp_path)
+
+    assert next(check for check in checks if check.id == "renderer.weasyprint").status == "warn"
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+def test_diag_dry_run_is_structured_read_only_and_filterable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "dependencies.shared-files",
+                "Dependency and managed-file consistency",
+                "fail",
+                "one managed file has drifted",
+                data={
+                    "declared": 1,
+                    "drifted": 1,
+                    "drifted_files": [{"path": "docs/stylesheets/pdk.css", "status": "different"}],
+                },
+            ),
+            DiagnosticResult("renderer.browser", "Rendering toolchain", "warn", "browser missing"),
+        ),
+    )
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+    monkeypatch.setattr(
+        diagnostics,
+        "repair_distribution_metadata",
+        lambda _root: pytest.fail("dry-run invoked a mutating repair"),
+    )
+
+    result = CliRunner().invoke(
+        main,
+        ["diag", "--dry-run", "--fix-check", "dependencies.shared-files", "--json"],
+    )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == 2
+    assert payload["dry_run"]["mutated"] is False
+    assert payload["dry_run"]["selected_checks"] == ["dependencies.shared-files"]
+    assert len(payload["dry_run"]["candidates"]) == 1
+    candidate = payload["dry_run"]["candidates"][0]
+    assert candidate["status"] == "available"
+    assert candidate["choices"][0]["command_argv"] == [
+        "pdk",
+        "shared-files",
+        "--verbose",
+    ]
+    assert candidate["choices"][1]["internal_operation"] == ("dependencies.shared-files.apply")
+    assert candidate["choices"][1]["warning_severity"] == "warning"
+    assert "replaces existing managed file bytes" in candidate["choices"][1]["warning"]
+    assert "Apply this repair?" not in result.output
+
+
+def test_diag_dry_run_text_says_commands_could_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "renderer.mermaid",
+                "Rendering toolchain",
+                "fail",
+                "Mermaid is required",
+            ),
+        ),
+    )
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+
+    result = CliRunner().invoke(main, ["diag", "--dry-run"])
+
+    assert result.exit_code == 1
+    assert "nothing will be changed" in result.output
+    assert "--online --fix --fix-check renderer.mermaid" in result.output
+    assert "MANUAL — online" in result.output
+    assert "Apply this repair?" not in result.output
+
+
+def test_diag_repair_output_uses_bootstrap_phases_stages_and_colours(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "renderer.mermaid",
+                "Rendering toolchain",
+                "fail",
+                "Mermaid is required",
+            ),
+        ),
+    )
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+
+    result = CliRunner().invoke(main, ["diag", "--dry-run"], color=True)
+
+    assert "Phase 1/2 — Inspect and plan" in result.output
+    assert "Stage [1/1] renderer.mermaid" in result.output
+    assert "Phase 2/2 — Summary" in result.output
+    assert "\x1b[94m" in result.output  # bootstrap bright-blue phase boundary
+    assert "\x1b[34m" in result.output  # bootstrap blue stage boundary
+    assert "\x1b[93m" in result.output  # bootstrap yellow warning/action styling
+
+
+def test_diag_rejects_incompatible_or_unknown_dry_run_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport("zensical.toml", ".", False, ())
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+
+    incompatible = CliRunner().invoke(main, ["diag", "--dry-run", "--fix"])
+    unscoped = CliRunner().invoke(main, ["diag", "--fix-check", "installation.metadata"])
+    unknown = CliRunner().invoke(main, ["diag", "--dry-run", "--fix-check", "future.unknown"])
+
+    assert incompatible.exit_code == 2
+    assert "mutually exclusive" in incompatible.output
+    assert unscoped.exit_code == 2
+    assert "requires --dry-run or --fix" in unscoped.output
+    assert unknown.exit_code == 2
+    assert "unknown diagnostic check ID" in unknown.output
 
 
 def test_diag_warnings_do_not_set_a_failure_exit_status(
@@ -552,7 +1157,25 @@ def test_diag_warnings_do_not_set_a_failure_exit_status(
 def test_diag_fix_reports_the_scoped_repair_and_reruns_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    report = DiagnosticReport(
+    before = DiagnosticReport(
+        config_file="zensical.toml",
+        project_root=".",
+        online=False,
+        checks=(
+            DiagnosticResult(
+                "installation.metadata",
+                "Environment and installation",
+                "warn",
+                "Duplicate distribution metadata found",
+                data={
+                    "fix_candidates": ["prodockit"],
+                    "repair_paths": [".venv/lib/site-packages/prodockit-0.41.0.dist-info"],
+                    "repair_fingerprint": "before-fingerprint",
+                },
+            ),
+        ),
+    )
+    after = DiagnosticReport(
         config_file="zensical.toml",
         project_root=".",
         online=False,
@@ -570,29 +1193,189 @@ def test_diag_fix_reports_the_scoped_repair_and_reruns_diagnostics(
     def inspect(*_args: object, **_kwargs: object) -> DiagnosticReport:
         nonlocal calls
         calls += 1
-        return report
+        return before if calls == 1 else after
 
     monkeypatch.setattr(diagnostics, "inspect", inspect)
     monkeypatch.setattr(
         diagnostics,
         "repair_distribution_metadata",
-        lambda _root: diagnostics.MetadataRepairResult(
+        lambda _root, **_kwargs: diagnostics.MetadataRepairResult(
             "repaired",
             (".venv/lib/site-packages/prodockit-0.41.0.dist-info",),
-            ".venv/.prodockit-quarantine/distribution-metadata/run",
+            ".venv/.prodockit-quarantine/diagnostics/run",
+            ".venv/.prodockit-quarantine/diagnostics/run/manifest.json",
+        ),
+    )
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+
+    result = CliRunner().invoke(main, ["diag", "--fix", "--json"], input="1\ny\n")
+
+    assert result.exit_code == 0, result.output
+    assert calls == 2
+    payload = json.loads(result.stdout)
+    assert payload["before"]["status"] == "warn"
+    assert payload["after"]["status"] == "pass"
+    assert payload["repair"]["status"] == "repaired"
+    assert payload["repair"]["actions"][0]["status"] == "applied"
+    assert payload["repair"]["actions"][0]["confirmation"] == "y"
+    assert payload["repair"]["actions"][0]["changed"] == [
+        ".venv/lib/site-packages/prodockit-0.41.0.dist-info"
+    ]
+    assert "Apply this repair? [y/N]:" in result.stderr
+    assert "WARNING:" in result.stderr
+
+
+@pytest.mark.parametrize("answer", ["", "n\n", "yes\n", "YEs\n", "x\n"])
+def test_diag_fix_requires_an_exact_single_character_y_for_each_action(
+    monkeypatch: pytest.MonkeyPatch, answer: str
+) -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "installation.metadata",
+                "Environment and installation",
+                "warn",
+                "Duplicate distribution metadata found",
+                data={
+                    "fix_candidates": ["prodockit"],
+                    "repair_paths": [".venv/lib/site-packages/prodockit-0.41.0.dist-info"],
+                    "repair_fingerprint": "before-fingerprint",
+                },
+            ),
+        ),
+    )
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr(
+        diagnostics,
+        "repair_distribution_metadata",
+        lambda _root, **_kwargs: pytest.fail("a declined repair mutated the environment"),
+    )
+
+    result = CliRunner().invoke(main, ["diag", "--fix", "--json"], input="1\n" + answer)
+
+    payload = json.loads(result.stdout)
+    assert payload["repair"]["status"] == "declined"
+    assert payload["repair"]["actions"][0]["status"] == "declined"
+    assert not Path(".prodockit-quarantine").exists()
+
+
+def test_diag_fix_refuses_redirected_input_before_inspection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        diagnostics,
+        "inspect",
+        lambda *_args, **_kwargs: pytest.fail("non-interactive fix inspected after refusal"),
+    )
+
+    result = CliRunner().invoke(main, ["diag", "--fix"])
+
+    assert result.exit_code == 1
+    assert "requires an interactive terminal" in result.output
+    assert "--dry-run --json" in result.output
+
+
+def test_stage3_choices_and_confirmations_are_separate_for_each_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = DiagnosticReport(
+        "zensical.toml",
+        ".",
+        False,
+        (
+            DiagnosticResult(
+                "dependencies.shared-files",
+                "Dependency and managed-file consistency",
+                "fail",
+                "one managed file differs",
+                data={
+                    "drifted": 1,
+                    "drifted_files": [
+                        {
+                            "path": "docs/stylesheets/pdk.css",
+                            "status": "different",
+                            "actual_sha256": "old",
+                            "expected_sha256": "new",
+                        }
+                    ],
+                },
+            ),
+            DiagnosticResult(
+                "dependencies.pins",
+                "Dependency and managed-file consistency",
+                "fail",
+                "zensical declarations disagree",
+                data={
+                    "packages": [
+                        {
+                            "package": "zensical",
+                            "versions": ["0.0.57", "0.0.58"],
+                            "latest": None,
+                            "fingerprint": "pins-before",
+                            "sites": [
+                                {
+                                    "path": "pyproject.toml",
+                                    "line": 1,
+                                    "operator": ">=",
+                                    "version": "0.0.57",
+                                    "kind": "pip",
+                                },
+                                {
+                                    "path": ".github/workflows/docs.yml",
+                                    "line": 1,
+                                    "operator": "==",
+                                    "version": "0.0.58",
+                                    "kind": "pip",
+                                },
+                            ],
+                        }
+                    ]
+                },
+            ),
+        ),
+    )
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+    monkeypatch.setattr(
+        diagnostics,
+        "repair_shared_file",
+        lambda *_args, **_kwargs: diagnostics.RepairApplyResult(
+            "applied",
+            ("docs/stylesheets/pdk.css",),
+            ".prodockit-quarantine/diagnostics/shared",
+            ".prodockit-quarantine/diagnostics/shared/manifest.json",
+        ),
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "repair_pin_declarations",
+        lambda *_args, **_kwargs: pytest.fail(
+            "selecting a pin choice without confirming applied it"
         ),
     )
 
-    result = CliRunner().invoke(main, ["diag", "--fix", "--json"])
+    result = CliRunner().invoke(
+        main,
+        ["diag", "--fix", "--json"],
+        input="2\ny\n1\nn\n",
+    )
 
-    assert result.exit_code == 0, result.output
-    assert calls == 1
-    payload = json.loads(result.output)
-    assert payload["repair"]["status"] == "repaired"
-    assert payload["repair"]["moved"] == [
-        ".venv/lib/site-packages/prodockit-0.41.0.dist-info"
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    actions = [
+        action for action in payload["repair"]["actions"] if action["status"] != "not-needed"
     ]
-    assert payload["checks"][0]["status"] == "pass"
+    assert [action["selected_choice"] for action in actions] == [
+        "replace-installed-shared-file",
+        "align-zensical-0.0.58",
+    ]
+    assert [action["status"] for action in actions] == ["applied", "declined"]
+    assert result.stderr.count("Apply this repair? [y/N]:") == 2
+    assert result.stderr.count("WARNING:") >= 2
 
 
 def test_diag_without_fix_never_invokes_the_repair(
@@ -659,6 +1442,264 @@ def test_pdk_diag_reports_local_assets_omitted_from_zensical_toml(tmp_path: Path
     assert check.status == "fail"
     assert any("docs/stylesheets/unused.css" in detail for detail in check.details)
     assert any("docs/javascripts/unused.js" in detail for detail in check.details)
+
+
+def test_stage5_repairs_unique_setting_typo_without_losing_comments(tmp_path: Path) -> None:
+    config = tmp_path / "zensical.toml"
+    config.write_text(
+        '[project]\nsite_name = "Example" # author comment\n\n'
+        '[project.extra]\npdf_magin_left = "3cm" # retain me\n',
+        encoding="utf-8",
+    )
+    _loaded, check = diagnostics._configuration_check(config)
+    problem = check.data["repairable_problems"][0]
+
+    result = diagnostics.repair_project_configuration(
+        tmp_path,
+        problem,
+        expected_fingerprint=check.data["repair_fingerprint"],
+        timestamp="stage5-rename",
+    )
+
+    source = config.read_text(encoding="utf-8")
+    assert result.status == "applied"
+    assert 'pdf_margin_left = "3cm" # retain me' in source
+    assert 'site_name = "Example" # author comment' in source
+
+
+def test_stage5_moves_obsolete_index_setting_losslessly(tmp_path: Path) -> None:
+    config = tmp_path / "zensical.toml"
+    config.write_text(
+        '[project]\nsite_name = "Example"\n\n'
+        "[project.extra]\npdf_include_index = true # retain me\n",
+        encoding="utf-8",
+    )
+    _loaded, check = diagnostics._configuration_check(config)
+    problem = check.data["repairable_problems"][0]
+
+    diagnostics.repair_project_configuration(
+        tmp_path,
+        problem,
+        expected_fingerprint=check.data["repair_fingerprint"],
+        timestamp="stage5-obsolete",
+    )
+
+    source = config.read_text(encoding="utf-8")
+    assert "pdf_include_index" not in source
+    assert '[project.markdown_extensions."prodockit.index"]' in source
+    assert "include = true # retain me" in source
+
+
+def test_stage5_enables_only_extension_proved_by_author_syntax(tmp_path: Path) -> None:
+    config = tmp_path / "zensical.toml"
+    config.write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "index.md").write_text("See \\ref{target}.\n", encoding="utf-8")
+    _loaded, check = diagnostics._configuration_check(config)
+    problem = next(
+        item
+        for item in check.data["repairable_problems"]
+        if item["operation"] == "enable-extension"
+    )
+
+    diagnostics.repair_project_configuration(
+        tmp_path,
+        problem,
+        expected_fingerprint=check.data["repair_fingerprint"],
+        timestamp="stage5-extension",
+    )
+
+    assert '[project.markdown_extensions."prodockit.refs"]' in config.read_text(encoding="utf-8")
+
+
+def test_stage5_refuses_yaml_and_unknown_local_assets(tmp_path: Path) -> None:
+    yaml_config = tmp_path / "zensical.yml"
+    yaml_config.write_text("site_name: Example\n", encoding="utf-8")
+    docs = tmp_path / "docs" / "stylesheets"
+    docs.mkdir(parents=True)
+    (docs / "author.css").write_text("/* mine */\n", encoding="utf-8")
+
+    _loaded, check = diagnostics._configuration_check(yaml_config)
+
+    assert check.data["repairable_problems"] == []
+
+
+def test_stage4_requires_online_mode_and_rejects_custom_renderer_paths() -> None:
+    base_checks = (
+        DiagnosticResult("renderer.node", "Rendering toolchain", "pass", "Node available"),
+        DiagnosticResult("renderer.npm", "Rendering toolchain", "pass", "npm available"),
+        DiagnosticResult(
+            "renderer.mermaid",
+            "Rendering toolchain",
+            "fail",
+            "Mermaid missing",
+            data={"repair_refusal": "project.extra.pdf_mmdc_bin selects a custom path"},
+        ),
+    )
+
+    offline = diagnostics.build_repair_dry_run(
+        DiagnosticReport("zensical.toml", ".", False, base_checks)
+    )
+    online = diagnostics.build_repair_dry_run(
+        DiagnosticReport("zensical.toml", ".", True, base_checks)
+    )
+
+    assert (
+        next(c for c in offline.candidates if c.check_id == "renderer.mermaid").status == "manual"
+    )
+    assert (
+        next(c for c in online.candidates if c.check_id == "renderer.mermaid").status == "refused"
+    )
+
+
+def test_stage4_locked_mermaid_repair_uses_npm_ci_and_verifies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "zensical.toml"
+    config.write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mermaid")
+    monkeypatch.setattr(
+        "prodockit.diagnostics.shutil.which",
+        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
+    )
+    commands: list[list[str]] = []
+
+    def npm_ci(command: list[str], **kwargs):
+        commands.append(command)
+        binary = tmp_path / "tools/mermaid/node_modules/.bin/mmdc"
+        binary.parent.mkdir(parents=True)
+        binary.write_text("installed", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("prodockit.diagnostics.subprocess.run", npm_ci)
+    monkeypatch.setattr(
+        "prodockit.diagnostics.probe_mermaid",
+        lambda path: SimpleNamespace(ok=True, error=None, version="11.0", path=path),
+    )
+
+    result = diagnostics.repair_locked_renderer(
+        tmp_path,
+        "mermaid",
+        expected_fingerprint=expected,
+        timestamp="stage4-mermaid",
+    )
+
+    assert result.status == "applied"
+    assert commands[0][1] == "ci"
+    assert (tmp_path / "tools/mermaid/package-lock.json").is_file()
+
+
+def test_stage4_mathjax_repair_regenerates_browser_assets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mathjax")
+    monkeypatch.setattr(
+        "prodockit.diagnostics.shutil.which",
+        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
+    )
+
+    def npm_ci(command: list[str], **kwargs):
+        package = tmp_path / "tools/mathjax/node_modules/mathjax-full"
+        bundle = package / "es5/tex-svg-full.js"
+        bundle.parent.mkdir(parents=True)
+        bundle.write_text("locked browser bundle", encoding="utf-8")
+        (package / "LICENSE").write_text("licence", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("prodockit.diagnostics.subprocess.run", npm_ci)
+    monkeypatch.setattr(
+        "prodockit.diagnostics.probe_mathjax",
+        lambda node, path: SimpleNamespace(ok=True, error=None, path=path),
+    )
+
+    result = diagnostics.repair_locked_renderer(
+        tmp_path,
+        "mathjax",
+        expected_fingerprint=expected,
+        timestamp="stage4-mathjax",
+    )
+
+    assert result.status == "applied"
+    assert (tmp_path / "docs/javascripts/mathjax.js").is_file()
+    assert (tmp_path / "docs/javascripts/vendor/mathjax/tex-svg-full.js").read_text(
+        encoding="utf-8"
+    ) == "locked browser bundle"
+
+
+def test_stage4_failed_install_restores_generated_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
+    diagnostics.init_tools(tmp_path / "tools", components=("mermaid",))
+    marker = tmp_path / "tools/mermaid/node_modules/author-marker"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("restore me", encoding="utf-8")
+    expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mermaid")
+    monkeypatch.setattr(
+        "prodockit.diagnostics.shutil.which",
+        lambda name: f"/usr/bin/{name}" if name in {"node", "npm"} else None,
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, f"/usr/bin/{name}", "1.0"),
+    )
+    monkeypatch.setattr(
+        "prodockit.diagnostics.subprocess.run",
+        lambda command, **kwargs: subprocess.CompletedProcess(
+            command, 1, "", "registry unavailable"
+        ),
+    )
+
+    with pytest.raises(diagnostics.RepairTransactionError, match="rolled back"):
+        diagnostics.repair_locked_renderer(
+            tmp_path,
+            "mermaid",
+            expected_fingerprint=expected,
+            timestamp="stage4-rollback",
+        )
+
+    assert marker.read_text(encoding="utf-8") == "restore me"
+    manifest = json.loads(
+        (tmp_path / ".prodockit-quarantine/diagnostics/stage4-rollback/manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifest["status"] == "rolled-back"
+
+
+def test_stage4_refuses_author_package_scripts(tmp_path: Path) -> None:
+    config = ProjectConfig(
+        path=tmp_path / "zensical.toml",
+        project={},
+        nav_pages=(),
+        markdown_extensions={},
+    )
+    tools = tmp_path / "tools/mermaid"
+    tools.mkdir(parents=True)
+    (tools / "package.json").write_text(
+        '{"scripts":{"postinstall":"do-something"},"dependencies":{}}',
+        encoding="utf-8",
+    )
+    (tools / "package-lock.json").write_text(
+        '{"packages":{"":{"dependencies":{}}}}', encoding="utf-8"
+    )
+
+    refusal = diagnostics._locked_renderer_refusal(tmp_path, config, "mermaid")
+
+    assert refusal == "package.json contains author lifecycle scripts"
 
 
 def test_one_unreadable_area_does_not_prevent_the_remaining_diagnostics(

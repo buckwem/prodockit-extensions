@@ -168,7 +168,9 @@ prodockit template-sync --apply
 Before it fetches the template or creates a branch, the apply command checks
 that the active environment has one unambiguous Prodockit and Zensical metadata
 record. If an interrupted package upgrade left duplicates, it stops and asks
-you to run `pdk diag --fix`; no template files are changed automatically.
+you to run `pdk diag --fix --fix-check installation.metadata`; no template
+files are changed automatically. This repair uses only the active environment's
+installed-package evidence. It does not inspect, fetch, or apply a template.
 
 The command makes a separate `template-update-...` branch, applies the changes,
 aligns every build input managed by `prodockit pins` with the incoming template,

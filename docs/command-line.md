@@ -46,7 +46,7 @@ write behaviour of each public command.
 
 | Command {: width="34%" } | Use it when | Safe first run | Writes |
 |---|---|---|---|
-| [`prodockit diag`](#diagnose-an-environment-and-project) | A command, dependency, renderer, configuration, or checkout does not behave as expected | `prodockit diag` | Nothing by default; `--fix` only quarantines provably stale Prodockit or Zensical metadata, and network checks are opt-in with `--online` |
+| [`prodockit diag`](#diagnose-an-environment-and-project) | A command, dependency, renderer, configuration, or checkout does not behave as expected | `prodockit diag` | Nothing by default or with `--dry-run`; `--fix` asks before each supported repair |
 | [`prodockit config`](#check-resolved-configuration) | You need to see the Prodockit settings that will actually be used, or check that the source project is complete | `prodockit config` | Nothing; add `--check` for a CI-friendly non-zero exit when problems exist |
 | [`prodockit adopt`](adopt.md) | An existing Zensical document needs selected prodockit components without machine, Git or editor setup | `prodockit adopt` | Local project files only with `--apply`; optional choices use `--configure` |
 | [`prodockit bootstrap`](devcons/bootstrap.md) | A machine or a project based on `prodockit-template` is not ready to build and publish | `prodockit bootstrap` | Only with `--apply`; configuration questions use `--configure` |
@@ -93,6 +93,59 @@ versions, Mermaid's production dependencies against npm advisories, and the
 recorded template revision, or `--verbose` to include the evidence behind passing checks. For a project whose configuration is named
 or located differently, use `-f PATH` or `--config-file PATH`.
 
+Preview every bounded repair alternative without selecting or running one:
+
+```bash
+pdk diag --dry-run
+```
+
+The dry run says what each command or internal repair **could** do because a
+finding may have several valid choices. It shows affected paths, prerequisites,
+network requirements, recovery information, and warnings. Independent
+project-local repairs use supported Prodockit commands such as `prodockit
+adopt`, `pdk pins`, `pdk shared-files`, `pdk init-tools`, and `pdk
+init-mathjax`; they do not depend on `prodockit-template`. Template state is
+never treated as an automatic diagnostic repair.
+
+Use `--fix-check CHECK_ID` with `--dry-run` to limit this preview. The option is
+repeatable. `--dry-run` and `--fix` cannot be combined.
+
+To consider supported repairs, use an interactive terminal:
+
+```bash
+pdk diag --fix
+```
+
+The command prints the complete plan before asking anything. Every mutation has
+its own `Apply this repair? [y/N]:` prompt and only a single `y` or `Y` confirms
+that action; Enter, `n`, `yes`, end-of-input, and every other answer decline it.
+Warnings are repeated immediately before confirmation. Redirected input and CI
+runs are refused, with no `--yes`, `--force`, or environment-variable bypass.
+The text presentation follows bootstrap: bright-blue phase boundaries separate
+inspection, repair decisions, and final verification; blue stage headings keep
+each finding visible; yellow identifies warnings or declined work; and magenta
+identifies a repair or rollback failure. Redirected logs retain the same phase
+and stage labels without relying on colour.
+
+The repair engine can apply unambiguous `installation.metadata` repairs,
+restore one declared shared file at a time, align bounded dependency pins,
+rebuild project-local Mermaid or MathJax installations from valid lockfiles,
+and make narrowly lossless `zensical.toml` corrections. Renderer installation
+requires `--online`, healthy Node and npm, and a lockfile consistent with a
+script-free project manifest. Configuration repair is limited to unique
+Prodockit spelling corrections, obsolete index-setting moves, extensions
+uniquely required by detected syntax, and known existing Prodockit CSS or
+MathJax assets. Invalid values, missing author files, YAML, custom renderer
+paths, and ambiguous choices remain unchanged with remediation guidance.
+
+Each confirmed action records hashes and relative recovery paths under
+`.prodockit-quarantine/diagnostics/<UTC timestamp>/manifest.json`, verifies
+its postcondition, and rolls that action back if verification fails. Existing
+shared-file bytes and pin declaration files are backed up before the existing
+typed `shared-files` or `pins` service is called. Writes are atomic and pin
+rewrites preserve operators, extras, comments, encoding, and CRLF/LF endings.
+No diagnostic repair reads or invokes `prodockit-template` or `template-sync`.
+
 When asking for support, attach the machine-readable report rather than a
 screenshot:
 
@@ -100,9 +153,19 @@ screenshot:
 pdk diag --json > prodockit-diagnostics.json
 ```
 
-The JSON schema is stable and reports pass, warning, and failure counts. The
+JSON schema version 2 reports pass, warning, and failure counts plus the repair
+disposition for every stable check. `pdk diag --dry-run --json` adds every
+available choice and represents possible commands as argument arrays rather
+than executable shell strings. Interactive `pdk diag --fix --json` keeps its
+plan and result as valid JSON on stdout while human context and prompts go to
+stderr; its top-level `before`, `repair`, and `after` objects record selections,
+confirmations, outcomes, changed paths, and the recovery manifest. The
+schema number is a compatibility boundary: consumers may accept added fields
+within version 2 but must reject a larger `schema_version` until reviewed.
+Existing version-2 fields retain their meaning and type. The
 command exits non-zero only for an actionable failure; warnings alone still
-exit zero. It never installs, repairs, generates, or changes project files.
+exit zero. The ordinary and dry-run forms never install, repair, generate, or
+change project files.
 The [diagnostics guide](devcons/diagnostics.md) explains every stable check ID
 and the remediation required from a document author.
 

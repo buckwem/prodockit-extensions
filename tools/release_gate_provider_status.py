@@ -24,6 +24,7 @@ ORDINARY_WORKFLOWS = frozenset(
         ".github/workflows/adopt-install.yml",
         ".github/workflows/bootstrap-install.yml",
         ".github/workflows/ci.yml",
+        ".github/workflows/diag-repair.yml",
         ".github/workflows/docs.yml",
         ".github/workflows/pdf-built-site-wheel.yml",
     }

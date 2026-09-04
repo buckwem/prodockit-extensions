@@ -67,6 +67,23 @@ def test_mermaid_probe_uses_the_runnable_windows_shim(tmp_path: Path) -> None:
     ]
 
 
+def test_mermaid_probe_bypasses_cmd_for_npm_cli_in_path_with_spaces(tmp_path: Path) -> None:
+    binary = tmp_path / "project with spaces" / "node_modules" / ".bin" / "mmdc"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("posix shim", encoding="utf-8")
+    windows_shim = binary.with_suffix(".cmd")
+    windows_shim.write_text("windows shim", encoding="utf-8")
+    cli = binary.parent.parent / "@mermaid-js" / "mermaid-cli" / "src" / "cli.js"
+    cli.parent.mkdir(parents=True)
+    cli.write_text("// cli", encoding="utf-8")
+
+    assert renderer_health._command(binary, "--version", platform="nt") == [
+        "node",
+        str(cli),
+        "--version",
+    ]
+
+
 def test_mermaid_probe_uses_a_discovered_browser_when_downloads_are_disabled(
     tmp_path: Path, monkeypatch
 ) -> None:

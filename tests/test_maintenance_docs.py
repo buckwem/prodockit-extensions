@@ -12,9 +12,7 @@ from prodockit.template_sync import read_config
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "zensical.toml"
-TABLE_DELIMITER = re.compile(
-    r"^\|?\s*:?-{1,}:?\s*(?:\|\s*:?-{1,}:?\s*)+\|?$"
-)
+TABLE_DELIMITER = re.compile(r"^\|?\s*:?-{1,}:?\s*(?:\|\s*:?-{1,}:?\s*)+\|?$")
 
 
 def _nav_group(title: str) -> list[dict[str, str]]:
@@ -31,9 +29,7 @@ def test_getting_started_holds_installation_routes() -> None:
     assert {"3. Add prodockit to an existing document": "adopt.md"} in getting_started
     assert {"4. Set up a template project": "devcons/bootstrap.md"} in getting_started
     assert {"5. Start with prodockit-template": "prodockit-template.md"} in getting_started
-    assert {
-        "23. Staying in step with the template": "devcons/template-sync.md"
-    } in publishing
+    assert {"23. Staying in step with the template": "devcons/template-sync.md"} in publishing
     assert maintenance == [
         {"26. Maintenance overview": "project-maintenance.md"},
         {"27. Diagnose a project": "devcons/diagnostics.md"},
@@ -53,9 +49,9 @@ def test_release_guide_covers_every_github_actions_workflow() -> None:
 
 def test_release_diagram_distinguishes_entry_points_from_steps() -> None:
     guide = (ROOT / "docs" / "devcons" / "releasing.md").read_text(encoding="utf-8")
-    source = (
-        ROOT / "tools" / "documentation-diagrams" / "29.1-release-workflow.drawio"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "tools" / "documentation-diagrams" / "29.1-release-workflow.drawio").read_text(
+        encoding="utf-8"
+    )
 
     assert "29.1-release-workflow.png" in guide
     assert "Release branch" in source
@@ -82,9 +78,9 @@ def test_documentation_builds_the_website_before_the_pdf() -> None:
 
 
 def test_adoption_diagram_stays_independent_of_the_site_generator() -> None:
-    source = (
-        ROOT / "tools" / "documentation-diagrams" / "3.1-adoption-workflow.drawio"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "tools" / "documentation-diagrams" / "3.1-adoption-workflow.drawio").read_text(
+        encoding="utf-8"
+    )
 
     assert "Existing documentation&lt;br&gt;project" in source
 
@@ -199,21 +195,14 @@ def test_every_documentation_table_has_a_numbered_caption_above_it() -> None:
             table_count += 1
             table_line = line_number + 1
             line_number += 2
-            while (
-                line_number < len(lines)
-                and lines[line_number].lstrip().startswith("|")
-            ):
+            while line_number < len(lines) and lines[line_number].lstrip().startswith("|"):
                 line_number += 1
             while line_number < len(lines) and not lines[line_number].strip():
                 line_number += 1
 
             caption = lines[line_number:] if line_number < len(lines) else []
-            has_leading_caption = bool(
-                caption and caption[0].lstrip() == "/// table-caption | <"
-            )
-            has_static_id = any(
-                "attrs: {id: tab-" in line for line in caption[:4]
-            )
+            has_leading_caption = bool(caption and caption[0].lstrip() == "/// table-caption | <")
+            has_static_id = any("attrs: {id: tab-" in line for line in caption[:4])
             if not (has_leading_caption and has_static_id):
                 relative = guide_path.relative_to(ROOT)
                 missing.append(f"{relative}:{table_line}")
@@ -259,10 +248,7 @@ def test_tables_and_figures_are_introduced_before_they_appear() -> None:
 
             if is_table:
                 following = line_number + 2
-                while (
-                    following < len(lines)
-                    and lines[following].lstrip().startswith("|")
-                ):
+                while following < len(lines) and lines[following].lstrip().startswith("|"):
                     following += 1
                 caption = "\n".join(lines[following : following + 6])
                 match = re.search(r"attrs: \{id: (tab-[^}]+)", caption)
@@ -277,9 +263,7 @@ def test_tables_and_figures_are_introduced_before_they_appear() -> None:
                     relative = guide_path.relative_to(ROOT)
                     missing.append(f"{relative}:{line_number + 1} (no figure reference)")
 
-    assert not missing, "tables or figures without preceding narrative: " + ", ".join(
-        missing
-    )
+    assert not missing, "tables or figures without preceding narrative: " + ", ".join(missing)
 
 
 def test_parent_sections_introduce_their_subsections() -> None:
@@ -310,9 +294,7 @@ def test_parent_sections_introduce_their_subsections() -> None:
                 relative = guide_path.relative_to(ROOT)
                 missing.append(f"{relative}:{line_number + 1}")
 
-    assert not missing, "parent sections without introductory narrative: " + ", ".join(
-        missing
-    )
+    assert not missing, "parent sections without introductory narrative: " + ", ".join(missing)
 
 
 def test_sections_introduce_structured_content() -> None:
@@ -360,17 +342,14 @@ def test_sections_introduce_structured_content() -> None:
                 relative = guide_path.relative_to(ROOT)
                 missing.append(f"{relative}:{line_number + 1}")
 
-    assert not missing, "sections without introductory narrative: " + ", ".join(
-        missing
-    )
+    assert not missing, "sections without introductory narrative: " + ", ".join(missing)
 
 
 def test_visual_introductions_do_not_use_placeholder_prose() -> None:
     """A numbered reference must tell the reader what the object contributes."""
 
     documentation = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted((ROOT / "docs").rglob("*.md"))
+        path.read_text(encoding="utf-8") for path in sorted((ROOT / "docs").rglob("*.md"))
     )
     assert "The relevant details are summarised in" not in documentation
 
@@ -379,8 +358,7 @@ def test_reference_tables_reserve_space_for_identifier_columns() -> None:
     """Do not let a wide prose column collapse short labels or identifiers."""
 
     documentation = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted((ROOT / "docs").rglob("*.md"))
+        path.read_text(encoding="utf-8") for path in sorted((ROOT / "docs").rglob("*.md"))
     )
     identifier_headers = (
         "Variable",
@@ -409,8 +387,7 @@ def test_reference_tables_reserve_space_for_identifier_columns() -> None:
         if re.search(rf"^\| {re.escape(header)} \|", documentation, re.MULTILINE)
     ]
     assert not missing_width, (
-        "reference-table identifier columns without an explicit width: "
-        + ", ".join(missing_width)
+        "reference-table identifier columns without an explicit width: " + ", ".join(missing_width)
     )
 
 
@@ -448,9 +425,7 @@ def test_release_guide_covers_the_version_sources_and_release_gates() -> None:
 
 
 def test_package_artifacts_are_strictly_checked_before_they_can_be_published() -> None:
-    publish = (ROOT / ".github" / "workflows" / "publish.yml").read_text(
-        encoding="utf-8"
-    )
+    publish = (ROOT / ".github" / "workflows" / "publish.yml").read_text(encoding="utf-8")
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     install = 'pip install build "twine==7.0.0"'
     build = "python -m build"
@@ -504,10 +479,21 @@ def test_template_sync_links_managed_stylesheet_warnings_to_the_style_guide() ->
     assert "[Stylesheets](../stylesheets.md)" in guide
 
 
+def test_diagnostic_recovery_and_template_sync_preflight_are_documented() -> None:
+    root = Path(__file__).resolve().parent.parent
+    diagnostics = (root / "docs/devcons/diagnostics.md").read_text(encoding="utf-8")
+    template_sync = (root / "docs/devcons/template-sync.md").read_text(encoding="utf-8")
+
+    assert "Recover a confirmed repair" in diagnostics
+    assert "rollback-failed" in diagnostics
+    assert "SHA-256" in diagnostics
+    assert "kind` is `missing`" in diagnostics
+    assert "--fix --fix-check installation.metadata" in template_sync
+    assert "does not inspect, fetch, or apply a template" in template_sync
+
+
 def test_contributor_guide_records_the_managed_stylesheet_release_contract() -> None:
-    guide = (ROOT / "docs" / "devcons" / "extension-internals.md").read_text(
-        encoding="utf-8"
-    )
+    guide = (ROOT / "docs" / "devcons" / "extension-internals.md").read_text(encoding="utf-8")
 
     for phrase in (
         "[Stylesheets](../stylesheets.md)",

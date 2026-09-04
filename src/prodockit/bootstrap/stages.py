@@ -38,7 +38,7 @@ import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from prodockit import mathjax, tools
+from prodockit import mathjax, shared_files, tools
 from prodockit.bootstrap.model import (
     MACOS,
     SSH_NO_PROMPT_OPTIONS,
@@ -88,6 +88,12 @@ VSCODE_EXTENSION_MIN_VERSIONS = {
 #: ``^1.100.0`` in its extension manifest, so an older editor can be present
 #: and runnable while being unable to install the editor this setup promises.
 VSCODE_MIN_VERSION = "1.100.0"
+
+#: The PDF renderer is a project dependency rather than a dependency of the
+#: Prodockit library. First-path bootstrap installs this floor explicitly so
+#: a lagging template mirror cannot leave a newly created project unable to
+#: build its PDF (prodockit-extensions#712).
+WEASYPRINT_MIN_VERSION = "69.0"
 
 #: ``git init -b`` arrived in Git 2.28. Bootstrap uses it when separating a
 #: new document from the template, so merely finding an older Git executable
@@ -3080,6 +3086,17 @@ def _check_project_env(context: Context) -> CheckResult:
             "WeasyPrint works in this run, but the project environment does not yet "
             "preserve Homebrew's library path for future shells"
         )
+    if context.guided and not context.config.source_url.strip():
+        try:
+            changed = shared_files.drift(shared_files.inspect(project))
+        except shared_files.SharedFileError as error:
+            return _wrong(f"the managed shared files cannot be checked - {error}")
+        if changed:
+            names = ", ".join(state.file.target for state in changed)
+            return _wrong(
+                "the first-path clone has managed files from an older Prodockit release: "
+                f"{names}"
+            )
     build_python = _project_build_python(project)
     environment_python = _project_environment_python(context) if build_python else None
     if (
@@ -3258,6 +3275,15 @@ def _plan_project_env(context: Context) -> Plan:
     if not python.exists() or rebuild:
         commands.append([sys.executable, "-m", "venv", str(venv)])
     commands.append([str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")])
+    if context.guided and not context.config.source_url.strip():
+        # The first path starts from a replaceable template checkout. Install
+        # the renderer and shared assets from Prodockit itself so correctness
+        # does not depend on every host's template mirror being up to date.
+        commands.append(
+            [str(python), "-m", "pip", "install", f"weasyprint>={WEASYPRINT_MIN_VERSION}"]
+        )
+        if shared_files.manifest_path(project).is_file():
+            commands.append([str(_venv_command(context, "pdk")), "shared-files", "--apply"])
     if context.guided and context.platform == MACOS:
         activate = venv / "bin" / "activate"
         library = _homebrew_library_path(context)

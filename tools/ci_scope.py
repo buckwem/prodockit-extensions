@@ -128,7 +128,9 @@ _PYTHON_ONLY_RUNTIME_FILES = {
 }
 
 _CI_ONLY_FILES = {
+    "tools/_diagnostics_repair_acceptance_driver.py",
     "tools/canonical_site_config.py",
+    "tools/diagnostics_repair_acceptance.py",
     "tools/render_documentation_diagrams.py",
 }
 

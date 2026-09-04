@@ -29,9 +29,111 @@ configuration section fails, `pdk config --check` provides the individual
 `zensical.toml` paths and complete source-project report.
 
 The default command remains read-only. If `installation.metadata` reports stale
-Prodockit or Zensical metadata, `pdk diag --fix` can quarantine only entries it
-can prove obsolete, then rerun distribution discovery and the complete
-diagnostic report. The explicit flag does not repair any other check.
+Prodockit or Zensical metadata, interactive `pdk diag --fix` can quarantine only
+entries it can prove obsolete, then rerun distribution discovery and the
+complete diagnostic report. It first prints the whole repair plan and requires
+a separate `Apply this repair? [y/N]:` response for every supported action. Only
+the exact response `y` or `Y` applies; every other response declines.
+
+Use `pdk diag --dry-run` to see every repair that could be considered without
+choosing an option, prompting, running a repair command, or changing anything.
+Where several versions or remediations are valid, it lists all of them and
+marks **Leave unchanged** as the default. Each option includes its warning,
+affected paths, prerequisites, network requirement, recovery boundary, and the
+public command or internal typed operation that could perform it.
+
+The repair registry classifies every stable check as confirmable, online,
+manual, ambiguous, prohibited, or not applicable. A source-level coverage guard
+rejects a new diagnostic without a disposition. Stage 2 added the shared
+transaction and rollback layer; Stage 3 adapted distribution metadata,
+declared shared files, and bounded inconsistent pins. Stages 4 and 5 add locked
+project-local renderer rebuilds and narrowly lossless TOML repairs. These use
+the existing `pins`, `shared-files`, `init-tools`, and `init-mathjax` services.
+Template metadata and updates remain manual: no diagnostic fix depends on
+`prodockit-template`.
+
+Each confirmed action creates
+`.prodockit-quarantine/diagnostics/<UTC timestamp>/manifest.json` inside its
+permitted boundary. The manifest records the stable repair/check/choice IDs,
+the explicit confirmation, Prodockit version, original and backup paths, and
+SHA-256 hashes without recording file contents, environment variables, or
+credentials. Metadata retains the stricter active-virtual-environment boundary.
+Each target must resolve within that boundary and must not be a symlink. A
+failed verification restores that action; a rollback failure stops the run and
+reports both the original and quarantine locations for manual recovery.
+
+### Recover a confirmed repair
+
+Normally no manual recovery is needed: a failed postcondition restores the
+current action automatically, while earlier confirmed actions remain applied.
+Keep the quarantine until the website and PDF have been rebuilt and reviewed.
+
+If diagnostics reports `rollback-failed`, stop making changes and open the
+reported `manifest.json`. Its `entries` are the recovery instructions:
+
+1. Confirm the manifest's `status`, action ID, project root, and UTC timestamp
+   identify the failed action.
+2. For an entry whose `backup` is present, verify the quarantined path's
+   SHA-256 against `sha256`. Move the current `original` aside if it exists,
+   then copy the backup back to that exact project-relative original path.
+3. For an entry whose `kind` is `missing` and `operation` is `create`, remove
+   only the named original path that the repair created.
+4. Rerun `pdk diag`, then rebuild and inspect both website and PDF output.
+5. Retain the manifest until the repaired project has been reviewed and
+   committed. Never restore a backup into a different project or environment.
+
+Distribution-metadata manifests live beneath the active virtual environment,
+not the project. Recreate that environment instead of manually restoring it if
+the recorded prefix no longer matches the interpreter running `pdk`.
+
+`--fix` refuses redirected standard input and CI use before inspection or
+mutation. Use `pdk diag --dry-run --json` there. There is deliberately no blanket
+confirmation option.
+
+For `dependencies.shared-files`, each missing target has a create-or-leave
+decision. Each changed target offers a read-only expected/actual hash review,
+replacement from the installed release, or leave unchanged. Replacement warns
+before the decision and confirmation because it changes existing bytes. The
+adapter passes only the selected state to the existing typed shared-file
+service; it cannot touch an undeclared file.
+
+For `dependencies.pins`, diagnostics only offers versions already detected in
+the project's declarations. If one `==` build pin uniquely establishes the
+reviewed version, that is the sole alignment option. If exact pins conflict,
+every detected version remains a numbered option and **Leave unchanged** is the
+default. Selection is not confirmation. The adapter rediscovers the package,
+checks the inspected file fingerprint, backs up every file it will change, and
+delegates one package and version to the existing typed pin service. It never
+selects an online latest release.
+
+For `renderer.mermaid` and `renderer.mathjax`, installation is offered only by
+`pdk diag --online --fix`. Node and npm must pass, the project must use the
+standard local renderer path, and `package.json` plus `package-lock.json` must
+be valid, mutually consistent, and contain no author lifecycle scripts. A
+missing pair can be created by the packaged `init-tools` scaffold; a partial,
+custom, unpinned, or symlinked pair is refused. After confirmation the adapter
+quarantines `node_modules`, runs immutable `npm ci`, and probes a real render.
+MathJax then uses `init-mathjax` to regenerate the project-local website assets.
+The warning notes that locked third-party install scripts can execute.
+
+For `project.configuration`, automatic edits are restricted to
+`zensical.toml`. Each unique spelling correction, obsolete index-setting move,
+syntax-proven Prodockit extension, or recognized existing `pdk.css`/MathJax
+asset is a separate default-No decision and confirmation. The adapter binds
+the plan to the current file hash, changes one identified TOML construct,
+preserves comments and unrelated formatting, parses the result, and confirms
+that finding is gone. YAML, invalid syntax or values, missing author content,
+unknown assets, duplicate destinations, and ambiguous paths remain manual.
+
+For structured preview output, use:
+
+```bash
+pdk diag --dry-run --json
+```
+
+Schema version 2 adds repair policy to every check and includes unselected
+dry-run choices as command argument arrays. It never emits a shell command
+containing credentials.
 
 ## Environment and installation
 
@@ -64,14 +166,14 @@ author action.
 | Problem reported for `project.configuration` | Author remediation |
 |---|---|
 | The configuration cannot be loaded | Confirm the file exists and is valid TOML or YAML. Pass a non-standard location with `pdk diag -f PATH`. Correct the first parser error before investigating later settings. |
-| An obsolete Prodockit setting | Replace it with the setting named by `pdk config --check`; do not keep both old and new names. |
-| An unknown or misspelled Prodockit setting or extension | Use the suggested spelling. If the setting belongs to another Zensical extension, keep it in that extension's own table rather than a `prodockit.*` table. |
+| An obsolete Prodockit setting | `pdk diag --fix` can move the two legacy index settings when the destination is unambiguous. Otherwise replace it with the setting named by `pdk config --check`; do not keep both old and new names. |
+| An unknown or misspelled Prodockit setting or extension | `pdk diag --fix` offers a rename only when one supported spelling is uniquely identified. Otherwise use the report to decide manually. If the setting belongs to another Zensical extension, keep it in that extension's own table rather than a `prodockit.*` table. |
 | A setting has the wrong type or an invalid value | Change it to the boolean, string, list, or non-empty value described by `pdk config --check`. |
 | A stylesheet, JavaScript file, navigation page, Markdown image, or configured CSL file is missing | Restore the referenced file or correct its path relative to `zensical.toml`. Generated MathJax assets should be restored with `pdk init-mathjax`; do not commit third-party generated files when the project intentionally ignores them. |
-| A local `.css` or `.js` asset exists but is not configured | Add the stylesheet to `project.extra_css` or `project.extra.pdf_extra_css`, or add the script to `project.extra_javascript`. If the file is obsolete, remove it instead. `pdk template-sync` repairs the standard template asset lists and creates missing author starter files. |
+| A local `.css` or `.js` asset exists but is not configured | `pdk diag --fix` can add only a recognized existing Prodockit stylesheet or MathJax asset. For every other file, choose whether to configure or remove it. |
 | A configured Mermaid, MathJax, Pandoc, browser, or other renderer is unavailable | Install the project's pinned toolchain with `pdk init-tools`, or correct the configured executable/script path. The rendering-tool section identifies the missing component separately. |
 | Back-of-book index generation is enabled but its optional PyMuPDF package is missing or cannot import | Install the project with the index extra: `python -m pip install "prodockit[index]"`. If it is already installed, reinstall it in the active environment so its native extension matches the Python and operating-system architecture. |
-| Prodockit syntax is present while its extension is disabled | Enable the named `prodockit.*` extension in `zensical.toml`, or remove syntax the project no longer uses. |
+| Prodockit syntax is present while its extension is disabled | `pdk diag --fix` can enable the uniquely identified extension in TOML. Otherwise enable it manually or remove syntax the project no longer uses. |
 /// table-caption | <
     attrs: {id: tab-diagnostics-project-configuration}
 
@@ -117,9 +219,9 @@ install the PDF toolchain merely to make diagnostics pass.
 | `renderer.weasyprint` | Importing WeasyPrint failed, including a missing Pango/Cairo native library. | Run `python -c "import weasyprint; print(weasyprint.__version__)"` in the active environment. Install WeasyPrint and the platform native libraries described in the installation guide; ensure the Python package and native architecture match. |
 | `renderer.node` | Node is missing or cannot report its version. | Install the project's supported Node version, reopen the terminal, and confirm with `node --version`. |
 | `renderer.npm` | npm is missing or cannot report its version, even if Node itself exists. | Repair or reinstall the Node distribution so `npm --version` works. Avoid mixing Node and npm from different installations on `PATH`. |
-| `renderer.mermaid` | Authored Markdown uses a Mermaid fence but neither the project-local `mmdc` nor a usable command on `PATH` exists, or a minimal SVG render fails. The render probe also exercises Puppeteer and its browser. Preserving Zensical's unused Mermaid default does not make the renderer required. | Remove the incomplete `tools/mermaid/node_modules` directory and rerun `prodockit adopt --apply --mermaid`, or run `pdk init-tools` and reinstall its declared Node packages. If the detail names a browser failure, install Chrome/Chromium or correct `PUPPETEER_EXECUTABLE_PATH`. |
-| `renderer.browser` | An explicit Chrome or Chromium executable was not found, could not run, or reported no version. Absence remains a warning because Mermaid CLI may use its own downloaded browser; an explicit unusable browser is a failure when Mermaid is required. | If the Mermaid render probe succeeds, no action is required for an absent explicit browser. Otherwise install Chrome/Chromium or set `PUPPETEER_EXECUTABLE_PATH` to its executable, confirm with `chromium --version`, then rerun diagnostics. |
-| `renderer.mathjax` | Authored Markdown uses mathematical notation but `tools/mathjax/tex2svg.js` is missing or cannot convert a minimal expression using the installed `mathjax-full` inputs. Preserving Zensical's unused Arithmatex default does not make the renderer required. | Remove an incomplete `tools/mathjax/node_modules` directory, run `pdk init-tools`, and reinstall its declared Node packages. If only website JavaScript is absent, run `pdk init-mathjax` after the install. Do not hand-edit generated vendor files. |
+| `renderer.mermaid` | Authored Markdown uses a Mermaid fence but neither the project-local `mmdc` nor a usable command on `PATH` exists, or a minimal SVG render fails. The render probe also exercises Puppeteer and its browser. | With standard locked project tooling, use `pdk diag --online --fix --fix-check renderer.mermaid`. Custom paths and manifests require manual review. If the detail names a browser failure, install Chrome/Chromium or correct `PUPPETEER_EXECUTABLE_PATH`. |
+| `renderer.browser` | An explicit Chrome or Chromium executable was not found, or its configured path does not name a file. Diagnostics deliberately does not launch a graphical browser to query its version; the Mermaid render probe is the functional check. Absence remains a warning because Mermaid CLI may use its own downloaded browser. | If the Mermaid render probe succeeds, no action is required for an absent explicit browser. Otherwise install Chrome/Chromium or set `PUPPETEER_EXECUTABLE_PATH` to its executable, then rerun diagnostics. |
+| `renderer.mathjax` | Authored Markdown uses mathematical notation but `tools/mathjax/tex2svg.js` is missing or cannot convert a minimal expression using the installed `mathjax-full` inputs. | With standard locked project tooling, use `pdk diag --online --fix --fix-check renderer.mathjax`; it also regenerates website assets. Custom paths and manifests require manual review. |
 | `renderer.mermaid-security` | Offline diagnostics explicitly skip the advisory lookup. With `--online`, a warning means npm found a moderate-or-higher production dependency advisory, npm is missing, or the advisory service could not be queried. This check is separate from `renderer.mermaid`: a renderer can execute correctly while depending on vulnerable packages. | Run `npm audit --omit=dev` in `tools/mermaid`, review the advisory and update the committed manifest and lockfile together. Rerun `npm ci --legacy-peer-deps`, confirm `pdk diag` still renders Mermaid, then rerun `pdk diag --online`. For an unavailable lookup, retry online later; the default offline diagnostics make no network request. |
 | `renderer.inspection` | An operating-system error prevented the rendering tools from being inspected. | Correct the path or permissions named in the detail. Run each shown executable with `--version`, then rerun `pdk diag --verbose`. |
 | `renderer.security-inspection` | An operating-system, decoding, or subprocess error prevented the Mermaid advisory check from completing. Other diagnostic sections still run. | Confirm `npm audit --omit=dev --json` works in `tools/mermaid`, correct the reported environment or permission problem, then rerun `pdk diag --online --verbose`. |

@@ -38,6 +38,45 @@ requests rather than here.
 - **Publishing:** the maintained template supplies reviewed GitHub Pages and
   GitLab Pages workflows for the website and PDF.
 
+## Unreleased
+
+- Added a repair-disposition registry and read-only `pdk diag --dry-run`
+  preview. It lists every bounded repair option, warning, affected path,
+  recovery boundary, and command that could be used without choosing or
+  executing one. Independent project repairs prefer Adoption and the existing
+  focused Prodockit commands; no diagnostic fix depends on
+  `prodockit-template`. Diagnostic JSON schema version 2 exposes the same
+  policy and unselected choices for automation.
+- Added the generic diagnostic repair transaction and adapted stale
+  distribution metadata to it. Interactive `pdk diag --fix` now prints its
+  complete plan, repeats warnings, and requires an exact default-No confirmation
+  for each supported mutation. Confirmed actions receive an atomic recovery
+  manifest with hashes; verification failures roll back, redirected input is
+  refused, and JSON mode keeps prompts off stdout.
+- Added Stage 3 diagnostic repairs for individually declared shared files and
+  inconsistent pins. Shared files can be reviewed, created, or restored from
+  the installed release; pins can only align to an already detected bounded
+  version. Each decision remains separate from its exact-`y` confirmation,
+  uses the existing typed service, is atomically written and verified, and is
+  independently recoverable without consulting a template. Repair output now
+  uses bootstrap's phase boundaries, stage headings, and warning/failure colours.
+- Added Stage 4 locked renderer recovery. With explicit `--online` and two
+  default-No decisions, diagnostics can rebuild project-local Mermaid or
+  MathJax dependencies using immutable `npm ci`, regenerate MathJax website
+  assets, verify a real render, and roll back on failure. Custom paths,
+  partial or unpinned manifests, author lifecycle scripts, and symlinks are
+  refused.
+- Added Stage 5 narrowly lossless `zensical.toml` repairs for uniquely
+  suggested Prodockit spellings, obsolete index settings, extensions proved
+  necessary by author syntax, and recognized existing Prodockit assets. Each
+  edit preserves unrelated formatting and comments, verifies the parsed
+  result, and remains independent of `prodockit-template`.
+- Completed Stage 6 with Ubuntu, Windows, and macOS diagnostic-repair
+  acceptance coverage for fully repairable, mixed, and ambiguous projects;
+  renderer rollback and MathJax regeneration tests; UTF-8, CRLF, and paths
+  containing spaces; and complete author, recovery, JSON compatibility, and
+  template-sync preflight guidance.
+
 ## 0.57.0 (2026-09-03)
 
 - Added an explicit `pdk diag --fix` repair for unambiguous stale Prodockit

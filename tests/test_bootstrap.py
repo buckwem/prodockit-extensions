@@ -59,6 +59,7 @@ from prodockit.bootstrap.stages import (
     VSCODE_EXTENSION_MIN_VERSIONS,
     VSCODE_EXTENSIONS,
     VSCODE_MIN_VERSION,
+    WEASYPRINT_MIN_VERSION,
 )
 
 
@@ -3603,6 +3604,85 @@ def test_requirements_are_installed_by_the_projects_own_interpreter(tmp_path: Pa
     assert install[0] == str(project / ".venv" / "bin" / "python")
     assert install[1:4] == ["-m", "pip", "install"]
     assert install[-1] == str(project / "requirements.txt")
+
+
+def test_first_path_project_environment_is_independent_of_template_dependencies(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+
+    plan = next(s for s in STAGES if s.id == "project-env").plan(_context(tmp_path))
+
+    assert [
+        str(project / ".venv" / "bin" / "python"),
+        "-m",
+        "pip",
+        "install",
+        f"weasyprint>={WEASYPRINT_MIN_VERSION}",
+    ] in plan.commands
+
+
+def test_first_path_project_environment_refreshes_declared_shared_files(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    (project / ".prodockit-shared-files.toml").write_text(
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\ntarget = "docs/stylesheets/pdk.css"\n',
+        encoding="utf-8",
+    )
+
+    plan = next(s for s in STAGES if s.id == "project-env").plan(_context(tmp_path))
+
+    assert [str(project / ".venv" / "bin" / "pdk"), "shared-files", "--apply"] in plan.commands
+
+
+def test_existing_repository_project_environment_preserves_its_dependency_choices(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    context = _context(tmp_path, source_url="group/report-al01234")
+
+    plan = next(s for s in STAGES if s.id == "project-env").plan(context)
+    flat = "\n".join(" ".join(command) for command in plan.commands)
+
+    assert "weasyprint>=" not in flat
+    assert "shared-files --apply" not in flat
+
+
+def test_first_path_environment_rejects_stale_managed_files(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    (project / ".prodockit-shared-files.toml").write_text(
+        'version = 1\n\n[[files]]\nsource = "pdk.css"\ntarget = "docs/stylesheets/pdk.css"\n',
+        encoding="utf-8",
+    )
+    stylesheet = project / "docs" / "stylesheets" / "pdk.css"
+    stylesheet.parent.mkdir(parents=True)
+    stylesheet.write_text("an older managed stylesheet\n", encoding="utf-8")
+    python = project / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    (python.parent / "activate").touch()
+    runner = FakeRunner(
+        {
+            "-m pip --version": CommandResult(0, "pip 26.0.1"),
+            "import zensical": CommandResult(0),
+            "import weasyprint": CommandResult(0),
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "project-env").check(
+        _context(tmp_path, platform=UBUNTU, runner=runner)
+    )
+
+    assert result.status is Status.WRONG
+    assert "older Prodockit release" in result.detail
+    assert "docs/stylesheets/pdk.css" in result.detail
 
 
 def test_project_environment_reports_a_different_build_python_without_blocking(
