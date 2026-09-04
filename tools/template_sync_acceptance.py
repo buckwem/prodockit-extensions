@@ -226,8 +226,17 @@ def scenario(
     python = acceptance.venv_python(environment_root)
     template, old = prepare_template(root, target)
     project = prepare_project(root, python, candidate, old)
+    # Setup needs the candidate to run Adopt, but the scenario itself must
+    # begin with every package file from the deliberately older/newer wheel.
+    # Windows pip can retain files across a rapid ``--force-reinstall``;
+    # uninstalling first makes the starting-code boundary explicit and lets
+    # the loaded-version assertion below prove it really happened.
     acceptance.run(
-        [str(python), "-m", "pip", "install", "--force-reinstall", "--no-deps", str(starting)],
+        [str(python), "-m", "pip", "uninstall", "--yes", "prodockit"],
+        cwd=root,
+    )
+    acceptance.run(
+        [str(python), "-m", "pip", "install", "--no-deps", str(starting)],
         cwd=root,
     )
     before = installed_version(python, root)

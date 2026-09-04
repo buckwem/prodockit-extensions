@@ -21,7 +21,7 @@ def test_template_sync_flushes_progress_before_fresh_process(tmp_path, monkeypat
             flushed.append(self.name)
 
     streams = {"stdout": Stream("stdout"), "stderr": Stream("stderr")}
-    monkeypatch.setattr(cli.click, "get_text_stream", lambda name: streams[name])
+    monkeypatch.setattr(cli, "get_text_stream", lambda name: streams[name])
 
     def run(command, *, cwd, check):
         assert flushed == ["stdout", "stderr"]

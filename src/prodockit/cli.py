@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Literal, ParamSpec, Protocol, TypeVar, cast
 
 import click
+from click.utils import get_text_stream
 
 import prodockit
 from prodockit import __version__
@@ -3570,7 +3571,7 @@ def _run_template_sync_resume(command: Sequence[str], project: pathlib.Path) -> 
     # ``sys`` streams: the wrapper owns the pending encoded text when stdout
     # is redirected by a CI harness.
     for name in ("stdout", "stderr"):
-        _flush_template_sync_stream(click.get_text_stream(name))
+        _flush_template_sync_stream(get_text_stream(name))
     return subprocess.run(list(command), cwd=project, check=False).returncode
 
 
