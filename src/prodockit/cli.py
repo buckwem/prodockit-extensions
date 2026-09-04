@@ -30,7 +30,7 @@ import threading
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Literal, ParamSpec, TypeVar
+from typing import Any, Literal, ParamSpec, Protocol, TypeVar, cast
 
 import click
 
@@ -3527,6 +3527,16 @@ _TEMPLATE_SYNC_PHASES = (
 )
 
 
+class _Flushable(Protocol):
+    def flush(self) -> object: ...
+
+
+def _flush_template_sync_stream(stream: object) -> None:
+    """Bridge Click's old ``TextIO`` and new ``object`` return annotations."""
+
+    cast(_Flushable, stream).flush()
+
+
 def _template_sync_phase_heading(number: int) -> None:
     """Use bootstrap's phase boundary for one coherent update command."""
 
@@ -3560,10 +3570,7 @@ def _run_template_sync_resume(command: Sequence[str], project: pathlib.Path) -> 
     # ``sys`` streams: the wrapper owns the pending encoded text when stdout
     # is redirected by a CI harness.
     for name in ("stdout", "stderr"):
-        flush = getattr(click.get_text_stream(name), "flush", None)
-        if not callable(flush):  # pragma: no cover - every Click stream flushes
-            raise TypeError(f"Click {name} stream cannot be flushed")
-        flush()
+        _flush_template_sync_stream(click.get_text_stream(name))
     return subprocess.run(list(command), cwd=project, check=False).returncode
 
 
