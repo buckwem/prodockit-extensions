@@ -755,13 +755,64 @@ def test_seal_revokes_key_before_rejecting_bad_candidate(tmp_path: Path) -> None
     client.destination_refs = {"refs/heads/main": COMMIT}
     report = candidate_report(tmp_path / "candidate.json", passed=False)
 
-    with pytest.raises(lifecycle.LifecycleError, match="differs from the reset handoff"):
+    with pytest.raises(
+        lifecycle.LifecycleError,
+        match="candidate failure report has an invalid closed schema",
+    ):
         lifecycle.seal(
             client=client,
             handoff=handoff,
             candidate_report=report,
             workflow_run_id=42,
             workflow_url=("https://github.com/buckwem/prodockit-extensions/actions/runs/42"),
+            now=datetime(2026, 9, 1, 12, 15, tzinfo=timezone.utc),
+        )
+
+    assert client.keys == []
+    assert client.repository is None
+
+
+def test_seal_preserves_a_closed_candidate_failure_reason_after_cleanup(
+    tmp_path: Path,
+) -> None:
+    client = FakeGitHub()
+    handoff = perform_reset(client)
+    report = tmp_path / "candidate.json"
+    report.write_text(
+        json.dumps(
+            {
+                "passed": False,
+                "provider": "github",
+                "repository": state.GITHUB_PATH,
+                "candidate_version": handoff.candidate_version,
+                "wheel_sha256": handoff.wheel_sha256,
+                "source_refs_digest": "2" * 64,
+                "started_at_utc": "2026-09-04T15:09:00+00:00",
+                "finished_at_utc": "2026-09-04T15:09:02+00:00",
+                "failure": "the source refs differ from the provider reset handoff",
+                "write_outcome": "not pushed",
+                "source_refs_unchanged": True,
+                "manual_provider_review_required": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        lifecycle.LifecycleError,
+        match=(
+            "GitHub candidate failed: the source refs differ from the provider "
+            "reset handoff; write outcome: not pushed"
+        ),
+    ):
+        lifecycle.seal(
+            client=client,
+            handoff=handoff,
+            candidate_report=report,
+            workflow_run_id=42,
+            workflow_url=(
+                "https://github.com/buckwem/prodockit-extensions/actions/runs/42"
+            ),
             now=datetime(2026, 9, 1, 12, 15, tzinfo=timezone.utc),
         )
 

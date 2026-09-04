@@ -430,8 +430,26 @@ def test_remote_ref_query_retains_bounded_transient_attempt_history(
     assert attempts == 5
 
 
-@pytest.mark.parametrize("provider", ["github", "surrey"])
-def test_source_snapshot_matches_rest_branches_and_peeled_tags(provider: str) -> None:
+def test_github_source_snapshot_matches_rest_tag_objects() -> None:
+    refs = {
+        "refs/heads/main": "1" * 40,
+        "refs/heads/topic": "2" * 40,
+        "refs/tags/v1^{}": "6" * 40,
+        "refs/tags/v1": "3" * 40,
+        "refs/tags/v2": "7" * 40,
+        "refs/pull/12/head": "4" * 40,
+        "refs/merge-requests/7/head": "5" * 40,
+    }
+
+    assert live.stable_source_refs(refs, provider="github") == {
+        "refs/heads/main": "1" * 40,
+        "refs/heads/topic": "2" * 40,
+        "refs/tags/v1": "3" * 40,
+        "refs/tags/v2": "7" * 40,
+    }
+
+
+def test_surrey_source_snapshot_matches_rest_peeled_tags() -> None:
     refs = {
         "refs/heads/main": "1" * 40,
         "refs/heads/topic": "2" * 40,
@@ -442,7 +460,7 @@ def test_source_snapshot_matches_rest_branches_and_peeled_tags(provider: str) ->
         "refs/merge-requests/7/head": "5" * 40,
     }
 
-    assert live.stable_source_refs(refs, provider=provider) == {
+    assert live.stable_source_refs(refs, provider="surrey") == {
         "refs/heads/main": "1" * 40,
         "refs/heads/topic": "2" * 40,
         "refs/tags/v1": "6" * 40,

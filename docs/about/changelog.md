@@ -39,6 +39,10 @@ requests rather than here.
   observations and prerequisite downloads now share bounded transient-failure
   handling, retain prior failure evidence, and reconcile ambiguous GitHub
   mutations without blindly repeating writes.
+- Aligned annotated-tag snapshots across the GitHub live-provider controller
+  and candidate, allowed a deliberately removed Surrey test project to be
+  recreated from historical retained state, and preserved the candidate's
+  original failure reason after trusted cleanup.
 - Changed `prodockit pins` so every standard interactive suggestion uses the
   complete software combination tested by the installed Prodockit release,
   including Zensical, WeasyPrint, Markdown, PyMdown Extensions, Pandoc, and

@@ -663,6 +663,41 @@ def test_phase_two_report_requires_exact_matching_paths(tmp_path: Path) -> None:
         lifecycle.phase_two_report(report, handoff)
 
 
+def test_phase_two_report_preserves_a_closed_candidate_failure_reason(
+    tmp_path: Path,
+) -> None:
+    handoff = reset_handoff()
+    report = tmp_path / "candidate-failure.json"
+    report.write_text(
+        json.dumps(
+            {
+                "passed": False,
+                "provider": "surrey",
+                "repository": state.SURREY_PATH,
+                "candidate_version": handoff.candidate_version,
+                "wheel_sha256": handoff.wheel_sha256,
+                "source_refs_digest": SOURCE_REFS_SHA,
+                "started_at_utc": "2026-09-04T15:09:00+00:00",
+                "finished_at_utc": "2026-09-04T15:09:02+00:00",
+                "failure": "the source refs differ from the provider reset handoff",
+                "write_outcome": "not pushed",
+                "source_refs_unchanged": True,
+                "manual_provider_review_required": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        lifecycle.LifecycleError,
+        match=(
+            "Surrey candidate failed: the source refs differ from the provider "
+            "reset handoff; write outcome: not pushed"
+        ),
+    ):
+        lifecycle.phase_two_report(report, handoff)
+
+
 def test_reset_refuses_an_existing_project_without_retained_proof(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1094,6 +1129,66 @@ def test_next_reset_requires_and_consumes_the_exact_retained_state(
     assert ("POST", "/projects") in client.mutations
 
 
+def test_reset_treats_a_valid_retained_record_for_an_absent_project_as_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture_path = write_fixture(tmp_path / "fixture.json")
+    fixture = state.LifecycleFixture.read(fixture_path)
+    client = FakeGitLab(fixture)
+    previous = state.RetainedState(
+        schema=1,
+        provider="surrey",
+        project_id=403,
+        path_with_namespace=state.SURREY_PATH,
+        visibility="private",
+        head=COMMIT,
+        tree=TREE,
+        refs={"refs/heads/main": COMMIT},
+        destination_deploy_key_enabled=False,
+        source_refs_digest=SOURCE_REFS_SHA,
+        candidate_version=VERSION,
+        wheel_sha256=WHEEL_SHA,
+        sealed_at_utc="2026-08-31T18:00:00+00:00",
+    )
+    previous_path = tmp_path / "previous.json"
+    state.write_private_json(previous_path, previous.document())
+    monkeypatch.setattr(
+        lifecycle,
+        "inspect_wheel",
+        lambda *_args: SimpleNamespace(version=VERSION, sha256=WHEEL_SHA),
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "validate_controller_checkout",
+        lambda *_args, **_kwargs: CONTROLLER_COMMIT,
+    )
+    monkeypatch.setattr(lifecycle, "validate_public_key", lambda *_args: "ssh-ed25519 AAAA")
+    monkeypatch.setattr(
+        lifecycle,
+        "public_key_fingerprint",
+        lambda _record: state.SURREY_DEPLOY_KEY_FINGERPRINT,
+    )
+    args = Namespace(
+        fixture=fixture_path,
+        previous_state=previous_path,
+        deploy_public_key=tmp_path / "key.pub",
+        wheel=tmp_path / "candidate.whl",
+        expected_wheel_sha256=WHEEL_SHA,
+        handoff=tmp_path / "handoff.json",
+        audit_report=tmp_path / "audit.json",
+        confirm_project_reset=state.SURREY_PATH,
+    )
+
+    lifecycle.reset_project(args, client)
+
+    assert client.project is not None
+    assert client.project["id"] == 404
+    assert not any(method == "DELETE" for method, _path in client.mutations)
+    assert ("POST", "/projects") in client.mutations
+    audit = json.loads(args.audit_report.read_text(encoding="utf-8"))
+    assert audit["before"] == "absent-after-retained"
+
+
 def test_unexpected_provider_content_blocks_deletion(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1290,6 +1385,33 @@ def test_recovery_revoke_removes_only_the_reviewed_destination_key(
     assert client.deploy_keys == []
     audit = json.loads(args.audit_report.read_text(encoding="utf-8"))
     assert audit["phase"] == "revoke"
+    assert audit["destination_deploy_key_enabled"] is False
+
+
+def test_recovery_revoke_records_an_already_absent_project_as_safe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture_path = write_fixture(tmp_path / "fixture.json")
+    fixture = state.LifecycleFixture.read(fixture_path)
+    client = FakeGitLab(fixture)
+    monkeypatch.setattr(
+        lifecycle,
+        "validate_controller_checkout",
+        lambda *_args, **_kwargs: CONTROLLER_COMMIT,
+    )
+    args = Namespace(
+        fixture=fixture_path,
+        handoff=None,
+        audit_report=tmp_path / "recovery-audit.json",
+        release_commit=CONTROLLER_COMMIT,
+    )
+
+    lifecycle.revoke_destination_access(args, client)
+
+    assert not client.mutations
+    audit = json.loads(args.audit_report.read_text(encoding="utf-8"))
+    assert audit["passed"] is True
+    assert audit["cleanup_outcome"] == "project-already-absent"
     assert audit["destination_deploy_key_enabled"] is False
 
 

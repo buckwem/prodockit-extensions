@@ -40,3 +40,61 @@ def test_git_read_classifier_separates_network_from_identity_errors() -> None:
     )
     assert not resilience.transient_command_read("Permission denied (publickey)")
     assert not resilience.transient_command_read("Repository not found")
+
+
+def test_candidate_failure_report_retains_a_bounded_reason_after_cleanup() -> None:
+    value = {
+        "passed": False,
+        "provider": "github",
+        "repository": "buckwem/bootstrap-release-gate",
+        "candidate_version": "0.58.0",
+        "wheel_sha256": "1" * 64,
+        "source_refs_digest": "2" * 64,
+        "started_at_utc": "2026-09-04T15:09:00+00:00",
+        "finished_at_utc": "2026-09-04T15:09:02+00:00",
+        "failure": "the source refs differ\nfrom the provider reset handoff",
+        "write_outcome": "not pushed",
+        "source_refs_unchanged": True,
+        "manual_provider_review_required": True,
+    }
+
+    assert resilience.candidate_failure_detail(
+        value,
+        provider="github",
+        repository="buckwem/bootstrap-release-gate",
+        candidate_version="0.58.0",
+        wheel_sha256="1" * 64,
+    ) == (
+        "the source refs differ from the provider reset handoff; "
+        "write outcome: not pushed"
+    )
+
+
+def test_candidate_failure_report_rejects_identity_substitution() -> None:
+    value = {
+        "passed": False,
+        "provider": "github",
+        "repository": "buckwem/another-repository",
+        "candidate_version": "0.58.0",
+        "wheel_sha256": "1" * 64,
+        "source_refs_digest": None,
+        "started_at_utc": "2026-09-04T15:09:00+00:00",
+        "finished_at_utc": "2026-09-04T15:09:02+00:00",
+        "failure": "failed",
+        "write_outcome": "not attempted",
+        "source_refs_unchanged": None,
+        "manual_provider_review_required": True,
+    }
+
+    try:
+        resilience.candidate_failure_detail(
+            value,
+            provider="github",
+            repository="buckwem/bootstrap-release-gate",
+            candidate_version="0.58.0",
+            wheel_sha256="1" * 64,
+        )
+    except ValueError as error:
+        assert str(error) == "candidate failure report differs from the reset handoff"
+    else:
+        raise AssertionError("substituted failure report was accepted")
