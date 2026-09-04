@@ -31,6 +31,33 @@ from prodockit.adopt import (
     load_manifest,
 )
 from prodockit.cli import main
+from prodockit.pins import TESTED_VERSIONS
+
+
+@pytest.fixture(autouse=True)
+def _supported_toolchain(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep adoption unit tests independent of the interpreter running pytest.
+
+    Dedicated toolchain tests below exercise mismatches. These configuration
+    tests describe an already-supported active environment.
+    """
+
+    monkeypatch.setattr(
+        "prodockit.toolchain.installed_python_version",
+        lambda: TESTED_VERSIONS["python"],
+    )
+    monkeypatch.setattr(
+        "prodockit.toolchain.installed_distribution_version",
+        lambda package: TESTED_VERSIONS[package],
+    )
+    monkeypatch.setattr(
+        "prodockit.toolchain._fresh_distribution_versions",
+        lambda packages: {package: TESTED_VERSIONS[package] for package in packages},
+    )
+    monkeypatch.setattr(
+        "prodockit.toolchain.installed_pandoc_version",
+        lambda: TESTED_VERSIONS["pandoc"],
+    )
 
 
 def _project(
@@ -75,7 +102,7 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
 
     assert result.exit_code == 0, result.output
     assert "Phase 1/4 — Assess" in result.output
-    assert "Stage [3/7] Prodockit dependency" in result.output
+    assert "Stage [3/7] Supported toolchain" in result.output
     assert "\x1b[94m" in result.output
     assert "\x1b[34m" in result.output
     assert "\x1b[96m" not in result.output
@@ -85,6 +112,7 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     assert "WAIT  Ready for local build" in result.output
     assert "apply the selected integration stages" in result.output
     assert "zensical build --clean --strict" in result.output
+    assert "active project environment and local project files" in result.output
     assert "Git, SSH, remotes, editors, commits and pushes" in result.output
 
 
@@ -254,7 +282,7 @@ def test_assessment_upgrades_an_older_prodockit_floor(tmp_path: Path) -> None:
     dependency = next(step for step in assess(project, AdoptOptions()) if step.id == "dependency")
 
     assert dependency.status == "missing"
-    assert f"prodockit>={__version__}" in dependency.detail
+    assert "align version declarations" in dependency.detail
 
     ensure_requirement(project)
     assert f"prodockit>={__version__}" in (project / "requirements.txt").read_text(
@@ -262,7 +290,7 @@ def test_assessment_upgrades_an_older_prodockit_floor(tmp_path: Path) -> None:
     )
 
 
-def test_assessment_keeps_a_newer_prodockit_floor(tmp_path: Path) -> None:
+def test_assessment_aligns_a_newer_prodockit_floor(tmp_path: Path) -> None:
     project = _project(tmp_path)
     (project / "requirements.txt").write_text(
         "prodockit>=999.0.0\n", encoding="utf-8"
@@ -270,7 +298,8 @@ def test_assessment_keeps_a_newer_prodockit_floor(tmp_path: Path) -> None:
 
     dependency = next(step for step in assess(project, AdoptOptions()) if step.id == "dependency")
 
-    assert dependency.status == "ok"
+    assert dependency.status == "missing"
+    assert "align version declarations" in dependency.detail
 
 
 def test_assessment_refreshes_the_managed_stylesheet(tmp_path: Path) -> None:
@@ -1057,7 +1086,7 @@ markdown_extensions:
     config = (project / "mkdocs.yml").read_text(encoding="utf-8")
     assert "  pymdownx.superfences:\n    custom_fences:" in config
     assert "      - name: mermaid" in config
-    assert f"prodockit>={__version__}" in (project / "requirements.txt").read_text(
+    assert f"prodockit=={__version__}" in (project / "requirements.txt").read_text(
         encoding="utf-8"
     )
 

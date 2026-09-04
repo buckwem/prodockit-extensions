@@ -32,9 +32,9 @@ Follow these steps from the project root—the directory containing
 //// step | Check how the project was prepared
 
 There are three valid setup routes. Bootstrap installs and checks the PDF
-toolchain. Adoption adds prodockit to an established document but leaves
-machine-level PDF dependencies to that environment. Manual installation gives
-the author direct control of every dependency. Use the matching row under
+toolchain. Adoption aligns its active Python packages and project-local Pandoc
+but leaves machine-level native libraries and fonts to that environment.
+Manual installation gives the author direct control of every dependency. Use the matching row under
 [Prepare the PDF tools](#pdf-requirements) before continuing.
 
 ////
@@ -91,7 +91,7 @@ installed depends on the route used to prepare the project:
 | Setup route {: width="28%" } | PDF preparation |
 |---|---|
 | [Bootstrap](devcons/bootstrap.md) | `prodockit bootstrap --apply` installs and verifies the required PDF tools. Continue with the verification commands below. |
-| [Adoption](adopt.md) | Adoption installs project-local Mermaid or maths renderers only when selected. Install Pandoc, WeasyPrint, its native Pango libraries, and any fonts this document requires by following the operating-system instructions below. |
+| [Adoption](adopt.md) | `prodockit adopt --apply` installs the supported WeasyPrint package and project-local Pandoc, plus Mermaid or maths renderers only when selected. Install WeasyPrint's native Pango libraries and the document fonts by following the operating-system instructions below. |
 | [Manual installation](installation.md) | Install the PDF dependencies the document uses by following the operating-system instructions below. |
 /// table-caption | <
     attrs: {id: tab-pdf-prepare-the-pdf-tools}

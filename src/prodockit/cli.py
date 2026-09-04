@@ -2972,6 +2972,11 @@ def _renderer_retry_warning(notice: RetryNotice) -> None:
     help="Apply the required stages, asking before each change.",
 )
 @click.option(
+    "--offline",
+    is_flag=True,
+    help="Use only the configured wheelhouse and validated native download cache.",
+)
+@click.option(
     "--mermaid/--no-mermaid",
     default=None,
     help="Include or omit Mermaid diagram rendering. Omitted unless selected.",
@@ -2990,6 +2995,7 @@ def adopt_command(
     configure: bool,
     dry_run: bool,
     apply: bool,
+    offline: bool,
     mermaid: bool | None,
     maths: bool | None,
     verbose: bool,
@@ -2998,8 +3004,8 @@ def adopt_command(
 
     Run this from the directory containing zensical.toml, zensical.yml,
     zensical.yaml, mkdocs.yml or mkdocs.yaml, with the project's virtual
-    environment active. The command
-    changes only local project files:
+    environment active. The command changes the active project's packages and
+    local project files:
     it does not configure Git, SSH, an editor, a remote repository or Pages,
     and it never commits or pushes.
 
@@ -3040,14 +3046,19 @@ def adopt_command(
         return
 
     try:
-        steps = assess_adoption(root, options, retry_reporter=_renderer_retry_warning)
+        steps = assess_adoption(
+            root,
+            options,
+            retry_reporter=_renderer_retry_warning,
+            offline=offline,
+        )
     except AdoptError as error:
         raise click.ClickException(str(error)) from error
     build_command = adopt_build_command(root)
 
     click.echo(click.style("prodockit adoption — existing documentation project", bold=True))
     click.echo(f"\n  Project:  {root}")
-    click.echo("  Changes:  local project files only")
+    click.echo("  Changes:  active project environment and local project files")
     click.echo(
         "  Options:  "
         + " · ".join(
@@ -3077,7 +3088,10 @@ def adopt_command(
             step = next(
                 item
                 for item in assess_adoption(
-                    root, options, retry_reporter=_renderer_retry_warning
+                    root,
+                    options,
+                    retry_reporter=_renderer_retry_warning,
+                    offline=offline,
                 )
                 if item.id == "verify"
             )
@@ -3111,6 +3125,12 @@ def adopt_command(
         elif step.id == "verify":
             click.echo(f"  Next:     run `{build_command}` after this command finishes")
 
+        if step.id == "dependency" and (dry_run or verbose):
+            for path in step.files:
+                click.echo(f"  File:     {path}")
+            for command in step.commands:
+                click.echo(f"  Command:  {' '.join(command)}")
+
         if step.status == "wrong":
             failed = True
             click.echo(
@@ -3129,6 +3149,7 @@ def adopt_command(
                 options,
                 step.id,
                 retry_reporter=_renderer_retry_warning,
+                offline=offline,
             )
         except AdoptError as error:
             raise click.ClickException(str(error)) from error

@@ -104,3 +104,96 @@ jobs:
           name: diagnostics-repair-${{ matrix.runner }}-${{ matrix.architecture }}
           path: diagnostics-repair-acceptance-report.json
           if-no-files-found: warn
+
+  toolchain:
+    needs: scope
+    if: needs.scope.outputs.relevant == 'true'
+    name: Adopt ${{ matrix.scenario }} · ${{ matrix.name }} ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
+    # Upgrade and downgrade are separate installed-wheel jobs. The Windows
+    # ARM64 path can use most of this while downloading and verifying Pandoc.
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [upgrade, downgrade]
+        platform:
+          - ubuntu-x64
+          - ubuntu-arm64
+          - windows-x64
+          - windows-arm64
+          - macos-x64
+          - macos-arm64
+        include:
+          - platform: ubuntu-x64
+            name: Ubuntu 24.04
+            runner: ubuntu-24.04
+            architecture: x64
+            architecture_check: --require-x64
+          - platform: ubuntu-arm64
+            name: Ubuntu 24.04
+            runner: ubuntu-24.04-arm
+            architecture: arm64
+            architecture_check: --require-arm64
+          - platform: windows-x64
+            name: Windows 2025
+            runner: windows-2025
+            architecture: x64
+            architecture_check: --require-x64
+          - platform: windows-arm64
+            name: Windows 11
+            runner: windows-11-arm
+            architecture: arm64
+            architecture_check: --require-arm64
+          - platform: macos-x64
+            name: macOS 15
+            runner: macos-15-intel
+            architecture: x64
+            architecture_check: --require-x64
+          - platform: macos-arm64
+            name: macOS 15
+            runner: macos-15
+            architecture: arm64
+            architecture_check: --require-arm64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          architecture: ${{ matrix.architecture }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Restore validated native download cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/native-downloads
+          key: adopt-pandoc-${{ runner.os }}-${{ matrix.architecture }}-3.10.1
+      - name: Build the candidate wheel
+        env:
+          PIP_RETRIES: 5
+          PIP_TIMEOUT: 30
+          PIP_PREFER_BINARY: 1
+        run: |
+          python -m pip install build
+          python -m build --wheel
+      - name: Align the ${{ matrix.scenario }} toolchain from the installed wheel
+        env:
+          PDK_NATIVE_DOWNLOAD_CACHE: ${{ github.workspace }}/.cache/native-downloads
+          PIP_RETRIES: 5
+          PIP_TIMEOUT: 30
+          PIP_PREFER_BINARY: 1
+        run: >-
+          python tools/adopt_toolchain_acceptance.py
+          --wheel dist
+          --scenario ${{ matrix.scenario }}
+          ${{ matrix.architecture_check }}
+          --report adopt-${{ matrix.scenario }}-acceptance-report.json
+          --driver-timeout-seconds 1800
+          --keep-on-failure
+      - name: Keep the ${{ matrix.scenario }} report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adopt-${{ matrix.scenario }}-${{ matrix.runner }}-${{ matrix.architecture }}
+          path: adopt-${{ matrix.scenario }}-acceptance-report.json
+          if-no-files-found: warn

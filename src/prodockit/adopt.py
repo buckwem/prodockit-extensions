@@ -5,8 +5,9 @@
 
 This is deliberately project-scoped.  ``prodockit bootstrap`` prepares a machine and a
 repository; adoption starts after that boundary, with an author who already
-has Git, SSH, an editor and an existing documentation site.  It therefore
-changes only files below the project root and never commits or pushes them.
+has Git, SSH, an editor and an existing documentation site. It changes the
+active project environment and files below the project root, and never commits
+or pushes them.
 
 The module contains the file operations separately from Click presentation so
 they can be tested without a terminal or network access.  Mermaid and maths
@@ -29,6 +30,7 @@ import yaml  # type: ignore[import-untyped, unused-ignore]
 from packaging.version import InvalidVersion, Version
 
 from prodockit import __version__
+from prodockit import toolchain as supported_toolchain
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
@@ -102,6 +104,8 @@ class Step:
     status: str
     detail: str
     selected: bool = True
+    commands: tuple[tuple[str, ...], ...] = ()
+    files: tuple[Path, ...] = ()
 
     @property
     def needs_work(self) -> bool:
@@ -1199,6 +1203,7 @@ def assess(
     options: AdoptOptions,
     *,
     retry_reporter: RetryReporter | None = None,
+    offline: bool = False,
 ) -> list[Step]:
     try:
         config_path, _source, parsed = _config(root)
@@ -1212,12 +1217,7 @@ def assess(
     except AdoptError as error:
         config_error = str(error)
 
-    requirement = _requirements_path(root)
-    requirement_detail = (
-        f"{requirement.name} records a prodockit version floor"
-        if _requirement_ok(root)
-        else f"add prodockit>={__version__} to {requirement.name}"
-    )
+    toolchain = supported_toolchain.plan(root, offline=offline)
     configured = _extensions(parsed)
     missing = [name for name in CORE_EXTENSIONS if name not in configured]
     style_path = _stylesheet_path(root, parsed)
@@ -1246,7 +1246,8 @@ def assess(
     mermaid_ok = mermaid_tool_ok and "pymdownx.superfences" in configured
     maths_ok = maths_tool_ok and "pymdownx.arithmatex" in configured
     ready_to_build = (
-        _requirement_ok(root)
+        not toolchain.blocked
+        and not toolchain.needs_work
         and core_ok
         and (not options.mermaid or mermaid_ok)
         and (not options.maths or maths_ok)
@@ -1274,9 +1275,11 @@ def assess(
         Step(
             "dependency",
             "Integrate",
-            "Prodockit dependency",
-            "ok" if _requirement_ok(root) else "missing",
-            requirement_detail,
+            "Supported toolchain",
+            "wrong" if toolchain.blocked else ("missing" if toolchain.needs_work else "ok"),
+            toolchain.detail,
+            commands=toolchain.commands,
+            files=toolchain.files,
         ),
         Step(
             "core",
@@ -1343,9 +1346,13 @@ def apply_step(
     step_id: str,
     *,
     retry_reporter: RetryReporter | None = None,
+    offline: bool = False,
 ) -> list[Path]:
     if step_id == "dependency":
-        return [ensure_requirement(root)]
+        try:
+            return supported_toolchain.apply(root, offline=offline, reporter=retry_reporter)
+        except supported_toolchain.ToolchainError as error:
+            raise AdoptError(str(error)) from error
     if step_id == "core":
         return [
             ensure_zensical_config(root, options),

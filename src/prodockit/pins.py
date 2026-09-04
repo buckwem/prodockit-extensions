@@ -147,6 +147,7 @@ SKIP_DIRS = frozenset(
 ROOT_FILES = (
     "pyproject.toml",
     ".python-version",
+    ".prodockit-toolchain.toml",
     ".gitlab-ci.yml",
     ".gitlab-ci.yaml",
     "setup.cfg",
@@ -225,7 +226,8 @@ _RUNNER_RE_TEMPLATE = r"runs-on:\s*[\"']?(?P<name>{names})(?P<extras>)(?P<op>-)(
 #: prefix is skipped so `image: docker.io/library/python:3.14` matches on
 #: `python`.
 _IMAGE_RE_TEMPLATE = (
-    r"image:\s*[\"']?(?:[\w.-]+(?:/[\w.-]+)*/)?(?P<name>{names})(?P<extras>)(?P<op>:)(?P<version>[\w.-]+)"
+    r"image:\s*[\"']?(?:[\w.-]+(?:/[\w.-]+)*/)?"
+    r"(?P<name>{names})(?P<extras>)(?P<op>:)(?P<version>[\w.-]+)"
 )
 
 #: A `<PACKAGE>_VERSION` CI variable - `PANDOC_VERSION: "3.10.1"` in a
@@ -250,6 +252,14 @@ _IMAGE_RE_TEMPLATE = (
 #: so untouched by any rewrite - only the version between the quotes ever
 #: changes.
 _ENV_RE_TEMPLATE = r"(?P<name>{names})(?P<op>_VERSION:\s*[\"']?)(?P<extras>)(?P<version>[\w.]+)"
+
+# The project-local record written by ``prodockit adopt``. TOML bare keys
+# permit hyphens, so package names can stay identical to the names Pins
+# already manages and rewrites.
+_MANIFEST_RE_TEMPLATE = (
+    r"^\s*(?P<name>{names})(?P<extras>)"
+    r"(?P<op>\s*=\s*[\"'])(?P<version>[\w.!+*-]+)"
+)
 
 #: PyPI's own JSON metadata endpoint - no dependency needed to read it.
 PYPI_URL = "https://pypi.org/pypi/{package}/json"
@@ -446,6 +456,26 @@ def discover(
                         kind="version-file",
                     )
                 )
+            continue
+        if rel_path == ".prodockit-toolchain.toml":
+            manifest_pattern = re.compile(_MANIFEST_RE_TEMPLATE.format(names=names), re.IGNORECASE)
+            for number, text in enumerate(lines, start=1):
+                code_ends_at = comment_start(text)
+                for match in manifest_pattern.finditer(text):
+                    if match.start() >= code_ends_at:
+                        continue
+                    package = match.group("name").lower()
+                    if package in states:
+                        states[package].sites.append(
+                            PinSite(
+                                path=rel_path,
+                                line=number,
+                                package=package,
+                                op=match.group("op"),
+                                version=match.group("version"),
+                                kind="manifest",
+                            )
+                        )
             continue
         for number, text in enumerate(lines, start=1):
             # Anything from here on is prose about a version, not a
