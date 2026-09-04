@@ -1170,9 +1170,9 @@ def command_in_environment(
 ) -> bool:
     """Return whether a command belongs to the active Python environment.
 
-    Resolve POSIX symlinks so pipx shims are accepted when they point into the
-    active prefix. Windows launchers are compared lexically because resolving a
-    Windows path is not meaningful on a non-Windows test host.
+    Resolve native filesystem aliases so pipx shims and equivalent Windows path
+    spellings are accepted when they point into the active prefix. Lexical
+    normalisation remains available for simulated platforms and missing paths.
     """
     platform = sys.platform if platform is None else platform
     path_module = ntpath if platform == "win32" else os.path
@@ -1180,10 +1180,10 @@ def command_in_environment(
     if platform != "win32":
         candidates.append(str(Path(command).resolve()))
     normalised_prefix = _normalise_path(prefix, platform=platform)
-    normalised_scripts = _normalise_path(scripts, platform=platform)
     for candidate in candidates:
         normalised = _normalise_path(candidate, platform=platform)
-        if _normalise_path(path_module.dirname(candidate), platform=platform) == normalised_scripts:
+        parent = path_module.dirname(candidate)
+        if same_path(parent, scripts, platform=platform):
             return True
         try:
             if path_module.commonpath((normalised, normalised_prefix)) == normalised_prefix:
