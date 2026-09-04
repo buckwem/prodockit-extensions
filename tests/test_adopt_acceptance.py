@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import importlib
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -73,6 +75,130 @@ def test_scenario_workers_must_be_positive() -> None:
     assert adopt_acceptance.positive_integer("2") == 2
     with pytest.raises(adopt_acceptance.argparse.ArgumentTypeError, match="at least 1"):
         adopt_acceptance.positive_integer("0")
+
+
+def test_only_external_renderer_failures_are_classified_as_transient() -> None:
+    assert adopt_acceptance.transient_renderer_failure(
+        "npm completed but Mermaid CLI timed out after 30 seconds"
+    )
+    assert adopt_acceptance.transient_renderer_failure("npm ERR! code ECONNRESET")
+    assert not adopt_acceptance.transient_renderer_failure(
+        "configuration changed beyond the selected assets"
+    )
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        (
+            "Error: could not install mermaid: Command "
+            "['npm', 'ci'] timed out after 600 seconds"
+        ),
+        (
+            "Error: npm completed but Mermaid CLI is unusable: Command "
+            "['mmdc', '-i', 'health.mmd'] timed out after 30.0 seconds"
+        ),
+    ],
+)
+def test_each_failure_seen_on_pr_718_is_retried_once(
+    tmp_path: Path, monkeypatch, failure: str
+) -> None:
+    attempts = []
+    prepared = []
+
+    def completed(command, **kwargs):
+        attempts.append(command)
+        if len(attempts) == 1:
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="",
+                stderr=failure,
+            )
+        return subprocess.CompletedProcess(command, 0, stdout="passed", stderr="")
+
+    monkeypatch.setattr(adopt_acceptance.subprocess, "run", completed)
+    monkeypatch.setattr(
+        adopt_acceptance,
+        "prepare_renderer_retry",
+        lambda project, detail: prepared.append((project, detail)),
+    )
+
+    result = adopt_acceptance.run(
+        ["prodockit", "adopt", "--apply"],
+        cwd=tmp_path,
+        transient_attempts=2,
+    )
+
+    assert result.stdout == "passed"
+    assert len(attempts) == 2
+    assert prepared == [(tmp_path, failure)]
+
+
+def test_a_deterministic_failure_is_not_retried(tmp_path: Path, monkeypatch) -> None:
+    attempts = []
+
+    def completed(command, **kwargs):
+        attempts.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="",
+            stderr="configuration assertion failed",
+        )
+
+    monkeypatch.setattr(adopt_acceptance.subprocess, "run", completed)
+
+    with pytest.raises(adopt_acceptance.AcceptanceError, match="assertion failed"):
+        adopt_acceptance.run(
+            ["prodockit", "adopt", "--apply"],
+            cwd=tmp_path,
+            transient_attempts=2,
+        )
+
+    assert len(attempts) == 1
+
+
+def test_a_failed_run_still_writes_an_acceptance_report(
+    tmp_path: Path, monkeypatch
+) -> None:
+    wheel = tmp_path / "prodockit-1.2.3-py3-none-any.whl"
+    wheel.write_bytes(b"wheel")
+    work = tmp_path / "work"
+    report = tmp_path / "failure.json"
+
+    def make_work(*, prefix: str) -> str:
+        assert prefix == "prodockit-adopt-acceptance-"
+        work.mkdir()
+        return str(work)
+
+    class Environment:
+        def create(self, path: Path) -> None:
+            path.mkdir()
+
+    monkeypatch.setattr(adopt_acceptance.tempfile, "mkdtemp", make_work)
+    monkeypatch.setattr(
+        adopt_acceptance.venv,
+        "EnvBuilder",
+        lambda **kwargs: Environment(),
+    )
+    monkeypatch.setattr(adopt_acceptance, "venv_python", lambda path: Path(sys.executable))
+    monkeypatch.setattr(adopt_acceptance, "install_candidate", lambda *args: None)
+    monkeypatch.setattr(
+        adopt_acceptance,
+        "exercise_fixture",
+        lambda *args: (_ for _ in ()).throw(
+            adopt_acceptance.AcceptanceError("Mermaid mmdc timed out after two attempts")
+        ),
+    )
+
+    with pytest.raises(adopt_acceptance.AcceptanceError, match="timed out"):
+        adopt_acceptance.main(["--wheel", str(wheel), "--report", str(report)])
+
+    recorded = json.loads(report.read_text(encoding="utf-8"))
+    assert recorded["passed"] is False
+    assert "timed out after two attempts" in recorded["error"]
+    assert recorded["results"] == []
 
 
 def test_a_real_project_is_copied_without_generated_or_git_state(tmp_path: Path) -> None:

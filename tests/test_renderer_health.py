@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -35,8 +36,14 @@ def test_mermaid_probe_requires_a_successful_version_command(
 def test_mermaid_probe_records_the_reported_version(tmp_path: Path, monkeypatch) -> None:
     binary = tmp_path / "mmdc"
     binary.write_text("shim", encoding="utf-8")
+    render_options = {}
+
     def run(command, **kwargs):
         if "-o" in command:
+            render_options["puppeteer"] = json.loads(
+                Path(command[command.index("-p") + 1]).read_text(encoding="utf-8")
+            )
+            render_options["timeout"] = kwargs["timeout"]
             Path(command[command.index("-o") + 1]).write_text("<svg/>", encoding="utf-8")
             return SimpleNamespace(args=command, returncode=0, stdout="", stderr="")
         return SimpleNamespace(
@@ -50,6 +57,10 @@ def test_mermaid_probe_records_the_reported_version(tmp_path: Path, monkeypatch)
     assert result.ok is True
     assert result.version == "11.12.0"
     assert result.error is None
+    assert render_options == {
+        "puppeteer": {"args": ["--no-sandbox", "--disable-setuid-sandbox"]},
+        "timeout": 60.0,
+    }
 
 
 def test_mermaid_probe_uses_the_runnable_windows_shim(tmp_path: Path) -> None:

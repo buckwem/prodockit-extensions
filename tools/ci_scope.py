@@ -43,6 +43,7 @@ class Scope:
     pdf: bool
     bootstrap: bool
     full_python: bool = False
+    diagnostics: bool = False
 
     @property
     def python_matrix(self) -> tuple[str, ...]:
@@ -74,7 +75,7 @@ class ChangedRange:
     reason: str = ""
 
 
-_ALL_COMPONENTS = frozenset({"adopt", "pdf", "bootstrap"})
+_ALL_COMPONENTS = frozenset({"adopt", "pdf", "bootstrap", "diagnostics"})
 
 _ALL_RUNTIME_FILES = {
     "pyproject.toml",
@@ -128,19 +129,25 @@ _PYTHON_ONLY_RUNTIME_FILES = {
 }
 
 _CI_ONLY_FILES = {
-    "tools/_diagnostics_repair_acceptance_driver.py",
     "tools/canonical_site_config.py",
-    "tools/diagnostics_repair_acceptance.py",
     "tools/render_documentation_diagrams.py",
 }
 
 _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "docs/stylesheets/pdk.css": frozenset({"adopt", "pdf"}),
     "docs/stylesheets/pdk-pdf.css": frozenset({"pdf"}),
-    "src/prodockit/project_config.py": frozenset({"adopt", "pdf"}),
+    "src/prodockit/project_config.py": frozenset({"adopt", "pdf", "diagnostics"}),
+    "src/prodockit/config_diagnostics.py": frozenset({"diagnostics"}),
+    "src/prodockit/init_tools.py": frozenset({"adopt", "bootstrap", "diagnostics"}),
+    "src/prodockit/mathjax.py": frozenset({"adopt", "bootstrap", "diagnostics"}),
+    "src/prodockit/pins.py": frozenset({"diagnostics"}),
+    "src/prodockit/project_integrity.py": frozenset({"diagnostics"}),
+    "src/prodockit/settings.py": frozenset({"pdf", "diagnostics"}),
     "src/prodockit/sync_repo.py": frozenset({"bootstrap", "pdf"}),
     "tools/adopt_acceptance.py": frozenset({"adopt"}),
     "tools/adopt_native_upgrade.py": frozenset({"adopt"}),
+    "tools/_diagnostics_repair_acceptance_driver.py": frozenset({"diagnostics"}),
+    "tools/diagnostics_repair_acceptance.py": frozenset({"diagnostics"}),
     "tools/check_shared_file_wheel.py": frozenset({"pdf"}),
     "tools/pdf_from_site_acceptance.py": frozenset({"pdf"}),
     "tools/bootstrap_acceptance.py": frozenset({"bootstrap"}),
@@ -162,6 +169,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "tools/bootstrap_native_upgrade.py": frozenset({"bootstrap"}),
     "tools/native_download.py": frozenset({"bootstrap"}),
     ".github/workflows/adopt-install.yml": frozenset({"adopt"}),
+    ".github/workflows/diag-repair.yml": frozenset({"diagnostics"}),
     ".github/workflows/pdf-built-site-wheel.yml": frozenset({"pdf"}),
     ".github/workflows/bootstrap-install.yml": frozenset({"bootstrap"}),
     ".github/workflows/bootstrap-live-provider-github.yml": frozenset({"bootstrap"}),
@@ -265,6 +273,7 @@ def classify_details(paths: Sequence[str]) -> Classification:
         pdf="pdf" in components,
         bootstrap="bootstrap" in components,
         full_python=full_python,
+        diagnostics="diagnostics" in components,
     )
     return Classification(scope, tuple(reasons or ("normal CI only",)))
 
@@ -278,7 +287,7 @@ def classify(paths: list[str] | tuple[str, ...]) -> Scope:
 def all_scope() -> Scope:
     """Return the comprehensive manual, scheduled, or fail-closed scope."""
 
-    return Scope(True, True, True, True, True)
+    return Scope(True, True, True, True, True, True)
 
 
 def output_lines(
@@ -300,6 +309,7 @@ def output_lines(
         f"adopt={'true' if scope.adopt else 'false'}",
         f"pdf={'true' if scope.pdf else 'false'}",
         f"bootstrap={'true' if scope.bootstrap else 'false'}",
+        f"diagnostics={'true' if scope.diagnostics else 'false'}",
         f"adopt-native={'true' if adopt_native else 'false'}",
         f"bootstrap-native={'true' if bootstrap_native else 'false'}",
     )
@@ -516,6 +526,7 @@ def _write_summary(
             ("Adopt installed wheel", classification.scope.adopt),
             ("PDF installed wheel", classification.scope.pdf),
             ("Bootstrap installed wheel", classification.scope.bootstrap),
+            ("Diagnostic repair installed wheel", classification.scope.diagnostics),
         )
         if value
     ]
