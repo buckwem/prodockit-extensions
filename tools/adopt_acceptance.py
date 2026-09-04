@@ -145,6 +145,20 @@ def run(
     environment = dict(os.environ)
     environment.pop("PYTHONPATH", None)
     environment["PYTHONUTF8"] = "1"
+    executable = Path(command[0])
+    if executable.name.lower() in {"python", "python.exe"} and executable.parent.name in {
+        "bin",
+        "Scripts",
+    }:
+        # Calling a venv's interpreter by absolute path does not activate its
+        # executable search path. Adopt installs Pandoc alongside that Python,
+        # so the harness must expose the same environment that an author gets
+        # after activating the venv before verification and subsequent runs.
+        virtual_environment = executable.parent.parent.resolve()
+        environment["VIRTUAL_ENV"] = str(virtual_environment)
+        environment["PATH"] = os.pathsep.join(
+            (str(executable.parent.resolve()), environment.get("PATH", ""))
+        )
     for attempt in range(1, transient_attempts + 1):
         completed = subprocess.run(
             command,
