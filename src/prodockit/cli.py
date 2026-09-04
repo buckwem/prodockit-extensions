@@ -22,6 +22,8 @@ This module is the CLI for the whole package, not just the PDF build -
 from __future__ import annotations
 
 import pathlib
+import shlex
+import subprocess
 import sys
 import textwrap
 import threading
@@ -41,6 +43,7 @@ from prodockit.adopt import (
     AdoptError,
     AdoptOptions,
 )
+from prodockit.adopt import apply as apply_adoption
 from prodockit.adopt import (
     apply_step as apply_adopt_step,
 )
@@ -3516,6 +3519,57 @@ def _wrong_directory(here: pathlib.Path) -> str:
     )
 
 
+_TEMPLATE_SYNC_PHASES = (
+    "Assess and preview",
+    "Compatible Prodockit",
+    "Supported toolchain",
+    "Apply template update",
+)
+
+
+def _template_sync_phase_heading(number: int) -> None:
+    """Use bootstrap's phase boundary for one coherent update command."""
+
+    click.echo("")
+    click.echo(click.style("═" * 78, bold=True, fg="bright_blue"))
+    click.echo(
+        click.style(
+            f"Phase {number}/{len(_TEMPLATE_SYNC_PHASES)} — "
+            f"{_TEMPLATE_SYNC_PHASES[number - 1]}",
+            bold=True,
+            fg="bright_blue",
+        )
+    )
+    click.echo(click.style("═" * 78, bold=True, fg="bright_blue"))
+
+
+def _template_sync_stage_heading(number: int, total: int, summary: str) -> None:
+    click.echo("")
+    click.echo(click.style("─" * 78, fg="blue"))
+    click.echo(click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="blue"))
+
+
+def _run_template_sync_resume(command: Sequence[str], project: pathlib.Path) -> int:
+    """Run the remainder under freshly imported code from the installed wheel."""
+
+    return subprocess.run(list(command), cwd=project, check=False).returncode
+
+
+def _template_sync_is_interactive() -> bool:
+    """Whether confirmations can be completed without partial unattended work."""
+
+    # Click 8.2 types ``get_text_stream`` as ``object`` whereas earlier
+    # releases exposed a text stream.  ``sys.stdin`` is the same stream here
+    # (and is replaced by CliRunner in tests), with a stable typed interface.
+    return sys.stdin.isatty()
+
+
+def _template_sync_command(command: Sequence[str]) -> str:
+    """Render a copyable command without losing paths containing spaces."""
+
+    return subprocess.list2cmdline(command) if sys.platform == "win32" else shlex.join(command)
+
+
 def _run_template_sync(
     do_apply: bool,
     verbose: bool,
@@ -3525,14 +3579,17 @@ def _run_template_sync(
     github: str | None,
     surrey: str | None,
     template_path: str | None = None,
+    offline: bool = False,
+    accept_prodockit: bool = False,
+    accept_adopt: bool = False,
+    resume_version: str | None = None,
 ) -> None:
-    """Drives the ten stages, and prints what each one found.
+    """Drive the prerequisite and template phases, reporting each stage.
 
     Separate from the click function so the whole run is reachable from a
     test without going through the command line, and so the ordering the
-    stages depend on lives somewhere it can be read in one piece.
+    phases depend on lives somewhere it can be read in one piece.
     """
-    import subprocess
     from collections.abc import Iterable
 
     from prodockit.diagnostics import MetadataRepairError, distribution_metadata_problems
@@ -3540,6 +3597,11 @@ def _run_template_sync(
     from prodockit.shared_files import apply as apply_shared_files
     from prodockit.shared_files import drift as shared_file_drift
     from prodockit.shared_files import inspect as inspect_shared_files
+    from prodockit.template_prerequisites import (
+        install_prodockit,
+        installed_prodockit_version,
+        plan_prodockit,
+    )
     from prodockit.template_sync import (
         MANIFEST_FILE,
         STAMP_FILE,
@@ -3564,7 +3626,6 @@ def _run_template_sync(
         git_reader,
         git_runner,
         ignore_the_log,
-        latest_prodockit_version,
         leftovers,
         load_manifest,
         missing_ignores,
@@ -3573,7 +3634,6 @@ def _run_template_sync(
         pending_writes,
         plan_template_files,
         prodockit_requirement,
-        prodockit_upgrade_required,
         publish,
         publish_blockers,
         read_applied_release,
@@ -3589,6 +3649,7 @@ def _run_template_sync(
         write_stamp,
         written_report,
     )
+    from prodockit.toolchain import plan as plan_supported_toolchain
 
     project = pathlib.Path.cwd()
     # Run from the project, and only from its root. A subdirectory would
@@ -3598,6 +3659,15 @@ def _run_template_sync(
     # honest answer to being in the wrong directory.
     if not (project / ".git").exists():
         raise TemplateSyncError(_wrong_directory(project))
+    if resume_version is not None:
+        distribution_version = installed_prodockit_version()
+        if __version__ != resume_version or distribution_version != resume_version:
+            raise TemplateSyncError(
+                "Prodockit installation completed, but the fresh process loaded "
+                f"code {__version__} and distribution metadata {distribution_version} "
+                f"instead of the required {resume_version}. The template update remains "
+                "unapplied; check the active interpreter and rerun the command"
+            )
     if push and not do_apply:
         raise TemplateSyncError(
             "--push sends an applied update to GitHub or GitLab, so use it with "
@@ -3666,6 +3736,7 @@ def _run_template_sync(
         logged.extend(f"  {line}" for line in render(*args, verbose=True))
 
     try:
+        _template_sync_phase_heading(1)
         say("Checking this project for template updates...")
         say_detail()
 
@@ -3696,34 +3767,10 @@ def _run_template_sync(
             if requirements_path.exists()
             else None
         )
-        latest_package = latest_prodockit_version()
-        package_version = (
-            latest_package
-            if (latest_package and prodockit_upgrade_required(__version__, latest_package))
-            else None
-        )
-        package_reason = "latest available"
-        if (
-            package_requirement
-            and prodockit_upgrade_required(__version__, package_requirement.version)
-            and (
-                package_version is None
-                or prodockit_upgrade_required(package_version, package_requirement.version)
-            )
-        ):
-            package_version = package_requirement.version
-            package_reason = "template requires"
-        package_upgrade = package_version is not None
-        package_extras = ""
-        if package_requirement and "[" in package_requirement.specifier:
-            package_extras = package_requirement.specifier.split("]", 1)[0] + "]"
-        package_specifier = (
-            f"prodockit{package_extras}>={package_version}" if package_version else None
-        )
-        say_detail(
-            "Prodockit release check: "
-            + (f"PyPI reports {latest_package}" if latest_package else "PyPI could not be checked")
-        )
+        package_plan = plan_prodockit(template, installed=__version__, offline=offline)
+        if package_requirement:
+            say_detail(f"Template Prodockit declaration: {package_requirement.specifier}")
+        say_detail(f"Template-compatible Prodockit release: {package_plan.target}")
         files = subprocess.run(
             ["git", "-C", str(template), "ls-files"],
             capture_output=True,
@@ -3865,31 +3912,26 @@ def _run_template_sync(
         # resulting deterministic, offline alignment is applied below before
         # the branch is committed and sent for review (#705).
         dependency_plan = dependency_updates(template, project)
-        required_prodockit = package_requirement.version if package_requirement else None
-        planned_prodockit = next(
-            (item.version for item in dependency_plan if item.package == "prodockit"), None
-        )
-        if planned_prodockit and (
-            required_prodockit is None
-            or prodockit_upgrade_required(required_prodockit, planned_prodockit)
-        ):
-            required_prodockit = planned_prodockit
-        required_package_upgrade = bool(
-            required_prodockit and prodockit_upgrade_required(__version__, required_prodockit)
-        )
-        if (
-            required_package_upgrade
-            and required_prodockit
-            and (
-                package_version is None
-                or prodockit_upgrade_required(package_version, required_prodockit)
-            )
-        ):
-            package_version = required_prodockit
-            package_reason = "template requires"
-            package_upgrade = True
-            package_specifier = f"prodockit{package_extras}>={package_version}"
         shared_drift = shared_file_drift(incoming_shared)
+
+        try:
+            adopt_options = load_adopt_manifest(project)
+        except AdoptError as error:
+            raise TemplateSyncError(f"Adopt choices could not be read: {error}") from error
+        adopt_steps = (
+            []
+            if package_plan.needs_work
+            else assess_adoption(
+                project,
+                adopt_options,
+                retry_reporter=_renderer_retry_warning,
+                offline=offline,
+            )
+        )
+        adopt_blockers = [
+            step for step in adopt_steps if step.selected and step.status == "wrong"
+        ]
+        adopt_work = [step for step in adopt_steps if step.needs_work]
 
         pending = pending_writes(plan, project, lambda p: (template / p).read_bytes())
         seeds = missing_seeds(
@@ -3932,7 +3974,11 @@ def _run_template_sync(
         summary_actions = list(pending)
         summary_actions.extend(action for action in decisions if action not in summary_actions)
 
-        say("Changes available:" if work_needed or package_upgrade else "Result:")
+        say(
+            "Changes available:"
+            if work_needed or package_plan.needs_work or adopt_work
+            else "Result:"
+        )
         terminal_actions = plan if verbose else summary_actions
         for line in update_report(terminal_actions, verbose=verbose):
             say(f"  {line}")
@@ -3974,12 +4020,83 @@ def _run_template_sync(
             say(
                 f"  Template release after a successful apply: {before} -> {wanted_applied_release}"
             )
-        if package_upgrade and package_specifier and package_version:
-            say("  Prodockit needs upgrading:")
-            say(f"      installed: {__version__}")
-            say(f"      {package_reason}: {package_version}")
-            say("      in the activated project environment, run:")
-            say(f'        python -m pip install --upgrade "{package_specifier}"')
+        _template_sync_phase_heading(2)
+        _template_sync_stage_heading(1, 1, "Use the template-compatible Prodockit")
+        say(f"  Action:   {package_plan.action.upper()}")
+        say(f"  Current:  Prodockit {package_plan.installed}")
+        say(f"  Required: Prodockit {package_plan.target} (incoming template)")
+        say(
+            f"  Will do:  install {package_plan.specifier} in the active interpreter"
+            if package_plan.needs_work
+            else "  Will do:  verify the exact release in the active interpreter"
+        )
+        say(f"  Command:  {_template_sync_command(package_plan.command)}")
+        say(
+            "  Network:  not required; no installation will run"
+            if not package_plan.needs_work
+            else (
+                "  Network:  disabled; use the configured wheelhouse"
+                if offline
+                else (
+                    "  Network:  may use PyPI or the configured mirror; "
+                    "validated cache may satisfy it"
+                )
+            )
+        )
+        say(
+            "  Result:   fresh-process handoff required"
+            if package_plan.needs_work
+            else "  Result:   exact release already active; no installation"
+        )
+        if package_plan.action == "downgrade":
+            say(
+                _bootstrap_warning(
+                    "  Warning:  the newer installed release is not the template's paired "
+                    "release; website and PDF output may change after alignment"
+                )
+            )
+
+        _template_sync_phase_heading(3)
+        if package_plan.needs_work:
+            _template_sync_stage_heading(1, 1, "Preview and apply Adopt alignment")
+            say("  Action:   ALIGN")
+            say(
+                f"  Current:  will be assessed by Prodockit {package_plan.target} "
+                "after the fresh-process handoff"
+            )
+            say("  Will do:  run Adopt's supported-toolchain and project integration stages")
+            say("  Command:  internal equivalent of `pdk adopt --apply`")
+            say("  Files:    active environment and Adopt-managed project files")
+            say(
+                "  Network:  disabled; use configured caches"
+                if offline
+                else (
+                    "  Network:  only installers in the Adopt plan may need it; "
+                    "retries and mirrors apply"
+                )
+            )
+        else:
+            selected_steps = [step for step in adopt_steps if step.selected]
+            for number, step in enumerate(selected_steps, start=1):
+                _template_sync_stage_heading(number, len(selected_steps), step.summary)
+                action = "WAIT" if step.status == "wait" else (
+                    "CHECK" if not step.needs_work else "CONFIGURE"
+                )
+                if step.id == "dependency" and step.needs_work:
+                    action = "ALIGN"
+                say(f"  Action:   {action}")
+                say(f"  Current:  {step.detail}")
+                say(
+                    "  Will do:  no change"
+                    if not step.needs_work
+                    else "  Will do:  apply this Adopt stage before the template update"
+                )
+                for command in step.commands:
+                    say(f"  Command:  {_template_sync_command(command)}")
+                for step_path in step.files:
+                    say(f"  File:     {step_path}")
+            if not adopt_work and not adopt_blockers:
+                say("  Result:   Adopt reports the supported combination is already configured")
 
         kept = [action for action in plan if action.action == "keep"]
         forced = [action for action in plan if action.action == "forced"]
@@ -4012,47 +4129,31 @@ def _run_template_sync(
             for path in stale:
                 say_detail(f"      {path}")
 
-        def explain_package_only_update() -> None:
-            """Explain the non-Git work that a package-only update needs."""
+        def explain_environment_only_update() -> None:
+            """Explain an environment-only prerequisite update."""
             say("No template files need changing, so there is nothing to commit or push.")
-            say("After upgrading prodockit, rebuild the Pages or documentation pipeline.")
+            say("After aligning Prodockit and Adopt, rebuild the Pages or documentation pipeline.")
             say(
                 "The rebuild is still needed: it republishes the website and PDF using "
-                "the newer package even though no template file changed."
+                "the supported toolchain even though no template file changed."
             )
 
         say()
         if not do_apply:
+            _template_sync_phase_heading(4)
+            _template_sync_stage_heading(1, 1, "Apply the reviewed template update")
+            say("  Action:   PREVIEW")
+            say("  Will do:  no changes in preview mode")
+            say("  Result:   template files, metadata, environment, and branches are unchanged")
             if work_needed:
                 say("Preview only - no template changes have been made.")
                 say("Add `--apply` to the command you just ran to make these changes.")
-            elif package_upgrade:
-                explain_package_only_update()
+            elif package_plan.needs_work or adopt_work:
+                explain_environment_only_update()
             elif kept:
                 say("No safe changes need applying; the files you edited remain unchanged.")
             else:
                 say("Your project is already up to date with the template.")
-            return
-
-        if not work_needed:
-            # Nothing to do, so no branch. A run that branched anyway left
-            # an empty branch behind, which then blocked the next run - the
-            # ordinary way to use this is to run it repeatedly, and most of
-            # those runs find nothing.
-            if package_upgrade:
-                explain_package_only_update()
-            else:
-                say("Your project is already up to date with the template. Nothing was changed.")
-            return
-
-        if required_package_upgrade and package_specifier:
-            say("The template needs a newer Prodockit before it can be applied safely.")
-            say("Upgrade in the activated project environment, then run this command again:")
-            say(f'  python -m pip install --upgrade "{package_specifier}"')
-            say(
-                "Nothing has been changed or sent. Upgrading first ensures the shared "
-                "styles placed in the merge request belong to the required release."
-            )
             return
 
         if kept and not local_only:
@@ -4064,6 +4165,118 @@ def _run_template_sync(
             )
             say("Nothing has been changed, committed, or sent.")
             return
+
+        # Both environment stages precede the first template mutation and the
+        # update branch. A non-interactive mismatch must opt into both now, so
+        # it cannot install Prodockit and then stop halfway waiting for Adopt.
+        interactive = _template_sync_is_interactive()
+        if package_plan.needs_work:
+            if not interactive and (not accept_prodockit or not accept_adopt):
+                raise TemplateSyncError(
+                    "non-interactive apply needs both --accept-prodockit and --accept-adopt "
+                    "before changing the active environment; the template remains unapplied"
+                )
+            if not accept_prodockit and not click.confirm(
+                f"\nInstall {package_plan.specifier} in the active environment?",
+                default=False,
+            ):
+                say("Stopped safely. No template files, metadata, or branch were changed.")
+                return
+            _template_sync_stage_heading(1, 2, f"{package_plan.action.title()} Prodockit")
+            say(f"  Action:   {package_plan.action.upper()}")
+            say(f"  Command:  {_template_sync_command(package_plan.command)}")
+            install_prodockit(
+                package_plan,
+                root=project,
+                reporter=_renderer_retry_warning,
+            )
+            say("  Result:   installation completed; handing off to fresh code")
+
+            resume = [
+                sys.executable,
+                "-m",
+                "prodockit",
+                "template-sync",
+                "--apply",
+                "--template-path",
+                str(template),
+                "--resume-version",
+                package_plan.target,
+            ]
+            if verbose:
+                resume.append("--verbose")
+            if push:
+                resume.append("--push")
+            if local_only:
+                resume.append("--local-only")
+            if offline:
+                resume.append("--offline")
+            if accept_prodockit:
+                resume.append("--accept-prodockit")
+            if accept_adopt:
+                resume.append("--accept-adopt")
+            for path in force:
+                resume.extend(("--force", path))
+            say(f"  Command:  {_template_sync_command(resume)}")
+            result = _run_template_sync_resume(resume, project)
+            if result:
+                raise TemplateSyncError(
+                    f"the fresh Prodockit {package_plan.target} process exited with status "
+                    f"{result}; the template remains unapplied. Rerun the same command to resume"
+                )
+            return
+
+        if adopt_blockers:
+            raise TemplateSyncError(
+                "Adopt cannot prepare this project: "
+                + "; ".join(f"{step.summary}: {step.detail}" for step in adopt_blockers)
+                + ". The template remains unapplied"
+            )
+
+        adopt_written: list[pathlib.Path] = []
+        if adopt_work:
+            if not interactive and not accept_adopt:
+                raise TemplateSyncError(
+                    "non-interactive apply needs --accept-adopt before changing the active "
+                    "environment or project; the template remains unapplied"
+                )
+            if not accept_adopt and not click.confirm(
+                "\nRun Adopt to align the supported toolchain and project?",
+                default=False,
+            ):
+                say("Stopped safely. No template files, metadata, or branch were changed.")
+                return
+            say(
+                _bootstrap_warning(
+                    "  Warning:  Adopt may install or downgrade software and update only "
+                    "the project files shown above"
+                )
+            )
+            try:
+                adopt_written = apply_adoption(
+                    project,
+                    adopt_options,
+                    retry_reporter=_renderer_retry_warning,
+                    offline=offline,
+                )
+            except AdoptError as error:
+                raise TemplateSyncError(
+                    f"Adopt did not complete: {error}. The template remains unapplied; "
+                    "correct the reported prerequisite and rerun the same command"
+                ) from error
+            say("  Result:   Adopt applied and verified the supported combination")
+
+        review_work_needed = work_needed or bool(adopt_written)
+        if not review_work_needed:
+            # A package-only handoff can finish with no project diff. Avoid an
+            # empty historical update branch, but explain the required rebuild.
+            if resume_version is not None:
+                explain_environment_only_update()
+            else:
+                say("Your project is already up to date with the template. Nothing was changed.")
+            return
+
+        _template_sync_phase_heading(4)
 
         # 10, first: the branch, before anything is written.
         name = branch_name(baseline.version or "unknown")
@@ -4084,7 +4297,11 @@ def _run_template_sync(
         # Everything else a run writes: the shared files it merges, and the
         # stamp. Staged alongside, or a reader is handed a half-staged change
         # and has to work out for themselves which parts belong to it.
-        also_written: list[str] = []
+        also_written: list[str] = [
+            path.relative_to(project).as_posix()
+            for path in adopt_written
+            if path.is_relative_to(project)
+        ]
 
         if config_path.exists() and (added or updated):
             config_path.write_text(
@@ -4122,6 +4339,15 @@ def _run_template_sync(
             also_written.extend(refreshed_shared)
             say(f"Shared files: refreshed {len(refreshed_shared)} managed file(s)")
         also_written = list(dict.fromkeys(also_written))
+
+        verified_toolchain = plan_supported_toolchain(project, offline=True, fresh=True)
+        if verified_toolchain.blocked or verified_toolchain.needs_work:
+            raise TemplateSyncError(
+                "the applied template declarations do not match the installed supported "
+                f"combination: {verified_toolchain.detail}. The update remains local on "
+                "its review branch and has not been sent"
+            )
+        say("Supported toolchain: verified after applying template declarations")
 
         say()
         say("Changes made:")
@@ -4353,6 +4579,25 @@ def _record_template_release(project_root: pathlib.Path) -> None:
         "for a machine that cannot reach the template's host."
     ),
 )
+@click.option(
+    "--offline",
+    is_flag=True,
+    help=(
+        "Use only the configured wheelhouse and validated native download "
+        "cache for prerequisites."
+    ),
+)
+@click.option(
+    "--accept-prodockit",
+    is_flag=True,
+    help="Explicitly allow the exact Prodockit install, upgrade, or downgrade without prompting.",
+)
+@click.option(
+    "--accept-adopt",
+    is_flag=True,
+    help="Explicitly allow Adopt to align and verify the supported toolchain without prompting.",
+)
+@click.option("--resume-version", default=None, hidden=True)
 def template_sync(
     do_apply: bool,
     verbose: bool,
@@ -4362,6 +4607,10 @@ def template_sync(
     github: str | None,
     surrey: str | None,
     template_path: str | None,
+    offline: bool,
+    accept_prodockit: bool,
+    accept_adopt: bool,
+    resume_version: str | None,
 ) -> None:
     """Check for and apply updates from the project's template.
 
@@ -4384,6 +4633,10 @@ def template_sync(
             github,
             surrey,
             template_path,
+            offline,
+            accept_prodockit,
+            accept_adopt,
+            resume_version,
         )
     except TemplateSyncError as error:
         click.echo(f"Error: {error}", err=True)

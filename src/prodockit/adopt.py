@@ -1374,6 +1374,67 @@ def apply_step(
     return []
 
 
+def apply(
+    root: Path,
+    options: AdoptOptions,
+    *,
+    retry_reporter: RetryReporter | None = None,
+    offline: bool = False,
+) -> list[Path]:
+    """Apply every selected Adopt stage and verify the resulting plan.
+
+    The public command owns per-stage prompts.  Template sync has already
+    shown the same plan and obtained one separate, explicit permission for
+    Adopt, so it calls this non-interactive orchestration rather than
+    duplicating any installer or project-repair implementation.
+    """
+
+    initial = assess(root, options, retry_reporter=retry_reporter, offline=offline)
+    blocked = [step for step in initial if step.selected and step.status == "wrong"]
+    if blocked:
+        raise AdoptError("; ".join(f"{step.summary}: {step.detail}" for step in blocked))
+
+    written: list[Path] = []
+    for original in initial:
+        if not original.selected or not original.needs_work or original.id == "verify":
+            continue
+        current = next(
+            step
+            for step in assess(
+                root,
+                options,
+                retry_reporter=retry_reporter,
+                offline=offline,
+            )
+            if step.id == original.id
+        )
+        if current.status == "wrong":
+            raise AdoptError(f"{current.summary}: {current.detail}")
+        if current.needs_work:
+            written.extend(
+                apply_step(
+                    root,
+                    options,
+                    current.id,
+                    retry_reporter=retry_reporter,
+                    offline=offline,
+                )
+            )
+
+    final = assess(root, options, retry_reporter=retry_reporter, offline=offline)
+    incomplete = [
+        step
+        for step in final
+        if step.selected and (step.status not in {"ok"} or step.needs_work)
+    ]
+    if incomplete:
+        raise AdoptError(
+            "Adopt verification is incomplete: "
+            + "; ".join(f"{step.summary}: {step.detail}" for step in incomplete)
+        )
+    return list(dict.fromkeys(written))
+
+
 __all__ = [
     "CORE_EXTENSIONS",
     "MANIFEST",
@@ -1381,6 +1442,7 @@ __all__ = [
     "AdoptError",
     "AdoptOptions",
     "Step",
+    "apply",
     "apply_step",
     "assess",
     "ensure_requirement",

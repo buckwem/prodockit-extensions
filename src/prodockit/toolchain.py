@@ -245,6 +245,26 @@ def pip_install_command(
     offline: bool = False,
     dependencies: bool = True,
 ) -> tuple[str, ...]:
+    return pip_install_specifier_command(
+        tuple(f"{package}=={TESTED_VERSIONS[package]}" for package in packages),
+        offline=offline,
+        dependencies=dependencies,
+    )
+
+
+def pip_install_specifier_command(
+    specifiers: Sequence[str],
+    *,
+    offline: bool = False,
+    dependencies: bool = True,
+) -> tuple[str, ...]:
+    """Build the resilient pip command for exact, caller-resolved specs.
+
+    Adopt normally supplies names from :data:`TESTED_VERSIONS`. Template sync
+    has one earlier prerequisite: it must install the exact Prodockit release
+    paired with the incoming template before that release can plan Adopt. Keep
+    both routes on the same interpreter, mirror, wheelhouse and retry policy.
+    """
     command = [
         sys.executable,
         "-m",
@@ -276,7 +296,7 @@ def pip_install_command(
         # An explicitly configured institutional mirror is tried alongside
         # PyPI. Pip selects a compatible exact version from either source.
         command.extend(("--extra-index-url", mirror))
-    command.extend(f"{package}=={TESTED_VERSIONS[package]}" for package in packages)
+    command.extend(specifiers)
     return tuple(command)
 
 
@@ -457,6 +477,18 @@ def _run_resilient(
             _command_detail(result.value), result.attempts, result.transient_failures
         )
         raise ToolchainError(f"toolchain command failed: {' '.join(command)}\n{detail}")
+
+
+def run_install_command(
+    command: Sequence[str],
+    *,
+    root: Path,
+    reporter: RetryReporter | None = None,
+    offline: bool = False,
+) -> None:
+    """Run one planned installer through the shared bounded retry path."""
+
+    _run_resilient(command, root=root, reporter=reporter, offline=offline)
 
 
 def apply(

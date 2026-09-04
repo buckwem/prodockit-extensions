@@ -231,12 +231,8 @@ def test_template_sync_warns_before_replacing_managed_stylesheets() -> None:
     assert "Move website changes to extra.css and PDF-only changes to print.css" in source
 
 
-@pytest.mark.parametrize("arguments", [[], ["--apply"]])
-def test_template_sync_explains_a_package_only_update(
-    tmp_path, monkeypatch, arguments: list[str]
-) -> None:
-    """An environment upgrade produces no Git diff, but published outputs
-    still need rebuilding with the new package."""
+def test_template_sync_previews_an_exact_package_only_downgrade(tmp_path, monkeypatch) -> None:
+    """The template relationship wins over latest PyPI and a newer runtime."""
     import subprocess
 
     from click.testing import CliRunner
@@ -311,21 +307,127 @@ paths = [".prodockit-template.toml"]
 
     monkeypatch.chdir(project)
     monkeypatch.setattr(cli, "__version__", "0.43.2")
-    monkeypatch.setattr(
-        "prodockit.template_sync.latest_prodockit_version", lambda: "0.43.3"
-    )
     result = CliRunner().invoke(
         cli.main,
-        ["template-sync", "--template-path", str(template), *arguments],
+        ["template-sync", "--template-path", str(template)],
     )
 
     assert result.exit_code == 0, result.output
-    assert "installed: 0.43.2" in result.output
-    assert "latest available: 0.43.3" in result.output
-    assert 'python -m pip install --upgrade "prodockit>=0.43.3"' in result.output
+    assert "Action:   DOWNGRADE" in result.output
+    assert "Current:  Prodockit 0.43.2" in result.output
+    assert "Required: Prodockit 0.42.1 (incoming template)" in result.output
+    assert "prodockit==0.42.1" in result.output
+    assert "fresh-process handoff required" in result.output
     assert "nothing to commit or push" in result.output
     assert "rebuild the Pages or documentation pipeline" in result.output
     assert "already up to date" not in result.output
+
+    unattended = CliRunner().invoke(
+        cli.main,
+        ["template-sync", "--template-path", str(template), "--apply"],
+    )
+    assert unattended.exit_code == 1
+    assert "needs both --accept-prodockit and --accept-adopt" in unattended.output
+    assert "template remains unapplied" in unattended.output
+
+    monkeypatch.setattr(cli, "_template_sync_is_interactive", lambda: True)
+    declined = CliRunner().invoke(
+        cli.main,
+        ["template-sync", "--template-path", str(template), "--apply"],
+        input="n\n",
+    )
+    assert declined.exit_code == 0, declined.output
+    assert "Stopped safely" in declined.output
+    assert "No template files, metadata, or branch were changed" in declined.output
+    monkeypatch.setattr(cli, "_template_sync_is_interactive", lambda: False)
+
+    def failed_install(*args, **kwargs) -> None:
+        from prodockit.template_sync import TemplateSyncError
+
+        raise TemplateSyncError("simulated download failure")
+
+    monkeypatch.setattr(
+        "prodockit.template_prerequisites.install_prodockit",
+        failed_install,
+    )
+    failed = CliRunner().invoke(
+        cli.main,
+        [
+            "template-sync",
+            "--template-path",
+            str(template),
+            "--apply",
+            "--accept-prodockit",
+            "--accept-adopt",
+        ],
+    )
+    assert failed.exit_code == 1
+    assert "simulated download failure" in failed.output
+    assert subprocess.run(
+        ["git", "-C", str(project), "branch", "--list", "template-update-*"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout == ""
+
+    installed: list[object] = []
+    resumed: list[tuple[list[str], object]] = []
+    monkeypatch.setattr(
+        "prodockit.template_prerequisites.install_prodockit",
+        lambda planned, **kwargs: installed.append(planned),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_run_template_sync_resume",
+        lambda command, root: resumed.append((list(command), root)) or 0,
+    )
+    applied = CliRunner().invoke(
+        cli.main,
+        [
+            "template-sync",
+            "--template-path",
+            str(template),
+            "--apply",
+            "--accept-prodockit",
+            "--accept-adopt",
+        ],
+    )
+
+    assert applied.exit_code == 0, applied.output
+    assert len(installed) == 1
+    assert len(resumed) == 1
+    command, root = resumed[0]
+    assert command[:4] == [cli.sys.executable, "-m", "prodockit", "template-sync"]
+    assert command[command.index("--resume-version") + 1] == "0.42.1"
+    assert command[command.index("--template-path") + 1] == str(template)
+    assert "--accept-prodockit" in command and "--accept-adopt" in command
+    assert root == project
+    assert subprocess.run(
+        ["git", "-C", str(project), "branch", "--list", "template-update-*"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout == ""
+
+
+def test_template_sync_rejects_a_stale_resume_before_resolving_the_template(
+    tmp_path, monkeypatch
+) -> None:
+    from click.testing import CliRunner
+
+    from prodockit import cli
+
+    (tmp_path / ".git").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(
+        cli.main,
+        ["template-sync", "--apply", "--resume-version", "999.0"],
+    )
+
+    assert result.exit_code == 1
+    assert "fresh process loaded" in result.output
+    assert "template update remains unapplied" in result.output
 
 
 @pytest.mark.parametrize("has_manifest", [False, True])
@@ -505,7 +607,32 @@ paths = []
     )
 
     monkeypatch.chdir(project)
-    monkeypatch.setattr("prodockit.template_sync.latest_prodockit_version", lambda: cli.__version__)
+    from prodockit.adopt import Step
+    from prodockit.toolchain import ToolchainPlan
+
+    monkeypatch.setattr(
+        cli,
+        "assess_adoption",
+        lambda *args, **kwargs: [
+            Step(
+                "dependency",
+                "Integrate",
+                "Supported toolchain",
+                "missing",
+                "align exact installed tools",
+            )
+        ],
+    )
+    def fake_adopt(root, *args, **kwargs):
+        path = root / "adopted.txt"
+        path.write_text("adopted\n", encoding="utf-8")
+        return [path]
+
+    monkeypatch.setattr(cli, "apply_adoption", fake_adopt)
+    monkeypatch.setattr(
+        "prodockit.toolchain.plan",
+        lambda *args, **kwargs: ToolchainPlan((), (), (), ()),
+    )
     # The bare repository is deliberately local. Keep the production host
     # selection covered by the unit tests and use the host-neutral push here
     # so this integration test remains completely offline.
@@ -519,13 +646,21 @@ paths = []
     monkeypatch.setattr("prodockit.template_sync.review_url", lambda *_args: None)
     result = CliRunner().invoke(
         cli.main,
-        ["template-sync", "--template-path", str(template), "--apply"],
+        [
+            "template-sync",
+            "--template-path",
+            str(template),
+            "--apply",
+            "--accept-adopt",
+        ],
     )
 
     assert result.exit_code == 0, result.output
     assert "No Git commands are needed" in result.output
     assert "Build dependencies: aligned managed pins" in result.output
     assert "Shared files: refreshed 1 managed file" in result.output
+    assert "Adopt applied and verified" in result.output
+    assert (project / "adopted.txt").read_text(encoding="utf-8") == "adopted\n"
     assert f"prodockit[index]>={cli.__version__}" in (project / "requirements.txt").read_text()
     assert "zensical>=0.0.57" in (project / "requirements.txt").read_text()
     assert "prodockit==" + cli.__version__ in (

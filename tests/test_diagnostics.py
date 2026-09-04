@@ -53,6 +53,25 @@ def test_command_location_handles_windows_and_rejects_stale_path() -> None:
     )
 
 
+def test_command_location_uses_filesystem_identity_for_script_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alias = "/alias/bin"
+    scripts = "/environment/bin"
+    monkeypatch.setattr(
+        diagnostics,
+        "same_path",
+        lambda left, right, *, platform=None: (left, right) == (alias, scripts),
+    )
+
+    assert diagnostics.command_in_environment(
+        f"{alias}/pdk",
+        "/environment",
+        scripts,
+        platform="linux",
+    )
+
+
 def test_command_location_accepts_a_pipx_style_symlink(tmp_path: Path) -> None:
     prefix = tmp_path / "pipx" / "venvs" / "prodockit"
     command = prefix / "bin" / "pdk"

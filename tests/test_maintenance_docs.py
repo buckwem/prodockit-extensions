@@ -462,12 +462,15 @@ def test_command_map_lists_every_public_command() -> None:
     assert not missing, f"public CLI commands absent from the command map: {missing}"
 
 
-def test_template_sync_guide_covers_package_only_updates() -> None:
+def test_template_sync_guide_covers_environment_prerequisites() -> None:
     guide = (ROOT / "docs" / "devcons" / "template-sync.md").read_text(encoding="utf-8")
 
-    assert "version of prodockit installed" in guide
-    assert "python -m pip install" in guide
-    assert "When only prodockit needs upgrading" in guide
+    assert "exact** Prodockit" in guide
+    assert "newer package is downgraded" in guide
+    assert "fresh-process handoff" in guide
+    assert "When only the environment needs aligning" in guide
+    assert "--accept-prodockit" in guide and "--accept-adopt" in guide
+    assert "--offline" in guide and "PDK_WHEELHOUSE" in guide
     assert "Pages" in guide and "documentation" in guide
     assert "manual rebuild is still necessary" in guide
 

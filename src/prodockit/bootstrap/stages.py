@@ -3757,7 +3757,13 @@ def _plan_node(context: Context) -> Plan:
             recovery = (
                 "; if (-not (Test-Path -LiteralPath 'node_modules/puppeteer')) { "
                 f"npm.cmd install --no-save --package-lock=false --legacy-peer-deps "
-                f"{PUPPETEER_RUNTIME}; exit $LASTEXITCODE }}"
+                f"{PUPPETEER_RUNTIME}; "
+                "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }"
+                if ensure_puppeteer
+                else ""
+            )
+            browser = (
+                "; npm.cmd exec -- puppeteer browsers install; exit $LASTEXITCODE"
                 if ensure_puppeteer
                 else ""
             )
@@ -3768,7 +3774,7 @@ def _plan_node(context: Context) -> Plan:
                 f"Set-Location -LiteralPath '{literal}'; "
                 "npm.cmd ci --legacy-peer-deps; "
                 "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
-                f"{recovery}",
+                f"{recovery}{browser}",
             ]
         recovery = (
             " && if [ ! -d node_modules/puppeteer ]; then "
@@ -3777,10 +3783,11 @@ def _plan_node(context: Context) -> Plan:
             if ensure_puppeteer
             else ""
         )
+        browser = " && npm exec -- puppeteer browsers install" if ensure_puppeteer else ""
         return [
             "bash",
             "-c",
-            f"cd {shlex.quote(directory)} && npm ci --legacy-peer-deps{recovery}",
+            f"cd {shlex.quote(directory)} && npm ci --legacy-peer-deps{recovery}{browser}",
         ]
 
     if context.platform != UBUNTU:

@@ -4015,8 +4015,7 @@ def test_the_puppeteer_exports_are_appended_only_once(tmp_path: Path) -> None:
 
 
 def test_other_platforms_are_left_alone(tmp_path: Path) -> None:
-    """Puppeteer's own download works on macOS and Windows. Installing a
-    system Chromium there would be solving somebody else's problem."""
+    """macOS and Windows use Puppeteer's pinned browser, not system Chromium."""
     for platform in (MACOS, WINDOWS):
         plan = next(s for s in STAGES if s.id == "node").plan(_context(tmp_path, platform=platform))
         flat = " ".join(" ".join(c) for c in plan.commands)
@@ -4025,6 +4024,7 @@ def test_other_platforms_are_left_alone(tmp_path: Path) -> None:
         # Mermaid has one deterministic install plus a conditional recovery
         # for older locks where legacy-peer mode omits Puppeteer; MathJax has one.
         assert flat.count("--legacy-peer-deps") == 3, platform
+        assert flat.count("puppeteer browsers install") == 1, platform
 
 
 def test_the_pdf_fonts_are_installed_with_the_graphics_stack(tmp_path: Path) -> None:
