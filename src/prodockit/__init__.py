@@ -71,9 +71,10 @@ Zensical doesn't provide out of the box, each usable independently:
   ``prodockit sync-repo`` from your project root.
 - ``prodockit.diagnostics`` - inspect the active Python, commands,
   dependencies, ``zensical.toml`` inputs, configured renderers, pins, shared
-  files, Git repository and template state without changing any of them. Run
-  ``prodockit diag`` for a concise offline report, adding ``--verbose``,
-  ``--online`` or ``--json`` when needed.
+  files, Git repository and template state. Run ``prodockit diag`` for a
+  read-only concise offline report, adding ``--verbose``, ``--online`` or
+  ``--json`` when needed. ``--dry-run`` previews bounded repairs and ``--fix``
+  offers each one interactively with an exact, default-No confirmation.
 - ``prodockit.pins`` - find every place a build-input version is declared
   across a project (``pyproject.toml``, GitHub Actions workflows,
   ``.gitlab-ci.yml``, requirements/constraints files) and move them
@@ -117,6 +118,6 @@ alongside them.
 See https://prodockit.org/ for documentation.
 """
 
-__version__ = "0.57.0"
+__version__ = "0.58.0"
 
 __all__ = ["__version__"]
