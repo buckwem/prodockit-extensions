@@ -849,6 +849,17 @@ def _authorise_non_git_command(
             and command[5] in {"/opt/homebrew/lib", "/usr/local/lib"}
         ):
             accepted = _safe_embedded_python(command[2])
+        if not accepted and len(command) == 5:
+            from prodockit.adopt import MANIFEST, AdoptOptions, manifest_source
+            from prodockit.bootstrap.stages import _WRITE_NEW_TEXT_FILE
+
+            accepted = command == [
+                candidate,
+                "-c",
+                _WRITE_NEW_TEXT_FILE,
+                str(project / MANIFEST),
+                manifest_source(AdoptOptions(mermaid=True, maths=True)),
+            ]
     elif stage_id == "node":
         # Keep these exact rather than accepting arbitrary ``bash -c`` or npm
         # commands.  A deliberate change to Bootstrap's dependency install

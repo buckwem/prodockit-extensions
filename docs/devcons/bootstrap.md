@@ -146,6 +146,9 @@ and why - and running `--apply` again does only that stage.
 Leave the setup environment, enter the project directory named by Bootstrap,
 and activate the project environment created in stage 16. Changing directory
 while the prompt already says `(.venv)` does not switch environments.
+Bootstrap also records Mermaid and maths as the project's selected components
+in `.prodockit-components.toml`. A later `pdk adopt` can therefore repair their
+installed software without asking you to configure those choices first.
 
 === ":material-apple: macOS"
 
@@ -206,7 +209,7 @@ its 23 setup stages into seven phases while it sets up the machine and project.
 | | 13 | Clone pointed at your project | yes |
 | | 14 | Commit identity in the project | yes |
 | 5. Build toolchain {: rowspan=3 } | 15 | Pandoc, and the libraries WeasyPrint needs | yes |
-| | 16 | Project environment and its dependencies | yes |
+| | 16 | Project environment, dependencies and Adoption component choices | yes |
 | | 17 | Node.js and the render toolchains | yes |
 | 6. Editor and project {: rowspan=4 } | 18 | VS Code extensions | yes |
 | | 19 | VS Code settings for the project | yes |

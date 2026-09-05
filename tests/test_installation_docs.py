@@ -209,6 +209,10 @@ def test_prodockit_is_not_presented_as_supporting_mkdocs() -> None:
 def test_bootstrap_continues_after_shared_preparation() -> None:
     page = BOOTSTRAP_GUIDE.read_text(encoding="utf-8")
 
+    assert ".prodockit-components.toml" in page
+    assert "records Mermaid and maths as the project's selected components" in page
+    assert "later `pdk adopt` can therefore repair" in page
+
     installation = page[
         page.index("## Install with bootstrap") : page.index("## What it covers")
     ]

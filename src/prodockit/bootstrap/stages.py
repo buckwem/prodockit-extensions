@@ -40,6 +40,8 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from prodockit import mathjax, shared_files, tools
+from prodockit.adopt import MANIFEST as ADOPT_MANIFEST
+from prodockit.adopt import AdoptOptions, manifest_source
 from prodockit.bootstrap.model import (
     MACOS,
     SSH_NO_PROMPT_OPTIONS,
@@ -217,6 +219,20 @@ VSCODE_DEBCONF_FILE = "/tmp/code.debconf"
 _WRITE_DEBCONF = (
     "import pathlib, sys; "
     "pathlib.Path(sys.argv[1]).write_text(sys.argv[2] + chr(10), encoding='utf-8')"
+)
+
+# Bootstrap selects both optional renderers for a new project. Record that
+# choice for Adoption so a later repair can restore the selected toolchain
+# without asking the author to configure components first. Exclusive creation
+# is deliberate: the file becomes the author's choice after Bootstrap creates
+# it, and a rerun must never replace that choice.
+_BOOTSTRAP_ADOPT_OPTIONS = AdoptOptions(mermaid=True, maths=True)
+_BOOTSTRAP_ADOPT_MANIFEST = manifest_source(_BOOTSTRAP_ADOPT_OPTIONS)
+_WRITE_NEW_TEXT_FILE = (
+    "import pathlib, sys; "
+    "path = pathlib.Path(sys.argv[1]); "
+    "stream = path.open(mode='x', encoding='utf-8'); "
+    "stream.write(sys.argv[2]); stream.close()"
 )
 
 #: Where MSYS2 puts the MinGW64 libraries WeasyPrint draws text through.
@@ -3114,6 +3130,10 @@ def _check_project_env(context: Context) -> CheckResult:
             "WeasyPrint works in this run, but the project environment does not yet "
             "preserve Homebrew's library path for future shells"
         )
+    if context.guided and not (project / ADOPT_MANIFEST).is_file():
+        return _missing(
+            f"{ADOPT_MANIFEST} does not yet record the components selected by Bootstrap"
+        )
     if context.guided and not context.config.source_url.strip():
         try:
             changed = shared_files.drift(shared_files.inspect(project))
@@ -3318,6 +3338,17 @@ def _plan_project_env(context: Context) -> Plan:
             commands.append(
                 [sys.executable, "-m", "prodockit", "shared-files", "--apply"]
             )
+    components = project / ADOPT_MANIFEST
+    if context.guided and not components.exists():
+        commands.append(
+            [
+                sys.executable,
+                "-c",
+                _WRITE_NEW_TEXT_FILE,
+                str(components),
+                _BOOTSTRAP_ADOPT_MANIFEST,
+            ]
+        )
     if context.guided and context.platform == MACOS:
         activate = venv / "bin" / "activate"
         library = _homebrew_library_path(context)
@@ -5145,7 +5176,7 @@ STAGES: tuple[Stage, ...] = (
     Stage("pandoc", "Pandoc, and the libraries WeasyPrint needs", _check_pandoc, _plan_pandoc),
     Stage(
         "project-env",
-        "Project environment and its dependencies",
+        "Project environment, dependencies and Adoption component choices",
         _check_project_env,
         _plan_project_env,
     ),

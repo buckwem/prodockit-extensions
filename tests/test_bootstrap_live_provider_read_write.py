@@ -16,7 +16,8 @@ from typing import Any
 
 import pytest
 
-from prodockit.bootstrap.stages import WEASYPRINT_MIN_VERSION
+from prodockit.adopt import MANIFEST, AdoptOptions, manifest_source
+from prodockit.bootstrap.stages import _WRITE_NEW_TEXT_FILE, WEASYPRINT_MIN_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -591,6 +592,13 @@ def test_project_environment_allows_only_the_reviewed_template_repairs(
                 f"weasyprint>={WEASYPRINT_MIN_VERSION}",
             ],
             [str(candidate_python), "-m", "prodockit", "shared-files", "--apply"],
+            [
+                str(candidate_python),
+                "-c",
+                _WRITE_NEW_TEXT_FILE,
+                str(project / MANIFEST),
+                manifest_source(AdoptOptions(mermaid=True, maths=True)),
+            ],
         ],
         str(project),
         fixture=fixture,
@@ -599,6 +607,34 @@ def test_project_environment_allows_only_the_reviewed_template_repairs(
         allow_push=True,
         candidate_python=candidate_python,
     )
+
+
+@pytest.mark.parametrize(
+    ("target", "source"),
+    [
+        ("another.toml", manifest_source(AdoptOptions(mermaid=True, maths=True))),
+        (MANIFEST, manifest_source(AdoptOptions(mermaid=False, maths=True))),
+        (MANIFEST, manifest_source(AdoptOptions(mermaid=True, maths=False))),
+    ],
+)
+def test_project_environment_rejects_other_component_manifest_writes(
+    tmp_path: Path, target: str, source: str
+) -> None:
+    fixture = live.Fixture(**fixture_values())
+    home = tmp_path / "home"
+    project = home / "setup" / live.SURREY_PROJECT
+
+    with pytest.raises(live.LiveProviderError, match="unapproved non-Git"):
+        live.authorise_plan(
+            "project-env",
+            [[sys.executable, "-c", _WRITE_NEW_TEXT_FILE, str(project / target), source]],
+            str(project),
+            fixture=fixture,
+            home=home,
+            project=project,
+            allow_push=True,
+            candidate_python=Path(sys.executable),
+        )
 
 
 @pytest.mark.parametrize(
