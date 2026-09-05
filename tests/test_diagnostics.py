@@ -331,6 +331,39 @@ def test_diagnostics_passes_when_adopt_is_aligned(
     assert check.data["pending"] == []
 
 
+def test_adopt_readiness_does_not_turn_a_valid_non_venv_ci_run_into_a_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.adopt import AdoptChoiceResolution, AdoptOptions, Step
+
+    monkeypatch.setattr(
+        "prodockit.adopt.resolve_options",
+        lambda _root: AdoptChoiceResolution(AdoptOptions(), "zensical.toml", False),
+    )
+    monkeypatch.setattr(
+        "prodockit.adopt.assess",
+        lambda _root, _options, **_kwargs: [
+            Step("project", "Assess", "Existing project", "ok", "valid"),
+            Step(
+                "environment",
+                "Assess",
+                "Active project environment",
+                "wrong",
+                "activate the project's virtual environment first",
+            ),
+            Step("dependency", "Integrate", "Supported toolchain", "ok", "aligned"),
+            Step("core", "Integrate", "Standard components", "ok", "aligned"),
+            Step("verify", "Verify", "Ready for local build", "wait", "activate first"),
+        ],
+    )
+
+    check = diagnostics._adopt_readiness_checks(tmp_path, online=False)[0]
+
+    assert check.status == "pass"
+    assert check.data["blockers"] == []
+    assert check.data["pending"] == []
+
+
 def test_installation_detects_stale_path_and_dependency_conflict(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

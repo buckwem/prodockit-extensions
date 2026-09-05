@@ -321,25 +321,35 @@ def _winget_old(identifier: str, version: str) -> None:
         "--silent",
         "--disable-interactivity",
     ]
-    result = _run(command, check=False)
-    if not result.returncode:
-        return
-
-    output = f"{result.stdout}\n{result.stderr}".lower()
-    source_data_missing = (
-        "0x8a15000f" in output
-        or "data required by the source is missing" in output
-    )
-    if not source_data_missing:
-        _raise_command_failure(command, result)
-
     # GitHub's disposable Windows images occasionally retain a corrupt or
-    # incomplete WinGet source catalogue. Repair only that exact condition,
-    # then make one fresh installation attempt. This belongs to fixture
-    # preparation rather than Bootstrap: the product has not started yet.
-    _run(["winget", "source", "reset", "--force"])
-    _run(["winget", "source", "update"])
-    _run(command)
+    # incomplete WinGet source catalogue. A reset can report success before
+    # the replacement catalogue is readable, so retry this exact transient
+    # condition with bounded backoff. This belongs to fixture preparation
+    # rather than Bootstrap: the product has not started yet.
+    retry_delays = (5, 15)
+    for attempt in range(len(retry_delays) + 1):
+        result = _run(command, check=False)
+        if not result.returncode:
+            return
+
+        output = f"{result.stdout}\n{result.stderr}".lower()
+        source_data_missing = (
+            "0x8a15000f" in output
+            or "data required by the source is missing" in output
+        )
+        if not source_data_missing or attempt == len(retry_delays):
+            _raise_command_failure(command, result)
+
+        _run(["winget", "source", "reset", "--force"])
+        _run(["winget", "source", "update"])
+        delay = retry_delays[attempt]
+        print(
+            "prepare: WinGet source catalogue is still unavailable; "
+            f"retrying {identifier} in {delay}s "
+            f"(attempt {attempt + 2}/{len(retry_delays) + 1})",
+            flush=True,
+        )
+        time.sleep(delay)
 
 
 def _windows_old_node_installer(root: Path) -> Path:
