@@ -252,6 +252,7 @@ def test_windows_path_starts_with_the_unregistered_old_tool(
 
 def test_old_winget_fixture_repairs_a_missing_source_catalogue(monkeypatch) -> None:
     calls: list[tuple[list[str], bool]] = []
+    delays: list[int] = []
 
     def run(command, *, check=True, **_kwargs):  # type: ignore[no-untyped-def]
         calls.append((command, check))
@@ -265,6 +266,7 @@ def test_old_winget_fixture_repairs_a_missing_source_catalogue(monkeypatch) -> N
         return _completed()
 
     monkeypatch.setattr(native, "_run", run)
+    monkeypatch.setattr(native.time, "sleep", delays.append)
 
     native._winget_old("Microsoft.VisualStudioCode", "1.80.2")
 
@@ -278,7 +280,38 @@ def test_old_winget_fixture_repairs_a_missing_source_catalogue(monkeypatch) -> N
     assert calls[1] == (["winget", "source", "reset", "--force"], True)
     assert calls[2] == (["winget", "source", "update"], True)
     assert calls[3][0] == calls[0][0]
-    assert calls[3][1] is True
+    assert calls[3][1] is False
+    assert delays == [5]
+
+
+def test_old_winget_fixture_bounds_repeated_source_repairs(monkeypatch) -> None:
+    calls: list[tuple[list[str], bool]] = []
+    delays: list[int] = []
+
+    def run(command, *, check=True, **_kwargs):  # type: ignore[no-untyped-def]
+        calls.append((command, check))
+        if command[:2] == ["winget", "install"]:
+            return subprocess.CompletedProcess(
+                command,
+                0x8A15000F,
+                stdout="Data required by the source is missing",
+                stderr="",
+            )
+        return _completed()
+
+    monkeypatch.setattr(native, "_run", run)
+    monkeypatch.setattr(native.time, "sleep", delays.append)
+
+    with pytest.raises(native.NativeInstallError, match="source is missing"):
+        native._winget_old("Microsoft.VisualStudioCode", "1.80.2")
+
+    install_calls = [call for call in calls if call[0][:2] == ["winget", "install"]]
+    reset_calls = [call for call in calls if call[0][:3] == ["winget", "source", "reset"]]
+    update_calls = [call for call in calls if call[0][:3] == ["winget", "source", "update"]]
+    assert len(install_calls) == 3
+    assert len(reset_calls) == 2
+    assert len(update_calls) == 2
+    assert delays == [5, 15]
 
 
 def test_old_winget_fixture_does_not_repair_an_unrelated_failure(monkeypatch) -> None:
