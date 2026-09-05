@@ -602,7 +602,10 @@ release ceremony; the changelog test permits it to be absent between releases.
 
 Downstream repositories that pin prodockit—especially `prodockit-template`
 and the userguide—should update deliberately, rebuild their own site and PDF,
-and use their own tests before adopting the release.
+and use their own tests before adopting the release. Where a downstream
+repository has a Surrey GitLab mirror, its release is not complete until the
+mirror's `main` branch and matching release tag have also been updated and
+verified.
 
 \ref{fig-downstream-release-cascade} shows the downstream sequence. Each
 repository first updates its version pin and shared files, then builds and
@@ -615,3 +618,51 @@ release starts this review; it does not bypass it.
 
 Downstream release cascade
 ///
+
+### Complete each downstream mirror {: #release-complete-downstream-mirror }
+
+GitHub is the canonical source for `prodockit-template` and
+`prodockit-userguide`; their University of Surrey GitLab repositories are
+distribution mirrors used by student projects. A GitHub release alone does not
+update either mirror. In particular, `template-sync` reads the template from
+the host selected for the project, so a Surrey project continues to receive an
+older Prodockit/Zensical combination while the Surrey template mirror is
+behind.
+
+Treat **sync** as an outcome, not as the creation of a branch or merge request.
+For each downstream repository:
+
+1. merge and verify the canonical GitHub release;
+2. fetch both repositories and reconcile the GitLab history with the exact
+   GitHub release commit without force-pushing or discarding either history;
+3. update GitLab `main` directly when its permissions allow it;
+4. push the matching GitHub release tag so it points to the canonical release
+   commit, not merely to a later GitLab merge commit;
+5. prove the GitLab `main` tree is byte-for-byte identical to the GitHub
+   release tree and that the GitLab tag resolves to the intended commit; and
+6. remove the temporary sync branch and close any superseded sync request.
+
+A merge request is a fallback for a protected branch or an explicitly
+requested review, not the definition of a completed mirror sync. If one is
+required, do not report the repository as synchronised while it remains open:
+merge it, verify `main`, publish the tag, and then report completion. One
+current request should replace, close, or contain any older pending sync; never
+leave several cumulative requests for the maintainer to untangle.
+
+Use a clean temporary worktree or clone for the reconciliation. These checks
+state the completion contract; substitute the repository's real remote names,
+release tag, and canonical release commit:
+
+```bash
+git fetch github main --tags
+git fetch surrey main --tags
+git diff --exit-code <github-release-commit> surrey/main
+git ls-remote surrey refs/heads/main refs/tags/<release-tag>
+```
+
+The tree comparison may be empty even when GitLab `main` is a reconciliation
+merge commit: that is expected when the histories differ. The tag must still
+identify the exact canonical GitHub release commit. After synchronising the
+template, run a preview from a disposable Surrey-hosted project and confirm
+that `template-sync` reports the newly released template and supported
+Prodockit/Zensical versions before applying it to a real project.

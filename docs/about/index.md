@@ -48,7 +48,9 @@ The project roles in \ref{tab-about-index-know-the-project-family} separate the
 package, its starter project, and its longer guide. The template is maintained
 on GitHub and synchronised to the University of
 Surrey's GitLab for student use. Projects created from it use the same
-prodockit package documented here.
+prodockit package documented here. A downstream release is only complete when
+the mirror's `main` branch and release tag are both current; the maintainer
+procedure is documented in [Complete each downstream mirror](../devcons/releasing.md#release-complete-downstream-mirror).
 
 ## Choose where to continue
 

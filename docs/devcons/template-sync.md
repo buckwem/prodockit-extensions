@@ -67,6 +67,16 @@ versions, command, affected environment or files, and network requirement.
 The target is taken from the template's coordinated version declarations, not
 from the newest release on PyPI.
 
+!!! warning "Stop if a mirror proposes an unexpected downgrade"
+    A project uses the template repository for its selected host. For example,
+    a Surrey project reads the Surrey GitLab mirror rather than silently
+    falling back to GitHub. If the preview proposes an older Prodockit or
+    Zensical release than expected, do not use `--apply`: verify that the
+    mirror's `main` branch and matching template release tag have completed
+    their [downstream release sync](releasing.md#release-complete-downstream-mirror).
+    Creating a mirror merge request is not enough while that request remains
+    open.
+
 During apply, an older package is upgraded and a newer package is downgraded
 to that exact release. The command asks first, with **No** as the default. If
 you agree, it installs through the active interpreter with the same mirrors,
@@ -81,8 +91,12 @@ rest of the active environment or Adopt-managed project files. **No** is again
 the default. Adopt installs and verifies the complete combination supported by
 that Prodockit release, including exact upgrades and downgrades, while keeping
 its installation logic independent of the template. Template-sync only
-orchestrates that implementation; it does not duplicate it. Files declared
-in `.prodockit-shared-files.toml`, including the managed website and PDF
+orchestrates that implementation; it does not duplicate it.
+`.prodockit-components.toml` is project-owned and is therefore not copied or
+overwritten from the template. If it is absent in an older project, Adopt
+infers established Mermaid and maths choices from the Zensical configuration
+and saves that local record when its integration stage is approved. Files
+declared in `.prodockit-shared-files.toml`, including the managed website and PDF
 stylesheets, are refreshed from the installed Prodockit release and included
 in the same review request. The MR therefore contains a complete, internally
 consistent update rather than only the files copied directly from the
@@ -167,6 +181,11 @@ or replace it. To replace it, add the `--force FILE-PATH` shown by the preview
 to the apply command. The normal apply route stops before changing anything
 until every such file has a decision, so the resulting request is ready to
 approve rather than containing unresolved `.new` files.
+
+To inspect the incoming copies before deciding, use
+`prodockit template-sync --apply --local-only`. This is the only route that
+writes `.new` files for unresolved edits; preview mode and a normal `--apply`
+leave the project unchanged.
 
 ////
 

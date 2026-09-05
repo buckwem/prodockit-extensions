@@ -62,6 +62,7 @@ REPAIRABLE_DISTRIBUTIONS = ("prodockit", "zensical")
 DIAGNOSTIC_IDS = frozenset(
     {
         "environment.python",
+        "environment.interpreters",
         "environment.virtual-env",
         "environment.inspection",
         "installation.commands",
@@ -85,6 +86,7 @@ DIAGNOSTIC_IDS = frozenset(
         "repository.git",
         "repository.template-metadata",
         "repository.template-update",
+        "maintenance.adopt-readiness",
         "repository.inspection",
     }
 )
@@ -205,6 +207,13 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "Prodockit cannot replace or reselect the Python process that is running it.",
         "Repair or select Python outside Prodockit, then rerun diagnostics.",
     ),
+    "environment.interpreters": RepairPolicy(
+        "confirmable",
+        "A project virtual environment containing launchers from different Python "
+        "installations can be rebuilt independently from its requirements.",
+        "Choose the Python release to keep, then let diagnostics archive and rebuild "
+        "the project .venv. No template is used.",
+    ),
     "environment.virtual-env": RepairPolicy(
         "prohibited",
         "Changing the caller's active shell or editor interpreter is outside the process.",
@@ -322,6 +331,12 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "manual",
         "A template update is a separately reviewed repository-wide change.",
         "Run `pdk template-sync` to preview it before applying it.",
+    ),
+    "maintenance.adopt-readiness": RepairPolicy(
+        "manual",
+        "Adopt owns supported-toolchain and standard-component integration independently "
+        "of prodockit-template.",
+        "Run `pdk adopt --dry-run`, review its stages, then run `pdk adopt --apply`.",
     ),
     "repository.inspection": RepairPolicy(
         "manual",
@@ -459,7 +474,7 @@ class RepairRollbackError(RepairTransactionError):
     """A repair failed and its quarantined content could not be restored."""
 
 
-def _content_sha256(path: Path) -> str:
+def _content_sha256(path: Path, *, allow_internal_symlinks: bool = False) -> str:
     """Hash a file or directory tree without following symlinks."""
     digest = hashlib.sha256()
     if path.is_symlink():
@@ -471,7 +486,13 @@ def _content_sha256(path: Path) -> str:
         raise RepairTransactionError(f"repair target is not a file or directory: {path}")
     for child in sorted(path.rglob("*"), key=lambda item: item.as_posix()):
         if child.is_symlink():
-            raise RepairTransactionError(f"refusing symlink inside repair target: {child}")
+            if not allow_internal_symlinks:
+                raise RepairTransactionError(f"refusing symlink inside repair target: {child}")
+            relative = child.relative_to(path).as_posix().encode("utf-8")
+            digest.update(relative)
+            digest.update(b"\0symlink\0")
+            digest.update(os.readlink(child).encode("utf-8", errors="surrogateescape"))
+            continue
         relative = child.relative_to(path).as_posix().encode("utf-8")
         digest.update(relative)
         digest.update(b"\0")
@@ -553,6 +574,26 @@ class RepairTransaction:
             )
         self._begun = True
         self._write_manifest()
+        self._ignore_quarantine_in_repository()
+
+    def _ignore_quarantine_in_repository(self) -> None:
+        """Keep recovery material out of Git, transactionally, in a project."""
+        if not (self.boundary / ".git").exists():
+            return
+        ignore = self.boundary / ".gitignore"
+        existing = ignore.read_text(encoding="utf-8") if ignore.is_file() else ""
+        if ".prodockit-quarantine/" in {line.strip() for line in existing.splitlines()}:
+            return
+        if ignore.exists():
+            self.backup_path(ignore, backup_name=".gitignore")
+        else:
+            self.record_creation(ignore)
+        separator = "" if not existing or existing.endswith("\n") else "\n"
+        ignore.write_text(
+            f"{existing}{separator}\n# Recoverable local backups made by `pdk diag --fix`.\n"
+            ".prodockit-quarantine/\n",
+            encoding="utf-8",
+        )
 
     def quarantine_path(
         self,
@@ -560,6 +601,7 @@ class RepairTransaction:
         *,
         backup_name: str,
         metadata: dict[str, Any] | None = None,
+        allow_internal_symlinks: bool = False,
     ) -> None:
         """Move one contained non-symlink target into this transaction."""
         original = path.absolute()
@@ -573,7 +615,7 @@ class RepairTransaction:
                 f"cannot resolve repair target {original}: {error}"
             ) from error
         self._relative(resolved)
-        before_hash = _content_sha256(original)
+        before_hash = _content_sha256(original, allow_internal_symlinks=allow_internal_symlinks)
         backup = Path(os.path.abspath(self.quarantine / "files" / backup_name))
         try:
             backup.relative_to(self.quarantine)
@@ -745,6 +787,78 @@ def _generic_candidate(check: DiagnosticResult) -> RepairCandidate:
     )
 
 
+def _interpreter_candidate(check: DiagnosticResult) -> RepairCandidate:
+    """Offer an explicit, recoverable rebuild for a mixed project environment."""
+    policy = REPAIR_REGISTRY[check.id]
+    if sys.platform == "win32":
+        return RepairCandidate(
+            "environment.interpreters.rebuild-manually",
+            check.id,
+            "manual",
+            "manual",
+            check.summary,
+            "Windows cannot replace the virtual environment containing this running process.",
+            "Deactivate it, move .venv aside, then resume Bootstrap to rebuild it.",
+        )
+    if check.data.get("project_environment") is not True:
+        return RepairCandidate(
+            "environment.interpreters.rebuild-manually",
+            check.id,
+            "manual",
+            "manual",
+            check.summary,
+            "Only the active project's own .venv is a bounded repair target.",
+            policy.remediation,
+        )
+    interpreters = check.data.get("repair_interpreters", {})
+    if not isinstance(interpreters, dict) or not interpreters:
+        return _generic_candidate(check)
+    choices: list[RepairChoice] = []
+    seen: set[str] = set()
+    for key in ("project", "shell"):
+        raw = interpreters.get(key)
+        if not isinstance(raw, dict):
+            continue
+        executable = str(raw.get("base_executable", ""))
+        version = str(raw.get("version", "unknown"))
+        if not executable or executable in seen:
+            continue
+        seen.add(executable)
+        choices.append(
+            RepairChoice(
+                f"rebuild-with-{key}-python",
+                f"Archive and rebuild .venv with Python {version} ({key} interpreter)",
+                internal_operation="environment.interpreters.rebuild",
+                affected_paths=(".venv", "requirements.txt"),
+                prerequisites=(
+                    "the selected base Python is outside .venv and can create environments",
+                    "requirements.txt is present and reviewable",
+                ),
+                warning=(
+                    "This archives the complete project .venv, creates a replacement, and "
+                    "reinstalls every declared dependency. The current repair process then "
+                    "hands verification to the replacement interpreter."
+                ),
+                warning_severity="danger",
+                network=True,
+                rollback="restore .venv from the diagnostic quarantine manifest",
+            )
+        )
+    if not choices:
+        return _generic_candidate(check)
+    choices.append(_leave_unchanged())
+    return RepairCandidate(
+        "environment.interpreters.rebuild",
+        check.id,
+        policy.disposition,
+        "available",
+        check.summary,
+        policy.reason,
+        policy.remediation,
+        tuple(choices),
+    )
+
+
 def _windows_pango_candidate(check: DiagnosticResult) -> RepairCandidate:
     policy = REPAIR_REGISTRY[check.id]
     raw = check.data.get("windows_pango")
@@ -783,8 +897,7 @@ def _windows_pango_candidate(check: DiagnosticResult) -> RepairCandidate:
                 warning_severity="warning",
                 network=True,
                 rollback=(
-                    "pacman retains its package cache; restore the prior user "
-                    "environment values"
+                    "pacman retains its package cache; restore the prior user environment values"
                 ),
             ),
             _leave_unchanged(),
@@ -1153,6 +1266,8 @@ def build_repair_dry_run(
                     policy.remediation,
                 )
             )
+        elif check.id == "environment.interpreters":
+            candidates.append(_interpreter_candidate(check))
         elif check.id == "installation.metadata":
             candidates.append(_metadata_candidate(check))
         elif check.id == "dependencies.shared-files" and check.data.get("drifted"):
@@ -1622,6 +1737,141 @@ def repair_distribution_metadata(
     )
 
 
+def repair_mixed_virtual_environment(
+    root: Path,
+    *,
+    base_executable: str,
+    expected_fingerprint: str,
+    retry_reporter: RetryReporter | None = None,
+    timestamp: str | None = None,
+) -> RepairApplyResult:
+    """Archive and rebuild a mixed project ``.venv`` with one chosen Python."""
+    project = root.resolve()
+    environment = project / ".venv"
+    if sys.platform == "win32":
+        raise RepairTransactionError(
+            "Windows cannot replace the environment containing the running process; "
+            "deactivate it, move .venv aside, and resume Bootstrap"
+        )
+    if not same_path(sys.prefix, str(environment)):
+        raise RepairTransactionError(
+            "the active interpreter is not the project's .venv; refusing to rebuild it"
+        )
+    if environment.is_symlink() or not environment.is_dir():
+        raise RepairTransactionError("the project .venv is missing or is a symlink")
+    requirements = project / "requirements.txt"
+    if not requirements.is_file() or requirements.is_symlink():
+        raise RepairTransactionError("a regular project requirements.txt is required")
+
+    current = _interpreter_consistency_check(project)
+    if current.data.get("repair_fingerprint") != expected_fingerprint:
+        raise RepairTransactionError(
+            "the interpreter repair plan became stale after inspection; rerun pdk diag --fix"
+        )
+    selected = Path(base_executable).expanduser().absolute()
+    if not selected.is_file():
+        raise RepairTransactionError(f"selected base Python is unavailable: {selected}")
+    try:
+        selected.resolve().relative_to(environment.resolve())
+    except ValueError:
+        pass
+    else:
+        raise RepairTransactionError(
+            "selected Python is inside the environment being replaced; choose its base interpreter"
+        )
+    evidence, evidence_error = _probe_interpreter(str(selected))
+    if evidence is None:
+        raise RepairTransactionError(
+            f"selected Python cannot report its identity: {evidence_error or 'unknown error'}"
+        )
+
+    transaction = RepairTransaction(
+        project,
+        action_id="environment.interpreters.rebuild",
+        check_id="environment.interpreters",
+        choice_id=f"rebuild-with-python-{evidence['version']}",
+        timestamp=timestamp,
+    )
+    try:
+        transaction.begin()
+        transaction.quarantine_path(
+            environment,
+            backup_name=".venv",
+            metadata={"selected_python_version": evidence["version"]},
+            allow_internal_symlinks=True,
+        )
+        transaction.record_creation(environment)
+        created = _run([str(selected), "-m", "venv", str(environment)], cwd=project, timeout=120)
+        if created.returncode:
+            detail = "\n".join(
+                part.strip() for part in (created.stdout, created.stderr) if part.strip()
+            )
+            raise RepairTransactionError(detail or "the replacement .venv could not be created")
+
+        python = environment / "bin" / "python"
+        install_command = [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--retries",
+            "5",
+            "--timeout",
+            "30",
+            "--prefer-binary",
+            "-r",
+            str(requirements),
+        ]
+
+        def install() -> subprocess.CompletedProcess[str]:
+            return _run(install_command, cwd=project, timeout=900)
+
+        installed = run_with_retries(
+            "project virtual environment rebuild",
+            install,
+            succeeded=lambda result: result.returncode == 0,
+            failure_detail=lambda result: "\n".join(
+                part.strip() for part in (result.stdout, result.stderr) if part.strip()
+            ),
+            reporter=retry_reporter,
+        ).value
+        if installed.returncode:
+            detail = "\n".join(
+                part.strip() for part in (installed.stdout, installed.stderr) if part.strip()
+            )
+            raise RepairTransactionError(detail or "project requirements could not be installed")
+        verified = _run(
+            [
+                str(python),
+                "-c",
+                "import prodockit, weasyprint, zensical; print(prodockit.__version__)",
+            ],
+            cwd=project,
+            timeout=60,
+        )
+        command_dir = environment / "bin"
+        if verified.returncode or not (command_dir / "pdk").is_file():
+            detail = "\n".join(
+                part.strip() for part in (verified.stdout, verified.stderr) if part.strip()
+            )
+            raise RepairTransactionError(
+                detail or "the replacement environment failed its import and command checks"
+            )
+        transaction.commit()
+    except Exception as error:
+        transaction.rollback(str(error))
+        if isinstance(error, RepairTransactionError):
+            raise
+        raise RepairTransactionError(str(error)) from error
+    return RepairApplyResult(
+        "applied",
+        (".venv",),
+        _display_path(transaction.quarantine, project),
+        _display_path(transaction.manifest_path, project),
+    )
+
+
 def repair_shared_file(
     root: Path,
     target: str,
@@ -1874,9 +2124,7 @@ def repair_locked_renderer(
         completed = npm_result.completed
         if completed.returncode:
             detail = npm_result.failure_detail
-            raise RepairTransactionError(
-                f"npm ci failed: {_sanitise_text(detail, project)}"
-            )
+            raise RepairTransactionError(f"npm ci failed: {_sanitise_text(detail, project)}")
         changed.append(_display_path(modules, project))
 
         if component == "mermaid":
@@ -1975,9 +2223,7 @@ def repair_windows_pango(
         run,
         succeeded=lambda completed: completed.returncode == 0,
         failure_detail=lambda completed: "\n".join(
-            part.strip()
-            for part in (completed.stdout, completed.stderr)
-            if part and part.strip()
+            part.strip() for part in (completed.stdout, completed.stderr) if part and part.strip()
         ),
         reporter=retry_reporter,
     )
@@ -2004,8 +2250,7 @@ def repair_windows_pango(
     if imported.returncode != 0:
         detail = imported.stderr.strip() or imported.stdout.strip()
         raise RepairTransactionError(
-            "Windows Pango repaired, but fresh-process WeasyPrint verification failed: "
-            f"{detail}"
+            f"Windows Pango repaired, but fresh-process WeasyPrint verification failed: {detail}"
         )
     return RepairApplyResult(
         "applied",
@@ -2221,6 +2466,144 @@ def repair_project_configuration(
     )
 
 
+_INTERPRETER_PROBE = (
+    "import json, platform, sys; "
+    "print(json.dumps({'executable': sys.executable, 'prefix': sys.prefix, "
+    "'base_executable': getattr(sys, '_base_executable', sys.executable), "
+    "'version': platform.python_version()}))"
+)
+
+
+def _probe_interpreter(command: str) -> tuple[dict[str, str] | None, str | None]:
+    """Return fresh-process interpreter identity without importing Prodockit."""
+    try:
+        completed = subprocess.run(
+            [command, "-c", _INTERPRETER_PROBE],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+            check=False,
+            env=dict(os.environ),
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return None, f"{type(error).__name__}: {error}"
+    if completed.returncode != 0:
+        detail = "\n".join(
+            part.strip() for part in (completed.stdout, completed.stderr) if part.strip()
+        )
+        return None, detail or f"interpreter exited {completed.returncode}"
+    try:
+        raw = json.loads(completed.stdout.strip().splitlines()[-1])
+        keys = ("executable", "prefix", "base_executable", "version")
+        evidence = {key: str(raw[key]) for key in keys}
+    except (IndexError, KeyError, TypeError, ValueError) as error:
+        return None, f"invalid interpreter identity: {error}"
+    return evidence, None
+
+
+def _interpreter_fingerprint(*values: str) -> str:
+    digest = hashlib.sha256()
+    for value in values:
+        digest.update(value.encode("utf-8", errors="surrogateescape"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _python_minor_version(value: str) -> tuple[int, int] | None:
+    match = re.match(r"^(\d+)\.(\d+)", value)
+    return (int(match.group(1)), int(match.group(2))) if match else None
+
+
+def _interpreter_consistency_check(root: Path) -> DiagnosticResult:
+    """Prove that the shell's Python and the interpreter running PDK agree."""
+    active = sys.prefix != sys.base_prefix
+    shell_python = shutil.which("python")
+    if not active:
+        return DiagnosticResult(
+            "environment.interpreters",
+            "Environment and installation",
+            "pass",
+            "Interpreter consistency is not applicable outside a virtual environment",
+        )
+    if shell_python is None:
+        return DiagnosticResult(
+            "environment.interpreters",
+            "Environment and installation",
+            "fail",
+            "The active environment has no python command on PATH",
+            ("reactivate the project .venv, then rerun diagnostics",),
+            {"project_environment": same_path(sys.prefix, str(root / ".venv"))},
+        )
+    shell, error = _probe_interpreter(shell_python)
+    if shell is None:
+        return DiagnosticResult(
+            "environment.interpreters",
+            "Environment and installation",
+            "fail",
+            "The active environment's python command cannot report its identity",
+            (_sanitise_text(error or "unknown error", root),),
+            {"project_environment": same_path(sys.prefix, str(root / ".venv"))},
+        )
+    running_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    running_executable = str(Path(sys.executable).absolute())
+    running_base = str(Path(getattr(sys, "_base_executable", sys.executable)).absolute())
+    same_executable = same_path(shell["executable"], running_executable)
+    same_version = _python_minor_version(shell["version"]) == _python_minor_version(running_version)
+    same_prefix = same_path(shell["prefix"], sys.prefix)
+    data = {
+        "project_environment": same_path(sys.prefix, str(root / ".venv")),
+        "running": {
+            "executable": running_executable,
+            "base_executable": running_base,
+            "version": running_version,
+        },
+        "shell": shell,
+        "repair_interpreters": {
+            "project": {"base_executable": running_base, "version": running_version},
+            "shell": {
+                "base_executable": shell["base_executable"],
+                "version": shell["version"],
+            },
+        },
+        "repair_fingerprint": _interpreter_fingerprint(
+            running_executable,
+            running_base,
+            running_version,
+            shell_python,
+            shell["executable"],
+            shell["base_executable"],
+            shell["version"],
+            shell["prefix"],
+        ),
+    }
+    if same_executable and same_version and same_prefix:
+        return DiagnosticResult(
+            "environment.interpreters",
+            "Environment and installation",
+            "pass",
+            "python and Prodockit use the same interpreter",
+            (
+                f"python: {_display_path(shell['executable'], root)}",
+                f"Prodockit: {_display_path(running_executable, root)}",
+            ),
+            data,
+        )
+    return DiagnosticResult(
+        "environment.interpreters",
+        "Environment and installation",
+        "fail",
+        "The project .venv contains launchers from different Python installations",
+        (
+            f"python: {shell['version']} at {_display_path(shell['executable'], root)}",
+            f"Prodockit: {running_version} at {_display_path(running_executable, root)}",
+            "archive and rebuild .venv; installing one missing package cannot repair it",
+        ),
+        data,
+    )
+
+
 def _environment_checks(root: Path) -> list[DiagnosticResult]:
     executable = _display_path(sys.executable, root)
     prefix = _display_path(sys.prefix, root)
@@ -2305,6 +2688,7 @@ def _environment_checks(root: Path) -> list[DiagnosticResult]:
                 ("this is valid for pipx, Conda, system Python and clean CI installations",),
             )
         )
+    checks.append(_interpreter_consistency_check(root))
     return checks
 
 
@@ -2846,9 +3230,7 @@ def _renderer_checks(
                 "WEASYPRINT_DLL_DIRECTORIES is not persisted for the expected Pango directory"
             )
         if not evidence.environment_current:
-            pango_details.append(
-                "WEASYPRINT_DLL_DIRECTORIES is not active in the current process"
-            )
+            pango_details.append("WEASYPRINT_DLL_DIRECTORIES is not active in the current process")
 
     try:
         # A fresh interpreter proves that DLL discovery works without relying on
@@ -2924,17 +3306,15 @@ def _renderer_checks(
         else None
     )
     mmdc_ok = bool(mmdc_probe and mmdc_probe.ok)
-    mmdc_retried = bool(
-        mmdc_ok and mmdc_probe and getattr(mmdc_probe, "attempts", 1) > 1
-    )
+    mmdc_retried = bool(mmdc_ok and mmdc_probe and getattr(mmdc_probe, "attempts", 1) > 1)
     mmdc_error = _sanitise_text(mmdc_probe.error, root) if mmdc_probe and mmdc_probe.error else None
     checks.append(
         DiagnosticResult(
             "renderer.mermaid",
             "Rendering toolchain",
-            "warn" if mmdc_retried else (
-                "pass" if mmdc_ok else ("fail" if mermaid_required else "warn")
-            ),
+            "warn"
+            if mmdc_retried
+            else ("pass" if mmdc_ok else ("fail" if mermaid_required else "warn")),
             "Mermaid CLI recovered after a transient failure"
             if mmdc_retried
             else "Mermaid CLI is available"
@@ -3344,6 +3724,91 @@ def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
     return checks
 
 
+def _adopt_readiness_checks(
+    root: Path,
+    *,
+    online: bool,
+    retry_reporter: RetryReporter | None = None,
+) -> list[DiagnosticResult]:
+    """Report the same local integration work that Adopt and template-sync see."""
+    from prodockit.adopt import AdoptError, assess, resolve_options
+
+    try:
+        resolution = resolve_options(root)
+        options = resolution.options
+        steps = assess(
+            root,
+            options,
+            retry_reporter=retry_reporter,
+            offline=not online,
+        )
+    except (AdoptError, OSError, RuntimeError, ValueError) as error:
+        return [
+            DiagnosticResult(
+                "maintenance.adopt-readiness",
+                "Repository and template maintenance",
+                "fail",
+                "Adopt readiness could not be assessed",
+                (_sanitise_text(str(error), root),),
+            )
+        ]
+
+    blockers = [step for step in steps if step.selected and step.status == "wrong"]
+    pending = [step for step in steps if step.needs_work]
+    data = {
+        "options": {"mermaid": options.mermaid, "maths": options.maths},
+        "options_source": resolution.source,
+        "options_saved": resolution.saved,
+        "blockers": [step.id for step in blockers],
+        "pending": [step.id for step in pending],
+        "steps": [
+            {
+                "id": step.id,
+                "summary": step.summary,
+                "status": step.status,
+                "detail": step.detail,
+                "selected": step.selected,
+            }
+            for step in steps
+        ],
+    }
+    if blockers:
+        return [
+            DiagnosticResult(
+                "maintenance.adopt-readiness",
+                "Repository and template maintenance",
+                "fail",
+                f"Adopt has {len(blockers)} blocking integration problem(s)",
+                tuple(f"{step.summary}: {step.detail}" for step in blockers),
+                data,
+            )
+        ]
+    if pending:
+        return [
+            DiagnosticResult(
+                "maintenance.adopt-readiness",
+                "Repository and template maintenance",
+                "warn",
+                f"Adopt has {len(pending)} integration stage(s) to apply",
+                (
+                    *(f"{step.summary}: {step.detail}" for step in pending),
+                    "run `pdk adopt --dry-run`, then apply the reviewed stages",
+                ),
+                data,
+            )
+        ]
+    return [
+        DiagnosticResult(
+            "maintenance.adopt-readiness",
+            "Repository and template maintenance",
+            "pass",
+            "Adopt's supported toolchain and selected components are aligned",
+            (),
+            data,
+        )
+    ]
+
+
 def inspect(
     config_file: str | Path = "zensical.toml",
     *,
@@ -3428,6 +3893,16 @@ def inspect(
         "Repository and template metadata",
         lambda: _repository_checks(root, online),
     )
+    collect(
+        "maintenance.adopt-readiness",
+        "Repository and template maintenance",
+        "Adopt readiness",
+        lambda: _adopt_readiness_checks(
+            root,
+            online=online,
+            retry_reporter=retry_reporter,
+        ),
+    )
     return DiagnosticReport(
         config_file=_display_path(requested, root),
         project_root=_display_path(root, Path.cwd()),
@@ -3454,6 +3929,7 @@ __all__ = [
     "command_in_environment",
     "inspect",
     "repair_locked_renderer",
+    "repair_mixed_virtual_environment",
     "repair_pin_declarations",
     "repair_project_configuration",
     "repair_shared_file",
