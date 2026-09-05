@@ -16,6 +16,7 @@ than stages to complete in sequence.
 document or a new template project to Adoption, Bootstrap or Manual
 installation.
 
+<!-- Reused from prodockit-userguide/docs/images/installing-prodockit-decision-tree-components.png. The canonical editable source is the installing-prodockit-decision-tree-components page in prodockit-userguide/tools/documentation-diagrams/site-diagrams.drawio. -->
 ![Decision tree for choosing Adoption, Bootstrap, or Manual installation](assets/diagrams/2.1-installation-approaches.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-installation-approaches}
