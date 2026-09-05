@@ -127,16 +127,20 @@ def load_manifest(root: Path) -> AdoptOptions:
     )
 
 
-def write_manifest(root: Path, options: AdoptOptions) -> Path:
-    path = root / MANIFEST
-    source = (
+def manifest_source(options: AdoptOptions) -> str:
+    """Return the commit-safe record of an author's component choices."""
+    return (
         "# Selected by `prodockit adopt`; safe to commit.\n"
         "schema = 1\n\n"
         "[components]\n"
         f"mermaid = {str(options.mermaid).lower()}\n"
         f"maths = {str(options.maths).lower()}\n"
     )
-    path.write_text(source, encoding="utf-8")
+
+
+def write_manifest(root: Path, options: AdoptOptions) -> Path:
+    path = root / MANIFEST
+    path.write_text(manifest_source(options), encoding="utf-8")
     return path
 
 
@@ -1451,5 +1455,6 @@ __all__ = [
     "ensure_zensical_config",
     "install_tool",
     "load_manifest",
+    "manifest_source",
     "write_manifest",
 ]

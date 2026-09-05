@@ -142,7 +142,15 @@ def _probe_mermaid_once(path: str | Path, *, timeout: float) -> RendererProbe:
             source.write_text("graph LR\n  A --> B\n", encoding="utf-8")
             puppeteer.write_text(
                 json.dumps(
-                    {"args": ["--no-sandbox", "--disable-setuid-sandbox"]}
+                    {
+                        # Do not rely on Puppeteer's default. The configured
+                        # system browser may otherwise open a visible window
+                        # during `pdk config --check` or `pdk diag`, as Edge
+                        # did on Windows even after the direct version probe
+                        # was removed in #714.
+                        "headless": True,
+                        "args": ["--no-sandbox", "--disable-setuid-sandbox"],
+                    }
                 ),
                 encoding="utf-8",
             )

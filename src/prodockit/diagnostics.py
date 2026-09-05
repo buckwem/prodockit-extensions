@@ -2245,6 +2245,10 @@ def _environment_checks(root: Path) -> list[DiagnosticResult]:
     ]
 
     declared = os.environ.get("VIRTUAL_ENV")
+    project_environment = root / ".venv"
+    wrong_project_environment = project_environment.is_dir() and not same_path(
+        sys.prefix, str(project_environment)
+    )
     if declared and not same_path(declared, sys.prefix):
         checks.append(
             DiagnosticResult(
@@ -2259,6 +2263,26 @@ def _environment_checks(root: Path) -> list[DiagnosticResult]:
                     "then reopen the shell",
                 ),
                 {"declared": _display_path(declared, root), "running_prefix": prefix},
+            )
+        )
+    elif wrong_project_environment:
+        checks.append(
+            DiagnosticResult(
+                "environment.virtual-env",
+                "Environment and installation",
+                "fail",
+                "Active Python is not the project's .venv",
+                (
+                    f"running prefix: {prefix}",
+                    f"project environment: {_display_path(project_environment, root)}",
+                    "deactivate the current environment, activate the project's .venv, "
+                    "then rerun diagnostics",
+                ),
+                {
+                    "declared": _display_path(declared, root) if declared else None,
+                    "running_prefix": prefix,
+                    "project_environment": _display_path(project_environment, root),
+                },
             )
         )
     elif declared:
@@ -2954,15 +2978,20 @@ def _renderer_checks(
         except OSError as error:
             browser_error = _sanitise_text(str(error), root)
     browser_ok = bool(browser and not browser_error)
+    bundled_browser_ok = not browser and mmdc_ok
     browser_status: Status = (
-        "pass" if browser_ok else ("fail" if browser and mermaid_required else "warn")
+        "pass"
+        if browser_ok or bundled_browser_ok
+        else ("fail" if browser and mermaid_required else "warn")
     )
     checks.append(
         DiagnosticResult(
             "renderer.browser",
             "Rendering toolchain",
             browser_status,
-            "Browser executable found"
+            "Mermaid bundled browser rendered successfully"
+            if bundled_browser_ok
+            else "Browser executable found"
             if browser_ok
             else (
                 "Browser executable is unusable"
@@ -2987,6 +3016,7 @@ def _renderer_checks(
             {
                 "required": mermaid_required,
                 "path": _display_path(browser, root) if browser else None,
+                "bundled": bundled_browser_ok,
                 "version": None,
                 "error": browser_error,
             },

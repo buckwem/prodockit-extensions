@@ -74,10 +74,10 @@ Confirm both the installed version and the command selected by the shell:
 
 The command path must be inside the setup `.venv`. An older Prodockit command
 from another Python can otherwise shadow the package just installed while
-`pip` still reports success. Run `pdk diag` for a complete read-only check of
-the active interpreter, distribution metadata, command locations, and project
-configuration. Add `--verbose` for resolved evidence or `--json` when
-attaching the report to a support request.
+`pip` still reports success. Do not run the complete `pdk diag` here: it is a
+project-scoped command, so the setup directory correctly fails its
+configuration and repository checks. Step 5 runs it from the completed
+project and its separate environment.
 
 ////
 
@@ -132,9 +132,55 @@ Stop whenever you like. The next run picks up from wherever it got to.
 pdk boot
 ```
 
+!!! warning "Complete the manual step before confirming"
+
+    If Bootstrap reaches a prompt where you must type `yes`, you should have
+    completed the manual step it describes at that point. Type `yes` only after
+    checking that the action succeeded; the confirmation tells Bootstrap to
+    continue, but cannot perform or verify the action for you.
+
 Every stage `ok`, and the last one names the address your site is
 published at. If a stage still reports work to do, its line says what
 and why - and running `--apply` again does only that stage.
+
+Leave the setup environment, enter the project directory named by Bootstrap,
+and activate the project environment created in stage 16. Changing directory
+while the prompt already says `(.venv)` does not switch environments.
+Bootstrap also records Mermaid and maths as the project's selected components
+in `.prodockit-components.toml`. A later `pdk adopt` can therefore repair their
+installed software without asking you to configure those choices first.
+
+=== ":material-apple: macOS"
+
+    ```bash
+    deactivate
+    cd /path/to/your-project
+    source .venv/bin/activate
+    pdk diag
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    deactivate
+    cd C:\path\to\your-project
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+    pdk diag
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    deactivate
+    cd /path/to/your-project
+    source .venv/bin/activate
+    pdk diag
+    ```
+
+The `Project` line must name the clone rather than its parent setup directory.
+Add `--verbose` for resolved evidence or `--json` when attaching the report to
+a support request.
 ////
 
 ///
@@ -163,7 +209,7 @@ its 23 setup stages into seven phases while it sets up the machine and project.
 | | 13 | Clone pointed at your project | yes |
 | | 14 | Commit identity in the project | yes |
 | 5. Build toolchain {: rowspan=3 } | 15 | Pandoc, and the libraries WeasyPrint needs | yes |
-| | 16 | Project environment and its dependencies | yes |
+| | 16 | Project environment, dependencies and Adoption component choices | yes |
 | | 17 | Node.js and the render toolchains | yes |
 | 6. Editor and project {: rowspan=4 } | 18 | VS Code extensions | yes |
 | | 19 | VS Code settings for the project | yes |

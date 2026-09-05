@@ -171,6 +171,9 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     for executable in ("mmdc", "mmdc.cmd"):
         (mermaid_bin / executable).write_text("", encoding="utf-8")
     (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    (project / ".prodockit-components.toml").write_text(
+        "schema = 1\n\n[components]\nmermaid = true\nmaths = true\n", encoding="utf-8"
+    )
     venv_python = project / ".venv" / "bin" / "python"
     venv_python.parent.mkdir(parents=True, exist_ok=True)
     venv_python.write_text("", encoding="utf-8")
@@ -3651,6 +3654,66 @@ def test_first_path_project_environment_is_independent_of_template_dependencies(
     ] in plan.commands
 
 
+def test_bootstrap_records_both_components_for_later_adoption(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+
+    plan = next(s for s in STAGES if s.id == "project-env").plan(_context(tmp_path))
+    command = next(
+        command
+        for command in plan.commands
+        if str(project / ".prodockit-components.toml") in command
+    )
+
+    subprocess.run(command, check=True)
+    assert (project / ".prodockit-components.toml").read_text(encoding="utf-8") == (
+        "# Selected by `prodockit adopt`; safe to commit.\n"
+        "schema = 1\n\n"
+        "[components]\n"
+        "mermaid = true\n"
+        "maths = true\n"
+    )
+
+
+def test_bootstrap_preserves_existing_adoption_component_choices(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    choices = project / ".prodockit-components.toml"
+    original = "schema = 1\n\n[components]\nmermaid = false\nmaths = true\n"
+    choices.write_text(original, encoding="utf-8")
+
+    plan = next(s for s in STAGES if s.id == "project-env").plan(_context(tmp_path))
+
+    assert not any(str(choices) in command for command in plan.commands)
+    assert choices.read_text(encoding="utf-8") == original
+
+
+def test_project_environment_reports_missing_adoption_choices(tmp_path: Path) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    python = project / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    (python.parent / "activate").touch()
+    runner = FakeRunner(
+        {
+            "-m pip --version": CommandResult(0, "pip 26.0.1"),
+            "import zensical": CommandResult(0),
+            "import weasyprint": CommandResult(0),
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "project-env").check(
+        _context(tmp_path, platform=UBUNTU, runner=runner)
+    )
+
+    assert result.status is Status.MISSING
+    assert ".prodockit-components.toml" in result.detail
+
+
 @pytest.mark.parametrize("platform", [MACOS, WINDOWS, UBUNTU])
 def test_first_path_project_environment_refreshes_shared_files_from_candidate(
     tmp_path: Path, platform: str
@@ -3694,6 +3757,9 @@ def test_first_path_environment_rejects_stale_managed_files(tmp_path: Path) -> N
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True)
     (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
+    (project / ".prodockit-components.toml").write_text(
+        "schema = 1\n\n[components]\nmermaid = true\nmaths = true\n", encoding="utf-8"
+    )
     (project / ".prodockit-shared-files.toml").write_text(
         'version = 1\n\n[[files]]\nsource = "pdk.css"\ntarget = "docs/stylesheets/pdk.css"\n',
         encoding="utf-8",
@@ -3729,6 +3795,9 @@ def test_project_environment_reports_a_different_build_python_without_blocking(
     (project / ".git").mkdir(parents=True)
     (project / "requirements.txt").write_text("zensical\n", encoding="utf-8")
     (project / ".python-version").write_text("3.14\n", encoding="utf-8")
+    (project / ".prodockit-components.toml").write_text(
+        "schema = 1\n\n[components]\nmermaid = true\nmaths = true\n", encoding="utf-8"
+    )
     python = project / ".venv" / "bin" / "python"
     python.parent.mkdir(parents=True)
     python.write_text("", encoding="utf-8")

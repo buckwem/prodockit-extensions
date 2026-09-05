@@ -104,6 +104,31 @@ def test_environment_reports_only_a_real_virtual_environment_mismatch(
     assert next(check for check in checks if check.id == "environment.virtual-env").status == "fail"
 
 
+def test_environment_rejects_the_setup_venv_inside_a_bootstrapped_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_environment = tmp_path / ".venv"
+    project_environment.mkdir()
+    setup_environment = tmp_path.parent / "setup-environment"
+    setup_environment.mkdir()
+    monkeypatch.setattr("prodockit.diagnostics.sys.prefix", str(setup_environment))
+    monkeypatch.setattr("prodockit.diagnostics.sys.base_prefix", "/usr")
+    monkeypatch.setattr(
+        "prodockit.diagnostics.sys.executable", str(setup_environment / "bin" / "python")
+    )
+    monkeypatch.setenv("VIRTUAL_ENV", str(setup_environment))
+
+    check = next(
+        check
+        for check in diagnostics._environment_checks(tmp_path)
+        if check.id == "environment.virtual-env"
+    )
+
+    assert check.status == "fail"
+    assert check.summary == "Active Python is not the project's .venv"
+    assert "activate the project's .venv" in check.details[-1]
+
+
 def test_installation_detects_stale_path_and_dependency_conflict(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -798,9 +823,42 @@ def test_browser_diagnostic_does_not_launch_a_configured_browser(
     assert check.data == {
         "required": True,
         "path": "msedge.exe",
+        "bundled": False,
         "version": None,
         "error": None,
     }
+
+
+def test_successful_mermaid_render_proves_its_bundled_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    binary = tmp_path / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("installed", encoding="utf-8")
+    monkeypatch.setattr(diagnostics, "find_browser", lambda: None)
+    monkeypatch.setattr(
+        diagnostics,
+        "_command",
+        lambda name: diagnostics.CommandInfo(name, "/usr/bin/tool", "1.0"),
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "probe_mermaid",
+        lambda path: SimpleNamespace(
+            path=path, ok=True, version="11.16.0", error=None, attempts=1
+        ),
+    )
+
+    check = next(
+        item
+        for item in diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
+        if item.id == "renderer.browser"
+    )
+
+    assert check.status == "pass"
+    assert check.summary == "Mermaid bundled browser rendered successfully"
+    assert check.data["bundled"] is True
+    assert check.data["path"] is None
 
 
 def test_mermaid_security_audit_is_explicitly_skipped_offline(

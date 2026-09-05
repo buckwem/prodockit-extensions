@@ -209,12 +209,23 @@ def test_prodockit_is_not_presented_as_supporting_mkdocs() -> None:
 def test_bootstrap_continues_after_shared_preparation() -> None:
     page = BOOTSTRAP_GUIDE.read_text(encoding="utf-8")
 
+    assert ".prodockit-components.toml" in page
+    assert "records Mermaid and maths as the project's selected components" in page
+    assert "later `pdk adopt` can therefore repair" in page
+
     installation = page[
         page.index("## Install with bootstrap") : page.index("## What it covers")
     ]
     assert "installation.md#installation-preparation" in installation
     assert installation.count("//// step | ") == 5
     assert "//// step | Install Prodockit into the active environment" in installation
+    confirm = installation[installation.index("//// step | Confirm") :]
+    assert '!!! warning "Complete the manual step before confirming"' in confirm
+    assert "Type `yes` only after checking that the action succeeded" in " ".join(confirm.split())
+    assert "Do not run the complete `pdk diag` here" in installation
+    assert "Changing directory" in confirm
+    assert confirm.count("pdk diag") == 3
+    assert "The `Project` line must name the clone" in confirm
     assert "python3.14 -m venv" not in installation
     assert "py -3.14 -m venv" not in installation
 
