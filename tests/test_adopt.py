@@ -110,7 +110,8 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
 
     assert result.exit_code == 0, result.output
     assert "Phase 1/4 — Assess" in result.output
-    assert "Stage [3/7] Supported toolchain" in result.output
+    assert "Stage [3/8] Supported toolchain" in result.output
+    assert "Component choices" in result.output
     assert "\x1b[94m" in result.output
     assert "\x1b[34m" in result.output
     assert "\x1b[96m" not in result.output
@@ -235,6 +236,7 @@ language = "en-GB"
     assert config.index('"stylesheets/pdk.css"') < config.index('"stylesheets/mine.css"')
     for extension in CORE_EXTENSIONS:
         assert f'[project.markdown_extensions."{extension}"]' in config
+    assert '[project.markdown_extensions."prodockit.citations"]' not in config
     stylesheet = (project / STYLESHEET).read_text(encoding="utf-8")
     assert "logo_white.png" not in stylesheet
     assert "logo_black.png" not in stylesheet
@@ -308,7 +310,7 @@ nav = [{ Home = "index.md" }]
     adopted = CliRunner().invoke(
         main,
         ["adopt", "--apply", "--no-mermaid", "--no-maths"],
-        input="y\ny\n",
+        input="y\ny\ny\n",
     )
     checked = CliRunner().invoke(main, ["config", "--check"])
 
@@ -388,11 +390,57 @@ def test_assessment_refreshes_the_managed_stylesheet(tmp_path: Path) -> None:
     ensure_stylesheet(project)
     assert stylesheet.read_text(encoding="utf-8") != "/* old managed stylesheet */\n"
     core = next(step for step in assess(project, AdoptOptions()) if step.id == "core")
-    assert core.status == "missing"
-    assert f"save the inferred component choices in {MANIFEST}" in core.detail
-    write_manifest(project, AdoptOptions())
-    core = next(step for step in assess(project, AdoptOptions()) if step.id == "core")
     assert core.status == "ok"
+    choices = next(step for step in assess(project, AdoptOptions()) if step.id == "choices")
+    assert choices.status == "missing"
+    assert f"save the inferred component choices in {MANIFEST}" in choices.detail
+    write_manifest(project, AdoptOptions())
+    choices = next(step for step in assess(project, AdoptOptions()) if step.id == "choices")
+    assert choices.status == "ok"
+
+
+def test_existing_inline_citations_are_preserved_as_the_bibliography_alternative(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    ensure_zensical_config(project, AdoptOptions())
+    config_path = project / "zensical.toml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            '[project.markdown_extensions."prodockit.bibliography"]',
+            '[project.markdown_extensions."prodockit.citations"]',
+        ),
+        encoding="utf-8",
+    )
+    ensure_stylesheet(project)
+    write_manifest(project, AdoptOptions())
+
+    core = next(step for step in assess(project, AdoptOptions()) if step.id == "core")
+    ensure_zensical_config(project, AdoptOptions())
+    updated = config_path.read_text(encoding="utf-8")
+
+    assert core.status == "ok"
+    assert '[project.markdown_extensions."prodockit.citations"]' in updated
+    assert '[project.markdown_extensions."prodockit.bibliography"]' not in updated
+
+
+def test_core_assessment_names_only_the_missing_inputs(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    ensure_zensical_config(project, AdoptOptions())
+    ensure_stylesheet(project)
+    config_path = project / "zensical.toml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            '[project.markdown_extensions."prodockit.steps"]\n', ""
+        ),
+        encoding="utf-8",
+    )
+
+    core = next(step for step in assess(project, AdoptOptions()) if step.id == "core")
+
+    assert core.status == "missing"
+    assert core.detail == "add standard extension(s): prodockit.steps"
+    assert "stylesheet" not in core.detail
 
 
 def test_existing_documentation_requirements_file_is_used(tmp_path: Path) -> None:
@@ -504,7 +552,7 @@ markdown_extensions = [
     result = CliRunner().invoke(
         main,
         ["adopt", "--apply", "--no-mermaid", "--no-maths"],
-        input="y\ny\n",
+        input="y\ny\ny\n",
     )
     assert result.exit_code == 0, result.output
 
@@ -628,7 +676,7 @@ def test_apply_core_never_invokes_git_or_editor_setup(tmp_path: Path, monkeypatc
     monkeypatch.chdir(project)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
 
-    result = CliRunner().invoke(main, ["adopt", "--apply"], input="y\ny\n")
+    result = CliRunner().invoke(main, ["adopt", "--apply"], input="y\ny\ny\n")
 
     assert result.exit_code == 0, result.output
     assert (project / "requirements.txt").is_file()
@@ -1200,7 +1248,7 @@ markdown_extensions:
     result = CliRunner().invoke(
         main,
         ["adopt", "--apply", "--mermaid", "--no-maths"],
-        input="y\ny\ny\n",
+        input="y\ny\ny\ny\n",
     )
 
     assert result.exit_code == 0, result.output

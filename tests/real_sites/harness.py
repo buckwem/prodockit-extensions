@@ -158,7 +158,9 @@ def adopt(site: RealSite, project: Path) -> str:
     command = [sys.executable, "-m", "prodockit", "adopt", "--apply"]
     command.append("--mermaid" if site.mermaid else "--no-mermaid")
     command.append("--maths" if site.maths else "--no-maths")
-    completed = _run(command, cwd=site_root(site, project), input_text="y\ny\n")
+    # Confirm every actionable stage. Extra input is harmless once Adopt has
+    # completed and avoids coupling these real-site tests to a stage count.
+    completed = _run(command, cwd=site_root(site, project), input_text="y\n" * 20)
     return completed.stdout
 
 

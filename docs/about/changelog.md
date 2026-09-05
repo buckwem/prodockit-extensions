@@ -19,6 +19,16 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.60.3 (2026-09-05)
+
+- Preserved an existing project's choice between bibliography-backed and
+  inline citation definitions during Adopt and Template Sync instead of
+  enabling both implementations.
+- Separated the saved component choices from standard authoring configuration
+  in Adopt plans. Diagnostics and Template Sync now identify a missing
+  `.prodockit-components.toml` directly and name only the extensions or shared
+  website inputs that actually need attention.
+
 ## 0.60.2 (2026-09-05)
 
 - Prevented the Adopt-readiness diagnostic from treating a valid CI
