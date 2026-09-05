@@ -120,16 +120,18 @@ def test_a_step_can_hold_content_tabs() -> None:
 
 
 def test_the_bootstrap_quick_start_uses_it() -> None:
-    """The demonstration is a real page rather than a fixture: six steps
+    """The demonstration is a real page rather than a fixture: five steps
     with commands in them, which is what the layout is for."""
     page = BOOTSTRAP_PAGE.read_text(encoding="utf-8")
-    quick = page[page.index("## Quick start") : page.index("## What it covers")]
+    quick = page[
+        page.index("## Install with bootstrap") : page.index("## What it covers")
+    ]
 
     assert "/// steps" in quick
-    assert quick.count("//// step | ") == 6, "six steps, as the workflow it mirrors"
-    # Installing Python differs per platform, and the page already uses
-    # tabs for exactly that above the quick start.
-    assert '=== "macOS"' in quick and '=== "Windows"' in quick and '=== "Ubuntu"' in quick
+    assert quick.count("//// step | ") == 5, "five installation steps"
+    assert '=== ":material-apple: macOS"' in quick
+    assert '=== ":fontawesome-brands-windows: Windows"' in quick
+    assert '=== ":material-linux: Linux (Ubuntu)"' in quick
 
 
 # ---------------------------------------------------------------------------

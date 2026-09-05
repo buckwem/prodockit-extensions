@@ -24,9 +24,16 @@ source .venv/bin/activate
 python -m pip install -e ".[dev]"
 ```
 
-On Windows, activate with `.venv\Scripts\Activate.ps1`. The editable install
-provides `prodockit`, `pdk`, and Zensical while importing package code directly
-from `src/`.
+On Windows PowerShell, allow locally created scripts for the current account,
+then activate the environment:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+.\.venv\Scripts\Activate.ps1
+```
+
+The editable install provides `prodockit`, `pdk`, and Zensical while importing
+package code directly from `src/`.
 
 !!! note "On macOS, expose Homebrew's Pango libraries"
 

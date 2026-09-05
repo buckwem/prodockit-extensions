@@ -4,101 +4,170 @@ icon: lucide/package-plus
 
 {{ heading_counter_reset(page) }}
 
-# Installation
+# Installation preparation
 
-This is the manual setup route. Use it when you want to choose and install the
-package, external tools, and enabled extensions directly. The alternatives are
-[adoption](adopt.md), which integrates prodockit into an established document,
-and [bootstrap](devcons/bootstrap.md), which prepares a machine and a project
-based on `prodockit-template`. Bootstrap is not a general installer for an
-unrelated Zensical project.
+Every installation route needs the same supported Python release and an active
+virtual environment.\index{virtual environment} Prepare those once in section
+3.1, then continue with the
+route that matches the work: [adoption](adopt.md) for an established document,
+[bootstrap](devcons/bootstrap.md) for a new machine and template project,
+[prodockit-template](prodockit-template.md) for the supplied project structure,
+or the [first-site walkthrough](getting-started.md) for an empty directory.
 
-## Requirements
+The remainder of this chapter is the manual setup route. Use it when you want
+to choose and install the package, external tools, and enabled extensions
+directly. Bootstrap is not a general installer for an unrelated Zensical
+project.
 
-**Python 3.10 or later.** Tested on 3.10, 3.11, 3.12, 3.13 and 3.14; `pip` will
-refuse to install on anything older rather than failing later at import.
+## Prepare Python and its environment {: #installation-preparation }
 
-Everything below is pulled in automatically by `pip install prodockit`,
-except where noted:
+Python must exist before it can create the environment that runs Prodockit.
+The environment keeps the documentation toolchain separate from system Python
+and avoids the `externally-managed-environment` error produced by package-
+managed Python installations under PEP 668.
 
-\ref{tab-installation-requirements} lists the runtime dependencies installed with prodockit and explains why each one is needed.
+Choose the directory appropriate to the route you will follow: the existing
+repository for adoption, a parent working directory for bootstrap, the
+template repository for direct template use, or the empty project directory
+for the first-site walkthrough. The examples call it `your-project`; substitute
+the real path throughout.
 
-| Requirement {: width="36%" } | Needed for |
-| --- | --- |
-| [`Markdown`](https://python-markdown.github.io/) (>= 3.10.3) | every extension |
-| [`zensical`](https://zensical.org/) (>= 0.0.59) | Zensical integration and `prodockit.zensical_macros` |
-| [PyMdown Extensions](https://facelessuser.github.io/pymdown-extensions/) (>= 11.0.2) | `prodockit.steps` and `prodockit.tree` are built directly on the PyMdown Blocks API; `prodockit.pdf` also preserves the output of PyMdown features |
-| [`beautifulsoup4`](https://www.crummy.com/software/BeautifulSoup/) (>= 4.12) | `prodockit.pdf` |
-| \index{dependencies!`click`} (>= 8.0) | the `prodockit` command-line tool |
-| [`PyYAML`](https://pyyaml.org/) (>= 6.0) | `prodockit adopt` support for existing `mkdocs.yml`/`mkdocs.yaml` projects |
-| [`packaging`](https://packaging.pypa.io/) (>= 24.0) | comparing an adopted project's recorded Prodockit version floor with the installed release |
-| \index{dependencies!`pypdf`} (>= 4.0) | `prodockit.pdf` |
-| \index{dependencies!`tomli`} (>= 2.0) | reading a template manifest on Python 3.10, where `tomllib` does not exist yet |
-| \index{dependencies!`pymupdf`} (>= 1.24) | only the back-of-book index - `pip install prodockit[index]` |
-/// table-caption | <
-    attrs: {id: tab-installation-requirements}
+/// steps
 
-Requirements
+//// step | Install Python 3.14
+
+Install and verify the supported interpreter before creating an environment.
+
+=== ":material-apple: macOS"
+
+    Install [Homebrew](https://brew.sh) if needed, then run:
+
+    ```bash
+    brew install python@3.14
+    "$(brew --prefix python@3.14)/bin/python3.14" --version
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    Install the 64-bit Python 3.14 release from
+    [python.org](https://www.python.org/downloads/). Select **Add python.exe to
+    PATH** and **Disable path length limit** in the installer, then open a new
+    PowerShell window and run:
+
+    ```powershell
+    py -3.14 --version
+    ```
+
+    If `python` opens the Microsoft Store, disable its `python.exe` and
+    `python3.exe` App Installer aliases.
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    sudo apt update
+    sudo apt install python3.14 python3.14-venv python3-pip
+    python3.14 --version
+    ```
+
+Every check must report Python 3.14 before you continue.
+
+////
+
+//// step | Create the virtual environment
+
+Change to the directory selected for your route and create `.venv` there.
+
+=== ":material-apple: macOS"
+
+    ```bash
+    cd /path/to/your-project
+    "$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    cd C:\path\to\your-project
+    py -3.14 -m venv .venv
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    cd /path/to/your-project
+    python3.14 -m venv .venv
+    ```
+
+Creating the environment does not activate it or change system Python.
+
+////
+
+//// step | Activate the environment
+
+<span id="installation-reactivate"></span>
+
+Activate `.venv` in every new terminal before installing or running the
+documentation tools.
+
+=== ":material-apple: macOS"
+
+    ```bash
+    source .venv/bin/activate
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+    The policy applies to the current account and may ask for confirmation.
+    To leave it unchanged, use classic **CMD** and run
+    `.\.venv\Scripts\activate.bat` instead.
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    source .venv/bin/activate
+    ```
+
+The shell prompt normally gains a `(.venv)` prefix.
+
+////
+
+//// step | Verify the active environment
+
+Verify both the version and the interpreter selected by the shell.
+
+=== ":material-apple: macOS"
+
+    ```bash
+    python --version
+    command -v python
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    python --version
+    Get-Command python
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    python --version
+    command -v python
+    ```
+
+The version must report Python 3.14 and the executable path must be inside the
+`.venv` directory. If either check points elsewhere, repeat the activation
+step before continuing with chapters 4, 5, 6 or 7.
+
+////
+
 ///
-
-The floors in \ref{tab-installation-requirements} are the ones declared in
-`pyproject.toml`, and a test keeps the table in step with them - the two had
-drifted apart, with
-`Markdown` recorded here as >= 3.4 long after the real floor moved to
-3.10.3 (prodockit-extensions#372).
-
-### Not installed by pip {: #installation-external }
-
-These are the ones `pip install prodockit` does **not** bring, and they
-differ in kind:
-
-\ref{tab-installation-not-installed-by-pip} identifies the external tools that pip cannot install and the features that use them.
-
-| Requirement {: width="36%" } | Needed for |
-| --- | --- |
-| \index{dependencies!`weasyprint`} (>= 69) | `prodockit.pdf`. A Python package, but not a dependency of prodockit - install it yourself. `prodockit.pdf` runs its command-line rather than importing it |
-| \index{dependencies!`pandoc`} (>= 3, builds pin 3.10.1) | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build. Genuinely not a Python package - there is nothing for `pip` to install |
-| \index{dependencies!`mermaid-cli`}, `mathjax-full` (Node >= 22) | only Mermaid diagrams and TeX maths in the PDF |
-| Chrome or Chromium | only Mermaid diagrams - `mermaid-cli` renders them through a headless browser |
-| A citation style (`.csl`) | only `prodockit.bibliography`. Fetched per build, not vendored - see below |
-/// table-caption | <
-    attrs: {id: tab-installation-not-installed-by-pip}
-
-Not installed by pip
-///
-
-The citation style is a download rather than an install. Pandoc
-resolves `harvard-cite-them-right.csl` from the directory it runs in, and
-every CI script here fetches it immediately before building:
-
-```bash
-curl -fsSL -o harvard-cite-them-right.csl "https://www.zotero.org/styles/harvard-cite-them-right"
-```
-
-It is deliberately **not** committed: it is third-party content with its
-own licence and its own release cadence, and a vendored copy would go
-stale silently while every build kept succeeding. `prodockit bootstrap`
-fetches it for a bootstrapped project. An adopted or manually installed
-project can fetch it in its own build workflow, and `.gitignore` should keep a
-local copy out of commits.
-
-`weasyprint` is worth separating from `pandoc` rather than filing both as
-"external binaries": one is a `pip install` away and the other is not,
-and a reader who treats them alike goes looking for a package that does
-not exist, or misses one that does.
-
-Pandoc is version-sensitive in a way that changes output rather than
-breaking the build: a major version below 3 renders code blocks as
-justified prose, and the builds pin an exact release because two 3.x
-versions have already disagreed about the same source. `prodockit
-bootstrap` installs the pinned version where a package manager allows it
-and tells you when your local pandoc differs - see
-[Pinning build inputs](devcons/pinning-drift.md).
-
-See [PDF generation](pdf.md) for how `prodockit.pdf` locates these, and
-[Known limitations](about/limitations.md) for why the Node
-ones are needed at all. A build with neither Mermaid diagrams nor maths
-needs neither of them, and no browser.
 
 ## From PyPI
 
@@ -122,8 +191,9 @@ by the project's configuration. Use `pdk diag --verbose` for paths and version
 evidence, or attach `pdk diag --json` when requesting support.
 
 For a minimal project that needs no PDF toolchain, continue with
-[Build your first site](getting-started.md). The external tools above can be
-added later when the document needs their features.
+[Build your first site](getting-started.md). The
+[requirements and dependencies](requirements-dependencies.md) chapter records
+the external tools that can be added later when the document needs them.
 
 ## Enabling an extension
 

@@ -47,7 +47,7 @@ slash-fenced block model rather than a separate, look-alike parser.
 |---|---|
 | Create and publish a document | [prodockit User Guide](https://buckwem.github.io/prodockit-userguide/) |
 | Begin with a maintained report project | [prodockit-template](https://github.com/buckwem/prodockit-template) |
-| Use Adoption to add prodockit to an existing Zensical or MkDocs document | [`prodockit adopt`](https://prodockit.org/adopt/) |
+| Use Adoption to add prodockit to an existing Zensical document | [`prodockit adopt`](https://prodockit.org/adopt/) |
 | Choose and install each dependency directly | [Manual installation](https://prodockit.org/installation/) |
 | Build a small local site from scratch | [Build your first site](https://prodockit.org/getting-started/) |
 | Look up Markdown syntax and configuration | [Authoring reference](https://prodockit.org/authoring/) |
@@ -147,7 +147,7 @@ The `pdk` executable is an exact shorter alias for `prodockit`; `boot` aliases
 |---|---|
 | `prodockit diag` | Diagnose without changing anything by default; preview or explicitly confirm bounded repairs |
 | `prodockit config` | Show resolved Prodockit settings and check source-project integrity |
-| `prodockit adopt` | Add selected prodockit components to an existing Zensical or MkDocs document |
+| `prodockit adopt` | Add selected prodockit components to an existing Zensical document |
 | `prodockit bootstrap` | Check or prepare a machine and a project based on `prodockit-template` |
 | `prodockit init-tools` | Install the local Node tooling for Mermaid and maths rendering |
 | `prodockit init-mathjax` | Copy the installed MathJax bundle into website assets |

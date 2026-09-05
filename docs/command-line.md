@@ -389,7 +389,9 @@ Use the guide that matches the task you are about to perform:
 - [Maintain prodockit](project-maintenance.md) provides the complete recurring cycle.
 - [Add prodockit to an existing document](adopt.md) explains adoption.
 - [Set up a machine](devcons/bootstrap.md) takes a new computer through its first successful publish.
-- [Manual installation](installation.md) covers direct package and tool setup.
+- [Manual installation](installation.md) covers direct package setup, while
+  [Requirements and dependencies](requirements-dependencies.md) records the
+  supported tools and versions.
 - [Repository metadata](devcons/repo-metadata.md) explains every derived link and badge.
 - [Version pinning and drift](devcons/pinning-drift.md) covers controlled upgrades and scheduled comparisons.
 - [Staying in step with the template](devcons/template-sync.md) protects project-owned writing while updating shared infrastructure.

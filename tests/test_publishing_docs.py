@@ -22,10 +22,11 @@ def _publishing_nav() -> list[dict[str, str]]:
 
 def test_publishing_nav_follows_the_reader_workflow() -> None:
     assert _publishing_nav() == [
-        {"22. Publishing overview": "publishing.md"},
-        {"23. Staying in step with the template": "devcons/template-sync.md"},
-        {"24. Publish automatically": "devcons/continuous-integration.md"},
-        {"25. Test the built output": "devcons/testing.md"},
+        {"23. Publishing overview": "publishing.md"},
+        {"24. Requirements and dependencies": "requirements-dependencies.md"},
+        {"25. Staying in step with the template": "devcons/template-sync.md"},
+        {"26. Publish automatically": "devcons/continuous-integration.md"},
+        {"27. Test the built output": "devcons/testing.md"},
     ]
 
 
@@ -51,7 +52,7 @@ def test_reader_guides_present_all_three_setup_routes() -> None:
         name: (ROOT / name).read_text(encoding="utf-8")
         for name in (
             "README.md",
-            "docs/introduction.md",
+            "docs/choosing-installation.md",
             "docs/pdf.md",
             "docs/publishing.md",
         )

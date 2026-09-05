@@ -21,6 +21,7 @@ SOURCE = ROOT / "tools" / "documentation-diagrams"
 OUTPUT = ROOT / "docs" / "assets" / "diagrams"
 
 DIAGRAMS = (
+    "2.1-installation-approaches",
     "21.1-website-stylesheet-cascade",
     "21.2-pdf-stylesheet-cascade",
     "32.3-bibliography-pipeline",

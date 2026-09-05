@@ -18,11 +18,11 @@ def test_top_level_sections_open_with_an_introduction() -> None:
 
     expected_first_items = {
         "Getting started": {"1. Overview": "introduction.md"},
-        "Authoring reference": {"7. Overview": "authoring.md"},
-        "Publish a document": {"22. Publishing overview": "publishing.md"},
-        "Maintain prodockit": {"26. Maintenance overview": "project-maintenance.md"},
-        "Contributor internals": {"31. Overview": "devcons/devcons.md"},
-        "About": {"38. About prodockit": "about/index.md"},
+        "Authoring reference": {"8. Overview": "authoring.md"},
+        "Publish a document": {"23. Publishing overview": "publishing.md"},
+        "Maintain prodockit": {"28. Maintenance overview": "project-maintenance.md"},
+        "Contributor internals": {"33. Overview": "devcons/devcons.md"},
+        "About": {"40. About prodockit": "about/index.md"},
     }
 
     groups = {next(iter(item)): next(iter(item.values())) for item in nav if isinstance(item, dict)}
@@ -53,13 +53,13 @@ def test_contributor_internals_has_focused_reference_pages() -> None:
     )
 
     assert contributor == [
-        {"31. Overview": "devcons/devcons.md"},
-        {"32. Development and code map": "devcons/development.md"},
-        {"33. Extension integration": "devcons/extension-internals.md"},
-        {"34. PDF pipeline and API": "devcons/pdf-internals.md"},
-        {"35. Bootstrap design": "devcons/bootstrap-internals.md"},
-        {"36. Zensical coupling": "devcons/zensical-coupling.md"},
-        {"37. Implementation limitations": "devcons/limitations.md"},
+        {"33. Overview": "devcons/devcons.md"},
+        {"34. Development and code map": "devcons/development.md"},
+        {"35. Extension integration": "devcons/extension-internals.md"},
+        {"36. PDF pipeline and API": "devcons/pdf-internals.md"},
+        {"37. Bootstrap design": "devcons/bootstrap-internals.md"},
+        {"38. Zensical coupling": "devcons/zensical-coupling.md"},
+        {"39. Implementation limitations": "devcons/limitations.md"},
     ]
 
 

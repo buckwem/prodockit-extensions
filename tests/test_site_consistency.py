@@ -196,10 +196,11 @@ def test_reference_site_fails_when_a_macro_cannot_render() -> None:
 
 def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
     introduction = _text("docs/introduction.md")
+    choices = _text("docs/choosing-installation.md")
 
     assert "Start with the [maintenance cycle]" not in introduction
-    assert "[Authoring reference](authoring.md)" in introduction
-    assert "[Publish a document](publishing.md)" in introduction
+    assert "[Authoring reference](authoring.md)" in choices
+    assert "[Publish a document](publishing.md)" in choices
 
 
 def test_introduction_offers_an_optional_tracking_free_support_link() -> None:
@@ -233,7 +234,7 @@ def test_command_line_reference_is_for_document_authors() -> None:
     authoring = next(item["Authoring reference"] for item in nav if "Authoring reference" in item)
     maintenance = next(item["Maintain prodockit"] for item in nav if "Maintain prodockit" in item)
 
-    assert {"20. Command-line reference": "command-line.md"} in authoring
+    assert {"21. Command-line reference": "command-line.md"} in authoring
     assert all("command-line.md" not in item.values() for item in maintenance)
     assert "document authors" in _text("docs/command-line.md")
 

@@ -218,7 +218,7 @@ def _nav_pages(value: object) -> tuple[NavPage, ...]:
 
 
 def load_project_config(path: str | Path = "zensical.toml") -> ProjectConfig:
-    """Read a Zensical TOML or MkDocs/Zensical YAML project file directly."""
+    """Read a Zensical TOML or compatible YAML project file directly."""
     config_path = Path(path).resolve()
     if not config_path.is_file():
         raise ProjectConfigError(f"project configuration not found: {config_path}")

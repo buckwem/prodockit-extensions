@@ -6,11 +6,11 @@ icon: lucide/package-plus
 
 # Add prodockit to an existing document
 
-`prodockit adopt` is for an existing Zensical document whose normal working
-environment is already established. It aligns that environment with the exact
-software combination supported by the installed Prodockit release, then adds
-Prodockit's authoring extensions and website styles without turning the
-project into a copy of prodockit-template.
+`prodockit adopt` is for an existing Zensical document, whether or not its
+Python working environment has already been established. It prepares that
+environment with the exact software combination supported by the installed
+Prodockit release, then adds Prodockit's authoring extensions and website
+styles without turning the project into a copy of prodockit-template.
 
 Use [machine bootstrap](devcons/bootstrap.md) for a new computer or a new
 repository. Adoption assumes that Git, SSH and the editor you prefer already
@@ -75,62 +75,20 @@ tools](pdf.md#pdf-requirements) before building a PDF.
 
 ## Review the existing project
 
-Start with a read-only assessment from the project's own virtual environment.
-The following steps establish that context before asking prodockit what it
-would change.
+Complete [section 3.1, Installation preparation](installation.md#installation-preparation)
+before continuing. For adoption, use the directory containing the existing
+project's `zensical.toml`, `zensical.yml` or `zensical.yaml` when section 3.1
+asks you to choose a directory. This establishes the project's own `.venv`;
+the steps below begin with installing Prodockit into it.
 
 /// steps
 
-//// step | Change to the repository directory
-
-Use the directory containing the project's `zensical.toml` or Zensical YAML
-file (`zensical.yml` or `zensical.yaml`):
-
-```bash
-cd /path/to/your-document
-```
-
-////
-
-//// step | Activate the project's virtual environment
-
-=== "macOS and Ubuntu"
-
-    ```bash
-    source .venv/bin/activate
-    ```
-
-=== "Windows PowerShell"
-
-    ```powershell
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-This is deliberately a separate step from changing directory. Seeing the
-environment name at the start of the prompt confirms which Python installation
-will receive the package and run the build.
-
-////
-
 //// step | Install or update prodockit
 
-=== "macOS"
-
-    ```bash
-    pip3 install --upgrade prodockit
-    ```
-
-=== "Ubuntu"
-
-    ```bash
-    python -m pip install --upgrade prodockit
-    ```
-
-=== "Windows PowerShell"
-
-    ```powershell
-    python -m pip install --upgrade prodockit
-    ```
+```bash
+python -m pip install --upgrade pip
+python -m pip install --upgrade prodockit
+```
 
 Confirm that the command comes from the active project environment:
 
@@ -159,6 +117,10 @@ that Git, SSH, remotes and editors are outside its scope.
 ///
 
 ## Choose optional renderers
+
+Complete [Review the existing project](#review-the-existing-project) first.
+Run every remaining command from the project directory with its `.venv`
+active and with `python --version` reporting Python 3.14.
 
 Choose Mermaid and mathematics only when the existing document uses them. Run:
 
@@ -190,7 +152,8 @@ prodockit adopt --no-mermaid --maths --dry-run
 ## Preview and apply
 
 Preview the complete plan before allowing any file or package change, then
-build the result yourself so the review remains under your control.
+build the result yourself so the review remains under your control. Keep the
+project's `.venv` active throughout these steps.
 
 /// steps
 
@@ -240,7 +203,8 @@ with unrelated documents.
 //// step | Work from prepared caches when offline
 
 Use offline mode only after putting the exact Python wheels in a directory and
-retaining a validated Pandoc archive in Prodockit's native download cache:
+retaining a validated Pandoc archive in Prodockit's native download cache. Run
+the command from the active project environment:
 
 ```bash
 PDK_WHEELHOUSE=/path/to/wheels prodockit adopt --apply --offline
@@ -253,6 +217,9 @@ not update the declarations.
 ////
 
 //// step | Build the website
+
+Keep the project's `.venv` active so the build uses the supported Zensical and
+Prodockit versions installed by adoption.
 
 === "zensical.toml"
 
@@ -296,9 +263,36 @@ Adoption deliberately stops before either action.
 ## Run it again safely
 
 The stages are idempotent: a satisfied stage is reported as `ok` and left
-alone. If an installation is interrupted, run the same command again:
+alone. If an installation is interrupted or you return in a new terminal,
+change to the project directory and reactivate its environment first:
+
+=== ":material-apple: macOS"
+
+    ```bash
+    cd /path/to/your-document
+    source .venv/bin/activate
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    cd C:\path\to\your-document
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    cd /path/to/your-document
+    source .venv/bin/activate
+    ```
+
+Confirm that `python --version` still reports Python 3.14, then run the same
+command again:
 
 ```bash
+python --version
 prodockit adopt --apply
 ```
 

@@ -56,7 +56,7 @@ They are not separate parsers that only resemble it.
 
 Pandoc, WeasyPrint, Node tools, fonts, and other optional publishing
 requirements depend on the output being built. See
-[Installation](../installation.md#installation-external) for that complete
+[Requirements and dependencies](../requirements-dependencies.md#requirements-external) for that complete
 tool-by-tool boundary.
 
 ## Platforms and test depth

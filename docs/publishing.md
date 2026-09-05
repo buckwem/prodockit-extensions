@@ -13,7 +13,7 @@ one, a downloadable PDF.
 This section is for a document author with a working local project. It covers
 template updates, \index{continuous integration} (CI), automated Pages
 deployment, and checks on the published result. For a new project, first choose
-[adoption, bootstrap, or manual installation](introduction.md#choose-an-installation-route).
+[an installation path](choosing-installation.md).
 Maintainers changing
 the prodockit package itself should use
 [Maintain prodockit](project-maintenance.md).
@@ -33,7 +33,7 @@ the appropriate publishing guide.
 | You want a ready-made report project | [Start with prodockit-template](prodockit-template.md) explains what it provides and which files become yours |
 | A new computer or an incomplete template-based checkout | [Bootstrap](devcons/bootstrap.md) checks and prepares Python, Git, Node, Pandoc, fonts, and the project environment |
 | An established documentation project that should keep its existing design and workflow | [Adoption](adopt.md) integrates selected prodockit components without replacing those choices |
-| A project whose dependencies are managed directly | [Manual installation](installation.md) explains the Python package, PDF tools, optional renderers, and configuration |
+| A project whose dependencies are managed directly | [Manual installation](installation.md) covers preparation and package configuration; [Requirements and dependencies](requirements-dependencies.md) records the supported toolchain |
 | An existing template-derived project | [Staying in step with the template](devcons/template-sync.md) brings shared workflows and publishing files up to date without replacing your writing |
 | A working project that already previews with `zensical serve` | Continue with the publishing path below |
 | A prodockit package release rather than a documentation project | Use the maintainer [Build and release](devcons/releasing.md) runbook instead |
@@ -228,6 +228,7 @@ publishing workflows.
     === "Windows PowerShell"
 
         ```powershell
+        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
         .\.venv\Scripts\Activate.ps1
         ```
 
