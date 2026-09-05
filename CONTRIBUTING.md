@@ -43,6 +43,7 @@ python -m pip install -e ".[dev]"
 On Windows PowerShell, activate the environment with:
 
 ```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 .\.venv\Scripts\Activate.ps1
 ```
 

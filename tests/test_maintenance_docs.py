@@ -26,16 +26,16 @@ def test_getting_started_holds_installation_routes() -> None:
     publishing = _nav_group("Publish a document")
     maintenance = _nav_group("Maintain prodockit")
 
-    assert {"3. Add prodockit to an existing document": "adopt.md"} in getting_started
-    assert {"4. Set up a template project": "devcons/bootstrap.md"} in getting_started
-    assert {"5. Start with prodockit-template": "prodockit-template.md"} in getting_started
-    assert {"23. Staying in step with the template": "devcons/template-sync.md"} in publishing
+    assert {"4. Add prodockit to an existing document": "adopt.md"} in getting_started
+    assert {"5. Set up a template project": "devcons/bootstrap.md"} in getting_started
+    assert {"6. Start with prodockit-template": "prodockit-template.md"} in getting_started
+    assert {"25. Staying in step with the template": "devcons/template-sync.md"} in publishing
     assert maintenance == [
-        {"26. Maintenance overview": "project-maintenance.md"},
-        {"27. Diagnose a project": "devcons/diagnostics.md"},
-        {"28. Repository metadata": "devcons/repo-metadata.md"},
-        {"29. Version pinning and drift": "devcons/pinning-drift.md"},
-        {"30. Build and release": "devcons/releasing.md"},
+        {"28. Maintenance overview": "project-maintenance.md"},
+        {"29. Diagnose a project": "devcons/diagnostics.md"},
+        {"30. Repository metadata": "devcons/repo-metadata.md"},
+        {"31. Version pinning and drift": "devcons/pinning-drift.md"},
+        {"32. Build and release": "devcons/releasing.md"},
     ]
 
 
@@ -137,6 +137,7 @@ def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
         "docs/devcons/template-sync.md": ("23.1-template-sync-decision.png",),
         "docs/devcons/testing.md": ("25.1-output-testing-layers.png",),
         "docs/introduction.md": ("1.1-prodockit-output-relationship.png",),
+        "docs/choosing-installation.md": ("2.1-installation-approaches.png",),
         "docs/pdf.md": ("19.1-website-and-pdf-example.png",),
     }
     png_signature = b"\x89PNG\r\n\x1a\n"

@@ -10,96 +10,13 @@ This walkthrough starts with an empty directory and ends with a local Zensical
 site using numbered headings and a cross-reference. It also demonstrates
 `prodockit.steps`: the procedure you are reading is rendered by that extension.
 
+Complete [section 3.1, Installation preparation](installation.md#installation-preparation)
+first, using the empty directory for this site when that section asks you to
+choose a project directory. Continue below with that directory's `.venv`
+active; the repeated Python installation, environment creation and activation
+steps are deliberately kept in section 3.1.
+
 /// steps
-
-//// step | Install Python
-
-prodockit requires Python 3.10 or later. Install Python for your operating
-system, then close and reopen the terminal so the new command is on `PATH`.
-
-<div class="pdf-keep-tab-pages" markdown="1">
-
-=== ":material-apple: macOS"
-
-    Install [Homebrew](https://brew.sh/) first if you do not already have it,
-    then run:
-
-    ```bash
-    brew update
-    brew install python
-    python3 --version
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
-
-    Open PowerShell and run:
-
-    ```powershell
-    winget install --exact --id Python.Python.3.14
-    python --version
-    ```
-
-    If `python` opens the Microsoft Store, search Windows for **Manage app
-    execution aliases** and turn off the App Installer aliases for
-    `python.exe` and `python3.exe`.
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    Open a terminal and run:
-
-    ```bash
-    sudo apt update
-    sudo apt install python3 python3-venv python3-pip
-    python3 --version
-    ```
-
-</div>
-
-////
-
-//// step | Create and activate a virtual environment
-
-Create a directory for the site, then create the \index{virtual environment}
-inside it:
-
-<div class="pdf-keep-tab-pages" markdown="1">
-
-=== ":material-apple: macOS"
-
-    ```bash
-    mkdir my-docs
-    cd my-docs
-    "$(brew --prefix)/bin/python3" -m venv .venv
-    source .venv/bin/activate
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
-
-    In PowerShell:
-
-    ```powershell
-    mkdir my-docs
-    cd my-docs
-    python -m venv .venv
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    ```bash
-    mkdir my-docs
-    cd my-docs
-    python3 -m venv .venv
-    source .venv/bin/activate
-    ```
-
-</div>
-
-The prompt normally starts with `(.venv)` after activation. The rest of the
-walkthrough uses `python`, which now means the interpreter inside that virtual
-environment on all three platforms.
-
-////
 
 //// step | Install prodockit
 

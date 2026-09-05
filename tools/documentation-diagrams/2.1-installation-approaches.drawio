@@ -1,0 +1,36 @@
+<mxfile host="Electron" version="26.2.15" pages="1">
+  <diagram id="installing-prodockit-components" name="installation-approaches">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="900" math="0" shadow="0" background="#ffffff">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="component-input" value="&lt;b&gt;What do you&lt;br&gt;already have?&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#19c866;strokeColor=#19c866;strokeWidth=3;fontColor=#ffffff;fontSize=22;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="85" width="250" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="component-question-one" value="Do you have a working Zensical&lt;br&gt;document that you want to keep?" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="480" y="75" width="370" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="component-question-two" value="Should prodockit configure&lt;br&gt;the supported template&lt;br&gt;toolchain automatically?" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="480" y="450" width="370" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="component-adopt" value="&lt;b&gt;Adoption install&lt;/b&gt;&lt;br&gt;Preserve the existing Zensical&lt;br&gt;document and workflow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="70" width="370" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="component-bootstrap" value="&lt;b&gt;Bootstrap Install&lt;/b&gt;&lt;br&gt;Guided, recoverable setup&lt;br&gt;with prodockit-template" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="320" width="370" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="component-manual" value="&lt;b&gt;Manual install&lt;/b&gt;&lt;br&gt;Perform every template setup&lt;br&gt;and verification step" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="570" width="370" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="component-additional" value="&lt;b&gt;Optional follow-on: Additional tooling&lt;/b&gt;&lt;br&gt;Add only the editor, writing, conversion, or image tools you need" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef1ef;strokeColor=#b8c6c5;strokeWidth=3;fontColor=#102a36;fontSize=22;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="480" y="770" width="840" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="component-edge-input" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="component-input" target="component-question-one"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="component-edge-adopt" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="component-question-one" target="component-adopt"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="component-edge-next" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="component-question-one" target="component-question-two"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="component-edge-bootstrap" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="component-question-two" target="component-bootstrap"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="component-edge-manual" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="component-question-two" target="component-manual"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

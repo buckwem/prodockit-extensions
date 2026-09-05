@@ -24,289 +24,61 @@ unrelated step two sections on. Every stage here answers "is this
 actually set up?", which is the question a written instruction cannot
 answer for its reader.
 
-## Before you start {: #bootstrap-prerequisites }
+## Install with bootstrap {: #bootstrap-quick-start }
 
-Bootstrap can prepare the tooling around an existing Python installation, but
-it cannot install the interpreter or environment from which it is running.
+Complete [section 3.1, Installation preparation](../installation.md#installation-preparation)
+before continuing. For bootstrap, create the setup `.venv` in the parent
+directory where you keep projects; bootstrap later creates a separate build
+environment inside the cloned project.
 
-!!! warning "This cannot be the first thing you run"
-    `prodockit bootstrap` is a prodockit subcommand, so Python and
-    `pip install prodockit` necessarily come first - it cannot install the
-    interpreter it is running on. That is the boundary: **you** install
-    Python, **bootstrap** does the rest.
-
-Which is three steps, on any platform: install Python, make a virtual
-environment, install prodockit into it.
-
-The virtual environment is not optional on macOS and increasingly not on
-Linux either. A Python installed by a package manager is marked
-\index{PEP 668} *externally managed*, and `pip install` outside a virtual
-environment is refused outright:
-
-```text
-error: externally-managed-environment
-× This environment is externally managed
-```
-
-That message is correct and unhelpful in equal measure - it explains what
-it will not do without saying what to do instead. A virtual environment
-is what to do instead.
-
-=== "macOS"
-
-    Install [Homebrew](https://brew.sh) if you do not have it, then:
-
-    ```bash
-    brew install python
-    ```
-
-    Change to the directory you want to keep your projects in - the one
-    you will later point bootstrap's `project_dir` at - and create the
-    environment there:
-
-    ```bash
-    cd ~/GitLab
-    /opt/homebrew/bin/python3 -m venv .venv
-    source .venv/bin/activate
-    pip3 install prodockit
-    ```
-
-    Homebrew's `python3` is named by its full path deliberately. macOS
-    ships a `python3` of its own, and which one a bare `python3` finds
-    depends on `PATH` ordering you did not choose - naming it explicitly
-    makes the environment reproducible rather than dependent on how the
-    shell happened to be configured. On an Intel Mac the prefix is
-    `/usr/local` rather than `/opt/homebrew`; `brew --prefix` prints
-    yours.
-
-=== "Windows"
-
-    Install Python from
-    [python.org/downloads](https://www.python.org/downloads/), and on the
-    installer's screens:
-
-    - Tick **Add python.exe to PATH** on the first screen. Without it,
-      `python` is not a command and nothing below works.
-    - Click **Disable path length limit** on the final screen. Node's
-      render toolchains in stage 14 nest deeply enough to hit the 260
-      character limit.
-
-    Then allow PowerShell to run scripts. Windows blocks all of them by
-    default, and activating a virtual environment *is* a script - so
-    without this the very next step fails:
-
-    ```powershell
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-    ```
-
-    Depending on your PowerShell version it may ask you to confirm;
-    answer `Y`. Often it simply returns to the prompt, which means it
-    worked.
-
-    !!! info "What this changes, and what it does not"
-        Without it, activating the environment fails with `... cannot be
-        loaded because running scripts is disabled on this system` -
-        which names the script rather than the policy blocking it, so it
-        reads as a broken file. `RemoteSigned` allows scripts you wrote
-        locally while still requiring a signature on anything downloaded;
-        `-Scope CurrentUser` limits the change to your own account, so it
-        needs no Administrator window and is done once.
-
-        Rather not change it at all? Use classic **CMD** instead of
-        PowerShell and run `.\.venv\Scripts\activate.bat` - `.bat`
-        files are not covered by execution policy.
-
-    Then, in PowerShell, in the directory you want to keep your projects
-    in:
-
-    ```powershell
-    cd ~\GitLab
-    python -m venv .venv
-    .\.venv\Scripts\Activate.ps1
-    pip install prodockit
-    ```
-
-    !!! warning "Windows ships a `python` that is not Python"
-        Typing `python` on a machine without it installed opens the
-        Microsoft Store rather than reporting that nothing is there.
-        That placeholder is still ahead of a real Python on `PATH` in
-        some installs, so if `python --version` opens a shop window, the
-        install did not take - repeat it with **Add python.exe to PATH**
-        ticked.
-
-=== "Ubuntu"
-
-    ```bash
-    sudo apt install python3 python3-venv python3-pip
-    ```
-
-    `python3-venv` is a separate package on Debian and Ubuntu, and its
-    absence does not show up until `python3 -m venv` fails - by which
-    point the error looks like a broken Python rather than a missing
-    package.
-
-    Then, in the directory you want to keep your projects in:
-
-    ```bash
-    cd ~/GitLab
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install prodockit
-    ```
-
-### Every new terminal needs the environment activated again {: #bootstrap-reactivate }
-
-A virtual environment lasts as long as the shell it was activated in.
-Open a new terminal window - or come back tomorrow - and `prodockit` is
-an unknown command again until you activate it.
-
-A new terminal also starts in your home directory, so **change to the
-directory holding `.venv` first** - the path below is relative to it, and
-from anywhere else it simply is not there:
-
-=== "macOS / Ubuntu"
-
-    ```bash
-    cd ~/GitLab
-    source .venv/bin/activate
-    ```
-
-=== "Windows"
-
-    ```powershell
-    cd ~\GitLab
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-    Fails with `running scripts is disabled on this system`? The
-    execution policy has not been set on this account - see
-    [Before you start](#bootstrap-prerequisites).
-
-Use whichever directory you made the environment in - `~/GitLab` here,
-matching [Before you start](#bootstrap-prerequisites) above.
-
-You can tell it worked because the prompt gains a `(.venv)` prefix. If it
-is not there, nothing you install or run is going where you think it is.
-
-### Check what you actually got {: #bootstrap-verify-install }
-
-Verify both the installed version and the executable selected by the shell:
-
-```bash
-prodockit --version
-which prodockit          # `where prodockit` on Windows
-```
-
-For the complete default read-only answer, run `pdk diag`. It compares both command
-locations with the active interpreter and distribution metadata, reports a
-stale `VIRTUAL_ENV` or `PATH`, and checks the current project's dependencies,
-configuration, renderers, pins, shared files, and repository metadata. Add
-`--verbose` for the resolved evidence or `--json` when attaching the result to
-a support request.
-
-Worth the two seconds, because the failure this catches is silent. An
-older `prodockit` already on `PATH` from a different Python shadows a
-newer one completely: `pip install` reports success, `prodockit
---version` reports a version from two releases ago, and `prodockit
-bootstrap` fails as an unknown command with nothing to suggest why. If
-the version is not the one you just installed, `which` will show you
-which Python is winning.
-
-!!! tip "`pipx` is the other reasonable answer"
-    For a command-line tool used across several projects rather than a
-    library imported by one, [`pipx`](https://pipx.pypa.io/) is arguably
-    the better fit - it gives each tool its own environment and puts the
-    command on `PATH` without an activation step, so there is no
-    `(.venv)` to forget. It is one more thing to install, which is why it
-    is not the route above, but if you already have it,
-    `pipx install prodockit` works and skips this whole section.
-
-## Quick start {: #bootstrap-quick-start }
-
-Six steps from a machine with nothing on it to a published site. Each one
-is safe to repeat: bootstrap checks before it changes anything, and a
-stage already done is left alone.
+The five steps below install Prodockit into the active setup environment and
+continue from the first read-only assessment to the completed site. If you
+open a new terminal, reactivate and verify that environment as described in
+section 3.1. Each command is safe to repeat: bootstrap checks before it changes
+anything, and a completed stage is left alone.
 
 /// steps
 
-//// step | Install Python
-prodockit is a Python program, so this is the one thing that cannot be
-automated - there is nothing to run it with yet. Any version from 3.10
-works; 3.14 is what the template's CI uses.
+//// step | Install Prodockit into the active environment
 
-=== "macOS"
+Use `python -m pip` so installation is performed by the Python interpreter in
+the active `.venv` rather than by another `pip` command on `PATH`:
 
-    Install [Homebrew](https://brew.sh) if you do not have it, then:
+```bash
+python -m pip install --upgrade pip
+python -m pip install --upgrade prodockit
+```
+
+Confirm both the installed version and the command selected by the shell:
+
+=== ":material-apple: macOS"
 
     ```bash
-    brew install python@3.14
-    python3 --version
+    prodockit --version
+    command -v prodockit
     ```
 
-=== "Windows"
+=== ":fontawesome-brands-windows: Windows"
 
     ```powershell
-    winget install --id Python.Python.3.14 -e
-    py --version
+    prodockit --version
+    Get-Command prodockit
     ```
 
-    [python.org](https://www.python.org/downloads/) works equally well.
-    Avoid the Microsoft Store build: it is a stub that cannot always
-    create the virtual environment the next step needs.
-
-=== "Ubuntu"
-
-    `python3-venv` is a separate package on Debian and Ubuntu, and the
-    next step will not work without it.
+=== ":material-linux: Linux (Ubuntu)"
 
     ```bash
-    sudo apt install python3 python3-venv
-    python3 --version
-    ```
-////
-
-//// step | Install prodockit in an environment of its own
-In the directory you want to keep your projects in - the one you will
-later point bootstrap's `project_dir` at - creating it if it is not there
-yet. Not alongside your system Python: Debian and Ubuntu refuse
-`pip install` outside a virtual environment, and the first stage checks
-this before anything else, because the project's own environment is
-built by whichever Python is running bootstrap.
-
-=== "macOS"
-
-    ```bash
-    mkdir -p ~/GitLab
-    cd ~/GitLab
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install prodockit
+    prodockit --version
+    command -v prodockit
     ```
 
-=== "Windows"
+The command path must be inside the setup `.venv`. An older Prodockit command
+from another Python can otherwise shadow the package just installed while
+`pip` still reports success. Run `pdk diag` for a complete read-only check of
+the active interpreter, distribution metadata, command locations, and project
+configuration. Add `--verbose` for resolved evidence or `--json` when
+attaching the report to a support request.
 
-    ```powershell
-    New-Item -ItemType Directory -Force ~\GitLab | Out-Null
-    cd ~\GitLab
-    python -m venv .venv
-    .\.venv\Scripts\Activate.ps1
-    pip install prodockit
-    ```
-
-=== "Ubuntu"
-
-    ```bash
-    mkdir -p ~/GitLab
-    cd ~/GitLab
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install prodockit
-    ```
-
-`(.venv)` in your prompt means it is active. Every command below is run
-from here, with it active - see [Before you start](#bootstrap-prerequisites)
-for the longer version, including what to do when PowerShell refuses to
-run the activation script.
 ////
 
 //// step | Check what needs doing
@@ -369,7 +141,7 @@ and why - and running `--apply` again does only that stage.
 
 ## What it covers {: #bootstrap-stages }
 
-The six quick-start steps above describe what you do.
+The five installation steps above describe what you do.
 \ref{tab-bootstrap-stages} is about the
 [`--apply` phase](#bootstrap-apply), which is discussed later: Bootstrap groups
 its 23 setup stages into seven phases while it sets up the machine and project.

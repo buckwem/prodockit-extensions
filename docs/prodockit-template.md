@@ -80,9 +80,11 @@ project environment, and verifies the first push and published site.
 
 //// step | Install enough to run bootstrap
 
-Install Python and prodockit first. The [machine setup guide](devcons/bootstrap.md)
-provides commands for macOS, Ubuntu, and Windows and explains why bootstrap
-cannot install the command that is currently running.
+Complete [section 3.1, Installation preparation](installation.md#installation-preparation),
+using the parent directory where you keep projects, then follow
+[the bootstrap installation](devcons/bootstrap.md#bootstrap-quick-start) to
+install Prodockit. Bootstrap cannot install the interpreter, environment, or
+command from which it is currently running.
 
 ////
 

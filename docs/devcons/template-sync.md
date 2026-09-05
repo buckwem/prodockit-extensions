@@ -129,6 +129,7 @@ each author-edited file before rebuilding and publishing.
 
     ```powershell
     cd path\to\your-project
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     ```
 

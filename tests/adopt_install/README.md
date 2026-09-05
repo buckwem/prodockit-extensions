@@ -59,6 +59,7 @@ py -m venv .venv
 Activate it as a separate step:
 
 ```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 .\.venv\Scripts\Activate.ps1
 ```
 
@@ -228,6 +229,7 @@ source .venv/bin/activate
 On Windows PowerShell, activate it with:
 
 ```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 .\.venv\Scripts\Activate.ps1
 ```
 

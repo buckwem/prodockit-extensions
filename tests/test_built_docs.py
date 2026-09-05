@@ -110,8 +110,8 @@ def test_pdf_figure_captions_use_chapter_and_figure_numbers(prodockit_pdf):
         " ".join(page.get_text().split()) for page in prodockit_pdf
     )
 
-    assert "Figure 3.1. Adopting Prodockit into an existing document" in text
-    assert "Figure 21.2. PDF stylesheet cascade" in text
+    assert "Figure 4.1. Adopting Prodockit into an existing document" in text
+    assert "Figure 22.2. PDF stylesheet cascade" in text
 
 
 def test_documentation_diagrams_have_rendered_figure_captions(prodockit_paths):
@@ -192,7 +192,7 @@ def test_desktop_numbers_headings_and_figures_with_the_rendered_chapter(
     assert heading is not None, rendered
     chapter = heading.group("chapter")
     assert chapter != "0"
-    assert rendered[toc_selector] == f"{chapter}.1 Requirements"
+    assert rendered[toc_selector] == f"{chapter}.1 Prepare Python and its environment"
 
     caption_selector = "#fig-adoption-workflow figcaption"
     caption_page = prodockit_paths.site_dir / "adopt" / "index.html"
@@ -204,7 +204,7 @@ def test_desktop_numbers_headings_and_figures_with_the_rendered_chapter(
         env=environment,
     )
     rendered = json.loads(completed.stdout)
-    assert rendered[caption_selector].startswith("Figure 3.1. "), rendered
+    assert rendered[caption_selector].startswith("Figure 4.1. "), rendered
 
 
 def test_numbered_figure_captions_follow_rendered_image_widths(
