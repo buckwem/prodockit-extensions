@@ -562,7 +562,10 @@ def _key_path(context: Context) -> Path:
 #: application and the `code` shell command are separate things, and on
 #: macOS installing the first does not give you the second.
 _VSCODE_APP_PATHS = {
-    MACOS: ("/Applications/Visual Studio Code.app",),
+    MACOS: (
+        "/Applications/Visual Studio Code.app",
+        "~/Applications/Visual Studio Code.app",
+    ),
     UBUNTU: ("/usr/share/code", "/snap/code"),
     WINDOWS: (
         r"C:\Program Files\Microsoft VS Code",
@@ -570,15 +573,19 @@ _VSCODE_APP_PATHS = {
     ),
 }
 
-#: What to ask once that has been shown. "Tell me when that is done"
-#: does not say which of several things, and this one is easy to skip.
-_VSCODE_CONFIRM = "Have you installed the code command in PATH from VS Code?"
-
-#: How to add the `code` command once the application is installed.
-_VSCODE_SHELL_COMMAND_HELP = (
-    "In VS Code, open the Command Palette (Cmd+Shift+P / Ctrl+Shift+P) and run "
-    "Shell Command: Install 'code' command in PATH."
-)
+_VSCODE_PROFILE_MARKER = "# Added by prodockit bootstrap for Visual Studio Code"
+_WRITE_VSCODE_PROFILE = """\
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+directory = sys.argv[2]
+marker = sys.argv[3]
+entry = f'export PATH="$PATH:{directory}"'
+text = path.read_text(encoding="utf-8") if path.exists() else ""
+if entry not in text.splitlines():
+    separator = "" if not text or text.endswith("\\n") else "\\n"
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(f"{separator}{marker}\\n{entry}\\n")
+"""
 
 
 def _vscode_app_installed(context: Context) -> bool:
@@ -725,6 +732,37 @@ def vscode_command(context: Context) -> str | None:
     return None
 
 
+def _macos_vscode_bin(context: Context) -> Path:
+    """The application-owned directory that should persist on shell PATH."""
+    command = vscode_command(context)
+    if command and command != "code":
+        return Path(command).parent
+    return Path(_VSCODE_CLI_PATHS[MACOS][0]).parent
+
+
+def _macos_vscode_profile_ready(context: Context) -> bool:
+    """Whether zsh will expose the application-owned CLI in a new shell."""
+    if context.platform != MACOS:
+        return True
+    profile = context.home / ".zprofile"
+    entry = f'export PATH="$PATH:{_macos_vscode_bin(context)}"'
+    try:
+        return entry in profile.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False
+
+
+def _macos_vscode_profile_command(context: Context) -> list[str]:
+    return [
+        sys.executable,
+        "-c",
+        _WRITE_VSCODE_PROFILE,
+        str(context.home / ".zprofile"),
+        str(_macos_vscode_bin(context)),
+        _VSCODE_PROFILE_MARKER,
+    ]
+
+
 #: Where Node's installer puts `npm.cmd` on Windows.
 _NPM_PATHS = (
     r"C:\Program Files\nodejs",
@@ -790,18 +828,15 @@ def _check_vscode(context: Context) -> CheckResult:
         # process yet - which is not a fault to report, and not something
         # to send the reader to a Command Palette over (#292).
         return _ok(f"{command} (PATH picks it up in a new terminal)")
-    if command is not None:
-        # Found *inside the application*, which is not on `PATH` and will
-        # not be - so the Windows wording would be untrue here. Bootstrap
-        # can drive VS Code perfectly well by this path, so nothing is
-        # blocked; the reader is told how to get `code` in their own
-        # terminal, which is a convenience rather than a prerequisite
-        # (prodockit-extensions#424).
-        return _ok(
-            f"{command} - `code` itself is not on PATH. For your own terminal, run "
-            "'Shell Command: Install 'code' command in PATH' from VS Code's "
-            "Command Palette"
+    if command is not None and context.platform == MACOS:
+        if _macos_vscode_profile_ready(context):
+            return _ok(f"{command} - .zprofile exposes `code` in new terminals")
+        return _missing(
+            f"{command} is available inside the application, but .zprofile does not "
+            "expose `code` in new terminals"
         )
+    if command is not None:
+        return _ok(command)
     if _vscode_app_installed(context):
         return _wrong("VS Code is installed, but the `code` command is not on PATH")
     return _missing("VS Code is not installed")
@@ -854,6 +889,8 @@ def _plan_vscode(context: Context) -> Plan:
                 ["sudo", "debconf-set-selections", VSCODE_DEBCONF_FILE],
                 _apt("install", "-y", "/tmp/code.deb"),
             ]
+        if context.platform == MACOS and not _macos_vscode_profile_ready(context):
+            commands.append(_macos_vscode_profile_command(context))
         return Plan(
             commands=commands,
             describe=(
@@ -867,16 +904,18 @@ def _plan_vscode(context: Context) -> Plan:
     # reinstalling the application would fail rather than supply it.
     if _vscode_app_installed(context):
         return Plan(
-            instructions=[_VSCODE_SHELL_COMMAND_HELP],
-            confirm=_VSCODE_CONFIRM,
+            commands=(
+                [_macos_vscode_profile_command(context)]
+                if context.platform == MACOS and not _macos_vscode_profile_ready(context)
+                else []
+            )
         )
     if context.platform == MACOS:
         return Plan(
-            commands=[["brew", "install", "--cask", "visual-studio-code"]],
-            # After the install: the Command Palette being asked for is
-            # the one in the application brew has just put there (#230).
-            follow_up=[_VSCODE_SHELL_COMMAND_HELP],
-            confirm=_VSCODE_CONFIRM,
+            commands=[
+                ["brew", "install", "--cask", "visual-studio-code"],
+                _macos_vscode_profile_command(context),
+            ],
         )
     if context.platform == UBUNTU:
         # Downloaded rather than asked for (#233). The old plan told the

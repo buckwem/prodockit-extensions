@@ -381,7 +381,7 @@ happens is not cosmetic - it is whether the stage can work at all:
 | | Example |
 | --- | --- |
 | **Before** the commands, because they depend on you | The keypair stage: the advice on choosing a passphrase is no use once `ssh-keygen` has already asked for one. |
-| **After** them, because it depends on the commands | macOS's VS Code: the Command Palette you are asked to open belongs to the application `brew install` has just put there. |
+| **After** them, because it depends on the commands | No current guided stage requires this. Bootstrap now adds macOS's application-owned `code` command to `.zprofile` automatically after installing VS Code. |
 /// table-caption | <
     attrs: {id: tab-devcons-bootstrap-where-your-part-comes-in-the-order}
 

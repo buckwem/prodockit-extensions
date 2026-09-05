@@ -1402,7 +1402,9 @@ def test_apply_reruns_the_check_afterwards(tmp_path: Path) -> None:
     something broken."""
     from prodockit.bootstrap import apply_stage
 
-    runner = FakeRunner({"brew": CommandResult(0), "code": CommandResult(127)})
+    runner = FakeRunner(
+        {"brew": CommandResult(0), sys.executable: CommandResult(0), "code": CommandResult(127)}
+    )
     context = _context(tmp_path, runner=runner)
     outcome = apply_stage(context, next(s for s in STAGES if s.id == "vscode"))
     assert outcome.failed is None  # the install command "succeeded"
@@ -1515,18 +1517,71 @@ def test_vscode_installed_without_the_shell_command_is_wrong(
     stage = next(s for s in STAGES if s.id == "vscode")
 
     result = stage.check(context)
-    # Satisfied since #424: the CLI lives inside the application on macOS,
-    # so bootstrap can drive VS Code without `code` being on PATH at all.
-    # The reader is still told how to get it for their own terminal.
-    assert result.status is Status.OK
-    assert "not on PATH" in result.detail
-    assert "Command Palette" in result.detail
+    # Bootstrap can use the app-owned binary immediately, but the setup is
+    # incomplete until future terminals can use the documented bare command.
+    assert result.status is Status.MISSING
+    assert ".zprofile" in result.detail
 
     plan = stage.plan(context)
     # The thing this was reported for: never an install that would fail
     # against an app already sitting in /Applications.
-    assert plan.commands == []
-    assert any("Shell Command" in i for i in plan.instructions)
+    assert len(plan.commands) == 1
+    assert str(tmp_path / ".zprofile") in plan.commands[0]
+    assert not plan.instructions
+
+
+def test_macos_vscode_path_is_appended_without_replacing_the_profile(
+    tmp_path: Path,
+) -> None:
+    context = _context(
+        tmp_path,
+        vscode_app=True,
+        runner=FakeRunner({"Visual Studio Code": CommandResult(0, f"{VSCODE_MIN_VERSION}\n")}),
+    )
+    profile = tmp_path / ".zprofile"
+    profile.write_text("export AN_EXISTING_CHOICE=yes\n", encoding="utf-8")
+    stage = next(s for s in STAGES if s.id == "vscode")
+    command = stage.plan(context).commands[0]
+
+    subprocess.run(command, check=True)
+    subprocess.run(command, check=True)
+
+    source = profile.read_text(encoding="utf-8")
+    assert source.startswith("export AN_EXISTING_CHOICE=yes\n")
+    assert source.count("Added by prodockit bootstrap for Visual Studio Code") == 1
+    assert source.count(
+        'export PATH="$PATH:/Applications/Visual Studio Code.app/Contents/Resources/app/bin"'
+    ) == 1
+    assert stage.check(context).status is Status.OK
+
+
+def test_macos_user_application_path_is_persisted_when_that_is_the_install(
+    tmp_path: Path,
+) -> None:
+    user_cli = (
+        tmp_path
+        / "Applications"
+        / "Visual Studio Code.app"
+        / "Contents"
+        / "Resources"
+        / "app"
+        / "bin"
+        / "code"
+    )
+    user_app = tmp_path / "Applications" / "Visual Studio Code.app"
+    context = build_context(
+        _config(),
+        runner=FakeRunner({"Visual Studio Code": CommandResult(0, f"{VSCODE_MIN_VERSION}\n")}),
+        platform=MACOS,
+        home=tmp_path,
+        exists=lambda path: path in {user_app, user_cli},
+        fetch=_unreachable,
+        guided=True,
+    )
+
+    command = next(s for s in STAGES if s.id == "vscode").plan(context).commands[0]
+
+    assert str(user_cli.parent) in command
 
 
 def test_vscode_genuinely_absent_still_installs(
@@ -2967,43 +3022,16 @@ def test_windows_node_without_npm_uses_repair_not_reinstall(tmp_path: Path) -> N
 # ---------------------------------------------------------------------------
 
 
-def test_vscode_plan_runs_brew_before_showing_shell_command_instruction(
-    cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Regression: when a plan had both commands and instructions, only
-    the instructions were shown and the commands were skipped entirely.
-    The VS Code stage on macOS is the canonical case: `brew install` is
-    automated, but the shell-command install that follows needs a human
-    in the application. Showing only the instruction left VS Code not
-    installed at all (#230).
-    """
-    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
-    monkeypatch.setattr("prodockit.bootstrap.stages._vscode_app_installed", lambda ctx: False)
-    save(tmp_path / "b.toml", _config())
-    # `brew install` succeeds but `code` is still not on PATH — the
-    # shell-command step is the remaining manual part. The key is
-    # `code --version` not bare `code`, because "code" is a substring
-    # of "visual-studio-code" and the fragment matcher would pick it
-    # as a match for the brew command.
-    result = cli_bootstrap(
-        "--apply",
-        responses={
-            "code --version": CommandResult(127, stderr="not found"),
-            "brew": CommandResult(0),
-        },
-        input="y\n" * 3 + "n\n" * 20,
+def test_vscode_plan_installs_the_app_before_persisting_its_command(tmp_path: Path) -> None:
+    """The profile can only name the path selected by the completed install."""
+    plan = next(s for s in STAGES if s.id == "vscode").plan(
+        _context(tmp_path, platform=MACOS, vscode_app=False)
     )
-    assert "Will run:" in result.output
-    # The old bug: only the instruction appeared, no commands at all.
-    assert "brew install --cask visual-studio-code" in result.output
-    assert "Shell Command" in result.output
-    # Asserted as an *order*, not as two separate appearances: the point
-    # of a follow-up is that it comes after the install it depends on,
-    # and "both strings are present somewhere" would hold either way.
-    assert result.output.index("brew install --cask") < result.output.index("Shell Command"), (
-        "the Command Palette step must come after the install that provides it"
-    )
-    assert "commands ran" in result.output
+
+    assert plan.commands[0] == ["brew", "install", "--cask", "visual-studio-code"]
+    assert str(tmp_path / ".zprofile") in plan.commands[1]
+    assert not plan.instructions
+    assert not plan.follow_up
 
 
 def test_a_preparing_instruction_is_shown_before_the_command_that_needs_it(
@@ -3024,12 +3052,10 @@ def test_a_preparing_instruction_is_shown_before_the_command_that_needs_it(
     assert keypair.needs_terminal, "the passphrase prompt must not be hidden by a spinner"
 
 
-def test_dry_run_lists_manual_steps_in_the_order_they_happen(
+def test_dry_run_lists_the_profile_update_after_the_vscode_install(
     cli_bootstrap, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`--dry-run` is how a plan is reviewed before it is trusted, so it
-    has to show a follow-up *after* the commands rather than lumping
-    every manual step at the top regardless of when it happens."""
+    """`--dry-run` shows the persistent PATH change after its application."""
     monkeypatch.setattr("prodockit.bootstrap.stages._vscode_app_installed", lambda ctx: False)
     save(tmp_path / "b.toml", _config())
 
@@ -3037,8 +3063,8 @@ def test_dry_run_lists_manual_steps_in_the_order_they_happen(
 
     assert "run: brew install --cask visual-studio-code" in result.output
     assert result.output.index("run: brew install --cask") < result.output.index(
-        "you: In VS Code, open the Command Palette"
-    ), "a follow-up must be listed after the command it follows"
+        ".zprofile"
+    )
 
 
 def test_ubuntu_vscode_is_downloaded_rather_than_asked_for(tmp_path: Path) -> None:
@@ -6186,12 +6212,12 @@ def test_macos_finds_the_cli_inside_the_application(tmp_path: Path) -> None:
 
     assert found is not None
     assert found.endswith("Contents/Resources/app/bin/code"), found
+    (tmp_path / ".zprofile").write_text(
+        f'export PATH="$PATH:{Path(found).parent}"\n', encoding="utf-8"
+    )
     result = next(s for s in STAGES if s.id == "vscode").check(context)
     assert result.status is Status.OK
-    # ...and it does not borrow the Windows wording, which would be a lie
-    # here: an app bundle is not on PATH and a new terminal will not help.
-    assert "new terminal" not in result.detail
-    assert "not on PATH" in result.detail
+    assert ".zprofile" in result.detail
 
 
 def test_a_machine_without_vs_code_still_reports_it_missing(tmp_path: Path) -> None:
