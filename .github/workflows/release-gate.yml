@@ -50,27 +50,27 @@ jobs:
         shell: bash
         run: |
           [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$GITHUB_PROVIDER_RUN_ID" =~ ^[1-9][0-9]*$ ]]
           [[ "$SURREY_RUN_ID" =~ ^[1-9][0-9]*$ ]]
           test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
           test "$(git rev-parse refs/remotes/origin/main)" = "$RELEASE_COMMIT"
           test -z "$(git status --porcelain)"
         env:
           RELEASE_COMMIT: ${{ inputs.release_commit }}
-          GITHUB_RUN_ID: ${{ inputs.github_run_id }}
+          GITHUB_PROVIDER_RUN_ID: ${{ inputs.github_run_id }}
           SURREY_RUN_ID: ${{ inputs.surrey_run_id }}
       - name: Resolve and validate the exact GitHub provider run
         shell: bash
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_PROVIDER_RUN_ID" \
             > "$RUNNER_TEMP/github-run.json"
           python tools/release_gate_provider_status.py validate-github-run \
             --document "$RUNNER_TEMP/github-run.json" \
-            --run-id "$GITHUB_RUN_ID" \
+            --run-id "$GITHUB_PROVIDER_RUN_ID" \
             --release-commit "$RELEASE_COMMIT"
         env:
           GH_TOKEN: ${{ github.token }}
-          GITHUB_RUN_ID: ${{ inputs.github_run_id }}
+          GITHUB_PROVIDER_RUN_ID: ${{ inputs.github_run_id }}
           RELEASE_COMMIT: ${{ inputs.release_commit }}
       - name: Require ordinary workflows for the exact release commit
         shell: bash
