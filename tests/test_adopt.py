@@ -19,6 +19,7 @@ from prodockit.adopt import (
     CORE_EXTENSIONS,
     MANIFEST,
     STYLESHEET,
+    AdoptChoiceResolution,
     AdoptError,
     AdoptOptions,
     Step,
@@ -30,6 +31,8 @@ from prodockit.adopt import (
     ensure_zensical_config,
     install_tool,
     load_manifest,
+    resolve_options,
+    write_manifest,
 )
 from prodockit.adopt import (
     apply as apply_adoption,
@@ -119,6 +122,26 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     assert "zensical build --clean --strict" in result.output
     assert "active project environment and local project files" in result.output
     assert "Git, SSH, remotes, editors, commits and pushes" in result.output
+
+
+def test_adopt_refuses_a_mixed_project_environment_before_mutation(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _project(tmp_path)
+    (project / ".venv").mkdir()
+    monkeypatch.chdir(project)
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
+    monkeypatch.setattr(
+        "prodockit.adopt._interpreter_problem",
+        lambda _root: "python uses 3.12 but pdk uses 3.14; run pdk diag first",
+    )
+
+    result = CliRunner().invoke(main, ["adopt", "--apply"])
+
+    assert result.exit_code != 0
+    assert "Active project environment" in result.output
+    assert "python uses 3.12 but pdk uses 3.14" in result.output
+    assert "before project files can be changed" in result.output
 
 
 def test_reusable_apply_runs_selected_stages_and_verifies(monkeypatch, tmp_path) -> None:
@@ -330,9 +353,7 @@ def test_requirement_replaces_an_exact_pin_with_a_floor(tmp_path: Path) -> None:
 
 def test_assessment_upgrades_an_older_prodockit_floor(tmp_path: Path) -> None:
     project = _project(tmp_path)
-    (project / "requirements.txt").write_text(
-        "zensical\nprodockit>=0.47.0\n", encoding="utf-8"
-    )
+    (project / "requirements.txt").write_text("zensical\nprodockit>=0.47.0\n", encoding="utf-8")
 
     dependency = next(step for step in assess(project, AdoptOptions()) if step.id == "dependency")
 
@@ -340,16 +361,12 @@ def test_assessment_upgrades_an_older_prodockit_floor(tmp_path: Path) -> None:
     assert "align version declarations" in dependency.detail
 
     ensure_requirement(project)
-    assert f"prodockit>={__version__}" in (project / "requirements.txt").read_text(
-        encoding="utf-8"
-    )
+    assert f"prodockit>={__version__}" in (project / "requirements.txt").read_text(encoding="utf-8")
 
 
 def test_assessment_aligns_a_newer_prodockit_floor(tmp_path: Path) -> None:
     project = _project(tmp_path)
-    (project / "requirements.txt").write_text(
-        "prodockit>=999.0.0\n", encoding="utf-8"
-    )
+    (project / "requirements.txt").write_text("prodockit>=999.0.0\n", encoding="utf-8")
 
     dependency = next(step for step in assess(project, AdoptOptions()) if step.id == "dependency")
 
@@ -370,6 +387,10 @@ def test_assessment_refreshes_the_managed_stylesheet(tmp_path: Path) -> None:
     assert core.status == "missing"
     ensure_stylesheet(project)
     assert stylesheet.read_text(encoding="utf-8") != "/* old managed stylesheet */\n"
+    core = next(step for step in assess(project, AdoptOptions()) if step.id == "core")
+    assert core.status == "missing"
+    assert f"save the inferred component choices in {MANIFEST}" in core.detail
+    write_manifest(project, AdoptOptions())
     core = next(step for step in assess(project, AdoptOptions()) if step.id == "core")
     assert core.status == "ok"
 
@@ -681,6 +702,61 @@ def test_manifest_is_not_needed_until_choices_are_saved(tmp_path: Path) -> None:
     assert not (project / MANIFEST).exists()
 
 
+def test_missing_manifest_infers_existing_mermaid_and_maths_configuration(
+    tmp_path: Path,
+) -> None:
+    project = _project(
+        tmp_path,
+        """\
+[project]
+site_name = "Existing document"
+
+[project.extra]
+pdf_mmdc_bin = "tools/mermaid/node_modules/.bin/mmdc"
+pdf_tex2svg_script = "tools/mathjax/tex2svg.js"
+
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
+
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [{ name = "mermaid", class = "mermaid" }]
+""",
+    )
+
+    resolution = resolve_options(project)
+
+    assert resolution == AdoptChoiceResolution(
+        AdoptOptions(mermaid=True, maths=True), "zensical.toml", False
+    )
+
+
+def test_adopt_labels_inferred_choices_instead_of_claiming_a_missing_file(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _project(
+        tmp_path,
+        """\
+[project]
+site_name = "Existing document"
+
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
+
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [{ name = "mermaid" }]
+""",
+    )
+    monkeypatch.chdir(project)
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
+
+    result = CliRunner().invoke(main, ["adopt", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "Options:  Mermaid on · maths on" in result.output
+    assert "Choices:  inferred from zensical.toml; not yet saved" in result.output
+    assert f"Will save: {project / MANIFEST}" in result.output
+
+
 def test_mermaid_install_uses_only_the_selected_node_project(tmp_path: Path, monkeypatch) -> None:
     project = _project(tmp_path)
     monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
@@ -793,9 +869,7 @@ def test_maths_install_rejects_npm_success_when_renderer_probe_fails(
         install_tool(project, "mathjax")
 
 
-def test_custom_node_manifest_without_a_lock_uses_npm_install(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_custom_node_manifest_without_a_lock_uses_npm_install(tmp_path: Path, monkeypatch) -> None:
     project = _project(tmp_path)
     manifest = project / "tools" / "mermaid" / "package.json"
     manifest.parent.mkdir(parents=True)
@@ -877,9 +951,7 @@ def test_mermaid_install_retries_a_completed_transient_npm_failure(
     monkeypatch.setattr(renderer_resilience.time, "sleep", lambda _delay: None)
     monkeypatch.setattr(
         "prodockit.adopt.probe_mermaid",
-        lambda path, **_kwargs: SimpleNamespace(
-            path=path, ok=True, version="11.0.0", error=None
-        ),
+        lambda path, **_kwargs: SimpleNamespace(path=path, ok=True, version="11.0.0", error=None),
     )
     notices = []
 
@@ -890,9 +962,7 @@ def test_mermaid_install_retries_a_completed_transient_npm_failure(
     assert notices[0].attempt == 1
 
 
-def test_adoption_readiness_rejects_an_unusable_mermaid_cli(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_adoption_readiness_rejects_an_unusable_mermaid_cli(tmp_path: Path, monkeypatch) -> None:
     project = _project(tmp_path)
     options = AdoptOptions(mermaid=True, maths=False)
     ensure_requirement(project)
@@ -1107,9 +1177,7 @@ markdown_extensions:
     assert config.count("pymdownx.superfences:") == 1
 
 
-def test_apply_mapping_form_mermaid_is_transactional(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_apply_mapping_form_mermaid_is_transactional(tmp_path: Path, monkeypatch) -> None:
     project = _project(
         tmp_path,
         """\
@@ -1124,9 +1192,7 @@ markdown_extensions:
     (project / "requirements.txt").write_text("mkdocs-material==9.7.7\n", encoding="utf-8")
     monkeypatch.chdir(project)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
-    monkeypatch.setattr(
-        "prodockit.adopt.install_tool", lambda root, component, **_kwargs: []
-    )
+    monkeypatch.setattr("prodockit.adopt.install_tool", lambda root, component, **_kwargs: [])
 
     preview = CliRunner().invoke(main, ["adopt", "--dry-run", "--mermaid", "--no-maths"])
     assert preview.exit_code == 0, preview.output
@@ -1141,9 +1207,7 @@ markdown_extensions:
     config = (project / "mkdocs.yml").read_text(encoding="utf-8")
     assert "  pymdownx.superfences:\n    custom_fences:" in config
     assert "      - name: mermaid" in config
-    assert f"prodockit=={__version__}" in (project / "requirements.txt").read_text(
-        encoding="utf-8"
-    )
+    assert f"prodockit=={__version__}" in (project / "requirements.txt").read_text(encoding="utf-8")
 
 
 def test_apply_refuses_an_unsafe_yaml_form_before_updating_requirements(

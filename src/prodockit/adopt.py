@@ -97,6 +97,15 @@ class AdoptOptions:
 
 
 @dataclass(frozen=True)
+class AdoptChoiceResolution:
+    """Component choices and the project-local evidence they came from."""
+
+    options: AdoptOptions
+    source: str
+    saved: bool
+
+
+@dataclass(frozen=True)
 class Step:
     id: str
     phase: str
@@ -125,6 +134,51 @@ def load_manifest(root: Path) -> AdoptOptions:
         mermaid=bool(components.get("mermaid", False)),
         maths=bool(components.get("maths", False)),
     )
+
+
+def _has_mermaid_fence(configured: Mapping[str, Any]) -> bool:
+    settings = configured.get("pymdownx.superfences")
+    if not isinstance(settings, Mapping):
+        return False
+    fences = settings.get("custom_fences", ())
+    return isinstance(fences, list) and any(
+        isinstance(fence, Mapping) and fence.get("name") == "mermaid" for fence in fences
+    )
+
+
+def _project_extra(parsed: Mapping[str, Any]) -> Mapping[str, Any]:
+    project = parsed.get("project", parsed)
+    if not isinstance(project, Mapping):
+        return {}
+    extra = project.get("extra", {})
+    return extra if isinstance(extra, Mapping) else {}
+
+
+def resolve_options(root: Path) -> AdoptChoiceResolution:
+    """Resolve saved choices, or infer established use from project config.
+
+    A missing manifest must not silently switch existing optional renderers off.
+    Configuration is the authoritative evidence: generated tools can be stale,
+    while a configured fence or renderer is part of the author's document.
+    """
+    path = root / MANIFEST
+    if path.is_file():
+        return AdoptChoiceResolution(load_manifest(root), str(path), True)
+
+    try:
+        config_path, _source, parsed = _config(root)
+    except AdoptError:
+        # Assessment owns the actionable configuration error. Preserve the
+        # historical neutral options here so Template Sync can still preview
+        # a package handoff before fresh code performs that assessment.
+        return AdoptChoiceResolution(AdoptOptions(), "no project configuration", False)
+    configured = _extensions(parsed)
+    extra = _project_extra(parsed)
+    options = AdoptOptions(
+        mermaid=_has_mermaid_fence(configured) or "pdf_mmdc_bin" in extra,
+        maths="pymdownx.arithmatex" in configured or "pdf_tex2svg_script" in extra,
+    )
+    return AdoptChoiceResolution(options, config_path.name, False)
 
 
 def manifest_source(options: AdoptOptions) -> str:
@@ -217,6 +271,28 @@ def _config(root: Path) -> tuple[Path, str, dict[str, Any]]:
 
 def _in_venv() -> bool:
     return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+
+
+def _interpreter_problem(root: Path) -> str | None:
+    """Refuse mutation when a project's .venv mixes Python launchers."""
+    environment = root.resolve() / ".venv"
+    if not environment.is_dir():
+        return None
+    try:
+        from prodockit.diagnostics import _interpreter_consistency_check, same_path
+
+        if not same_path(sys.prefix, str(environment)):
+            return None
+        check = _interpreter_consistency_check(root.resolve())
+    except (OSError, RuntimeError, ValueError) as error:
+        return f"could not verify the active Python launchers: {error}"
+    if check.status == "pass":
+        return None
+    detail = "; ".join(check.details)
+    return (
+        f"{check.summary}: {detail}. Run `pdk diag --dry-run --fix-check "
+        "environment.interpreters` before Adopt"
+    )
 
 
 def _requirements_path(root: Path) -> Path:
@@ -370,8 +446,7 @@ def _tree_icons_ok(parsed: dict[str, Any], *, require_python_names: bool = False
     configured = _extensions(parsed)
     settings = configured.get(TREE_ICON_EXTENSION)
     return isinstance(settings, Mapping) and all(
-        key in settings
-        and (not require_python_names or isinstance(settings[key], _PythonName))
+        key in settings and (not require_python_names or isinstance(settings[key], _PythonName))
         for key in TREE_ICON_SETTINGS
     )
 
@@ -524,9 +599,7 @@ def _set_array_extension(source: str, name: str, setting: str) -> str:
     array_start = start + assignment.end() - 1
     array_end = _matching_bracket(source, array_start)
     region = source[array_start : array_end + 1]
-    simple = re.search(
-        rf"(?P<quote>[\"']){re.escape(name)}(?P=quote)(?![ \t]*=)", region
-    )
+    simple = re.search(rf"(?P<quote>[\"']){re.escape(name)}(?P=quote)(?![ \t]*=)", region)
     rendered = f'{{ "{name}" = {{ {setting} }} }}'
     if simple is not None:
         absolute_start = array_start + simple.start()
@@ -616,9 +689,7 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
                     f"custom_fences = [{MERMAID_FENCE}]",
                 )
         elif not has_mermaid:
-            table, key = _toml_extension_setting(
-                source, "pymdownx.superfences", "custom_fences"
-            )
+            table, key = _toml_extension_setting(source, "pymdownx.superfences", "custom_fences")
             source = _add_array_value(
                 source,
                 table,
@@ -632,9 +703,7 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
             if not has_generic_maths:
                 source = _set_array_extension(source, "pymdownx.arithmatex", "generic = true")
         elif not has_generic_maths:
-            table, key = _toml_extension_setting(
-                source, "pymdownx.arithmatex", "generic"
-            )
+            table, key = _toml_extension_setting(source, "pymdownx.arithmatex", "generic")
             source = _set_table_bool(
                 source,
                 table,
@@ -902,8 +971,7 @@ def _yaml_ensure_extension_python_name(
             "use a !!python/name: callable reference and rerun"
         )
     replacement = (
-        f"{match.group('indent')}{key}: !!python/name:{value}"
-        f"{match.group('comment') or ''}"
+        f"{match.group('indent')}{key}: !!python/name:{value}{match.group('comment') or ''}"
     )
     absolute_start = start + match.start()
     absolute_end = start + match.end()
@@ -919,9 +987,7 @@ def _yaml_ensure_tree_icons(source: str, parsed: dict[str, Any]) -> str:
             f"the configured {TREE_ICON_EXTENSION} settings must be an indented mapping"
         )
 
-    lines = tuple(
-        f"{key}: !!python/name:{value}" for key, value in TREE_ICON_SETTINGS.items()
-    )
+    lines = tuple(f"{key}: !!python/name:{value}" for key, value in TREE_ICON_SETTINGS.items())
     source = _yaml_add_extension(source, TREE_ICON_EXTENSION, lines)
     for key, value in TREE_ICON_SETTINGS.items():
         source = _yaml_ensure_extension_python_name(
@@ -945,17 +1011,11 @@ def _yaml_ensure_mermaid(source: str) -> str:
     style, indent = _yaml_extension_layout(source, block)
     header = re.escape(indent + ("- " if style == "sequence" else "") + "pymdownx.superfences")
     if style == "sequence":
-        pattern = re.compile(
-            rf"(?m)^(?P<header>{header})(?::[ \t]*(?:null|~|\{{\}})?)?[ \t]*$"
-        )
+        pattern = re.compile(rf"(?m)^(?P<header>{header})(?::[ \t]*(?:null|~|\{{\}})?)?[ \t]*$")
     else:
-        pattern = re.compile(
-            rf"(?m)^(?P<header>{header}):[ \t]*(?:null|~|\{{\}})?[ \t]*$"
-        )
+        pattern = re.compile(rf"(?m)^(?P<header>{header}):[ \t]*(?:null|~|\{{\}})?[ \t]*$")
     block_start, block_end = block
-    region, _replacements = pattern.subn(
-        r"\g<header>:", source[block_start:block_end], count=1
-    )
+    region, _replacements = pattern.subn(r"\g<header>:", source[block_start:block_end], count=1)
     source = source[:block_start] + region + source[block_end:]
     item = _yaml_extension_item(source, "pymdownx.superfences")
     if item is None:
@@ -1134,11 +1194,7 @@ def install_tool(
     command = [
         npm,
         "ci" if (tool_root / "package-lock.json").is_file() else "install",
-        *(
-            ["--legacy-peer-deps"]
-            if (tool_root / "package-lock.json").is_file()
-            else []
-        ),
+        *(["--legacy-peer-deps"] if (tool_root / "package-lock.json").is_file() else []),
         "--no-audit",
         "--no-fund",
         "--prefer-offline",
@@ -1169,9 +1225,7 @@ def install_tool(
         )
         if probe is None or not probe.ok:
             health_detail = (
-                probe.error or "health probe failed"
-                if probe
-                else "mmdc executable is missing"
+                probe.error or "health probe failed" if probe else "mmdc executable is missing"
             )
             raise AdoptError(
                 "npm completed but Mermaid CLI is unusable: "
@@ -1182,9 +1236,7 @@ def install_tool(
         node = shutil.which("node")
         probe = probe_mathjax(node, tool_root / "tex2svg.js") if node else None
         if probe is None or not probe.ok:
-            health_detail = (
-                probe.error or "health probe failed" if probe else "node is unavailable"
-            )
+            health_detail = probe.error or "health probe failed" if probe else "node is unavailable"
             raise AdoptError(
                 "npm completed but MathJax is unusable: "
                 f"{health_detail}. Remove tools/mathjax/node_modules and rerun "
@@ -1234,23 +1286,32 @@ def assess(
         )
         and _style_ok(root, parsed)
         and style_path.is_file()
+        and (root / MANIFEST).is_file()
     )
-    core_detail = (
-        config_error
-        or (
-            "all standard extensions and the shared stylesheet are configured"
-            if core_ok
+    core_detail = config_error or (
+        "all standard extensions, shared stylesheet, and component choices are configured"
+        if core_ok
+        else (
+            f"save the inferred component choices in {MANIFEST}"
+            if not missing
+            and _tree_icons_ok(
+                parsed,
+                require_python_names=config_path.suffix != ".toml",
+            )
+            and _style_ok(root, parsed)
+            and style_path.is_file()
+            and not (root / MANIFEST).is_file()
             else "add the standard extensions and shared website styles"
         )
     )
-    mermaid_tool_ok, mermaid_detail = _tool_health(
-        root, "mermaid", retry_reporter=retry_reporter
-    )
+    mermaid_tool_ok, mermaid_detail = _tool_health(root, "mermaid", retry_reporter=retry_reporter)
     maths_tool_ok, maths_detail = _tool_health(root, "mathjax")
     mermaid_ok = mermaid_tool_ok and "pymdownx.superfences" in configured
     maths_ok = maths_tool_ok and "pymdownx.arithmatex" in configured
+    interpreter_problem = _interpreter_problem(root) if _in_venv() else None
     ready_to_build = (
-        not toolchain.blocked
+        not interpreter_problem
+        and not toolchain.blocked
         and not toolchain.needs_work
         and core_ok
         and (not options.mermaid or mermaid_ok)
@@ -1269,11 +1330,14 @@ def assess(
             "environment",
             "Assess",
             "Active project environment",
-            "ok" if _in_venv() else "wrong",
+            "wrong" if interpreter_problem or not _in_venv() else "ok",
             (
-                f"using {sys.prefix}"
-                if _in_venv()
-                else "activate the project's virtual environment first"
+                interpreter_problem
+                or (
+                    f"using {sys.prefix}"
+                    if _in_venv()
+                    else "activate the project's virtual environment first"
+                )
             ),
         ),
         Step(
@@ -1427,9 +1491,7 @@ def apply(
 
     final = assess(root, options, retry_reporter=retry_reporter, offline=offline)
     incomplete = [
-        step
-        for step in final
-        if step.selected and (step.status not in {"ok"} or step.needs_work)
+        step for step in final if step.selected and (step.status not in {"ok"} or step.needs_work)
     ]
     if incomplete:
         raise AdoptError(
@@ -1443,6 +1505,7 @@ __all__ = [
     "CORE_EXTENSIONS",
     "MANIFEST",
     "STYLESHEET",
+    "AdoptChoiceResolution",
     "AdoptError",
     "AdoptOptions",
     "Step",
@@ -1456,5 +1519,6 @@ __all__ = [
     "install_tool",
     "load_manifest",
     "manifest_source",
+    "resolve_options",
     "write_manifest",
 ]

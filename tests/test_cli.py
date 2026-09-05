@@ -218,6 +218,19 @@ def test_template_sync_logs_the_full_detail_even_without_verbose(tmp_path, monke
     assert "logged.extend" in source
 
 
+def test_template_sync_explains_when_new_files_are_written_for_review() -> None:
+    """A normal apply refuses unresolved edits; only local review writes .new files."""
+    import inspect
+
+    from prodockit import cli
+
+    source = inspect.getsource(cli._run_template_sync)
+
+    assert "A normal --apply stops before changing anything until you decide." in source
+    assert "Use --apply --local-only to save template copies as .new files for review." in source
+    assert "The newer template copies will be saved beside them as .new files." not in source
+
+
 def test_template_sync_warns_before_replacing_managed_stylesheets() -> None:
     """A generic edited-file report does not tell an author where CSS belongs."""
     import inspect

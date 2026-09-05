@@ -51,9 +51,7 @@ from prodockit.adopt import (
     assess as assess_adoption,
 )
 from prodockit.adopt import build_command as adopt_build_command
-from prodockit.adopt import (
-    load_manifest as load_adopt_manifest,
-)
+from prodockit.adopt import resolve_options as resolve_adopt_options
 from prodockit.adopt import (
     write_manifest as write_adopt_manifest,
 )
@@ -1965,6 +1963,7 @@ def diag_command(
         inspect,
         repair_distribution_metadata,
         repair_locked_renderer,
+        repair_mixed_virtual_environment,
         repair_pin_declarations,
         repair_project_configuration,
         repair_shared_file,
@@ -2001,6 +2000,7 @@ def diag_command(
     repair_failed = False
     repair_failure_status: str | None = None
     repair_quarantine: str | None = None
+    replacement_python: pathlib.Path | None = None
     if fix:
         assert repair_plan is not None
         _render_diagnostic_repair_plan(repair_plan, verbose=verbose, err=json_output, dry_run=False)
@@ -2009,6 +2009,7 @@ def diag_command(
             candidate.status == "available"
             and (
                 candidate.id == "installation.metadata.quarantine-stale"
+                or candidate.id == "environment.interpreters.rebuild"
                 or candidate.id.startswith("dependencies.shared-files.")
                 or candidate.id.startswith("dependencies.pins.align-")
                 or candidate.id.startswith("renderer.mermaid.install-locked")
@@ -2041,6 +2042,7 @@ def diag_command(
                 continue
             supported = (
                 candidate.id == "installation.metadata.quarantine-stale"
+                or candidate.id == "environment.interpreters.rebuild"
                 or candidate.id.startswith("dependencies.shared-files.")
                 or candidate.id.startswith("dependencies.pins.align-")
                 or candidate.id.startswith("renderer.mermaid.install-locked")
@@ -2092,7 +2094,12 @@ def diag_command(
             click.echo(f"Repair: {candidate.check_id} — {choice.label}", err=True)
             if choice.affected_paths:
                 click.echo(f"Scope: {', '.join(choice.affected_paths)}", err=True)
-            if candidate.check_id == "renderer.weasyprint":
+            if candidate.check_id == "environment.interpreters":
+                click.echo(
+                    "Recovery: the complete prior .venv remains in the diagnostic quarantine",
+                    err=True,
+                )
+            elif candidate.check_id == "renderer.weasyprint":
                 click.echo(
                     "Recovery: pacman's package cache and the prior user environment values",
                     err=True,
@@ -2108,6 +2115,10 @@ def diag_command(
                     err=True,
                 )
             verification = {
+                "environment.interpreters": (
+                    "a fresh replacement Python imports the required packages and owns pdk; "
+                    "diagnostics continue in that fresh process"
+                ),
                 "installation.metadata": "distribution discovery is readable and unique",
                 "dependencies.shared-files": "the selected file matches the installed bytes",
                 "dependencies.pins": "all selected package declarations use the chosen version",
@@ -2138,7 +2149,26 @@ def diag_command(
                 result_status: str
                 action_manifest: str | None
                 action_quarantine: str | None
-                if candidate.check_id == "installation.metadata":
+                if candidate.check_id == "environment.interpreters":
+                    interpreter_check = next(
+                        check for check in before.checks if check.id == "environment.interpreters"
+                    )
+                    selected_key = (
+                        "project" if choice.id == "rebuild-with-project-python" else "shell"
+                    )
+                    selected_data = interpreter_check.data["repair_interpreters"][selected_key]
+                    environment_repair = repair_mixed_virtual_environment(
+                        project_root,
+                        base_executable=selected_data["base_executable"],
+                        expected_fingerprint=interpreter_check.data["repair_fingerprint"],
+                        retry_reporter=_renderer_retry_warning,
+                    )
+                    result_status = environment_repair.status
+                    changed = environment_repair.changed
+                    action_manifest = environment_repair.manifest
+                    action_quarantine = environment_repair.quarantine
+                    replacement_python = project_root / ".venv" / "bin" / "python"
+                elif candidate.check_id == "installation.metadata":
                     metadata_check = next(
                         check for check in before.checks if check.id == "installation.metadata"
                     )
@@ -2261,6 +2291,30 @@ def diag_command(
             repair_quarantine = action_quarantine
             repair_actions.append(base_action)
             click.echo("  ok — applied and verified", err=True)
+            if replacement_python is not None:
+                break
+
+    if replacement_python is not None:
+        click.echo(
+            "The environment was rebuilt. Continuing verification with its fresh Python process.",
+            err=True,
+        )
+        command = [
+            str(replacement_python),
+            "-m",
+            "prodockit",
+            "diag",
+            "--config-file",
+            config_file,
+        ]
+        if verbose:
+            command.append("--verbose")
+        if online:
+            command.append("--online")
+        if json_output:
+            command.append("--json")
+        completed = subprocess.run(command, cwd=pathlib.Path(config_file).resolve().parent)
+        raise click.exceptions.Exit(completed.returncode)
 
     report = (
         inspect(
@@ -3048,9 +3102,10 @@ def adopt_command(
         raise click.UsageError("choose either --dry-run or --apply, not both")
     root = Path.cwd()
     try:
-        saved = load_adopt_manifest(root)
+        resolution = resolve_adopt_options(root)
     except AdoptError as error:
         raise click.ClickException(str(error)) from error
+    saved = resolution.options
     options = AdoptOptions(
         mermaid=saved.mermaid if mermaid is None else mermaid,
         maths=saved.maths if maths is None else maths,
@@ -3099,7 +3154,18 @@ def adopt_command(
             )
         )
     )
-    click.echo(f"  Choices:  {root / ADOPT_MANIFEST}")
+    override = mermaid is not None or maths is not None
+    if resolution.saved:
+        choice_detail = f"saved in {resolution.source}"
+        if override:
+            choice_detail += "; command-line overrides apply to this run"
+    else:
+        choice_detail = f"inferred from {resolution.source}; not yet saved"
+        if override:
+            choice_detail += "; command-line overrides apply"
+    click.echo(f"  Choices:  {choice_detail}")
+    if not resolution.saved:
+        click.echo(f"  Will save: {root / ADOPT_MANIFEST} when an integration stage is applied")
     click.echo("  Excluded: Git, SSH, remotes, editors, commits and pushes")
 
     current_phase = ""
@@ -3562,8 +3628,7 @@ def _template_sync_phase_heading(number: int) -> None:
     click.echo(click.style("═" * 78, bold=True, fg="bright_blue"))
     click.echo(
         click.style(
-            f"Phase {number}/{len(_TEMPLATE_SYNC_PHASES)} — "
-            f"{_TEMPLATE_SYNC_PHASES[number - 1]}",
+            f"Phase {number}/{len(_TEMPLATE_SYNC_PHASES)} — {_TEMPLATE_SYNC_PHASES[number - 1]}",
             bold=True,
             fg="bright_blue",
         )
@@ -3943,7 +4008,7 @@ def _run_template_sync(
         shared_drift = shared_file_drift(incoming_shared)
 
         try:
-            adopt_options = load_adopt_manifest(project)
+            adopt_options = resolve_adopt_options(project).options
         except AdoptError as error:
             raise TemplateSyncError(f"Adopt choices could not be read: {error}") from error
         adopt_steps = (
@@ -3956,9 +4021,7 @@ def _run_template_sync(
                 offline=offline,
             )
         )
-        adopt_blockers = [
-            step for step in adopt_steps if step.selected and step.status == "wrong"
-        ]
+        adopt_blockers = [step for step in adopt_steps if step.selected and step.status == "wrong"]
         adopt_work = [step for step in adopt_steps if step.needs_work]
 
         pending = pending_writes(plan, project, lambda p: (template / p).read_bytes())
@@ -4107,8 +4170,10 @@ def _run_template_sync(
             selected_steps = [step for step in adopt_steps if step.selected]
             for number, step in enumerate(selected_steps, start=1):
                 _template_sync_stage_heading(number, len(selected_steps), step.summary)
-                action = "WAIT" if step.status == "wait" else (
-                    "CHECK" if not step.needs_work else "CONFIGURE"
+                action = (
+                    "WAIT"
+                    if step.status == "wait"
+                    else ("CHECK" if not step.needs_work else "CONFIGURE")
                 )
                 if step.id == "dependency" and step.needs_work:
                     action = "ALIGN"
@@ -4141,7 +4206,11 @@ def _run_template_sync(
             say()
             say("Your edited files are protected:")
             say("  Without --force, your versions stay unchanged.")
-            say("  The newer template copies will be saved beside them as .new files.")
+            if local_only:
+                say("  Template copies will be saved beside them as .new files for review.")
+            else:
+                say("  A normal --apply stops before changing anything until you decide.")
+                say("  Use --apply --local-only to save template copies as .new files for review.")
             say(
                 "  For each file you want to replace, add `--force FILE-PATH`, "
                 "using the file path shown above."
@@ -4611,8 +4680,7 @@ def _record_template_release(project_root: pathlib.Path) -> None:
     "--offline",
     is_flag=True,
     help=(
-        "Use only the configured wheelhouse and validated native download "
-        "cache for prerequisites."
+        "Use only the configured wheelhouse and validated native download cache for prerequisites."
     ),
 )
 @click.option(

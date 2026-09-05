@@ -104,6 +104,145 @@ def test_environment_reports_only_a_real_virtual_environment_mismatch(
     assert next(check for check in checks if check.id == "environment.virtual-env").status == "fail"
 
 
+def test_environment_detects_python_and_pdk_from_different_interpreters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    active = tmp_path / ".venv"
+    scripts = active / "bin"
+    scripts.mkdir(parents=True)
+    running = scripts / "python3.14"
+    shell = scripts / "python"
+    running.touch()
+    shell.touch()
+    monkeypatch.setattr("prodockit.diagnostics.sys.prefix", str(active))
+    monkeypatch.setattr("prodockit.diagnostics.sys.base_prefix", "/opt/python3.14")
+    monkeypatch.setattr("prodockit.diagnostics.sys.executable", str(running))
+    monkeypatch.setattr(
+        "prodockit.diagnostics.sys.version_info",
+        SimpleNamespace(major=3, minor=14, micro=7),
+    )
+    monkeypatch.setattr(
+        diagnostics.shutil, "which", lambda name: str(shell) if name == "python" else None
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_probe_interpreter",
+        lambda _command: (
+            {
+                "executable": str(shell),
+                "prefix": str(active),
+                "base_executable": "/opt/python3.12",
+                "version": "3.12.5",
+            },
+            None,
+        ),
+    )
+
+    check = diagnostics._interpreter_consistency_check(tmp_path)
+
+    assert check.status == "fail"
+    assert "different Python installations" in check.summary
+    assert check.data["repair_interpreters"]["project"]["version"] == "3.14.7"
+    plan = diagnostics.build_repair_dry_run(DiagnosticReport("zensical.toml", ".", False, (check,)))
+    candidate = plan.candidates[0]
+    assert candidate.status == "available"
+    assert [choice.id for choice in candidate.choices] == [
+        "rebuild-with-project-python",
+        "rebuild-with-shell-python",
+        "leave-unchanged",
+    ]
+    assert candidate.choices[-1].default
+
+
+def test_project_transaction_adds_quarantine_to_gitignore_and_rolls_it_back(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".git").mkdir()
+    ignore = tmp_path / ".gitignore"
+    ignore.write_text(".venv/\n", encoding="utf-8")
+    transaction = diagnostics.RepairTransaction(
+        tmp_path,
+        action_id="test",
+        check_id="environment.interpreters",
+        choice_id="test",
+        timestamp="20260905T190000.000000Z",
+    )
+
+    transaction.begin()
+
+    assert ".prodockit-quarantine/" in ignore.read_text(encoding="utf-8")
+    transaction.rollback("test rollback")
+    assert ignore.read_text(encoding="utf-8") == ".venv/\n"
+
+
+def test_mixed_environment_repair_archives_rebuilds_and_verifies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    environment = tmp_path / ".venv"
+    scripts = environment / "bin"
+    scripts.mkdir(parents=True)
+    (scripts / "python3.14").write_text("old interpreter", encoding="utf-8")
+    (tmp_path / "requirements.txt").write_text("prodockit>=0.60.0\n", encoding="utf-8")
+    (tmp_path / ".git").mkdir()
+    base = tmp_path / "base-python3.14"
+    base.write_text("base", encoding="utf-8")
+    fingerprint = "inspected-environment"
+    check = DiagnosticResult(
+        "environment.interpreters",
+        "Environment and installation",
+        "fail",
+        "mixed",
+        data={"repair_fingerprint": fingerprint},
+    )
+    monkeypatch.setattr(diagnostics.sys, "platform", "darwin")
+    monkeypatch.setattr(diagnostics.sys, "prefix", str(environment))
+    monkeypatch.setattr(diagnostics, "_interpreter_consistency_check", lambda _root: check)
+    monkeypatch.setattr(
+        diagnostics,
+        "_probe_interpreter",
+        lambda _command: (
+            {
+                "executable": str(base),
+                "prefix": str(tmp_path / "base"),
+                "base_executable": str(base),
+                "version": "3.14.7",
+            },
+            None,
+        ),
+    )
+    commands: list[list[str]] = []
+
+    def run(command: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        if command[1:3] == ["-m", "venv"]:
+            rebuilt = Path(command[-1]) / "bin"
+            rebuilt.mkdir(parents=True)
+            (rebuilt / "python").write_text("new interpreter", encoding="utf-8")
+            (rebuilt / "pdk").write_text("launcher", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "0.60.0\n", "")
+
+    monkeypatch.setattr(diagnostics, "_run", run)
+
+    result = diagnostics.repair_mixed_virtual_environment(
+        tmp_path,
+        base_executable=str(base),
+        expected_fingerprint=fingerprint,
+        timestamp="20260905T191500.000000Z",
+    )
+
+    assert result.status == "applied"
+    assert (environment / "bin" / "python").read_text(encoding="utf-8") == "new interpreter"
+    assert (
+        tmp_path
+        / ".prodockit-quarantine/diagnostics/20260905T191500.000000Z/files/.venv/bin/python3.14"
+    ).read_text(encoding="utf-8") == "old interpreter"
+    assert ".prodockit-quarantine/" in (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    assert any(command[1:3] == ["-m", "venv"] for command in commands)
+    assert any(
+        any(argument.endswith("requirements.txt") for argument in command) for command in commands
+    )
+
+
 def test_environment_rejects_the_setup_venv_inside_a_bootstrapped_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -127,6 +266,69 @@ def test_environment_rejects_the_setup_venv_inside_a_bootstrapped_project(
     assert check.status == "fail"
     assert check.summary == "Active Python is not the project's .venv"
     assert "activate the project's .venv" in check.details[-1]
+
+
+def test_diagnostics_reports_the_same_pending_adopt_stages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.adopt import AdoptChoiceResolution, AdoptOptions, Step
+
+    monkeypatch.setattr(
+        "prodockit.adopt.resolve_options",
+        lambda _root: AdoptChoiceResolution(AdoptOptions(), "zensical.toml", False),
+    )
+    monkeypatch.setattr(
+        "prodockit.adopt.assess",
+        lambda _root, _options, **_kwargs: [
+            Step(
+                "dependency",
+                "Integrate",
+                "Supported toolchain",
+                "missing",
+                "align version declarations in .prodockit-toolchain.toml",
+            ),
+            Step(
+                "core",
+                "Integrate",
+                "Standard authoring components",
+                "missing",
+                "add the standard extensions and shared website styles",
+            ),
+            Step("verify", "Verify", "Ready for local build", "wait", "apply first"),
+        ],
+    )
+
+    check = diagnostics._adopt_readiness_checks(tmp_path, online=False)[0]
+
+    assert check.status == "warn"
+    assert check.summary == "Adopt has 2 integration stage(s) to apply"
+    assert check.data["pending"] == ["dependency", "core"]
+    assert "Supported toolchain" in check.details[0]
+    assert "Standard authoring components" in check.details[1]
+
+
+def test_diagnostics_passes_when_adopt_is_aligned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.adopt import AdoptChoiceResolution, AdoptOptions, Step
+
+    monkeypatch.setattr(
+        "prodockit.adopt.resolve_options",
+        lambda _root: AdoptChoiceResolution(AdoptOptions(), "zensical.toml", False),
+    )
+    monkeypatch.setattr(
+        "prodockit.adopt.assess",
+        lambda _root, _options, **_kwargs: [
+            Step("dependency", "Integrate", "Supported toolchain", "ok", "aligned"),
+            Step("core", "Integrate", "Standard authoring components", "ok", "aligned"),
+            Step("verify", "Verify", "Ready for local build", "ok", "ready"),
+        ],
+    )
+
+    check = diagnostics._adopt_readiness_checks(tmp_path, online=False)[0]
+
+    assert check.status == "pass"
+    assert check.data["pending"] == []
 
 
 def test_installation_detects_stale_path_and_dependency_conflict(
@@ -731,9 +933,7 @@ def test_mermaid_diagnostic_warns_when_a_transient_probe_recovers(
 
     check = next(
         item
-        for item in diagnostics._renderer_checks(
-            config, tmp_path, retry_reporter=notices.append
-        )
+        for item in diagnostics._renderer_checks(config, tmp_path, retry_reporter=notices.append)
         if item.id == "renderer.mermaid"
     )
 
@@ -844,9 +1044,7 @@ def test_successful_mermaid_render_proves_its_bundled_browser(
     monkeypatch.setattr(
         diagnostics,
         "probe_mermaid",
-        lambda path: SimpleNamespace(
-            path=path, ok=True, version="11.16.0", error=None, attempts=1
-        ),
+        lambda path: SimpleNamespace(path=path, ok=True, version="11.16.0", error=None, attempts=1),
     )
 
     check = next(
@@ -1716,9 +1914,7 @@ def test_stage4_locked_mermaid_repair_uses_npm_ci_and_verifies(
 def test_stage4_renderer_repair_retries_transient_npm_inside_one_transaction(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    (tmp_path / "zensical.toml").write_text(
-        '[project]\nsite_name = "Example"\n', encoding="utf-8"
-    )
+    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Example"\n', encoding="utf-8")
     expected = diagnostics._renderer_plan_fingerprint(tmp_path, "mermaid")
     monkeypatch.setattr(
         "prodockit.diagnostics.shutil.which",
@@ -1748,9 +1944,7 @@ def test_stage4_renderer_repair_retries_transient_npm_inside_one_transaction(
     monkeypatch.setattr(renderer_resilience.time, "sleep", lambda _delay: None)
     monkeypatch.setattr(
         "prodockit.diagnostics.probe_mermaid",
-        lambda path, **_kwargs: SimpleNamespace(
-            ok=True, error=None, version="11.0", path=path
-        ),
+        lambda path, **_kwargs: SimpleNamespace(ok=True, error=None, version="11.0", path=path),
     )
     notices = []
 
@@ -1767,8 +1961,7 @@ def test_stage4_renderer_repair_retries_transient_npm_inside_one_transaction(
     assert len(notices) == 1
     manifest = json.loads(
         (
-            tmp_path
-            / ".prodockit-quarantine/diagnostics/stage4-mermaid-retry/manifest.json"
+            tmp_path / ".prodockit-quarantine/diagnostics/stage4-mermaid-retry/manifest.json"
         ).read_text(encoding="utf-8")
     )
     assert manifest["status"] == "applied"
@@ -2040,6 +2233,7 @@ def test_author_guide_documents_every_stable_check_id() -> None:
     ).read_text(encoding="utf-8")
     check_ids = {
         "environment.python",
+        "environment.interpreters",
         "environment.virtual-env",
         "environment.inspection",
         "installation.commands",
@@ -2063,6 +2257,7 @@ def test_author_guide_documents_every_stable_check_id() -> None:
         "repository.git",
         "repository.template-metadata",
         "repository.template-update",
+        "maintenance.adopt-readiness",
         "repository.inspection",
     }
 

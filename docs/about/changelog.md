@@ -19,6 +19,24 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.60.1 (2026-09-05)
+
+- Preserved established Mermaid and maths selections when an older project has
+  no `.prodockit-components.toml`. Adopt now labels choices inferred from the
+  Zensical configuration and saves the project-owned record on apply, while
+  diagnostics and Template Sync use the same resolution.
+- Made Diagnostics detect a project `.venv` containing launchers from
+  different Python installations before package symptoms obscure the cause.
+  On macOS and Linux, `pdk diag --fix` can explicitly archive and rebuild the
+  environment from project requirements; Adopt refuses to mutate a mixed
+  environment first. Diagnostic recovery directories are ignored by Git.
+- Made `pdk diag` reuse Adopt's own local readiness assessment, so missing
+  supported-toolchain declarations or standard authoring integration are
+  reported before `template-sync` reports the same prerequisite work.
+- Clarified that unresolved edited template files stop a normal
+  `template-sync --apply` without writing anything; only the explicit
+  `--local-only` review route writes adjacent `.new` copies.
+
 ## 0.60.0 (2026-09-05)
 
 - Made Bootstrap fall back from exhausted transient VS Code Marketplace
