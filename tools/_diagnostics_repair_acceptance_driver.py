@@ -185,6 +185,14 @@ def _repair_input(plan: diagnostics.RepairDryRun) -> tuple[str, int]:
     return "\n".join((*answers, "")), actions
 
 
+def _repair_command(config: Path) -> list[str]:
+    """Build the CLI command with the same explicit scope as the test plan."""
+    command = ["diag", "--config-file", str(config), "--online", "--fix", "--json"]
+    for check_id in sorted(REPAIRABLE_CHECKS):
+        command.extend(("--fix-check", check_id))
+    return command
+
+
 def _checks(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {check["id"]: check for check in payload["checks"]}
 
@@ -247,7 +255,7 @@ def exercise(project: Path) -> dict[str, Any]:
     cli_module._is_interactive = lambda: True
     result = CliRunner().invoke(
         prodockit_cli,
-        ["diag", "--config-file", str(config), "--online", "--fix", "--json"],
+        _repair_command(config),
         input=input_text,
         catch_exceptions=False,
     )
@@ -284,9 +292,7 @@ def exercise(project: Path) -> dict[str, Any]:
 
     after = _checks(payload["after"])
     failed = sorted(
-        check_id
-        for check_id in REPAIRABLE_CHECKS
-        if after[check_id]["status"] != "pass"
+        check_id for check_id in REPAIRABLE_CHECKS if after[check_id]["status"] != "pass"
     )
     if failed:
         raise AcceptanceError(
@@ -301,9 +307,7 @@ def exercise(project: Path) -> dict[str, Any]:
     for action in actions:
         manifest = action.get("manifest")
         if not manifest or not _reported_path(manifest, project).resolve().is_file():
-            raise AcceptanceError(
-                f"repair has no recovery manifest: {action['id']} ({manifest!r})"
-            )
+            raise AcceptanceError(f"repair has no recovery manifest: {action['id']} ({manifest!r})")
 
     non_target_failures = sorted(
         check_id
