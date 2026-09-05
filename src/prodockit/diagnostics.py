@@ -2245,6 +2245,10 @@ def _environment_checks(root: Path) -> list[DiagnosticResult]:
     ]
 
     declared = os.environ.get("VIRTUAL_ENV")
+    project_environment = root / ".venv"
+    wrong_project_environment = project_environment.is_dir() and not same_path(
+        sys.prefix, project_environment
+    )
     if declared and not same_path(declared, sys.prefix):
         checks.append(
             DiagnosticResult(
@@ -2259,6 +2263,26 @@ def _environment_checks(root: Path) -> list[DiagnosticResult]:
                     "then reopen the shell",
                 ),
                 {"declared": _display_path(declared, root), "running_prefix": prefix},
+            )
+        )
+    elif wrong_project_environment:
+        checks.append(
+            DiagnosticResult(
+                "environment.virtual-env",
+                "Environment and installation",
+                "fail",
+                "Active Python is not the project's .venv",
+                (
+                    f"running prefix: {prefix}",
+                    f"project environment: {_display_path(project_environment, root)}",
+                    "deactivate the current environment, activate the project's .venv, "
+                    "then rerun diagnostics",
+                ),
+                {
+                    "declared": _display_path(declared, root) if declared else None,
+                    "running_prefix": prefix,
+                    "project_environment": _display_path(project_environment, root),
+                },
             )
         )
     elif declared:

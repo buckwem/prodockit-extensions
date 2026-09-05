@@ -104,6 +104,31 @@ def test_environment_reports_only_a_real_virtual_environment_mismatch(
     assert next(check for check in checks if check.id == "environment.virtual-env").status == "fail"
 
 
+def test_environment_rejects_the_setup_venv_inside_a_bootstrapped_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_environment = tmp_path / ".venv"
+    project_environment.mkdir()
+    setup_environment = tmp_path.parent / "setup-environment"
+    setup_environment.mkdir()
+    monkeypatch.setattr("prodockit.diagnostics.sys.prefix", str(setup_environment))
+    monkeypatch.setattr("prodockit.diagnostics.sys.base_prefix", "/usr")
+    monkeypatch.setattr(
+        "prodockit.diagnostics.sys.executable", str(setup_environment / "bin" / "python")
+    )
+    monkeypatch.setenv("VIRTUAL_ENV", str(setup_environment))
+
+    check = next(
+        check
+        for check in diagnostics._environment_checks(tmp_path)
+        if check.id == "environment.virtual-env"
+    )
+
+    assert check.status == "fail"
+    assert check.summary == "Active Python is not the project's .venv"
+    assert "activate the project's .venv" in check.details[-1]
+
+
 def test_installation_detects_stale_path_and_dependency_conflict(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

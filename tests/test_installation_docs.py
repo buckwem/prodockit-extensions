@@ -218,6 +218,10 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     confirm = installation[installation.index("//// step | Confirm") :]
     assert '!!! warning "Complete the manual step before confirming"' in confirm
     assert "Type `yes` only after checking that the action succeeded" in " ".join(confirm.split())
+    assert "Do not run the complete `pdk diag` here" in installation
+    assert "Changing directory" in confirm
+    assert confirm.count("pdk diag") == 3
+    assert "The `Project` line must name the clone" in confirm
     assert "python3.14 -m venv" not in installation
     assert "py -3.14 -m venv" not in installation
 
