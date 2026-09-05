@@ -15,8 +15,8 @@ on:
         description: Successful Bootstrap live GitHub workflow run ID
         required: true
         type: string
-      surrey_pipeline_id:
-        description: Successful Surrey child pipeline ID containing the three gate jobs
+      surrey_run_id:
+        description: Successful Bootstrap live Surrey GitHub Actions workflow run ID
         required: true
         type: string
 
@@ -51,14 +51,14 @@ jobs:
         run: |
           [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-          [[ "$SURREY_PIPELINE_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SURREY_RUN_ID" =~ ^[1-9][0-9]*$ ]]
           test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
           test "$(git rev-parse refs/remotes/origin/main)" = "$RELEASE_COMMIT"
           test -z "$(git status --porcelain)"
         env:
           RELEASE_COMMIT: ${{ inputs.release_commit }}
           GITHUB_RUN_ID: ${{ inputs.github_run_id }}
-          SURREY_PIPELINE_ID: ${{ inputs.surrey_pipeline_id }}
+          SURREY_RUN_ID: ${{ inputs.surrey_run_id }}
       - name: Resolve and validate the exact GitHub provider run
         shell: bash
         run: |
@@ -111,40 +111,26 @@ jobs:
           path: ${{ runner.temp }}/github-result
           github-token: ${{ github.token }}
           run-id: ${{ inputs.github_run_id }}
-      - name: Resolve the exact Surrey child pipeline and its seal artifact
+      - name: Resolve and validate the exact Surrey provider run
         shell: bash
         run: |
-          install -m 700 -d "$RUNNER_TEMP/surrey-result"
-          printf 'PRIVATE-TOKEN: %s\n' "$SURREY_STATUS_TOKEN" \
-            > "$RUNNER_TEMP/surrey-api.header"
-          chmod 600 "$RUNNER_TEMP/surrey-api.header"
-          unset SURREY_STATUS_TOKEN
-          api="https://gitlab.surrey.ac.uk/api/v4/projects/mb0105%2Fprodockit-extensions"
-          curl --fail --silent --show-error \
-            --header "@$RUNNER_TEMP/surrey-api.header" \
-            "$api/pipelines/$SURREY_PIPELINE_ID" \
-            --output "$RUNNER_TEMP/surrey-pipeline.json"
-          curl --fail --silent --show-error \
-            --header "@$RUNNER_TEMP/surrey-api.header" \
-            "$api/pipelines/$SURREY_PIPELINE_ID/jobs?per_page=100" \
-            --output "$RUNNER_TEMP/surrey-jobs.json"
-          python tools/release_gate_provider_status.py validate-surrey-pipeline \
-            --document "$RUNNER_TEMP/surrey-pipeline.json" \
-            --pipeline-id "$SURREY_PIPELINE_ID"
-          seal_job_id=$(python tools/release_gate_provider_status.py select-surrey-seal-job \
-            --document "$RUNNER_TEMP/surrey-jobs.json" \
-            --pipeline-id "$SURREY_PIPELINE_ID")
-          curl --fail --silent --show-error \
-            --header "@$RUNNER_TEMP/surrey-api.header" \
-            "$api/jobs/$seal_job_id/artifacts" \
-            --output "$RUNNER_TEMP/surrey-artifacts.zip"
-          rm -f "$RUNNER_TEMP/surrey-api.header"
-          python tools/release_gate_provider_status.py extract-surrey-result \
-            --archive "$RUNNER_TEMP/surrey-artifacts.zip" \
-            --output "$RUNNER_TEMP/surrey-result/provider-result.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SURREY_RUN_ID" \
+            > "$RUNNER_TEMP/surrey-run.json"
+          python tools/release_gate_provider_status.py validate-surrey-run \
+            --document "$RUNNER_TEMP/surrey-run.json" \
+            --run-id "$SURREY_RUN_ID" \
+            --release-commit "$RELEASE_COMMIT"
         env:
-          SURREY_PIPELINE_ID: ${{ inputs.surrey_pipeline_id }}
-          SURREY_STATUS_TOKEN: ${{ secrets.PRODOCKIT_LIVE_SURREY_STATUS_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          SURREY_RUN_ID: ${{ inputs.surrey_run_id }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+      - name: Download the immutable Surrey provider result
+        uses: actions/download-artifact@v4
+        with:
+          name: surrey-provider-result-${{ inputs.surrey_run_id }}
+          path: ${{ runner.temp }}/surrey-result
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.surrey_run_id }}
       - name: Rebuild and compare the exact publication candidate
         shell: bash
         run: |

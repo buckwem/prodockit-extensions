@@ -20,7 +20,7 @@ status = importlib.import_module("release_gate_provider_status")
 COMMIT = "a" * 40
 
 
-def github_run(**updates: object) -> dict[str, object]:
+def github_run(*, workflow: str = status.GITHUB_WORKFLOW, **updates: object) -> dict[str, object]:
     value: dict[str, object] = {
         "id": 42,
         "event": "workflow_dispatch",
@@ -28,7 +28,7 @@ def github_run(**updates: object) -> dict[str, object]:
         "conclusion": "success",
         "head_branch": "main",
         "head_sha": COMMIT,
-        "path": status.GITHUB_WORKFLOW,
+        "path": workflow,
         "html_url": f"{status.GITHUB_URL}/actions/runs/42",
         "repository": {"full_name": status.RELEASE_REPOSITORY},
     }
@@ -48,6 +48,21 @@ def test_github_run_is_bound_to_exact_workflow_commit_and_run() -> None:
             status.validate_github_run(
                 github_run(**update), expected_run_id=42, expected_commit=COMMIT
             )
+
+
+def test_surrey_run_is_bound_to_its_exact_github_actions_workflow() -> None:
+    status.validate_surrey_run(
+        github_run(workflow=status.SURREY_GITHUB_WORKFLOW),
+        expected_run_id=42,
+        expected_commit=COMMIT,
+    )
+
+    with pytest.raises(status.ProviderStatusError, match="path"):
+        status.validate_surrey_run(
+            github_run(),
+            expected_run_id=42,
+            expected_commit=COMMIT,
+        )
 
 
 def check_run(identifier: int, name: str, *, conclusion: str = "success") -> dict[str, object]:
