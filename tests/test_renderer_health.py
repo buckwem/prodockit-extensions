@@ -58,9 +58,34 @@ def test_mermaid_probe_records_the_reported_version(tmp_path: Path, monkeypatch)
     assert result.version == "11.12.0"
     assert result.error is None
     assert render_options == {
-        "puppeteer": {"args": ["--no-sandbox", "--disable-setuid-sandbox"]},
+        "puppeteer": {
+            "headless": True,
+            "args": ["--no-sandbox", "--disable-setuid-sandbox"],
+        },
         "timeout": 60.0,
     }
+
+
+def test_mermaid_probe_explicitly_keeps_the_system_browser_headless(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Regression for #713: Edge must not become a visible diagnostic UI."""
+    binary = tmp_path / "mmdc"
+    binary.write_text("shim", encoding="utf-8")
+    seen = {}
+
+    def run(command, **kwargs):
+        if "-o" in command:
+            seen.update(
+                json.loads(Path(command[command.index("-p") + 1]).read_text(encoding="utf-8"))
+            )
+            Path(command[command.index("-o") + 1]).write_text("<svg/>", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="11.16.0", stderr="")
+
+    monkeypatch.setattr("prodockit.renderer_health.subprocess.run", run)
+
+    assert probe_mermaid(binary).ok is True
+    assert seen["headless"] is True
 
 
 def test_mermaid_probe_uses_the_runnable_windows_shim(tmp_path: Path) -> None:
