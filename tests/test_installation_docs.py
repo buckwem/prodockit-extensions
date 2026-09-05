@@ -215,6 +215,9 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert "installation.md#installation-preparation" in installation
     assert installation.count("//// step | ") == 5
     assert "//// step | Install Prodockit into the active environment" in installation
+    confirm = installation[installation.index("//// step | Confirm") :]
+    assert '!!! warning "Complete the manual step before confirming"' in confirm
+    assert "Type `yes` only after checking that the action succeeded" in " ".join(confirm.split())
     assert "python3.14 -m venv" not in installation
     assert "py -3.14 -m venv" not in installation
 

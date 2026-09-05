@@ -132,6 +132,13 @@ Stop whenever you like. The next run picks up from wherever it got to.
 pdk boot
 ```
 
+!!! warning "Complete the manual step before confirming"
+
+    If Bootstrap reaches a prompt where you must type `yes`, you should have
+    completed the manual step it describes at that point. Type `yes` only after
+    checking that the action succeeded; the confirmation tells Bootstrap to
+    continue, but cannot perform or verify the action for you.
+
 Every stage `ok`, and the last one names the address your site is
 published at. If a stage still reports work to do, its line says what
 and why - and running `--apply` again does only that stage.
