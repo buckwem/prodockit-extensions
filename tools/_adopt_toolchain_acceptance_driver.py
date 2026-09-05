@@ -221,7 +221,10 @@ def exercise(
     applied = _run_cli(
         project,
         ["adopt", "--apply", "--no-mermaid", "--no-maths"],
-        input_text="y\ny\n",
+        # Confirm every actionable stage, including newly introduced stages.
+        # Extra input is harmless once Adopt has completed and keeps this
+        # real-wheel harness resilient as the integration plan evolves.
+        input_text="y\n" * 20,
     )
     if applied.returncode:
         raise AcceptanceError(f"Adopt apply failed:\n{_output(applied)}")
