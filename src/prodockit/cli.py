@@ -3165,7 +3165,7 @@ def adopt_command(
             choice_detail += "; command-line overrides apply"
     click.echo(f"  Choices:  {choice_detail}")
     if not resolution.saved:
-        click.echo(f"  Will save: {root / ADOPT_MANIFEST} when an integration stage is applied")
+        click.echo(f"  Will save: {root / ADOPT_MANIFEST} in the Component choices stage")
     click.echo("  Excluded: Git, SSH, remotes, editors, commits and pushes")
 
     current_phase = ""
@@ -3207,10 +3207,8 @@ def adopt_command(
         action = "CHECK" if step.status == "ok" else "CONFIGURE"
         click.echo(f"  Action:   {action}")
         click.echo(f"  Current:  {step.detail}")
-        if step.id == "dependency":
+        if step.id in {"dependency", "core", "choices"}:
             click.echo(f"  Will do:  {step.detail}")
-        elif step.id == "core":
-            click.echo("  Will do:  enable the standard extensions and add shared website styles")
         elif step.id == "mermaid":
             click.echo(
                 "  Will do:  scaffold and install the project-local Mermaid renderer with npm"

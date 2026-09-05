@@ -65,13 +65,21 @@ REQUIREMENT_CANDIDATES = (
 CORE_EXTENSIONS = (
     "prodockit.headings",
     "prodockit.refs",
-    "prodockit.citations",
     "prodockit.glossary",
     "prodockit.bibliography",
     "prodockit.tables",
     "prodockit.steps",
     "prodockit.tree",
     "prodockit.index",
+)
+
+# These extensions provide alternative citation-definition sources. The
+# template uses bibliography files, while an existing project may deliberately
+# define citations inline. Adopt must preserve that choice rather than enable
+# both implementations simply to satisfy a generic core-components check.
+CITATION_EXTENSIONS = (
+    "prodockit.bibliography",
+    "prodockit.citations",
 )
 
 # Directory trees emit these documented Zensical icon shortcodes by default.
@@ -437,9 +445,16 @@ def _stylesheet_path(root: Path, parsed: dict[str, Any]) -> Path:
     return root / _docs_dir(parsed) / "stylesheets" / "pdk.css"
 
 
-def _core_ok(parsed: dict[str, Any]) -> bool:
+def _missing_core_extensions(parsed: dict[str, Any]) -> list[str]:
     configured = _extensions(parsed)
-    return all(name in configured for name in CORE_EXTENSIONS) and _tree_icons_ok(parsed)
+    missing = [name for name in CORE_EXTENSIONS if name not in configured]
+    if any(name in configured for name in CITATION_EXTENSIONS):
+        missing = [name for name in missing if name != "prodockit.bibliography"]
+    return missing
+
+
+def _core_ok(parsed: dict[str, Any]) -> bool:
+    return not _missing_core_extensions(parsed) and _tree_icons_ok(parsed)
 
 
 def _tree_icons_ok(parsed: dict[str, Any], *, require_python_names: bool = False) -> bool:
@@ -650,17 +665,16 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
         project = _parsed["project"]
     extension_array = isinstance(project.get("markdown_extensions"), list)
     configured = _extensions(_parsed)
+    missing = _missing_core_extensions(_parsed)
     if extension_array:
-        for name in CORE_EXTENSIONS:
-            if name not in configured:
-                source = _add_array_value(source, "project", "markdown_extensions", f'"{name}"')
+        for name in missing:
+            source = _add_array_value(source, "project", "markdown_extensions", f'"{name}"')
     else:
         source = _append_tables(
             source,
             tuple(
                 f'project.markdown_extensions."{name}"'
-                for name in CORE_EXTENSIONS
-                if name not in configured
+                for name in missing
             ),
         )
     source = _ensure_toml_tree_icons(
@@ -1055,10 +1069,8 @@ def _planned_yaml_config(
     if "markdown_extensions" not in parsed:
         source = _seed_yaml_markdown_defaults(source)
         parsed = yaml.load(source, Loader=_MarkdownConfigLoader)
-    configured = _extensions(parsed)
-    for name in CORE_EXTENSIONS:
-        if name not in configured:
-            source = _yaml_add_extension(source, name)
+    for name in _missing_core_extensions(parsed):
+        source = _yaml_add_extension(source, name)
     source = _yaml_ensure_tree_icons(source, parsed)
     source = _yaml_add_top_list_value(
         source,
@@ -1275,7 +1287,7 @@ def assess(
 
     toolchain = supported_toolchain.plan(root, offline=offline)
     configured = _extensions(parsed)
-    missing = [name for name in CORE_EXTENSIONS if name not in configured]
+    missing = _missing_core_extensions(parsed)
     style_path = _stylesheet_path(root, parsed)
     core_ok = (
         not config_error
@@ -1286,23 +1298,33 @@ def assess(
         )
         and _style_ok(root, parsed)
         and style_path.is_file()
-        and (root / MANIFEST).is_file()
     )
+    core_problems: list[str] = []
+    if missing:
+        core_problems.append("add standard extension(s): " + ", ".join(missing))
+    if not _tree_icons_ok(
+        parsed,
+        require_python_names=config_path.suffix != ".toml",
+    ):
+        core_problems.append("configure pymdownx.emoji for prodockit.tree icons")
+    project = parsed.get("project", parsed)
+    extra_css = project.get("extra_css", []) if isinstance(project, dict) else []
+    if not style_path.is_file():
+        core_problems.append(f"add shared website stylesheet {style_path.relative_to(root)}")
+    elif style_path.read_bytes() != resource_bytes("pdk.css"):
+        core_problems.append(f"refresh shared website stylesheet {style_path.relative_to(root)}")
+    if "stylesheets/pdk.css" not in extra_css:
+        core_problems.append("register stylesheets/pdk.css in project.extra_css")
     core_detail = config_error or (
-        "all standard extensions, shared stylesheet, and component choices are configured"
+        "all standard extensions and shared website styles are configured"
         if core_ok
-        else (
-            f"save the inferred component choices in {MANIFEST}"
-            if not missing
-            and _tree_icons_ok(
-                parsed,
-                require_python_names=config_path.suffix != ".toml",
-            )
-            and _style_ok(root, parsed)
-            and style_path.is_file()
-            and not (root / MANIFEST).is_file()
-            else "add the standard extensions and shared website styles"
-        )
+        else "; ".join(core_problems)
+    )
+    choices_ok = (root / MANIFEST).is_file()
+    choices_detail = (
+        f"component choices are saved in {MANIFEST}"
+        if choices_ok
+        else f"save the inferred component choices in {MANIFEST}"
     )
     mermaid_tool_ok, mermaid_detail = _tool_health(root, "mermaid", retry_reporter=retry_reporter)
     maths_tool_ok, maths_detail = _tool_health(root, "mathjax")
@@ -1314,6 +1336,7 @@ def assess(
         and not toolchain.blocked
         and not toolchain.needs_work
         and core_ok
+        and choices_ok
         and (not options.mermaid or mermaid_ok)
         and (not options.maths or maths_ok)
     )
@@ -1355,6 +1378,13 @@ def assess(
             "Standard authoring components",
             "wrong" if config_error else ("ok" if core_ok else "missing"),
             core_detail,
+        ),
+        Step(
+            "choices",
+            "Integrate",
+            "Component choices",
+            "ok" if choices_ok else "missing",
+            choices_detail,
         ),
         Step(
             "mermaid",
@@ -1425,8 +1455,9 @@ def apply_step(
         return [
             ensure_zensical_config(root, options),
             ensure_stylesheet(root),
-            write_manifest(root, options),
         ]
+    if step_id == "choices":
+        return [write_manifest(root, options)]
     if step_id == "mermaid":
         return [
             ensure_zensical_config(root, options),

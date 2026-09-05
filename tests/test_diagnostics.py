@@ -294,6 +294,13 @@ def test_diagnostics_reports_the_same_pending_adopt_stages(
                 "missing",
                 "add the standard extensions and shared website styles",
             ),
+            Step(
+                "choices",
+                "Integrate",
+                "Component choices",
+                "missing",
+                "save the inferred component choices in .prodockit-components.toml",
+            ),
             Step("verify", "Verify", "Ready for local build", "wait", "apply first"),
         ],
     )
@@ -301,10 +308,11 @@ def test_diagnostics_reports_the_same_pending_adopt_stages(
     check = diagnostics._adopt_readiness_checks(tmp_path, online=False)[0]
 
     assert check.status == "warn"
-    assert check.summary == "Adopt has 2 integration stage(s) to apply"
-    assert check.data["pending"] == ["dependency", "core"]
+    assert check.summary == "Adopt has 3 integration stage(s) to apply"
+    assert check.data["pending"] == ["dependency", "core", "choices"]
     assert "Supported toolchain" in check.details[0]
     assert "Standard authoring components" in check.details[1]
+    assert "Component choices" in check.details[2]
 
 
 def test_diagnostics_passes_when_adopt_is_aligned(
