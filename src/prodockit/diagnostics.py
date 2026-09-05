@@ -6,9 +6,7 @@
 from __future__ import annotations
 
 import hashlib
-import importlib
 import importlib.metadata
-import io
 import json
 import ntpath
 import os
@@ -19,7 +17,7 @@ import sys
 import sysconfig
 import uuid
 from collections.abc import Callable
-from contextlib import redirect_stderr, redirect_stdout, suppress
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,10 +40,11 @@ from prodockit.pins import (
 from prodockit.project_config import ProjectConfig, ProjectConfigError, load_project_config
 from prodockit.project_integrity import renderer_requirements
 from prodockit.renderer_health import find_browser, probe_mathjax, probe_mermaid
-from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries
+from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries, run_with_retries
 from prodockit.shared_files import SharedFileError
 from prodockit.shared_files import apply as apply_shared_files
 from prodockit.shared_files import inspect as inspect_shared_files
+from prodockit.windows_pango import inspect_windows_pango, pango_spec, repair_script
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -262,9 +261,11 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "Install the project's pinned Pandoc version outside diagnostics.",
     ),
     "renderer.weasyprint": RepairPolicy(
-        "prohibited",
-        "WeasyPrint failures may require native system libraries or architecture changes.",
-        "Repair the active Python package and platform libraries outside diagnostics.",
+        "confirmable",
+        "A Windows MSYS2 Pango package and its discovery environment can be "
+        "repaired independently.",
+        "On Windows, verify and reinstall the architecture-matched Pango package; elsewhere, "
+        "repair native libraries outside diagnostics.",
     ),
     "renderer.node": RepairPolicy(
         "prohibited",
@@ -744,6 +745,53 @@ def _generic_candidate(check: DiagnosticResult) -> RepairCandidate:
     )
 
 
+def _windows_pango_candidate(check: DiagnosticResult) -> RepairCandidate:
+    policy = REPAIR_REGISTRY[check.id]
+    raw = check.data.get("windows_pango")
+    if not isinstance(raw, dict):
+        return _generic_candidate(check)
+    if raw.get("healthy") is True:
+        return _generic_candidate(check)
+    affected = tuple(
+        str(value)
+        for value in (
+            raw.get("dll"),
+            raw.get("bin"),
+            "User environment: WEASYPRINT_DLL_DIRECTORIES",
+        )
+        if value
+    )
+    return RepairCandidate(
+        "renderer.weasyprint.repair-windows-pango",
+        check.id,
+        policy.disposition,
+        "available",
+        check.summary,
+        policy.reason,
+        policy.remediation,
+        (
+            RepairChoice(
+                "repair-windows-pango",
+                "Verify or reinstall the architecture-matched MSYS2 Pango package",
+                internal_operation="renderer.weasyprint.repair-windows-pango",
+                affected_paths=affected,
+                prerequisites=("Windows", "MSYS2", "PowerShell"),
+                warning=(
+                    "This may reinstall an MSYS2 system package and changes the user's PATH "
+                    "and WEASYPRINT_DLL_DIRECTORIES environment variables."
+                ),
+                warning_severity="warning",
+                network=True,
+                rollback=(
+                    "pacman retains its package cache; restore the prior user "
+                    "environment values"
+                ),
+            ),
+            _leave_unchanged(),
+        ),
+    )
+
+
 def _metadata_candidate(check: DiagnosticResult) -> RepairCandidate:
     policy = REPAIR_REGISTRY[check.id]
     candidates = tuple(str(item) for item in check.data.get("fix_candidates", ()))
@@ -1111,6 +1159,8 @@ def build_repair_dry_run(
             candidates.extend(_shared_files_candidates(check))
         elif check.id == "dependencies.pins":
             candidates.extend(_pin_candidates(check))
+        elif check.id == "renderer.weasyprint":
+            candidates.append(_windows_pango_candidate(check))
         elif check.id in {"renderer.mermaid", "renderer.mathjax"}:
             candidates.append(_renderer_candidate(check, report))
         elif check.id == "project.configuration" and check.data.get("repairable_problems"):
@@ -1884,6 +1934,90 @@ def repair_locked_renderer(
         tuple(dict.fromkeys(changed)),
         _display_path(transaction.quarantine, project),
         _display_path(transaction.manifest_path, project),
+    )
+
+
+def repair_windows_pango(
+    *,
+    expected: dict[str, object] | None = None,
+    retry_reporter: RetryReporter | None = None,
+) -> RepairApplyResult:
+    """Repair and independently verify Windows Pango without a template."""
+    running_on: str = sys.platform
+    if running_on != "win32":
+        raise RepairTransactionError("Windows Pango repair is only available on Windows")
+    before = inspect_windows_pango()
+    if before.healthy:
+        return RepairApplyResult("not-needed")
+    if expected is not None:
+        observed = before.as_dict()
+        for key in ("architecture", "environment", "package"):
+            if expected.get(key) != observed.get(key):
+                raise RepairTransactionError(
+                    "the Windows Pango repair plan became stale; rerun `pdk diag --fix`"
+                )
+    spec = pango_spec(arm64=before.architecture == "arm64")
+    command = ["powershell", "-NoProfile", "-Command", repair_script(spec)]
+
+    def run() -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=900,
+            check=False,
+        )
+
+    retried = run_with_retries(
+        "Windows Pango repair",
+        run,
+        succeeded=lambda completed: completed.returncode == 0,
+        failure_detail=lambda completed: "\n".join(
+            part.strip()
+            for part in (completed.stdout, completed.stderr)
+            if part and part.strip()
+        ),
+        reporter=retry_reporter,
+    )
+    if retried.value.returncode != 0:
+        detail = retried.value.stderr.strip() or retried.value.stdout.strip()
+        raise RepairTransactionError(f"Windows Pango repair failed: {detail}")
+
+    # A child PowerShell can persist a value but cannot mutate its parent.
+    # Refresh exactly as bootstrap does, then prove a newly spawned Python can
+    # load WeasyPrint's native libraries without requiring a restart.
+    from prodockit.bootstrap.model import refresh_windows_path
+
+    refresh_windows_path()
+    after = inspect_windows_pango()
+    if not after.healthy:
+        raise RepairTransactionError(
+            "Windows Pango repair completed but DLL, package integrity, or environment "
+            "verification still fails"
+        )
+    imported = _run(
+        [sys.executable, "-c", "import weasyprint; print(weasyprint.__version__)"],
+        timeout=30,
+    )
+    if imported.returncode != 0:
+        detail = imported.stderr.strip() or imported.stdout.strip()
+        raise RepairTransactionError(
+            "Windows Pango repaired, but fresh-process WeasyPrint verification failed: "
+            f"{detail}"
+        )
+    return RepairApplyResult(
+        "applied",
+        tuple(
+            value
+            for value in (
+                after.dll,
+                after.bin,
+                "User environment: WEASYPRINT_DLL_DIRECTORIES",
+            )
+            if value
+        ),
     )
 
 
@@ -2671,21 +2805,52 @@ def _renderer_checks(
     node_required = mermaid_required or maths_required
     checks = [_tool_result("renderer.pandoc", "Pandoc", "pandoc", root=root, required=pdf_required)]
 
+    pango_details: list[str] = []
+    pango_data: dict[str, object] | None = None
+    running_on: str = sys.platform
+    if running_on == "win32":
+        evidence = inspect_windows_pango()
+        pango_data = evidence.as_dict()
+        if evidence.root is None:
+            pango_details.append("MSYS2 installation not found")
+        elif not evidence.dll_exists:
+            pango_details.append(f"expected Pango DLL is missing: {evidence.dll}")
+        if evidence.root is not None and not evidence.package_integrity:
+            pango_details.append(f"MSYS2 package integrity failed: {evidence.package}")
+        if not evidence.environment_persisted:
+            pango_details.append(
+                "WEASYPRINT_DLL_DIRECTORIES is not persisted for the expected Pango directory"
+            )
+        if not evidence.environment_current:
+            pango_details.append(
+                "WEASYPRINT_DLL_DIRECTORIES is not active in the current process"
+            )
+
     try:
-        # WeasyPrint prints a multi-line native-library help banner as an import
-        # side effect before raising. That corrupts `pdk diag --json` and
-        # `--dry-run --json`, whose stdout must contain one JSON document.
-        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            module = importlib.import_module("weasyprint")
-        version = str(getattr(module, "__version__", "unknown"))
+        # A fresh interpreter proves that DLL discovery works without relying on
+        # an already-imported module. Capturing it also keeps JSON output clean
+        # when WeasyPrint emits its native-library help banner (#722).
+        imported = _probe_weasyprint_import()
+        if imported.returncode != 0:
+            detail = "\n".join(
+                part.strip() for part in (imported.stdout, imported.stderr) if part.strip()
+            )
+            raise RuntimeError(detail or f"fresh interpreter exited {imported.returncode}")
+        version = imported.stdout.strip().splitlines()[-1] if imported.stdout.strip() else "unknown"
+        if pango_details:
+            raise RuntimeError("; ".join(pango_details))
         checks.append(
             DiagnosticResult(
                 "renderer.weasyprint",
                 "Rendering toolchain",
                 "pass",
                 f"WeasyPrint {version} imports with its native libraries",
-                (),
-                {"required": pdf_required, "version": version},
+                tuple(pango_details),
+                {
+                    "required": pdf_required,
+                    "version": version,
+                    **({"windows_pango": pango_data} if pango_data is not None else {}),
+                },
             )
         )
     except Exception as error:  # native-loader failures are not ImportError
@@ -2697,8 +2862,11 @@ def _renderer_checks(
                 "fail" if pdf_required else "warn",
                 "WeasyPrint cannot import"
                 + (" but is required by this project" if pdf_required else " (optional)"),
-                (safe_error,),
-                {"required": pdf_required},
+                (*pango_details, safe_error),
+                {
+                    "required": pdf_required,
+                    **({"windows_pango": pango_data} if pango_data is not None else {}),
+                },
             )
         )
 
@@ -2870,6 +3038,20 @@ def _renderer_checks(
         )
     )
     return checks
+
+
+def _probe_weasyprint_import() -> subprocess.CompletedProcess[str]:
+    """Import WeasyPrint in a fresh process with the current discovery environment."""
+    return subprocess.run(
+        [sys.executable, "-c", "import weasyprint; print(weasyprint.__version__)"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+        env=dict(os.environ),
+    )
 
 
 def _node_security_checks(root: Path, online: bool) -> list[DiagnosticResult]:

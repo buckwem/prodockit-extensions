@@ -73,11 +73,17 @@ from prodockit.bootstrap.model import (
 )
 from prodockit.bootstrap.stages import (
     STAGES,
+    VSCODE_EXTENSION_MIN_VERSIONS,
     own_project_exists,
     own_project_has_content,
     project_on_host,
     resolve_for_execution,
     site_url,
+)
+from prodockit.vscode_extensions import (
+    ExtensionInstallError,
+    obtain_open_vsx,
+    transient_extension_failure,
 )
 
 __all__ = [
@@ -345,10 +351,26 @@ class ApplyResult:
     #: separately so the caller can report the anomaly without treating a
     #: successfully verified stage as failed.
     recovered: CommandResult | None = None
+    evidence: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
         return self.failed is None and self.verified is not None and not self.verified.needs_work
+
+
+def _vscode_extension_request(command: list[str]) -> tuple[str, str] | None:
+    """Return a reviewed extension and exact fallback version, if applicable."""
+    if not command:
+        return None
+    executable = Path(command[0]).name.casefold().removesuffix(".exe")
+    if executable not in {"code", "code.cmd"} or "--install-extension" not in command:
+        return None
+    position = command.index("--install-extension") + 1
+    if position >= len(command):
+        return None
+    extension = command[position].casefold()
+    version = VSCODE_EXTENSION_MIN_VERSIONS.get(extension)
+    return (extension, version) if version is not None else None
 
 
 def apply_stage(
@@ -391,6 +413,7 @@ def apply_stage(
         # over an install that then succeeded (#243).
         if progress is not None:
             progress("start", command_number, command_count, list(command))
+        fallback_command: list[str] | None = None
         try:
             outcome = CommandResult(1)
             retry_delay = 0
@@ -428,6 +451,46 @@ def apply_stage(
                     break
                 if attempt == 2:
                     break
+            request = _vscode_extension_request(command)
+            detail = f"{outcome.stdout}\n{outcome.stderr}"
+            if not outcome.ok and request and transient_extension_failure(detail):
+                extension, version = request
+                try:
+                    evidence = obtain_open_vsx(extension, version)
+                    fallback_command = [
+                        command[0],
+                        "--install-extension",
+                        str(evidence.archive),
+                        "--force",
+                    ]
+                    outcome = context.runner.run(
+                        fallback_command,
+                        cwd=plan.cwd,
+                        timeout=INSTALL_TIMEOUT_SECONDS,
+                        capture=(
+                            context.guided
+                            and progress is not None
+                            and not plan.needs_terminal
+                        ),
+                    )
+                    result.evidence.append(
+                        f"Open VSX fallback: {extension} {version}; verified identity, "
+                        f"version, publisher and licence; cache "
+                        f"{'hit' if evidence.cached else 'miss'} ({evidence.archive})"
+                    )
+                except (ExtensionInstallError, OSError) as error:
+                    outcome = CommandResult(
+                        outcome.returncode,
+                        outcome.stdout,
+                        "\n".join(
+                            part
+                            for part in (
+                                outcome.stderr.strip(),
+                                f"Open VSX fallback failed: {error}",
+                            )
+                            if part
+                        ),
+                    )
         except BaseException:
             # In particular, stop prodockit bootstrap's background spinner when the user
             # interrupts a command. The original exception still decides the
@@ -436,6 +499,8 @@ def apply_stage(
                 progress("failed", command_number, command_count, list(command))
             raise
         result.ran.append(list(command))
+        if fallback_command is not None:
+            result.ran.append(fallback_command)
         # Whatever this command did, anything remembered about the host
         # from before it ran is now a statement about the past. Dropped
         # here rather than only before the check below, so a later
@@ -480,13 +545,19 @@ def apply_stage(
                 list(command),
             )
         if not accepted:
-            return ApplyResult(stage=stage, ran=result.ran, failed=outcome)
+            return ApplyResult(
+                stage=stage,
+                ran=result.ran,
+                failed=outcome,
+                evidence=result.evidence,
+            )
         if recovered is not None and recovered.status is Status.OK:
             return ApplyResult(
                 stage=stage,
                 ran=result.ran,
                 verified=recovered,
                 recovered=outcome,
+                evidence=result.evidence,
             )
     # Unconditionally, not only after a command. The two browser stages
     # have instructions-only plans, so the loop above never ran and never
@@ -500,6 +571,7 @@ def apply_stage(
         ran=result.ran,
         verified=stage.check(context),
         recovered=recovered_outcome,
+        evidence=result.evidence,
     )
 
 

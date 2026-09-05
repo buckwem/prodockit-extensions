@@ -19,6 +19,17 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Made Bootstrap fall back from exhausted transient VS Code Marketplace
+  failures to exact reviewed Open VSX extension releases. Fallback archives
+  are identity/version/licence checked and cached by extension, release and
+  platform, with the selected source and cache result shown in apply output.
+- Added architecture-aware Windows Pango integrity checks and conditional
+  repair for Bootstrap and `pdk diag --fix`. ARM64 uses CLANGARM64 and x64 uses
+  UCRT64; both verify the expected DLL, pacman package, persistent and current
+  environment, and a fresh-process native-library load without a restart.
+
 ## 0.59.0 (2026-09-05)
 
 - Raised the supported Zensical floor to 0.0.59 after comparing the generated

@@ -142,6 +142,8 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     "src/prodockit/mathjax.py": frozenset({"adopt", "bootstrap", "diagnostics"}),
     "src/prodockit/pins.py": frozenset({"adopt", "diagnostics"}),
     "src/prodockit/toolchain.py": frozenset({"adopt", "diagnostics"}),
+    "src/prodockit/vscode_extensions.py": frozenset({"bootstrap"}),
+    "src/prodockit/windows_pango.py": frozenset({"bootstrap", "diagnostics"}),
     "src/prodockit/template_sync.py": frozenset({"adopt"}),
     "src/prodockit/template_prerequisites.py": frozenset({"adopt"}),
     "src/prodockit/project_integrity.py": frozenset({"diagnostics"}),
