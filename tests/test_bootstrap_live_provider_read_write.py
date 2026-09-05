@@ -656,7 +656,8 @@ def test_plan_allows_only_the_reviewed_node_dependency_commands(tmp_path: Path) 
             f"cd {mermaid} && npm ci --legacy-peer-deps"
             " && if [ ! -d node_modules/puppeteer ]; then "
             "npm install --no-save --package-lock=false --legacy-peer-deps "
-            "puppeteer@25.9.0; fi",
+            "puppeteer@25.9.0; fi"
+            " && npm exec -- puppeteer browsers install",
         ],
         ["bash", "-c", f"cd {mathjax} && npm ci --legacy-peer-deps"],
     ]
@@ -681,6 +682,23 @@ def test_plan_allows_only_the_reviewed_node_dependency_commands(tmp_path: Path) 
         live.authorise_plan(
             "node",
             changed_runtime,
+            str(project),
+            fixture=fixture,
+            home=home,
+            project=project,
+            allow_push=True,
+            candidate_python=Path(sys.executable),
+        )
+
+    missing_browser_install = [list(command) for command in reviewed]
+    missing_browser_install[0] = list(missing_browser_install[0])
+    missing_browser_install[0][2] = missing_browser_install[0][2].replace(
+        " && npm exec -- puppeteer browsers install", ""
+    )
+    with pytest.raises(live.LiveProviderError, match="unapproved non-Git"):
+        live.authorise_plan(
+            "node",
+            missing_browser_install,
             str(project),
             fixture=fixture,
             home=home,

@@ -862,6 +862,7 @@ def _authorise_non_git_command(
                 " && if [ ! -d node_modules/puppeteer ]; then "
                 "npm install --no-save --package-lock=false --legacy-peer-deps "
                 "puppeteer@25.9.0; fi"
+                " && npm exec -- puppeteer browsers install"
             ),
             (
                 f"cd {shlex.quote(str(project / 'tools' / 'mathjax'))} "
