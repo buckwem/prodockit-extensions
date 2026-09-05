@@ -6603,6 +6603,74 @@ def test_bootstrap_retries_a_temporary_remote_service_failure(
     assert delays == [2]
 
 
+def test_bootstrap_uses_validated_open_vsx_after_marketplace_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The second registry is a bounded fallback, not another blind retry."""
+    from prodockit.bootstrap import Stage, apply_stage
+    from prodockit.vscode_extensions import ExtensionEvidence
+
+    archive = tmp_path / "python.vsix"
+    archive.touch()
+    monkeypatch.setattr("prodockit.bootstrap.time.sleep", lambda _delay: None)
+    monkeypatch.setattr(
+        "prodockit.bootstrap.obtain_open_vsx",
+        lambda extension, version: ExtensionEvidence(
+            extension,
+            version,
+            "linux-x64",
+            "open-vsx",
+            archive,
+            False,
+        ),
+    )
+
+    class MarketplaceUnavailable(FakeRunner):
+        def run(self, command, cwd=None, timeout=None, capture=True):  # type: ignore[no-untyped-def]
+            self.calls.append(list(command))
+            if command[-1] == "ms-python.python":
+                return CommandResult(1, stderr="Server returned 503")
+            return CommandResult(0)
+
+    runner = MarketplaceUnavailable()
+    context = _context(tmp_path, runner=runner)
+    stage = Stage(
+        "extensions",
+        "VS Code extensions",
+        lambda context: CheckResult(Status.OK),
+        lambda context: Plan(commands=[["code", "--install-extension", "ms-python.python"]]),
+    )
+
+    result = apply_stage(context, stage)
+
+    assert result.ok
+    assert sum(call[-1] == "ms-python.python" for call in runner.calls) == 3
+    assert ["code", "--install-extension", str(archive), "--force"] in runner.calls
+    assert result.evidence and "cache miss" in result.evidence[0]
+
+
+def test_bootstrap_does_not_fallback_for_unreviewed_extensions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prodockit.bootstrap import Stage, apply_stage
+
+    monkeypatch.setattr("prodockit.bootstrap.time.sleep", lambda _delay: None)
+    runner = FakeRunner({"code": CommandResult(1, stderr="Server returned 503")})
+    context = _context(tmp_path, runner=runner)
+    stage = Stage(
+        "extensions",
+        "VS Code extensions",
+        lambda context: CheckResult(Status.MISSING),
+        lambda context: Plan(commands=[["code", "--install-extension", "unknown.extension"]]),
+    )
+
+    result = apply_stage(context, stage)
+
+    assert result.failed is not None
+    assert sum("--install-extension" in call for call in runner.calls) == 3
+    assert not result.evidence
+
+
 @pytest.mark.parametrize(
     "message",
     [

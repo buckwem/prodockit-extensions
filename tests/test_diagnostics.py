@@ -5,10 +5,8 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import NoReturn
 
 import pytest
 from click.testing import CliRunner
@@ -618,10 +616,11 @@ def test_missing_renderers_warn_when_unused_and_fail_when_content_uses_them(
     )
     monkeypatch.setattr("prodockit.diagnostics.shutil.which", lambda _name: None)
 
-    def unavailable(_name: str) -> NoReturn:
-        raise ImportError("not found")
-
-    monkeypatch.setattr("prodockit.diagnostics.importlib.import_module", unavailable)
+    monkeypatch.setattr(
+        diagnostics,
+        "_probe_weasyprint_import",
+        lambda: subprocess.CompletedProcess([], 1, "", "ImportError: not found"),
+    )
 
     optional = diagnostics._renderer_checks(_project(tmp_path, required=False), tmp_path)
     required = diagnostics._renderer_checks(_project(tmp_path, required=True), tmp_path)
@@ -1043,13 +1042,16 @@ def test_weasyprint_import_banner_never_corrupts_diagnostic_output(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    def noisy_import(name: str) -> NoReturn:
-        assert name == "weasyprint"
-        print("third-party stdout banner")
-        print("third-party stderr banner", file=sys.stderr)
-        raise OSError("native library unavailable")
-
-    monkeypatch.setattr(diagnostics.importlib, "import_module", noisy_import)
+    monkeypatch.setattr(
+        diagnostics,
+        "_probe_weasyprint_import",
+        lambda: subprocess.CompletedProcess(
+            [],
+            1,
+            "third-party stdout banner",
+            "third-party stderr banner\nnative library unavailable",
+        ),
+    )
     monkeypatch.setattr(
         diagnostics,
         "_command",
@@ -1883,6 +1885,95 @@ def test_supported_combination_warning_is_manual_not_a_diag_fix(tmp_path: Path) 
     assert candidate.status == "manual"
     assert candidate.choices == ()
     assert "Run `pdk pins`" in candidate.remediation
+
+
+def test_windows_pango_failure_offers_one_default_no_system_repair() -> None:
+    check = diagnostics.DiagnosticResult(
+        "renderer.weasyprint",
+        "Rendering toolchain",
+        "fail",
+        "WeasyPrint cannot import",
+        ("expected Pango DLL is missing",),
+        {
+            "required": True,
+            "windows_pango": {
+                "architecture": "x64",
+                "environment": "ucrt64",
+                "package": "mingw-w64-ucrt-x86_64-pango",
+                "bin": r"C:\msys64\ucrt64\bin",
+                "dll": r"C:\msys64\ucrt64\bin\libpango-1.0-0.dll",
+                "healthy": False,
+            },
+        },
+    )
+    dry_run = diagnostics.build_repair_dry_run(
+        DiagnosticReport("zensical.toml", ".", False, (check,))
+    )
+
+    candidate = dry_run.candidates[0]
+    assert candidate.status == "available"
+    assert candidate.id == "renderer.weasyprint.repair-windows-pango"
+    assert candidate.choices[-1].id == "leave-unchanged"
+    assert candidate.choices[-1].default
+    assert candidate.choices[0].warning_severity == "warning"
+
+
+def test_windows_pango_repair_rechecks_and_imports_in_a_fresh_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prodockit.windows_pango import WindowsPangoEvidence
+
+    directory = r"C:\msys64\ucrt64\bin"
+    unhealthy = WindowsPangoEvidence(
+        "x64",
+        "ucrt64",
+        "mingw-w64-ucrt-x86_64-pango",
+        r"C:\msys64",
+        directory,
+        directory + r"\libpango-1.0-0.dll",
+        False,
+        False,
+        None,
+        None,
+    )
+    healthy = WindowsPangoEvidence(
+        "x64",
+        "ucrt64",
+        "mingw-w64-ucrt-x86_64-pango",
+        r"C:\msys64",
+        directory,
+        directory + r"\libpango-1.0-0.dll",
+        True,
+        True,
+        directory,
+        directory,
+    )
+    evidence = iter((unhealthy, healthy))
+    commands: list[list[str]] = []
+    refreshed: list[bool] = []
+    monkeypatch.setattr(diagnostics.sys, "platform", "win32")
+    monkeypatch.setattr(diagnostics, "inspect_windows_pango", lambda: next(evidence))
+
+    def run(command, **_kwargs):  # type: ignore[no-untyped-def]
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, "repaired", "")
+
+    monkeypatch.setattr(diagnostics.subprocess, "run", run)
+    monkeypatch.setattr(
+        "prodockit.bootstrap.model.refresh_windows_path",
+        lambda: refreshed.append(True),
+    )
+    monkeypatch.setattr(
+        diagnostics,
+        "_run",
+        lambda command, **_kwargs: subprocess.CompletedProcess(command, 0, "69.0\n", ""),
+    )
+
+    result = diagnostics.repair_windows_pango(expected=unhealthy.as_dict())
+
+    assert result.status == "applied"
+    assert refreshed == [True]
+    assert commands and "mingw-w64-ucrt-x86_64-pango" in " ".join(commands[0])
 
 
 def test_author_guide_documents_every_stable_check_id() -> None:

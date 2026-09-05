@@ -35,6 +35,14 @@ flags, Git and SSH disable credential prompts, and commands have bounded
 timeouts. A blinking prompt cannot be represented as a finding or resumed
 reliably by a later run.
 
+Registry fallbacks are narrower than retries. VS Code's own Marketplace client
+gets the ordinary bounded attempts first. Open VSX is considered only for a
+transient service or archive-integrity failure, and only for the reviewed
+extension/version/licence mapping in `prodockit.vscode_extensions`. Never turn
+the fallback into a general-purpose downloader: both embedded VSIX manifests
+must agree with the requested identity and exact version before the archive is
+installed or retained in the native-download cache.
+
 Work requiring credentials uses **guide and verify** instead. Bootstrap tells
 the reader how to upload an SSH public key or create an empty project, then
 checks authentication or repository reachability. It never asks for or stores

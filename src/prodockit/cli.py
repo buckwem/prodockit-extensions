@@ -1336,6 +1336,8 @@ def _work_through(
             )
             click.echo("")
             click.echo("  Commands finished, checking the result...")
+            for evidence in outcome.evidence:
+                click.echo(f"  {evidence}")
             if outcome.failed is not None:
                 # The command's own output has just gone past on screen,
                 # so there is usually no captured stderr to summarise -
@@ -1966,6 +1968,7 @@ def diag_command(
         repair_pin_declarations,
         repair_project_configuration,
         repair_shared_file,
+        repair_windows_pango,
     )
 
     if dry_run and fix:
@@ -2010,6 +2013,7 @@ def diag_command(
                 or candidate.id.startswith("dependencies.pins.align-")
                 or candidate.id.startswith("renderer.mermaid.install-locked")
                 or candidate.id.startswith("renderer.mathjax.install-locked")
+                or candidate.id == "renderer.weasyprint.repair-windows-pango"
                 or candidate.id.startswith("project.configuration.")
             )
             for candidate in repair_plan.candidates
@@ -2041,6 +2045,7 @@ def diag_command(
                 or candidate.id.startswith("dependencies.pins.align-")
                 or candidate.id.startswith("renderer.mermaid.install-locked")
                 or candidate.id.startswith("renderer.mathjax.install-locked")
+                or candidate.id == "renderer.weasyprint.repair-windows-pango"
                 or candidate.id.startswith("project.configuration.")
             )
             if candidate.status != "available" or not supported:
@@ -2087,15 +2092,21 @@ def diag_command(
             click.echo(f"Repair: {candidate.check_id} — {choice.label}", err=True)
             if choice.affected_paths:
                 click.echo(f"Scope: {', '.join(choice.affected_paths)}", err=True)
-            boundary = (
-                "active environment"
-                if candidate.check_id == "installation.metadata"
-                else "project root"
-            )
-            click.echo(
-                f"Backup: {boundary}/.prodockit-quarantine/diagnostics/<UTC timestamp>",
-                err=True,
-            )
+            if candidate.check_id == "renderer.weasyprint":
+                click.echo(
+                    "Recovery: pacman's package cache and the prior user environment values",
+                    err=True,
+                )
+            else:
+                boundary = (
+                    "active environment"
+                    if candidate.check_id == "installation.metadata"
+                    else "project root"
+                )
+                click.echo(
+                    f"Backup: {boundary}/.prodockit-quarantine/diagnostics/<UTC timestamp>",
+                    err=True,
+                )
             verification = {
                 "installation.metadata": "distribution discovery is readable and unique",
                 "dependencies.shared-files": "the selected file matches the installed bytes",
@@ -2103,6 +2114,10 @@ def diag_command(
                 "renderer.mermaid": "mmdc renders a health-check diagram",
                 "renderer.mathjax": (
                     "MathJax renders a health-check expression and website assets exist"
+                ),
+                "renderer.weasyprint": (
+                    "the architecture-matched DLL and package pass, the environment is active, "
+                    "and a fresh Python imports WeasyPrint"
                 ),
                 "project.configuration": "the edited TOML parses and the selected problem is gone",
             }[candidate.check_id]
@@ -2192,6 +2207,18 @@ def diag_command(
                     changed = renderer_repair.changed
                     action_manifest = renderer_repair.manifest
                     action_quarantine = renderer_repair.quarantine
+                elif candidate.check_id == "renderer.weasyprint":
+                    renderer_check = next(
+                        check for check in before.checks if check.id == candidate.check_id
+                    )
+                    pango_repair = repair_windows_pango(
+                        expected=renderer_check.data.get("windows_pango"),
+                        retry_reporter=_renderer_retry_warning,
+                    )
+                    result_status = pango_repair.status
+                    changed = pango_repair.changed
+                    action_manifest = pango_repair.manifest
+                    action_quarantine = pango_repair.quarantine
                 else:
                     configuration_check = next(
                         check for check in before.checks if check.id == "project.configuration"

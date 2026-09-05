@@ -415,6 +415,21 @@ a signed-in person. The fresh-history stage removes only the template's Git
 history and requires explicit confirmation; uploading an SSH key and creating
 the remote project are guided and then verified.
 
+The editor stage uses VS Code Marketplace first. If that client exhausts its
+bounded retries after a transient service failure or truncated archive,
+Bootstrap can use Open VSX for the four reviewed extension identifiers only.
+It requests the exact supported version, requires the reviewed licence and a
+verified publisher, validates the identity and version in both VSIX manifests,
+and caches only the validated archive under the extension, version and platform.
+The apply output records the selected registry and whether that cache was hit.
+
+On Windows, the PDF-library stage selects `clangarm64` for ARM64 Python and
+`ucrt64` for x64 Python. It checks `libpango-1.0-0.dll` and the owning pacman
+package, conditionally reinstalls that exact package when either check fails,
+and updates `WEASYPRINT_DLL_DIRECTORIES` both persistently and for the running
+Bootstrap process. A fresh child process loads the DLL immediately; the later
+project-environment stage imports WeasyPrint, so no terminal restart is needed.
+
 Use `--dry-run` before `--apply` to see which stages are outstanding and
 which commands will run. Use only one of `--check`, `--dry-run`, `--apply`, or
 `--configure` in an invocation; conflicting modes are rejected before

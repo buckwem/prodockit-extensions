@@ -60,6 +60,7 @@ from prodockit.renderer_resilience import (
     failure_with_history,
     run_with_retries,
 )
+from prodockit.windows_pango import pango_spec, repair_script
 
 #: The VS Code extensions the User Guide installs. Kept here rather than
 #: in the template so bootstrap can check them without a project.
@@ -2848,8 +2849,9 @@ def _plan_pandoc(context: Context) -> Plan:
     environments = _BOOTSTRAP_MSYS2_ENVIRONMENTS if context.guided else _MSYS2_ENVIRONMENTS
     arm, other = environments["arm64"], environments["other"]
     roots = ", ".join(f'"{root}"' for root in _MSYS2_ROOTS)
+    python_is_arm64 = context.guided and _windows_python_is_arm64(context)
     if context.guided:
-        selected = arm if _windows_python_is_arm64(context) else other
+        selected = arm if python_is_arm64 else other
         select_environment = f"$msysEnv = '{selected[0]}'; $pkg = '{selected[1]}'; "
     else:
         select_environment = (
@@ -2888,11 +2890,29 @@ def _plan_pandoc(context: Context) -> Plan:
         "[Environment]::SetEnvironmentVariable("
         "'WEASYPRINT_DLL_DIRECTORIES', $bin, 'User')"
     )
+    if context.guided:
+        # One bounded transaction verifies the installed package files and
+        # expected DLL, reinstalls only when either proof fails, then updates
+        # both persistent and current-process discovery state (#722).
+        pango_script = repair_script(pango_spec(arm64=python_is_arm64))
     commands = [
         *([pandoc_install] if pandoc_install is not None else []),
         _winget("MSYS2.MSYS2", resilient=context.guided),
         ["powershell", "-NoProfile", "-Command", pango_script],
-        ["powershell", "-NoProfile", "-Command", path_entry],
+        *(
+            [
+                [
+                    sys.executable,
+                    "-c",
+                    "import ctypes, os; "
+                    "ctypes.WinDLL(os.path.join("
+                    "os.environ['WEASYPRINT_DLL_DIRECTORIES'], "
+                    "'libpango-1.0-0.dll'))",
+                ]
+            ]
+            if context.guided
+            else [["powershell", "-NoProfile", "-Command", path_entry]]
+        ),
     ]
     if context.guided:
         commands.append(_windows_font_install_command())
