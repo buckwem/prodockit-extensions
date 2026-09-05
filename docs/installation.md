@@ -7,7 +7,8 @@ icon: lucide/package-plus
 # Installation preparation
 
 Every installation route needs the same supported Python release and an active
-virtual environment. Prepare those once in section 3.1, then continue with the
+virtual environment.\index{virtual environment} Prepare those once in section
+3.1, then continue with the
 route that matches the work: [adoption](adopt.md) for an established document,
 [bootstrap](devcons/bootstrap.md) for a new machine and template project,
 [prodockit-template](prodockit-template.md) for the supplied project structure,

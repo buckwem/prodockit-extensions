@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parent.parent
 def test_topic_owner_pages_define_their_principal_index_entries() -> None:
     expected = {
         "docs/introduction.md": (r"\index{Zensical}",),
-        "docs/getting-started.md": (r"\index{virtual environment}", r"\index{`zensical serve`}"),
+        "docs/installation.md": (r"\index{virtual environment}",),
+        "docs/getting-started.md": (r"\index{`zensical serve`}",),
         "docs/authoring.md": (r"\index{Markdown}", r"\index{PyMdown Blocks}"),
         "docs/publishing.md": (r"\index{publishing workflow}", r"\index{continuous integration}"),
         "docs/prodockit-template.md": (r"\index{`prodockit-template`}", r"\index{`is_surrey`}"),
