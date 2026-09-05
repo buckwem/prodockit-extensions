@@ -220,7 +220,14 @@ def exercise(project: Path) -> dict[str, Any]:
             "fixture did not create every repairable diagnostic failure: " + ", ".join(missing)
         )
 
-    plan = diagnostics.build_repair_dry_run(report_before)
+    # This fixture deliberately creates these six project/environment failures.
+    # Limit the repair plan to them so an unrelated host-level finding (for
+    # example Windows Pango discovery) is reported after the repair but is not
+    # silently selected for a system mutation by this project-local harness.
+    plan = diagnostics.build_repair_dry_run(
+        report_before,
+        check_ids=tuple(sorted(REPAIRABLE_CHECKS)),
+    )
     available = Counter(
         candidate.check_id for candidate in plan.candidates if candidate.status == "available"
     )
