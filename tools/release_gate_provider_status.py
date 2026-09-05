@@ -19,6 +19,7 @@ from live_provider_state import read_json
 from release_gate_state import RELEASE_REPOSITORY, SURREY_WORKFLOW_PROJECT
 
 GITHUB_WORKFLOW = ".github/workflows/bootstrap-live-provider-github.yml"
+SURREY_GITHUB_WORKFLOW = ".github/workflows/bootstrap-live-provider-surrey.yml"
 ORDINARY_WORKFLOWS = frozenset(
     {
         ".github/workflows/adopt-install.yml",
@@ -58,16 +59,18 @@ def _positive_id(value: Any, *, label: str) -> int:
     return value
 
 
-def validate_github_run(
+def validate_github_actions_run(
     value: Any,
     *,
     expected_run_id: int,
     expected_commit: str,
+    expected_workflow: str,
+    provider: str,
 ) -> None:
-    """Require one successful immutable run of the exact provider workflow."""
+    """Require one successful immutable run of an exact provider workflow."""
 
-    run = _object(value, label="GitHub workflow run")
-    repository = _object(run.get("repository"), label="GitHub workflow repository")
+    run = _object(value, label=f"{provider} workflow run")
+    repository = _object(run.get("repository"), label=f"{provider} workflow repository")
     expected_url = f"{GITHUB_URL}/actions/runs/{expected_run_id}"
     required = {
         "id": expected_run_id,
@@ -76,14 +79,48 @@ def validate_github_run(
         "conclusion": "success",
         "head_branch": "main",
         "head_sha": expected_commit,
-        "path": GITHUB_WORKFLOW,
+        "path": expected_workflow,
         "html_url": expected_url,
     }
     for name, expected in required.items():
         if run.get(name) != expected:
-            raise ProviderStatusError(f"GitHub workflow run has an unexpected {name}")
+            raise ProviderStatusError(f"{provider} workflow run has an unexpected {name}")
     if repository.get("full_name") != RELEASE_REPOSITORY:
-        raise ProviderStatusError("GitHub workflow run belongs to another repository")
+        raise ProviderStatusError(f"{provider} workflow run belongs to another repository")
+
+
+def validate_github_run(
+    value: Any,
+    *,
+    expected_run_id: int,
+    expected_commit: str,
+) -> None:
+    """Require the exact successful public-GitHub provider run."""
+
+    validate_github_actions_run(
+        value,
+        expected_run_id=expected_run_id,
+        expected_commit=expected_commit,
+        expected_workflow=GITHUB_WORKFLOW,
+        provider="GitHub provider",
+    )
+
+
+def validate_surrey_run(
+    value: Any,
+    *,
+    expected_run_id: int,
+    expected_commit: str,
+) -> None:
+    """Require the exact successful Surrey GitHub Actions provider run."""
+
+    validate_github_actions_run(
+        value,
+        expected_run_id=expected_run_id,
+        expected_commit=expected_commit,
+        expected_workflow=SURREY_GITHUB_WORKFLOW,
+        provider="Surrey provider",
+    )
 
 
 def validate_ordinary_workflows(value: Any, *, expected_commit: str) -> None:
@@ -306,6 +343,11 @@ def parser() -> argparse.ArgumentParser:
     github.add_argument("--run-id", type=int, required=True)
     github.add_argument("--release-commit", required=True)
 
+    surrey = commands.add_parser("validate-surrey-run")
+    surrey.add_argument("--document", type=Path, required=True)
+    surrey.add_argument("--run-id", type=int, required=True)
+    surrey.add_argument("--release-commit", required=True)
+
     checks = commands.add_parser("validate-required-checks")
     checks.add_argument("--rules", type=Path, required=True)
     checks.add_argument("--check-runs", type=Path, required=True)
@@ -341,6 +383,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         if args.command == "validate-github-run":
             validate_github_run(
                 read_json(args.document, label="GitHub workflow run"),
+                expected_run_id=args.run_id,
+                expected_commit=args.release_commit,
+            )
+        elif args.command == "validate-surrey-run":
+            validate_surrey_run(
+                read_json(args.document, label="Surrey workflow run"),
                 expected_run_id=args.run_id,
                 expected_commit=args.release_commit,
             )
