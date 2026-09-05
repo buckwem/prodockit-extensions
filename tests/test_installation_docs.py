@@ -181,6 +181,31 @@ def test_adoption_continues_after_shared_preparation() -> None:
     assert "python --version\nprodockit adopt --apply" in resume
 
 
+def test_prodockit_is_not_presented_as_supporting_mkdocs() -> None:
+    """MkDocs may only be named for compatibility or configuration filenames."""
+    paths = [
+        REPO / "README.md",
+        *(REPO / "docs").rglob("*.md"),
+        *(REPO / "src" / "prodockit").rglob("*.py"),
+    ]
+    unsupported_phrases = (
+        "zensical or mkdocs",
+        "mkdocs document",
+        "mkdocs project",
+    )
+    violations: list[str] = []
+
+    for path in paths:
+        contents = path.read_text(encoding="utf-8").lower()
+        for phrase in unsupported_phrases:
+            if phrase in contents:
+                violations.append(f"{path.relative_to(REPO)}: {phrase}")
+
+    assert not violations, "MkDocs is not a supported Prodockit generator:\n" + "\n".join(
+        violations
+    )
+
+
 def test_bootstrap_continues_after_shared_preparation() -> None:
     page = BOOTSTRAP_GUIDE.read_text(encoding="utf-8")
 

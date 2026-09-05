@@ -91,7 +91,8 @@ def test_help_sets_the_existing_project_boundary() -> None:
 
     assert result.exit_code == 0
     output = " ".join(result.output.split())
-    assert "existing Zensical or MkDocs document" in output
+    assert "existing Zensical document" in output
+    assert "Zensical or MkDocs" not in output
     assert "virtual environment active" in output
     assert "does not configure Git, SSH, an editor" in output
     assert "--mermaid" in result.output and "--maths" in result.output

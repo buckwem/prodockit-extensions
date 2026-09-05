@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Adopt prodockit in an existing Zensical or MkDocs project.
+"""Adopt prodockit in an existing Zensical project.
 
 This is deliberately project-scoped.  ``prodockit bootstrap`` prepares a machine and a
 repository; adoption starts after that boundary, with an author who already
@@ -192,9 +192,9 @@ def _config(root: Path) -> tuple[Path, str, dict[str, Any]]:
     path = next((root / name for name in CONFIG_NAMES if (root / name).is_file()), None)
     if path is None:
         raise AdoptError(
-            "no Zensical or MkDocs configuration is here. Run this command from "
+            "no Zensical configuration is here. Run this command from "
             "the directory containing zensical.toml, zensical.yml, zensical.yaml, "
-            "mkdocs.yml or mkdocs.yaml."
+            "mkdocs.yml or mkdocs.yaml used as a Zensical configuration."
         )
     try:
         source = path.read_text(encoding="utf-8")

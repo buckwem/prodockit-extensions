@@ -29,7 +29,7 @@ starting point and result.
 
 | Starting point | Installation path |
 |---|---|
-| An existing Zensical or MkDocs document whose working environment is already established | [Adoption](adopt.md) integrates selected authoring components without replacing the document's design, Git setup, editor, or publishing workflow |
+| An existing Zensical document whose working environment is already established | [Adoption](adopt.md) integrates selected authoring components without replacing the document's design, Git setup, editor, or publishing workflow |
 | No existing document, or a project that should start from the maintained report template | [Bootstrap](devcons/bootstrap.md) prepares the machine, repository, build tools, and template-based project |
 | A project whose author wants to perform setup directly | [Manual installation](installation.md) prepares the environment, installs the Python package, and configures extensions without running adoption or bootstrap; [Requirements and dependencies](requirements-dependencies.md) records the detailed toolchain |
 /// table-caption | <

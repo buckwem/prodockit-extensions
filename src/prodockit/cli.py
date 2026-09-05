@@ -3030,10 +3030,11 @@ def adopt_command(
     maths: bool | None,
     verbose: bool,
 ) -> None:
-    """Add prodockit components to an existing Zensical or MkDocs document.
+    """Add prodockit components to an existing Zensical document.
 
     Run this from the directory containing zensical.toml, zensical.yml,
-    zensical.yaml, mkdocs.yml or mkdocs.yaml, with the project's virtual
+    zensical.yaml, or a compatible mkdocs.yml or mkdocs.yaml used by Zensical,
+    with the project's virtual
     environment active. The command changes the active project's packages and
     local project files:
     it does not configure Git, SSH, an editor, a remote repository or Pages,

@@ -241,7 +241,7 @@ for their own context. `{% raw %}{{ git.short_tag }}{% endraw %}` is
   correctly from wherever Pandoc happens to run in a standalone document →
   base64-embedded as `data:` URIs directly in the HTML (see
   `to_base64_data_uri()`).
-- A PDF has no light/dark toggle to make the mkdocs-material/Zensical
+- A PDF has no light/dark toggle to make the Material-theme/Zensical
   `#only-light`/`#only-dark`/`#gh-light-mode-only`/`#gh-dark-mode-only`
   image convention meaningful → the `#only-dark`/`#gh-dark-mode-only`
   half of a pair is dropped entirely rather than embedded, since
@@ -413,7 +413,7 @@ start with a dedicated cover page gets a word count silently short by
 that first page's own prose.
 
 **`heading_counter_reset()`/`reference_style()`/`acronym_style()`/
-`glossary_style()` all emit CSS targeting Zensical/Material for MkDocs'
+`glossary_style()` all emit CSS targeting Zensical's Material theme
 own internal class names and counters** (`.md-typeset`, `.md-nav--secondary`,
 `counter(h1-count)`/`counter(toc1)`, and so on) - undocumented
 implementation details of the theme itself, not a public API it commits
