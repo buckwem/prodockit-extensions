@@ -500,6 +500,8 @@ def test_release_coordinator_is_a_read_only_manual_shadow() -> None:
     assert "surrey_run_id:" in workflow
     assert "validate-surrey-run" in workflow
     assert "surrey-provider-result-${{ inputs.surrey_run_id }}" in workflow
+    assert "GITHUB_PROVIDER_RUN_ID: ${{ inputs.github_run_id }}" in workflow
+    assert "GITHUB_RUN_ID: ${{ inputs.github_run_id }}" not in workflow
     assert "PRODOCKIT_LIVE_SURREY_STATUS_TOKEN" not in workflow
     assert "PRODOCKIT_LIVE_SURREY_GROUP_TOKEN" not in workflow
     assert "PRODOCKIT_LIVE_SURREY_DEPLOY_PRIVATE_KEY" not in workflow
