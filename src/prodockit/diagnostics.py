@@ -3753,8 +3753,17 @@ def _adopt_readiness_checks(
             )
         ]
 
-    blockers = [step for step in steps if step.selected and step.status == "wrong"]
-    pending = [step for step in steps if step.needs_work]
+    # Diagnostics already owns project and interpreter validity checks. Adopt's
+    # environment stage is a mutation precondition, not project drift: CI may
+    # correctly run from setup-python without VIRTUAL_ENV, and ordinary
+    # diagnostics explicitly accepts that arrangement. Only compare the
+    # integration stages shared with Template Sync here.
+    integration_ids = {"dependency", "core", "mermaid", "maths"}
+    integration_steps = [step for step in steps if step.id in integration_ids]
+    blockers = [
+        step for step in integration_steps if step.selected and step.status == "wrong"
+    ]
+    pending = [step for step in integration_steps if step.needs_work]
     data = {
         "options": {"mermaid": options.mermaid, "maths": options.maths},
         "options_source": resolution.source,

@@ -19,6 +19,14 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.60.2 (2026-09-05)
+
+- Prevented the Adopt-readiness diagnostic from treating a valid CI
+  `setup-python` environment without `VIRTUAL_ENV` as an Adopt integration
+  failure. Interpreter validity remains covered by the dedicated environment
+  checks; readiness now compares only the project integration stages shared
+  with Template Sync.
+
 ## 0.60.1 (2026-09-05)
 
 - Preserved established Mermaid and maths selections when an older project has
