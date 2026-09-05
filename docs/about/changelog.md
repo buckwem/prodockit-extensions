@@ -19,7 +19,7 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.60.0 (2026-09-05)
 
 - Made Bootstrap fall back from exhausted transient VS Code Marketplace
   failures to exact reviewed Open VSX extension releases. Fallback archives
@@ -29,6 +29,19 @@ requests rather than here.
   repair for Bootstrap and `pdk diag --fix`. ARM64 uses CLANGARM64 and x64 uses
   UCRT64; both verify the expected DLL, pacman package, persistent and current
   environment, and a fresh-process native-library load without a restart.
+- Reorganised the installation guide around a single Python and virtual-
+  environment preparation path, with benefit-led guidance for choosing
+  installation routes, authoring features and lifecycle tools.
+- Made Bootstrap record Mermaid and maths component choices so `pdk adopt` can
+  later repair the selected toolchain without asking for initial configuration.
+  Diagnostics now identifies when a different project's virtual environment is
+  active, runs Mermaid browser checks explicitly headless, and accepts a
+  successful render with Mermaid's bundled browser without requiring a separate
+  Chrome or Chromium installation.
+- Made Bootstrap configure the VS Code `code` command automatically on macOS by
+  adding the application-owned command directory to the user's shell profile.
+  Existing working commands and profile content are preserved, and the change
+  is idempotent across reruns.
 
 ## 0.59.0 (2026-09-05)
 
