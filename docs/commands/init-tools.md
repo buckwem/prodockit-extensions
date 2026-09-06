@@ -14,6 +14,8 @@ task and operating-system prerequisites.
 
 ## Synopsis {: #cmd-init-tools-synopsis }
 
+Use the default for both renderers or select either component explicitly.
+
 ```text
 pdk init-tools [OPTIONS]
 ```
@@ -31,6 +33,8 @@ command from the project root.
 
 ## Options {: #cmd-init-tools-options }
 
+\ref{tab-cmd-init-tools-options} lists the renderer-scaffold controls.
+
 | Option {: width="38%" } | Behaviour |
 |---|---|
 | `--dir PATH` | Scaffold beneath another directory; defaults to `tools`. |
@@ -38,6 +42,11 @@ command from the project root.
 | `--mathjax`, `--no-mathjax` | Include or omit MathJax tooling; included by default. |
 | `--force` | Overwrite an existing scaffold file instead of preserving it. |
 | `-h`, `--help` | Show installed help and exit. |
+/// table-caption | <
+    attrs: {id: tab-cmd-init-tools-options}
+
+Renderer-tool initialisation options
+///
 
 ## Effects {: #cmd-init-tools-effects }
 
@@ -50,6 +59,8 @@ The default `tools` paths match Prodockit's PDF configuration. A custom
 directory must also be configured in `zensical.toml`.
 
 ## Related commands {: #cmd-init-tools-related-commands }
+
+Use these commands to populate or verify the generated tool directories:
 
 - [`pdk init-mathjax`](init-mathjax.md) copies the installed MathJax browser
   bundle into website assets.

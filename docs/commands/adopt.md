@@ -11,8 +11,15 @@ an existing Zensical document. It is project-scoped: it does not configure Git,
 SSH, an editor, a remote, or Pages, and it never commits or pushes.
 
 Use the [Adopt task guide](../adopt.md) for the preparation and review workflow.
+Use [section 29.1, Scan phases and
+stages](output.md#command-output-structure) to interpret the visual summary of
+the phase, stage, action, and decision language used in an Adopt run:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
 
 ## Synopsis {: #cmd-adopt-synopsis }
+
+Use the assessment form first, then choose configuration, preview, or apply.
 
 ```text
 pdk adopt [OPTIONS]
@@ -36,6 +43,8 @@ directory; do not create a configuration merely to satisfy Adopt.
 
 ## Options {: #cmd-adopt-options }
 
+\ref{tab-cmd-adopt-options} lists the available project-integration controls.
+
 | Option {: width="34%" } | Behaviour |
 |---|---|
 | `--configure` | Choose optional components and save them in `.prodockit-components.toml`. |
@@ -46,6 +55,11 @@ directory; do not create a configuration merely to satisfy Adopt.
 | `--maths`, `--no-maths` | Select or omit MathJax rendering. |
 | `-v`, `--verbose` | Show the files and commands behind each stage summary. |
 | `-h`, `--help` | Show installed help and exit. |
+/// table-caption | <
+    attrs: {id: tab-cmd-adopt-options}
+
+Adopt options
+///
 
 ## Effects and ownership {: #cmd-adopt-effects-and-ownership }
 
@@ -66,6 +80,8 @@ mode verifies each completed stage and finishes by naming the strict local
 build command. A blocking project or environment check stops the integration.
 
 ## Related commands {: #cmd-adopt-related-commands }
+
+Use these commands before or after Adopt for their separate responsibilities:
 
 - [`pdk diag`](diag.md) reports when Adopt integration remains and verifies the
   result.

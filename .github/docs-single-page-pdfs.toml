@@ -38,6 +38,7 @@ authoring_extensions = [
 # a very long page, and a page assembled from an external snippet.
 other_page_shapes = [
   "installation.md",
+  "commands/output.md",
   "pdf.md",
   "macros.md",
   "update-dates.md",
@@ -54,6 +55,20 @@ other_page_shapes = [
 "adopt.md" = "installation.md"
 "getting-started.md" = "installation.md"
 "command-line.md" = "publishing.md"
+"project-check-update.md" = "publishing.md"
+"commands/bootstrap.md" = "commands/output.md"
+"commands/diag.md" = "commands/output.md"
+"commands/adopt.md" = "commands/output.md"
+"commands/pins.md" = "commands/output.md"
+"commands/template-sync.md" = "commands/output.md"
+"commands/config.md" = "commands/output.md"
+"commands/shared-files.md" = "commands/output.md"
+"commands/init-tools.md" = "commands/output.md"
+"commands/init-mathjax.md" = "commands/output.md"
+"commands/pdf.md" = "commands/output.md"
+"commands/source-bundle.md" = "commands/output.md"
+"commands/sync-repo.md" = "commands/output.md"
+"commands/update-dates.md" = "commands/output.md"
 "requirements-dependencies.md" = "installation.md"
 "prodockit-template.md" = "installation.md"
 "devcons/bootstrap.md" = "installation.md"

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="700" viewBox="0 0 1500 700" role="img" aria-labelledby="title description">
+  <title id="title">Anatomy of Prodockit command output</title>
+  <desc id="description">A left-aligned terminal example with labelled callouts for phase, stage, review-first information, and warnings.</desc>
+  <defs>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#2472c8"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#d670d6"/>
+    </marker>
+    <marker id="arrow-amber" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#e69f00"/>
+    </marker>
+  </defs>
+
+  <rect width="1500" height="700" rx="24" fill="#f7f7f7"/>
+  <rect x="35" y="35" width="945" height="630" rx="18" fill="#181818"/>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="27">
+    <g fill="#3b8eea" font-weight="700">
+      <text x="85" y="105">════════════════════════════════════════════</text>
+      <text x="85" y="150">Phase 2/4 — Integrate</text>
+      <text x="85" y="195">════════════════════════════════════════════</text>
+    </g>
+    <g fill="#2472c8" font-weight="700">
+      <text x="85" y="260">────────────────────────────────────────────</text>
+      <text x="85" y="305">Stage [3/7] Supported toolchain</text>
+    </g>
+    <text x="85" y="365" fill="#d670d6" font-weight="700">Action:   ALIGN</text>
+    <text x="85" y="420" fill="#cccccc">Current:  declarations do not match</text>
+    <text x="85" y="475" fill="#d670d6" font-weight="700">Will do:  align five project files</text>
+    <text x="85" y="545" fill="#e69f00" font-weight="700">WARNING: review protected files</text>
+    <text x="85" y="610" fill="#cccccc">Result:   waiting for your decision</text>
+  </g>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <path d="M960 145 H1025" stroke="#3b8eea" stroke-width="4" marker-end="url(#arrow-blue)"/>
+    <text x="1050" y="125" fill="#3b8eea" font-size="25" font-weight="700">PHASE</text>
+    <text x="1050" y="158" fill="#333333" font-size="20">A group of related work</text>
+    <text x="1050" y="184" fill="#555555" font-size="18">Double blue boundary</text>
+
+    <path d="M960 300 H1025" stroke="#2472c8" stroke-width="4" marker-end="url(#arrow-blue)"/>
+    <text x="1050" y="280" fill="#2472c8" font-size="25" font-weight="700">STAGE</text>
+    <text x="1050" y="313" fill="#333333" font-size="20">One check or decision</text>
+    <text x="1050" y="339" fill="#555555" font-size="18">Single blue boundary</text>
+
+    <path d="M960 465 H1025" stroke="#d670d6" stroke-width="4" marker-end="url(#arrow-purple)"/>
+    <text x="1050" y="445" fill="#b24fb2" font-size="25" font-weight="700">REVIEW FIRST</text>
+    <text x="1050" y="478" fill="#333333" font-size="20">A key action or change</text>
+    <text x="1050" y="504" fill="#555555" font-size="18">Read purple lines first</text>
+
+    <path d="M960 540 H1025" stroke="#e69f00" stroke-width="4" marker-end="url(#arrow-amber)"/>
+    <text x="1050" y="555" fill="#e69f00" font-size="25" font-weight="700">WARNING</text>
+    <text x="1050" y="588" fill="#333333" font-size="20">Take care or decide</text>
+    <text x="1050" y="614" fill="#555555" font-size="18">Meaning remains in the label</text>
+  </g>
+</svg>

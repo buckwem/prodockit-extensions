@@ -19,6 +19,10 @@ names another location.
 Use the shorter `pdk` executable when you prefer it; it is an exact alias.
 `bootstrap` also answers to `boot`, and `source-bundle` to `source`.
 
+Before interpreting a long report, see [Reading command
+output](commands/output.md) for the shared phase, stage, colour, decision, and
+status language used across the commands.
+
 ## Check the installation
 
 Confirm which prodockit release is active and inspect the commands it provides:
@@ -111,6 +115,18 @@ The [project check and update sequence](project-check-update.md) gives students
 one task-based procedure using all four commands in the right order. Use that
 page when checking a template project or applying an update; use the command
 reference pages when you need the precise interface or exit behaviour.
+
+## Build the reviewed outputs
+
+After a command changes project files or dependencies, build the website before
+the PDF so both artifacts use the same completed site:
+
+```bash
+zensical build --clean --strict
+prodockit pdf
+```
+
+Review both outputs before committing or publishing the change.
 
 The common mode options also have consistent short forms: `-a` for `--apply`,
 `-n` for `--dry-run`, `-v` for `--verbose`, and `-o` for `--online`. The steps

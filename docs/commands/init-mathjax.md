@@ -11,6 +11,8 @@ project's locked installation into the website assets used by Zensical.
 
 ## Synopsis {: #cmd-init-mathjax-synopsis }
 
+Use this command after the project-local MathJax packages are installed.
+
 ```text
 pdk init-mathjax [--root PATH] [--no-gitignore]
 ```
@@ -28,11 +30,18 @@ you are in the intended project.
 
 ## Options {: #cmd-init-mathjax-options }
 
+\ref{tab-cmd-init-mathjax-options} lists the destination and ignore-file controls.
+
 | Option {: width="34%" } | Behaviour |
 |---|---|
 | `--root PATH` | Install into another project directory; defaults to the current directory. |
 | `--no-gitignore` | Do not add generated MathJax assets to `.gitignore`. |
 | `-h`, `--help` | Show installed help and exit. |
+/// table-caption | <
+    attrs: {id: tab-cmd-init-mathjax-options}
+
+MathJax initialisation options
+///
 
 ## Effects {: #cmd-init-mathjax-effects }
 
@@ -45,6 +54,8 @@ Rerun it after the locked MathJax dependency changes so the website and PDF use
 the same release.
 
 ## Related commands {: #cmd-init-mathjax-related-commands }
+
+Use these commands to scaffold or verify the surrounding renderer toolchain:
 
 - [`pdk init-tools`](init-tools.md) creates the locked MathJax manifest and PDF
   conversion script.

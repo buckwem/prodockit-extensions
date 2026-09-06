@@ -14,6 +14,8 @@ the document, and resolve build failures.
 
 ## Synopsis {: #cmd-pdf-synopsis }
 
+Use the complete-document form or select one Markdown page for focused review.
+
 ```text
 pdk pdf [--config-file PATH] [--markdown-file PAGE]
 ```
@@ -30,11 +32,18 @@ built, expect `built site not found: ...; run zensical build first` instead.
 
 ## Options {: #cmd-pdf-options }
 
+\ref{tab-cmd-pdf-options} lists the PDF source-selection controls.
+
 | Option {: width="38%" } | Behaviour |
 |---|---|
 | `-f`, `--config-file PATH` | Read another Zensical configuration; defaults to `zensical.toml`. |
 | `-m`, `--markdown-file PAGE` | Build only one Markdown page relative to `docs_dir`, ignoring `nav` for the PDF contents. |
 | `-h`, `--help` | Show installed help and exit. |
+/// table-caption | <
+    attrs: {id: tab-cmd-pdf-options}
+
+PDF build options
+///
 
 ## Inputs and output {: #cmd-pdf-inputs-and-output }
 
@@ -53,6 +62,8 @@ configuration, renderer failure, or unwritable output produces a non-zero exit
 and preserves the underlying tool's useful error detail.
 
 ## Related commands {: #cmd-pdf-related-commands }
+
+Use these commands to validate inputs or build the companion source artifact:
 
 - [`pdk config`](config.md) checks PDF settings and inputs without building.
 - [`pdk source-bundle`](source-bundle.md) renders the underlying source as a

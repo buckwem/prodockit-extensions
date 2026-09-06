@@ -23,6 +23,15 @@ capability, an available update, or a check that could not be completed; warning
 alone leave the exit status at zero. Use `--verbose` to show the evidence behind
 passing checks.
 
+Use [section 29.1, Scan phases and
+stages](../commands/output.md#command-output-structure) to interpret this visual
+summary of a dry-run or applied repair plan:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
+
+The shared [status guide](../commands/output.md#command-output-status) explains
+the normal diagnostic report.
+
 The tables below use the stable check ID included by `pdk diag --json`. Find the
 ID in the report, apply its remediation, then run `pdk diag` again. When the
 configuration section fails, `pdk config --check` provides the individual

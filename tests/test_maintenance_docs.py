@@ -29,13 +29,13 @@ def test_getting_started_holds_installation_routes() -> None:
     assert {"4. Add prodockit to an existing document": "adopt.md"} in getting_started
     assert {"5. Set up a template project": "devcons/bootstrap.md"} in getting_started
     assert {"6. Start with prodockit-template": "prodockit-template.md"} in getting_started
-    assert {"25. Staying in step with the template": "devcons/template-sync.md"} in publishing
+    assert {"24. Staying in step with the template": "devcons/template-sync.md"} in publishing
     assert maintenance == [
-        {"28. Maintenance overview": "project-maintenance.md"},
-        {"29. Diagnose a project": "devcons/diagnostics.md"},
-        {"30. Repository metadata": "devcons/repo-metadata.md"},
-        {"31. Version pinning and drift": "devcons/pinning-drift.md"},
-        {"32. Build and release": "devcons/releasing.md"},
+        {"43. Maintenance overview": "project-maintenance.md"},
+        {"44. Diagnose a project": "devcons/diagnostics.md"},
+        {"45. Repository metadata": "devcons/repo-metadata.md"},
+        {"46. Version pinning and drift": "devcons/pinning-drift.md"},
+        {"47. Build and release": "devcons/releasing.md"},
     ]
 
 
@@ -466,7 +466,7 @@ def test_command_map_lists_every_public_command() -> None:
 def test_template_sync_guide_covers_environment_prerequisites() -> None:
     guide = (ROOT / "docs" / "devcons" / "template-sync.md").read_text(encoding="utf-8")
 
-    assert "exact** Prodockit" in guide
+    assert "after the exact Prodockit" in guide
     assert "newer package is downgraded" in guide
     assert "fresh-process handoff" in guide
     assert "When only the environment needs aligning" in guide

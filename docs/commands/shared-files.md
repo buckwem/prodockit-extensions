@@ -12,6 +12,8 @@ read a sibling repository or fetch a template.
 
 ## Synopsis {: #cmd-shared-files-synopsis }
 
+Use read-only checking first and apply only after reviewing reported drift.
+
 ```text
 pdk shared-files [--root PATH] [--check] [--verbose]
 pdk shared-files --apply
@@ -30,6 +32,8 @@ managed files are current.
 
 ## Options {: #cmd-shared-files-options }
 
+\ref{tab-cmd-shared-files-options} lists manifest, reporting, and replacement controls.
+
 | Option {: width="34%" } | Behaviour |
 |---|---|
 | `-r`, `--root PATH` | Use another project root; defaults to the current directory. |
@@ -37,6 +41,11 @@ managed files are current.
 | `-a`, `--apply` | Replace missing or different files from the installed release. |
 | `-v`, `--verbose` | Show expected and actual SHA-256 hashes. |
 | `-h`, `--help` | Show installed help and exit. |
+/// table-caption | <
+    attrs: {id: tab-cmd-shared-files-options}
+
+Shared-file options
+///
 
 `--check` and `--apply` cannot be combined.
 
@@ -48,6 +57,8 @@ documented project-owned override files before replacing a managed shared
 asset.
 
 ## Related commands {: #cmd-shared-files-related-commands }
+
+Use these commands to detect the same drift in wider project checks:
 
 - [`pdk pins`](pins.md) includes shared-file drift in its project consistency
   check when the manifest exists.

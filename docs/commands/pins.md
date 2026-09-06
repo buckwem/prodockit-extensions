@@ -14,7 +14,13 @@ combination tested with the installed Prodockit release.
 Use the [version maintenance task guide](../devcons/pinning-drift.md) when
 evaluating an upgrade or comparing generated output.
 
+Pins uses the shared [decision and field
+language](output.md#command-output-decisions), although its shorter report does
+not need the complete phase-and-stage frame.
+
 ## Synopsis {: #cmd-pins-synopsis }
+
+Use interactive selection, read-only checking, or explicit version assignments.
 
 ```text
 pdk pins [OPTIONS]
@@ -35,6 +41,8 @@ project has no versions to maintain.
 
 ## Options {: #cmd-pins-options }
 
+\ref{tab-cmd-pins-options} lists package-selection and check controls.
+
 | Option {: width="36%" } | Behaviour |
 |---|---|
 | `-r`, `--root PATH` | Scan another project root; defaults to the current directory. |
@@ -45,6 +53,11 @@ project has no versions to maintain.
 | `--check` | Report drift or disagreement and write nothing. |
 | `--offline` | Skip PyPI and use only declarations plus Prodockit's tested combination. |
 | `-h`, `--help` | Show installed help and exit. |
+/// table-caption | <
+    attrs: {id: tab-cmd-pins-options}
+
+Pins options
+///
 
 The default managed set is Zensical, WeasyPrint, Prodockit, Markdown,
 PyMdown Extensions, Pandoc, and Python.
@@ -68,6 +81,8 @@ disagree, a managed release is behind the checked source, or a declared shared
 file differs.
 
 ## Related commands {: #cmd-pins-related-commands }
+
+Use these commands to diagnose, install, or synchronize the selected versions:
 
 - [`pdk diag`](diag.md) reports unsupported combinations and points to Pins for
   the version decision.

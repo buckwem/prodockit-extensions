@@ -11,6 +11,8 @@ build commands and reports the settings and local inputs it finds.
 
 ## Synopsis {: #cmd-config-synopsis }
 
+Use the reporting form interactively or add `--check` in automation.
+
 ```text
 pdk config [--config-file PATH] [--check]
 ```
@@ -27,11 +29,18 @@ configuration path.
 
 ## Options {: #cmd-config-options }
 
+\ref{tab-cmd-config-options} lists the configuration-report controls.
+
 | Option {: width="36%" } | Behaviour |
 |---|---|
 | `-f`, `--config-file PATH` | Read another Zensical configuration; defaults to `zensical.toml`. |
 | `--check` | Exit non-zero for invalid settings or missing project inputs. |
 | `-h`, `--help` | Show installed help and exit. |
+/// table-caption | <
+    attrs: {id: tab-cmd-config-options}
+
+Configuration-check options
+///
 
 ## Behaviour {: #cmd-config-behaviour }
 
@@ -45,6 +54,8 @@ configuration, or use [`pdk diag --apply`](diag.md) when Diagnostics offers a
 specific bounded correction.
 
 ## Related commands {: #cmd-config-related-commands }
+
+Use these commands when the configuration report identifies broader work:
 
 - [`pdk diag`](diag.md) includes the configuration result within the complete
   project health report.

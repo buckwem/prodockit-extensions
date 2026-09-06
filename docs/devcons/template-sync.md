@@ -98,20 +98,11 @@ a file supplied by the template has uncommitted changes, because updating that
 file could hide work you have not saved in Git. Read the short summary and pay
 particular attention to any files described as "your edited files".
 
-Use this short key to scan the preview; see
-[how to read the full output](#tsync-read-the-output) for the detailed
-phase-by-phase explanation.
+Use [section 29.1, Scan phases and
+stages](../commands/output.md#command-output-structure) for the full explanation
+of this short visual summary:
 
-<div class="pdk-terminal-key" aria-label="Template Sync colour key">
-  <span class="pdk-terminal-key__phase">PHASE</span><span>new phase</span>
-  <span class="pdk-terminal-key__stage">STAGE</span><span>one check</span>
-  <span class="pdk-terminal-key__change">CHANGE</span><span>review first</span>
-  <span class="pdk-terminal-key__warning">WARNING</span><span>decide or take care</span>
-</div>
-
-The colours follow the command's terminal colour roles. Your terminal theme may
-render their precise shade differently; the words remain visible when colour is
-unavailable.
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
 
 For a GitLab.com project, SSH access is required only for the project's
 GitLab.com remote. Template Sync fetches the public template from GitHub over
@@ -258,8 +249,9 @@ command to run next.
 
 ### Read the output {: #tsync-read-the-output }
 
-Template Sync uses Bootstrap's phase-and-stage layout so a long report can be
-read from its structure rather than line by line:
+Template Sync uses the [shared phase-and-stage
+layout](../commands/output.md#command-output-structure). Its four phases add
+the following command-specific meaning:
 
 1. <span class="pdk-terminal-key__phase">**Assess and preview**</span>
    identifies template-file changes, protected edits,
@@ -282,14 +274,6 @@ read from its structure rather than line by line:
    says whether the run is a non-writing `PREVIEW`, is waiting for a
    protected-file <span class="pdk-terminal-key__warning">`Decision`</span>, or
    can create the review branch.
-
-The short colour key above identifies the lines to find first. The
-labels <span class="pdk-terminal-key__change">`Action`</span> and
-<span class="pdk-terminal-key__change">`Result`</span>, plus
-<span class="pdk-terminal-key__warning">`WARN`</span>,
-<span class="pdk-terminal-key__warning">`Warning`</span>, and
-<span class="pdk-terminal-key__warning">`Decision`</span>, preserve the same
-meaning in redirected or monochrome output.
 
 The complete `.prodockit-template.log` contains the verbose report in plain
 text. Share that file when investigating a run; `--verbose` displays the same

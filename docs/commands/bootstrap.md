@@ -13,7 +13,15 @@ For the installation procedure and explanations of the 23 stages, use the
 [Bootstrap task guide](../devcons/bootstrap.md). This page is the command
 interface reference.
 
+Bootstrap uses Prodockit's shared phases, stages, actions, and warning colours.
+Use [section 29.1, Scan phases and
+stages](output.md#command-output-structure) to interpret this visual summary:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
+
 ## Synopsis {: #cmd-bootstrap-synopsis }
+
+Use one mutually exclusive mode for each Bootstrap run.
 
 ```text
 pdk bootstrap [--check | --dry-run | --apply | --configure] [--config PATH]
@@ -37,6 +45,8 @@ project path or configuration questions are unexpected; do not save a second
 
 ## Options {: #cmd-bootstrap-options }
 
+\ref{tab-cmd-bootstrap-options} lists the machine and project setup controls.
+
 | Option {: width="34%" } | Behaviour |
 |---|---|
 | `--check` | Report each stage and change nothing. This is also the default. |
@@ -46,6 +56,11 @@ project path or configuration questions are unexpected; do not save a second
 | `--config PATH` | Use a specific Bootstrap configuration instead of the nearest `.pdkboot.toml`. |
 | `--version` | Print the Bootstrap/Prodockit version and exit. |
 | `-h`, `--help` | Show installed help and exit. |
+/// table-caption | <
+    attrs: {id: tab-cmd-bootstrap-options}
+
+Bootstrap options
+///
 
 ## Effects and prompts {: #cmd-bootstrap-effects-and-prompts }
 
@@ -71,6 +86,8 @@ invalid configuration, declined required action, or failed applied stage is
 reported with the stage that needs attention.
 
 ## Related commands {: #cmd-bootstrap-related-commands }
+
+Use these commands for narrower project integration and maintenance tasks:
 
 - [`pdk adopt`](adopt.md) integrates Prodockit into an existing document
   without Bootstrap's machine, repository, editor, or publishing setup.

@@ -13,7 +13,15 @@ run is a preview.
 Use the [Template Sync task guide](../devcons/template-sync.md) for the complete
 review, merge, and verification workflow.
 
+Use [section 29.1, Scan phases and
+stages](output.md#command-output-structure) to interpret this visual summary;
+this reference then describes Template Sync's particular effects:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
+
 ## Synopsis {: #cmd-template-sync-synopsis }
+
+Use preview mode first, then apply with any protected files selected for review.
 
 ```text
 pdk template-sync [OPTIONS]
@@ -33,6 +41,8 @@ reports `is not a git repository`. Change directory and rerun it.
 
 ## Options {: #cmd-template-sync-options }
 
+\ref{tab-cmd-template-sync-options} lists update, review, source, and prerequisite controls.
+
 | Option {: width="38%" } | Behaviour |
 |---|---|
 | `-a`, `--apply` | Apply the report on a separate branch and send it for pull- or merge-request review. |
@@ -48,6 +58,11 @@ reports `is not a git repository`. Change directory and rerun it.
 | `--accept-prodockit` | Authorise an exact prerequisite Prodockit replacement without prompting. |
 | `--accept-adopt` | Authorise prerequisite Adopt alignment without prompting. |
 | `-h`, `--help` | Show installed help and exit. |
+/// table-caption | <
+    attrs: {id: tab-cmd-template-sync-options}
+
+Template Sync options
+///
 
 ## Protected-file decisions {: #cmd-template-sync-protected-file-decisions }
 
@@ -55,11 +70,19 @@ An edited template-owned file is unchanged until explicitly selected.
 `--review-all` selects the complete protected set; `--force` selects named
 files. The applied run shows the complete diff for each and offers:
 
-| Choice | Result |
+\ref{tab-cmd-template-sync-decisions} shows the three decisions available for
+each selected protected file.
+
+| Choice {: width="22%" } | Result |
 |---|---|
 | `overwrite` | Replace the project copy with the incoming template copy. |
 | `new` | Keep the project copy and write the incoming version as `FILE-PATH.new`. |
 | `skip` | Keep the project copy and create no sidecar. This is the default. |
+/// table-caption | <
+    attrs: {id: tab-cmd-template-sync-decisions}
+
+Protected-file decisions
+///
 
 ## Prerequisites and effects {: #cmd-template-sync-prerequisites-and-effects }
 
@@ -74,6 +97,8 @@ pull-request link. Project writing, figures, bibliography, and project-owned
 component choices are not template-owned.
 
 ## Related commands {: #cmd-template-sync-related-commands }
+
+Use these commands to verify or align the project around a template update:
 
 - [`pdk diag`](diag.md) verifies local health before and after an update.
 - [`pdk adopt`](adopt.md) owns the independent integration stages.

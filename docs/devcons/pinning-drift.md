@@ -37,6 +37,10 @@ work together:
 2. **Watch for newer releases**, so pinning does not mean going quietly
    stale.
 
+Pins uses Prodockit's shared [field and decision
+language](../commands/output.md#command-output-fields), but presents its short
+package inventory without the full phase-and-stage frame.
+
 \ref{fig-version-pinning-drift} shows the two controls in one cycle. The top
 row finds declarations or shared files that disagree and aligns the release
 inputs. The lower row compares the pinned output with newer dependencies and

@@ -14,6 +14,8 @@ and understand the website/PDF relationship.
 
 ## Synopsis {: #cmd-update-dates-synopsis }
 
+Use the default Git dates or request filesystem modification dates explicitly.
+
 ```text
 pdk update-dates [--config-file PATH] [--modification-dates]
 ```
@@ -30,11 +32,18 @@ not, expect `built site not found: ...; run zensical build first`.
 
 ## Options {: #cmd-update-dates-options }
 
+\ref{tab-cmd-update-dates-options} lists source and date-selection controls.
+
 | Option {: width="40%" } | Behaviour |
 |---|---|
 | `-f`, `--config-file PATH` | Read another Zensical configuration; defaults to `zensical.toml`. |
 | `--modification-dates` | Use source-file modification times instead of Git author dates. |
 | `-h`, `--help` | Show installed help and exit. |
+/// table-caption | <
+    attrs: {id: tab-cmd-update-dates-options}
+
+Page-date options
+///
 
 ## Inputs and effects {: #cmd-update-dates-inputs-and-effects }
 
@@ -48,6 +57,8 @@ replaces generated HTML, so run the date update at the documented point in the
 publishing workflow.
 
 ## Related commands {: #cmd-update-dates-related-commands }
+
+Use these commands to align other repository metadata or build the PDF output:
 
 - [`pdk sync-repo`](sync-repo.md) aligns other repository-derived website
   metadata.
