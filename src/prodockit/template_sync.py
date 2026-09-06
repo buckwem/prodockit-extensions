@@ -781,7 +781,7 @@ FILE_ACTIONS = {
     "add": "new files supplied by the template",
     "update": "newer template versions are available",
     "keep": "your versions stay; template copies are saved as .new",
-    "forced": "the template versions will replace yours because you used --force",
+    "forced": "show a diff and choose overwrite or .new because you used --force",
 }
 
 FILE_ACTION_LABELS = {
@@ -789,7 +789,7 @@ FILE_ACTION_LABELS = {
     "add": "New template files to add",
     "update": "Template files to update",
     "keep": "Your edited files to keep",
-    "forced": "Your edited files to replace",
+    "forced": "Your edited files selected for review",
 }
 
 #: Managed presentation files whose local edits deserve a more explicit

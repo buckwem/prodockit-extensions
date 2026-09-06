@@ -19,6 +19,16 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.60.4 (2026-09-06)
+
+- Made Template Sync highlight actionable changes in purple and warnings in
+  yellow, while keeping its diagnostic log plain text. Adopt stage file names
+  are now displayed relative to the project root.
+- Changed `template-sync --force FILE-PATH` into an interactive review: it
+  shows the complete diff and asks whether to overwrite the project file or
+  save the incoming template copy as `FILE-PATH.new`, with `.new` as the safe
+  default.
+
 ## 0.60.3 (2026-09-05)
 
 - Preserved an existing project's choice between bibliography-backed and
