@@ -19,6 +19,25 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.61.1 (2026-09-06)
+
+- Made Bootstrap install and verify Pandoc 3.10.1 inside each project's virtual
+  environment on macOS, Windows, and Ubuntu. A different system or Homebrew
+  Pandoc can remain installed without changing local or published output.
+- Added environment safeguards across lifecycle commands: Diagnostics and
+  Template Sync reject a project's inactive `.venv`; Adopt rejects a different
+  active environment and warns when no virtual environment is active; Pins
+  warns when its tested defaults come from another environment.
+- Made Template Sync recover Windows installer environment changes where
+  possible and display a prominent terminal-restart instruction when a fresh
+  PowerShell is required. Bootstrap now presents the same post-install restart
+  and project-environment checks.
+- Prevented Git's normal LF-to-CRLF checkout conversion from being reported as
+  managed stylesheet drift while retaining detection of real content changes.
+- Clarified operating-system installation commands and the two Bootstrap
+  activations: the setup environment in the parent directory, followed by the
+  repository's own environment before Diagnostics and Template Sync.
+
 ## 0.61.0 (2026-09-06)
 
 - Added `template-sync --review-all` to select every protected template file
