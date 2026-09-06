@@ -492,7 +492,7 @@ def test_diagnostic_recovery_and_template_sync_preflight_are_documented() -> Non
     assert "rollback-failed" in diagnostics
     assert "SHA-256" in diagnostics
     assert "kind` is `missing`" in diagnostics
-    assert "--fix --fix-check installation.metadata" in template_sync
+    assert "--apply --apply-check installation.metadata" in template_sync
     assert "does not inspect, fetch, or apply a template" in template_sync
 
 

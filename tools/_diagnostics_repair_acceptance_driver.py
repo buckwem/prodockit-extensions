@@ -187,9 +187,9 @@ def _repair_input(plan: diagnostics.RepairDryRun) -> tuple[str, int]:
 
 def _repair_command(config: Path) -> list[str]:
     """Build the CLI command with the same explicit scope as the test plan."""
-    command = ["diag", "--config-file", str(config), "--online", "--fix", "--json"]
+    command = ["diag", "--config-file", str(config), "--online", "--apply", "--json"]
     for check_id in sorted(REPAIRABLE_CHECKS):
-        command.extend(("--fix-check", check_id))
+        command.extend(("--apply-check", check_id))
     return command
 
 
@@ -261,13 +261,13 @@ def exercise(project: Path) -> dict[str, Any]:
     )
     if result.exit_code not in {0, 1}:
         raise AcceptanceError(
-            f"pdk diag --fix exited {result.exit_code}:\n{result.stdout}\n{result.stderr}"
+            f"pdk diag --apply exited {result.exit_code}:\n{result.stdout}\n{result.stderr}"
         )
     try:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError as error:
         raise AcceptanceError(
-            f"pdk diag --fix returned invalid JSON with exit {result.exit_code}:\n"
+            f"pdk diag --apply returned invalid JSON with exit {result.exit_code}:\n"
             f"{result.stdout}\n{result.stderr}"
         ) from error
     actions = [action for action in payload["repair"]["actions"] if action["status"] == "applied"]

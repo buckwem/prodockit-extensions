@@ -104,7 +104,46 @@ def test_template_sync_has_no_root_option() -> None:
         for option in getattr(param, "opts", [])
     }
     assert "--root" not in names
-    assert {"--apply", "--verbose", "--force", "--template-path"} <= names
+    assert {"--apply", "--verbose", "--force", "--review-all", "--template-path"} <= names
+
+
+def test_common_mode_options_have_consistent_short_forms() -> None:
+    from prodockit.cli import main
+
+    expected = {
+        "diag": {"--apply": "-a", "--dry-run": "-n", "--verbose": "-v", "--online": "-o"},
+        "bootstrap": {"--apply": "-a", "--dry-run": "-n"},
+        "adopt": {"--apply": "-a", "--dry-run": "-n", "--verbose": "-v"},
+        "shared-files": {"--apply": "-a", "--verbose": "-v"},
+        "template-sync": {"--apply": "-a", "--verbose": "-v"},
+    }
+
+    for command_name, aliases in expected.items():
+        options = {
+            option: set(getattr(param, "opts", ()))
+            for param in main.commands[command_name].params
+            for option in getattr(param, "opts", ())
+            if option.startswith("--")
+        }
+        for long_option, short_option in aliases.items():
+            assert short_option in options[long_option], (command_name, long_option)
+
+
+def test_short_help_is_available_for_the_main_command_and_every_public_subcommand() -> None:
+    from click.testing import CliRunner
+
+    from prodockit.cli import main
+
+    root = CliRunner().invoke(main, ["-h"])
+    assert root.exit_code == 0, root.output
+    assert "Usage:" in root.output
+
+    for command_name, command in main.commands.items():
+        if command.hidden:
+            continue
+        result = CliRunner().invoke(main, [command_name, "-h"])
+        assert result.exit_code == 0, (command_name, result.output)
+        assert "Usage:" in result.output
 
 
 def test_template_sync_help_is_written_for_an_author() -> None:
@@ -118,6 +157,7 @@ def test_template_sync_help_is_written_for_an_author() -> None:
     assert "Your writing, figures, and bibliography are left alone" in result.output
     assert "only previews" in result.output
     assert "--force FILE-PATH" in result.output
+    assert "--review-all" in result.output
     assert "does not require a PR/MR" in result.output
 
 
@@ -142,7 +182,7 @@ def test_template_sync_apply_stops_before_writing_when_metadata_is_ambiguous(
     result = CliRunner().invoke(main, ["template-sync", "--apply"])
 
     assert result.exit_code == 1
-    assert "pdk diag --fix" in result.output
+    assert "pdk diag --apply" in result.output
     assert "nothing has been changed" in result.output
     assert not any(path.name.startswith("template-update-") for path in tmp_path.iterdir())
 
@@ -230,7 +270,7 @@ def test_template_sync_explains_when_new_files_are_written_for_review() -> None:
     assert "Use --apply --local-only to save template copies as .new files for review." in source
     assert "The newer template copies will be saved beside them as .new files." not in source
     assert "_template_sync_diff(" in source
-    assert 'default="new"' in inspect.getsource(cli._template_sync_force_choice)
+    assert 'default="skip"' in inspect.getsource(cli._template_sync_force_choice)
 
 
 def test_template_sync_force_diff_is_complete_for_text_and_safe_for_binary(tmp_path) -> None:
@@ -254,7 +294,7 @@ def test_template_sync_force_diff_is_complete_for_text_and_safe_for_binary(tmp_p
     ]
 
 
-def test_template_sync_force_choice_defaults_to_sidecar_and_accepts_overwrite() -> None:
+def test_template_sync_force_choice_defaults_to_skip_and_accepts_other_choices() -> None:
     import click
     from click.testing import CliRunner
 
@@ -267,11 +307,15 @@ def test_template_sync_force_choice_defaults_to_sidecar_and_accepts_overwrite() 
     safe = CliRunner().invoke(choose, input="\n")
     assert safe.exit_code == 0, safe.output
     assert "Choose how to handle managed.txt" in safe.output
-    assert safe.output.rstrip().endswith("new")
+    assert safe.output.rstrip().endswith("skip")
 
     overwrite = CliRunner().invoke(choose, input="overwrite\n")
     assert overwrite.exit_code == 0, overwrite.output
     assert overwrite.output.rstrip().endswith("overwrite")
+
+    sidecar = CliRunner().invoke(choose, input="new\n")
+    assert sidecar.exit_code == 0, sidecar.output
+    assert sidecar.output.rstrip().endswith("new")
 
 
 def test_template_sync_displays_project_files_as_relative_paths(tmp_path) -> None:

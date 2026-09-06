@@ -16,12 +16,16 @@ document that looks slightly unlike everyone else's.
 The \index{commands!`prodockit template-sync`} command closes that gap without touching a word of your
 writing.
 
+Students can follow the single
+[project check and update sequence](../command-line.md#student-project-check-and-update-sequence)
+to use Diagnostics, Pins, and Template Sync in the correct order.
+
 \ref{fig-template-sync-decision} follows each managed file from the preview to
 the default review workflow. An unchanged local file takes the safe-update
 path; a file with local edits is preserved unless the author selects it with
-`--force`, reviews the displayed diff, and explicitly chooses the template
-copy. Both paths rejoin as one consistent update, which `--apply` commits to a
-separate branch and sends for review.
+`--review-all` or targeted `--force`, reviews the displayed diff, and chooses
+overwrite, `.new`, or skip. Both paths rejoin as one consistent update, which
+`--apply` commits to a separate branch and sends for review.
 
 ![Template sync previews changes first, updates unchanged managed files automatically, leaves author-edited files for an explicit decision, and sends one consistent update for review](../assets/diagrams/23.1-template-sync-decision.png){ .documentation-diagram }
 /// figure-caption
@@ -46,7 +50,8 @@ The progression from preview to a pushed update is shown in
 | `prodockit template-sync --apply` | Makes and saves the changes on a separate branch, sends it to the host, and creates a GitLab merge request | Your project uses a pull request (GitHub) or merge request (GitLab) |
 | `prodockit template-sync --apply --push` | Makes the changes and, after asking you, updates `main` directly | Your usual practice is to update `main` without a pull or merge request |
 | `prodockit template-sync --apply --local-only` | Applies and stages the changes without committing or sending them | You are comfortable finishing the Git workflow yourself |
-| `prodockit template-sync --apply --force FILE-PATH` | Shows the named file's diff, then asks whether to overwrite it or save the template copy as `FILE-PATH.new` | You need to decide how to handle an edited template file |
+| `prodockit template-sync --apply --force FILE-PATH` | Shows the named file's diff, then offers overwrite, `.new`, or skip | You need to decide how to handle one edited template file |
+| `prodockit template-sync --apply --review-all` | Selects every edited template file, shows each complete diff, then offers overwrite, `.new`, or skip | Several edited files need reviewing and repeating `--force` would be cumbersome |
 | `prodockit template-sync --apply --offline` | Applies using only the configured wheelhouse and validated native cache | The environment has no network access and the required downloads have already been cached |
 | `prodockit template-sync --apply --accept-prodockit --accept-adopt` | Explicitly permits both prerequisite mutations without prompts | An unattended job has been deliberately authorised to change its active environment and project |
 /// table-caption | <
@@ -182,12 +187,12 @@ particular attention to any files described as "your edited files".
 
 //// step | Resolve any protected files
 
-If the preview lists an edited template file, add the displayed
-`--force FILE-PATH` to select it for review. During the applied run,
-Template Sync shows the complete unified diff and asks whether to overwrite
-the project file or save the incoming copy as `FILE-PATH.new`. The prompt
-defaults to `.new`; an overwrite therefore always needs an explicit decision.
-The normal apply route stops before changing anything until every edited file
+If the preview lists edited template files, use `--review-all` to select all of
+them for one interactive review. For a single file, add the displayed
+`--force FILE-PATH`. During the applied run, Template Sync shows each complete
+unified diff and offers `overwrite`, `new`, or `skip`. The prompt defaults to
+`skip`, so changing or copying a file always needs an explicit decision. The
+normal apply route stops before changing anything until every protected file
 has been selected for review.
 
 To save incoming copies for all unresolved edits without selecting them one by
@@ -205,7 +210,7 @@ prodockit template-sync --apply
 Before it creates a branch, the apply command checks
 that the active environment has one unambiguous Prodockit and Zensical metadata
 record. If an interrupted package upgrade left duplicates, it stops and asks
-you to run `pdk diag --fix --fix-check installation.metadata`; no template
+you to run `pdk diag --apply --apply-check installation.metadata`; no template
 files are changed automatically. This repair uses only the active environment's
 installed-package evidence. It does not inspect, fetch, or apply a template.
 
@@ -481,17 +486,17 @@ or pushing only the `template-update-...` branch, does not republish it.
 
 A template-owned file you have changed is *kept*. A preview only reports it;
 it does not write a sidecar. Use `--apply --local-only` to write the template
-version beside it as `<name>.new`, or select the file with `--force` to see a
-complete diff and choose between the sidecar and an overwrite. Nothing is
-overwritten silently.
+version beside it as `<name>.new`, or use `--review-all` to select every edited
+file. Targeted `--force` selects one file. Both forms show a complete diff and
+offer overwrite, `.new`, or skip. Nothing is overwritten silently.
 
 If either managed stylesheet differs, the report adds a separate
 **“Warning - managed stylesheet changes found”** message. [Stylesheets](../stylesheets.md)
 explains the managed and author-owned files and their loading order. Move
 deliberate website rules from `pdk.css` to `extra.css`, and deliberate PDF-only
-rules from `pdk-pdf.css` to `print.css`. You can then use `--force` for each
-managed file to restore Prodockit's current version without losing the rules
-you moved.
+rules from `pdk-pdf.css` to `print.css`. You can then use `--review-all`, or a
+targeted `--force`, to restore Prodockit's current managed versions without
+losing the rules you moved.
 
 **"Edited" does not always mean you changed it.** A file counts as edited
 when it does not match the baseline the run settled on - which is equally
@@ -519,22 +524,30 @@ template's version is right.
 
 #### Taking the template's version {: #tsync-force }
 
-Use `--force` to select edited files for an explicit decision:
+Use `--review-all` to select every edited file for explicit decisions:
+
+```bash
+prodockit template-sync --apply --review-all
+```
+
+Use `--force` when only selected files need review:
 
 ```bash
 prodockit template-sync --apply --force .gitlab-ci.yml --force .github/workflows/docs.yml
 ```
 
-Four things to know about `--force`:
+Four things to know about the review:
 
-- **Exact paths, one flag each.** No globs, and no bare `--force` meaning
-  "everything". Each file is named deliberately before its diff is shown.
+- **`--review-all` selects the complete protected set.** Each file still gets
+  its own diff and decision; it does not imply that every file is overwritten.
+- **`--force` remains targeted.** It takes exact paths, one flag each, and no
+  globs. Each file is named deliberately before its diff is shown.
 - **Paths are as the report prints them**, relative to the project root. A
   leading `./` is tolerated; anything else will not match.
-- **The prompt defaults to `.new`.** Choose `overwrite` only after the diff
-  confirms that the template's complete version is wanted. Choosing `.new`
-  leaves the update staged locally so it cannot be submitted with an
-  unresolved sidecar by accident.
+- **The prompt defaults to `skip`.** Choose `overwrite` only after the diff
+  confirms that the template's complete version is wanted. Choose `new` to
+  retain the project file and save the incoming copy beside it; that leaves
+  the update staged locally for manual review rather than submitting it.
 - **A `--force` that matches nothing is ignored**, not warned about. Check the
   summary: the file should move from “Your edited files to keep” to “Your
   edited files selected for review”.

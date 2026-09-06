@@ -118,7 +118,7 @@ def test_full_cli_configuration_repair_preserves_utf8_crlf_and_space_path(
 
     result = CliRunner().invoke(
         main,
-        ["diag", "--config-file", str(config), "--fix", "--json"],
+        ["diag", "--config-file", str(config), "--apply", "--json"],
         input="1\ny\n",
     )
 
@@ -271,10 +271,12 @@ def test_acceptance_cli_repair_is_scoped_to_the_seeded_failures(tmp_path: Path) 
     command = diagnostics_acceptance_driver._repair_command(config)
 
     selected = {
-        command[index + 1] for index, argument in enumerate(command) if argument == "--fix-check"
+        command[index + 1]
+        for index, argument in enumerate(command)
+        if argument == "--apply-check"
     }
     assert selected == diagnostics_acceptance_driver.REPAIRABLE_CHECKS
-    assert command.count("--fix-check") == len(diagnostics_acceptance_driver.REPAIRABLE_CHECKS)
+    assert command.count("--apply-check") == len(diagnostics_acceptance_driver.REPAIRABLE_CHECKS)
 
 
 def test_diagnostic_repair_workflow_has_six_repair_and_twelve_toolchain_environments() -> None:

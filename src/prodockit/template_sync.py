@@ -781,7 +781,7 @@ FILE_ACTIONS = {
     "add": "new files supplied by the template",
     "update": "newer template versions are available",
     "keep": "your versions stay; template copies are saved as .new",
-    "forced": "show a diff and choose overwrite or .new because you used --force",
+    "forced": "show a diff and choose overwrite, .new, or skip because it was selected for review",
 }
 
 FILE_ACTION_LABELS = {
@@ -839,6 +839,7 @@ def plan_template_files(
     baseline: Baseline,
     *,
     force: Iterable[str] = (),
+    review_all: bool = False,
 ) -> list[FileAction]:
     """What an update would do to each template-owned file.
 
@@ -865,7 +866,7 @@ def plan_template_files(
         elif mine == theirs:
             actions.append(FileAction(path, here, "same", FILE_ACTIONS["same"]))
         elif path in edited or here in edited:
-            forced_here = path in forced or here in forced
+            forced_here = review_all or path in forced or here in forced
             name = "forced" if forced_here else "keep"
             actions.append(FileAction(path, here, name, FILE_ACTIONS[name]))
         else:

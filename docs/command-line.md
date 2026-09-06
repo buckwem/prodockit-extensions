@@ -46,7 +46,7 @@ write behaviour of each public command.
 
 | Command {: width="34%" } | Use it when | Safe first run | Writes |
 |---|---|---|---|
-| [`prodockit diag`](#diagnose-an-environment-and-project) | A command, dependency, renderer, configuration, or checkout does not behave as expected | `prodockit diag` | Nothing by default or with `--dry-run`; `--fix` asks before each supported repair |
+| [`prodockit diag`](#diagnose-an-environment-and-project) | A command, dependency, renderer, configuration, or checkout does not behave as expected | `prodockit diag` | Nothing by default or with `--dry-run`; `--apply` asks before each supported repair |
 | [`prodockit config`](#check-resolved-configuration) | You need to see the Prodockit settings that will actually be used, or check that the source project is complete | `prodockit config` | Nothing; add `--check` for a CI-friendly non-zero exit when problems exist |
 | [`prodockit adopt`](adopt.md) | An existing Zensical document needs selected prodockit components without machine, Git or editor setup | `prodockit adopt` | Local project files only with `--apply`; optional choices use `--configure` |
 | [`prodockit bootstrap`](devcons/bootstrap.md) | A machine or a project based on `prodockit-template` is not ready to build and publish | `prodockit bootstrap` | Only with `--apply`; configuration questions use `--configure` |
@@ -71,6 +71,157 @@ init-mathjax`\index{commands!`prodockit init-mathjax`}; use `init-tools` when
 preparing both Mermaid and maths for PDF output. It copies the pinned package's
 Apache-2.0 licence beside the browser bundle, so a published self-contained site
 also publishes the licence that governs that third-party code.
+
+## Use diagnostics, Adopt, pins, and template sync together
+
+These four commands overlap in what they inspect, but they own different
+decisions. \ref{tab-command-line-diag-adopt-pins-template-sync} separates their
+responsibilities.
+
+| Command {: width="22%" } | Question it answers | What it may change |
+|---|---|---|
+| `pdk diag` | Is this environment and project internally healthy now? | Nothing by default. `--apply` offers only bounded repairs, one default-No confirmation at a time. It does not fetch or apply a template, and a supported-combination warning directs you to `pdk pins`. |
+| `pdk adopt` | Does this existing project contain the selected Prodockit components and supported local toolchain? | With `--apply`, only the active project environment and local project files. It does not fetch template changes, configure Git, or publish anything. |
+| `pdk pins` | Do all dependency declarations agree with the reviewed software combination? | The selected package versions wherever they are declared, preserving each file's existing constraint form. It does not copy template files or repair an installed renderer. |
+| `pdk template-sync` | What changed in the template since this project last applied it? | With `--apply`, template-owned and managed shared files plus the prerequisite Adopt alignment, normally on a review branch. It protects author-edited files and does not replace the final health check. |
+/// table-caption | <
+    attrs: {id: tab-command-line-diag-adopt-pins-template-sync}
+
+Diagnostics, Adopt, Pins, and Template Sync responsibilities
+///
+
+For an unexpected failure, start with `pdk diag`. If it reports version
+declarations outside the supported combination, run `pdk pins`, accept only the
+reviewed defaults, then rerun `pdk diag`. This keeps diagnosis separate from the
+decision to update versions.
+
+For a routine template update, start with the read-only `pdk template-sync`
+preview. Its applied workflow verifies the exact Prodockit release paired with
+the incoming template and reuses Adopt to align the supported toolchain. After
+the pull or merge request is merged, rerun `pdk template-sync` to confirm there
+are no remaining template changes, then run `pdk diag`, the strict website
+build, and `pdk pdf` as the final checks.
+
+If either workflow reports an unrelated environment failure, stop that update
+and use `pdk diag` first. A clean diagnostic does not mean that no remote
+template update exists: the default diagnostic is offline, whereas
+`template-sync` performs the template comparison.
+
+### Student project check and update sequence {: #student-project-check-and-update-sequence }
+
+Use this sequence for a project created from `prodockit-template`. It gives one
+repeatable starting point whether you only want to confirm that the project is
+healthy or you expect a template update.
+
+/// steps
+
+//// step | Activate the project's environment
+
+Open a terminal in the folder containing `zensical.toml`, then activate that
+project's `.venv`. Do not run the checks from the parent Bootstrap environment.
+
+////
+
+//// step | Establish the current health baseline
+
+```bash
+pdk diag
+```
+
+Resolve every `FAIL` before attempting a template update. If Diagnostics offers
+a bounded repair, inspect it with `pdk diag --dry-run` before deciding whether
+to run `pdk diag --apply`. A run containing only `PASS` results establishes that
+the local project is healthy; it does not check whether the remote template has
+changed.
+
+////
+
+//// step | Align the selected project components when requested
+
+If Diagnostics reports that Adopt has integration stages to apply, preview
+exactly those local changes:
+
+```bash
+pdk adopt --dry-run
+```
+
+Review the stages, then use `pdk adopt --apply` if they are correct. Adopt can
+install or align the supported local toolchain and save the project's selected
+components, but it never downloads or applies a template. Rerun `pdk diag`
+afterward and resolve any remaining failure before continuing.
+
+////
+
+//// step | Check the dependency declarations
+
+```bash
+pdk pins --check --offline
+```
+
+If this passes and you only wanted to check the project, continue to the final
+verification step. If Diagnostics or Pins says the declarations are outside
+the supported combination, run `pdk pins`, review the versions, and accept only
+the tested defaults. Then rerun both the offline Pins check and `pdk diag`.
+
+////
+
+//// step | Preview and apply a template update when one is needed
+
+```bash
+pdk template-sync
+```
+
+If the preview says the project is already up to date, no template action is
+needed. Otherwise review the reported files, then run:
+
+```bash
+pdk template-sync --apply
+```
+
+Use `--review-all` when the preview lists several edited template files. For
+each file, inspect the diff and choose overwrite, `.new`, or skip; skip is the
+safe default. Review and merge the generated pull or merge request before
+continuing.
+
+////
+
+//// step | Confirm the applied template and pins agree
+
+After the update has been merged and your local project contains that merge,
+run:
+
+```bash
+pdk template-sync
+pdk pins --check --offline
+```
+
+The first command should report that no template file changes are needed. The
+second should report that every dependency declaration agrees. Investigate any
+remaining result rather than repeatedly applying the update.
+
+////
+
+//// step | Run the final health and output checks
+
+```bash
+pdk diag
+zensical build --clean --strict
+pdk pdf
+```
+
+The project is ready when Diagnostics passes, the website build reports no
+issues, and the PDF is written successfully. Review the website and PDF before
+submitting or publishing them.
+
+////
+
+///
+
+The common mode options also have consistent short forms: `-a` for `--apply`,
+`-n` for `--dry-run`, `-v` for `--verbose`, and `-o` for `--online`. The steps
+spell out the long forms while students learn what each action means. Use `-h`
+or `--help` for the main command and every subcommand. Options such as
+`--force`, `--push`, and `--review-all` deliberately remain long-only.
 
 ## Diagnose an environment and project {: #diagnose-an-environment-and-project }
 
@@ -107,13 +258,13 @@ adopt`, `pdk pins`, `pdk shared-files`, `pdk init-tools`, and `pdk
 init-mathjax`; they do not depend on `prodockit-template`. Template state is
 never treated as an automatic diagnostic repair.
 
-Use `--fix-check CHECK_ID` with `--dry-run` to limit this preview. The option is
-repeatable. `--dry-run` and `--fix` cannot be combined.
+Use `--apply-check CHECK_ID` with `--dry-run` to limit this preview. The option is
+repeatable. `--dry-run` and `--apply` cannot be combined.
 
 To consider supported repairs, use an interactive terminal:
 
 ```bash
-pdk diag --fix
+pdk diag --apply
 ```
 
 The command prints the complete plan before asking anything. Every mutation has
@@ -162,7 +313,7 @@ pdk diag --json > prodockit-diagnostics.json
 JSON schema version 2 reports pass, warning, and failure counts plus the repair
 disposition for every stable check. `pdk diag --dry-run --json` adds every
 available choice and represents possible commands as argument arrays rather
-than executable shell strings. Interactive `pdk diag --fix --json` keeps its
+than executable shell strings. Interactive `pdk diag --apply --json` keeps its
 plan and result as valid JSON on stdout while human context and prompts go to
 stderr; its top-level `before`, `repair`, and `after` objects record selections,
 confirmations, outcomes, changed paths, and the recovery manifest. The

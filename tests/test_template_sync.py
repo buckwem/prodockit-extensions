@@ -745,6 +745,22 @@ def _plan(project: dict[str, str], template: dict[str, str], edited=(), force=()
     }
 
 
+def _plan_reviewing_all(project: dict[str, str], template: dict[str, str], edited=()):
+    manifest = load_manifest(MANIFEST)
+    baseline = Baseline(version="v1", matched=0, total=0, edited=tuple(edited))
+    return {
+        action.path: action.action
+        for action in plan_template_files(
+            manifest,
+            list(template),
+            project.get,
+            template.get,
+            baseline,
+            review_all=True,
+        )
+    }
+
+
 def test_a_file_that_already_matches_is_left_alone() -> None:
     assert _plan({"macros.py": "a"}, {"macros.py": "a"}) == {"macros.py": "same"}
 
@@ -786,6 +802,28 @@ def test_force_does_not_reach_a_file_it_was_not_given() -> None:
     )
 
     assert plan == {"macros.py": "forced", "docs/stylesheets/pdk.css": "keep"}
+
+
+def test_review_all_selects_every_edited_file_without_affecting_routine_updates() -> None:
+    plan = _plan_reviewing_all(
+        {
+            "macros.py": "mine",
+            "docs/stylesheets/pdk.css": "mine",
+            ".github/workflows/docs.yml": "old",
+        },
+        {
+            "macros.py": "new",
+            "docs/stylesheets/pdk.css": "new",
+            ".github/workflows/docs.yml": "new",
+        },
+        edited=["macros.py", "docs/stylesheets/pdk.css"],
+    )
+
+    assert plan == {
+        "macros.py": "forced",
+        "docs/stylesheets/pdk.css": "forced",
+        ".github/workflows/docs.yml": "update",
+    }
 
 
 def test_edited_managed_stylesheets_are_named_separately() -> None:

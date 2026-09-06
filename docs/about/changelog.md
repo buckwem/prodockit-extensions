@@ -19,6 +19,22 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Added `template-sync --review-all` to select every protected template file
+  for one interactive review. Each full diff now offers `overwrite`, `new`, or
+  `skip`, with `skip` as the safe default; targeted `--force FILE-PATH` remains
+  available for single-file reviews.
+- Renamed the diagnostics repair action to `pdk diag --apply` and its selector
+  to `--apply-check` for consistency with the other lifecycle commands. The
+  previous `--fix` and `--fix-check` spellings remain hidden compatibility
+  aliases.
+- Added consistent short forms for common command modes: `-a` for `--apply`,
+  `-n` for `--dry-run`, `-v` for `--verbose`, and `-o` for `--online` wherever
+  the corresponding long option is available. `-h` opens help for the main
+  command and every subcommand. Specialised and higher-risk options remain
+  long-only.
+
 ## 0.60.4 (2026-09-06)
 
 - Made Template Sync highlight actionable changes in purple and warnings in
@@ -66,7 +82,7 @@ requests rather than here.
   diagnostics and Template Sync use the same resolution.
 - Made Diagnostics detect a project `.venv` containing launchers from
   different Python installations before package symptoms obscure the cause.
-  On macOS and Linux, `pdk diag --fix` can explicitly archive and rebuild the
+  On macOS and Linux, `pdk diag --apply` can explicitly archive and rebuild the
   environment from project requirements; Adopt refuses to mutate a mixed
   environment first. Diagnostic recovery directories are ignored by Git.
 - Made `pdk diag` reuse Adopt's own local readiness assessment, so missing
@@ -83,7 +99,7 @@ requests rather than here.
   are identity/version/licence checked and cached by extension, release and
   platform, with the selected source and cache result shown in apply output.
 - Added architecture-aware Windows Pango integrity checks and conditional
-  repair for Bootstrap and `pdk diag --fix`. ARM64 uses CLANGARM64 and x64 uses
+  repair for Bootstrap and `pdk diag --apply`. ARM64 uses CLANGARM64 and x64 uses
   UCRT64; both verify the expected DLL, pacman package, persistent and current
   environment, and a fresh-process native-library load without a restart.
 - Reorganised the installation guide around a single Python and virtual-
@@ -126,7 +142,7 @@ requests rather than here.
   project to the supported combination even offline.
 - Made `pdk diag` warn when declared tool versions do not match that supported
   combination and direct the author to `pdk pins`. Diagnostics reports this as
-  manual remediation and does not offer it as a `pdk diag --fix` action.
+  manual remediation and does not offer it as a `pdk diag --apply` action.
 - Made `prodockit adopt` install, upgrade or downgrade its active Python
   packages and project-local Pandoc to the exact combination carried by the
   installed release. Adopt now aligns complete project declarations without a
@@ -185,7 +201,7 @@ requests rather than here.
   `prodockit-template`. Diagnostic JSON schema version 2 exposes the same
   policy and unselected choices for automation.
 - Added the generic diagnostic repair transaction and adapted stale
-  distribution metadata to it. Interactive `pdk diag --fix` now prints its
+  distribution metadata to it. Interactive `pdk diag --apply` now prints its
   complete plan, repeats warnings, and requires an exact default-No confirmation
   for each supported mutation. Confirmed actions receive an atomic recovery
   manifest with hashes; verification failures roll back, redirected input is
@@ -216,7 +232,7 @@ requests rather than here.
 
 ## 0.57.0 (2026-09-03)
 
-- Added an explicit `pdk diag --fix` repair for unambiguous stale Prodockit
+- Added an explicit `pdk diag --apply` repair for unambiguous stale Prodockit
   and Zensical distribution metadata in the active virtual environment. The
   repair quarantines recoverable entries, refuses ambiguous or external
   environments, and makes `template-sync --apply` stop with targeted guidance
