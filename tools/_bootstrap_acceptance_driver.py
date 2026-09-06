@@ -47,6 +47,7 @@ from prodockit.bootstrap import (
 )
 from prodockit.bootstrap.fetch import Fetched
 from prodockit.template_sync import read_template_stamp
+from prodockit.windows_pango import pango_spec
 
 TEMPLATE_RELEASE = "v1.2.3"
 
@@ -546,6 +547,23 @@ class HarnessRunner:
                 words, cwd=cwd, timeout=timeout, capture=capture
             )
         if self.old_software and executable in {"powershell", "powershell.exe"}:
+            if "ConvertTo-Json -Compress" in words[-1] and "pacman -Qkk" in words[-1]:
+                spec = pango_spec()
+                bin_directory = rf"C:\msys64\{spec.environment}\bin"
+                healthy = "pango" in self.upgraded
+                evidence = {
+                    "architecture": spec.architecture,
+                    "environment": spec.environment,
+                    "package": spec.package,
+                    "root": r"C:\msys64",
+                    "bin": bin_directory,
+                    "dll": rf"{bin_directory}\libpango-1.0-0.dll",
+                    "dll_exists": healthy,
+                    "package_integrity": healthy,
+                    "user_environment": bin_directory if healthy else None,
+                    "process_environment": bin_directory if healthy else None,
+                }
+                return CommandResult(0, json.dumps(evidence) + "\n")
             if "pacman -S" in words[-1]:
                 self._upgrade("pango")
             if "npm.cmd ci" in words[-1] and "Set-Location -LiteralPath" in words[-1]:

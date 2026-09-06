@@ -127,6 +127,12 @@ each finding visible; yellow identifies warnings or declined work; and magenta
 identifies a repair or rollback failure. Redirected logs retain the same phase
 and stage labels without relying on colour.
 
+Template Sync uses the same visual hierarchy for a long update preview. Purple
+marks the change summaries, affected relative paths, and decisions that need
+attention; yellow marks warnings and protected files. Its ignored
+`.prodockit-template.log` contains the same wording without terminal colour
+codes.
+
 The repair engine can apply unambiguous `installation.metadata` repairs,
 restore one declared shared file at a time, align bounded dependency pins,
 rebuild project-local Mermaid or MathJax installations from valid lockfiles,

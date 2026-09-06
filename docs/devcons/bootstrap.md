@@ -242,7 +242,9 @@ and caches only the validated archive under the extension, version and platform.
 The apply output records the selected registry and whether that cache was hit.
 
 On Windows, the PDF-library stage selects `clangarm64` for ARM64 Python and
-`ucrt64` for x64 Python. It checks `libpango-1.0-0.dll` and the owning pacman
+`ucrt64` for x64 Python. This is read from `python.exe` itself rather than the
+host CPU, because an ARM64 Windows computer can run x64 Python under emulation.
+It checks `libpango-1.0-0.dll` and the owning pacman
 package, conditionally reinstalls that exact package when either check fails,
 and updates `WEASYPRINT_DLL_DIRECTORIES` both persistently and for the running
 Bootstrap process. A fresh child process loads the DLL immediately; the later

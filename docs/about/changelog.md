@@ -19,6 +19,27 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.60.4 (2026-09-06)
+
+- Made Template Sync highlight actionable changes in purple and warnings in
+  yellow, while keeping its diagnostic log plain text. Adopt stage file names
+  are now displayed relative to the project root.
+- Changed `template-sync --force FILE-PATH` into an interactive review: it
+  shows the complete diff and asks whether to overwrite the project file or
+  save the incoming template copy as `FILE-PATH.new`, with `.new` as the safe
+  default.
+- Corrected Windows Pango selection on ARM64 hosts running x64 Python. Both
+  Bootstrap and Diagnostics now select and verify native libraries from the
+  Python executable's PE architecture, and Bootstrap cannot accept an
+  unrelated `pango-view` from another MSYS2 environment.
+- Prevented online diagnostics from displaying an interactive SSH host-key
+  prompt while checking for template updates; the public GitHub template is
+  queried over HTTPS and any remaining SSH probe is strictly non-interactive.
+- Made Adopt retry replacement of `pandoc.exe` when Windows briefly retains a
+  file handle during a supported-version upgrade or downgrade.
+- Made Bootstrap reuse an existing valid MSYS2 installation before asking
+  WinGet to install it, avoiding installer failures when only Pango is missing.
+
 ## 0.60.3 (2026-09-05)
 
 - Preserved an existing project's choice between bibliography-backed and

@@ -677,6 +677,28 @@ def _extract_pandoc(archive: Path, output: Path) -> Path:
     return matches[0]
 
 
+def _replace_pandoc_executable(staged: Path, target: Path) -> None:
+    """Replace Pandoc after bounded retries for transient Windows locks."""
+
+    for delay in (*DEFAULT_RETRY_DELAYS, 0.0):
+        try:
+            staged.replace(target)
+            return
+        except PermissionError as error:
+            if not _running_on_windows() or not delay:
+                raise ToolchainError(
+                    f"could not replace {target}; close programs using Pandoc and retry: "
+                    f"{error}"
+                ) from error
+            time.sleep(delay)
+
+
+def _running_on_windows() -> bool:
+    """Return a runtime platform check without static platform narrowing."""
+
+    return sys.platform == "win32"
+
+
 def install_pandoc(version: str, *, offline: bool = False) -> Path:
     """Install an exact Pandoc executable into the active environment."""
 
@@ -692,7 +714,7 @@ def install_pandoc(version: str, *, offline: bool = False) -> Path:
         shutil.copy2(executable, staged)
         if sys.platform != "win32":
             staged.chmod(staged.stat().st_mode | 0o755)
-        staged.replace(target)
+        _replace_pandoc_executable(staged, target)
     result = subprocess.run(
         [str(target), "--version"],
         capture_output=True,

@@ -315,3 +315,52 @@ def test_toolchain_subprocess_failure_includes_command_output(
 
     with pytest.raises(toolchain.ToolchainError, match="permanent resolver failure"):
         toolchain._run_resilient(("pip", "install"), root=tmp_path, reporter=None, offline=False)
+
+
+def test_windows_pandoc_replacement_retries_transient_file_locks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staged = tmp_path / "pandoc.exe.tmp"
+    target = tmp_path / "pandoc.exe"
+    staged.write_bytes(b"new")
+    target.write_bytes(b"old")
+    original = Path.replace
+    attempts = 0
+    delays: list[float] = []
+
+    def replace(path: Path, destination: Path) -> Path:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise PermissionError("temporarily locked")
+        return original(path, destination)
+
+    monkeypatch.setattr(toolchain.sys, "platform", "win32")
+    monkeypatch.setattr(toolchain, "DEFAULT_RETRY_DELAYS", (0.1, 0.2))
+    monkeypatch.setattr(Path, "replace", replace)
+    monkeypatch.setattr(toolchain.time, "sleep", delays.append)
+
+    toolchain._replace_pandoc_executable(staged, target)
+
+    assert attempts == 3
+    assert delays == [0.1, 0.2]
+    assert target.read_bytes() == b"new"
+
+
+def test_windows_pandoc_replacement_reports_a_persistent_file_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staged = tmp_path / "pandoc.exe.tmp"
+    target = tmp_path / "pandoc.exe"
+    staged.write_bytes(b"new")
+    target.write_bytes(b"old")
+    monkeypatch.setattr(toolchain.sys, "platform", "win32")
+    monkeypatch.setattr(toolchain, "DEFAULT_RETRY_DELAYS", (0.0,))
+    monkeypatch.setattr(
+        Path,
+        "replace",
+        lambda *_args: (_ for _ in ()).throw(PermissionError("still locked")),
+    )
+
+    with pytest.raises(toolchain.ToolchainError, match="close programs using Pandoc"):
+        toolchain._replace_pandoc_executable(staged, target)

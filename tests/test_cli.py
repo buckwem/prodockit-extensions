@@ -229,6 +229,59 @@ def test_template_sync_explains_when_new_files_are_written_for_review() -> None:
     assert "A normal --apply stops before changing anything until you decide." in source
     assert "Use --apply --local-only to save template copies as .new files for review." in source
     assert "The newer template copies will be saved beside them as .new files." not in source
+    assert "_template_sync_diff(" in source
+    assert 'default="new"' in inspect.getsource(cli._template_sync_force_choice)
+
+
+def test_template_sync_force_diff_is_complete_for_text_and_safe_for_binary(tmp_path) -> None:
+    from prodockit.cli import _template_sync_diff
+
+    project = tmp_path / "project.txt"
+    template = tmp_path / "template.txt"
+    project.write_text("first\nproject\nlast\n", encoding="utf-8")
+    template.write_text("first\ntemplate\nlast\n", encoding="utf-8")
+
+    diff = _template_sync_diff(project, template, "managed.txt")
+
+    assert diff[:2] == ["--- managed.txt (project)", "+++ managed.txt (template)"]
+    assert "-project" in diff
+    assert "+template" in diff
+
+    project.write_bytes(b"\xffproject")
+    template.write_bytes(b"\xfftemplate")
+    assert _template_sync_diff(project, template, "managed.bin") == [
+        "  Binary content differs; a line-by-line diff is not available."
+    ]
+
+
+def test_template_sync_force_choice_defaults_to_sidecar_and_accepts_overwrite() -> None:
+    import click
+    from click.testing import CliRunner
+
+    from prodockit.cli import _template_sync_force_choice
+
+    @click.command()
+    def choose() -> None:
+        click.echo(_template_sync_force_choice("managed.txt"))
+
+    safe = CliRunner().invoke(choose, input="\n")
+    assert safe.exit_code == 0, safe.output
+    assert "Choose how to handle managed.txt" in safe.output
+    assert safe.output.rstrip().endswith("new")
+
+    overwrite = CliRunner().invoke(choose, input="overwrite\n")
+    assert overwrite.exit_code == 0, overwrite.output
+    assert overwrite.output.rstrip().endswith("overwrite")
+
+
+def test_template_sync_displays_project_files_as_relative_paths(tmp_path) -> None:
+    from prodockit.cli import _template_sync_display_path
+
+    project = tmp_path / "project"
+    assert _template_sync_display_path(project / "requirements.txt", project) == "requirements.txt"
+    assert _template_sync_display_path(".gitlab-ci.yml", project) == ".gitlab-ci.yml"
+    outside = tmp_path / "other" / "file.txt"
+    assert _template_sync_display_path(outside, project) == str(outside)
 
 
 def test_template_sync_warns_before_replacing_managed_stylesheets() -> None:
@@ -334,6 +387,26 @@ paths = [".prodockit-template.toml"]
     assert "nothing to commit or push" in result.output
     assert "rebuild the Pages or documentation pipeline" in result.output
     assert "already up to date" not in result.output
+
+    import click
+
+    coloured = CliRunner().invoke(
+        cli.main,
+        ["template-sync", "--template-path", str(template)],
+        color=True,
+    )
+    assert coloured.exit_code == 0, coloured.output
+    assert click.style("Changes available:", fg="bright_magenta", bold=True) in coloured.output
+    assert click.style(
+        "  Action:   DOWNGRADE", fg="bright_magenta", bold=True
+    ) in coloured.output
+    assert click.style(
+        "  Warning:  the newer installed release is not the template's paired release; "
+        "website and PDF output may change after alignment",
+        fg="bright_yellow",
+        bold=True,
+    ) in coloured.output
+    assert "\x1b[" not in (project / ".prodockit-template.log").read_text(encoding="utf-8")
 
     unattended = CliRunner().invoke(
         cli.main,

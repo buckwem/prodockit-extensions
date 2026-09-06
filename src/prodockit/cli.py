@@ -21,6 +21,7 @@ This module is the CLI for the whole package, not just the PDF build -
 
 from __future__ import annotations
 
+import difflib
 import pathlib
 import shlex
 import subprocess
@@ -3640,6 +3641,67 @@ def _template_sync_stage_heading(number: int, total: int, summary: str) -> None:
     click.echo(click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="blue"))
 
 
+def _template_sync_key(text: str) -> str:
+    """Highlight the lines an author needs to find in a long preview."""
+
+    return click.style(text, fg="bright_magenta", bold=True)
+
+
+def _template_sync_warning(text: str) -> str:
+    """Keep cautions visually distinct from actions and phase headings."""
+
+    return click.style(text, fg="bright_yellow", bold=True)
+
+
+def _template_sync_diff(
+    project_file: pathlib.Path,
+    template_file: pathlib.Path,
+    display_path: str,
+) -> list[str]:
+    """Return a complete unified diff, or an explicit binary-file result."""
+
+    current = project_file.read_bytes()
+    incoming = template_file.read_bytes()
+    try:
+        current_text = current.decode("utf-8").splitlines()
+        incoming_text = incoming.decode("utf-8").splitlines()
+    except UnicodeDecodeError:
+        return ["  Binary content differs; a line-by-line diff is not available."]
+    return list(
+        difflib.unified_diff(
+            current_text,
+            incoming_text,
+            fromfile=f"{display_path} (project)",
+            tofile=f"{display_path} (template)",
+            lineterm="",
+        )
+    ) or ["  No textual differences found."]
+
+
+def _template_sync_force_choice(display_path: str) -> Literal["new", "overwrite"]:
+    """Ask for the one safe, explicit decision an edited file needs."""
+
+    choice = click.prompt(
+        f"Choose how to handle {display_path}",
+        type=click.Choice(("new", "overwrite"), case_sensitive=False),
+        default="new",
+        show_choices=True,
+    )
+    return "overwrite" if choice == "overwrite" else "new"
+
+
+def _template_sync_display_path(path: str | pathlib.Path, project: pathlib.Path) -> str:
+    """Show project files relative to the root without disguising outside paths."""
+
+    value = pathlib.Path(path)
+    if not value.is_absolute():
+        return str(value)
+    try:
+        return str(value.relative_to(project))
+    except ValueError:
+        return str(value)
+
+
 def _run_template_sync_resume(command: Sequence[str], project: pathlib.Path) -> int:
     """Run the remainder under freshly imported code from the installed wheel."""
 
@@ -3694,8 +3756,10 @@ def _run_template_sync(
         plan_prodockit,
     )
     from prodockit.template_sync import (
+        FILE_ACTIONS,
         MANIFEST_FILE,
         STAMP_FILE,
+        FileAction,
         Manifest,
         TemplateSyncError,
         append_ignores,
@@ -3803,13 +3867,23 @@ def _run_template_sync(
     def say(text: str = "") -> None:
         """Prints, and keeps the line for the log."""
         click.echo(text)
-        logged.append(text)
+        logged.append(click.unstyle(text))
 
     def say_detail(text: str = "") -> None:
         """Keep diagnostic detail in the log; show it with --verbose."""
         if verbose:
             click.echo(text)
-        logged.append(text)
+        logged.append(click.unstyle(text))
+
+    def say_key(text: str) -> None:
+        """Show an actionable summary line in purple and log it as plain text."""
+
+        say(_template_sync_key(text))
+
+    def say_warning(text: str) -> None:
+        """Show a warning in yellow and log it as plain text."""
+
+        say(_template_sync_warning(text))
 
     def say_report(
         render: Callable[..., Iterable[str]], *args: Any, details_only: bool = False
@@ -4063,23 +4137,23 @@ def _run_template_sync(
         summary_actions = list(pending)
         summary_actions.extend(action for action in decisions if action not in summary_actions)
 
-        say(
+        say_key(
             "Changes available:"
             if work_needed or package_plan.needs_work or adopt_work
             else "Result:"
         )
         terminal_actions = plan if verbose else summary_actions
         for line in update_report(terminal_actions, verbose=verbose):
-            say(f"  {line}")
+            say_key(f"  {line}")
         if not verbose:
             logged.extend(f"  {line}" for line in update_report(plan, verbose=True))
 
         if seeds:
-            say(f"  Starter files to add: {len(seeds)}")
+            say_key(f"  Starter files to add: {len(seeds)}")
             for path in seeds:
                 say_detail(f"      {manifest.rename(path)}")
         if added or updated:
-            say(
+            say_key(
                 "  Project settings to update: "
                 f"{len(added) + len(updated)} "
                 f"({len(added)} new, {len(updated)} changed)"
@@ -4089,32 +4163,35 @@ def _run_template_sync(
             for key in updated:
                 say_detail(f"      update {key}")
         if ignores:
-            say(f"  Other project setup updates: {len(ignores)}")
+            say_key(f"  Other project setup updates: {len(ignores)}")
             for entry in ignores:
                 say_detail(f"      {entry}")
         if dependency_plan:
-            say("  Build dependency declarations to align:")
+            say_key("  Build dependency declarations to align:")
             for dependency in dependency_plan:
-                say(f"      {dependency.package}: {dependency.version}")
+                say_key(f"      {dependency.package}: {dependency.version}")
                 for path in dependency.paths:
                     say_detail(f"        {path}")
         if shared_drift:
-            say(f"  Shared files to refresh: {len(shared_drift)}")
+            say_key(f"  Shared files to refresh: {len(shared_drift)}")
             for state in shared_drift:
                 say_detail(f"      {state.file.target}")
         if stamp_is_stale and not (pending or seeds or added or updated or ignores):
-            say("  The saved template version needs refreshing; no project content will change.")
+            say_key(
+                "  The saved template version needs refreshing; no project content will change."
+            )
         if wanted_applied_release and previous_applied_release != wanted_applied_release:
             before = previous_applied_release or "not recorded"
-            say(
+            say_key(
                 f"  Template release after a successful apply: {before} -> {wanted_applied_release}"
             )
         _template_sync_phase_heading(2)
         _template_sync_stage_heading(1, 1, "Use the template-compatible Prodockit")
-        say(f"  Action:   {package_plan.action.upper()}")
-        say(f"  Current:  Prodockit {package_plan.installed}")
-        say(f"  Required: Prodockit {package_plan.target} (incoming template)")
-        say(
+        package_say = say_key if package_plan.needs_work else say
+        package_say(f"  Action:   {package_plan.action.upper()}")
+        package_say(f"  Current:  Prodockit {package_plan.installed}")
+        package_say(f"  Required: Prodockit {package_plan.target} (incoming template)")
+        package_say(
             f"  Will do:  install {package_plan.specifier} in the active interpreter"
             if package_plan.needs_work
             else "  Will do:  verify the exact release in the active interpreter"
@@ -4138,22 +4215,22 @@ def _run_template_sync(
             else "  Result:   exact release already active; no installation"
         )
         if package_plan.action == "downgrade":
-            say(
-                _bootstrap_warning(
-                    "  Warning:  the newer installed release is not the template's paired "
-                    "release; website and PDF output may change after alignment"
-                )
+            say_warning(
+                "  Warning:  the newer installed release is not the template's paired "
+                "release; website and PDF output may change after alignment"
             )
 
         _template_sync_phase_heading(3)
         if package_plan.needs_work:
             _template_sync_stage_heading(1, 1, "Preview and apply Adopt alignment")
-            say("  Action:   ALIGN")
-            say(
+            say_key("  Action:   ALIGN")
+            say_key(
                 f"  Current:  will be assessed by Prodockit {package_plan.target} "
                 "after the fresh-process handoff"
             )
-            say("  Will do:  run Adopt's supported-toolchain and project integration stages")
+            say_key(
+                "  Will do:  run Adopt's supported-toolchain and project integration stages"
+            )
             say("  Command:  internal equivalent of `pdk adopt --apply`")
             say("  Files:    active environment and Adopt-managed project files")
             say(
@@ -4175,9 +4252,10 @@ def _run_template_sync(
                 )
                 if step.id == "dependency" and step.needs_work:
                     action = "ALIGN"
-                say(f"  Action:   {action}")
-                say(f"  Current:  {step.detail}")
-                say(
+                step_say = say_key if step.needs_work else say
+                step_say(f"  Action:   {action}")
+                step_say(f"  Current:  {step.detail}")
+                step_say(
                     "  Will do:  no change"
                     if not step.needs_work
                     else "  Will do:  apply this Adopt stage before the template update"
@@ -4185,39 +4263,88 @@ def _run_template_sync(
                 for command in step.commands:
                     say(f"  Command:  {_template_sync_command(command)}")
                 for step_path in step.files:
-                    say(f"  File:     {step_path}")
+                    step_say(
+                        f"  File:     {_template_sync_display_path(step_path, project)}"
+                    )
             if not adopt_work and not adopt_blockers:
                 say("  Result:   Adopt reports the supported combination is already configured")
 
         kept = [action for action in plan if action.action == "keep"]
         forced = [action for action in plan if action.action == "forced"]
+        interactive = _template_sync_is_interactive()
+        reviewed_sidecars: set[str] = set()
         stylesheet_edits = edited_managed_stylesheets(plan)
         if stylesheet_edits:
             say()
-            say("Warning - managed stylesheet changes found:")
+            say_warning("Warning - managed stylesheet changes found:")
             for path in stylesheet_edits:
-                say(f"    {path}")
-            say("  pdk.css and pdk-pdf.css are supplied and updated by prodockit.")
-            say("  Move website changes to extra.css and PDF-only changes to print.css.")
-            say("  Then use --force FILE-PATH if you want the managed copy restored.")
+                say_warning(f"    {path}")
+            say_warning("  pdk.css and pdk-pdf.css are supplied and updated by prodockit.")
+            say_warning("  Move website changes to extra.css and PDF-only changes to print.css.")
+            say_warning(
+                "  Then use --force FILE-PATH to compare the managed copy and choose "
+                "overwrite or .new."
+            )
         if kept:
             say()
-            say("Your edited files are protected:")
-            say("  Without --force, your versions stay unchanged.")
+            say_warning("Your edited files are protected:")
+            say_warning("  Without --force, your versions stay unchanged.")
             if local_only:
-                say("  Template copies will be saved beside them as .new files for review.")
+                say_warning(
+                    "  Template copies will be saved beside them as .new files for review."
+                )
             else:
-                say("  A normal --apply stops before changing anything until you decide.")
-                say("  Use --apply --local-only to save template copies as .new files for review.")
-            say(
-                "  For each file you want to replace, add `--force FILE-PATH`, "
+                say_warning("  A normal --apply stops before changing anything until you decide.")
+                say_warning(
+                    "  Use --apply --local-only to save template copies as .new files for review."
+                )
+            say_warning(
+                "  For each file you want to compare, add `--force FILE-PATH`, "
                 "using the file path shown above."
             )
         if forced:
             say()
-            say("You used --force:")
-            say("  The named files will be replaced by the template versions.")
-            say("  Remove --force to keep your versions instead.")
+            say_warning("Files selected with --force require a decision:")
+            say_warning("  An applied run shows each diff before asking what to do.")
+            say_warning("  The safe default saves the template version as FILE-PATH.new.")
+
+        if do_apply and forced and not package_plan.needs_work:
+            if not interactive:
+                raise TemplateSyncError(
+                    "--force needs an interactive terminal to show each diff and choose "
+                    "overwrite or .new; no template file has been changed"
+                )
+            resolved: dict[str, FileAction] = {}
+
+            for forced_action in forced:
+                say()
+                say_key(f"Review required: {forced_action.project_path}")
+                for diff_line in _template_sync_diff(
+                    project / forced_action.project_path,
+                    template / forced_action.path,
+                    forced_action.project_path,
+                ):
+                    say(diff_line)
+                choice = _template_sync_force_choice(forced_action.project_path)
+                if choice == "new":
+                    resolved[forced_action.project_path] = FileAction(
+                        forced_action.path,
+                        forced_action.project_path,
+                        "keep",
+                        FILE_ACTIONS["keep"],
+                    )
+                    reviewed_sidecars.add(forced_action.project_path)
+                    say_warning(
+                        f"  Decision: preserve {forced_action.project_path}; save the incoming "
+                        f"version as {forced_action.project_path}.new"
+                    )
+                else:
+                    resolved[forced_action.project_path] = forced_action
+                    say_key(f"  Decision: overwrite {forced_action.project_path}")
+            plan = [resolved.get(item.project_path, item) for item in plan]
+            pending = pending_writes(plan, project, lambda p: (template / p).read_bytes())
+            kept = [action for action in plan if action.action == "keep"]
+            forced = [action for action in plan if action.action == "forced"]
 
         if stale:
             say_detail(f"Older template files left alone: {len(stale)}")
@@ -4251,20 +4378,23 @@ def _run_template_sync(
                 say("Your project is already up to date with the template.")
             return
 
-        if kept and not local_only:
-            say("The update needs a decision before it can be sent for approval.")
-            say("Your edited template files have not been changed.")
-            say(
-                "For each listed file, either rerun with --force FILE-PATH to take "
-                "the template copy, or use --apply --local-only for a manual review."
+        unresolved_kept = [
+            action for action in kept if action.project_path not in reviewed_sidecars
+        ]
+        if unresolved_kept and not local_only:
+            say_warning("The update needs a decision before it can be sent for approval.")
+            say_warning("Your edited template files have not been changed.")
+            say_warning(
+                "For each listed file, either rerun with --force FILE-PATH to see its "
+                "diff and choose overwrite or .new, or use --apply --local-only for "
+                "a manual review."
             )
-            say("Nothing has been changed, committed, or sent.")
+            say_warning("Nothing has been changed, committed, or sent.")
             return
 
         # Both environment stages precede the first template mutation and the
         # update branch. A non-interactive mismatch must opt into both now, so
         # it cannot install Prodockit and then stop halfway waiting for Adopt.
-        interactive = _template_sync_is_interactive()
         if package_plan.needs_work:
             if not interactive and (not accept_prodockit or not accept_adopt):
                 raise TemplateSyncError(
@@ -4341,11 +4471,9 @@ def _run_template_sync(
             ):
                 say("Stopped safely. No template files, metadata, or branch were changed.")
                 return
-            say(
-                _bootstrap_warning(
-                    "  Warning:  Adopt may install or downgrade software and update only "
-                    "the project files shown above"
-                )
+            say_warning(
+                "  Warning:  Adopt may install or downgrade software and update only "
+                "the project files shown above"
             )
             try:
                 adopt_written = apply_adoption(
@@ -4464,7 +4592,7 @@ def _run_template_sync(
                 "release record was left unchanged"
             )
         say()
-        if local_only:
+        if local_only or reviewed_sidecars:
             say("The changes are ready for you to review.")
             say("Nothing has been committed or sent to GitHub or GitLab.")
             say_detail("Git detail: the changes are staged but not committed.")
@@ -4640,8 +4768,9 @@ def _record_template_release(project_root: pathlib.Path) -> None:
     multiple=True,
     metavar="FILE-PATH",
     help=(
-        "Replace one edited file with the template's version. Use the path shown "
-        "in the report. Repeat --force FILE-PATH for another file."
+        "Select one edited file for an applied diff and an explicit choice between "
+        "overwriting it or saving the template version as FILE-PATH.new. The safe "
+        "default is .new. Repeat --force FILE-PATH for another file."
     ),
 )
 @click.option(

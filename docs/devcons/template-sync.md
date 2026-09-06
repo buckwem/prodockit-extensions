@@ -18,9 +18,10 @@ writing.
 
 \ref{fig-template-sync-decision} follows each managed file from the preview to
 the default review workflow. An unchanged local file takes the safe-update
-path; a file with local edits is preserved unless the author explicitly
-chooses the template copy with `--force`. Both paths rejoin as one consistent
-update, which `--apply` commits to a separate branch and sends for review.
+path; a file with local edits is preserved unless the author selects it with
+`--force`, reviews the displayed diff, and explicitly chooses the template
+copy. Both paths rejoin as one consistent update, which `--apply` commits to a
+separate branch and sends for review.
 
 ![Template sync previews changes first, updates unchanged managed files automatically, leaves author-edited files for an explicit decision, and sends one consistent update for review](../assets/diagrams/23.1-template-sync-decision.png){ .documentation-diagram }
 /// figure-caption
@@ -45,7 +46,7 @@ The progression from preview to a pushed update is shown in
 | `prodockit template-sync --apply` | Makes and saves the changes on a separate branch, sends it to the host, and creates a GitLab merge request | Your project uses a pull request (GitHub) or merge request (GitLab) |
 | `prodockit template-sync --apply --push` | Makes the changes and, after asking you, updates `main` directly | Your usual practice is to update `main` without a pull or merge request |
 | `prodockit template-sync --apply --local-only` | Applies and stages the changes without committing or sending them | You are comfortable finishing the Git workflow yourself |
-| `prodockit template-sync --apply --force FILE-PATH` | Also replaces the named file even though it differs from the template | You have checked that file and want the template's complete version |
+| `prodockit template-sync --apply --force FILE-PATH` | Shows the named file's diff, then asks whether to overwrite it or save the template copy as `FILE-PATH.new` | You need to decide how to handle an edited template file |
 | `prodockit template-sync --apply --offline` | Applies using only the configured wheelhouse and validated native cache | The environment has no network access and the required downloads have already been cached |
 | `prodockit template-sync --apply --accept-prodockit --accept-adopt` | Explicitly permits both prerequisite mutations without prompts | An unattended job has been deliberately authorised to change its active environment and project |
 /// table-caption | <
@@ -66,6 +67,11 @@ shows the template update. Each action includes the current and required
 versions, command, affected environment or files, and network requirement.
 The target is taken from the template's coordinated version declarations, not
 from the newest release on PyPI.
+
+Purple lines identify the changes and decisions that need attention, including
+the relative paths of edited files. Yellow lines are warnings or explain work
+that remains protected. The complete `.prodockit-template.log` stays plain text
+so it remains readable when shared or processed by another tool.
 
 !!! warning "Stop if a mirror proposes an unexpected downgrade"
     A project uses the template repository for its selected host. For example,
@@ -176,16 +182,17 @@ particular attention to any files described as "your edited files".
 
 //// step | Resolve any protected files
 
-If the preview lists an edited template file, decide whether to keep your copy
-or replace it. To replace it, add the `--force FILE-PATH` shown by the preview
-to the apply command. The normal apply route stops before changing anything
-until every such file has a decision, so the resulting request is ready to
-approve rather than containing unresolved `.new` files.
+If the preview lists an edited template file, add the displayed
+`--force FILE-PATH` to select it for review. During the applied run,
+Template Sync shows the complete unified diff and asks whether to overwrite
+the project file or save the incoming copy as `FILE-PATH.new`. The prompt
+defaults to `.new`; an overwrite therefore always needs an explicit decision.
+The normal apply route stops before changing anything until every edited file
+has been selected for review.
 
-To inspect the incoming copies before deciding, use
-`prodockit template-sync --apply --local-only`. This is the only route that
-writes `.new` files for unresolved edits; preview mode and a normal `--apply`
-leave the project unchanged.
+To save incoming copies for all unresolved edits without selecting them one by
+one, use `prodockit template-sync --apply --local-only`. Preview mode and a
+normal `--apply` without decisions leave the project unchanged.
 
 ////
 
@@ -472,9 +479,11 @@ or pushing only the `template-update-...` branch, does not republish it.
 
 ### A file you have edited {: #tsync-edited-files }
 
-A template-owned file you have changed is *kept*, and the template's
-version is written beside it as `<name>.new` for you to compare. Nothing
-is overwritten silently.
+A template-owned file you have changed is *kept*. A preview only reports it;
+it does not write a sidecar. Use `--apply --local-only` to write the template
+version beside it as `<name>.new`, or select the file with `--force` to see a
+complete diff and choose between the sidecar and an overwrite. Nothing is
+overwritten silently.
 
 If either managed stylesheet differs, the report adds a separate
 **“Warning - managed stylesheet changes found”** message. [Stylesheets](../stylesheets.md)
@@ -510,38 +519,38 @@ template's version is right.
 
 #### Taking the template's version {: #tsync-force }
 
-Use `--force` only for files whose local contents should be replaced completely
-by the template copy:
+Use `--force` to select edited files for an explicit decision:
 
 ```bash
 prodockit template-sync --apply --force .gitlab-ci.yml --force .github/workflows/docs.yml
 ```
 
-Three things to know about `--force`:
+Four things to know about `--force`:
 
 - **Exact paths, one flag each.** No globs, and no bare `--force` meaning
-  "everything". That friction is the point: this is the only option that
-  can overwrite your own work, so each file is named deliberately.
+  "everything". Each file is named deliberately before its diff is shown.
 - **Paths are as the report prints them**, relative to the project root. A
   leading `./` is tolerated; anything else will not match.
+- **The prompt defaults to `.new`.** Choose `overwrite` only after the diff
+  confirms that the template's complete version is wanted. Choosing `.new`
+  leaves the update staged locally so it cannot be submitted with an
+  unresolved sidecar by accident.
 - **A `--force` that matches nothing is ignored**, not warned about. Check the
   summary: the file should move from “Your edited files to keep” to “Your
-  edited files to replace”.
+  edited files selected for review”.
 
 #### Then delete the sidecars {: #tsync-sidecars }
 
-Once you have taken the template's version, the `.new` file beside it is
-byte-identical to the real one and has no further use. **The tool will not
-remove it** - it never deletes anything from your project - so it lingers,
-and gets committed:
+If you chose `.new`, delete the sidecar after completing the comparison.
+**The tool will not remove it** - it never deletes anything from your project:
 
 ```bash
 git rm .gitlab-ci.yml.new .github/workflows/docs.yml.new
 ```
 
-If you decided to keep *your* version instead, delete the sidecar just the
-same once you have read it. Leaving it behind means the next reader cannot
-tell whether it is a decision you made or one you have not got to yet.
+Leaving it behind means the next reader cannot tell whether it is a decision
+you made or one you have not got to yet. Choosing `overwrite` does not create a
+new sidecar.
 
 ### Where the template comes from {: #tsync-template-source }
 
