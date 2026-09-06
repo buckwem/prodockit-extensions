@@ -29,7 +29,9 @@ def restart_banner(project: Path, *, blocked: bool = False) -> None:
 
 def prepare_template_environment(project: Path) -> None:
     """Refresh this process, keeping the running environment first on PATH."""
-    if sys.platform != "win32":
+    # Avoid mypy discarding the Windows branch when checking on Linux/macOS.
+    running_on: str = sys.platform
+    if running_on != "win32":
         return
     from prodockit.bootstrap.model import refresh_windows_path
 
