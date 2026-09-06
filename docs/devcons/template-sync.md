@@ -98,6 +98,22 @@ a file supplied by the template has uncommitted changes, because updating that
 file could hide work you have not saved in Git. Read the short summary and pay
 particular attention to any files described as "your edited files".
 
+<div class="pdk-terminal-key" aria-label="Template Sync colour key">
+  <span class="pdk-terminal-key__phase">PHASE</span><span>new phase</span>
+  <span class="pdk-terminal-key__stage">STAGE</span><span>one check</span>
+  <span class="pdk-terminal-key__change">CHANGE</span><span>review first</span>
+  <span class="pdk-terminal-key__warning">WARNING</span><span>decide or take care</span>
+</div>
+
+The colours follow the command's terminal colour roles. Your terminal theme may
+render their precise shade differently; the words remain visible when colour is
+unavailable.
+
+For a GitLab.com project, SSH access is required only for the project's
+GitLab.com remote. Template Sync fetches the public template from GitHub over
+HTTPS, so it does not require a GitHub account or a second SSH key. If GitHub
+asks you to accept an SSH host key, update Prodockit before continuing.
+
 ////
 
 //// step | Resolve any protected files
@@ -253,14 +269,9 @@ read from its structure rather than line by line:
 4. **Apply template update** says whether the run is a non-writing `PREVIEW`,
    is waiting for a protected-file decision, or can create the review branch.
 
-Bright-blue double lines mark a new **phase**. Blue single lines and
-`Stage [current/total]` headings separate individual decisions within it.
-Purple highlights the result summary, files that will change, required
-alignment, release movement, and protected-file decisions—the lines to find
-first when the report is long. Yellow marks warnings, files kept protected,
-and work that needs a decision. Terminal output still includes the words
-`Action`, `Warning`, `Decision`, and `Result`, so redirected or monochrome
-output carries the same meaning without relying on colour.
+The short colour key in section 24.1 identifies the lines to find first. The
+words `Action`, `Warning`, `Decision`, and `Result` preserve the same meaning in
+redirected or monochrome output.
 
 The complete `.prodockit-template.log` contains the verbose report in plain
 text. Share that file when investigating a run; `--verbose` displays the same

@@ -7,3 +7,41 @@
 [data-md-color-scheme="default"] .md-logo img {
   content: url("../assets/logo_black.png");
 }
+
+/* Match the ANSI colour roles used by Template Sync in VS Code's terminal. */
+.pdk-terminal-key {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: 0.15rem 0.6rem;
+  width: fit-content;
+  margin: 0.8rem 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.2rem;
+  background: #181818;
+  color: #cccccc;
+  font-family: var(--md-code-font-family);
+  font-size: 0.8rem;
+}
+
+.pdk-terminal-key__phase,
+.pdk-terminal-key__stage,
+.pdk-terminal-key__change,
+.pdk-terminal-key__warning {
+  font-weight: 700;
+}
+
+.pdk-terminal-key__phase {
+  color: #3b8eea;
+}
+
+.pdk-terminal-key__stage {
+  color: #2472c8;
+}
+
+.pdk-terminal-key__change {
+  color: #d670d6;
+}
+
+.pdk-terminal-key__warning {
+  color: #f9f1a5;
+}
