@@ -188,19 +188,36 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
 
     assert "installation.md#installation-preparation" in page
     assert "independent of section 5's Bootstrap" in page
-    assert page.count("//// step | ") == 3
+    assert page.count("//// step | ") == 8
     assert page.count("/// tree") == 2
 
     install_zensical = page.index("//// step | Install Zensical")
-    test_zensical = page.index("//// step | Create and test the Zensical site")
-    install_prodockit = page.index("//// step | Install Prodockit and adopt the site")
-    assert install_zensical < test_zensical < install_prodockit
+    create_zensical = page.index("//// step | Create the Zensical site")
+    build_zensical = page.index("//// step | Build the plain Zensical site")
+    serve_zensical = page.index("//// step | Preview the plain Zensical site")
+    install_prodockit = page.index("//// step | Install Prodockit")
+    adopt = page.index("//// step | Adopt the Zensical site")
+    diagnose = page.index("//// step | Diagnose the adopted site")
+    add_content = page.index("//// step | Add and verify Prodockit content")
+    assert (
+        install_zensical
+        < create_zensical
+        < build_zensical
+        < serve_zensical
+        < install_prodockit
+        < adopt
+        < diagnose
+        < add_content
+    )
 
     before_prodockit = page[:install_prodockit]
-    assert "zensical serve" in before_prodockit
     assert "zensical build --clean --strict" in before_prodockit
+    assert before_prodockit.index("zensical build --clean --strict") < before_prodockit.index(
+        "zensical serve"
+    )
     assert "pip install --upgrade prodockit" not in before_prodockit
-    assert "pdk adopt --dry-run\npdk adopt --apply" in page[install_prodockit:]
+    assert "pdk adopt --dry-run\npdk adopt --apply" in page[adopt:]
+    assert "pdk diag" in page[diagnose:add_content]
 
 
 def test_prodockit_is_not_presented_as_supporting_mkdocs() -> None:

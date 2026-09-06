@@ -59,7 +59,7 @@ zensical --version
 
 ////
 
-//// step | Create and test the Zensical site
+//// step | Create the Zensical site
 
 Follow Zensical's official [Create your site
 guide](https://zensical.org/docs/create-your-site/) from the empty project
@@ -81,29 +81,45 @@ docs/
 zensical.toml - Zensical project configuration
 ///
 
-Preview this site before installing Prodockit:
+////
+
+//// step | Build the plain Zensical site
+
+Build the complete static site from `zensical.toml` and the Markdown files in
+`docs/`:
+
+```bash
+zensical build --clean --strict
+```
+
+`--clean` removes output left by an earlier build. `--strict` makes a warning
+fail the command instead of allowing an uncertain result to continue. A
+successful build proves that Zensical can read the configuration and source
+and produce the deployable site files; it does not start a web server.
+
+////
+
+//// step | Preview the plain Zensical site
+
+Start Zensical's local development server:
 
 ```bash
 zensical serve
 ```
 
 Open the local address printed in the terminal and confirm that the starter
-site appears. Stop the server with `Ctrl+C`, then verify a clean strict build:
-
-```bash
-zensical build --clean --strict
-```
+site appears. While the server is running, Zensical watches the source and
+rebuilds the preview after a change. Stop it with `Ctrl+C`.
 
 Do not continue until both checks succeed. Any problem at this point belongs
 to the Python environment or the plain Zensical site, not Prodockit.
 
 ////
 
-//// step | Install Prodockit and adopt the site
+//// step | Install Prodockit
 
-Install Prodockit into the same active project environment. This makes `pdk`
-available; Adopt then installs the supported project toolchain and configures
-the standard authoring components and shared website styles.
+Install Prodockit into the same active project environment. This makes the
+`pdk` command available; it does not yet change the Zensical project.
 
 === ":material-apple: macOS"
 
@@ -129,10 +145,21 @@ the standard authoring components and shared website styles.
     Keep the intended virtual environment active and check that the alternative
     command belongs to it before installing packages.
 
-Confirm the command, preview the adoption, and apply the reviewed stages:
+Confirm that the command is available from the active environment:
 
 ```bash
 pdk --version
+```
+
+////
+
+//// step | Adopt the Zensical site
+
+Preview the integration stages before allowing Adopt to install the supported
+project toolchain and configure the standard authoring components and shared
+website styles:
+
+```bash
 pdk adopt --dry-run
 pdk adopt --apply
 ```
@@ -161,6 +188,27 @@ docs/
 requirements.txt - supported Python packages added by Adopt
 zensical.toml - original configuration updated by Adopt
 ///
+
+////
+
+//// step | Diagnose the adopted site
+
+Check the active environment and every required project capability before
+writing with the newly enabled components:
+
+```bash
+pdk diag
+```
+
+Resolve every `FAIL` before continuing. Because this clean-site route does not
+create a Git repository, a warning that Git or repository metadata is absent
+is expected until you choose to initialise or clone a repository. The Python,
+configuration, dependency, managed-file, and selected-renderer checks should
+pass.
+
+////
+
+//// step | Add and verify Prodockit content
 
 Replace `docs/index.md` with content that uses two of the extensions enabled by
 Adopt:
