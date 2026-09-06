@@ -272,7 +272,7 @@ Adoption deliberately stops before either action.
 
 ///
 
-### Restart the terminal after Windows installation
+### Restart the terminal after Windows installation {: #adopt-windows-restart }
 
 Use this Windows-only recovery step when an installer changes the terminal environment.
 

@@ -16,6 +16,10 @@ workflow. Run a command from the project
 root—the directory containing `zensical.toml`—unless an option explicitly
 names another location.
 
+After Bootstrap, follow [the post-install activation and checks](devcons/bootstrap.md#bootstrap-project-checks)
+before using these commands. Changing to the clone does not switch from the
+parent setup environment to the project's `.venv`.
+
 Use the shorter `pdk` executable when you prefer it; it is an exact alias.
 `bootstrap` also answers to `boot`, and `source-bundle` to `source`.
 
@@ -23,7 +27,7 @@ Before interpreting a long report, see [Reading command
 output](commands/output.md) for the shared phase, stage, colour, decision, and
 status language used across the commands.
 
-### Restart the terminal after Windows installation
+### Restart the terminal after Windows installation {: #cli-windows-restart }
 
 Use this Windows-only recovery step when an installer changes the terminal environment.
 

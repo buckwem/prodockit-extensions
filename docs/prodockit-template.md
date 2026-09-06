@@ -123,6 +123,11 @@ Bootstrap guides the two browser actions it cannot perform without holding
 your credentials: uploading the SSH public key and creating an empty project.
 It then verifies both rather than assuming a click succeeded.
 
+After Bootstrap finishes, follow [Activate the project and check the
+installation](devcons/bootstrap.md#bootstrap-project-checks). This second
+activation uses the clone's `.venv`, not the parent setup environment, before
+running `pdk diag` and the `pdk template-sync` preview.
+
 ////
 
 ///

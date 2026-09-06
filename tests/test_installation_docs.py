@@ -216,7 +216,7 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
 
     installation = page[page.index("## Install with bootstrap") : page.index("## What it covers")]
     assert "installation.md#installation-preparation" in installation
-    assert installation.count("//// step | ") == 5
+    assert installation.count("//// step | ") == 6
     assert "//// step | Install Prodockit into the active environment" in installation
     confirm = installation[
         installation.index("//// step | Confirm") : installation.index(
@@ -228,6 +228,11 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert "Do not run the complete `pdk diag` here" in installation
     assert "Changing directory" in confirm
     assert confirm.count("pdk diag") == 3
+    assert confirm.count("pdk template-sync") == 3
+    assert confirm.count('python -c "import sys; print(sys.prefix)"') == 3
+    assert "//// step | Activate the project and check the installation" in confirm
+    assert "Fully close Windows Terminal or VS Code" in confirm
+    assert "new and pre-existing" in confirm
     assert "The `Project` line must name the clone" in confirm
     assert "python3.14 -m venv" not in installation
     assert "py -3.14 -m venv" not in installation

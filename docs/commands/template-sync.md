@@ -97,7 +97,7 @@ each selected protected file.
 Protected-file decisions
 ///
 
-### Restart the terminal after Windows installation
+### Restart the terminal after Windows installation {: #cmd-template-sync-windows-restart }
 
 Use this Windows-only recovery step when an installer changes the terminal environment.
 

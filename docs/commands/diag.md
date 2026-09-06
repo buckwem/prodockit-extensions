@@ -32,6 +32,9 @@ Run Diagnostics from the **project root**, the directory containing
 `zensical.toml`, `.venv`, and normally `.git`. To inspect another configuration
 deliberately, pass `--config-file PATH`.
 
+After Bootstrap, complete [the project activation and checks](../devcons/bootstrap.md#bootstrap-project-checks)
+first. The parent setup environment stays active when you merely change directory.
+
 From the wrong directory, the report normally contains `FAIL Project
 configuration could not be loaded` followed by `project configuration not
 found: .../zensical.toml`. It may also warn that the directory is not a Git
