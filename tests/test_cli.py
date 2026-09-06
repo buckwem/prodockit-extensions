@@ -92,6 +92,32 @@ def test_template_sync_names_the_projects_a_workspace_holds(tmp_path, monkeypatc
     assert "report-one" in result.output and "report-two" in result.output
 
 
+@pytest.mark.parametrize(
+    ("command", "purpose"),
+    (("diag", "checked"), ("adopt", "adopted")),
+)
+def test_project_commands_refuse_a_workspace_holding_projects(
+    tmp_path, monkeypatch, command: str, purpose: str
+) -> None:
+    """After Windows Bootstrap, the old terminal remains in the setup
+    directory. Project commands must stop there rather than inspect or alter
+    the setup environment as though it were the generated project."""
+    from click.testing import CliRunner
+
+    from prodockit.cli import main
+
+    (tmp_path / "report-student" / ".git").mkdir(parents=True)
+    (tmp_path / ".venv").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, [command])
+
+    assert result.exit_code == 1
+    assert "holds projects rather than being one" in result.output
+    assert "report-student" in result.output
+    assert f"project you want {purpose}" in result.output
+
+
 def test_template_sync_has_no_root_option() -> None:
     """It works where it is run. A `--root` invites being pointed at one
     project from inside another, which is how the wrong repository gets a

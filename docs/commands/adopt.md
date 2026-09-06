@@ -31,10 +31,18 @@ Run Adopt from the **root of the existing project**, where its Zensical
 configuration and `.venv` are located. Adopt has no project-path option because
 its safety checks and changes are intentionally scoped to the current project.
 
-From the wrong directory, the first assessment reports `Existing documentation
-project — no Zensical configuration is here` and tells you to run the command
-from the directory containing the configuration. Stop there and change
-directory; do not create a configuration merely to satisfy Adopt.
+If the current directory holds one or more project repositories, Adopt refuses
+to start and names them:
+
+```text
+Error: C:\path\to\workspace holds projects rather than being one (report-student).
+Open a terminal in the project you want adopted, or cd into it.
+```
+
+In another wrong directory, the first assessment reports `Existing
+documentation project — no Zensical configuration is here` and tells you to
+run the command from the directory containing the configuration. Stop there
+and change directory; do not create a configuration merely to satisfy Adopt.
 
 ## Options {: #cmd-adopt-options }
 

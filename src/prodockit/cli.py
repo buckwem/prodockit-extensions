@@ -1992,6 +1992,9 @@ def diag_command(
         repair_windows_pango,
     )
 
+    if pathlib.Path(config_file) == pathlib.Path("zensical.toml"):
+        _reject_workspace_parent(pathlib.Path.cwd(), purpose="checked")
+
     fix = apply_repairs or legacy_fix
     fix_check = tuple(dict.fromkeys((*apply_check, *legacy_fix_check)))
     if dry_run and fix:
@@ -3141,6 +3144,7 @@ def adopt_command(
     if dry_run and apply:
         raise click.UsageError("choose either --dry-run or --apply, not both")
     root = Path.cwd()
+    _reject_workspace_parent(root, purpose="adopted")
     from prodockit.environment import project_environment_problem
 
     problem = project_environment_problem(root)
@@ -3635,6 +3639,43 @@ def pins(
 #:
 #: The long names all stay. They are what the User Guide, the changelog
 #: and anything anyone has scripted use.
+def _repository_children(here: pathlib.Path) -> list[str]:
+    """Immediate child repositories, without letting an unreadable entry fail."""
+
+    try:
+        children = sorted(here.iterdir())
+    except OSError:
+        return []
+    projects: list[str] = []
+    for child in children:
+        try:
+            if child.is_dir() and (child / ".git").exists():
+                projects.append(child.name)
+        except OSError:
+            continue
+    return sorted(projects)
+
+
+def _reject_workspace_parent(here: pathlib.Path, *, purpose: str) -> None:
+    """Refuse a folder which holds projects instead of being one.
+
+    Bootstrap deliberately finishes in the setup/workspace directory on
+    Windows because PATH changes require a fresh terminal. This catches the
+    easy mistake of running the next project command in that parent directory,
+    while leaving diagnostics and Adopt available to intentional non-Git
+    projects.
+    """
+
+    projects = _repository_children(here)
+    if not projects:
+        return
+    listed = ", ".join(projects[:4]) + (", ..." if len(projects) > 4 else "")
+    raise click.ClickException(
+        f"{here} holds projects rather than being one ({listed}). "
+        f"Open a terminal in the project you want {purpose}, or cd into it."
+    )
+
+
 def _wrong_directory(here: pathlib.Path) -> str:
     """Why this is the wrong place, and where to go instead.
 
@@ -3661,11 +3702,7 @@ def _wrong_directory(here: pathlib.Path) -> str:
             f"{here} is inside {inside.name}, but not at its top. "
             f"Run this from the project root: cd {inside}"
         )
-    try:
-        children = sorted(here.iterdir())
-    except OSError:
-        children = []
-    projects = sorted(child.name for child in children if child.is_dir() and is_repo(child))
+    projects = _repository_children(here)
     if projects:
         listed = ", ".join(projects[:4]) + (", ..." if len(projects) > 4 else "")
         return (

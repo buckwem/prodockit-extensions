@@ -35,11 +35,18 @@ deliberately, pass `--config-file PATH`.
 After Bootstrap, complete [the project activation and checks](../devcons/bootstrap.md#bootstrap-project-checks)
 first. The parent setup environment stays active when you merely change directory.
 
-From the wrong directory, the report normally contains `FAIL Project
+If the current directory holds one or more project repositories, Diagnostics
+refuses to start and names them:
+
+```text
+Error: C:\path\to\workspace holds projects rather than being one (report-student).
+Open a terminal in the project you want checked, or cd into it.
+```
+
+In another wrong directory, the report can instead contain `FAIL Project
 configuration could not be loaded` followed by `project configuration not
-found: .../zensical.toml`. It may also warn that the directory is not a Git
-repository. These are location errors; change directory rather than repairing
-the unrelated folder.
+found: .../zensical.toml`. These are location errors; change directory rather
+than repairing the unrelated folder.
 
 ## Options {: #cmd-diag-options }
 

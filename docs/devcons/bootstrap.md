@@ -98,9 +98,9 @@ Confirm both the installed version and the command selected by the shell:
 The command path must be inside the setup `.venv`. An older Prodockit command
 from another Python can otherwise shadow the package just installed while
 `pip` still reports success. Do not run the complete `pdk diag` here: it is a
-project-scoped command, so the setup directory correctly fails its
-configuration and repository checks. Step 6 runs it from the completed
-project and its separate environment.
+project-scoped command, so a setup directory which holds project repositories
+is refused before diagnostics start. Step 6 runs it from the completed project
+and its separate environment.
 
 ////
 
