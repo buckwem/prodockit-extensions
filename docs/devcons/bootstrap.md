@@ -15,11 +15,7 @@ route](../installation.md) when you want to choose every component yourself.
 Bootstrap turns the User Guide's install sequence into a list of stages that
 can be checked individually and repaired one at a time, rather than followed
 top to bottom and hoped over. It reports how many there are;
-\ref{tab-bootstrap-stages} names them. Use [section 29.1, Scan phases and
-stages](../commands/output.md#command-output-structure) to interpret this visual
-summary of its phases, stages, actions, warnings, and decisions:
-
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
+\ref{tab-bootstrap-stages} names them.
 
 The install is long, sequential, and easy to get half-right in ways that
 only surface much later - a missing Pango that looks fine until the first
@@ -115,6 +111,12 @@ pdk boot --dry-run
 Every command it would run, and every step it would ask you to do
 yourself, without running any of them. Worth one read on a machine you
 care about.
+
+Use [section 29.1, Scan phases and
+stages](../commands/output.md#command-output-structure) to interpret the phases,
+stages, actions, warnings, and decisions in this dry-run output:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
 ////
 
 //// step | Apply it

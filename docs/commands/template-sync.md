@@ -13,12 +13,6 @@ run is a preview.
 Use the [Template Sync task guide](../devcons/template-sync.md) for the complete
 review, merge, and verification workflow.
 
-Use [section 29.1, Scan phases and
-stages](output.md#command-output-structure) to interpret this visual summary;
-this reference then describes Template Sync's particular effects:
-
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
-
 ## Synopsis {: #cmd-template-sync-synopsis }
 
 Use preview mode first, then apply with any protected files selected for review.
@@ -63,6 +57,14 @@ reports `is not a git repository`. Change directory and rerun it.
 
 Template Sync options
 ///
+
+## Output {: #cmd-template-sync-output }
+
+Use [section 29.1, Scan phases and
+stages](output.md#command-output-structure) to interpret Template Sync's phase,
+stage, action, warning, and decision output:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
 
 ## Protected-file decisions {: #cmd-template-sync-protected-file-decisions }
 

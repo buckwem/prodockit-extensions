@@ -23,12 +23,6 @@ capability, an available update, or a check that could not be completed; warning
 alone leave the exit status at zero. Use `--verbose` to show the evidence behind
 passing checks.
 
-Use [section 29.1, Scan phases and
-stages](../commands/output.md#command-output-structure) to interpret this visual
-summary of a dry-run or applied repair plan:
-
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
-
 The shared [status guide](../commands/output.md#command-output-status) explains
 the normal diagnostic report.
 
@@ -50,6 +44,12 @@ Where several versions or remediations are valid, it lists all of them and
 marks **Leave unchanged** as the default. Each option includes its warning,
 affected paths, prerequisites, network requirement, recovery boundary, and the
 public command or internal typed operation that could perform it.
+
+Use [section 29.1, Scan phases and
+stages](../commands/output.md#command-output-structure) to interpret the phases,
+stages, actions, warnings, and decisions in this repair-plan output:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
 
 The repair registry classifies every stable check as confirmable, online,
 manual, ambiguous, prohibited, or not applicable. A source-level coverage guard

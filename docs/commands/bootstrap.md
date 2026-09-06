@@ -13,12 +13,6 @@ For the installation procedure and explanations of the 23 stages, use the
 [Bootstrap task guide](../devcons/bootstrap.md). This page is the command
 interface reference.
 
-Bootstrap uses Prodockit's shared phases, stages, actions, and warning colours.
-Use [section 29.1, Scan phases and
-stages](output.md#command-output-structure) to interpret this visual summary:
-
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
-
 ## Synopsis {: #cmd-bootstrap-synopsis }
 
 Use one mutually exclusive mode for each Bootstrap run.
@@ -61,6 +55,14 @@ project path or configuration questions are unexpected; do not save a second
 
 Bootstrap options
 ///
+
+## Output {: #cmd-bootstrap-output }
+
+Bootstrap uses Prodockit's shared phases, stages, actions, and warning colours.
+Use [section 29.1, Scan phases and
+stages](output.md#command-output-structure) to interpret the output:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
 
 ## Effects and prompts {: #cmd-bootstrap-effects-and-prompts }
 

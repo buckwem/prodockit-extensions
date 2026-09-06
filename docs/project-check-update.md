@@ -6,14 +6,8 @@ icon: lucide/list-checks
 
 # Check and update a template project
 
-This sequence combines several commands. Use [section 29.1, Scan phases and
-stages](commands/output.md#command-output-structure) to interpret this visual
-summary; its fields, status labels, colours, and safe decision defaults apply
-throughout the workflow:
-
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](assets/diagrams/command-output-anatomy.svg)
-
-Use this sequence for a project created from `prodockit-template`. It gives one
+This sequence combines several commands. Use it for a project created from
+`prodockit-template`. It gives one
 repeatable starting point whether you only want to confirm that the project is
 healthy or you expect a template update. The
 [Command reference](command-line.md) gives the complete interface of each
@@ -55,6 +49,13 @@ Review the stages, then use `pdk adopt --apply` if they are correct. Adopt can
 install or align the supported local toolchain and save the project's selected
 components, but it never downloads or applies a template. Rerun `pdk diag`
 afterward and resolve any remaining failure before continuing.
+
+Use [section 29.1, Scan phases and
+stages](commands/output.md#command-output-structure) to interpret the phases,
+stages, actions, warnings, and decisions shown by Adopt and later by Template
+Sync:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](assets/diagrams/command-output-anatomy.svg)
 
 ////
 

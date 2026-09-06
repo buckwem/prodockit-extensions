@@ -11,11 +11,6 @@ an existing Zensical document. It is project-scoped: it does not configure Git,
 SSH, an editor, a remote, or Pages, and it never commits or pushes.
 
 Use the [Adopt task guide](../adopt.md) for the preparation and review workflow.
-Use [section 29.1, Scan phases and
-stages](output.md#command-output-structure) to interpret the visual summary of
-the phase, stage, action, and decision language used in an Adopt run:
-
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
 
 ## Synopsis {: #cmd-adopt-synopsis }
 
@@ -60,6 +55,14 @@ directory; do not create a configuration merely to satisfy Adopt.
 
 Adopt options
 ///
+
+## Output {: #cmd-adopt-output }
+
+Use [section 29.1, Scan phases and
+stages](output.md#command-output-structure) to interpret the phase, stage,
+action, warning, and decision language used in an Adopt run:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
 
 ## Effects and ownership {: #cmd-adopt-effects-and-ownership }
 

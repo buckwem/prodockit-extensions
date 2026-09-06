@@ -13,12 +13,6 @@ metadata. The default run is deterministic, offline, and read-only.
 For the complete catalogue of stable check IDs and their remediation, use the
 [Diagnostics guide](../devcons/diagnostics.md).
 
-Use [section 29.1, Scan phases and
-stages](output.md#command-output-structure) to interpret the visual summary of
-the repair plan shown by dry-run and apply modes:
-
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
-
 The shared [status guide](output.md#command-output-status) explains normal
 `PASS`, `WARN`, and `FAIL` results.
 
@@ -63,6 +57,14 @@ the unrelated folder.
 
 Diagnostics options
 ///
+
+## Repair-plan output {: #cmd-diag-repair-plan-output }
+
+Use [section 29.1, Scan phases and
+stages](output.md#command-output-structure) to interpret the repair plan shown
+by dry-run and apply modes:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
 
 ## Repair boundary {: #cmd-diag-repair-boundary }
 
