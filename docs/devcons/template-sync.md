@@ -98,14 +98,16 @@ a file supplied by the template has uncommitted changes, because updating that
 file could hide work you have not saved in Git. Read the short summary and pay
 particular attention to any files described as "your edited files".
 
+Use this short key to scan the preview; see
+[how to read the full output](#tsync-read-the-output) for the detailed
+phase-by-phase explanation.
+
 <div class="pdk-terminal-key" aria-label="Template Sync colour key">
   <span class="pdk-terminal-key__phase">PHASE</span><span>new phase</span>
   <span class="pdk-terminal-key__stage">STAGE</span><span>one check</span>
   <span class="pdk-terminal-key__change">CHANGE</span><span>review first</span>
   <span class="pdk-terminal-key__warning">WARNING</span><span>decide or take care</span>
 </div>
-
-[How to read the full output](#tsync-read-the-output)
 
 The colours follow the command's terminal colour roles. Your terminal theme may
 render their precise shade differently; the words remain visible when colour is
