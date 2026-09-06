@@ -110,8 +110,16 @@ def test_pdf_figure_captions_use_chapter_and_figure_numbers(prodockit_pdf):
         " ".join(page.get_text().split()) for page in prodockit_pdf
     )
 
-    assert "Figure 4.1. Adopting Prodockit into an existing document" in text
-    assert "Figure 22.2. PDF stylesheet cascade" in text
+    chapters = {
+        match.group("title"): match.group("chapter")
+        for level, title, _ in prodockit_pdf.get_toc()
+        if level == 1
+        and (match := re.match(r"(?P<chapter>\d+)\.\s+(?P<title>.+)", title))
+    }
+    adopt = chapters["Add prodockit to an existing document"]
+    stylesheets = chapters["Stylesheets"]
+    assert f"Figure {adopt}.1. Adopting Prodockit into an existing document" in text
+    assert f"Figure {stylesheets}.2. PDF stylesheet cascade" in text
 
 
 def test_documentation_diagrams_have_rendered_figure_captions(prodockit_paths):
@@ -157,7 +165,8 @@ def test_desktop_numbers_headings_and_figures_with_the_rendered_chapter(
     node = shutil.which("node")
     puppeteer = ROOT / "tools" / "mermaid" / "node_modules" / "puppeteer"
     probe = ROOT / "tests" / "browser" / "rendered_text.js"
-    page = prodockit_paths.site_dir / "installation" / "index.html"
+    # Reference pages display the desktop TOC; task pages deliberately hide it.
+    page = prodockit_paths.site_dir / "commands" / "bootstrap" / "index.html"
     browser_candidates = (
         os.environ.get("PUPPETEER_EXECUTABLE_PATH"),
         shutil.which("google-chrome-stable"),
@@ -175,7 +184,7 @@ def test_desktop_numbers_headings_and_figures_with_the_rendered_chapter(
 
     heading_selector = ".md-typeset h1"
     toc_selector = (
-        ".md-nav--secondary > .md-nav__list > .md-nav__item > "
+        ".md-sidebar--secondary .md-nav--secondary > .md-nav__list > .md-nav__item > "
         ".md-nav__link .md-ellipsis"
     )
     environment = dict(os.environ, PUPPETEER_EXECUTABLE_PATH=str(browser))
@@ -187,15 +196,15 @@ def test_desktop_numbers_headings_and_figures_with_the_rendered_chapter(
         env=environment,
     )
     rendered = json.loads(completed.stdout)
-    heading = re.match(r"(?P<chapter>\d+)\. Installation", rendered[heading_selector])
+    heading = re.match(r"(?P<chapter>\d+)\. pdk bootstrap", rendered[heading_selector])
 
     assert heading is not None, rendered
     chapter = heading.group("chapter")
     assert chapter != "0"
-    assert rendered[toc_selector] == f"{chapter}.1 Prepare Python and its environment"
+    assert rendered[toc_selector] == f"{chapter}.1 Synopsis"
 
-    caption_selector = "#fig-adoption-workflow figcaption"
-    caption_page = prodockit_paths.site_dir / "adopt" / "index.html"
+    caption_selector = "#fig-cmd-bootstrap-output figcaption"
+    caption_page = page
     completed = subprocess.run(
         [node, str(probe), caption_page.as_uri(), caption_selector],
         check=True,
@@ -204,7 +213,7 @@ def test_desktop_numbers_headings_and_figures_with_the_rendered_chapter(
         env=environment,
     )
     rendered = json.loads(completed.stdout)
-    assert rendered[caption_selector].startswith("Figure 4.1. "), rendered
+    assert rendered[caption_selector].startswith(f"Figure {chapter}.1. "), rendered
 
 
 def test_numbered_figure_captions_follow_rendered_image_widths(
