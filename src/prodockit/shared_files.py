@@ -50,6 +50,15 @@ DEVELOPMENT_SOURCES = {
 }
 
 
+def same_text_content(actual: bytes, expected: bytes) -> bool:
+    """Compare managed text, allowing only Git's LF/CRLF conversion.
+
+    Keep raw bytes and hashes intact for diagnostics. Do not strip whitespace,
+    lone carriage returns, or final newlines: those remain content changes.
+    """
+    return actual.replace(b"\r\n", b"\n") == expected.replace(b"\r\n", b"\n")
+
+
 class SharedFileError(Exception):
     """Raised when a shared-file manifest or destination is unsafe or invalid."""
 
@@ -74,7 +83,7 @@ class SharedFileState:
     def status(self) -> str:
         if self.actual is None:
             return "missing"
-        if self.actual != self.expected:
+        if not same_text_content(self.actual, self.expected):
             return "different"
         return "current"
 

@@ -57,6 +57,29 @@ def test_absent_manifest_opts_out() -> None:
     assert inspect(ROOT / "not-a-project") == []
 
 
+@pytest.mark.parametrize("name", ["pdk.css", "pdk-pdf.css"])
+def test_crlf_checkout_is_current_and_not_rewritten(tmp_path: Path, name: str) -> None:
+    target = f"docs/stylesheets/{name}"
+    _manifest(tmp_path, source=name, target=target)
+    path = tmp_path / target
+    path.parent.mkdir(parents=True)
+    crlf = resource_bytes(name).replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    path.write_bytes(crlf)
+    states = inspect(tmp_path)
+    assert not drift(states)
+    assert apply(tmp_path, states) == []
+    assert path.read_bytes() == crlf
+    path.write_bytes(crlf + b"/* real edit */\r\n")
+    assert len(drift(inspect(tmp_path))) == 1
+
+
+@pytest.mark.parametrize("changed", [b"a \n", b"a", b"a\rb\n", b"b\n"])
+def test_line_ending_comparison_preserves_other_changes(changed: bytes) -> None:
+    from prodockit.shared_files import same_text_content
+
+    assert not same_text_content(changed, b"a\n")
+
+
 def test_an_incoming_manifest_repairs_an_older_project_without_one(tmp_path: Path) -> None:
     template = tmp_path / "template"
     project = tmp_path / "project"

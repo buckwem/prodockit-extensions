@@ -376,6 +376,19 @@ def test_assessment_aligns_a_newer_prodockit_floor(tmp_path: Path) -> None:
     assert "align version declarations" in dependency.detail
 
 
+def test_crlf_stylesheet_does_not_need_adopt_refresh(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    ensure_requirement(project)
+    ensure_zensical_config(project, AdoptOptions())
+    ensure_stylesheet(project)
+    stylesheet = project / STYLESHEET
+    content = stylesheet.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    stylesheet.write_bytes(content)
+    core = next(step for step in assess(project, AdoptOptions()) if step.id == "core")
+    assert core.status == "ok"
+    assert stylesheet.read_bytes() == content
+
+
 def test_assessment_refreshes_the_managed_stylesheet(tmp_path: Path) -> None:
     project = _project(tmp_path)
     ensure_requirement(project)
