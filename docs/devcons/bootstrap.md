@@ -41,13 +41,30 @@ anything, and a completed stage is left alone.
 
 //// step | Install Prodockit into the active environment
 
-Use `python -m pip` so installation is performed by the Python interpreter in
-the active `.venv` rather than by another `pip` command on `PATH`:
+With the setup `.venv` activated, upgrade pip and install Prodockit using the
+commands for your operating system. The `pip` or `pip3` command must belong to
+that active environment:
 
-```bash
-python -m pip install --upgrade pip
-python -m pip install --upgrade prodockit
-```
+=== ":material-apple: macOS"
+
+    ```bash
+    pip3 install --upgrade pip
+    pip3 install --upgrade prodockit
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    pip install --upgrade pip
+    pip install --upgrade prodockit
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    pip install --upgrade pip
+    pip install --upgrade prodockit
+    ```
 
 Confirm both the installed version and the command selected by the shell:
 

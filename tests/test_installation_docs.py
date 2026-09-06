@@ -168,7 +168,8 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
 def test_adoption_continues_after_shared_preparation() -> None:
     page = ADOPTION.read_text(encoding="utf-8")
 
-    assert "python -m pip install --upgrade prodockit" in page
+    assert "pip3 install --upgrade prodockit" in page
+    assert page.count("pip install --upgrade prodockit") == 2
 
     assert "MkDocs" not in page
 
@@ -218,6 +219,16 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert "installation.md#installation-preparation" in installation
     assert installation.count("//// step | ") == 6
     assert "//// step | Install Prodockit into the active environment" in installation
+    install_step = installation[
+        installation.index(
+            "//// step | Install Prodockit into the active environment"
+        ) : installation.index("Confirm both the installed version")
+    ]
+    assert '=== ":material-apple: macOS"' in install_step
+    assert '=== ":fontawesome-brands-windows: Windows"' in install_step
+    assert '=== ":material-linux: Linux (Ubuntu)"' in install_step
+    assert "pip3 install --upgrade pip\n    pip3 install --upgrade prodockit" in install_step
+    assert install_step.count("pip install --upgrade pip\n    pip install --upgrade prodockit") == 2
     confirm = installation[
         installation.index("//// step | Confirm") : installation.index(
             "### Restart the terminal after Windows installation"

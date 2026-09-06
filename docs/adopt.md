@@ -85,10 +85,26 @@ the steps below begin with installing Prodockit into it.
 
 //// step | Install or update prodockit
 
-```bash
-python -m pip install --upgrade pip
-python -m pip install --upgrade prodockit
-```
+=== ":material-apple: macOS"
+
+    ```bash
+    pip3 install --upgrade pip
+    pip3 install --upgrade prodockit
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    pip install --upgrade pip
+    pip install --upgrade prodockit
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    pip install --upgrade pip
+    pip install --upgrade prodockit
+    ```
 
 Confirm that the command comes from the active project environment:
 

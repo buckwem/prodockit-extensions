@@ -240,9 +240,23 @@ publishing workflows.
 
 3. Install the latest Prodockit package into that environment:
 
-    ```bash
-    python -m pip install --upgrade prodockit
-    ```
+    === ":material-apple: macOS"
+
+        ```bash
+        pip3 install --upgrade prodockit
+        ```
+
+    === ":fontawesome-brands-windows: Windows"
+
+        ```powershell
+        pip install --upgrade prodockit
+        ```
+
+    === ":material-linux: Linux (Ubuntu)"
+
+        ```bash
+        pip install --upgrade prodockit
+        ```
 
 4. Build the site with its usual command, then add the dates:
 
