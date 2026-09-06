@@ -34,6 +34,10 @@ Run Pins from the **project root** so it can find every declaration in the
 workflows, requirements files, toolchain file, and Python version file. Use
 `--root PATH` when deliberately managing a different project.
 
+Pins changes declarations, not installed packages. If the project has a `.venv`
+but another interpreter is running, Pins warns before proceeding: its tested
+defaults come from the running Prodockit release.
+
 From an unrelated directory, Pins usually does not fail: it reports `not
 declared anywhere` for each package and ends with `No version declarations
 found. Nothing to do.` That means the directory is wrong; it does not mean the

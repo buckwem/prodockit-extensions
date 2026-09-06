@@ -87,6 +87,13 @@ Assessment and dry-run modes report the number of stages needing work. Apply
 mode verifies each completed stage and finishes by naming the strict local
 build command. A blocking project or environment check stops the integration.
 
+Adopt is independent of Bootstrap. If a virtual environment is active and the
+project has its own `.venv`, they must match; otherwise Adopt stops before
+configuration or package changes. An intentionally named environment is accepted
+when the project has no `.venv`. With no active virtual environment, Adopt warns
+that package changes will affect the running Python installation. Create and
+activate an environment first unless that is intentional.
+
 ## Related commands {: #cmd-adopt-related-commands }
 
 Use these commands before or after Adopt for their separate responsibilities:

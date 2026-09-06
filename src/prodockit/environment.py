@@ -26,6 +26,20 @@ class BuildEnvironmentError(RuntimeError):
     """The active Python environment cannot satisfy the project build."""
 
 
+def project_environment_problem(root: str | Path) -> str | None:
+    """Describe a mismatch; each command decides whether it is blocking."""
+    from prodockit.diagnostics import same_path
+
+    expected = Path(root).expanduser().resolve() / ".venv"
+    if expected.is_dir() and not same_path(sys.prefix, str(expected)):
+        return (
+            f"Active Python is not the project's .venv: running {sys.prefix}; "
+            f"project environment {expected}. If this is unintended, deactivate "
+            "the current environment, activate the project's .venv, then rerun the command."
+        )
+    return None
+
+
 @dataclass(frozen=True)
 class RequirementFloor:
     package: str
