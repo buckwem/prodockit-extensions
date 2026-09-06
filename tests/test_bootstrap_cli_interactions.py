@@ -579,7 +579,7 @@ def test_windows_apply_completion_requires_a_fresh_powershell(tmp_path: Path) ->
         input="y\n",
     )
 
-    assert "Windows PATH changes cannot update this PowerShell" in output
+    assert "RESTART YOUR TERMINAL — WINDOWS SETTINGS HAVE CHANGED" in output
     assert "Activate.ps1" in output
     assert "pdk diag" in output
 

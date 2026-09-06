@@ -1079,13 +1079,9 @@ def _apply_outstanding(
     click.echo("Finished. Run `prodockit bootstrap` to confirm.")
     if context.guided and context.platform == WINDOWS:
         project = context.config.resolved_project_dir(context.home)
-        click.echo(
-            _bootstrap_warning(
-                "Windows PATH changes cannot update this PowerShell. Close it, open a new "
-                f"PowerShell, activate {project / '.venv' / 'Scripts' / 'Activate.ps1'}, "
-                "then run `pdk diag`."
-            )
-        )
+        from prodockit.windows_terminal import restart_banner
+
+        restart_banner(project)
     if journal is not None:
         click.echo(f"Recovery report: {journal.path}")
 
@@ -3901,13 +3897,21 @@ def _run_template_sync(
             )
     git = git_runner(project)
 
-    origin_remote = subprocess.run(
-        ["git", "-C", str(project), "remote", "get-url", "origin"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    ).stdout.strip()
+    from prodockit.tools import find
+    from prodockit.windows_terminal import prepare_template_environment
+
+    prepare_template_environment(project)
+    try:
+        origin_result = subprocess.run(
+            [find("git"), "-C", str(project), "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError as error:
+        raise TemplateSyncError("Git is unavailable. Run pdk diag before Template Sync.") from error
+    origin_remote = origin_result.stdout.strip()
 
     started = now()
     logged: list[str] = []
@@ -4277,9 +4281,7 @@ def _run_template_sync(
                 f"  Current:  will be assessed by Prodockit {package_plan.target} "
                 "after the fresh-process handoff"
             )
-            say_key(
-                "  Will do:  run Adopt's supported-toolchain and project integration stages"
-            )
+            say_key("  Will do:  run Adopt's supported-toolchain and project integration stages")
             say("  Command:  internal equivalent of `pdk adopt --apply`")
             say("  Files:    active environment and Adopt-managed project files")
             say(
@@ -4312,9 +4314,7 @@ def _run_template_sync(
                 for command in step.commands:
                     say(f"  Command:  {_template_sync_command(command)}")
                 for step_path in step.files:
-                    step_say(
-                        f"  File:     {_template_sync_display_path(step_path, project)}"
-                    )
+                    step_say(f"  File:     {_template_sync_display_path(step_path, project)}")
             if not adopt_work and not adopt_blockers:
                 say("  Result:   Adopt reports the supported combination is already configured")
 
@@ -4339,9 +4339,7 @@ def _run_template_sync(
             say_warning("Your edited files are protected:")
             say_warning("  Without review, your versions stay unchanged.")
             if local_only:
-                say_warning(
-                    "  Template copies will be saved beside them as .new files for review."
-                )
+                say_warning("  Template copies will be saved beside them as .new files for review.")
             else:
                 say_warning("  A normal --apply stops before changing anything until you decide.")
                 say_warning(
