@@ -306,6 +306,48 @@ def test_simulated_old_software_understands_resilient_homebrew_upgrades(
     assert runner.versions["vscode"] == "1.100.0"
 
 
+def test_simulated_windows_pango_upgrade_returns_strict_probe_evidence(
+    monkeypatch, tmp_path: Path
+) -> None:
+    runner = bootstrap_acceptance_driver.HarnessRunner(
+        {},
+        "git@example.invalid:group/project.git",
+        home=tmp_path,
+        old_software=True,
+    )
+    select_spec = bootstrap_acceptance_driver.pango_spec
+    monkeypatch.setattr(
+        bootstrap_acceptance_driver,
+        "pango_spec",
+        lambda: select_spec(arm64=False),
+    )
+    probe = [
+        "powershell",
+        "-NoProfile",
+        "-Command",
+        "pacman -Qkk mingw-w64-ucrt-x86_64-pango; ConvertTo-Json -Compress",
+    ]
+
+    before = json.loads(runner.run(probe).stdout)
+    runner.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "pacman -S --noconfirm mingw-w64-ucrt-x86_64-pango",
+        ]
+    )
+    after = json.loads(runner.run(probe).stdout)
+
+    assert before["dll_exists"] is False
+    assert after["architecture"] == "x64"
+    assert after["environment"] == "ucrt64"
+    assert after["dll_exists"] is True
+    assert after["package_integrity"] is True
+    assert after["user_environment"] == r"C:\msys64\ucrt64\bin"
+    assert after["process_environment"] == r"C:\msys64\ucrt64\bin"
+
+
 def test_a_wheel_file_or_single_wheel_directory_is_accepted(tmp_path: Path) -> None:
     wheel = tmp_path / "prodockit-1.2.3-py3-none-any.whl"
     wheel.write_bytes(b"wheel")
