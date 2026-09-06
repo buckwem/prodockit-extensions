@@ -31,7 +31,7 @@ before continuing. For bootstrap, create the setup `.venv` in the parent
 directory where you keep projects; bootstrap later creates a separate build
 environment inside the cloned project.
 
-The seven steps below install Prodockit into the active setup environment and
+The six steps below install Prodockit into the active setup environment and
 continue from the first read-only assessment to the completed site. If you
 open a new terminal, reactivate and verify that environment as described in
 section 3.1. Each command is safe to repeat: bootstrap checks before it changes
@@ -177,9 +177,6 @@ pdk boot
 Every stage `ok`, and the last one names the address your site is
 published at. If a stage still reports work to do, its line says what
 and why - and running `--apply` again does only that stage.
-////
-
-//// step | Restart the Windows terminal
 
 <span id="bootstrap-windows-restart"></span>
 
@@ -276,7 +273,7 @@ a support request.
 
 ## What it covers {: #bootstrap-stages }
 
-The seven installation steps above describe what you do.
+The six installation steps above describe what you do.
 \ref{tab-bootstrap-stages} is about the
 [`--apply` phase](#bootstrap-apply), which is discussed later: Bootstrap groups
 its 23 setup stages into seven phases while it sets up the machine and project.
