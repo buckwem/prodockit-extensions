@@ -109,29 +109,14 @@ Do not run the writing form in an ordinary pull-request job. CI would modify
 its disposable checkout, hide the source drift, and still leave the repository
 unchanged for the next run.
 
-## Options {: #sync-repo-options }
-
-\ref{tab-devcons-repo-metadata-options} separates the read-only checks from
-the options that write repository metadata.
-
-| Option {: width="32%" } | Default | What it does |
-| --- | --- | --- |
-| `-f`, `--config-file` | `zensical.toml` | Which Zensical config to update. |
-| \index{commands!prodockit sync-repo!`--readme`} | `README.md` | README to update the badge block in. Pass an empty value to skip it. |
-| \index{commands!prodockit sync-repo!`--remote`} | `origin` | Which git remote to read the repository URL from. |
-| \index{commands!prodockit sync-repo!`--branch`} | detected | Default branch for `edit_uri` and GitLab build-badge links. |
-| \index{commands!prodockit sync-repo!`--check`} | off | Report what would change, write nothing, exit non-zero if anything would. |
-/// table-caption | <
-    attrs: {id: tab-devcons-repo-metadata-options}
-
-Options
-///
+The [`pdk sync-repo` command reference](../commands/sync-repo.md) lists every
+file, remote, branch, and check option. This task guide explains when to use
+them and how each derived value affects the published site.
 
 ## What it does, and why {: #sync-repo-what-it-does }
 
-The options in \ref{tab-devcons-repo-metadata-options} select how much of the
-following repository update is performed; the underlying metadata rules remain
-the same.
+The selected command options change the files or remote inspected; the
+underlying metadata rules below remain the same.
 
 ### `edit_uri` {: #sync-repo-edit-uri }
 

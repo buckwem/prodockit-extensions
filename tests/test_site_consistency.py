@@ -171,6 +171,15 @@ def test_reference_site_keeps_shared_rules_out_of_author_overrides() -> None:
     assert author_owned == "/* Add project-specific website and PDF styles below this line. */\n"
 
 
+def test_reference_site_enables_native_glightbox_without_duplicate_captions() -> None:
+    config = read_config(_text("zensical.toml"))["project"]
+    glightbox = config["markdown_extensions"]["zensical"]["extensions"]["glightbox"]
+
+    assert glightbox["auto"] is True
+    assert glightbox["auto_themed"] is True
+    assert glightbox["auto_caption"] is False
+
+
 def test_reference_site_is_reusable_without_canonical_analytics() -> None:
     config = read_config(_text("zensical.toml"))["project"]
     extra = config["extra"]
@@ -229,13 +238,18 @@ def test_public_documentation_links_use_the_custom_domain() -> None:
         assert "https://buckwem.github.io/prodockit-extensions/" not in text, relative_path
 
 
-def test_command_line_reference_is_for_document_authors() -> None:
+def test_command_reference_is_a_top_level_section() -> None:
     nav = _nav()
     authoring = next(item["Authoring reference"] for item in nav if "Authoring reference" in item)
     maintenance = next(item["Maintain prodockit"] for item in nav if "Maintain prodockit" in item)
+    commands = next(item["Command reference"] for item in nav if "Command reference" in item)
 
-    assert {"21. Command-line reference": "command-line.md"} in authoring
+    assert all("command-line.md" not in item.values() for item in authoring)
     assert all("command-line.md" not in item.values() for item in maintenance)
+    assert {"28. Command overview": "command-line.md"} in commands
+    assert {"29. Reading command output": "commands/output.md"} in commands
+    assert {"30. Bootstrap": "commands/bootstrap.md"} in commands
+    assert {"31. Diagnostics": "commands/diag.md"} in commands
     assert "document authors" in _text("docs/command-line.md")
 
 
@@ -274,7 +288,6 @@ def test_authoring_navigation_uses_consistent_sentence_case() -> None:
         "Website macros",
         "Page update dates",
         "Generate a PDF",
-        "Command-line reference",
         "Stylesheets",
     ]
 

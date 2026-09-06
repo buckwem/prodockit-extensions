@@ -77,38 +77,55 @@ nav = [
     {"18. Website macros" = "macros.md"},
     {"19. Page update dates" = "update-dates.md"},
     {"20. Generate a PDF" = "pdf.md"},
-    {"21. Command-line reference" = "command-line.md"},
-    {"22. Stylesheets" = "stylesheets.md"},
+    {"21. Stylesheets" = "stylesheets.md"},
   ]},
   {"Publish a document" = [
-    {"23. Publishing overview" = "publishing.md"},
-    {"24. Requirements and dependencies" = "requirements-dependencies.md"},
-    {"25. Staying in step with the template" = "devcons/template-sync.md"},
-    {"26. Publish automatically" = "devcons/continuous-integration.md"},
-    {"27. Test the built output" = "devcons/testing.md"},
+    {"22. Publishing overview" = "publishing.md"},
+    {"23. Requirements and dependencies" = "requirements-dependencies.md"},
+    {"24. Staying in step with the template" = "devcons/template-sync.md"},
+    {"25. Publish automatically" = "devcons/continuous-integration.md"},
+    {"26. Test the built output" = "devcons/testing.md"},
+    {"27. Check and update a template project" = "project-check-update.md"},
+  ]},
+  {"Command reference" = [
+    {"28. Command overview" = "command-line.md"},
+    {"29. Reading command output" = "commands/output.md"},
+    {"30. Bootstrap" = "commands/bootstrap.md"},
+    {"31. Diagnostics" = "commands/diag.md"},
+    {"32. Adopt" = "commands/adopt.md"},
+    {"33. Pins" = "commands/pins.md"},
+    {"34. Template Sync" = "commands/template-sync.md"},
+    {"35. Configuration check" = "commands/config.md"},
+    {"36. Shared files" = "commands/shared-files.md"},
+    {"37. Initialise renderer tools" = "commands/init-tools.md"},
+    {"38. Initialise MathJax" = "commands/init-mathjax.md"},
+    {"39. Build a PDF" = "commands/pdf.md"},
+    {"40. Build a source bundle" = "commands/source-bundle.md"},
+    {"41. Synchronise repository metadata" = "commands/sync-repo.md"},
+    {"42. Update page dates" = "commands/update-dates.md"},
   ]},
   {"Maintain prodockit" = [
-    {"28. Maintenance overview" = "project-maintenance.md"},
-    {"29. Diagnose a project" = "devcons/diagnostics.md"},
-    {"30. Repository metadata" = "devcons/repo-metadata.md"},
-    {"31. Version pinning and drift" = "devcons/pinning-drift.md"},
-    {"32. Build and release" = "devcons/releasing.md"},
+    {"43. Maintenance overview" = "project-maintenance.md"},
+    {"44. Diagnose a project" = "devcons/diagnostics.md"},
+    {"45. Repository metadata" = "devcons/repo-metadata.md"},
+    {"46. Version pinning and drift" = "devcons/pinning-drift.md"},
+    {"47. Build and release" = "devcons/releasing.md"},
   ]},
   {"Contributor internals" = [
-    {"33. Overview" = "devcons/devcons.md"},
-    {"34. Development and code map" = "devcons/development.md"},
-    {"35. Extension integration" = "devcons/extension-internals.md"},
-    {"36. PDF pipeline and API" = "devcons/pdf-internals.md"},
-    {"37. Bootstrap design" = "devcons/bootstrap-internals.md"},
-    {"38. Zensical coupling" = "devcons/zensical-coupling.md"},
-    {"39. Implementation limitations" = "devcons/limitations.md"},
+    {"48. Overview" = "devcons/devcons.md"},
+    {"49. Development and code map" = "devcons/development.md"},
+    {"50. Extension integration" = "devcons/extension-internals.md"},
+    {"51. PDF pipeline and API" = "devcons/pdf-internals.md"},
+    {"52. Bootstrap design" = "devcons/bootstrap-internals.md"},
+    {"53. Zensical coupling" = "devcons/zensical-coupling.md"},
+    {"54. Implementation limitations" = "devcons/limitations.md"},
   ]},
   {"About" = [
-    {"40. About prodockit" = "about/index.md"},
-    {"41. Support and compatibility" = "about/support.md"},
-    {"42. Known limitations" = "about/limitations.md"},
-    {"43. Release notes" = "about/changelog.md"},
-    {"44. Licence" = "about/license.md"},
+    {"55. About prodockit" = "about/index.md"},
+    {"56. Support and compatibility" = "about/support.md"},
+    {"57. Known limitations" = "about/limitations.md"},
+    {"58. Release notes" = "about/changelog.md"},
+    {"59. Licence" = "about/license.md"},
   ]},
 ]
 
@@ -135,7 +152,6 @@ features = [
   "navigation.top",
   "navigation.tracking",
   "search.highlight",
-  "toc.integrate",
 ]
 
 [project.theme.icon]
@@ -180,6 +196,10 @@ permalink = true
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.def_list]
 [project.markdown_extensions.md_in_html]
+[project.markdown_extensions.zensical.extensions.glightbox]
+auto = true
+auto_themed = true
+auto_caption = false
 [project.markdown_extensions."pymdownx.blocks.caption"]
 types = [
   { name = "caption" },

@@ -1,1 +1,84 @@
 /* Add project-specific PDF-only styles below this line. */
+
+/* Reference-only command-output graphics; website equivalents are in branding.css. */
+.pdk-output-flow-figure,
+.pdk-output-statuses {
+  break-inside: avoid;
+}
+
+.pdk-output-flow-figure figcaption {
+  margin-top: 5pt;
+  color: #555;
+  font-size: 8pt;
+  text-align: center;
+}
+
+.pdk-terminal-key__phase {
+  color: #3b8eea;
+  font-weight: 700;
+}
+
+.pdk-terminal-key__stage {
+  color: #2472c8;
+  font-weight: 700;
+}
+
+.pdk-terminal-key__change {
+  color: #d670d6;
+  font-weight: 700;
+}
+
+.pdk-terminal-key__warning {
+  color: #e69f00;
+  font-weight: 700;
+}
+
+.pdk-output-statuses {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6pt;
+}
+
+.pdk-output-statuses > div {
+  padding: 6pt;
+  border: 0.5pt solid #bbb;
+  border-radius: 2pt;
+}
+
+.pdk-output-flow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4pt;
+  max-width: 22rem;
+  margin: 0 auto;
+}
+
+.pdk-output-flow > div {
+  display: flex;
+  flex-direction: column;
+  padding: 6pt;
+  border: 1pt solid #bbb;
+  border-radius: 2pt;
+  text-align: center;
+}
+
+.pdk-output-flow > div span,
+.pdk-output-statuses span {
+  display: block;
+  margin-top: 2pt;
+  font-size: 8pt;
+}
+
+.pdk-output-flow__change {
+  border-color: #d670d6 !important;
+}
+
+.pdk-output-flow__warning {
+  border-color: #e69f00 !important;
+}
+
+.pdk-output-flow__arrow {
+  color: #777;
+  text-align: center;
+  transform: rotate(90deg);
+}

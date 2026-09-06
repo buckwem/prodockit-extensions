@@ -7,3 +7,119 @@
 [data-md-color-scheme="default"] .md-logo img {
   content: url("../assets/logo_black.png");
 }
+
+/* Match the ANSI colour roles used by Prodockit's command output. */
+.pdk-terminal-key__phase,
+.pdk-terminal-key__stage,
+.pdk-terminal-key__change,
+.pdk-terminal-key__warning {
+  font-weight: 700;
+}
+
+.pdk-terminal-key__phase {
+  color: #3b8eea;
+}
+
+.pdk-terminal-key__stage {
+  color: #2472c8;
+}
+
+.pdk-terminal-key__change {
+  color: #d670d6;
+}
+
+.pdk-terminal-key__warning {
+  color: #e69f00;
+}
+
+/* Inline-code styling otherwise replaces the semantic output colour. */
+.pdk-terminal-key__change code,
+.pdk-terminal-key__warning code {
+  color: inherit;
+}
+
+/* Shared command-output reference graphics. */
+.pdk-output-flow-figure {
+  margin: 1.2rem 0;
+}
+
+.pdk-output-flow-figure figcaption {
+  margin-top: 0.45rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.pdk-output-flow {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) auto minmax(6rem, 1fr) auto minmax(6rem, 1fr) auto minmax(6rem, 1fr) auto minmax(6rem, 1fr);
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.pdk-output-flow > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 4.6rem;
+  padding: 0.65rem;
+  border: 0.08rem solid var(--md-default-fg-color--lightest);
+  border-radius: 0.25rem;
+  text-align: center;
+}
+
+.pdk-output-flow > div span {
+  margin-top: 0.2rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.68rem;
+}
+
+.pdk-output-flow__change {
+  border-color: #d670d6 !important;
+}
+
+.pdk-output-flow__warning {
+  border-color: #e69f00 !important;
+}
+
+.pdk-output-flow__arrow {
+  align-self: center;
+  color: var(--md-default-fg-color--lighter);
+  font-weight: 700;
+}
+
+.pdk-output-statuses {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+
+.pdk-output-statuses > div {
+  display: flex;
+  flex-direction: column;
+  padding: 0.7rem;
+  border-left: 0.18rem solid var(--md-default-fg-color--lightest);
+  background: var(--md-code-bg-color);
+}
+
+.pdk-output-statuses span {
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+}
+
+@media screen and (max-width: 76.234375em) {
+  .pdk-output-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .pdk-output-flow__arrow {
+    transform: rotate(90deg);
+  }
+}
+
+@media screen and (max-width: 44.984375em) {
+  .pdk-output-statuses {
+    grid-template-columns: 1fr;
+  }
+}

@@ -111,6 +111,18 @@ pdk boot --dry-run
 Every command it would run, and every step it would ask you to do
 yourself, without running any of them. Worth one read on a machine you
 care about.
+
+\ref{fig-bootstrap-dry-run-output} is a short visual guide to the dry-run
+output. Use [section 29.1, Scan phases and
+stages](../commands/output.md#command-output-structure) for the complete
+explanation of its phases, stages, actions, warnings, and decisions:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-bootstrap-dry-run-output}
+
+Reading Bootstrap's dry-run output
+///
 ////
 
 //// step | Apply it

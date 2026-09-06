@@ -23,6 +23,9 @@ capability, an available update, or a check that could not be completed; warning
 alone leave the exit status at zero. Use `--verbose` to show the evidence behind
 passing checks.
 
+The shared [status guide](../commands/output.md#command-output-status) explains
+the normal diagnostic report.
+
 The tables below use the stable check ID included by `pdk diag --json`. Find the
 ID in the report, apply its remediation, then run `pdk diag` again. When the
 configuration section fails, `pdk config --check` provides the individual
@@ -41,6 +44,18 @@ Where several versions or remediations are valid, it lists all of them and
 marks **Leave unchanged** as the default. Each option includes its warning,
 affected paths, prerequisites, network requirement, recovery boundary, and the
 public command or internal typed operation that could perform it.
+
+\ref{fig-diagnostics-repair-plan-output} is a short visual guide to the repair
+plan. Use [section 29.1, Scan phases and
+stages](../commands/output.md#command-output-structure) for the complete
+explanation of its phases, stages, actions, warnings, and decisions:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-diagnostics-repair-plan-output}
+
+Reading a Diagnostics repair plan
+///
 
 The repair registry classifies every stable check as confirmable, online,
 manual, ambiguous, prohibited, or not applicable. A source-level coverage guard
