@@ -190,9 +190,7 @@ def stable_source_refs(refs: dict[str, str], *, provider: str) -> dict[str, str]
 
     if provider not in {"github", "surrey"}:
         raise LiveProviderError(f"unsupported source-ref provider: {provider}")
-    stable = {
-        name: object_id for name, object_id in refs.items() if name.startswith("refs/heads/")
-    }
+    stable = {name: object_id for name, object_id in refs.items() if name.startswith("refs/heads/")}
     for name, object_id in refs.items():
         if not name.startswith("refs/tags/"):
             continue
@@ -333,9 +331,7 @@ def query_refs(
         break
     else:
         assert failure is not None
-        raise LiveProviderError(
-            failure_with_history(str(failure), failures[:-1])
-        ) from failure
+        raise LiveProviderError(failure_with_history(str(failure), failures[:-1])) from failure
     refs: dict[str, str] = {}
     for number, line in enumerate(result.stdout.splitlines(), start=1):
         if not line.strip():
@@ -647,9 +643,7 @@ def validate_controller_checkout(
         # GitHub Actions checkout records the same HTTPS repository without
         # the optional ``.git`` suffix.  Keep the allowlist exact apart from
         # that Git-equivalent spelling.
-        if values["origin"].removesuffix(".git") != RELEASE_SOURCE.removesuffix(
-            ".git"
-        ):
+        if values["origin"].removesuffix(".git") != RELEASE_SOURCE.removesuffix(".git"):
             raise LiveProviderError("the release controller did not come from the public source")
         if values["head"] != expected_release_commit:
             raise LiveProviderError(
@@ -813,7 +807,17 @@ def _authorise_non_git_command(
     elif stage_id == "remote":
         accepted = command == [candidate, "-m", "prodockit", "sync-repo"]
     elif stage_id == "project-env":
+        from prodockit.bootstrap.stages import PANDOC_VERSION
+
         accepted = command in (
+            [
+                project_python,
+                "-m",
+                "prodockit.toolchain",
+                "install-pandoc",
+                "--version",
+                PANDOC_VERSION,
+            ],
             [candidate, "-m", "venv", str(project / ".venv")],
             [
                 project_python,
@@ -837,9 +841,7 @@ def _authorise_non_git_command(
             and len(command) == 5
             and command[:4] == [project_python, "-m", "pip", "install"]
         ):
-            accepted = bool(
-                re.fullmatch(r"weasyprint>=[1-9][0-9]*(?:\.[0-9]+){1,2}", command[4])
-            )
+            accepted = bool(re.fullmatch(r"weasyprint>=[1-9][0-9]*(?:\.[0-9]+){1,2}", command[4]))
         if (
             not accepted
             and len(command) == 6
@@ -875,10 +877,7 @@ def _authorise_non_git_command(
                 "puppeteer@25.9.0; fi"
                 " && npm exec -- puppeteer browsers install"
             ),
-            (
-                f"cd {shlex.quote(str(project / 'tools' / 'mathjax'))} "
-                "&& npm ci --legacy-peer-deps"
-            ),
+            (f"cd {shlex.quote(str(project / 'tools' / 'mathjax'))} && npm ci --legacy-peer-deps"),
         }
         accepted = executable == "bash" and command[1:2] == ["-c"] and command[2] in wanted
     elif stage_id == "vscode-settings":
@@ -1091,9 +1090,7 @@ def apply_repository_path(
             # clone-source correctly reports the already-recorded source instead
             # of repeating the selection message.  Accept the explanation from
             # either part of the same Bootstrap run.
-            if "Option 1 selected automatically" not in (
-                configure_output + clone_source_detail
-            ):
+            if "Option 1 selected automatically" not in (configure_output + clone_source_detail):
                 raise LiveProviderError("Bootstrap did not report automatic option 1")
             if "first-push" in applied:
                 raise LiveProviderError("the populated destination attempted another push")

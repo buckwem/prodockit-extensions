@@ -51,6 +51,42 @@ def _context(
     )
 
 
+@pytest.mark.parametrize("platform", [MACOS, WINDOWS, UBUNTU])
+@pytest.mark.parametrize("source_url", ["", "group/existing"])
+@pytest.mark.parametrize("version", [None, "3.11", "3.10.1"])
+def test_project_pandoc_is_exact_local_and_repeatable(
+    tmp_path, monkeypatch, platform, source_url, version
+):
+    context = _context(tmp_path, platform=platform, source_url=source_url)
+    project = context.config.resolved_project_dir(context.home)
+    python = stages._venv_python(context)
+    python.parent.mkdir(parents=True)
+    python.touch()
+    (project / "requirements.txt").write_text("prodockit\n")
+    (project / stages.ADOPT_MANIFEST).write_text("schema = 1\n")
+    monkeypatch.setattr(stages, "_project_venv_is_structurally_complete", lambda c: True)
+    monkeypatch.setattr(stages, "_macos_loader_is_configured", lambda c: True)
+    monkeypatch.setattr(stages, "_imports_from_project_venv", lambda c, m: CommandResult(0))
+    local = stages._venv_command(context, "pandoc")
+    context = replace(
+        context,
+        runner=CliFakeRunner(
+            {
+                str(local): CommandResult(0, f"pandoc {version}\n")
+                if version
+                else CommandResult(1),
+            }
+        ),
+    )
+    result = stages._check_project_env(context)
+    assert result.status is (Status.OK if version == stages.PANDOC_VERSION else Status.WRONG)
+    command = [str(python), "-m", "prodockit.toolchain", "install-pandoc", "--version", "3.10.1"]
+    plan = stages._plan_project_env(context)
+    assert (command in plan.commands) is (version != stages.PANDOC_VERSION)
+    local.touch()
+    assert stages.pandoc_command(context) == str(local)
+
+
 def _pushed_context(
     tmp_path: Path,
     *,
@@ -224,8 +260,7 @@ def _installed_renderer_files(project: Path) -> None:
     mermaid.parent.mkdir(parents=True)
     mermaid.touch()
     bundle = (
-        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5"
-        / "tex-svg-full.js"
+        project / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
     )
     bundle.parent.mkdir(parents=True)
     bundle.write_text("bundle", encoding="utf-8")
@@ -616,9 +651,7 @@ def test_node_setup_recovers_puppeteer_omitted_by_legacy_peer_install(
 ) -> None:
     plan = stages._plan_node(_context(tmp_path, platform=platform))
     mermaid = next(
-        " ".join(command)
-        for command in plan.commands
-        if "tools/mermaid" in " ".join(command)
+        " ".join(command) for command in plan.commands if "tools/mermaid" in " ".join(command)
     )
 
     assert "node_modules/puppeteer" in mermaid

@@ -660,7 +660,11 @@ def _found_where_installed(context: Context, name: str) -> str:
 
 
 def pandoc_command(context: Context) -> str:
-    """How to invoke pandoc: `pandoc`, or where winget put it."""
+    """Prefer the project's exact toolchain, then the system installation."""
+    if context.config.project_name:
+        local = _venv_command(context, "pandoc")
+        if local.exists():
+            return str(local)
     return _found_where_installed(context, "pandoc")
 
 
@@ -2944,7 +2948,7 @@ def _plan_pandoc(context: Context) -> Plan:
         + "); "
         + '$root = $roots | Where-Object { Test-Path "$_\\usr\\bin\\bash.exe" } '
         + "| Select-Object -First 1; "
-        + "if ($root) { Write-Host \"Reusing MSYS2 at $root\"; exit 0 }; "
+        + 'if ($root) { Write-Host "Reusing MSYS2 at $root"; exit 0 }; '
         + "& "
         + " ".join(msys2_arguments)
         + "; exit $LASTEXITCODE"
@@ -3226,9 +3230,15 @@ def _check_project_env(context: Context) -> CheckResult:
         if changed:
             names = ", ".join(state.file.target for state in changed)
             return _wrong(
-                "the first-path clone has managed files from an older Prodockit release: "
-                f"{names}"
+                f"the first-path clone has managed files from an older Prodockit release: {names}"
             )
+    pandoc = context.runner.run([str(_venv_command(context, "pandoc")), "--version"])
+    pandoc_version = _pandoc_version(pandoc.stdout) if pandoc.ok else None
+    if pandoc_version != PANDOC_VERSION:
+        return _wrong(
+            f"the project's Pandoc is {pandoc_version or 'missing or unreadable'}; "
+            f"install the supported {PANDOC_VERSION} in {_project_venv(context)}"
+        )
     build_python = _project_build_python(project)
     environment_python = _project_environment_python(context) if build_python else None
     if (
@@ -3407,6 +3417,18 @@ def _plan_project_env(context: Context) -> Plan:
     if not python.exists() or rebuild:
         commands.append([sys.executable, "-m", "venv", str(venv)])
     commands.append([str(python), "-m", "pip", "install", "-r", str(project / "requirements.txt")])
+    pandoc = context.runner.run([str(_venv_command(context, "pandoc")), "--version"])
+    if rebuild or not pandoc.ok or _pandoc_version(pandoc.stdout) != PANDOC_VERSION:
+        commands.append(
+            [
+                str(python),
+                "-m",
+                "prodockit.toolchain",
+                "install-pandoc",
+                "--version",
+                PANDOC_VERSION,
+            ]
+        )
     if context.guided and not context.config.source_url.strip():
         # The first path starts from a replaceable template checkout. Install
         # the renderer and shared assets from Prodockit itself so correctness
@@ -3419,9 +3441,7 @@ def _plan_project_env(context: Context) -> Plan:
             # the template's requirements.  A deliberately old template is a
             # supported first-path input; its project environment must not be
             # allowed to restore old managed files over the candidate release.
-            commands.append(
-                [sys.executable, "-m", "prodockit", "shared-files", "--apply"]
-            )
+            commands.append([sys.executable, "-m", "prodockit", "shared-files", "--apply"])
     components = project / ADOPT_MANIFEST
     if context.guided and not components.exists():
         commands.append(
@@ -3515,8 +3535,7 @@ def _run_mermaid_probe(
         "Mermaid browser health probe",
         lambda: context.runner.run(command, cwd=cwd, timeout=30),
         succeeded=lambda completed: completed.ok,
-        failure_detail=lambda completed: completed.stderr.strip()
-        or completed.stdout.strip(),
+        failure_detail=lambda completed: completed.stderr.strip() or completed.stdout.strip(),
         retry_delays=DEFAULT_RETRY_DELAYS,
         reporter=reporter,
         sleeper=time.sleep,
@@ -3595,7 +3614,7 @@ def _check_node(context: Context) -> CheckResult:
                     "bash",
                     "-c",
                     "browser=$(command -v chromium-browser || command -v chromium) || exit 1; "
-                    "export PUPPETEER_EXECUTABLE_PATH=$browser; exec \"$@\"",
+                    'export PUPPETEER_EXECUTABLE_PATH=$browser; exec "$@"',
                     "prodockit-mermaid-probe",
                     *mermaid_command,
                 ]
@@ -3714,8 +3733,7 @@ def _windows_node_needs_architecture_handover(context: Context) -> bool:
             "powershell",
             "-NoProfile",
             "-Command",
-            "[System.Runtime.InteropServices.RuntimeInformation]::"
-            "OSArchitecture.ToString()",
+            "[System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()",
         ]
     )
     return (
@@ -3740,11 +3758,11 @@ def _windows_remove_registered_node() -> list[str]:
         "$entry.PSChildName } elseif ($entry.UninstallString -match "
         "'\\{[0-9A-Fa-f-]+\\}') { $Matches[0] } else { $null }; "
         "if ($product) { Write-Host "
-        "\"Removing $($entry.DisplayName) $product before installing native ARM64 Node\"; "
+        '"Removing $($entry.DisplayName) $product before installing native ARM64 Node"; '
         "$process = Start-Process msiexec.exe -ArgumentList "
         "@('/x', $product, '/qn', '/norestart') -Wait -PassThru; "
         "if ($process.ExitCode -notin @(0, 1605, 1614, 3010)) { "
-        "throw \"Node uninstall failed with exit code $($process.ExitCode)\" }; "
+        'throw "Node uninstall failed with exit code $($process.ExitCode)" }; '
         "$removed = $true } }; if (-not $removed) { "
         "throw 'The existing x64 Node MSI registration could not be found' }"
     )

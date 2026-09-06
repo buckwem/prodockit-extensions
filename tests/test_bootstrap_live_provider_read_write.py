@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 from prodockit.adopt import MANIFEST, AdoptOptions, manifest_source
-from prodockit.bootstrap.stages import _WRITE_NEW_TEXT_FILE, WEASYPRINT_MIN_VERSION
+from prodockit.bootstrap.stages import _WRITE_NEW_TEXT_FILE, PANDOC_VERSION, WEASYPRINT_MIN_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -587,6 +587,14 @@ def test_project_environment_allows_only_the_reviewed_template_repairs(
             [
                 project_python,
                 "-m",
+                "prodockit.toolchain",
+                "install-pandoc",
+                "--version",
+                PANDOC_VERSION,
+            ],
+            [
+                project_python,
+                "-m",
                 "pip",
                 "install",
                 f"weasyprint>={WEASYPRINT_MIN_VERSION}",
@@ -711,9 +719,7 @@ def test_plan_allows_only_the_reviewed_node_dependency_commands(tmp_path: Path) 
 
     changed_runtime = [list(command) for command in reviewed]
     changed_runtime[0] = list(changed_runtime[0])
-    changed_runtime[0][2] = changed_runtime[0][2].replace(
-        "puppeteer@25.9.0", "puppeteer@latest"
-    )
+    changed_runtime[0][2] = changed_runtime[0][2].replace("puppeteer@25.9.0", "puppeteer@latest")
     with pytest.raises(live.LiveProviderError, match="unapproved non-Git"):
         live.authorise_plan(
             "node",
@@ -899,9 +905,7 @@ def test_controller_checkout_must_be_clean_main_at_origin_main(tmp_path: Path) -
         )
 
 
-@pytest.mark.parametrize(
-    "origin", [live.RELEASE_SOURCE, live.RELEASE_SOURCE.removesuffix(".git")]
-)
+@pytest.mark.parametrize("origin", [live.RELEASE_SOURCE, live.RELEASE_SOURCE.removesuffix(".git")])
 def test_release_controller_accepts_exact_detached_public_commit(
     tmp_path: Path, origin: str
 ) -> None:
@@ -1182,11 +1186,21 @@ def test_both_repository_paths_use_real_stages_against_local_bare_repositories(
             project_name=fixture.destination_project,
             project_dir=str(setup / fixture.destination_project),
         )
-        populated = subprocess.run(
-            ["git", "--git-dir", str(destination_bare), "show-ref", "--verify", "refs/heads/main"],
-            capture_output=True,
-            check=False,
-        ).returncode == 0
+        populated = (
+            subprocess.run(
+                [
+                    "git",
+                    "--git-dir",
+                    str(destination_bare),
+                    "show-ref",
+                    "--verify",
+                    "refs/heads/main",
+                ],
+                capture_output=True,
+                check=False,
+            ).returncode
+            == 0
+        )
         if populated:
             config.source_url = f"{fixture.destination_namespace}/{fixture.destination_project}"
             config.history = "keep"
