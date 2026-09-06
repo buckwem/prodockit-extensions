@@ -47,17 +47,19 @@ else:  # pragma: no cover - `tomllib` is 3.11+, and this package supports 3.10
 
 #: Where each host's template lives. A project on Surrey's GitLab tracks
 #: Surrey's mirror, because a student there may have no GitHub access at
-#: all; everyone else tracks the canonical copy. So this is a lookup with
-#: a default, not "the same host as the project".
+#: all; everyone else tracks the canonical public copy. Public GitHub is
+#: deliberately HTTPS: template-sync only reads it, and requiring an SSH
+#: trust or account decision for a public dependency made a clean Windows
+#: GitLab.com project fail immediately after Bootstrap had succeeded.
 TEMPLATE_REMOTES = {
     "gitlab.surrey.ac.uk": "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git",
-    "gitlab.com": "git@github.com:buckwem/prodockit-template.git",
-    "github.com": "git@github.com:buckwem/prodockit-template.git",
+    "gitlab.com": "https://github.com/buckwem/prodockit-template.git",
+    "github.com": "https://github.com/buckwem/prodockit-template.git",
 }
 
 #: The host each override flag names, and how a slug becomes a remote.
 OVERRIDE_HOSTS = {
-    "github": ("github.com", "git@github.com:{slug}.git"),
+    "github": ("github.com", "https://github.com/{slug}.git"),
     "surrey": ("gitlab.surrey.ac.uk", "git@gitlab.surrey.ac.uk:{slug}.git"),
 }
 
@@ -586,6 +588,16 @@ def ensure_template(remote: str, path: pathlib.Path, run: GitRunner) -> str:
     never a checkout anybody works in; `--template-path` exists for that.
     """
     if (path / ".git").exists():
+        # Cache paths are based on host/namespace/repository, so changing a
+        # public source from SSH to HTTPS intentionally finds the old cache.
+        # Move that tool-owned checkout to the currently selected transport
+        # before fetching; otherwise an upgraded installation keeps using the
+        # stale SSH origin and still prompts for github.com's host key.
+        if not run(["git", "-C", str(path), "remote", "set-url", "origin", remote]):
+            raise TemplateSyncError(
+                f"the cached template at {path} could not be pointed at {remote} - "
+                "delete that cache directory and run this again"
+            )
         if not run(["git", "-C", str(path), "fetch", "--quiet", "origin"]):
             return "offline"
         if not run(["git", "-C", str(path), "reset", "--hard", "--quiet", "FETCH_HEAD"]):
@@ -599,8 +611,8 @@ def ensure_template(remote: str, path: pathlib.Path, run: GitRunner) -> str:
     if not run(["git", "clone", "--quiet", remote, str(path)]):
         raise TemplateSyncError(
             f"could not fetch the template from {remote} - check the network, and "
-            "that you can reach that host (a Surrey template needs your GitLab "
-            "access), or point this at a checkout with --template-path"
+            "that you can reach that host (the Surrey mirror also needs your "
+            "GitLab access), or point this at a checkout with --template-path"
         )
     return "cloned"
 
@@ -781,7 +793,7 @@ FILE_ACTIONS = {
     "add": "new files supplied by the template",
     "update": "newer template versions are available",
     "keep": "your versions stay; template copies are saved as .new",
-    "forced": "show a diff and choose overwrite or .new because you used --force",
+    "forced": "show a diff and choose overwrite, .new, or skip because it was selected for review",
 }
 
 FILE_ACTION_LABELS = {
@@ -839,6 +851,7 @@ def plan_template_files(
     baseline: Baseline,
     *,
     force: Iterable[str] = (),
+    review_all: bool = False,
 ) -> list[FileAction]:
     """What an update would do to each template-owned file.
 
@@ -865,7 +878,7 @@ def plan_template_files(
         elif mine == theirs:
             actions.append(FileAction(path, here, "same", FILE_ACTIONS["same"]))
         elif path in edited or here in edited:
-            forced_here = path in forced or here in forced
+            forced_here = review_all or path in forced or here in forced
             name = "forced" if forced_here else "keep"
             actions.append(FileAction(path, here, name, FILE_ACTIONS[name]))
         else:

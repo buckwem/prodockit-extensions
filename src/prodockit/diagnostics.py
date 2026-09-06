@@ -590,7 +590,7 @@ class RepairTransaction:
             self.record_creation(ignore)
         separator = "" if not existing or existing.endswith("\n") else "\n"
         ignore.write_text(
-            f"{existing}{separator}\n# Recoverable local backups made by `pdk diag --fix`.\n"
+            f"{existing}{separator}\n# Recoverable local backups made by `pdk diag --apply`.\n"
             ".prodockit-quarantine/\n",
             encoding="utf-8",
         )
@@ -1185,7 +1185,7 @@ def _renderer_candidate(check: DiagnosticResult, report: DiagnosticReport) -> Re
             "manual",
             check.summary,
             "Renderer installation is disabled unless --online is explicitly supplied.",
-            f"Rerun `pdk diag --online --fix --fix-check {check.id}`.",
+            f"Rerun `pdk diag --online --apply --apply-check {check.id}`.",
         )
     node = next((item for item in report.checks if item.id == "renderer.node"), None)
     npm = next((item for item in report.checks if item.id == "renderer.npm"), None)
@@ -1667,7 +1667,7 @@ def repair_distribution_metadata(
     if prefix is None and declared and not same_path(declared, str(active_prefix)):
         raise MetadataRepairError(
             "VIRTUAL_ENV does not match the Python running Prodockit; activate the intended "
-            "environment before using `pdk diag --fix`"
+            "environment before using `pdk diag --apply`"
         )
 
     libraries = site_packages or _active_site_packages(active_prefix)
@@ -1698,7 +1698,7 @@ def repair_distribution_metadata(
         current_fingerprint = _metadata_repair_fingerprint(entries)
         if current_fingerprint != expected_fingerprint:
             raise MetadataRepairError(
-                "the metadata repair plan became stale after inspection; rerun `pdk diag --fix`"
+                "the metadata repair plan became stale after inspection; rerun `pdk diag --apply`"
             )
 
     transaction = RepairTransaction(
@@ -1777,7 +1777,7 @@ def repair_mixed_virtual_environment(
     current = _interpreter_consistency_check(project)
     if current.data.get("repair_fingerprint") != expected_fingerprint:
         raise RepairTransactionError(
-            "the interpreter repair plan became stale after inspection; rerun pdk diag --fix"
+            "the interpreter repair plan became stale after inspection; rerun pdk diag --apply"
         )
     selected = Path(base_executable).expanduser().absolute()
     if not selected.is_file():
@@ -1901,7 +1901,7 @@ def repair_shared_file(
     matches = [state for state in states if state.file.target == target]
     if len(matches) != 1:
         raise RepairTransactionError(
-            f"shared-file repair plan became stale for {target}; rerun `pdk diag --fix`"
+            f"shared-file repair plan became stale for {target}; rerun `pdk diag --apply`"
         )
     state = matches[0]
     if (
@@ -1910,7 +1910,7 @@ def repair_shared_file(
         or state.expected_sha256 != expected_sha256
     ):
         raise RepairTransactionError(
-            f"shared-file repair plan became stale for {target}; rerun `pdk diag --fix`"
+            f"shared-file repair plan became stale for {target}; rerun `pdk diag --apply`"
         )
     if state.status == "current":
         return RepairApplyResult("not-needed")
@@ -1991,7 +1991,7 @@ def repair_pin_declarations(
         raise RepairTransactionError(f"{version} is not a bounded detected choice for {package}")
     if _pin_state_fingerprint(project, package) != expected_fingerprint:
         raise RepairTransactionError(
-            f"pin repair plan became stale for {package}; rerun `pdk diag --fix`"
+            f"pin repair plan became stale for {package}; rerun `pdk diag --apply`"
         )
     changed_paths = tuple(
         dict.fromkeys(site.path for site in state.sites if site.version != version)
@@ -2072,7 +2072,7 @@ def repair_locked_renderer(
         raise RepairTransactionError(f"renderer repair refused: {refusal}")
     if _renderer_plan_fingerprint(project, component) != expected_fingerprint:
         raise RepairTransactionError(
-            f"{component} repair plan became stale; rerun `pdk diag --online --fix`"
+            f"{component} repair plan became stale; rerun `pdk diag --online --apply`"
         )
     npm = shutil.which("npm")
     node = shutil.which("node")
@@ -2213,7 +2213,7 @@ def repair_windows_pango(
         for key in ("architecture", "environment", "package"):
             if expected.get(key) != observed.get(key):
                 raise RepairTransactionError(
-                    "the Windows Pango repair plan became stale; rerun `pdk diag --fix`"
+                    "the Windows Pango repair plan became stale; rerun `pdk diag --apply`"
                 )
     spec = pango_spec(arm64=before.architecture == "arm64")
     command = ["powershell", "-NoProfile", "-Command", repair_script(spec)]
@@ -2426,7 +2426,7 @@ def repair_project_configuration(
         raise RepairTransactionError("configuration repair supports a regular zensical.toml only")
     if _content_sha256(config_path) != expected_fingerprint:
         raise RepairTransactionError(
-            "configuration repair plan became stale; rerun `pdk diag --fix`"
+            "configuration repair plan became stale; rerun `pdk diag --apply`"
         )
     try:
         source = config_path.read_bytes().decode("utf-8")
@@ -2839,7 +2839,7 @@ def _installation_checks(root: Path) -> list[DiagnosticResult]:
             repair_error = _sanitise_text(str(error), root)
     if repair_candidates:
         metadata_details.append(
-            "run `pdk diag --fix` to quarantine stale Prodockit or Zensical metadata "
+            "run `pdk diag --apply` to quarantine stale Prodockit or Zensical metadata "
             "when exactly one entry matches the loaded package"
         )
     checks.append(

@@ -73,7 +73,7 @@ Zensical doesn't provide out of the box, each usable independently:
   dependencies, ``zensical.toml`` inputs, configured renderers, pins, shared
   files, Git repository and template state. Run ``prodockit diag`` for a
   read-only concise offline report, adding ``--verbose``, ``--online`` or
-  ``--json`` when needed. ``--dry-run`` previews bounded repairs and ``--fix``
+  ``--json`` when needed. ``--dry-run`` previews bounded repairs and ``--apply``
   offers each one interactively with an exact, default-No confirmation.
 - ``prodockit.pins`` - find every place a build-input version is declared
   across a project (``pyproject.toml``, GitHub Actions workflows,

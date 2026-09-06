@@ -298,7 +298,7 @@ def _interpreter_problem(root: Path) -> str | None:
         return None
     detail = "; ".join(check.details)
     return (
-        f"{check.summary}: {detail}. Run `pdk diag --dry-run --fix-check "
+        f"{check.summary}: {detail}. Run `pdk diag --dry-run --apply-check "
         "environment.interpreters` before Adopt"
     )
 

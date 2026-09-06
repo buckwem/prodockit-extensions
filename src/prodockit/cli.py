@@ -122,6 +122,10 @@ from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
+# Okabe-Ito orange: colour-vision-deficiency safe and clearer than yellow on
+# the dark backgrounds commonly used by terminal applications.
+_WARNING_COLOUR = (230, 159, 0)
+
 
 # These are presentation groups, not execution units: stages still run in
 # their established dependency order and are rechecked immediately before
@@ -219,9 +223,9 @@ def _bootstrap_status(text: str, status: Status) -> str:
     if status is Status.WRONG:
         return click.style(text, fg="bright_magenta", bold=True)
     if status in {Status.MISSING, Status.BLOCKED, Status.UNKNOWN}:
-        return click.style(text, fg="bright_yellow", bold=True)
+        return click.style(text, fg=_WARNING_COLOUR, bold=True)
     if status is Status.WARNING:
-        return click.style(text, fg="bright_yellow", bold=True)
+        return click.style(text, fg=_WARNING_COLOUR, bold=True)
     return text
 
 
@@ -232,7 +236,7 @@ def _bootstrap_error(text: str) -> str:
 
 def _bootstrap_warning(text: str) -> str:
     """Style a waiting or action-required message separately from failures."""
-    return click.style(text, fg="bright_yellow", bold=True)
+    return click.style(text, fg=_WARNING_COLOUR, bold=True)
 
 
 def _bootstrap_work_summary(reports: Sequence[StageReport]) -> str:
@@ -381,7 +385,7 @@ def _echo_captured_stderr(error: Exception) -> None:
 # `zensical --version` does - these two are normally installed and
 # reported together, and click's own default ("prodockit, version X.Y.Z")
 # would need parsing to compare them.
-@click.group()
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(__version__, "--version", message="%(version)s")
 def main() -> None:
     """prodockit - extensions for Zensical needed for professional and
@@ -1899,11 +1903,13 @@ def _choose_diagnostic_repair(candidate: Any) -> Any:
     help="Path to the project's Zensical configuration file.",
 )
 @click.option(
+    "-v",
     "--verbose",
     is_flag=True,
     help="Show resolved paths, versions and the evidence behind every check.",
 )
 @click.option(
+    "-o",
     "--online",
     is_flag=True,
     help="Also check PyPI, npm advisories and the recorded template revision.",
@@ -1915,20 +1921,37 @@ def _choose_diagnostic_repair(candidate: Any) -> Any:
     help="Write stable structured output for CI and support requests.",
 )
 @click.option(
+    "-n",
     "--dry-run",
     is_flag=True,
     help="Show every repair option and command that could be used; change nothing.",
 )
 @click.option(
-    "--fix",
+    "-a",
+    "--apply",
+    "apply_repairs",
     is_flag=True,
     help="Consider supported repairs, asking [y/N] before every mutation.",
 )
 @click.option(
-    "--fix-check",
+    "--fix",
+    "legacy_fix",
+    is_flag=True,
+    hidden=True,
+)
+@click.option(
+    "--apply-check",
+    "apply_check",
     multiple=True,
     metavar="CHECK_ID",
     help="Limit a dry run or repair to a stable diagnostic check ID. Repeat as needed.",
+)
+@click.option(
+    "--fix-check",
+    "legacy_fix_check",
+    multiple=True,
+    metavar="CHECK_ID",
+    hidden=True,
 )
 def diag_command(
     config_file: str,
@@ -1936,8 +1959,10 @@ def diag_command(
     online: bool,
     json_output: bool,
     dry_run: bool,
-    fix: bool,
-    fix_check: tuple[str, ...],
+    apply_repairs: bool,
+    legacy_fix: bool,
+    apply_check: tuple[str, ...],
+    legacy_fix_check: tuple[str, ...],
 ) -> None:
     """Diagnose the active environment and project.
 
@@ -1945,7 +1970,7 @@ def diag_command(
     configuration, project-integrity, pins, renderer and repository checks in
     one concise report without making changes. ``--dry-run`` shows every
     bounded repair option and command that could be used without choosing or
-    executing one. ``--fix`` prints the same complete plan, then asks a
+    executing one. ``--apply`` prints the same complete plan, then asks a
     separate default-No question before each supported mutation. The completed
     repair stages cover transaction-backed metadata, shared files, bounded
     pins, locked project-local renderers, and narrowly lossless TOML fixes.
@@ -1971,19 +1996,21 @@ def diag_command(
         repair_windows_pango,
     )
 
+    fix = apply_repairs or legacy_fix
+    fix_check = tuple(dict.fromkeys((*apply_check, *legacy_fix_check)))
     if dry_run and fix:
-        raise click.UsageError("--dry-run and --fix are mutually exclusive")
+        raise click.UsageError("--dry-run and --apply are mutually exclusive")
     if fix_check and not (dry_run or fix):
-        raise click.UsageError("--fix-check requires --dry-run or --fix")
+        raise click.UsageError("--apply-check requires --dry-run or --apply")
     unknown_checks = sorted(set(fix_check) - DIAGNOSTIC_IDS)
     if unknown_checks:
         raise click.BadParameter(
             f"unknown diagnostic check ID(s): {', '.join(unknown_checks)}",
-            param_hint="--fix-check",
+            param_hint="--apply-check",
         )
     if fix and not _is_interactive():
         raise click.ClickException(
-            "--fix requires an interactive terminal and changed nothing; run "
+            "--apply requires an interactive terminal and changed nothing; run "
             "`pdk diag --dry-run --json` to inspect repair alternatives"
         )
 
@@ -1995,7 +2022,7 @@ def diag_command(
     try:
         repair_plan = build_repair_dry_run(before, check_ids=fix_check) if dry_run or fix else None
     except ValueError as error:
-        raise click.BadParameter(str(error), param_hint="--fix-check") from error
+        raise click.BadParameter(str(error), param_hint="--apply-check") from error
 
     repair_actions: list[dict[str, Any]] = []
     repair_failed = False
@@ -2370,7 +2397,7 @@ def diag_command(
         click.echo(f"  Mode:    {'online' if online else 'offline'}")
         section = ""
         labels = {"pass": "PASS", "warn": "WARN", "fail": "FAIL"}
-        colours = {"pass": None, "warn": "bright_yellow", "fail": "bright_magenta"}
+        colours = {"pass": None, "warn": _WARNING_COLOUR, "fail": "bright_magenta"}
         for check in report.checks:
             if check.section != section:
                 section = check.section
@@ -2414,8 +2441,19 @@ def diag_command(
     is_flag=True,
     help="Exit non-zero if a managed file is missing or differs.",
 )
-@click.option("--apply", "apply_changes", is_flag=True, help="Replace missing or different files.")
-@click.option("--verbose", is_flag=True, help="Also show expected and actual SHA-256 hashes.")
+@click.option(
+    "-a",
+    "--apply",
+    "apply_changes",
+    is_flag=True,
+    help="Replace missing or different files.",
+)
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Also show expected and actual SHA-256 hashes.",
+)
 def shared_files(root: str, check: bool, apply_changes: bool, verbose: bool) -> None:
     """Check or restore files shared by the prodockit documentation sites.
 
@@ -2481,11 +2519,13 @@ def shared_files(root: str, check: bool, apply_changes: bool, verbose: bool) -> 
     help="Report each stage's state and change nothing.",
 )
 @click.option(
+    "-n",
     "--dry-run",
     is_flag=True,
     help="Print the exact commands a real run would use, without running them.",
 )
 @click.option(
+    "-a",
     "--apply",
     "apply_stages",
     is_flag=True,
@@ -3047,11 +3087,13 @@ def _renderer_retry_warning(notice: RetryNotice) -> None:
     help="Choose optional components and save the choices for this project.",
 )
 @click.option(
+    "-n",
     "--dry-run",
     is_flag=True,
     help="Show the stages and changes without writing or installing anything.",
 )
 @click.option(
+    "-a",
     "--apply",
     is_flag=True,
     help="Apply the required stages, asking before each change.",
@@ -3072,6 +3114,7 @@ def _renderer_retry_warning(notice: RetryNotice) -> None:
     help="Include or omit MathJax rendering for mathematical notation. Omitted unless selected.",
 )
 @click.option(
+    "-v",
     "--verbose",
     is_flag=True,
     help="Show the files and commands behind each concise stage description.",
@@ -3650,7 +3693,7 @@ def _template_sync_key(text: str) -> str:
 def _template_sync_warning(text: str) -> str:
     """Keep cautions visually distinct from actions and phase headings."""
 
-    return click.style(text, fg="bright_yellow", bold=True)
+    return click.style(text, fg=_WARNING_COLOUR, bold=True)
 
 
 def _template_sync_diff(
@@ -3678,16 +3721,20 @@ def _template_sync_diff(
     ) or ["  No textual differences found."]
 
 
-def _template_sync_force_choice(display_path: str) -> Literal["new", "overwrite"]:
-    """Ask for the one safe, explicit decision an edited file needs."""
+def _template_sync_force_choice(display_path: str) -> Literal["overwrite", "new", "skip"]:
+    """Ask for one safe, explicit decision about an edited file."""
 
     choice = click.prompt(
         f"Choose how to handle {display_path}",
-        type=click.Choice(("new", "overwrite"), case_sensitive=False),
-        default="new",
+        type=click.Choice(("overwrite", "new", "skip"), case_sensitive=False),
+        default="skip",
         show_choices=True,
     )
-    return "overwrite" if choice == "overwrite" else "new"
+    if choice == "overwrite":
+        return "overwrite"
+    if choice == "new":
+        return "new"
+    return "skip"
 
 
 def _template_sync_display_path(path: str | pathlib.Path, project: pathlib.Path) -> str:
@@ -3736,6 +3783,7 @@ def _run_template_sync(
     accept_prodockit: bool = False,
     accept_adopt: bool = False,
     resume_version: str | None = None,
+    review_all: bool = False,
 ) -> None:
     """Drive the prerequisite and template phases, reporting each stage.
 
@@ -3848,7 +3896,7 @@ def _run_template_sync(
         if metadata_problems:
             raise TemplateSyncError(
                 "the active environment has ambiguous Prodockit or Zensical metadata: "
-                f"{'; '.join(metadata_problems)}. Run `pdk diag --fix`, then rerun "
+                f"{'; '.join(metadata_problems)}. Run `pdk diag --apply`, then rerun "
                 "`pdk template-sync --apply`; nothing has been changed"
             )
     git = git_runner(project)
@@ -3881,7 +3929,7 @@ def _run_template_sync(
         say(_template_sync_key(text))
 
     def say_warning(text: str) -> None:
-        """Show a warning in yellow and log it as plain text."""
+        """Show a warning in amber and log it as plain text."""
 
         say(_template_sync_warning(text))
 
@@ -4044,6 +4092,7 @@ def _run_template_sync(
             lambda p: blob_at(versions[0], p) if versions else None,
             baseline,
             force=force,
+            review_all=review_all,
         )
 
         # 7 to 9. Work out every change before reporting, including shared
@@ -4282,13 +4331,13 @@ def _run_template_sync(
             say_warning("  pdk.css and pdk-pdf.css are supplied and updated by prodockit.")
             say_warning("  Move website changes to extra.css and PDF-only changes to print.css.")
             say_warning(
-                "  Then use --force FILE-PATH to compare the managed copy and choose "
-                "overwrite or .new."
+                "  Then use --review-all, or --force FILE-PATH for one file, to compare "
+                "the managed copy and choose overwrite, .new, or skip."
             )
         if kept:
             say()
             say_warning("Your edited files are protected:")
-            say_warning("  Without --force, your versions stay unchanged.")
+            say_warning("  Without review, your versions stay unchanged.")
             if local_only:
                 say_warning(
                     "  Template copies will be saved beside them as .new files for review."
@@ -4299,20 +4348,20 @@ def _run_template_sync(
                     "  Use --apply --local-only to save template copies as .new files for review."
                 )
             say_warning(
-                "  For each file you want to compare, add `--force FILE-PATH`, "
-                "using the file path shown above."
+                "  Add `--review-all` to compare every listed file, or add "
+                "`--force FILE-PATH` for selected files."
             )
         if forced:
             say()
-            say_warning("Files selected with --force require a decision:")
+            say_warning("Files selected for review require a decision:")
             say_warning("  An applied run shows each diff before asking what to do.")
-            say_warning("  The safe default saves the template version as FILE-PATH.new.")
+            say_warning("  The safe default skips the file without changing or copying it.")
 
         if do_apply and forced and not package_plan.needs_work:
             if not interactive:
                 raise TemplateSyncError(
-                    "--force needs an interactive terminal to show each diff and choose "
-                    "overwrite or .new; no template file has been changed"
+                    "reviewing edited files needs an interactive terminal to show each diff "
+                    "and choose overwrite, .new, or skip; no template file has been changed"
                 )
             resolved: dict[str, FileAction] = {}
 
@@ -4337,6 +4386,17 @@ def _run_template_sync(
                     say_warning(
                         f"  Decision: preserve {forced_action.project_path}; save the incoming "
                         f"version as {forced_action.project_path}.new"
+                    )
+                elif choice == "skip":
+                    resolved[forced_action.project_path] = FileAction(
+                        forced_action.path,
+                        forced_action.project_path,
+                        "same",
+                        "left unchanged by explicit choice",
+                    )
+                    say_warning(
+                        f"  Decision: skip {forced_action.project_path}; leave it unchanged "
+                        "without creating a .new file"
                     )
                 else:
                     resolved[forced_action.project_path] = forced_action
@@ -4385,9 +4445,9 @@ def _run_template_sync(
             say_warning("The update needs a decision before it can be sent for approval.")
             say_warning("Your edited template files have not been changed.")
             say_warning(
-                "For each listed file, either rerun with --force FILE-PATH to see its "
-                "diff and choose overwrite or .new, or use --apply --local-only for "
-                "a manual review."
+                "Rerun with --review-all to decide every listed file, use "
+                "--force FILE-PATH for selected files, or use --apply --local-only "
+                "for a manual review."
             )
             say_warning("Nothing has been changed, committed, or sent.")
             return
@@ -4440,6 +4500,8 @@ def _run_template_sync(
                 resume.append("--accept-prodockit")
             if accept_adopt:
                 resume.append("--accept-adopt")
+            if review_all:
+                resume.append("--review-all")
             for path in force:
                 resume.extend(("--force", path))
             say(f"  Command:  {_template_sync_command(resume)}")
@@ -4738,6 +4800,7 @@ def _record_template_release(project_root: pathlib.Path) -> None:
 
 @main.command("template-sync")
 @click.option(
+    "-a",
     "--apply",
     "do_apply",
     is_flag=True,
@@ -4746,6 +4809,7 @@ def _record_template_release(project_root: pathlib.Path) -> None:
     "only previews the changes.",
 )
 @click.option(
+    "-v",
     "--verbose",
     is_flag=True,
     help="Show the template source, comparison details, and individual file paths.",
@@ -4769,8 +4833,17 @@ def _record_template_release(project_root: pathlib.Path) -> None:
     metavar="FILE-PATH",
     help=(
         "Select one edited file for an applied diff and an explicit choice between "
-        "overwriting it or saving the template version as FILE-PATH.new. The safe "
-        "default is .new. Repeat --force FILE-PATH for another file."
+        "overwriting it, saving the template version as FILE-PATH.new, or skipping it. "
+        "The safe default is skip. Repeat --force FILE-PATH for another file."
+    ),
+)
+@click.option(
+    "--review-all",
+    is_flag=True,
+    help=(
+        "Select every edited template file for interactive review. Each complete diff "
+        "offers overwrite, .new, or skip; the safe default is skip. Needs --apply to "
+        "make a decision."
     ),
 )
 @click.option(
@@ -4827,6 +4900,7 @@ def template_sync(
     push: bool,
     local_only: bool,
     force: tuple[str, ...],
+    review_all: bool,
     github: str | None,
     surrey: str | None,
     template_path: str | None,
@@ -4860,6 +4934,7 @@ def template_sync(
             accept_prodockit,
             accept_adopt,
             resume_version,
+            review_all,
         )
     except TemplateSyncError as error:
         click.echo(f"Error: {error}", err=True)

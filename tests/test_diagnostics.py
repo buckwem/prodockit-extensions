@@ -507,7 +507,7 @@ def test_metadata_repair_quarantines_only_provably_stale_supported_distributions
     assert len(result.moved) == 2
     assert current_prodockit.is_dir()
     assert current_zensical.is_dir()
-    assert unrelated.is_dir(), "--fix must leave every other distribution untouched"
+    assert unrelated.is_dir(), "--apply must leave every other distribution untouched"
     assert not stale_prodockit.exists()
     assert not stale_zensical.exists()
     quarantine = prefix / ".prodockit-quarantine/diagnostics/20260903T120000.000000Z"
@@ -1425,7 +1425,7 @@ def test_diag_dry_run_is_structured_read_only_and_filterable(
 
     result = CliRunner().invoke(
         main,
-        ["diag", "--dry-run", "--fix-check", "dependencies.shared-files", "--json"],
+        ["diag", "--dry-run", "--apply-check", "dependencies.shared-files", "--json"],
     )
 
     assert result.exit_code == 1, result.output
@@ -1469,7 +1469,7 @@ def test_diag_dry_run_text_says_commands_could_run(
 
     assert result.exit_code == 1
     assert "nothing will be changed" in result.output
-    assert "--online --fix --fix-check renderer.mermaid" in result.output
+    assert "--online --apply --apply-check renderer.mermaid" in result.output
     assert "MANUAL — online" in result.output
     assert "Apply this repair?" not in result.output
 
@@ -1499,7 +1499,7 @@ def test_diag_repair_output_uses_bootstrap_phases_stages_and_colours(
     assert "Phase 2/2 — Summary" in result.output
     assert "\x1b[94m" in result.output  # bootstrap bright-blue phase boundary
     assert "\x1b[34m" in result.output  # bootstrap blue stage boundary
-    assert "\x1b[93m" in result.output  # bootstrap yellow warning/action styling
+    assert "\x1b[38;2;230;159;0m" in result.output  # amber warning/action styling
 
 
 def test_diag_rejects_incompatible_or_unknown_dry_run_options(
@@ -1508,16 +1508,43 @@ def test_diag_rejects_incompatible_or_unknown_dry_run_options(
     report = DiagnosticReport("zensical.toml", ".", False, ())
     monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
 
-    incompatible = CliRunner().invoke(main, ["diag", "--dry-run", "--fix"])
-    unscoped = CliRunner().invoke(main, ["diag", "--fix-check", "installation.metadata"])
-    unknown = CliRunner().invoke(main, ["diag", "--dry-run", "--fix-check", "future.unknown"])
+    incompatible = CliRunner().invoke(main, ["diag", "--dry-run", "--apply"])
+    unscoped = CliRunner().invoke(main, ["diag", "--apply-check", "installation.metadata"])
+    unknown = CliRunner().invoke(main, ["diag", "--dry-run", "--apply-check", "future.unknown"])
 
     assert incompatible.exit_code == 2
     assert "mutually exclusive" in incompatible.output
     assert unscoped.exit_code == 2
-    assert "requires --dry-run or --fix" in unscoped.output
+    assert "requires --dry-run or --apply" in unscoped.output
     assert unknown.exit_code == 2
     assert "unknown diagnostic check ID" in unknown.output
+
+
+def test_diag_help_uses_apply_and_hides_legacy_fix_aliases() -> None:
+    result = CliRunner().invoke(main, ["diag", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "--apply" in result.output
+    assert "--apply-check CHECK_ID" in result.output
+    assert "--fix" not in result.output
+
+
+def test_diag_legacy_fix_aliases_remain_compatible(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = DiagnosticReport("zensical.toml", ".", False, ())
+    monkeypatch.setattr(diagnostics, "inspect", lambda *_args, **_kwargs: report)
+    monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
+
+    result = CliRunner().invoke(
+        main,
+        ["diag", "--fix", "--fix-check", "installation.metadata", "--json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["repair"]["status"] == "declined"
+    assert [action["check_id"] for action in payload["repair"]["actions"]] == [
+        "installation.metadata"
+    ]
 
 
 def test_diag_warnings_do_not_set_a_failure_exit_status(
@@ -1595,7 +1622,7 @@ def test_diag_fix_reports_the_scoped_repair_and_reruns_diagnostics(
     )
     monkeypatch.setattr("prodockit.cli._is_interactive", lambda: True)
 
-    result = CliRunner().invoke(main, ["diag", "--fix", "--json"], input="1\ny\n")
+    result = CliRunner().invoke(main, ["diag", "--apply", "--json"], input="1\ny\n")
 
     assert result.exit_code == 0, result.output
     assert calls == 2
@@ -1642,7 +1669,7 @@ def test_diag_fix_requires_an_exact_single_character_y_for_each_action(
         lambda _root, **_kwargs: pytest.fail("a declined repair mutated the environment"),
     )
 
-    result = CliRunner().invoke(main, ["diag", "--fix", "--json"], input="1\n" + answer)
+    result = CliRunner().invoke(main, ["diag", "--apply", "--json"], input="1\n" + answer)
 
     payload = json.loads(result.stdout)
     assert payload["repair"]["status"] == "declined"
@@ -1659,7 +1686,7 @@ def test_diag_fix_refuses_redirected_input_before_inspection(
         lambda *_args, **_kwargs: pytest.fail("non-interactive fix inspected after refusal"),
     )
 
-    result = CliRunner().invoke(main, ["diag", "--fix"])
+    result = CliRunner().invoke(main, ["diag", "--apply"])
 
     assert result.exit_code == 1
     assert "requires an interactive terminal" in result.output
@@ -1747,7 +1774,7 @@ def test_stage3_choices_and_confirmations_are_separate_for_each_action(
 
     result = CliRunner().invoke(
         main,
-        ["diag", "--fix", "--json"],
+        ["diag", "--apply", "--json"],
         input="2\ny\n1\nn\n",
     )
 

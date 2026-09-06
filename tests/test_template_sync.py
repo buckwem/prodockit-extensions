@@ -402,6 +402,19 @@ def test_the_template_follows_the_project_s_own_host(origin: str, expected_host:
     assert expected_host in resolve_template(origin)
 
 
+def test_public_template_reads_do_not_require_a_github_ssh_identity() -> None:
+    """GitLab.com users have a GitLab key, not necessarily a GitHub account.
+
+    Both public paths must therefore use anonymous HTTPS. Bootstrap already
+    clones this way; Template Sync must not introduce a new SSH prerequisite.
+    """
+    assert TEMPLATE_REMOTES["gitlab.com"].startswith("https://github.com/")
+    assert TEMPLATE_REMOTES["github.com"].startswith("https://github.com/")
+    assert resolve_template(None, github="acme/report-template") == (
+        "https://github.com/acme/report-template.git"
+    )
+
+
 def test_a_project_with_no_remote_is_told_rather_than_guessed_at() -> None:
     """Defaulting to GitHub would silently hand a Surrey student the
     wrong template."""
@@ -434,7 +447,7 @@ def test_a_bare_override_means_that_host_s_usual_template() -> None:
 def test_an_override_with_a_slug_names_another_repository_on_that_host() -> None:
     assert (
         resolve_template(None, github="acme/report-template")
-        == "git@github.com:acme/report-template.git"
+        == "https://github.com/acme/report-template.git"
     )
     # GitLab nests groups, and keeping only the first segment produced a
     # namespace that does not exist last time this was got wrong (#201).
@@ -745,6 +758,22 @@ def _plan(project: dict[str, str], template: dict[str, str], edited=(), force=()
     }
 
 
+def _plan_reviewing_all(project: dict[str, str], template: dict[str, str], edited=()):
+    manifest = load_manifest(MANIFEST)
+    baseline = Baseline(version="v1", matched=0, total=0, edited=tuple(edited))
+    return {
+        action.path: action.action
+        for action in plan_template_files(
+            manifest,
+            list(template),
+            project.get,
+            template.get,
+            baseline,
+            review_all=True,
+        )
+    }
+
+
 def test_a_file_that_already_matches_is_left_alone() -> None:
     assert _plan({"macros.py": "a"}, {"macros.py": "a"}) == {"macros.py": "same"}
 
@@ -786,6 +815,28 @@ def test_force_does_not_reach_a_file_it_was_not_given() -> None:
     )
 
     assert plan == {"macros.py": "forced", "docs/stylesheets/pdk.css": "keep"}
+
+
+def test_review_all_selects_every_edited_file_without_affecting_routine_updates() -> None:
+    plan = _plan_reviewing_all(
+        {
+            "macros.py": "mine",
+            "docs/stylesheets/pdk.css": "mine",
+            ".github/workflows/docs.yml": "old",
+        },
+        {
+            "macros.py": "new",
+            "docs/stylesheets/pdk.css": "new",
+            ".github/workflows/docs.yml": "new",
+        },
+        edited=["macros.py", "docs/stylesheets/pdk.css"],
+    )
+
+    assert plan == {
+        "macros.py": "forced",
+        "docs/stylesheets/pdk.css": "forced",
+        ".github/workflows/docs.yml": "update",
+    }
 
 
 def test_edited_managed_stylesheets_are_named_separately() -> None:
@@ -2127,6 +2178,28 @@ def test_a_cached_template_is_brought_up_to_date(tmp_path: pathlib.Path) -> None
     assert "fetch" in verbs
     assert "reset" in verbs, "fetching alone leaves the working tree on the old version"
     assert not any(c[:2] == ["git", "clone"] for c in run.commands)
+
+
+def test_a_cached_template_moves_from_ssh_to_the_selected_https_remote(
+    tmp_path: pathlib.Path,
+) -> None:
+    """An existing cache must not preserve the transport from an older wheel."""
+    path = tmp_path / "cached"
+    (path / ".git").mkdir(parents=True)
+    run = RecordingGit()
+    remote = "https://github.com/buckwem/prodockit-template.git"
+
+    assert ensure_template(remote, path, run) == "updated"
+    assert run.commands[0] == [
+        "git",
+        "-C",
+        str(path),
+        "remote",
+        "set-url",
+        "origin",
+        remote,
+    ]
+    assert "fetch" in run.commands[1]
 
 
 def test_a_host_that_cannot_be_reached_uses_what_is_cached(tmp_path: pathlib.Path) -> None:
