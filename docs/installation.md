@@ -236,6 +236,12 @@ Install the current prodockit package into the active project environment:
     pip install prodockit
     ```
 
+!!! note "If pip or pip3 does not work"
+
+    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
+    Keep the intended virtual environment active and check that the alternative
+    command belongs to it before installing packages.
+
 If an installed command appears to use the wrong Python or version, run this
 from the project root before reinstalling anything:
 

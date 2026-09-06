@@ -30,6 +30,12 @@ Install it with:
     pip install "prodockit[testing]"
     ```
 
+!!! note "If pip or pip3 does not work"
+
+    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
+    Keep the intended virtual environment active and check that the alternative
+    command belongs to it before installing packages.
+
 The fixtures inspect artifacts that already exist; they never build anything.
 Create a clean website first, derive the PDF from that generated HTML, and only
 then run the artifact assertions:
