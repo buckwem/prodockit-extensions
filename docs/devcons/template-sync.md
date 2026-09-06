@@ -98,11 +98,17 @@ a file supplied by the template has uncommitted changes, because updating that
 file could hide work you have not saved in Git. Read the short summary and pay
 particular attention to any files described as "your edited files".
 
+\ref{fig-template-sync-preview-output} is a short visual guide to the preview.
 Use [section 29.1, Scan phases and
-stages](../commands/output.md#command-output-structure) for the full explanation
-of this short visual summary:
+stages](../commands/output.md#command-output-structure) for the complete
+explanation:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-template-sync-preview-output}
+
+Reading a Template Sync preview
+///
 
 For a GitLab.com project, SSH access is required only for the project's
 GitLab.com remote. Template Sync fetches the public template from GitHub over

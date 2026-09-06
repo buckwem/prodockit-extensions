@@ -45,11 +45,17 @@ marks **Leave unchanged** as the default. Each option includes its warning,
 affected paths, prerequisites, network requirement, recovery boundary, and the
 public command or internal typed operation that could perform it.
 
-Use [section 29.1, Scan phases and
-stages](../commands/output.md#command-output-structure) to interpret the phases,
-stages, actions, warnings, and decisions in this repair-plan output:
+\ref{fig-diagnostics-repair-plan-output} is a short visual guide to the repair
+plan. Use [section 29.1, Scan phases and
+stages](../commands/output.md#command-output-structure) for the complete
+explanation of its phases, stages, actions, warnings, and decisions:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-diagnostics-repair-plan-output}
+
+Reading a Diagnostics repair plan
+///
 
 The repair registry classifies every stable check as confirmable, online,
 manual, ambiguous, prohibited, or not applicable. A source-level coverage guard

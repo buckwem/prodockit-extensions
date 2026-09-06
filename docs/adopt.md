@@ -112,11 +112,17 @@ The report is read-only. It groups the work into phases and gives every change
 its own stage, using the same presentation as `prodockit bootstrap`. It also says explicitly
 that Git, SSH, remotes and editors are outside its scope.
 
+\ref{fig-adopt-assessment-output} is a short visual guide to the assessment.
 Use [section 29.1, Scan phases and
-stages](commands/output.md#command-output-structure) to interpret the phases,
-stages, colours, and default-No decisions in the assessment:
+stages](commands/output.md#command-output-structure) for the complete
+explanation of its phases, stages, colours, and default-No decisions:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](assets/diagrams/command-output-anatomy.svg)
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-adopt-assessment-output}
+
+Reading an Adopt assessment
+///
 
 ////
 

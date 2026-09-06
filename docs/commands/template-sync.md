@@ -60,11 +60,17 @@ Template Sync options
 
 ## Output {: #cmd-template-sync-output }
 
-Use [section 29.1, Scan phases and
-stages](output.md#command-output-structure) to interpret Template Sync's phase,
-stage, action, warning, and decision output:
+\ref{fig-cmd-template-sync-output} shows the output structure. Use [section
+29.1, Scan phases and stages](output.md#command-output-structure) for the
+complete explanation of Template Sync's phases, stages, actions, warnings, and
+decisions:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-cmd-template-sync-output}
+
+Template Sync output structure
+///
 
 ## Protected-file decisions {: #cmd-template-sync-protected-file-decisions }
 

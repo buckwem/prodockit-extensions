@@ -50,12 +50,18 @@ install or align the supported local toolchain and save the project's selected
 components, but it never downloads or applies a template. Rerun `pdk diag`
 afterward and resolve any remaining failure before continuing.
 
-Use [section 29.1, Scan phases and
-stages](commands/output.md#command-output-structure) to interpret the phases,
-stages, actions, warnings, and decisions shown by Adopt and later by Template
-Sync:
+\ref{fig-project-check-adopt-output} is a short visual guide to the output used
+in this step. Use [section 29.1, Scan phases and
+stages](commands/output.md#command-output-structure) for the complete
+explanation of the phases, stages, actions, warnings, and decisions shown by
+Adopt and later by Template Sync:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](assets/diagrams/command-output-anatomy.svg)
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-project-check-adopt-output}
+
+Reading the phase-and-stage output during a project check
+///
 
 ////
 

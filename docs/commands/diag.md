@@ -60,11 +60,16 @@ Diagnostics options
 
 ## Repair-plan output {: #cmd-diag-repair-plan-output }
 
-Use [section 29.1, Scan phases and
-stages](output.md#command-output-structure) to interpret the repair plan shown
-by dry-run and apply modes:
+\ref{fig-cmd-diag-repair-output} shows the repair-plan structure. Use [section
+29.1, Scan phases and stages](output.md#command-output-structure) for the
+complete explanation of dry-run and apply output:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg)
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-cmd-diag-repair-output}
+
+Diagnostics repair-plan output structure
+///
 
 ## Repair boundary {: #cmd-diag-repair-boundary }
 
