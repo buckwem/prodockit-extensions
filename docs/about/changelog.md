@@ -35,6 +35,8 @@ requests rather than here.
 - Prevented online diagnostics from displaying an interactive SSH host-key
   prompt while checking for template updates; the public GitHub template is
   queried over HTTPS and any remaining SSH probe is strictly non-interactive.
+- Made Adopt retry replacement of `pandoc.exe` when Windows briefly retains a
+  file handle during a supported-version upgrade or downgrade.
 
 ## 0.60.3 (2026-09-05)
 
