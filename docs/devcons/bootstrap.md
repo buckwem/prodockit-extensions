@@ -31,7 +31,7 @@ before continuing. For bootstrap, create the setup `.venv` in the parent
 directory where you keep projects; bootstrap later creates a separate build
 environment inside the cloned project.
 
-The six steps below install Prodockit into the active setup environment and
+The seven steps below install Prodockit into the active setup environment and
 continue from the first read-only assessment to the completed site. If you
 open a new terminal, reactivate and verify that environment as described in
 section 3.1. Each command is safe to repeat: bootstrap checks before it changes
@@ -179,6 +179,39 @@ published at. If a stage still reports work to do, its line says what
 and why - and running `--apply` again does only that stage.
 ////
 
+//// step | Restart the Windows terminal
+
+<span id="bootstrap-windows-restart"></span>
+
+!!! warning "Windows only — skip this step on macOS and Linux"
+
+    Windows installers change settings inherited when the terminal application
+    starts. A new tab or reactivating the virtual environment can retain the
+    old settings, so complete this step before checking the project.
+
+=== ":fontawesome-brands-windows: Windows"
+
+    Fully close Windows Terminal or VS Code, then reopen PowerShell. Bootstrap
+    displays this amber message; Template Sync displays it if its environment
+    refresh cannot recover the required commands:
+
+    <pre style="color: #E69F00; background: #181818; padding: 1em; white-space: pre-wrap;">============================================================
+    RESTART YOUR TERMINAL — WINDOWS SETTINGS HAVE CHANGED
+    ============================================================
+    Fully close Windows Terminal or VS Code, then reopen it.
+    Open PowerShell in your project directory:
+    C:\path\to\your-project
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+    pdk diag
+    ============================================================</pre>
+
+    The project path is replaced with your actual path. If Template Sync cannot
+    continue, the banner also says: `Template Sync cannot continue in this
+    terminal.` Continue with the next step in the newly opened PowerShell.
+
+////
+
 //// step | Activate the project and check the installation
 
 <span id="bootstrap-project-checks"></span>
@@ -205,9 +238,8 @@ installed software without asking you to configure those choices first.
 
 === ":fontawesome-brands-windows: Windows"
 
-    Fully close Windows Terminal or VS Code after installation, then reopen
-    PowerShell. A new tab can retain the old environment. In this fresh shell,
-    run the following commands; there is no active environment to deactivate:
+    In the fresh PowerShell opened in the previous step, run the following
+    commands; there is no active environment to deactivate:
 
     ```powershell
     cd C:\path\to\your-project
@@ -242,47 +274,9 @@ a support request.
 
 ///
 
-### Restart the terminal after Windows installation {: #bootstrap-windows-restart }
-
-Use this Windows-only recovery step when an installer changes the terminal environment.
-
-=== ":fontawesome-brands-windows: Windows"
-
-    After Bootstrap or an installer changes Windows settings, fully close the
-    terminal application (Windows Terminal or VS Code), then reopen PowerShell.
-    A new tab or reactivating the virtual environment alone may retain old settings.
-    Bootstrap displays this amber message; Template Sync displays it if its
-    environment refresh cannot recover the required commands:
-
-    <pre style="color: #E69F00; background: #181818; padding: 1em; white-space: pre-wrap;">============================================================
-    RESTART YOUR TERMINAL — WINDOWS SETTINGS HAVE CHANGED
-    ============================================================
-    Fully close Windows Terminal or VS Code, then reopen it.
-    Open PowerShell in your project directory:
-    C:\path\to\your-project
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-    .\.venv\Scripts\Activate.ps1
-    pdk diag
-    ============================================================</pre>
-
-    The project path above is replaced with your actual path. If Template Sync
-    cannot continue, the banner also says: `Template Sync cannot continue in this terminal.`
-
-    In the reopened PowerShell, change to your project and check the environment:
-
-    ```powershell
-    cd C:\path\to\your-project
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-    .\.venv\Scripts\Activate.ps1
-    pdk diag
-    ```
-
-    Continue when the required checks pass. If commands are still missing, use
-    the diagnostic report to investigate installation before reinstalling tools.
-
 ## What it covers {: #bootstrap-stages }
 
-The six installation steps above describe what you do.
+The seven installation steps above describe what you do.
 \ref{tab-bootstrap-stages} is about the
 [`--apply` phase](#bootstrap-apply), which is discussed later: Bootstrap groups
 its 23 setup stages into seven phases while it sets up the machine and project.
