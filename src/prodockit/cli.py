@@ -3141,6 +3141,20 @@ def adopt_command(
     if dry_run and apply:
         raise click.UsageError("choose either --dry-run or --apply, not both")
     root = Path.cwd()
+    from prodockit.environment import project_environment_problem
+
+    problem = project_environment_problem(root)
+    in_venv = sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+    if in_venv and problem:
+        raise click.ClickException(problem)
+    if not in_venv:
+        click.secho(
+            "WARNING: No virtual environment is active. Adopt will use the running "
+            "Python installation for package changes. Create and activate a virtual "
+            "environment first unless this is intentional.",
+            fg=(230, 159, 0),
+            bold=True,
+        )
     try:
         resolution = resolve_adopt_options(root)
     except AdoptError as error:
@@ -3235,6 +3249,11 @@ def adopt_command(
 
         if not step.selected:
             click.echo(f"{number:2}  SKIP  {step.summary} — {step.detail}")
+            continue
+        if step.status == "warn":
+            click.secho(
+                f"{number:2}  WARN  {step.summary} — {step.detail}", fg=(230, 159, 0), bold=True
+            )
             continue
         if step.status == "wait":
             click.echo(f"{number:2}  WAIT  {step.summary} — {step.detail}")
@@ -3408,6 +3427,7 @@ def pins(
     or type a version. With `--set`, `--latest` or `--no-input` it never
     prompts, so it can run unattended.
     """
+    from prodockit.environment import project_environment_problem
     from prodockit.pins import (
         DEFAULT_PACKAGES,
         TESTED_VERSIONS,
@@ -3417,6 +3437,14 @@ def pins(
         resolve_latest,
     )
 
+    problem = project_environment_problem(root)
+    if problem:
+        click.secho(
+            "WARNING: " + problem + " Pins uses the running Prodockit release for tested defaults; "
+            "it changes declarations, not installed packages.",
+            fg=(230, 159, 0),
+            bold=True,
+        )
     selected = tuple(p.lower() for p in packages) or DEFAULT_PACKAGES
     states = discover(root, selected)
     resolve_latest(states, offline=offline)
@@ -3851,6 +3879,11 @@ def _run_template_sync(
     from prodockit.toolchain import plan as plan_supported_toolchain
 
     project = pathlib.Path.cwd()
+    from prodockit.environment import project_environment_problem
+
+    problem = project_environment_problem(project)
+    if problem:
+        raise click.ClickException(problem)
     # Run from the project, and only from its root. A subdirectory would
     # half-work: git resolves upwards so the branch and the staging would
     # land correctly, while every path this writes is relative to here and

@@ -130,6 +130,7 @@ def test_adopt_refuses_a_mixed_project_environment_before_mutation(
 ) -> None:
     project = _project(tmp_path)
     (project / ".venv").mkdir()
+    monkeypatch.setattr("sys.prefix", str(project / ".venv"))
     monkeypatch.chdir(project)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
     monkeypatch.setattr(
@@ -143,6 +144,26 @@ def test_adopt_refuses_a_mixed_project_environment_before_mutation(
     assert "Active project environment" in result.output
     assert "python uses 3.12 but pdk uses 3.14" in result.output
     assert "before project files can be changed" in result.output
+
+
+def test_assessment_warns_without_venv_and_rejects_wrong_active_venv(tmp_path, monkeypatch):
+    from prodockit.adopt import AdoptOptions, assess
+
+    project = _project(tmp_path)
+    (project / ".venv").mkdir()
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: False)
+    steps = assess(project, AdoptOptions(), offline=True)
+    environment = next(step for step in steps if step.id == "environment")
+    assert environment.status == "warn"
+    assert not environment.needs_work
+    assert "No virtual environment is active" in environment.detail
+
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
+    monkeypatch.setattr("sys.prefix", str(tmp_path / "parent-venv"))
+    steps = assess(project, AdoptOptions(), offline=True)
+    environment = next(step for step in steps if step.id == "environment")
+    assert environment.status == "wrong"
+    assert "Active Python is not the project's .venv" in environment.detail
 
 
 def test_reusable_apply_runs_selected_stages_and_verifies(monkeypatch, tmp_path) -> None:

@@ -24,6 +24,11 @@ pdk template-sync --apply [--review-all]
 
 ## Working directory {: #cmd-template-sync-working-directory }
 
+When the project has a `.venv`, activate it before previewing or applying an
+update. Template Sync rejects another interpreter before fetching the template
+or planning installations, so it cannot align the parent Bootstrap environment
+by mistake.
+
 Run Template Sync from the **top of the project repository**. It deliberately
 has no `--root` option: branch creation, protected-file comparison, staging,
 and the review request must all refer to the same checkout.

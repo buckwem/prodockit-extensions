@@ -126,7 +126,7 @@ class Step:
 
     @property
     def needs_work(self) -> bool:
-        return self.selected and self.status not in {"ok", "wait"}
+        return self.selected and self.status not in {"ok", "wait", "warn"}
 
 
 def load_manifest(root: Path) -> AdoptOptions:
@@ -283,6 +283,11 @@ def _in_venv() -> bool:
 
 def _interpreter_problem(root: Path) -> str | None:
     """Refuse mutation when a project's .venv mixes Python launchers."""
+    from prodockit.environment import project_environment_problem
+
+    problem = project_environment_problem(root)
+    if problem:
+        return problem
     environment = root.resolve() / ".venv"
     if not environment.is_dir():
         return None
@@ -672,10 +677,7 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
     else:
         source = _append_tables(
             source,
-            tuple(
-                f'project.markdown_extensions."{name}"'
-                for name in missing
-            ),
+            tuple(f'project.markdown_extensions."{name}"' for name in missing),
         )
     source = _ensure_toml_tree_icons(
         source,
@@ -1353,13 +1355,15 @@ def assess(
             "environment",
             "Assess",
             "Active project environment",
-            "wrong" if interpreter_problem or not _in_venv() else "ok",
+            "wrong" if interpreter_problem else ("ok" if _in_venv() else "warn"),
             (
                 interpreter_problem
                 or (
                     f"using {sys.prefix}"
                     if _in_venv()
-                    else "activate the project's virtual environment first"
+                    else "No virtual environment is active. Package changes will affect "
+                    "the running Python installation; create and activate a virtual "
+                    "environment first unless this is intentional."
                 )
             ),
         ),
@@ -1522,7 +1526,9 @@ def apply(
 
     final = assess(root, options, retry_reporter=retry_reporter, offline=offline)
     incomplete = [
-        step for step in final if step.selected and (step.status not in {"ok"} or step.needs_work)
+        step
+        for step in final
+        if step.selected and (step.status not in {"ok", "warn"} or step.needs_work)
     ]
     if incomplete:
         raise AdoptError(

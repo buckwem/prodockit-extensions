@@ -4,9 +4,75 @@
 from pathlib import Path
 
 import pytest
+from click.testing import CliRunner
 
 import prodockit.environment as environment
 from prodockit.environment import BuildEnvironmentError, check_pdf_environment, requirement_floors
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["adopt", "--dry-run"],
+        ["adopt", "--apply"],
+        ["adopt", "--configure"],
+        ["template-sync"],
+        ["template-sync", "--apply"],
+    ],
+)
+def test_commands_reject_parent_environment_before_work(tmp_path, monkeypatch, arguments):
+    from prodockit.cli import main
+
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".venv").mkdir()
+    config = _project(project, "prodockit>=0.61.0\n")
+    monkeypatch.chdir(project)
+    monkeypatch.setattr(environment.sys, "prefix", str(tmp_path / ".venv"))
+    monkeypatch.setattr(environment.sys, "base_prefix", str(tmp_path / "base"))
+    before = config.read_bytes()
+
+    result = CliRunner().invoke(main, arguments)
+
+    assert result.exit_code != 0, result.output
+    assert "Active Python is not the project's .venv" in result.output
+    assert str(project / ".venv") in result.output
+    assert "activate" in result.output
+    assert config.read_bytes() == before
+    assert not (project / ".prodockit-components.toml").exists()
+
+
+def test_project_environment_accepts_matching_prefix_and_no_local_venv(tmp_path, monkeypatch):
+    monkeypatch.setattr(environment.sys, "prefix", str(tmp_path / ".venv"))
+    assert environment.project_environment_problem(tmp_path) is None
+    (tmp_path / ".venv").mkdir()
+    assert environment.project_environment_problem(tmp_path) is None
+
+
+def test_adopt_without_venv_warns_and_allows_preview(tmp_path, monkeypatch):
+    import prodockit.cli as cli
+
+    _project(tmp_path, "prodockit>=0.61.0\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(environment.sys, "prefix", environment.sys.base_prefix)
+    monkeypatch.setattr(cli, "assess_adoption", lambda *args, **kwargs: [])
+    result = CliRunner().invoke(cli.main, ["adopt", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert "WARNING: No virtual environment is active" in result.output
+    assert "running Python installation" in result.output
+
+
+def test_pins_warns_about_other_environment_without_installing(tmp_path, monkeypatch):
+    from prodockit.cli import main
+
+    _project(tmp_path, "prodockit>=0.61.0\n")
+    (tmp_path / ".venv").mkdir()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(environment.sys, "prefix", str(tmp_path / "other"))
+    result = CliRunner().invoke(main, ["pins", "--check", "--offline"])
+    assert "WARNING: Active Python is not the project's .venv" in result.output
+    assert "it changes declarations, not installed packages" in result.output
+    assert "tested with installed prodockit" in result.output
 
 
 def _project(tmp_path: Path, requirements: str) -> Path:
