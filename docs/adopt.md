@@ -274,6 +274,8 @@ Adoption deliberately stops before either action.
 
 ### Restart the terminal after Windows installation
 
+Use this Windows-only recovery step when an installer changes the terminal environment.
+
 === ":fontawesome-brands-windows: Windows"
 
     After Bootstrap or an installer changes Windows settings, fully close the
@@ -288,6 +290,7 @@ Adoption deliberately stops before either action.
     Fully close Windows Terminal or VS Code, then reopen it.
     Open PowerShell in your project directory:
     C:\path\to\your-project
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     pdk diag
     ============================================================</pre>
@@ -299,6 +302,7 @@ Adoption deliberately stops before either action.
 
     ```powershell
     cd C:\path\to\your-project
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     pdk diag
     ```

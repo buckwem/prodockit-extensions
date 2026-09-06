@@ -130,8 +130,9 @@ def test_every_documented_powershell_activation_sets_the_execution_policy() -> N
 def test_installation_preparation_is_shared_by_later_routes() -> None:
     preparation_page = INSTALLATION.read_text(encoding="utf-8")
     preparation = preparation_page[
-        preparation_page.index("## Prepare Python and its environment") :
-        preparation_page.index("## From PyPI")
+        preparation_page.index("## Prepare Python and its environment") : preparation_page.index(
+            "### Restart the terminal after Windows installation"
+        )
     ]
 
     for command in (
@@ -213,13 +214,15 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert "records Mermaid and maths as the project's selected components" in page
     assert "later `pdk adopt` can therefore repair" in page
 
-    installation = page[
-        page.index("## Install with bootstrap") : page.index("## What it covers")
-    ]
+    installation = page[page.index("## Install with bootstrap") : page.index("## What it covers")]
     assert "installation.md#installation-preparation" in installation
     assert installation.count("//// step | ") == 5
     assert "//// step | Install Prodockit into the active environment" in installation
-    confirm = installation[installation.index("//// step | Confirm") :]
+    confirm = installation[
+        installation.index("//// step | Confirm") : installation.index(
+            "### Restart the terminal after Windows installation"
+        )
+    ]
     assert '!!! warning "Complete the manual step before confirming"' in confirm
     assert "Type `yes` only after checking that the action succeeded" in " ".join(confirm.split())
     assert "Do not run the complete `pdk diag` here" in installation
