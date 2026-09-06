@@ -191,6 +191,48 @@ zensical.toml - original configuration updated by Adopt
 
 ////
 
+//// step | Review and configure `zensical.toml`
+
+`zensical.toml` is the single project configuration used by the website and
+Prodockit's PDF commands. Adopt keeps Zensical's existing `[project]` settings,
+adds the standard `project.markdown_extensions` tables, and adds
+`"stylesheets/pdk.css"` to `project.extra_css`.
+
+In the existing `[project]` table, give the site its real name and make the
+page order explicit. Do not add a second `[project]` table, and retain the
+extension and stylesheet settings written by Adopt:
+
+```toml
+[project]
+site_name = "My first document"
+nav = [
+  {"Home" = "index.md"},
+]
+```
+
+The `nav` order controls both the website navigation and the page order in the
+rendered PDF. Add or extend `[project.extra]` to make the two generated artifact
+paths explicit:
+
+```toml
+[project.extra]
+pdf_output = "docs/site_documentation.pdf"
+pdf_source_bundle_output = "docs/source_bundle.pdf"
+```
+
+These are the default locations, but recording them here makes the download
+filenames visible to the next steps. Check the edited configuration before
+continuing:
+
+```bash
+pdk config --check
+```
+
+Use [PDF configuration](pdf.md#pdf-quick-start) when you later need a different
+page size, margins, output path, or PDF-only stylesheet.
+
+////
+
 //// step | Diagnose the adopted site
 
 Check the active environment and every required project capability before
@@ -231,6 +273,10 @@ Describe what you found here.
 `\ref{results}` into a link containing the current number and title, so it
 stays correct if the sections move.
 
+////
+
+//// step | Build and preview the adopted website
+
 Build and preview the adopted site:
 
 ```bash
@@ -241,6 +287,68 @@ zensical serve
 Open the local address again and confirm that the headings are numbered and the
 reference is linked. Zensical rebuilds the preview when a source file changes;
 stop it with `Ctrl+C`.
+
+////
+
+//// step | Generate the rendered PDF
+
+The PDF command consumes the completed Zensical build and follows the pages in
+`project.nav`. If `pdk diag` reported missing WeasyPrint native libraries or
+fonts, complete the adoption row under [Prepare the PDF
+tools](pdf.md#pdf-requirements) first.
+
+Rebuild the website after any source or configuration change, then generate
+the rendered document:
+
+```bash
+zensical build --clean --strict
+pdk pdf
+```
+
+The configured first-site output is `docs/site_documentation.pdf`. Open it and
+check its headings, contents, links, page breaks, and final page. See [Build
+your first PDF](pdf.md#build-your-first-pdf) for the complete review sequence.
+
+////
+
+//// step | Generate the source bundle
+
+Create a separate PDF containing the authored Markdown and project
+configuration:
+
+```bash
+pdk source-bundle
+```
+
+The configured output is `docs/source_bundle.pdf`. It is separate from the
+rendered document: use it when a submission, review, or archive needs the
+underlying source. The [`pdk source-bundle` command
+reference](commands/source-bundle.md) describes its inputs and options.
+
+////
+
+//// step | Add both downloads to the site
+
+Add links to the generated files in `docs/index.md`:
+
+```md
+[Download the rendered document](site_documentation.pdf)
+
+[Download the source bundle](source_bundle.pdf)
+```
+
+Both outputs are under `docs/`, so Zensical publishes them as site files.
+Build once more to validate the links and copy the current artifacts, then
+preview the finished site:
+
+```bash
+zensical build --clean --strict
+zensical serve
+```
+
+Open both links in the browser before publishing the site. Regenerate the PDFs
+whenever their Markdown or configuration changes, then rebuild the website so
+the published downloads stay current.
 
 ////
 

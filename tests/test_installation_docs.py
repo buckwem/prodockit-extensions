@@ -188,7 +188,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
 
     assert "installation.md#installation-preparation" in page
     assert "independent of section 5's Bootstrap" in page
-    assert page.count("//// step | ") == 8
+    assert page.count("//// step | ") == 13
     assert page.count("/// tree") == 2
 
     install_zensical = page.index("//// step | Install Zensical")
@@ -197,8 +197,13 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     serve_zensical = page.index("//// step | Preview the plain Zensical site")
     install_prodockit = page.index("//// step | Install Prodockit")
     adopt = page.index("//// step | Adopt the Zensical site")
+    configure = page.index('//// step | Review and configure `zensical.toml`')
     diagnose = page.index("//// step | Diagnose the adopted site")
     add_content = page.index("//// step | Add and verify Prodockit content")
+    build_adopted = page.index("//// step | Build and preview the adopted website")
+    pdf = page.index("//// step | Generate the rendered PDF")
+    source = page.index("//// step | Generate the source bundle")
+    downloads = page.index("//// step | Add both downloads to the site")
     assert (
         install_zensical
         < create_zensical
@@ -206,8 +211,13 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
         < serve_zensical
         < install_prodockit
         < adopt
+        < configure
         < diagnose
         < add_content
+        < build_adopted
+        < pdf
+        < source
+        < downloads
     )
 
     before_prodockit = page[:install_prodockit]
@@ -217,7 +227,11 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     )
     assert "pip install --upgrade prodockit" not in before_prodockit
     assert "pdk adopt --dry-run\npdk adopt --apply" in page[adopt:]
+    assert 'pdf_output = "docs/site_documentation.pdf"' in page[configure:diagnose]
+    assert 'pdf_source_bundle_output = "docs/source_bundle.pdf"' in page[configure:diagnose]
     assert "pdk diag" in page[diagnose:add_content]
+    assert "pdk pdf" in page[pdf:source]
+    assert "pdk source-bundle" in page[source:downloads]
 
 
 def test_prodockit_is_not_presented_as_supporting_mkdocs() -> None:
