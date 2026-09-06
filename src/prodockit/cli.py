@@ -122,6 +122,10 @@ from prodockit.sync_repo import SyncRepoError, sync_repo_metadata
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
+# Okabe-Ito orange: colour-vision-deficiency safe and clearer than yellow on
+# the dark backgrounds commonly used by terminal applications.
+_WARNING_COLOUR = (230, 159, 0)
+
 
 # These are presentation groups, not execution units: stages still run in
 # their established dependency order and are rechecked immediately before
@@ -219,9 +223,9 @@ def _bootstrap_status(text: str, status: Status) -> str:
     if status is Status.WRONG:
         return click.style(text, fg="bright_magenta", bold=True)
     if status in {Status.MISSING, Status.BLOCKED, Status.UNKNOWN}:
-        return click.style(text, fg="bright_yellow", bold=True)
+        return click.style(text, fg=_WARNING_COLOUR, bold=True)
     if status is Status.WARNING:
-        return click.style(text, fg="bright_yellow", bold=True)
+        return click.style(text, fg=_WARNING_COLOUR, bold=True)
     return text
 
 
@@ -232,7 +236,7 @@ def _bootstrap_error(text: str) -> str:
 
 def _bootstrap_warning(text: str) -> str:
     """Style a waiting or action-required message separately from failures."""
-    return click.style(text, fg="bright_yellow", bold=True)
+    return click.style(text, fg=_WARNING_COLOUR, bold=True)
 
 
 def _bootstrap_work_summary(reports: Sequence[StageReport]) -> str:
@@ -2393,7 +2397,7 @@ def diag_command(
         click.echo(f"  Mode:    {'online' if online else 'offline'}")
         section = ""
         labels = {"pass": "PASS", "warn": "WARN", "fail": "FAIL"}
-        colours = {"pass": None, "warn": "bright_yellow", "fail": "bright_magenta"}
+        colours = {"pass": None, "warn": _WARNING_COLOUR, "fail": "bright_magenta"}
         for check in report.checks:
             if check.section != section:
                 section = check.section
@@ -3689,7 +3693,7 @@ def _template_sync_key(text: str) -> str:
 def _template_sync_warning(text: str) -> str:
     """Keep cautions visually distinct from actions and phase headings."""
 
-    return click.style(text, fg="bright_yellow", bold=True)
+    return click.style(text, fg=_WARNING_COLOUR, bold=True)
 
 
 def _template_sync_diff(
@@ -3925,7 +3929,7 @@ def _run_template_sync(
         say(_template_sync_key(text))
 
     def say_warning(text: str) -> None:
-        """Show a warning in yellow and log it as plain text."""
+        """Show a warning in amber and log it as plain text."""
 
         say(_template_sync_warning(text))
 

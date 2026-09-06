@@ -1499,7 +1499,7 @@ def test_diag_repair_output_uses_bootstrap_phases_stages_and_colours(
     assert "Phase 2/2 — Summary" in result.output
     assert "\x1b[94m" in result.output  # bootstrap bright-blue phase boundary
     assert "\x1b[34m" in result.output  # bootstrap blue stage boundary
-    assert "\x1b[93m" in result.output  # bootstrap yellow warning/action styling
+    assert "\x1b[38;2;230;159;0m" in result.output  # amber warning/action styling
 
 
 def test_diag_rejects_incompatible_or_unknown_dry_run_options(

@@ -447,7 +447,7 @@ paths = [".prodockit-template.toml"]
     assert click.style(
         "  Warning:  the newer installed release is not the template's paired release; "
         "website and PDF output may change after alignment",
-        fg="bright_yellow",
+        fg=(230, 159, 0),
         bold=True,
     ) in coloured.output
     assert "\x1b[" not in (project / ".prodockit-template.log").read_text(encoding="utf-8")

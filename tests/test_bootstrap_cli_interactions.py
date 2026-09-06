@@ -393,7 +393,7 @@ def test_active_wrong_stage_is_magenta_but_plain_logs_keep_the_same_text(
     assert "Current:  email is not configured" in plain
 
 
-def test_missing_stage_is_yellow_not_magenta(tmp_path: Path) -> None:
+def test_missing_stage_is_amber_not_magenta(tmp_path: Path) -> None:
     context = _context(tmp_path)
     stage = _stage(
         lambda context: CheckResult(Status.MISSING, "not installed"),
@@ -405,7 +405,7 @@ def test_missing_stage_is_yellow_not_magenta(tmp_path: Path) -> None:
         lambda: _work_through(context, [report], None), input="n\n", color=True
     )
 
-    assert "\x1b[93m" in output
+    assert "\x1b[38;2;230;159;0m" in output
     assert "\x1b[95m" not in output
     assert "Current:  not installed" in output
 
