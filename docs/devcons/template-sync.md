@@ -103,8 +103,9 @@ particular attention to any files described as "your edited files".
   <span class="pdk-terminal-key__stage">STAGE</span><span>one check</span>
   <span class="pdk-terminal-key__change">CHANGE</span><span>review first</span>
   <span class="pdk-terminal-key__warning">WARNING</span><span>decide or take care</span>
-  <a class="pdk-terminal-key__details" href="#tsync-read-the-output">How to read the full output →</a>
 </div>
+
+[How to read the full output](#tsync-read-the-output)
 
 The colours follow the command's terminal colour roles. Your terminal theme may
 render their precise shade differently; the words remain visible when colour is
