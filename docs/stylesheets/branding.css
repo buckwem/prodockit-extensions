@@ -45,3 +45,15 @@
 .pdk-terminal-key__warning {
   color: #f9f1a5;
 }
+
+.pdk-terminal-key__details {
+  grid-column: 1 / -1;
+  margin-top: 0.2rem;
+  color: #cccccc;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.pdk-terminal-key__details:hover {
+  color: #ffffff;
+}
