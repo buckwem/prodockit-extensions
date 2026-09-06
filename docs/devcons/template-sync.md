@@ -258,21 +258,28 @@ command to run next.
 Template Sync uses Bootstrap's phase-and-stage layout so a long report can be
 read from its structure rather than line by line:
 
-1. **Assess and preview** identifies template-file changes, protected edits,
+1. <span class="pdk-terminal-key__phase">**Assess and preview**</span>
+   identifies template-file changes, protected edits,
    dependency declarations, shared files, and the release recorded after a
    successful apply.
-2. **Compatible Prodockit** compares the active release with the exact release
-   paired with the incoming template. Read `Action`, `Current`, `Required`, and
-   `Result` before accepting an upgrade or downgrade.
-3. **Supported toolchain** previews each Adopt stage. `CHECK` means no change;
-   `ALIGN` or `CONFIGURE` names work that Apply must complete first. File lines
-   use paths relative to the project root.
-4. **Apply template update** says whether the run is a non-writing `PREVIEW`,
-   is waiting for a protected-file decision, or can create the review branch.
+2. <span class="pdk-terminal-key__phase">**Compatible Prodockit**</span>
+   compares the active release with the exact release paired with the incoming
+   template. Read <span class="pdk-terminal-key__change">`Action`, `Current`,
+   `Required`, and `Result`</span> before accepting an upgrade or downgrade.
+3. <span class="pdk-terminal-key__phase">**Supported toolchain**</span>
+   previews each Adopt <span class="pdk-terminal-key__stage">stage</span>.
+   `CHECK` means no change; <span class="pdk-terminal-key__change">`ALIGN` or
+   `CONFIGURE`</span> names work that Apply must complete first. File lines use
+   paths relative to the project root.
+4. <span class="pdk-terminal-key__phase">**Apply template update**</span>
+   says whether the run is a non-writing `PREVIEW`, is waiting for a
+   <span class="pdk-terminal-key__warning">protected-file decision</span>, or
+   can create the review branch.
 
 The short colour key in section 24.1 identifies the lines to find first. The
-words `Action`, `Warning`, `Decision`, and `Result` preserve the same meaning in
-redirected or monochrome output.
+words <span class="pdk-terminal-key__change">`Action` and `Result`</span>, and
+<span class="pdk-terminal-key__warning">`Warning` and `Decision`</span>,
+preserve the same meaning in redirected or monochrome output.
 
 The complete `.prodockit-template.log` contains the verbose report in plain
 text. Share that file when investigating a run; `--verbose` displays the same
