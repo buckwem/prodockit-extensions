@@ -85,6 +85,12 @@ Install the optional index support before generating a PDF index:
     pip install "prodockit[index]"
     ```
 
+!!! note "If pip or pip3 does not work"
+
+    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
+    Keep the intended virtual environment active and check that the alternative
+    command belongs to it before installing packages.
+
 Run `prodockit config` afterwards to confirm whether index generation is
 enabled and the optional support is available. Its strict
 `prodockit config --check` form fails when `include = true` but that package is

@@ -66,6 +66,12 @@ that active environment:
     pip install --upgrade prodockit
     ```
 
+!!! note "If pip or pip3 does not work"
+
+    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
+    Keep the intended virtual environment active and check that the alternative
+    command belongs to it before installing packages.
+
 Confirm both the installed version and the command selected by the shell:
 
 === ":material-apple: macOS"

@@ -128,6 +128,12 @@ operating system when the route above requires them:
     pip install weasyprint
     ```
 
+!!! note "If pip or pip3 does not work"
+
+    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
+    Keep the intended virtual environment active and check that the alternative
+    command belongs to it before installing packages.
+
 Confirm both programs from the same activated environment before building:
 
 ```bash
@@ -159,6 +165,12 @@ the PDF index:
     ```bash
     pip install "prodockit[index]"
     ```
+
+!!! note "If pip or pip3 does not work"
+
+    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
+    Keep the intended virtual environment active and check that the alternative
+    command belongs to it before installing packages.
 
 ### Add Mermaid diagrams or TeX maths only when used {: #mermaid-diagrams-and-tex-maths }
 

@@ -38,6 +38,12 @@ steps are deliberately kept in section 3.1.
     pip install prodockit
     ```
 
+!!! note "If pip or pip3 does not work"
+
+    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
+    Keep the intended virtual environment active and check that the alternative
+    command belongs to it before installing packages.
+
 Zensical is a core dependency, so this installs the `zensical` command too.
 Confirm both commands are available:
 
