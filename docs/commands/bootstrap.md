@@ -6,6 +6,12 @@ icon: lucide/package-open
 
 # `pdk bootstrap`
 
+Bootstrap uses two environments: activate the setup `.venv` in your parent
+GitHub/GitLab working directory before installation, then activate the clone's
+own `.venv` afterwards. Follow [the post-install activation and checks](../devcons/bootstrap.md#bootstrap-project-checks)
+before running Diagnostics or Template Sync, including on a second pass with
+an existing repository.
+
 `pdk bootstrap` prepares a machine and a project created from
 `prodockit-template`. `pdk boot` is an exact shorter alias.
 

@@ -32,6 +32,13 @@ template repository for direct template use, or the empty project directory
 for the first-site walkthrough. The examples call it `your-project`; substitute
 the real path throughout.
 
+For Bootstrap, this first activation is in the parent directory, for example
+`~/GitHub`, `~/GitLab`, or `C:\Users\your-name\GitHub`, not the future clone.
+After installation you must activate a second time, now inside the cloned
+repository. Follow [Activate the project and check the installation](devcons/bootstrap.md#bootstrap-project-checks)
+before running `pdk diag` or `pdk template-sync`. Changing directory alone does
+not change the active environment, even when both prompts show `(.venv)`.
+
 /// steps
 
 //// step | Install Python 3.14
@@ -169,7 +176,7 @@ step before continuing with chapters 4, 5, 6 or 7.
 
 ///
 
-### Restart the terminal after Windows installation
+### Restart the terminal after Windows installation {: #installation-windows-restart }
 
 Use this Windows-only recovery step when an installer changes the terminal environment.
 

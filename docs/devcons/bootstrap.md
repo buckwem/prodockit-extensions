@@ -31,7 +31,7 @@ before continuing. For bootstrap, create the setup `.venv` in the parent
 directory where you keep projects; bootstrap later creates a separate build
 environment inside the cloned project.
 
-The five steps below install Prodockit into the active setup environment and
+The six steps below install Prodockit into the active setup environment and
 continue from the first read-only assessment to the completed site. If you
 open a new terminal, reactivate and verify that environment as described in
 section 3.1. Each command is safe to repeat: bootstrap checks before it changes
@@ -76,7 +76,7 @@ The command path must be inside the setup `.venv`. An older Prodockit command
 from another Python can otherwise shadow the package just installed while
 `pip` still reports success. Do not run the complete `pdk diag` here: it is a
 project-scoped command, so the setup directory correctly fails its
-configuration and repository checks. Step 5 runs it from the completed
+configuration and repository checks. Step 6 runs it from the completed
 project and its separate environment.
 
 ////
@@ -154,6 +154,11 @@ pdk boot
 Every stage `ok`, and the last one names the address your site is
 published at. If a stage still reports work to do, its line says what
 and why - and running `--apply` again does only that stage.
+////
+
+//// step | Activate the project and check the installation
+
+<span id="bootstrap-project-checks"></span>
 
 Leave the setup environment, enter the project directory named by Bootstrap,
 and activate the project environment created in stage 16. Changing directory
@@ -168,17 +173,24 @@ installed software without asking you to configure those choices first.
     deactivate
     cd /path/to/your-project
     source .venv/bin/activate
+    python -c "import sys; print(sys.prefix)"
     pdk diag
+    pdk template-sync
     ```
 
 === ":fontawesome-brands-windows: Windows"
 
+    Fully close Windows Terminal or VS Code after installation, then reopen
+    PowerShell. A new tab can retain the old environment. In this fresh shell,
+    run the following commands; there is no active environment to deactivate:
+
     ```powershell
-    deactivate
     cd C:\path\to\your-project
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
+    python -c "import sys; print(sys.prefix)"
     pdk diag
+    pdk template-sync
     ```
 
 === ":material-linux: Linux (Ubuntu)"
@@ -187,8 +199,16 @@ installed software without asking you to configure those choices first.
     deactivate
     cd /path/to/your-project
     source .venv/bin/activate
+    python -c "import sys; print(sys.prefix)"
     pdk diag
+    pdk template-sync
     ```
+
+The printed Python prefix must end in your project's `.venv`, not the parent
+GitHub/GitLab directory's `.venv`. These checks apply to both new and pre-existing
+repositories, on every host. If Diagnostics reports a failure, stop and resolve
+it before continuing to Template Sync; do not apply an update from the wrong
+environment. Template Sync here is a preview, not an installation or an apply.
 
 The `Project` line must name the clone rather than its parent setup directory.
 Add `--verbose` for resolved evidence or `--json` when attaching the report to
@@ -197,7 +217,7 @@ a support request.
 
 ///
 
-### Restart the terminal after Windows installation
+### Restart the terminal after Windows installation {: #bootstrap-windows-restart }
 
 Use this Windows-only recovery step when an installer changes the terminal environment.
 
@@ -237,7 +257,7 @@ Use this Windows-only recovery step when an installer changes the terminal envir
 
 ## What it covers {: #bootstrap-stages }
 
-The five installation steps above describe what you do.
+The six installation steps above describe what you do.
 \ref{tab-bootstrap-stages} is about the
 [`--apply` phase](#bootstrap-apply), which is discussed later: Bootstrap groups
 its 23 setup stages into seven phases while it sets up the machine and project.

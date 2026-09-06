@@ -47,6 +47,11 @@ each author-edited file before rebuilding and publishing.
 
 //// step | Open the project and activate its environment
 
+After Bootstrap, use [the post-install activation step](bootstrap.md#bootstrap-project-checks)
+first: leave the parent setup environment and activate the clone's `.venv`.
+On Windows reopen the terminal application to pick up installation changes.
+For later sessions, activate the project environment as shown below.
+
 <div class="pdf-keep-tab-pages" markdown="1">
 
 === ":material-apple: macOS"
