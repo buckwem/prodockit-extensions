@@ -38,98 +38,6 @@ Use it periodically while a project is active and before a final release. A
 long gap is supported, but it produces a larger change that is harder to
 review and more likely to combine a CI migration with a visual change.
 
-## Choose how far the command should go
-
-The progression from preview to a pushed update is shown in
-\ref{tab-devcons-template-sync-choose-how-far-the-command-should-go}.
-
-| Command {: width="52%" } | What it does | When to use it |
-|:---|:---|:---|
-| `prodockit template-sync` | Shows what needs updating, without changing the project | Start here |
-| `prodockit template-sync --verbose` | Shows the same preview with technical details and file paths | You are investigating a particular file or reporting a problem |
-| `prodockit template-sync --apply` | Makes and saves the changes on a separate branch, sends it to the host, and creates a GitLab merge request | Your project uses a pull request (GitHub) or merge request (GitLab) |
-| `prodockit template-sync --apply --push` | Makes the changes and, after asking you, updates `main` directly | Your usual practice is to update `main` without a pull or merge request |
-| `prodockit template-sync --apply --local-only` | Applies and stages the changes without committing or sending them | You are comfortable finishing the Git workflow yourself |
-| `prodockit template-sync --apply --force FILE-PATH` | Shows the named file's diff, then offers overwrite, `.new`, or skip | You need to decide how to handle one edited template file |
-| `prodockit template-sync --apply --review-all` | Selects every edited template file, shows each complete diff, then offers overwrite, `.new`, or skip | Several edited files need reviewing and repeating `--force` would be cumbersome |
-| `prodockit template-sync --apply --offline` | Applies using only the configured wheelhouse and validated native cache | The environment has no network access and the required downloads have already been cached |
-| `prodockit template-sync --apply --accept-prodockit --accept-adopt` | Explicitly permits both prerequisite mutations without prompts | An unattended job has been deliberately authorised to change its active environment and project |
-/// table-caption | <
-    attrs: {id: tab-devcons-template-sync-choose-how-far-the-command-should-go}
-
-Choose how far the command should go
-///
-
-If you are unsure, use the first command in
-\ref{tab-devcons-template-sync-choose-how-far-the-command-should-go}. It is only
-a preview. The output tells
-you whether an update is available and which command to run next.
-
-The preview is presented in the same phase-and-stage layout as bootstrap. It
-first resolves the incoming template, then identifies the **exact** Prodockit
-release paired with it, previews Adopt's supported-toolchain work, and finally
-shows the template update. Each action includes the current and required
-versions, command, affected environment or files, and network requirement.
-The target is taken from the template's coordinated version declarations, not
-from the newest release on PyPI.
-
-Purple lines identify the changes and decisions that need attention, including
-the relative paths of edited files. Yellow lines are warnings or explain work
-that remains protected. The complete `.prodockit-template.log` stays plain text
-so it remains readable when shared or processed by another tool.
-
-!!! warning "Stop if a mirror proposes an unexpected downgrade"
-    A project uses the template repository for its selected host. For example,
-    a Surrey project reads the Surrey GitLab mirror rather than silently
-    falling back to GitHub. If the preview proposes an older Prodockit or
-    Zensical release than expected, do not use `--apply`: verify that the
-    mirror's `main` branch and matching template release tag have completed
-    their [downstream release sync](releasing.md#release-complete-downstream-mirror).
-    Creating a mirror merge request is not enough while that request remains
-    open.
-
-During apply, an older package is upgraded and a newer package is downgraded
-to that exact release. The command asks first, with **No** as the default. If
-you agree, it installs through the active interpreter with the same mirrors,
-wheelhouse, retries, and cache policy as Adopt. It then transparently hands
-the remaining work to a fresh Python process and verifies the loaded release.
-This is still one command: there is no manual restart or second invocation,
-but code imported from the replaced release is never used to change the
-project.
-
-The fresh process previews Adopt and asks separately before it changes the
-rest of the active environment or Adopt-managed project files. **No** is again
-the default. Adopt installs and verifies the complete combination supported by
-that Prodockit release, including exact upgrades and downgrades, while keeping
-its installation logic independent of the template. Template-sync only
-orchestrates that implementation; it does not duplicate it.
-`.prodockit-components.toml` is project-owned and is therefore not copied or
-overwritten from the template. If it is absent in an older project, Adopt
-infers established Mermaid and maths choices from the Zensical configuration
-and saves that local record when its integration stage is approved. Files
-declared in `.prodockit-shared-files.toml`, including the managed website and PDF
-stylesheets, are refreshed from the installed Prodockit release and included
-in the same review request. The MR therefore contains a complete, internally
-consistent update rather than only the files copied directly from the
-template.
-
-The same check maintains the `extra_css`, `extra_javascript`, and
-`pdf_extra_css` lists in `zensical.toml`. Missing template entries are restored
-in cascade order, cache-key changes replace the older form of the same path,
-and additional project entries are retained. If `extra.css`, `print.css`, or
-`extra.js` is missing, the template's starter copy is added. Once present,
-those three files belong to the author and `template-sync` never replaces
-their contents, including in projects made from an older template manifest.
-Managed PDK assets follow the shared-file rule instead: a
-missing or outdated copy is refreshed from the installed Prodockit release.
-
-Use `--apply` on its own when changes normally reach `main` through a pull
-request or merge request. On GitLab, the merge request is created for you; you
-only need to review and approve it. On GitHub, the branch is sent and the
-command gives you the page that opens the pull request. Use `--apply --push`
-only when your usual practice is to update `main` directly. It cannot bypass a
-protected branch.
-
 ## Complete a template update
 
 Work from the project environment, preview what changed upstream, and resolve
@@ -141,7 +49,7 @@ each author-edited file before rebuilding and publishing.
 
 <div class="pdf-keep-tab-pages" markdown="1">
 
-=== ":material-apple: macOS / :material-linux: Linux"
+=== ":material-apple: macOS"
 
     ```bash
     cd path/to/your-project
@@ -156,6 +64,13 @@ each author-edited file before rebuilding and publishing.
     cd path\to\your-project
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    cd path/to/your-project
+    source .venv/bin/activate
     ```
 
 </div>
@@ -293,6 +208,115 @@ then add `--offline`. Offline mode never falls back to the network. For an
 unattended run, both `--accept-prodockit` and `--accept-adopt` are required
 before the first environment change; omitting either fails before a partial
 update can begin.
+
+## Choose how far the command should go
+
+The progression from preview to a pushed update is shown in
+\ref{tab-devcons-template-sync-choose-how-far-the-command-should-go}.
+
+| Command {: width="52%" } | What it does | When to use it |
+|:---|:---|:---|
+| `prodockit template-sync` | Shows what needs updating, without changing the project | Start here |
+| `prodockit template-sync --verbose` | Shows the same preview with technical details and file paths | You are investigating a particular file or reporting a problem |
+| `prodockit template-sync --apply` | Makes and saves the changes on a separate branch, sends it to the host, and creates a GitLab merge request | Your project uses a pull request (GitHub) or merge request (GitLab) |
+| `prodockit template-sync --apply --push` | Makes the changes and, after asking you, updates `main` directly | Your usual practice is to update `main` without a pull or merge request |
+| `prodockit template-sync --apply --local-only` | Applies and stages the changes without committing or sending them | You are comfortable finishing the Git workflow yourself |
+| `prodockit template-sync --apply --force FILE-PATH` | Shows the named file's diff, then offers overwrite, `.new`, or skip | You need to decide how to handle one edited template file |
+| `prodockit template-sync --apply --review-all` | Selects every edited template file, shows each complete diff, then offers overwrite, `.new`, or skip | Several edited files need reviewing and repeating `--force` would be cumbersome |
+| `prodockit template-sync --apply --offline` | Applies using only the configured wheelhouse and validated native cache | The environment has no network access and the required downloads have already been cached |
+| `prodockit template-sync --apply --accept-prodockit --accept-adopt` | Explicitly permits both prerequisite mutations without prompts | An unattended job has been deliberately authorised to change its active environment and project |
+/// table-caption | <
+    attrs: {id: tab-devcons-template-sync-choose-how-far-the-command-should-go}
+
+Choose how far the command should go
+///
+
+If you are unsure, use the first command in
+\ref{tab-devcons-template-sync-choose-how-far-the-command-should-go}. It is only
+a preview. The output tells you whether an update is available and which
+command to run next.
+
+### Read the output {: #tsync-read-the-output }
+
+Template Sync uses Bootstrap's phase-and-stage layout so a long report can be
+read from its structure rather than line by line:
+
+1. **Assess and preview** identifies template-file changes, protected edits,
+   dependency declarations, shared files, and the release recorded after a
+   successful apply.
+2. **Compatible Prodockit** compares the active release with the exact release
+   paired with the incoming template. Read `Action`, `Current`, `Required`, and
+   `Result` before accepting an upgrade or downgrade.
+3. **Supported toolchain** previews each Adopt stage. `CHECK` means no change;
+   `ALIGN` or `CONFIGURE` names work that Apply must complete first. File lines
+   use paths relative to the project root.
+4. **Apply template update** says whether the run is a non-writing `PREVIEW`,
+   is waiting for a protected-file decision, or can create the review branch.
+
+Bright-blue double lines mark a new **phase**. Blue single lines and
+`Stage [current/total]` headings separate individual decisions within it.
+Purple highlights the result summary, files that will change, required
+alignment, release movement, and protected-file decisions—the lines to find
+first when the report is long. Yellow marks warnings, files kept protected,
+and work that needs a decision. Terminal output still includes the words
+`Action`, `Warning`, `Decision`, and `Result`, so redirected or monochrome
+output carries the same meaning without relying on colour.
+
+The complete `.prodockit-template.log` contains the verbose report in plain
+text. Share that file when investigating a run; `--verbose` displays the same
+source, classification, and per-file evidence in the terminal.
+
+!!! warning "Stop if a mirror proposes an unexpected downgrade"
+    A project uses the template repository for its selected host. For example,
+    a Surrey project reads the Surrey GitLab mirror rather than silently
+    falling back to GitHub. If the preview proposes an older Prodockit or
+    Zensical release than expected, do not use `--apply`: verify that the
+    mirror's `main` branch and matching template release tag have completed
+    their [downstream release sync](releasing.md#release-complete-downstream-mirror).
+    Creating a mirror merge request is not enough while that request remains
+    open.
+
+During apply, an older package is upgraded and a newer package is downgraded
+to that exact release. The command asks first, with **No** as the default. If
+you agree, it installs through the active interpreter with the same mirrors,
+wheelhouse, retries, and cache policy as Adopt. It then transparently hands
+the remaining work to a fresh Python process and verifies the loaded release.
+This is still one command: there is no manual restart or second invocation,
+but code imported from the replaced release is never used to change the
+project.
+
+The fresh process previews Adopt and asks separately before it changes the
+rest of the active environment or Adopt-managed project files. **No** is again
+the default. Adopt installs and verifies the complete combination supported by
+that Prodockit release, including exact upgrades and downgrades, while keeping
+its installation logic independent of the template. Template Sync only
+orchestrates that implementation; it does not duplicate it.
+`.prodockit-components.toml` is project-owned and is therefore not copied or
+overwritten from the template. If it is absent in an older project, Adopt
+infers established Mermaid and maths choices from the Zensical configuration
+and saves that local record when its integration stage is approved. Files
+declared in `.prodockit-shared-files.toml`, including the managed website and PDF
+stylesheets, are refreshed from the installed Prodockit release and included
+in the same review request. The merge request therefore contains a complete,
+internally consistent update rather than only the files copied directly from
+the template.
+
+The same check maintains the `extra_css`, `extra_javascript`, and
+`pdf_extra_css` lists in `zensical.toml`. Missing template entries are restored
+in cascade order, cache-key changes replace the older form of the same path,
+and additional project entries are retained. If `extra.css`, `print.css`, or
+`extra.js` is missing, the template's starter copy is added. Once present,
+those three files belong to the author and Template Sync never replaces their
+contents, including in projects made from an older template manifest. Managed
+PDK assets follow the shared-file rule instead: a missing or outdated copy is
+refreshed from the installed Prodockit release.
+
+Use `--apply` on its own when changes normally reach `main` through a pull
+request or merge request. On GitLab, the merge request is created for you; you
+only need to review and approve it. On GitHub, the branch is sent and the
+command gives you the page that opens the pull request. Use `--apply --push`
+only when your usual practice is to update `main` directly. It cannot bypass a
+protected branch.
 
 ## What it will and will not write {: #tsync-what-it-writes }
 
