@@ -46,7 +46,7 @@ affected paths, prerequisites, network requirement, recovery boundary, and the
 public command or internal typed operation that could perform it.
 
 \ref{fig-diagnostics-repair-plan-output} is a short visual guide to the repair
-plan. Use [section 29.1, Scan phases and
+plan. Use [section 28.1, Scan phases and
 stages](../commands/output.md#command-output-structure) for the complete
 explanation of its phases, stages, actions, warnings, and decisions:
 

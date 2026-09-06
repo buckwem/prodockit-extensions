@@ -135,7 +135,7 @@ its own stage, using the same presentation as `prodockit bootstrap`. It also say
 that Git, SSH, remotes and editors are outside its scope.
 
 \ref{fig-adopt-assessment-output} is a short visual guide to the assessment.
-Use [section 29.1, Scan phases and
+Use [section 28.1, Scan phases and
 stages](commands/output.md#command-output-structure) for the complete
 explanation of its phases, stages, colours, and default-No decisions:
 

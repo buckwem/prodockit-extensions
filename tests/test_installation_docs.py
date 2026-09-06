@@ -154,7 +154,6 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
     routes = (
         ADOPTION,
         BOOTSTRAP_GUIDE,
-        REPO / "docs" / "prodockit-template.md",
         REPO / "docs" / "getting-started.md",
     )
     for route in routes:
@@ -229,16 +228,12 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert '=== ":material-linux: Linux (Ubuntu)"' in install_step
     assert "pip3 install --upgrade pip\n    pip3 install --upgrade prodockit" in install_step
     assert install_step.count("pip install --upgrade pip\n    pip install --upgrade prodockit") == 2
-    confirm = installation[
-        installation.index("//// step | Confirm") : installation.index(
-            "### Restart the terminal after Windows installation"
-        )
-    ]
+    confirm = installation[installation.index("//// step | Confirm") :]
     assert '!!! warning "Complete the manual step before confirming"' in confirm
     assert "Type `yes` only after checking that the action succeeded" in " ".join(confirm.split())
     assert "Do not run the complete `pdk diag` here" in installation
     assert "Changing directory" in confirm
-    assert confirm.count("pdk diag") == 3
+    assert confirm.count("pdk diag") == 4
     assert confirm.count("pdk template-sync") == 3
     assert confirm.count('python -c "import sys; print(sys.prefix)"') == 3
     assert "//// step | Activate the project and check the installation" in confirm

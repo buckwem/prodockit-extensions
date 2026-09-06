@@ -66,7 +66,7 @@ Adopt options
 
 ## Output {: #cmd-adopt-output }
 
-\ref{fig-cmd-adopt-output} shows the output structure. Use [section 29.1, Scan
+\ref{fig-cmd-adopt-output} shows the output structure. Use [section 28.1, Scan
 phases and stages](output.md#command-output-structure) for the complete
 explanation of the phase, stage, action, warning, and decision language:
 

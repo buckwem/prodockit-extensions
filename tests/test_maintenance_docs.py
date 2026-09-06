@@ -28,14 +28,14 @@ def test_getting_started_holds_installation_routes() -> None:
 
     assert {"4. Add prodockit to an existing document": "adopt.md"} in getting_started
     assert {"5. Set up a template project": "devcons/bootstrap.md"} in getting_started
-    assert {"6. Start with prodockit-template": "prodockit-template.md"} in getting_started
-    assert {"24. Staying in step with the template": "devcons/template-sync.md"} in publishing
+    assert not any("prodockit-template.md" in item.values() for item in getting_started)
+    assert {"23. Staying in step with the template": "devcons/template-sync.md"} in publishing
     assert maintenance == [
-        {"43. Maintenance overview": "project-maintenance.md"},
-        {"44. Diagnose a project": "devcons/diagnostics.md"},
-        {"45. Repository metadata": "devcons/repo-metadata.md"},
-        {"46. Version pinning and drift": "devcons/pinning-drift.md"},
-        {"47. Build and release": "devcons/releasing.md"},
+        {"42. Maintenance overview": "project-maintenance.md"},
+        {"43. Diagnose a project": "devcons/diagnostics.md"},
+        {"44. Repository metadata": "devcons/repo-metadata.md"},
+        {"45. Version pinning and drift": "devcons/pinning-drift.md"},
+        {"46. Build and release": "devcons/releasing.md"},
     ]
 
 
@@ -121,7 +121,7 @@ def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
             "21.2-pdf-stylesheet-cascade.png",
         ),
         "docs/update-dates.md": ("18.1-page-update-dates.png",),
-        "docs/prodockit-template.md": ("5.1-template-file-ownership.png",),
+        "docs/devcons/bootstrap.md": ("5.1-template-file-ownership.png",),
         "docs/devcons/continuous-integration.md": ("24.1-publication-pipeline.png",),
         "docs/devcons/extension-internals.md": (
             "32.1-extension-integration-flow.png",

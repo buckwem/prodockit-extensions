@@ -44,7 +44,7 @@ _INTENTIONAL_JINJA_BY_PAGE = {
         '<p class="cover-hero-release">Release: {{ git.short_tag }}</p>',
         "{% endif %}",
     },
-    "prodockit-template.md": {
+    "devcons/bootstrap.md": {
         "{% if is_surrey %}",
         "{% else %}",
         "{% endif %}",
