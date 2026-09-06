@@ -2657,6 +2657,39 @@ def _check_pandoc(context: Context) -> CheckResult:
         # absent, so nothing else will notice until a test does.
         prefix = f"pandoc {version}" if version is not None else "pandoc"
         return _wrong(f"{prefix}, but the PDF fonts are missing: {missing_fonts}")
+    if context.guided and context.platform == WINDOWS:
+        from prodockit.windows_pango import pango_spec, parse_evidence, probe_script
+
+        spec = pango_spec(arm64=_windows_python_is_arm64(context))
+        evidence_result = context.runner.run(
+            ["powershell", "-NoProfile", "-Command", probe_script(spec)]
+        )
+        if not evidence_result.ok:
+            return _wrong(
+                "the architecture-matched Windows Pango installation could not be checked"
+            )
+        try:
+            evidence = parse_evidence(evidence_result.stdout)
+        except ValueError as error:
+            return _wrong(f"the Windows Pango integrity result was invalid: {error}")
+        problems: list[str] = []
+        if evidence.root is None:
+            problems.append("MSYS2 is missing")
+        if not evidence.dll_exists:
+            problems.append(f"the expected {spec.environment} Pango DLL is missing")
+        if not evidence.package_integrity:
+            problems.append(f"{spec.package} failed its package integrity check")
+        if not evidence.environment_persisted:
+            problems.append("WEASYPRINT_DLL_DIRECTORIES does not select that environment")
+        if not evidence.environment_current:
+            problems.append("the current process has not loaded that environment selection")
+        if problems:
+            return _wrong("; ".join(problems))
+        pandoc_text = version if version is not None else "unknown"
+        return _ok(
+            f"pandoc {pandoc_text}; {spec.environment} Pango package and DLL verified for "
+            f"{spec.architecture} Python"
+        )
     pango = _pango_version_result(context)
     pango_version = _numeric_version(pango.stdout) if pango.ok else None
     if pango_version is None:

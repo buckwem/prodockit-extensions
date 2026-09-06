@@ -220,7 +220,7 @@ install the PDF toolchain merely to make diagnostics pass.
 | Check ID | Failure or warning means | Author remediation |
 |---|---|---|
 | `renderer.pandoc` | Pandoc is not on `PATH`, does not run, or reports no version. | Install the version pinned by the project and reopen the terminal. Confirm with `pandoc --version`. Bootstrap-managed projects can use `pdk bootstrap --apply`. |
-| `renderer.weasyprint` | A fresh Python process could not import WeasyPrint. On Windows the detail distinguishes a missing MSYS2 installation, the architecture-matched `libpango-1.0-0.dll`, failed pacman package integrity, a missing persistent `WEASYPRINT_DLL_DIRECTORIES`, and a value not yet active in the current process. | On Windows, review `pdk diag --dry-run --fix-check renderer.weasyprint`. The interactive repair is default-No, warns before changing the MSYS2 package or user environment, conditionally reinstalls the architecture-matched Pango package, refreshes the current process, and verifies a fresh import without a restart. On other platforms, run `python -c "import weasyprint; print(weasyprint.__version__)"`, then install the native libraries described in the installation guide. `pdk adopt` remains project-scoped and does not mutate system libraries. |
+| `renderer.weasyprint` | A fresh Python process could not import WeasyPrint. On Windows the detail distinguishes a missing MSYS2 installation, the architecture-matched `libpango-1.0-0.dll`, failed pacman package integrity, a missing persistent `WEASYPRINT_DLL_DIRECTORIES`, and a value not yet active in the current process. The architecture is read from `python.exe`, not the host CPU: an ARM64 computer running x64 Python requires UCRT64 x64 libraries. | On Windows, review `pdk diag --dry-run --fix-check renderer.weasyprint`. The interactive repair is default-No, warns before changing the MSYS2 package or user environment, conditionally reinstalls the architecture-matched Pango package, refreshes the current process, and verifies a fresh import without a restart. On other platforms, run `python -c "import weasyprint; print(weasyprint.__version__)"`, then install the native libraries described in the installation guide. `pdk adopt` remains project-scoped and does not mutate system libraries. |
 | `renderer.node` | Node is missing or cannot report its version. | Install the project's supported Node version, reopen the terminal, and confirm with `node --version`. |
 | `renderer.npm` | npm is missing or cannot report its version, even if Node itself exists. | Repair or reinstall the Node distribution so `npm --version` works. Avoid mixing Node and npm from different installations on `PATH`. |
 | `renderer.mermaid` | Authored Markdown uses a Mermaid fence but neither the project-local `mmdc` nor a usable command on `PATH` exists, or a minimal SVG render fails. The render probe also exercises Puppeteer and its browser. | With standard locked project tooling, use `pdk diag --online --fix --fix-check renderer.mermaid`. Custom paths and manifests require manual review. If the detail names a browser failure, install Chrome/Chromium or correct `PUPPETEER_EXECUTABLE_PATH`. |
@@ -238,7 +238,9 @@ Rendering-toolchain diagnostics
 ## Repository and template maintenance
 
 Repository checks are read-only. The default form examines local Git and
-template metadata only; `--online` adds the remote template comparison.
+template metadata only; `--online` adds the remote template comparison. Public
+GitHub template checks use HTTPS, and other Git probes disable authentication
+and host-key prompts rather than taking input intended for Diagnostics.
 \ref{tab-diagnostics-repository-and-template} explains each repository result.
 
 | Check ID | Failure or warning means | Author remediation |

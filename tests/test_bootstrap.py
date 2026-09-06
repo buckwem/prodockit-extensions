@@ -151,6 +151,36 @@ def _before_the_clone(machine: dict[str, CommandResult]) -> dict[str, CommandRes
     return machine | {"remote get-url origin": CommandResult(2, stderr="No such remote")}
 
 
+def _windows_pango_response(*, arm64: bool = False) -> dict[str, CommandResult]:
+    environment = "clangarm64" if arm64 else "ucrt64"
+    architecture = "arm64" if arm64 else "x64"
+    package = (
+        "mingw-w64-clang-aarch64-pango"
+        if arm64
+        else "mingw-w64-ucrt-x86_64-pango"
+    )
+    directory = rf"C:\msys64\{environment}\bin"
+    return {
+        "ConvertTo-Json": CommandResult(
+            0,
+            json.dumps(
+                {
+                    "architecture": architecture,
+                    "environment": environment,
+                    "package": package,
+                    "root": r"C:\msys64",
+                    "bin": directory,
+                    "dll": directory + r"\libpango-1.0-0.dll",
+                    "dll_exists": True,
+                    "package_integrity": True,
+                    "user_environment": directory,
+                    "process_environment": directory,
+                }
+            ),
+        )
+    }
+
+
 def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
     """A machine on which every stage is satisfied.
 
@@ -230,6 +260,7 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         "config --local user.email": CommandResult(0, "al01234@surrey.ac.uk\n"),
         "pandoc": CommandResult(0, "pandoc 3.10.1"),
         "pango-view": CommandResult(0, "pango-view (pango) 1.56.3"),
+        **_windows_pango_response(),
         "node": CommandResult(0, "v22.14.0\n"),
         "npm": CommandResult(0, "10.9.2\n"),
         "import zensical": CommandResult(0),
@@ -4723,19 +4754,41 @@ def test_windows_native_arm64_python_installs_arm64_pango(tmp_path: Path) -> Non
     assert "mingw-w64-ucrt-x86_64-pango" not in flat
 
 
-def test_the_msys2_path_entry_is_added_only_once(tmp_path: Path) -> None:
-    """A PATH carrying the same directory four times is what a tool that
-    assumed a single run looks like."""
+def test_arm64_host_with_x64_python_requires_ucrt64_pango_evidence(tmp_path: Path) -> None:
+    """The real failure: host ARM64 is irrelevant when python.exe is x64."""
+
+    evidence = _windows_pango_response()["ConvertTo-Json"]
+    runner = FakeRunner(
+        {
+            "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
+            "pango-view": CommandResult(0, "pango-view (pango) 1.57.1\n"),
+            "int.from_bytes": CommandResult(0, "0x8664\n"),
+            "ConvertTo-Json": evidence,
+        }
+    )
+
+    result = next(s for s in STAGES if s.id == "pandoc").check(
+        _context(tmp_path, runner=runner, platform=WINDOWS)
+    )
+
+    assert result.status is Status.OK
+    assert "ucrt64" in result.detail
+    assert "x64 Python" in result.detail
+    assert not any("pango-view" in " ".join(command) for command in runner.calls)
+
+
+def test_the_selected_msys2_path_entry_is_moved_to_the_front_once(tmp_path: Path) -> None:
+    """The selected environment must win without accumulating duplicates."""
     plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
     path_command = next(c for c in plan.commands if "SetEnvironmentVariable" in " ".join(c))
 
-    assert "-notlike" in " ".join(path_command)
+    rendered = " ".join(path_command)
+    assert "TrimEnd" in rendered
+    assert "(@($bin) + $entries)" in rendered
 
 
-def test_windows_pango_is_still_verified_somewhere(tmp_path: Path) -> None:
-    """#224's rule. The pandoc stage installs Pango and cannot check it;
-    importing WeasyPrint at stage 13 can, and does - so the hand-off is
-    deliberate rather than a gap."""
+def test_windows_pango_is_verified_before_the_project_environment(tmp_path: Path) -> None:
+    """The architecture-specific package and DLL are checked before import."""
     ids = [s.id for s in STAGES]
 
     assert ids.index("pandoc") < ids.index("project-env")
@@ -4754,6 +4807,7 @@ def test_windows_fonts_are_checked_even_though_they_are_installed_by_hand(
         {
             "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
             "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
+            **_windows_pango_response(),
         }
     )
 
@@ -4770,19 +4824,18 @@ def test_windows_fonts_are_checked_even_though_they_are_installed_by_hand(
     assert result.status is Status.OK
 
 
-def test_a_windows_machine_with_no_font_directory_warns_if_pango_is_unreadable(
+def test_a_windows_machine_with_no_font_directory_requires_a_verifiable_pango(
     tmp_path: Path,
 ) -> None:
-    """Same rule as elsewhere: "I could not tell" must not read as "they
-    are missing"."""
+    """A clean install cannot finish while its native renderer is unverified."""
     runner = FakeRunner({"pandoc": CommandResult(0, "pandoc 3.10.1\n")})
 
     result = next(s for s in STAGES if s.id == "pandoc").check(
         _context(tmp_path, runner=runner, platform=WINDOWS)
     )
 
-    assert result.status is Status.WARNING
-    assert not result.needs_work
+    assert result.status is Status.WRONG
+    assert "architecture-matched Windows Pango" in result.detail
 
 
 def test_every_windows_stage_produces_something_to_do(tmp_path: Path) -> None:

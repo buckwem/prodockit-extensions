@@ -8,7 +8,9 @@ from __future__ import annotations
 import json
 import os
 import platform
+import struct
 import subprocess
+import sys
 from dataclasses import asdict, dataclass
 
 MSYS2_ROOTS = (
@@ -75,9 +77,39 @@ def _same_path(left: str | None, right: str) -> bool:
     )
 
 
+def executable_architecture(executable: str | os.PathLike[str] | None = None) -> str | None:
+    """Read the PE machine type of the Python that must load Pango.
+
+    An ARM64 Windows host can deliberately run x64 CPython under emulation.
+    ``platform.machine()`` describes that host on affected Python releases,
+    while the DLL loader requires libraries matching the executable itself.
+    """
+
+    path = os.fspath(executable or sys.executable)
+    try:
+        with open(path, "rb") as stream:
+            header = stream.read(64)
+            if len(header) < 64 or header[:2] != b"MZ":
+                return None
+            pe_offset = struct.unpack_from("<I", header, 0x3C)[0]
+            stream.seek(pe_offset)
+            signature_and_machine = stream.read(6)
+        if len(signature_and_machine) != 6 or signature_and_machine[:4] != b"PE\0\0":
+            return None
+        machine = struct.unpack_from("<H", signature_and_machine, 4)[0]
+    except OSError:
+        return None
+    return {0xAA64: "arm64", 0x8664: "x64"}.get(machine)
+
+
 def pango_spec(*, arm64: bool | None = None) -> PangoSpec:
     if arm64 is None:
-        arm64 = platform.machine().casefold() in {"arm64", "aarch64"}
+        executable = executable_architecture()
+        arm64 = (
+            executable == "arm64"
+            if executable is not None
+            else platform.machine().casefold() in {"arm64", "aarch64"}
+        )
     if arm64:
         return PangoSpec("arm64", "clangarm64", "mingw-w64-clang-aarch64-pango")
     return PangoSpec("x64", "ucrt64", "mingw-w64-ucrt-x86_64-pango")
@@ -130,10 +162,10 @@ def repair_script(spec: PangoSpec) -> str:
         "if (-not $integrity) { throw 'Pango package integrity check failed after reinstall' }; "
         "if (-not (Test-Path $dll)) { throw \"Pango DLL is missing after reinstall: $dll\" }; "
         "$path = [Environment]::GetEnvironmentVariable('Path','User'); "
-        '$entries = @($path -split ";" | Where-Object { $_ }); '
-        'if ($path -notlike "*$bin*") { '
-        "$path = (@($entries) + $bin) -join ';'; "
-        "[Environment]::SetEnvironmentVariable('Path',$path,'User') }; "
+        '$entries = @($path -split ";" | Where-Object { '
+        '$_ -and $_.TrimEnd("\\") -ine $bin.TrimEnd("\\") }); '
+        "$path = (@($bin) + $entries) -join ';'; "
+        "[Environment]::SetEnvironmentVariable('Path',$path,'User'); "
         "[Environment]::SetEnvironmentVariable('WEASYPRINT_DLL_DIRECTORIES',$bin,'User'); "
         "$env:WEASYPRINT_DLL_DIRECTORIES = $bin; "
         '$env:Path = "$bin;$env:Path"; '
@@ -186,6 +218,7 @@ __all__ = [
     "MSYS2_ROOTS",
     "PangoSpec",
     "WindowsPangoEvidence",
+    "executable_architecture",
     "inspect_windows_pango",
     "pango_spec",
     "parse_evidence",

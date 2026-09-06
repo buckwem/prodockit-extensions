@@ -6,8 +6,16 @@
 from __future__ import annotations
 
 import json
+import struct
 
-from prodockit.windows_pango import pango_spec, parse_evidence, probe_script, repair_script
+from prodockit import windows_pango
+from prodockit.windows_pango import (
+    executable_architecture,
+    pango_spec,
+    parse_evidence,
+    probe_script,
+    repair_script,
+)
 
 
 def test_architecture_selects_the_matching_environment_and_package() -> None:
@@ -22,6 +30,41 @@ def test_architecture_selects_the_matching_environment_and_package() -> None:
         "ucrt64",
         "mingw-w64-ucrt-x86_64-pango",
     )
+
+
+def test_executable_architecture_uses_the_pe_machine_not_the_host(tmp_path) -> None:
+    executable = tmp_path / "python.exe"
+    image = bytearray(256)
+    image[:2] = b"MZ"
+    struct.pack_into("<I", image, 0x3C, 128)
+    image[128:132] = b"PE\0\0"
+    struct.pack_into("<H", image, 132, 0x8664)
+    executable.write_bytes(image)
+
+    assert executable_architecture(executable) == "x64"
+
+    struct.pack_into("<H", image, 132, 0xAA64)
+    executable.write_bytes(image)
+    assert executable_architecture(executable) == "arm64"
+
+
+def test_default_selection_uses_x64_python_on_an_arm64_host(
+    tmp_path, monkeypatch
+) -> None:
+    executable = tmp_path / "python.exe"
+    image = bytearray(256)
+    image[:2] = b"MZ"
+    struct.pack_into("<I", image, 0x3C, 128)
+    image[128:132] = b"PE\0\0"
+    struct.pack_into("<H", image, 132, 0x8664)
+    executable.write_bytes(image)
+    monkeypatch.setattr(windows_pango.sys, "executable", str(executable))
+    monkeypatch.setattr(windows_pango.platform, "machine", lambda: "ARM64")
+
+    selected = pango_spec()
+
+    assert selected.architecture == "x64"
+    assert selected.environment == "ucrt64"
 
 
 def test_probe_distinguishes_dll_package_and_both_environment_scopes() -> None:
@@ -41,6 +84,7 @@ def test_repair_reinstalls_only_after_integrity_or_dll_failure() -> None:
     assert "pacman -S --noconfirm $pkg" in script
     assert "integrity check failed after reinstall" in script
     assert "Pango DLL is missing after reinstall" in script
+    assert "(@($bin) + $entries)" in script
 
 
 def test_evidence_requires_the_exact_persistent_and_current_directory() -> None:

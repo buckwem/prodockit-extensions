@@ -28,6 +28,13 @@ requests rather than here.
   shows the complete diff and asks whether to overwrite the project file or
   save the incoming template copy as `FILE-PATH.new`, with `.new` as the safe
   default.
+- Corrected Windows Pango selection on ARM64 hosts running x64 Python. Both
+  Bootstrap and Diagnostics now select and verify native libraries from the
+  Python executable's PE architecture, and Bootstrap cannot accept an
+  unrelated `pango-view` from another MSYS2 environment.
+- Prevented online diagnostics from displaying an interactive SSH host-key
+  prompt while checking for template updates; the public GitHub template is
+  queried over HTTPS and any remaining SSH probe is strictly non-interactive.
 
 ## 0.60.3 (2026-09-05)
 

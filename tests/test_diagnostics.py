@@ -20,6 +20,36 @@ from prodockit.diagnostics import DiagnosticReport, DiagnosticResult
 from prodockit.project_config import ProjectConfig
 
 
+def test_read_only_git_probes_cannot_display_ssh_prompts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: dict[str, str] = {}
+
+    def run(command, **kwargs):
+        observed.update(kwargs["env"])
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(diagnostics.subprocess, "run", run)
+
+    diagnostics._run(["git", "ls-remote", "example", "HEAD"])
+
+    assert observed["GIT_TERMINAL_PROMPT"] == "0"
+    assert "BatchMode=yes" in observed["GIT_SSH_COMMAND"]
+    assert "StrictHostKeyChecking=yes" in observed["GIT_SSH_COMMAND"]
+
+
+def test_public_github_template_check_uses_https() -> None:
+    assert diagnostics._diagnostic_template_remote(
+        "git@github.com:buckwem/prodockit-template.git"
+    ) == "https://github.com/buckwem/prodockit-template.git"
+    assert (
+        diagnostics._diagnostic_template_remote(
+            "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
+        )
+        == "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
+    )
+
+
 def test_path_comparison_handles_posix_and_windows_spellings() -> None:
     assert diagnostics.same_path("/opt/pdk", "/opt/pdk/", platform="linux")
     assert diagnostics.same_path(

@@ -1392,6 +1392,9 @@ def _run(
     """Run one read-only probe with consistent text decoding and no prompts."""
     environment = dict(os.environ)
     environment["GIT_TERMINAL_PROMPT"] = "0"
+    environment["GIT_SSH_COMMAND"] = (
+        "ssh -o BatchMode=yes -o StrictHostKeyChecking=yes"
+    )
     return subprocess.run(
         command,
         cwd=cwd,
@@ -1403,6 +1406,14 @@ def _run(
         check=False,
         env=environment,
     )
+
+
+def _diagnostic_template_remote(remote: str) -> str:
+    """Use prompt-free HTTPS for the public GitHub template."""
+
+    if remote.startswith("git@github.com:"):
+        return "https://github.com/" + remote.removeprefix("git@github.com:")
+    return remote
 
 
 def _first_version(text: str) -> str | None:
@@ -3685,7 +3696,7 @@ def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
                 origin = fields[1]
                 break
         try:
-            remote = resolve_template(origin)
+            remote = _diagnostic_template_remote(resolve_template(origin))
             latest = _run([git, "ls-remote", remote, "HEAD"], timeout=15)
             head = (
                 latest.stdout.split()[0]
