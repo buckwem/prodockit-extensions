@@ -2937,6 +2937,18 @@ def _plan_pandoc(context: Context) -> Plan:
     environments = _BOOTSTRAP_MSYS2_ENVIRONMENTS if context.guided else _MSYS2_ENVIRONMENTS
     arm, other = environments["arm64"], environments["other"]
     roots = ", ".join(f'"{root}"' for root in _MSYS2_ROOTS)
+    msys2_arguments = _winget("MSYS2.MSYS2", resilient=context.guided)
+    msys2_install = (
+        "$roots = @("
+        + roots
+        + "); "
+        + '$root = $roots | Where-Object { Test-Path "$_\\usr\\bin\\bash.exe" } '
+        + "| Select-Object -First 1; "
+        + "if ($root) { Write-Host \"Reusing MSYS2 at $root\"; exit 0 }; "
+        + "& "
+        + " ".join(msys2_arguments)
+        + "; exit $LASTEXITCODE"
+    )
     python_is_arm64 = context.guided and _windows_python_is_arm64(context)
     if context.guided:
         selected = arm if python_is_arm64 else other
@@ -2985,7 +2997,7 @@ def _plan_pandoc(context: Context) -> Plan:
         pango_script = repair_script(pango_spec(arm64=python_is_arm64))
     commands = [
         *([pandoc_install] if pandoc_install is not None else []),
-        _winget("MSYS2.MSYS2", resilient=context.guided),
+        ["powershell", "-NoProfile", "-Command", msys2_install],
         ["powershell", "-NoProfile", "-Command", pango_script],
         *(
             [

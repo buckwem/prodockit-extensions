@@ -4731,6 +4731,8 @@ def test_windows_installs_pango_rather_than_describing_it(tmp_path: Path) -> Non
     flat = " ".join(" ".join(c) for c in plan.commands)
 
     assert "MSYS2.MSYS2" in flat
+    assert 'Test-Path "$_\\usr\\bin\\bash.exe"' in flat
+    assert "Reusing MSYS2 at $root" in flat
     assert "--noconfirm" in flat, "pacman asks otherwise"
     assert "--needed" in flat, "a rerun should be a no-op, not a reinstall"
     assert "SetEnvironmentVariable" in flat
@@ -8749,7 +8751,7 @@ def test_only_pandoc_is_pinned_at_the_winget_line(tmp_path: Path) -> None:
     nothing and break whenever winget pruned an old build. The version
     argument exists for inputs that change this project's *output*."""
     plan = next(s for s in STAGES if s.id == "pandoc").plan(_context(tmp_path, platform=WINDOWS))
-    msys2 = next(c for c in plan.commands if "MSYS2.MSYS2" in c)
+    msys2 = next(c for c in plan.commands if "MSYS2.MSYS2" in " ".join(c))
 
     assert "--version" not in msys2, msys2
 

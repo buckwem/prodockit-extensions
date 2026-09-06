@@ -37,6 +37,8 @@ requests rather than here.
   queried over HTTPS and any remaining SSH probe is strictly non-interactive.
 - Made Adopt retry replacement of `pandoc.exe` when Windows briefly retains a
   file handle during a supported-version upgrade or downgrade.
+- Made Bootstrap reuse an existing valid MSYS2 installation before asking
+  WinGet to install it, avoiding installer failures when only Pango is missing.
 
 ## 0.60.3 (2026-09-05)
 
