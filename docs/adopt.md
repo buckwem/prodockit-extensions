@@ -16,13 +16,6 @@ Use [machine bootstrap](devcons/bootstrap.md) for a new computer or a new
 repository. Adoption assumes that Git, SSH and the editor you prefer already
 work. It does not configure or change any of them.
 
-Use [section 29.1, Scan phases and
-stages](commands/output.md#command-output-structure) to interpret this visual
-summary of the phases, stages, colours, and default-No decisions shown during
-assessment and application:
-
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](assets/diagrams/command-output-anatomy.svg)
-
 \ref{fig-adoption-workflow} shows the existing project entering the outlined
 adoption process. Inside that boundary, prodockit assesses the project, adds
 the standard components, and either installs or skips each optional renderer.
@@ -118,6 +111,12 @@ prodockit adopt
 The report is read-only. It groups the work into phases and gives every change
 its own stage, using the same presentation as `prodockit bootstrap`. It also says explicitly
 that Git, SSH, remotes and editors are outside its scope.
+
+Use [section 29.1, Scan phases and
+stages](commands/output.md#command-output-structure) to interpret the phases,
+stages, colours, and default-No decisions in the assessment:
+
+![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](assets/diagrams/command-output-anatomy.svg)
 
 ////
 
