@@ -120,7 +120,7 @@ def test_a_step_can_hold_content_tabs() -> None:
 
 
 def test_the_bootstrap_quick_start_uses_it() -> None:
-    """The demonstration is a real page rather than a fixture: five steps
+    """The demonstration is a real page rather than a fixture: six steps
     with commands in them, which is what the layout is for."""
     page = BOOTSTRAP_PAGE.read_text(encoding="utf-8")
     quick = page[
@@ -128,7 +128,8 @@ def test_the_bootstrap_quick_start_uses_it() -> None:
     ]
 
     assert "/// steps" in quick
-    assert quick.count("//// step | ") == 5, "five installation steps"
+    assert quick.count("//// step | ") == 6, "six installation and verification steps"
+    assert "//// step | Activate the project and check the installation" in quick
     assert '=== ":material-apple: macOS"' in quick
     assert '=== ":fontawesome-brands-windows: Windows"' in quick
     assert '=== ":material-linux: Linux (Ubuntu)"' in quick
