@@ -17,7 +17,7 @@ The \index{commands!`prodockit template-sync`} command closes that gap without t
 writing.
 
 Students can follow the single
-[project check and update sequence](../command-line.md#student-project-check-and-update-sequence)
+[project check and update sequence](../project-check-update.md)
 to use Diagnostics, Pins, and Template Sync in the correct order.
 
 \ref{fig-template-sync-decision} follows each managed file from the preview to

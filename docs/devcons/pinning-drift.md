@@ -213,23 +213,9 @@ the floor stays a floor, the pins stay pinned - so one answer updates every
 file correctly. The supported defaults are carried inside the installed wheel,
 so restoring them does not depend on the template or on PyPI being available.
 
-### Options {: #pinning-options }
-
-The command's reporting, write, and network controls are summarised in
-\ref{tab-devcons-pinning-drift-options}.
-
-| Option {: width="38%" } | What it does |
-| --- | --- |
-| `-r`, `--root` | Project root to scan. Defaults to the current directory. |
-| `-p`, `--package` | Package to manage, repeatable. Defaults to `zensical`, `weasyprint`, `prodockit`, `Markdown`, `pymdown-extensions`, `pandoc`, and `python`. |
-| `--set PACKAGE=VERSION` | Set a version without prompting, repeatable. Implies `--no-input`. |
-| `--latest` | Take PyPI's newest for every package without prompting. Implies `--no-input`. |
-| `--no-input` | Never prompt. Packages given a version are updated; the rest are reported and left untouched. |
-/// table-caption | <
-    attrs: {id: tab-devcons-pinning-drift-options}
-
-Options
-///
+The [`pdk pins` command reference](../commands/pins.md) lists every reporting,
+write, network, and package-selection option. This task guide concentrates on
+choosing and validating a version change.
 
 ## Keep shared files with the pinned release {: #pinning-shared-files }
 
@@ -278,8 +264,6 @@ branch, checksum list or network request is involved.
 
 Use `prodockit shared-files --verbose` when investigating a mismatch; it adds
 the expected and actual SHA-256 values to the ordinary author-facing report.
-| `--check` | Report and exit non-zero if anything is behind or inconsistent. Writes nothing. |
-| `--offline` | Skip the PyPI lookup and only report what the files declare. |
 
 `--set` is the unattended form, so it suppresses the prompt for **every**
 package, not only the one it names:
