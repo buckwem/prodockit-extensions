@@ -267,22 +267,29 @@ read from its structure rather than line by line:
    successful apply.
 2. <span class="pdk-terminal-key__phase">**Compatible Prodockit**</span>
    compares the active release with the exact release paired with the incoming
-   template. Read <span class="pdk-terminal-key__change">`Action`, `Current`,
-   `Required`, and `Result`</span> before accepting an upgrade or downgrade.
+   template. Read <span class="pdk-terminal-key__change">`Action`</span>,
+   <span class="pdk-terminal-key__change">`Current`</span>,
+   <span class="pdk-terminal-key__change">`Required`</span>, and
+   <span class="pdk-terminal-key__change">`Result`</span> before accepting an
+   upgrade or downgrade.
 3. <span class="pdk-terminal-key__phase">**Supported toolchain**</span>
    previews each Adopt <span class="pdk-terminal-key__stage">stage</span>.
-   `CHECK` means no change; <span class="pdk-terminal-key__change">`ALIGN` or
-   `CONFIGURE`</span> names work that Apply must complete first. File lines use
-   paths relative to the project root.
+   `CHECK` means no change;
+   <span class="pdk-terminal-key__change">`ALIGN`</span> or
+   <span class="pdk-terminal-key__change">`CONFIGURE`</span> names work that
+   Apply must complete first. File lines use paths relative to the project root.
 4. <span class="pdk-terminal-key__phase">**Apply template update**</span>
    says whether the run is a non-writing `PREVIEW`, is waiting for a
-   <span class="pdk-terminal-key__warning">protected-file decision</span>, or
+   protected-file <span class="pdk-terminal-key__warning">`Decision`</span>, or
    can create the review branch.
 
 The short colour key in section 24.1 identifies the lines to find first. The
-words <span class="pdk-terminal-key__change">`Action` and `Result`</span>, and
-<span class="pdk-terminal-key__warning">`Warning` and `Decision`</span>,
-preserve the same meaning in redirected or monochrome output.
+labels <span class="pdk-terminal-key__change">`Action`</span> and
+<span class="pdk-terminal-key__change">`Result`</span>, plus
+<span class="pdk-terminal-key__warning">`WARN`</span>,
+<span class="pdk-terminal-key__warning">`Warning`</span>, and
+<span class="pdk-terminal-key__warning">`Decision`</span>, preserve the same
+meaning in redirected or monochrome output.
 
 The complete `.prodockit-template.log` contains the verbose report in plain
 text. Share that file when investigating a run; `--verbose` displays the same
