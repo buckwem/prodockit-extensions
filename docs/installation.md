@@ -218,9 +218,23 @@ Use this Windows-only recovery step when an installer changes the terminal envir
 
 Install the current prodockit package into the active project environment:
 
-```bash
-pip install prodockit
-```
+=== ":material-apple: macOS"
+
+    ```bash
+    pip3 install prodockit
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    pip install prodockit
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    pip install prodockit
+    ```
 
 If an installed command appears to use the wrong Python or version, run this
 from the project root before reinstalling anything:

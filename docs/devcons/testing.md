@@ -12,9 +12,23 @@ failure modes that are the same in every prodockit project.
 
 Install it with:
 
-```bash
-pip install prodockit[testing]
-```
+=== ":material-apple: macOS"
+
+    ```bash
+    pip3 install "prodockit[testing]"
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    pip install "prodockit[testing]"
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    pip install "prodockit[testing]"
+    ```
 
 The fixtures inspect artifacts that already exist; they never build anything.
 Create a clean website first, derive the PDF from that generated HTML, and only

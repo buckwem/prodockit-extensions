@@ -107,7 +107,7 @@ operating system when the route above requires them:
     ```bash
     brew install pandoc
     brew install pango
-    python -m pip install weasyprint
+    pip3 install weasyprint
     ```
 
 === ":fontawesome-brands-windows: Windows"
@@ -125,7 +125,7 @@ operating system when the route above requires them:
 
     ```bash
     sudo apt install pandoc libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
-    python -m pip install weasyprint
+    pip install weasyprint
     ```
 
 Confirm both programs from the same activated environment before building:
@@ -142,9 +142,23 @@ A [back-of-book index](extensions/index-terms.md#index-terms-requirements)
 also needs `pymupdf`. Install `prodockit[index]` only when the document enables
 the PDF index:
 
-```bash
-python -m pip install "prodockit[index]"
-```
+=== ":material-apple: macOS"
+
+    ```bash
+    pip3 install "prodockit[index]"
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    pip install "prodockit[index]"
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    pip install "prodockit[index]"
+    ```
 
 ### Add Mermaid diagrams or TeX maths only when used {: #mermaid-diagrams-and-tex-maths }
 

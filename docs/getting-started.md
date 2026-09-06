@@ -20,9 +20,23 @@ steps are deliberately kept in section 3.1.
 
 //// step | Install prodockit
 
-```bash
-python -m pip install prodockit
-```
+=== ":material-apple: macOS"
+
+    ```bash
+    pip3 install prodockit
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    pip install prodockit
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    pip install prodockit
+    ```
 
 Zensical is a core dependency, so this installs the `zensical` command too.
 Confirm both commands are available:

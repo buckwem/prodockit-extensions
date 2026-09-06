@@ -67,9 +67,23 @@ some details are still being established:
 
 Install the optional index support before generating a PDF index:
 
-```bash
-python -m pip install 'prodockit[index]'
-```
+=== ":material-apple: macOS"
+
+    ```bash
+    pip3 install "prodockit[index]"
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    pip install "prodockit[index]"
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    pip install "prodockit[index]"
+    ```
 
 Run `prodockit config` afterwards to confirm whether index generation is
 enabled and the optional support is available. Its strict
