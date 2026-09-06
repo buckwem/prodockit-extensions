@@ -400,7 +400,7 @@ def test_pdf_platform_tabs_use_the_standard_labels_and_icons() -> None:
         '=== ":fontawesome-brands-windows: Windows"',
         '=== ":material-linux: Linux (Ubuntu)"',
     ):
-        assert guide.count(label) == 2
+        assert guide.count(label) == 3
 
 
 def test_release_guide_covers_the_version_sources_and_release_gates() -> None:
