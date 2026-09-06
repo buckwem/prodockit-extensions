@@ -45,3 +45,9 @@
 .pdk-terminal-key__warning {
   color: #e69f00;
 }
+
+/* Inline-code styling otherwise replaces the semantic output colour. */
+.pdk-terminal-key__change code,
+.pdk-terminal-key__warning code {
+  color: inherit;
+}

@@ -283,7 +283,7 @@ read from its structure rather than line by line:
    protected-file <span class="pdk-terminal-key__warning">`Decision`</span>, or
    can create the review branch.
 
-The short colour key in section 24.1 identifies the lines to find first. The
+The short colour key above identifies the lines to find first. The
 labels <span class="pdk-terminal-key__change">`Action`</span> and
 <span class="pdk-terminal-key__change">`Result`</span>, plus
 <span class="pdk-terminal-key__warning">`WARN`</span>,
