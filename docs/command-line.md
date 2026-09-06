@@ -25,6 +25,8 @@ status language used across the commands.
 
 ### Restart the terminal after Windows installation
 
+Use this Windows-only recovery step when an installer changes the terminal environment.
+
 === ":fontawesome-brands-windows: Windows"
 
     After Bootstrap or an installer changes Windows settings, fully close the
@@ -39,6 +41,7 @@ status language used across the commands.
     Fully close Windows Terminal or VS Code, then reopen it.
     Open PowerShell in your project directory:
     C:\path\to\your-project
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     pdk diag
     ============================================================</pre>
@@ -50,6 +53,7 @@ status language used across the commands.
 
     ```powershell
     cd C:\path\to\your-project
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     pdk diag
     ```

@@ -18,6 +18,7 @@ def restart_banner(project: Path, *, blocked: bool = False) -> None:
         "Fully close Windows Terminal or VS Code, then reopen it.",
         "Open PowerShell in your project directory:",
         str(project),
+        "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned",
         r".\.venv\Scripts\Activate.ps1",
         "pdk diag",
     ]

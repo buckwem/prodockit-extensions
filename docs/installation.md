@@ -171,6 +171,8 @@ step before continuing with chapters 4, 5, 6 or 7.
 
 ### Restart the terminal after Windows installation
 
+Use this Windows-only recovery step when an installer changes the terminal environment.
+
 === ":fontawesome-brands-windows: Windows"
 
     After Bootstrap or an installer changes Windows settings, fully close the
@@ -185,6 +187,7 @@ step before continuing with chapters 4, 5, 6 or 7.
     Fully close Windows Terminal or VS Code, then reopen it.
     Open PowerShell in your project directory:
     C:\path\to\your-project
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     pdk diag
     ============================================================</pre>
@@ -196,6 +199,7 @@ step before continuing with chapters 4, 5, 6 or 7.
 
     ```powershell
     cd C:\path\to\your-project
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     pdk diag
     ```

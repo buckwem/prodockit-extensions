@@ -86,6 +86,7 @@ _ALL_RUNTIME_FILES = {
     "src/prodockit/renderer_health.py",
     "src/prodockit/renderer_resilience.py",
     "src/prodockit/shared_files.py",
+    "src/prodockit/windows_terminal.py",
     "src/prodockit/util.py",
     "src/prodockit/py.typed",
     "tools/ci_scope.py",
@@ -185,9 +186,7 @@ _COMPONENT_FILES: dict[str, frozenset[str]] = {
     ".github/workflows/bootstrap-live-provider-github.yml": frozenset({"bootstrap"}),
     ".github/workflows/bootstrap-live-provider-surrey.yml": frozenset({"bootstrap"}),
     ".github/workflows/bootstrap-live-provider-surrey-recovery.yml": frozenset({"bootstrap"}),
-    ".github/workflows/bootstrap-live-provider-surrey-connectivity.yml": frozenset(
-        {"bootstrap"}
-    ),
+    ".github/workflows/bootstrap-live-provider-surrey-connectivity.yml": frozenset({"bootstrap"}),
     ".github/workflows/release-gate.yml": frozenset({"bootstrap"}),
     ".gitlab-ci.yml": frozenset({"bootstrap"}),
     ".gitlab/bootstrap-live-provider-surrey.yml": frozenset({"bootstrap"}),
