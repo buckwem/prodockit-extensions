@@ -6,36 +6,43 @@ icon: lucide/rocket
 
 # Build your first site
 
-This walkthrough starts with an empty directory and ends with a local Zensical
-site using numbered headings and a cross-reference. It also demonstrates
-`prodockit.steps`: the procedure you are reading is rendered by that extension.
+Use this route when you do not yet have a Zensical site and want to create one
+cleanly before adding Prodockit. It is independent of section 5's Bootstrap
+route: Bootstrap creates a repository from `prodockit-template`, whereas this
+walkthrough starts with an empty directory, proves that Zensical works on its
+own, and then uses Adopt to integrate Prodockit without manual configuration.
 
-Complete [section 3.1, Installation preparation](installation.md#installation-preparation)
-first, using the empty directory for this site when that section asks you to
-choose a project directory. Continue below with that directory's `.venv`
-active; the repeated Python installation, environment creation and activation
-steps are deliberately kept in section 3.1.
+First complete [section 3.1, Prepare Python and its
+environment](installation.md#installation-preparation). When it asks you to
+choose a project directory, use the empty directory for this new site. Return
+here with that directory's `.venv` active. Python installation, environment
+creation, activation, and verification remain in section 3.1 so they are not
+duplicated here.
 
 /// steps
 
-//// step | Install prodockit
+//// step | Install Zensical
+
+Follow Zensical's official [installation
+guide](https://zensical.org/docs/get-started/) and install it into the active
+project environment.
 
 === ":material-apple: macOS"
 
     ```bash
-    pip3 install prodockit
+    pip3 install --upgrade zensical
     ```
 
 === ":fontawesome-brands-windows: Windows"
 
     ```powershell
-    pip install prodockit
+    pip install --upgrade zensical
     ```
 
 === ":material-linux: Linux (Ubuntu)"
 
     ```bash
-    pip install prodockit
+    pip install --upgrade zensical
     ```
 
 !!! note "If pip or pip3 does not work"
@@ -44,44 +51,119 @@ steps are deliberately kept in section 3.1.
     Keep the intended virtual environment active and check that the alternative
     command belongs to it before installing packages.
 
-Zensical is a core dependency, so this installs the `zensical` command too.
-Confirm both commands are available:
+Confirm that Zensical is available before creating any files:
 
 ```bash
-prodockit --version
 zensical --version
 ```
 
 ////
 
-//// step | Create the Zensical project
+//// step | Create and test the Zensical site
+
+Follow Zensical's official [Create your site
+guide](https://zensical.org/docs/create-your-site/) from the empty project
+directory:
 
 ```bash
 zensical new .
 ```
 
-This creates `zensical.toml` and a starter `docs/` directory without
-overwriting unrelated files.
+This creates the plain Zensical structure shown below:
 
-////
+/// tree
+.github/
+  workflows/
+    docs.yml - Zensical's GitHub Pages workflow
+docs/
+  index.md - starter home page
+  markdown.md - starter Markdown example
+zensical.toml - Zensical project configuration
+///
 
-//// step | Enable the two extensions
+Preview this site before installing Prodockit:
 
-Add these tables at the end of `zensical.toml`:
-
-```toml
-[project.markdown_extensions."prodockit.headings"]
-[project.markdown_extensions."prodockit.refs"]
+```bash
+zensical serve
 ```
 
-The quoted table names matter: each dotted extension name must remain one TOML
-key. Extensions are independent, so a project can enable only these two.
+Open the local address printed in the terminal and confirm that the starter
+site appears. Stop the server with `Ctrl+C`, then verify a clean strict build:
+
+```bash
+zensical build --clean --strict
+```
+
+Do not continue until both checks succeed. Any problem at this point belongs
+to the Python environment or the plain Zensical site, not Prodockit.
 
 ////
 
-//// step | Add content that uses them
+//// step | Install Prodockit and adopt the site
 
-Replace `docs/index.md` with:
+Install Prodockit into the same active project environment. This makes `pdk`
+available; Adopt then installs the supported project toolchain and configures
+the standard authoring components and shared website styles.
+
+=== ":material-apple: macOS"
+
+    ```bash
+    pip3 install --upgrade prodockit
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    pip install --upgrade prodockit
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    pip install --upgrade prodockit
+    ```
+
+!!! note "If pip or pip3 does not work"
+
+    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
+    Keep the intended virtual environment active and check that the alternative
+    command belongs to it before installing packages.
+
+Confirm the command, preview the adoption, and apply the reviewed stages:
+
+```bash
+pdk --version
+pdk adopt --dry-run
+pdk adopt --apply
+```
+
+Read each stage before accepting it. For this first site, leave Mermaid and
+maths off unless you intend to use them. Adopt does not configure Git, SSH,
+remotes, editors, commits, or publishing.
+
+After Adopt, the project retains the Zensical files and adds the Prodockit
+project files shown below. The descriptions identify the additions; Adopt also
+updates `zensical.toml` to enable the standard components and load the shared
+stylesheet.
+
+/// tree
+.github/
+  workflows/
+    docs.yml - original Zensical workflow
+docs/
+  stylesheets/
+    pdk.css - shared Prodockit website styles added by Adopt
+  index.md - original starter home page
+  markdown.md - original starter Markdown example
+.prodockit-components.toml - optional component choices added by Adopt
+.prodockit-toolchain.toml - supported tool versions added by Adopt
+.python-version - supported Python release added by Adopt
+requirements.txt - supported Python packages added by Adopt
+zensical.toml - original configuration updated by Adopt
+///
+
+Replace `docs/index.md` with content that uses two of the extensions enabled by
+Adopt:
 
 ```md
 # My first document
@@ -101,16 +183,16 @@ Describe what you found here.
 `\ref{results}` into a link containing the current number and title, so it
 stays correct if the sections move.
 
-////
-
-//// step | Preview the site
+Build and preview the adopted site:
 
 ```bash
+zensical build --clean --strict
 zensical serve
 ```
 
-Open the local address printed in the terminal. Zensical rebuilds the preview
-when a source file changes; stop it with `Ctrl+C`.
+Open the local address again and confirm that the headings are numbered and the
+reference is linked. Zensical rebuilds the preview when a source file changes;
+stop it with `Ctrl+C`.
 
 ////
 

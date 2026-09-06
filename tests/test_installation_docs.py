@@ -25,6 +25,7 @@ REQUIREMENTS = REPO / "docs" / "requirements-dependencies.md"
 PYPROJECT = REPO / "pyproject.toml"
 ADOPTION = REPO / "docs" / "adopt.md"
 BOOTSTRAP_GUIDE = REPO / "docs" / "devcons" / "bootstrap.md"
+FIRST_SITE = REPO / "docs" / "getting-started.md"
 POWERSHELL_POLICY = "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned"
 
 if sys.version_info >= (3, 11):  # pragma: no cover - version-gated import
@@ -180,6 +181,26 @@ def test_adoption_continues_after_shared_preparation() -> None:
     assert '=== ":fontawesome-brands-windows: Windows"' in resume
     assert '=== ":material-linux: Linux (Ubuntu)"' in resume
     assert "python --version\nprodockit adopt --apply" in resume
+
+
+def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
+    page = FIRST_SITE.read_text(encoding="utf-8")
+
+    assert "installation.md#installation-preparation" in page
+    assert "independent of section 5's Bootstrap" in page
+    assert page.count("//// step | ") == 3
+    assert page.count("/// tree") == 2
+
+    install_zensical = page.index("//// step | Install Zensical")
+    test_zensical = page.index("//// step | Create and test the Zensical site")
+    install_prodockit = page.index("//// step | Install Prodockit and adopt the site")
+    assert install_zensical < test_zensical < install_prodockit
+
+    before_prodockit = page[:install_prodockit]
+    assert "zensical serve" in before_prodockit
+    assert "zensical build --clean --strict" in before_prodockit
+    assert "pip install --upgrade prodockit" not in before_prodockit
+    assert "pdk adopt --dry-run\npdk adopt --apply" in page[install_prodockit:]
 
 
 def test_prodockit_is_not_presented_as_supporting_mkdocs() -> None:
