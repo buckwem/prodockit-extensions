@@ -105,7 +105,6 @@ operating system when the route above requires them:
 === ":material-apple: macOS"
 
     ```bash
-    brew install pandoc
     brew install pango
     pip3 install weasyprint
     ```
@@ -124,7 +123,7 @@ operating system when the route above requires them:
 === ":material-linux: Linux (Ubuntu)"
 
     ```bash
-    sudo apt install pandoc libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
+    sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
     pip install weasyprint
     ```
 
@@ -134,7 +133,15 @@ operating system when the route above requires them:
     Keep the intended virtual environment active and check that the alternative
     command belongs to it before installing packages.
 
-Confirm both programs from the same activated environment before building:
+Install the exact supported Pandoc into the activated project environment on
+all three operating systems, then verify both programs. This explicit Python
+command targets that environment without changing a system or Homebrew Pandoc:
+
+```bash
+python -m prodockit.toolchain install-pandoc --version 3.10.1
+```
+
+Confirm that Pandoc reports **3.10.1** from the same activated environment before building:
 
 ```bash
 pandoc --version

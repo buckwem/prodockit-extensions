@@ -88,8 +88,10 @@ binaries: one is a `pip install` away and the other is not.
 Pandoc is version-sensitive in a way that changes output rather than breaking
 the build: a major version below 3 renders code blocks as justified prose, and
 the builds pin an exact release because 3.x releases have disagreed about the
-same source. Bootstrap installs the pinned version where a package manager
-allows it and reports local drift. See [Version pinning and
+same source. Bootstrap installs and verifies Pandoc 3.10.1 inside the project's
+virtual environment on every supported operating system. The system package
+can remain at another version; activate the project environment to use its pin.
+See [Version pinning and
 drift](devcons/pinning-drift.md).
 
 See [PDF generation](pdf.md) for how `prodockit.pdf` locates these tools and

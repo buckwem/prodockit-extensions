@@ -154,11 +154,7 @@ def _before_the_clone(machine: dict[str, CommandResult]) -> dict[str, CommandRes
 def _windows_pango_response(*, arm64: bool = False) -> dict[str, CommandResult]:
     environment = "clangarm64" if arm64 else "ucrt64"
     architecture = "arm64" if arm64 else "x64"
-    package = (
-        "mingw-w64-clang-aarch64-pango"
-        if arm64
-        else "mingw-w64-ucrt-x86_64-pango"
-    )
+    package = "mingw-w64-clang-aarch64-pango" if arm64 else "mingw-w64-ucrt-x86_64-pango"
     directory = rf"C:\msys64\{environment}\bin"
     return {
         "ConvertTo-Json": CommandResult(
@@ -1580,9 +1576,12 @@ def test_macos_vscode_path_is_appended_without_replacing_the_profile(
     source = profile.read_text(encoding="utf-8")
     assert source.startswith("export AN_EXISTING_CHOICE=yes\n")
     assert source.count("Added by prodockit bootstrap for Visual Studio Code") == 1
-    assert source.count(
-        'export PATH="$PATH:/Applications/Visual Studio Code.app/Contents/Resources/app/bin"'
-    ) == 1
+    assert (
+        source.count(
+            'export PATH="$PATH:/Applications/Visual Studio Code.app/Contents/Resources/app/bin"'
+        )
+        == 1
+    )
     assert stage.check(context).status is Status.OK
 
 
@@ -3093,9 +3092,7 @@ def test_dry_run_lists_the_profile_update_after_the_vscode_install(
     result = cli_bootstrap("--dry-run", responses={"code --version": CommandResult(127)})
 
     assert "run: brew install --cask visual-studio-code" in result.output
-    assert result.output.index("run: brew install --cask") < result.output.index(
-        ".zprofile"
-    )
+    assert result.output.index("run: brew install --cask") < result.output.index(".zprofile")
 
 
 def test_ubuntu_vscode_is_downloaded_rather_than_asked_for(tmp_path: Path) -> None:
@@ -3865,6 +3862,7 @@ def test_project_environment_reports_a_different_build_python_without_blocking(
             "import zensical": CommandResult(0),
             "import weasyprint": CommandResult(0),
             "platform.python_version": CommandResult(0, "3.13.9\n"),
+            "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
         }
     )
 
@@ -4492,9 +4490,7 @@ def test_ubuntu_mermaid_probe_retries_a_transient_snap_mount_failure(
         stderr="Content snap GPU wrapper is missing; ensure slot is connected",
     )
     responses = _ready_machine(tmp_path) | {
-        "command -v chromium-browser": CommandResult(
-            0, f"Chromium {CHROMIUM_MIN_VERSION}\n"
-        ),
+        "command -v chromium-browser": CommandResult(0, f"Chromium {CHROMIUM_MIN_VERSION}\n"),
         f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
     }
     runner = SequentialMermaidRunner(
@@ -4542,9 +4538,7 @@ def test_ubuntu_mermaid_probe_exhaustion_keeps_attempt_history(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     responses = _ready_machine(tmp_path) | {
-        "command -v chromium-browser": CommandResult(
-            0, f"Chromium {CHROMIUM_MIN_VERSION}\n"
-        ),
+        "command -v chromium-browser": CommandResult(0, f"Chromium {CHROMIUM_MIN_VERSION}\n"),
         f"grep -q {PUPPETEER_SKIP_VAR}": CommandResult(0),
     }
     runner = SequentialMermaidRunner(
@@ -6888,9 +6882,7 @@ def test_bootstrap_retries_winget_after_transient_msi_1603(
         "node",
         "Node",
         lambda context: CheckResult(Status.OK),
-        lambda context: Plan(
-            commands=[["winget", "install", "--id", "OpenJS.NodeJS.LTS"]]
-        ),
+        lambda context: Plan(commands=[["winget", "install", "--id", "OpenJS.NodeJS.LTS"]]),
     )
 
     result = apply_stage(context, stage)
@@ -6940,8 +6932,7 @@ def test_bootstrap_retries_shell_wrapped_homebrew_after_partial_download(
                 [
                     "bash",
                     "-c",
-                    "brew upgrade --cask visual-studio-code || "
-                    "brew list --cask visual-studio-code",
+                    "brew upgrade --cask visual-studio-code || brew list --cask visual-studio-code",
                 ]
             ]
         ),
@@ -6960,11 +6951,7 @@ def test_bootstrap_does_not_retry_an_unrecognised_winget_installer_failure(
     from prodockit.bootstrap import Stage, apply_stage
 
     runner = FakeRunner(
-        {
-            "winget install": CommandResult(
-                1, stderr="Installer failed with exit code: 1625"
-            )
-        }
+        {"winget install": CommandResult(1, stderr="Installer failed with exit code: 1625")}
     )
     delays: list[int] = []
     monkeypatch.setattr("prodockit.bootstrap.time.sleep", delays.append)
@@ -6973,9 +6960,7 @@ def test_bootstrap_does_not_retry_an_unrecognised_winget_installer_failure(
         "node",
         "Node",
         lambda context: CheckResult(Status.MISSING, "not installed"),
-        lambda context: Plan(
-            commands=[["winget", "install", "--id", "OpenJS.NodeJS.LTS"]]
-        ),
+        lambda context: Plan(commands=[["winget", "install", "--id", "OpenJS.NodeJS.LTS"]]),
     )
 
     result = apply_stage(context, stage)

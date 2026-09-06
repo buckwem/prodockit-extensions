@@ -186,6 +186,8 @@ and why - and running `--apply` again does only that stage.
 Leave the setup environment, enter the project directory named by Bootstrap,
 and activate the project environment created in stage 16. Changing directory
 while the prompt already says `(.venv)` does not switch environments.
+Stage 16 also installs and verifies Pandoc **3.10.1** inside that environment,
+even if the system has a newer Pandoc. It leaves the system installation alone.
 Bootstrap also records Mermaid and maths as the project's selected components
 in `.prodockit-components.toml`. A later `pdk adopt` can therefore repair their
 installed software without asking you to configure those choices first.
