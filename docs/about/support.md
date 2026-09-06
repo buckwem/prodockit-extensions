@@ -63,8 +63,8 @@ tool-by-tool boundary.
 
 The \index{platform testing} described here covers Linux, macOS, and Windows.
 Bootstrap has now completed
-manual end-to-end testing on Ubuntu Linux, Windows, and macOS against both the
-University of Surrey's GitLab (`gitlab.surrey.ac.uk`) and GitHub.com.
+manual end-to-end testing on Ubuntu Linux, Windows, and macOS against the
+University of Surrey's GitLab (`gitlab.surrey.ac.uk`), GitHub.com, and GitLab.com.
 
 Two complete document workflows were exercised:
 
@@ -73,7 +73,7 @@ Two complete document workflows were exercised:
 2. **Adopt an existing document:** take an existing online repository, install
    it locally on the prepared machine, and reach a working local build.
 
-This is practical integration testing across the three operating systems, two
+This is practical integration testing across the three operating systems, three
 hosts, and both common starting points. It verifies that the stages work
 together in real environments, beyond unit tests or inspection of generated
 commands. It is not an automated cross-platform full-suite regression matrix,
@@ -83,9 +83,9 @@ however:
 
 | Platform | Regression test coverage | Manual bootstrap coverage |
 |---|---|---|
-| Ubuntu Linux | Scope-selected full test suite on every push and pull request using `ubuntu-24.04`; installed-wheel adoption and bootstrap on x64 and ARM64 | Both repository workflows on Surrey GitLab and GitHub.com |
-| macOS | The full test suite is also run locally; installed-wheel adoption and bootstrap run on hosted ARM64 | Both repository workflows on Surrey GitLab and GitHub.com |
-| Windows | Installed-wheel adoption and bootstrap on Windows 2025 x64 and Windows 11 ARM64; no hosted full-suite job | Both repository workflows on Surrey GitLab and GitHub.com |
+| Ubuntu Linux | Scope-selected full test suite on every push and pull request using `ubuntu-24.04`; installed-wheel adoption and bootstrap on x64 and ARM64 | Both repository workflows on Surrey GitLab, GitHub.com, and GitLab.com |
+| macOS | The full test suite is also run locally; installed-wheel adoption and bootstrap run on hosted ARM64 | Both repository workflows on Surrey GitLab, GitHub.com, and GitLab.com |
+| Windows | Installed-wheel adoption and bootstrap on Windows 2025 x64 and Windows 11 ARM64; no hosted full-suite job | Both repository workflows on Surrey GitLab, GitHub.com, and GitLab.com |
 /// table-caption | <
     attrs: {id: tab-about-support-platforms-and-test-depth}
 
@@ -122,8 +122,11 @@ are documented under [PDF requirements](../pdf.md#pdf-requirements), and
 failure rather than assuming it is local configuration; it may expose a real
 coverage gap.
 
-Bootstrap also recognises GitLab.com, but the completed manual platform matrix
-described above covers Surrey GitLab and GitHub.com. See
+GitLab.com manual testing was completed in September 2026, including project
+environment activation, Diagnostics, Template Sync, and local website/PDF
+checks. On macOS, Adopt aligned Pandoc to 3.10.1 before Diagnostics and both
+builds passed. This records manual integration evidence, not an additional
+automated live-provider CI gate. See
 [Set up a machine](../devcons/bootstrap.md#bootstrap-hosts) for the host
 boundary.
 
