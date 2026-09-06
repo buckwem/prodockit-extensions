@@ -70,7 +70,6 @@ other_page_shapes = [
 "commands/sync-repo.md" = "commands/output.md"
 "commands/update-dates.md" = "commands/output.md"
 "requirements-dependencies.md" = "installation.md"
-"prodockit-template.md" = "installation.md"
 "devcons/bootstrap.md" = "installation.md"
 "devcons/template-sync.md" = "publishing.md"
 "devcons/continuous-integration.md" = "publishing.md"

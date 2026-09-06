@@ -38,7 +38,7 @@ starting point and result.
 Choose an installation path
 ///
 
-[Start with prodockit-template](prodockit-template.md) explains what the
+[Set up a template project](devcons/bootstrap.md#bootstrap-template) explains what the
 template supplies and which files become part of your own project. Adoption,
 bootstrap, and manual installation are alternative setup paths. Choose one as
 the starting point; do not run bootstrap merely because a manually installed

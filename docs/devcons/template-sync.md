@@ -104,7 +104,7 @@ file could hide work you have not saved in Git. Read the short summary and pay
 particular attention to any files described as "your edited files".
 
 \ref{fig-template-sync-preview-output} is a short visual guide to the preview.
-Use [section 29.1, Scan phases and
+Use [section 28.1, Scan phases and
 stages](../commands/output.md#command-output-structure) for the complete
 explanation:
 

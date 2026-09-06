@@ -22,12 +22,12 @@ def _publishing_nav() -> list[dict[str, str]]:
 
 def test_publishing_nav_follows_the_reader_workflow() -> None:
     assert _publishing_nav() == [
-        {"22. Publishing overview": "publishing.md"},
-        {"23. Requirements and dependencies": "requirements-dependencies.md"},
-        {"24. Staying in step with the template": "devcons/template-sync.md"},
-        {"25. Publish automatically": "devcons/continuous-integration.md"},
-        {"26. Test the built output": "devcons/testing.md"},
-        {"27. Check and update a template project": "project-check-update.md"},
+        {"21. Publishing overview": "publishing.md"},
+        {"22. Requirements and dependencies": "requirements-dependencies.md"},
+        {"23. Staying in step with the template": "devcons/template-sync.md"},
+        {"24. Publish automatically": "devcons/continuous-integration.md"},
+        {"25. Test the built output": "devcons/testing.md"},
+        {"26. Check and update a template project": "project-check-update.md"},
     ]
 
 
@@ -145,11 +145,14 @@ def test_authoring_explains_page_dates_and_links_to_the_build() -> None:
 
 
 def test_template_introduction_explains_contents_and_ownership() -> None:
-    guide = (ROOT / "docs" / "prodockit-template.md").read_text(encoding="utf-8")
+    guide = (ROOT / "docs" / "devcons" / "bootstrap.md").read_text(encoding="utf-8")
     required = (
         "one source, two outputs",
         "zensical.toml",
-        ".github/workflows/docs.yml",
+        ".github/",
+        "workflows/",
+        "docs.yml",
+        "release-redeploy.yml",
         ".gitlab-ci.yml",
         ".prodockit-template.toml",
         "Project-owned",

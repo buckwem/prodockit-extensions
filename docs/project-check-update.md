@@ -51,7 +51,7 @@ components, but it never downloads or applies a template. Rerun `pdk diag`
 afterward and resolve any remaining failure before continuing.
 
 \ref{fig-project-check-adopt-output} is a short visual guide to the output used
-in this step. Use [section 29.1, Scan phases and
+in this step. Use [section 28.1, Scan phases and
 stages](commands/output.md#command-output-structure) for the complete
 explanation of the phases, stages, actions, warnings, and decisions shown by
 Adopt and later by Template Sync:

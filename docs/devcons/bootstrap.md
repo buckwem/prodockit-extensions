@@ -24,6 +24,92 @@ unrelated step two sections on. Every stage here answers "is this
 actually set up?", which is the question a written instruction cannot
 answer for its reader.
 
+## Start with prodockit-template {: #bootstrap-template }
+
+The \index{`prodockit-template`} project ([GitHub
+repository](https://github.com/buckwem/prodockit-template)) is a ready-made
+Zensical project for coursework, assignments, and professional reports. Its
+central promise is **one source, two outputs**: write the report as Markdown
+under `docs/`, then build both a browsable website and a single PDF from the
+same pages and navigation.
+
+Use the template when you want the publishing structure supplied for you. It
+does not prescribe the subject or wording of the report, and it does not turn
+your project into a live copy of the template.
+
+The template is maintained on GitHub. Its Surrey GitLab repository is a
+student-facing mirror of that source, not a separate edition with an
+independent set of fixes. Surrey students clone the nearby mirror; other
+projects normally clone GitHub.
+
+### See what the template provides {: #bootstrap-template-contents }
+
+The starter repository already connects authoring, rendering, testing, and
+deployment:
+
+/// tree
+docs/ - content and appearance
+  index.md - report cover
+  1-originality.md - originality and AI-use statement
+  2-executive-summary.md - starter executive summary
+  3-requirements.md - requirements section
+  4-solution-architecture.md - solution architecture section
+  5-goverance.md - governance section
+  6-operations.md - operations section
+  7-examples.md - extension examples
+  acronyms.md - acronym list
+  glossary.md - glossary
+  bibliography.md - generated bibliography page
+  references.md - formatted reference list
+  assets/ - cover, branding, and report images
+  javascripts/ - website behaviour
+  stylesheets/ - template, managed, and author styles
+zensical.toml - site, navigation, extensions, and PDF settings
+requirements.txt - Python build dependencies
+.python-version - supported project Python
+.prodockit-shared-files.toml - managed shared-file checksums
+.gitignore - generated and local files excluded from Git
+README.md - project summary and publishing badges
+bibliography.bib - example bibliography source
+references.bib - example hand-written reference source
+tools/ - pinned Mermaid and MathJax Node tooling
+overrides/ - Zensical theme customisations
+macros.py - shared macros and Surrey environment detection
+.github/ - GitHub repository configuration
+  workflows/ - GitHub Actions workflows
+    docs.yml - GitHub Pages build and deployment
+    release-redeploy.yml - rebuild after a template release
+.gitlab-ci.yml - GitLab Pages build and deployment
+///
+
+This is the useful project-facing structure rather than every file in the
+source repository. Template Sync reads the release's
+`.prodockit-template.toml` manifest for the authoritative managed, shared,
+project-owned, and excluded sets. The sample pages demonstrate the enabled
+Prodockit extensions. Replace their starter prose and headings with your
+report; keep the publishing files until you have a specific reason to
+customise them.
+
+### Adapt one template to its host {: #bootstrap-template-host }
+
+The project-specific `macros.py` defines an \index{`is_surrey`} value. It
+becomes true when the build sees the Surrey GitLab CI host, a Surrey `origin`
+remote, or a Surrey address in the Zensical environment. The template uses
+that value to select the Surrey cover and Surrey logos; otherwise it renders
+the generic cover and logos.
+
+```jinja title="The choice made in the template cover"
+{% if is_surrey %}
+    Surrey cover and branding
+{% else %}
+    Generic cover and branding
+{% endif %}
+```
+
+This keeps the report structure, extensions, build commands, and workflows the
+same on both hosts. Branding is enabled by where the project is built rather
+than by asking students to maintain a second configuration file.
+
 ## Install with bootstrap {: #bootstrap-quick-start }
 
 Complete [section 3.1, Installation preparation](../installation.md#installation-preparation)
@@ -136,7 +222,7 @@ yourself, without running any of them. Worth one read on a machine you
 care about.
 
 \ref{fig-bootstrap-dry-run-output} is a short visual guide to the dry-run
-output. Use [section 29.1, Scan phases and
+output. Use [section 28.1, Scan phases and
 stages](../commands/output.md#command-output-structure) for the complete
 explanation of its phases, stages, actions, warnings, and decisions:
 
@@ -491,9 +577,26 @@ succeeds.
 
 ## Which repository gets cloned {: #bootstrap-source }
 
-By default, this host's copy of the template - for Surrey that is
-`gitlab.surrey.ac.uk:mb0105/prodockit-template.git`, its own mirror,
-so you never need a GitHub account to start.
+The source template depends on the selected host:
+
+=== "GitHub"
+
+    Bootstrap clones `github.com/buckwem/prodockit-template`, then points
+    `origin` at the empty repository you create in your account or
+    organisation.
+
+=== "GitLab.com"
+
+    Bootstrap uses the GitHub template as its public source, then points
+    `origin` at your GitLab namespace. Your finished project and Pages site
+    remain on GitLab.
+
+=== "University of Surrey GitLab"
+
+    Bootstrap clones the synchronised Surrey student mirror at
+    `gitlab.surrey.ac.uk/mb0105/prodockit-template`. A GitHub account is not
+    required. The `is_surrey` macro detects that remote and enables the Surrey
+    presentation automatically.
 
 If you have already been given a repository - a taught module usually
 issues one per student - put its URL in `source_url` and that is cloned
@@ -506,6 +609,45 @@ source_url = "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git"
 The later stages follow on their own: a clone made from `source_url`
 already has the right `origin`, so the repoint stage reports `ok` and
 does nothing.
+
+## Know what becomes yours {: #bootstrap-template-ownership }
+
+After creation, the repository is your project. The template manifest,
+`.prodockit-template.toml`, classifies files so a later
+`prodockit template-sync` can update shared publishing infrastructure without
+guessing about ownership.
+
+\ref{fig-template-file-ownership} separates the repository into managed or
+shared files, author-owned content, and generated local output. Follow the
+first group through Template Sync; the other two remain under the author's or
+the build's control.
+
+![Template files are classified as managed or shared, author-owned, or generated and local so later updates preserve the author's work](../assets/diagrams/5.1-template-file-ownership.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-template-file-ownership}
+
+Template file ownership
+///
+
+\ref{tab-prodockit-template-know-what-becomes-yours} gives concrete file
+examples and explains how a later template update treats each classification.
+
+| Classification | Examples | Later template update |
+|---|---|---|
+| **Project-owned** | Markdown and assets under `docs/`, bibliography files, licence, editor and prose-lint choices | Never read for comparison and never written |
+| **Template-owned** | Pages workflows, `.gitlab-ci.yml`, styles, JavaScript, `macros.py`, `overrides/`, and `tools/` | Updated when the project has not edited the file; a local edit is kept for review |
+| **Shared** | `zensical.toml`, requirements files, `.gitignore`, and `README.md` | Merged by setting or delegated to the command that owns that content |
+| **Excluded** | Template changelog, contributor files, issue templates, and the template's sample regression suite | Not delivered to generated projects |
+/// table-caption | <
+    attrs: {id: tab-prodockit-template-know-what-becomes-yours}
+
+Know what becomes yours
+///
+
+For shared files, the merge is deliberately narrow. Template extension and
+PDF settings can arrive in `zensical.toml`, but project content such as the
+author's PDF copyright is not replaced. Dependency versions are left to
+`prodockit pins`; repository badges are left to `prodockit sync-repo`.
 
 ## Configuration {: #bootstrap-configuration }
 
@@ -650,6 +792,24 @@ Everything host-specific is a *value* rather than a branch: the hostname,
 the greeting `ssh -T` prints on success, the settings and new-project
 URLs, and the vocabulary (GitLab's *project* in a *group*, GitHub's
 *repository* in an *organisation*).
+
+## Keep the project current {: #bootstrap-template-updates }
+
+A generated project does not change when the source template changes. Check
+periodically and before a final publication:
+
+```bash
+prodockit template-sync
+```
+
+The first run is a report. If an update is useful, the [Template Sync
+guide](template-sync.md) explains how to apply it on a branch, compare
+protected files, build both outputs, and publish through the normal review
+gate.
+
+The template version you started from is not a Prodockit package version.
+Template releases describe starter files; Prodockit releases describe the
+installed extensions and commands. The two can move independently.
 
 ## Status {: #bootstrap-status }
 

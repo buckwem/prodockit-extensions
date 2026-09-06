@@ -246,10 +246,10 @@ def test_command_reference_is_a_top_level_section() -> None:
 
     assert all("command-line.md" not in item.values() for item in authoring)
     assert all("command-line.md" not in item.values() for item in maintenance)
-    assert {"28. Command overview": "command-line.md"} in commands
-    assert {"29. Reading command output": "commands/output.md"} in commands
-    assert {"30. Bootstrap": "commands/bootstrap.md"} in commands
-    assert {"31. Diagnostics": "commands/diag.md"} in commands
+    assert {"27. Command overview": "command-line.md"} in commands
+    assert {"28. Reading command output": "commands/output.md"} in commands
+    assert {"29. Bootstrap": "commands/bootstrap.md"} in commands
+    assert {"30. Diagnostics": "commands/diag.md"} in commands
     assert "document authors" in _text("docs/command-line.md")
 
 

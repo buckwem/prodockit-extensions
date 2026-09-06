@@ -65,7 +65,7 @@ Bootstrap options
 ## Output {: #cmd-bootstrap-output }
 
 Bootstrap uses Prodockit's shared phases, stages, actions, and warning colours.
-\ref{fig-cmd-bootstrap-output} shows the structure; use [section 29.1, Scan
+\ref{fig-cmd-bootstrap-output} shows the structure; use [section 28.1, Scan
 phases and stages](output.md#command-output-structure) for the complete
 explanation:
 

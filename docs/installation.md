@@ -11,7 +11,7 @@ virtual environment.\index{virtual environment} Prepare those once in section
 3.1, then continue with the
 route that matches the work: [adoption](adopt.md) for an established document,
 [bootstrap](devcons/bootstrap.md) for a new machine and template project,
-[prodockit-template](prodockit-template.md) for the supplied project structure,
+[the template-project guide](devcons/bootstrap.md#bootstrap-template) for the supplied project structure,
 or the [first-site walkthrough](getting-started.md) for an empty directory.
 
 The remainder of this chapter is the manual setup route. Use it when you want

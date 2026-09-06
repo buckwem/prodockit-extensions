@@ -18,7 +18,11 @@ def test_topic_owner_pages_define_their_principal_index_entries() -> None:
         "docs/getting-started.md": (r"\index{`zensical serve`}",),
         "docs/authoring.md": (r"\index{Markdown}", r"\index{PyMdown Blocks}"),
         "docs/publishing.md": (r"\index{publishing workflow}", r"\index{continuous integration}"),
-        "docs/prodockit-template.md": (r"\index{`prodockit-template`}", r"\index{`is_surrey`}"),
+        "docs/devcons/bootstrap.md": (
+            r"\index{commands!`prodockit bootstrap`}",
+            r"\index{`prodockit-template`}",
+            r"\index{`is_surrey`}",
+        ),
         "docs/command-line.md": (r"\index{command-line interface}",),
         "docs/update-dates.md": (r"\index{page update dates}",),
         "docs/stylesheets.md": (r"\index{stylesheets!stylesheet ownership}",),
