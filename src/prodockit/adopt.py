@@ -36,7 +36,7 @@ from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
 from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries
-from prodockit.shared_files import resource_bytes
+from prodockit.shared_files import resource_bytes, same_text_content
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -472,7 +472,7 @@ def _style_ok(root: Path, parsed: dict[str, Any]) -> bool:
     path = _stylesheet_path(root, parsed)
     return (
         path.is_file()
-        and path.read_bytes() == resource_bytes("pdk.css")
+        and same_text_content(path.read_bytes(), resource_bytes("pdk.css"))
         and "stylesheets/pdk.css" in extra_css
     )
 
@@ -1311,7 +1311,7 @@ def assess(
     extra_css = project.get("extra_css", []) if isinstance(project, dict) else []
     if not style_path.is_file():
         core_problems.append(f"add shared website stylesheet {style_path.relative_to(root)}")
-    elif style_path.read_bytes() != resource_bytes("pdk.css"):
+    elif not same_text_content(style_path.read_bytes(), resource_bytes("pdk.css")):
         core_problems.append(f"refresh shared website stylesheet {style_path.relative_to(root)}")
     if "stylesheets/pdk.css" not in extra_css:
         core_problems.append("register stylesheets/pdk.css in project.extra_css")
