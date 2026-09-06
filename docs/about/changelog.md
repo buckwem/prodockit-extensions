@@ -19,7 +19,7 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.61.0 (2026-09-06)
 
 - Added `template-sync --review-all` to select every protected template file
   for one interactive review. Each full diff now offers `overwrite`, `new`, or
@@ -34,6 +34,20 @@ requests rather than here.
   the corresponding long option is available. `-h` opens help for the main
   command and every subcommand. Specialised and higher-risk options remain
   long-only.
+- Made Template Sync fetch the public GitHub template over HTTPS, including for
+  GitLab-hosted projects, so students do not need a GitHub account, SSH key, or
+  interactive GitHub host-key decision to check for an update.
+- Changed command warnings from yellow to the colour-blind-safe amber
+  `#E69F00`, retaining explicit warning labels so redirected and monochrome
+  output carries the same meaning.
+- Added task-oriented lifecycle guidance and a top-level command reference for
+  Bootstrap, Adopt, Diagnostics, Pins, Template Sync, PDF and the supporting
+  commands. Each reference identifies its working directory, wrong-directory
+  result, options, effects, and related commands.
+- Added a shared guide to reading phase-and-stage output, with labelled,
+  theme-aware figures placed beside the relevant task steps and command output
+  sections. The figures can be selected to enlarge through Zensical's native
+  GLightbox integration and retain numbered captions in website and PDF output.
 
 ## 0.60.4 (2026-09-06)
 
