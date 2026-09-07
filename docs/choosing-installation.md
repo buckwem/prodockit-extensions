@@ -44,7 +44,7 @@ bootstrap, and manual installation are alternative setup paths. Choose one as
 the starting point; do not run bootstrap merely because a manually installed
 or adopted project later needs a PDF.
 
-Continue with [Installation preparation](installation.md) after choosing the
+Continue with [Prepare to install](installation.md) after choosing the
 path. It establishes the supported Python and virtual environment shared by
 all four following installation chapters.
 

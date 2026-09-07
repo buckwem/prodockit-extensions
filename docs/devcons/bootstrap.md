@@ -112,7 +112,7 @@ than by asking students to maintain a second configuration file.
 
 ## Install with bootstrap {: #bootstrap-quick-start }
 
-Complete [section 3.1, Installation preparation](../installation.md#installation-preparation)
+Complete [section 3.1, Prepare Python and its environment](../installation.md#installation-preparation)
 before continuing. For bootstrap, create the setup `.venv` in the parent
 directory where you keep projects; bootstrap later creates a separate build
 environment inside the cloned project.

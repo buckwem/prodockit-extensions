@@ -4,7 +4,7 @@ icon: lucide/package-plus
 
 {{ heading_counter_reset(page) }}
 
-# Installation preparation
+# Prepare to install
 
 Every installation route begins in the parent directory where you keep your
 repositories and needs the same supported Python release. Prepare Python and a
