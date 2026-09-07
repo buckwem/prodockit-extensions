@@ -116,7 +116,7 @@ def test_pdf_figure_captions_use_chapter_and_figure_numbers(prodockit_pdf):
         if level == 1
         and (match := re.match(r"(?P<chapter>\d+)\.\s+(?P<title>.+)", title))
     }
-    adopt = chapters["Add prodockit to an existing document"]
+    adopt = chapters["Upgrade an existing site"]
     stylesheets = chapters["Stylesheets"]
     assert f"Figure {adopt}.1. Adopting Prodockit into an existing document" in text
     assert f"Figure {stylesheets}.2. PDF stylesheet cascade" in text

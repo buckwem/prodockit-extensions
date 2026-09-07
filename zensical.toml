@@ -58,7 +58,7 @@ nav = [
     {"1. Overview" = "introduction.md"},
     {"2. Choosing your install and features" = "choosing-installation.md"},
     {"3. Installation preparation" = "installation.md"},
-    {"4. Add prodockit to an existing document" = "adopt.md"},
+    {"4. Upgrade an existing site" = "adopt.md"},
     {"5. Build a template site" = "devcons/bootstrap.md"},
     {"6. Build your first site" = "getting-started.md"},
   ]},

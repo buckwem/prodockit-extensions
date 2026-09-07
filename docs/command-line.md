@@ -218,7 +218,7 @@ step.
 Use the guide that matches the task you are about to perform:
 
 - [Maintain prodockit](project-maintenance.md) provides the complete recurring cycle.
-- [Add prodockit to an existing document](adopt.md) explains adoption.
+- [Upgrade an existing site](adopt.md) explains adoption.
 - [Set up a machine](devcons/bootstrap.md) takes a new computer through its first successful publish.
 - [Manual installation](installation.md) covers direct package setup, while
   [Requirements and dependencies](requirements-dependencies.md) records the
