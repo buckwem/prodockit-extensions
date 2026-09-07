@@ -159,6 +159,8 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
     for route in (ADOPTION, BOOTSTRAP_GUIDE, FIRST_SITE):
         page = route.read_text(encoding="utf-8")
         assert "installation.md#installation-preparation" in page
+        assert "Open section 3.1: Prepare Python and its environment" in page
+        assert '.md-button--primary target="_blank" rel="noopener"' in page
 
     assert "the directory that holds all your repositories" in preparation
     assert "| Route |" not in preparation
@@ -188,7 +190,8 @@ def test_adoption_continues_after_shared_preparation() -> None:
     assert "MkDocs" not in page
 
     review = page[page.index("## Review the existing project") : page.index("## Choose optional")]
-    assert review.count("//// step | ") == 3
+    assert review.count("//// step | ") == 4
+    assert "//// step | Prepare Python and the setup environment" in review
     assert "//// step | Enter the project and prepare its environment" in review
     assert 'python3.14" -m venv --clear .venv' in review
     assert "py -3.14 -m venv --clear .venv" in review
@@ -206,9 +209,10 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
 
     assert "installation.md#installation-preparation" in page
     assert "independent of section 5's template-site" in page
-    assert page.count("//// step | ") == 14
+    assert page.count("//// step | ") == 15
     assert page.count("/// tree") == 2
 
+    prepare_python = page.index("//// step | Prepare Python and the setup environment")
     prepare_directory = page.index("//// step | Prepare the empty project directory")
     install_zensical = page.index("//// step | Install Zensical")
     create_zensical = page.index("//// step | Create the Zensical site")
@@ -224,7 +228,8 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     source = page.index("//// step | Generate the source bundle")
     downloads = page.index("//// step | Add both downloads to the site")
     assert (
-        prepare_directory
+        prepare_python
+        < prepare_directory
         < install_zensical
         < create_zensical
         < build_zensical
@@ -299,7 +304,8 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
 
     installation = page[page.index("## Install with bootstrap") : page.index("## What it covers")]
     assert "installation.md#installation-preparation" in installation
-    assert installation.count("//// step | ") == 6
+    assert installation.count("//// step | ") == 7
+    assert "//// step | Prepare Python and the setup environment" in installation
     assert "//// step | Install Prodockit into the active environment" in installation
     install_step = installation[
         installation.index(

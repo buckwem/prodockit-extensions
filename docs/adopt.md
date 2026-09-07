@@ -75,12 +75,21 @@ tools](pdf.md#pdf-requirements) before building a PDF.
 
 ## Review the existing project
 
-Complete [section 3.1, Prepare Python and its environment](installation.md#installation-preparation)
-in the parent directory that holds your repositories before continuing. The
-first step below then enters the existing project and establishes its separate
-project environment.
+Start with the shared Python preparation, then move into the existing project
+and assess it before making any changes.
 
 /// steps
+
+//// step | Prepare Python and the setup environment
+
+Complete section 3.1 in the parent directory that holds your repositories:
+
+[Open section 3.1: Prepare Python and its environment](installation.md#installation-preparation){ .md-button .md-button--primary target="_blank" rel="noopener" }
+
+Return here with that setup environment active; the next step enters the
+existing project and establishes its separate project environment.
+
+////
 
 //// step | Enter the project and prepare its environment
 
