@@ -210,13 +210,10 @@ Reading an Adopt assessment
 
 ////
 
-///
+//// step | Choose optional renderers
 
-## Choose optional renderers
-
-Complete [Review the existing project](#review-the-existing-project) first.
-Run every remaining command from the project directory with its `.venv`
-active and with `python --version` reporting Python 3.14.
+Keep working in the project directory with its `.venv` active and with
+`python --version` reporting Python 3.14.
 
 Choose Mermaid and mathematics only when the existing document uses them. Run:
 
@@ -244,6 +241,10 @@ Command-line flags can select them explicitly for a run:
 prodockit adopt --mermaid --no-maths --dry-run
 prodockit adopt --no-mermaid --maths --dry-run
 ```
+
+////
+
+///
 
 ## Preview and apply
 

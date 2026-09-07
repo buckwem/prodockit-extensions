@@ -232,10 +232,13 @@ def test_adoption_continues_after_shared_preparation() -> None:
 
     assert "MkDocs" not in page
 
-    review = page[page.index("## Review the existing project") : page.index("## Choose optional")]
-    assert review.count("//// step | ") == 4
+    review = page[
+        page.index("## Review the existing project") : page.index("## Preview and apply")
+    ]
+    assert review.count("//// step | ") == 5
     assert "//// step | Prepare Python and the setup environment" in review
     assert "//// step | Enter the project and prepare its environment" in review
+    assert "//// step | Choose optional renderers" in review
     assert 'python3.14" -m venv --clear .venv' in review
     assert "py -3.14 -m venv --clear .venv" in review
     assert "python3.14 -m venv --clear .venv" in review
