@@ -39,10 +39,16 @@ If the project has a `.venv` but another Python environment is active,
 Diagnostics reports that mismatch and stops after the environment preflight.
 Renderer failures and Adopt work would describe the wrong environment, so they
 are deliberately not assessed. Diagnostics prints the command for the current
-platform—`source .venv/bin/activate` on macOS and Ubuntu, or
-`.\.venv\Scripts\Activate.ps1` on Windows—then asks you to rerun `pdk diag`
-for the complete report. You are already in the project root, so no additional
-`cd` command is needed.
+platform: `source .venv/bin/activate` on macOS and Ubuntu. On Windows it prints
+this safe PowerShell sequence:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+.\.venv\Scripts\Activate.ps1
+```
+
+It then asks you to rerun `pdk diag` for the complete report. You are already
+in the project root, so no additional `cd` command is needed.
 
 If the current directory holds one or more project repositories, Diagnostics
 refuses to start and names them:
