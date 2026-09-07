@@ -4352,7 +4352,10 @@ def _run_template_sync(
                 f"  Current:  will be assessed by Prodockit {package_plan.target} "
                 "after the fresh-process handoff"
             )
-            say_key("  Will do:  run Adopt's supported-toolchain and project integration activities")
+            say_key(
+                "  Will do:  run Adopt's supported-toolchain and project "
+                "integration activities"
+            )
             say("  Command:  internal equivalent of `pdk adopt --apply`")
             say("  Files:    active environment and Adopt-managed project files")
             say(
