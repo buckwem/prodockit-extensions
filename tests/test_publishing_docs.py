@@ -22,12 +22,12 @@ def _publishing_nav() -> list[dict[str, str]]:
 
 def test_publishing_nav_follows_the_reader_workflow() -> None:
     assert _publishing_nav() == [
-        {"21. Publishing overview": "publishing.md"},
-        {"22. Requirements and dependencies": "requirements-dependencies.md"},
-        {"23. Staying in step with the template": "devcons/template-sync.md"},
-        {"24. Publish automatically": "devcons/continuous-integration.md"},
-        {"25. Test the built output": "devcons/testing.md"},
-        {"26. Check and update a template project": "project-check-update.md"},
+        {"9. Publishing overview": "publishing.md"},
+        {"10. Requirements and dependencies": "requirements-dependencies.md"},
+        {"11. Staying in step with the template": "devcons/template-sync.md"},
+        {"12. Publish automatically": "devcons/continuous-integration.md"},
+        {"13. Test the built output": "devcons/testing.md"},
+        {"14. Check and update a template project": "project-check-update.md"},
     ]
 
 

@@ -168,7 +168,10 @@ def test_reference_site_keeps_shared_rules_out_of_author_overrides() -> None:
     assert "logo_black.png" not in managed
     assert 'content: url("../assets/logo_white.png")' in branding
     assert 'content: url("../assets/logo_black.png")' in branding
-    assert author_owned == "/* Add project-specific website and PDF styles below this line. */\n"
+    assert author_owned.startswith(
+        "/* Add project-specific website and PDF styles below this line. */\n"
+    )
+    assert ".homebrew-button" in author_owned
 
 
 def test_reference_site_enables_native_glightbox_without_duplicate_captions() -> None:
@@ -246,10 +249,10 @@ def test_command_reference_is_a_top_level_section() -> None:
 
     assert all("command-line.md" not in item.values() for item in authoring)
     assert all("command-line.md" not in item.values() for item in maintenance)
-    assert {"27. Command overview": "command-line.md"} in commands
-    assert {"28. Reading command output": "commands/output.md"} in commands
-    assert {"29. Bootstrap": "commands/bootstrap.md"} in commands
-    assert {"30. Diagnostics": "commands/diag.md"} in commands
+    assert {"34. Command overview": "command-line.md"} in commands
+    assert {"35. Reading command output": "commands/output.md"} in commands
+    assert {"36. Bootstrap": "commands/bootstrap.md"} in commands
+    assert {"37. Diagnostics": "commands/diag.md"} in commands
     assert "document authors" in _text("docs/command-line.md")
 
 

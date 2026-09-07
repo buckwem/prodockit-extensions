@@ -18,17 +18,28 @@ def test_top_level_sections_open_with_an_introduction() -> None:
 
     expected_first_items = {
         "Getting started": {"1. Overview": "introduction.md"},
-        "Authoring reference": {"7. Overview": "authoring.md"},
-        "Publish a document": {"21. Publishing overview": "publishing.md"},
-        "Command reference": {"27. Command overview": "command-line.md"},
-        "Maintain prodockit": {"42. Maintenance overview": "project-maintenance.md"},
-        "Contributor internals": {"47. Overview": "devcons/devcons.md"},
-        "About": {"54. About prodockit": "about/index.md"},
+        "Publish a document": {"9. Publishing overview": "publishing.md"},
+        "Maintain prodockit": {"15. Maintenance overview": "project-maintenance.md"},
+        "Authoring reference": {"20. Overview": "authoring.md"},
+        "Command reference": {"34. Command overview": "command-line.md"},
+        "Contributor internals": {"49. Overview": "devcons/devcons.md"},
+        "About": {"56. About prodockit": "about/index.md"},
     }
 
     groups = {next(iter(item)): next(iter(item.values())) for item in nav if isinstance(item, dict)}
     for title, first_item in expected_first_items.items():
         assert groups[title][0] == first_item
+
+    assert list(groups) == [
+        "Home",
+        "Getting started",
+        "Publish a document",
+        "Maintain prodockit",
+        "Authoring reference",
+        "Command reference",
+        "Contributor internals",
+        "About",
+    ]
 
 
 def test_section_introductions_name_their_audience() -> None:
@@ -54,13 +65,13 @@ def test_contributor_internals_has_focused_reference_pages() -> None:
     )
 
     assert contributor == [
-        {"47. Overview": "devcons/devcons.md"},
-        {"48. Development and code map": "devcons/development.md"},
-        {"49. Extension integration": "devcons/extension-internals.md"},
-        {"50. PDF pipeline and API": "devcons/pdf-internals.md"},
-        {"51. Bootstrap design": "devcons/bootstrap-internals.md"},
-        {"52. Zensical coupling": "devcons/zensical-coupling.md"},
-        {"53. Implementation limitations": "devcons/limitations.md"},
+        {"49. Overview": "devcons/devcons.md"},
+        {"50. Development and code map": "devcons/development.md"},
+        {"51. Extension integration": "devcons/extension-internals.md"},
+        {"52. PDF pipeline and API": "devcons/pdf-internals.md"},
+        {"53. Bootstrap design": "devcons/bootstrap-internals.md"},
+        {"54. Zensical coupling": "devcons/zensical-coupling.md"},
+        {"55. Implementation limitations": "devcons/limitations.md"},
     ]
 
 

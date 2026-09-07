@@ -437,18 +437,11 @@ the published downloads stay current.
 
 ///
 
-## Where to go next
+## Where to go next {: #getting-started-where-to-go-next }
 
-Continue with the part of the document workflow you need next:
+Choose the route that matches the result:
 
-- Browse the [authoring reference](extensions/headings.md) when you need
-  another document feature.
-- Read [Generate a PDF](pdf.md#pdf-quick-start) when the website is ready to
-  print or submit.
-- Follow the [project maintenance cycle](project-maintenance.md) when the
-  first site becomes a maintained project, then use the
-  [command-line map](command-line.md) to choose a command safely.
-
-!!! note "Previewing these documentation changes"
-    From this repository's root, run \index{`zensical serve`} and open the address it
-    prints. This page already has `prodockit.steps` enabled and styled.
+- If setup has not completed or any check fails, use
+  [Troubleshooting](troubleshooting-installs.md).
+- If setup has completed and `pdk diag` passes, continue with
+  [Publish a document](publishing.md).
