@@ -265,11 +265,11 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert page.count("/// tree") == 2
     assert page.count("/// steps") == 5
     for phase in (
-        "### Phase 1 — Prepare the project environment",
-        "### Phase 2 — Install and prove Zensical",
-        "### Phase 3 — Add and configure Prodockit",
-        "### Phase 4 — Verify the adopted website",
-        "### Phase 5 — Add downloadable outputs",
+        "### Stage 1 — Prepare the project environment",
+        "### Stage 2 — Install and prove Zensical",
+        "### Stage 3 — Add and configure Prodockit",
+        "### Stage 4 — Verify the adopted website",
+        "### Stage 5 — Add downloadable outputs",
     ):
         assert phase in page
 
