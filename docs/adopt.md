@@ -10,11 +10,9 @@ icon: lucide/package-plus
 Python working environment has already been established. It prepares that
 environment with the exact software combination supported by the installed
 Prodockit release, then adds Prodockit's authoring extensions and website
-styles without turning the project into a copy of prodockit-template.
-
-Use [machine bootstrap](devcons/bootstrap.md) for a new computer or a new
-repository. Adoption assumes that Git, SSH and the editor you prefer already
-work. It does not configure or change any of them.
+styles without turning the project into a copy of prodockit-template. Adoption
+assumes that Git, SSH and the editor you prefer already work. It does not
+configure or change any of them.
 
 \ref{fig-adoption-workflow} shows the existing project entering the outlined
 adoption process. Inside that boundary, prodockit assesses the project, adds
