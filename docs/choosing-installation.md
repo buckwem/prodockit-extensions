@@ -12,25 +12,26 @@ than stages to complete in sequence.
 
 ## Choose an installation path
 
-\ref{fig-installation-approaches} follows the decision from an existing
-document or project to Adoption, Bootstrap, a first site, or a manual build.
+\ref{fig-installation-approaches} asks about each route in section order: build
+your first site, upgrade an existing site, build a template site, or perform
+the installation manually.
 
-<!-- Reused from prodockit-userguide/docs/images/installing-prodockit-decision-tree-components.png. The canonical editable source is the installing-prodockit-decision-tree-components page in prodockit-userguide/tools/documentation-diagrams/site-diagrams.drawio. -->
-![Decision tree for choosing Adoption, Bootstrap, or Manual installation](assets/diagrams/2.1-installation-approaches.png){ .documentation-diagram }
+<!-- Adapted from prodockit-userguide. The canonical editable source for this figure is tools/documentation-diagrams/2.1-installation-approaches.drawio. -->
+![Decision tree for choosing Build your first site, Upgrade existing site, Build a template site, or Build site manually](assets/diagrams/2.1-installation-approaches.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-installation-approaches}
 
 Choose the Prodockit installation approach
 ///
 
-\ref{tab-choose-installation-route} compares the three installation paths by
+\ref{tab-choose-installation-route} compares the four installation paths by
 starting point and result.
 
 | Starting point | Installation path |
 |---|---|
+| An empty directory that should become a new Zensical site before adding Prodockit | [Build your first site](getting-started.md) creates and tests Zensical first, then adds Prodockit with Adoption |
 | An existing Zensical document whose working environment is already established | [Adoption](adopt.md) integrates selected authoring components without replacing the document's design, Git setup, editor, or publishing workflow |
 | No existing document, or a project that should start from the maintained report template | [Bootstrap](devcons/bootstrap.md) prepares the machine, repository, build tools, and template-based project |
-| An empty directory that should become a new Zensical site before adding Prodockit | [Build your first site](getting-started.md) creates and tests Zensical first, then adds Prodockit with Adoption |
 | A project whose author wants to perform every setup task directly | [Build site manually](manual-install.md) prepares the machine, repository, editor, environment, renderers, and output without Bootstrap or Adoption; [Requirements and dependencies](requirements-dependencies.md) records the detailed toolchain |
 /// table-caption | <
     attrs: {id: tab-choose-installation-route}
@@ -40,9 +41,9 @@ Choose an installation path
 
 [Build a template site](devcons/bootstrap.md#bootstrap-template) explains what the
 template supplies and which files become part of your own project. Adoption,
-bootstrap, first-site, and manual installation are alternative setup paths. Choose one as
-the starting point; do not run bootstrap merely because a manually installed
-or adopted project later needs a PDF.
+bootstrap, first-site, and manual installation are alternative setup paths.
+Choose one as the starting point; do not run bootstrap merely because a
+manually installed or adopted project later needs a PDF.
 
 Continue with [Prepare to install](installation.md) after choosing the
 path. It establishes the supported Python and virtual environment shared by
