@@ -270,6 +270,10 @@ Every stage `ok`, and the last one names the address your site is
 published at. If a stage still reports work to do, its line says what
 and why - and running `--apply` again does only that stage.
 
+////
+
+//// step | Restart the terminal on Windows if instructed
+
 <span id="bootstrap-windows-restart"></span>
 
 !!! warning "Windows only — skip this step on macOS and Linux"
@@ -281,8 +285,7 @@ and why - and running `--apply` again does only that stage.
 === ":fontawesome-brands-windows: Windows"
 
     Fully close Windows Terminal or VS Code, then reopen PowerShell. Bootstrap
-    displays this amber message; Template Sync displays it if its environment
-    refresh cannot recover the required commands:
+    displays this amber message when a restart is required:
 
     <pre style="color: #E69F00; background: #181818; padding: 1em; white-space: pre-wrap;">============================================================
     RESTART YOUR TERMINAL — WINDOWS SETTINGS HAVE CHANGED
@@ -295,9 +298,8 @@ and why - and running `--apply` again does only that stage.
     pdk diag
     ============================================================</pre>
 
-    The project path is replaced with your actual path. If Template Sync cannot
-    continue, the banner also says: `Template Sync cannot continue in this
-    terminal.` Continue with the next step in the newly opened PowerShell.
+    The project path is replaced with your actual path. Continue with the next
+    step in the newly opened PowerShell.
 
 ////
 

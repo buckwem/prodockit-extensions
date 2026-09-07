@@ -26,6 +26,7 @@ PYPROJECT = REPO / "pyproject.toml"
 ADOPTION = REPO / "docs" / "adopt.md"
 BOOTSTRAP_GUIDE = REPO / "docs" / "devcons" / "bootstrap.md"
 FIRST_SITE = REPO / "docs" / "getting-started.md"
+PUBLISHING = REPO / "docs" / "publishing.md"
 POWERSHELL_POLICY = "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned"
 
 if sys.version_info >= (3, 11):  # pragma: no cover - version-gated import
@@ -131,9 +132,7 @@ def test_every_documented_powershell_activation_sets_the_execution_policy() -> N
 def test_installation_preparation_is_shared_by_later_routes() -> None:
     preparation_page = INSTALLATION.read_text(encoding="utf-8")
     preparation = preparation_page[
-        preparation_page.index("## Prepare Python and its environment") : preparation_page.index(
-            "### Restart the terminal after Windows installation"
-        )
+        preparation_page.index("## Prepare Python and its environment") :
     ]
 
     for command in (
@@ -170,6 +169,16 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
     assert "mkdir -p ~/repos" in preparation
     assert "Set-Location ~\\repos" in preparation
     assert "++tab++" in preparation
+
+    assert "Restart Windows after installation" not in preparation_page
+    assert "RESTART YOUR TERMINAL — WINDOWS SETTINGS HAVE CHANGED" not in preparation_page
+    assert "## Install Prodockit from PyPI" not in preparation_page
+    assert "## Enabling an extension" not in preparation_page
+
+    publishing = PUBLISHING.read_text(encoding="utf-8")
+    assert "## Configure Prodockit features" in publishing
+    assert "### The nine extensions" in publishing
+    assert "### What is *not* an extension" in publishing
 
 
 def test_docs_enable_zensicals_standard_pymdown_extensions() -> None:
@@ -337,8 +346,9 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
 
     installation = page[page.index("## Install with bootstrap") : page.index("## What it covers")]
     assert "installation.md#installation-preparation" in installation
-    assert installation.count("//// step | ") == 7
+    assert installation.count("//// step | ") == 8
     assert "//// step | Prepare Python and the setup environment" in installation
+    assert "//// step | Restart the terminal on Windows if instructed" in installation
     assert "//// step | Install Prodockit into the active environment" in installation
     install_step = installation[
         installation.index(

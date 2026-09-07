@@ -33,7 +33,6 @@ the appropriate publishing guide.
 | You want the ready-made `prodockit-template` report project | [Build a template site](devcons/bootstrap.md#bootstrap-template) explains what it provides and which files become yours |
 | A new computer or an incomplete template-based checkout | [Bootstrap](devcons/bootstrap.md) checks and prepares Python, Git, Node, Pandoc, fonts, and the project environment |
 | An established documentation project that should keep its existing design and workflow | [Adoption](adopt.md) integrates selected prodockit components without replacing those choices |
-| A project whose dependencies are managed directly | [Manual installation](installation.md) covers preparation and package configuration; [Requirements and dependencies](requirements-dependencies.md) records the supported toolchain |
 | An existing template-derived project | [Staying in step with the template](devcons/template-sync.md) brings shared workflows and publishing files up to date without replacing your writing |
 | A working project that already previews with `zensical serve` | Continue with the publishing path below |
 | A prodockit package release rather than a documentation project | Use the maintainer [Build and release](devcons/releasing.md) runbook instead |
@@ -46,6 +45,99 @@ Choose your starting point
 The template is a starting copy, not a live dependency. Your Markdown remains
 project-owned; later template fixes arrive only when you review and apply a
 template sync.
+
+## Configure Prodockit features
+
+Each Prodockit extension is registered as a standard Python-Markdown extension
+under the `markdown.extensions` entry point group. Enable an extension by name,
+just as you would enable a built-in extension such as `toc` or a `pymdownx`
+extension:
+
+```python
+import markdown
+
+html = markdown.markdown(
+    text,
+    extensions=["prodockit.headings", "prodockit.refs", "prodockit.tables"],
+)
+```
+
+In a [Zensical](https://zensical.org/) project, enable extensions in
+`zensical.toml` alongside the built-in and `pymdownx` extensions. Unlike the
+`pymdownx` and Zensical namespaces, Zensical does not hoist a nested
+`prodockit.headings` table into that dotted extension name, so each Prodockit
+name must be quoted:
+
+```toml
+[project.markdown_extensions."prodockit.headings"]
+[project.markdown_extensions."prodockit.refs"]
+[project.markdown_extensions."prodockit.citations"]
+[project.markdown_extensions."prodockit.glossary"]
+[project.markdown_extensions."prodockit.tables"]
+[project.markdown_extensions."prodockit.tree"]
+[project.markdown_extensions."prodockit.steps"]
+[project.markdown_extensions."prodockit.bibliography"]
+[project.markdown_extensions."prodockit.index"]
+```
+
+Enable only the features the document uses. Each extension is independent and
+none requires another.
+
+<span id="installation-the-extensions"></span>
+
+### The nine extensions {: #publishing-the-extensions }
+
+See each extension's own page for its syntax, examples, and configuration.
+
+\ref{tab-publishing-the-nine-extensions} maps each Markdown extension to the authoring feature it provides.
+
+| Extension {: width="40%" } | What it adds |
+| --- | --- |
+| [`prodockit.headings`](extensions/headings.md) | Numbered headings, and a number a cross-reference can point at |
+| [`prodockit.refs`](extensions/refs.md) | Cross-references that resolve to a number *and* a name |
+| [`prodockit.citations`](extensions/citations.md) | Citation handling |
+| [`prodockit.glossary`](extensions/glossary.md) | Acronyms and a glossary |
+| [`prodockit.tables`](extensions/tables.md) | Column widths, dense tables, multi-row headers, merged cells, rotated headings |
+| [`prodockit.tree`](extensions/tree.md) | A directory listing that looks like one |
+| [`prodockit.steps`](extensions/steps.md) | Numbered steps a reader works through in order |
+| [`prodockit.bibliography`](extensions/bibliography.md) | A bibliography built from a `.bib` file |
+| [`prodockit.index`](extensions/index-terms.md) | A back-of-book index (PDF only) |
+/// table-caption | <
+    attrs: {id: tab-publishing-the-nine-extensions}
+
+The nine extensions
+///
+
+<span id="installation-not-extensions"></span>
+
+### What is *not* an extension {: #publishing-not-extensions }
+
+Several parts of Prodockit have no `markdown.extensions` entry point and
+nothing to add to `zensical.toml`, because they are commands or integrations
+rather than Markdown syntax.
+
+\ref{tab-publishing-what-is-not-an-extension} distinguishes these from the nine Markdown extensions.
+
+| | |
+| --- | --- |
+| [`prodockit pdf`](pdf.md) | A separate PDF-generation build step |
+| [`prodockit source-bundle`](pdf.md#bundling-source-into-a-pdf) | Packages documentation source as a separate PDF |
+| [`prodockit.zensical_macros`](macros.md) | A `define_env()` module for Zensical's macros plugin, named under its `modules` config rather than as an extension |
+| [`prodockit.testing`](devcons/testing.md) | pytest fixtures and checks for an already-built site and PDF |
+| [`prodockit bootstrap`](devcons/bootstrap.md) | Sets up a machine and a project based on `prodockit-template` |
+| [`prodockit sync-repo`](devcons/repo-metadata.md) | Keeps repository metadata and README badges matching the Git remote |
+| [`prodockit pins`](devcons/pinning-drift.md) | Moves build-input version pins together |
+| [`prodockit template-sync`](devcons/template-sync.md) | Brings a project back into step with its template |
+| [`prodockit init-tools`](commands/init-tools.md) / [`init-mathjax`](commands/init-mathjax.md) | Sets up optional Mermaid and maths rendering tools |
+/// table-caption | <
+    attrs: {id: tab-publishing-what-is-not-an-extension}
+
+What is not an extension
+///
+
+Contributors changing the package itself should use the editable installation
+and repository checks in
+[Development and code map](devcons/development.md#create-a-development-environment).
 
 ## Follow the publishing path
 
