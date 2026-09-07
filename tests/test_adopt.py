@@ -114,7 +114,7 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
 
     assert result.exit_code == 0, result.output
     assert "Phase 1/4 — Assess" in result.output
-    assert "Stage [3/8] Supported toolchain" in result.output
+    assert "Activity [3/8] Supported toolchain" in result.output
     assert "Component choices" in result.output
     assert "\x1b[94m" in result.output
     assert "\x1b[34m" in result.output
@@ -123,7 +123,7 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     assert "Mermaid diagrams — not selected" in result.output
     assert "Mathematical notation — not selected" in result.output
     assert "WAIT  Ready for local build" in result.output
-    assert "apply the selected integration stages" in result.output
+    assert "apply the selected integration activities" in result.output
     assert "zensical build --clean --strict" in result.output
     assert "active project environment and local project files" in result.output
     assert "Git, SSH, remotes, editors, commits and pushes" in result.output

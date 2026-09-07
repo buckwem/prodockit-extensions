@@ -66,11 +66,11 @@ Template Sync options
 ## Output {: #cmd-template-sync-output }
 
 \ref{fig-cmd-template-sync-output} shows the output structure. Use [section
-29.1, Scan phases and stages](output.md#command-output-structure) for the
-complete explanation of Template Sync's phases, stages, actions, warnings, and
+29.1, Scan phases and activities](output.md#command-output-structure) for the
+complete explanation of Template Sync's phases, activities, actions, warnings, and
 decisions:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+![A left-aligned terminal report with separate callouts identifying a phase, activity, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-cmd-template-sync-output}
 
@@ -114,5 +114,5 @@ component choices are not template-owned.
 Use these commands to verify or align the project around a template update:
 
 - [`pdk diag`](diag.md) verifies local health before and after an update.
-- [`pdk adopt`](adopt.md) owns the independent integration stages.
+- [`pdk adopt`](adopt.md) owns the independent integration activities.
 - [`pdk pins`](pins.md) owns explicit dependency-version choices.

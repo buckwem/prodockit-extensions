@@ -50,7 +50,7 @@ plan. Use [section 28.1, Scan phases and
 stages](../commands/output.md#command-output-structure) for the complete
 explanation of its phases, stages, actions, warnings, and decisions:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+![A left-aligned terminal report with separate callouts identifying a phase, activity, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-diagnostics-repair-plan-output}
 

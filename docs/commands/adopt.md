@@ -23,7 +23,7 @@ pdk adopt --dry-run
 pdk adopt --apply
 ```
 
-With no mode option, Adopt assesses the project and reports outstanding stages.
+With no mode option, Adopt assesses the project and reports outstanding activities.
 
 ## Working directory {: #cmd-adopt-working-directory }
 
@@ -51,12 +51,12 @@ and change directory; do not create a configuration merely to satisfy Adopt.
 | Option {: width="34%" } | Behaviour |
 |---|---|
 | `--configure` | Choose optional components and save them in `.prodockit-components.toml`. |
-| `-n`, `--dry-run` | Show stages, files, and changes without writing or installing. |
-| `-a`, `--apply` | Apply required stages, asking before each change. |
+| `-n`, `--dry-run` | Show activities, files, and changes without writing or installing. |
+| `-a`, `--apply` | Apply required activities, asking before each change. |
 | `--offline` | Use only the configured wheelhouse and validated native cache. |
 | `--mermaid`, `--no-mermaid` | Select or omit project-local Mermaid rendering. |
 | `--maths`, `--no-maths` | Select or omit MathJax rendering. |
-| `-v`, `--verbose` | Show the files and commands behind each stage summary. |
+| `-v`, `--verbose` | Show the files and commands behind each activity summary. |
 | `-h`, `--help` | Show installed help and exit. |
 /// table-caption | <
     attrs: {id: tab-cmd-adopt-options}
@@ -67,10 +67,10 @@ Adopt options
 ## Output {: #cmd-adopt-output }
 
 \ref{fig-cmd-adopt-output} shows the output structure. Use [section 28.1, Scan
-phases and stages](output.md#command-output-structure) for the complete
-explanation of the phase, stage, action, warning, and decision language:
+phases and activities](output.md#command-output-structure) for the complete
+explanation of the phase, activity, action, warning, and decision language:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+![A left-aligned terminal report with separate callouts identifying a phase, activity, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-cmd-adopt-output}
 
@@ -91,8 +91,8 @@ offers to save them rather than silently selecting new features.
 
 ## Result {: #cmd-adopt-result }
 
-Assessment and dry-run modes report the number of stages needing work. Apply
-mode verifies each completed stage and finishes by naming the strict local
+Assessment and dry-run modes report the number of activities needing work. Apply
+mode verifies each completed activity and finishes by naming the strict local
 build command. A blocking project or environment check stops the integration.
 
 Adopt is independent of Bootstrap. If a virtual environment is active and the

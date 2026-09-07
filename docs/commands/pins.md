@@ -16,7 +16,7 @@ evaluating an upgrade or comparing generated output.
 
 Pins uses the shared [decision and field
 language](output.md#command-output-decisions), although its shorter report does
-not need the complete phase-and-stage frame.
+not need the complete phase-and-activity frame.
 
 ## Synopsis {: #cmd-pins-synopsis }
 

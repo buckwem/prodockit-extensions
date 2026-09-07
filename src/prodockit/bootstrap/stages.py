@@ -5164,7 +5164,7 @@ def _check_clone_source(context: Context) -> CheckResult:
             if context.guided:
                 return _blocked(
                     f"could not yet ask {context.host.hostname} about {probed} - "
-                    "this stage will be rechecked after SSH is ready"
+                    "this activity will be rechecked after SSH is ready"
                 )
             return _ok(
                 f"could not reach {context.host.hostname} to ask about {probed} - "

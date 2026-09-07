@@ -255,10 +255,10 @@ software change it identifies.
 
 \ref{fig-bootstrap-dry-run-output} is a short visual guide to the dry-run
 output. Use [section 28.1, Scan phases and
-stages](../commands/output.md#command-output-structure) for the complete
-explanation of its phases, stages, actions, warnings, and decisions:
+activities](../commands/output.md#command-output-structure) for the complete
+explanation of its phases, activities, actions, warnings, and decisions:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+![A left-aligned terminal report with separate callouts identifying a phase, activity, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-bootstrap-dry-run-output}
 
@@ -280,7 +280,7 @@ Bootstrap to confirm the finished installation.
 pdk boot --apply
 ```
 
-It asks before each stage and shows the commands first.
+It asks before each activity and shows the commands first.
 
 Stop whenever you like. The next run picks up from wherever it got to.
 ////
@@ -487,19 +487,19 @@ verified publisher, validates the identity and version in both VSIX manifests,
 and caches only the validated archive under the extension, version and platform.
 The apply output records the selected registry and whether that cache was hit.
 
-On Windows, the PDF-library stage selects `clangarm64` for ARM64 Python and
+On Windows, the PDF-library activity selects `clangarm64` for ARM64 Python and
 `ucrt64` for x64 Python. This is read from `python.exe` itself rather than the
 host CPU, because an ARM64 Windows computer can run x64 Python under emulation.
 It checks `libpango-1.0-0.dll` and the owning pacman
 package, conditionally reinstalls that exact package when either check fails,
 and updates `WEASYPRINT_DLL_DIRECTORIES` both persistently and for the running
 Bootstrap process. A fresh child process loads the DLL immediately; the later
-project-environment stage imports WeasyPrint, so no terminal restart is needed.
+project-environment activity imports WeasyPrint, so no terminal restart is needed.
 
-Use `--dry-run` before `--apply` to see which stages are outstanding and
+Use `--dry-run` before `--apply` to see which activities are outstanding and
 which commands will run. Use only one of `--check`, `--dry-run`, `--apply`, or
 `--configure` in an invocation; conflicting modes are rejected before
-configuration is read or any host is contacted. Contributors changing stage
+configuration is read or any host is contacted. Contributors changing activity
 ordering, check/plan behaviour, subprocess prompting, or destructive-action
 safeguards should read [Bootstrap design](bootstrap-internals.md).
 
@@ -525,21 +525,21 @@ somebody typed it to see what it did.
  6  ok    Key loaded into the ssh agent - id_ed25519_gitlab is loaded
  7  WAIT  SSH key on the host - the SSH keypair is not ready yet
  ...
-5 of 23 stages need work.
+5 of 23 activities need work.
 ```
 
 Six states, and the difference between them matters:
 
-\ref{tab-devcons-bootstrap-checking-without-changing-anything} explains the six stage states reported by a read-only bootstrap check.
+\ref{tab-devcons-bootstrap-checking-without-changing-anything} explains the six activity states reported by a read-only bootstrap check.
 
 | | Meaning |
 | --- | --- |
 | `ok` | Set up correctly. A rerun leaves it alone. |
-| `WARN` | Usable, but a prerequisite's version could not be verified. The stage is not changed automatically, and the message names the minimum version and the risk of continuing. |
+| `WARN` | Usable, but a prerequisite's version could not be verified. The activity is not changed automatically, and the message names the minimum version and the risk of continuing. |
 | `MISS` | Not there at all. |
 | `WRONG` | Present but not usable - git installed with no `user.email`, Node installed without `npm`. **Not** the same as missing, and telling you to install something you already have would send you the wrong way. |
 | `?` | Cannot be judged yet, because it needs a configuration answer you have not given. |
-| `WAIT` | Cannot be checked until an earlier stage is complete. |
+| `WAIT` | Cannot be checked until an earlier activity is complete. |
 /// table-caption | <
     attrs: {id: tab-devcons-bootstrap-checking-without-changing-anything}
 
@@ -609,10 +609,10 @@ different stages for reasons that were never on screen.
 
 Now a plan says whether it destroys something, and only one does.
 
-**Every stage is re-checked after it is applied.** A command exiting zero
+**Every activity is re-checked after it is applied.** A command exiting zero
 says the installer ran, not that the thing it installed works - which is
 the distinction behind most of the failures this project has had. If a
-stage runs but still does not check out, bootstrap says so and stops
+activity runs but still does not check out, bootstrap says so and stops
 rather than continuing on a broken foundation.
 
 A failing command stops the run too. Later commands in a plan generally
@@ -621,15 +621,15 @@ several confusing ones.
 
 ### Where your part comes in the order {: #bootstrap-manual-order }
 
-Some stages are part automated and part yours, and *when* your part
-happens is not cosmetic - it is whether the stage can work at all:
+Some activities are part automated and part yours, and *when* your part
+happens is not cosmetic - it is whether the activity can work at all:
 
 \ref{tab-devcons-bootstrap-where-your-part-comes-in-the-order} places each manual action before or after the automated work that depends on it.
 
 | | Example |
 | --- | --- |
-| **Before** the commands, because they depend on you | The keypair stage: the advice on choosing a passphrase is no use once `ssh-keygen` has already asked for one. |
-| **After** them, because it depends on the commands | No current guided stage requires this. Bootstrap now adds macOS's application-owned `code` command to `.zprofile` automatically after installing VS Code. |
+| **Before** the commands, because they depend on you | The keypair activity: the advice on choosing a passphrase is no use once `ssh-keygen` has already asked for one. |
+| **After** them, because it depends on the commands | No current guided activity requires this. Bootstrap now adds macOS's application-owned `code` command to `.zprofile` automatically after installing VS Code. |
 /// table-caption | <
     attrs: {id: tab-devcons-bootstrap-where-your-part-comes-in-the-order}
 
@@ -639,11 +639,11 @@ Where your part comes in the order
 Both orderings in \ref{tab-devcons-bootstrap-where-your-part-comes-in-the-order}
 have been wrong in a shipped release - the install
 skipped entirely in one direction (#230), and the run stopped dead at the
-SSH key stage in the other (#234) - so each stage now states which it
+SSH key activity in the other (#234) - so each activity now states which it
 needs rather than leaving it to be inferred.
 
-The two guide-and-verify stages are wholly yours, and their verification
-is the stage's own check rather than a command in the plan. That
+The two guide-and-verify activities are wholly yours, and their verification
+is the activity's own check rather than a command in the plan. That
 distinction is what stopped the run in #234: a check is allowed to say
 "not yet" and be asked again, whereas a command that exits non-zero is a
 failure and ends the run - and `ssh -T` exits non-zero even when it
@@ -680,8 +680,8 @@ instead:
 source_url = "git@gitlab.surrey.ac.uk:comm058-2026/report-al01234.git"
 ```
 
-The later stages follow on their own: a clone made from `source_url`
-already has the right `origin`, so the repoint stage reports `ok` and
+The later activities follow on their own: a clone made from `source_url`
+already has the right `origin`, so the repoint activity reports `ok` and
 does nothing.
 
 ## Know what becomes yours {: #bootstrap-template-ownership }

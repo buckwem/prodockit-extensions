@@ -108,7 +108,7 @@ Use [section 28.1, Scan phases and
 stages](../commands/output.md#command-output-structure) for the complete
 explanation:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+![A left-aligned terminal report with separate callouts identifying a phase, activity, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-template-sync-preview-output}
 
@@ -260,7 +260,7 @@ command to run next.
 
 ### Read the output {: #tsync-read-the-output }
 
-Template Sync uses the [shared phase-and-stage
+Template Sync uses the [shared phase-and-activity
 layout](../commands/output.md#command-output-structure). Its four phases add
 the following command-specific meaning:
 

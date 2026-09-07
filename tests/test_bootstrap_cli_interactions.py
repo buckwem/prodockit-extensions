@@ -363,7 +363,7 @@ def test_active_stage_shows_action_current_state_and_goal(tmp_path: Path) -> Non
     assert "Action:   CONFIGURE" in output
     assert "Current:  email is not configured" in output
     assert "Goal:     Git, installed and configured" in output
-    assert "Stage [1/1] Git, installed and configured" in output
+    assert "Activity [1/1] Git, installed and configured" in output
     assert "\x1b[34m" in output
     assert "─" * 40 in output, "the stage has a visible boundary in plain logs"
 
@@ -618,7 +618,7 @@ def test_apply_failure_records_stage_exit_status_and_message(tmp_path: Path) -> 
         "category": "unclassified",
         "recovery": [
             "Review the command output above and correct the reported condition.",
-            "Resume prodockit bootstrap; completed stages will be checked and skipped.",
+            "Resume prodockit bootstrap; completed activities will be checked and skipped.",
         ],
     }
     assert saved["stages"][0]["status"] == "failed"
@@ -696,7 +696,7 @@ def test_failed_installer_can_recover_when_the_stage_now_verifies(tmp_path: Path
     )
     assert saved["status"] == "completed"
     assert saved["stages"][0]["status"] == "completed"
-    assert "stage now verifies correctly" in saved["stages"][0]["detail"]
+    assert "activity now verifies correctly" in saved["stages"][0]["detail"]
 
 
 def test_failed_installer_still_stops_when_the_stage_is_partial(tmp_path: Path) -> None:
@@ -906,7 +906,7 @@ def test_a_failed_stage_explains_how_to_resume(
         stderr = error.getvalue().decode()
 
     assert "prodockit bootstrap --apply" in stderr
-    assert "completed stages will be rechecked and skipped" in stderr
+    assert "completed activities will be rechecked and skipped" in stderr
 
 
 def test_declining_follow_up_after_commands_marks_the_stage_skipped(
