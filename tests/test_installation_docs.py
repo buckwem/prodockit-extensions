@@ -169,6 +169,36 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
     assert "Create a repositories directory if this is your first one" in preparation
     assert "mkdir -p ~/repos" in preparation
     assert "Set-Location ~\\repos" in preparation
+    assert "++tab++" in preparation
+
+
+def test_docs_enable_zensicals_standard_pymdown_extensions() -> None:
+    config = tomllib.loads((REPO / "zensical.toml").read_text(encoding="utf-8"))
+    pymdownx = config["project"]["markdown_extensions"]["pymdownx"]
+    expected = {
+        "arithmatex",
+        "betterem",
+        "caret",
+        "details",
+        "emoji",
+        "highlight",
+        "inlinehilite",
+        "keys",
+        "magiclink",
+        "mark",
+        "smartsymbols",
+        "snippets",
+        "superfences",
+        "tabbed",
+        "tasklist",
+        "tilde",
+    }
+
+    assert expected <= pymdownx.keys()
+    assert pymdownx["highlight"]["line_spans"] == "__span"
+    assert pymdownx["highlight"]["pygments_lang_class"] is True
+    assert pymdownx["tabbed"]["combine_header_slug"] is True
+    assert pymdownx["tasklist"]["custom_checkbox"] is True
 
 
 def test_reader_facing_homebrew_install_routes_link_to_the_official_installer() -> None:
