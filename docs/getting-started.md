@@ -98,7 +98,7 @@ environment. Verify it before installing Zensical:
 
 The first path must be the new project directory, Python must be 3.14, and the
 last path must end in `prodockit-project/.venv`. A parent path such as
-`~/Repos/.venv` is the Bootstrap setup environment and is not this site's
+`~/repos/.venv` is the Bootstrap setup environment and is not this site's
 environment. Correct the directory and repeat section 3.1 before installing
 Zensical.
 

@@ -167,8 +167,8 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
     assert "the directory that holds all your repositories" in preparation
     assert "| Route |" not in preparation
     assert "Create a repositories directory if this is your first one" in preparation
-    assert "mkdir -p ~/Repos" in preparation
-    assert "Set-Location ~\\Repos" in preparation
+    assert "mkdir -p ~/repos" in preparation
+    assert "Set-Location ~\\repos" in preparation
 
 
 def test_reader_facing_homebrew_install_routes_link_to_the_official_installer() -> None:
@@ -270,7 +270,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert "python3.14 -m venv .venv" in handoff
     assert "python -c 'import sys; print(sys.prefix)'" in handoff
     assert 'python -c "import sys; print(sys.prefix)"' in handoff
-    assert "~/Repos/.venv" in handoff
+    assert "~/repos/.venv" in handoff
 
 
 def test_prodockit_is_not_presented_as_supporting_mkdocs() -> None:

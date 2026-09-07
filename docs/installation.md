@@ -24,8 +24,8 @@ project.
 
 Python must exist before it can create the environment that runs Prodockit.
 Always complete this section in the directory that holds all your repositories,
-for example `~/Repos`, `~/GitHub`, `~/GitLab`, or
-`C:\Users\your-name\GitHub`. Do not enter an individual project yet.
+for example `~/repos`, `~/github`, `~/gitlab`, or
+`C:\Users\your-name\github`. Do not enter an individual project yet.
 
 The setup `.venv` keeps the initial tools separate from system Python and
 avoids the `externally-managed-environment` error produced by package-managed
@@ -100,32 +100,34 @@ the environment belonging to one particular site.
 !!! tip "Create a repositories directory if this is your first one"
 
     If you have not worked with a Git repository before, create one top-level
-    directory for all your repositories. `Repos` is a neutral name; `GitLab`
-    or `GitHub` can be useful when you prefer to group projects by host. Keep
+    directory for all your repositories. `repos` is a neutral name; `gitlab`
+    or `github` can be useful when you prefer to group projects by host. Keep
     using an existing repositories directory if you already have one, and
-    replace `Repos` in the examples with its name.
+    replace `repos` in the examples with its name. Lowercase names are quicker
+    to type. After creating the directory, type the first few characters of
+    its name and press ++tab++ to let the terminal complete the rest.
 
 Create or enter the repositories directory:
 
 === ":material-apple: macOS"
 
     ```bash
-    mkdir -p ~/Repos
-    cd ~/Repos
+    mkdir -p ~/repos
+    cd ~/repos
     ```
 
 === ":fontawesome-brands-windows: Windows"
 
     ```powershell
-    New-Item -ItemType Directory -Force ~\Repos | Out-Null
-    Set-Location ~\Repos
+    New-Item -ItemType Directory -Force ~\repos | Out-Null
+    Set-Location ~\repos
     ```
 
 === ":material-linux: Linux (Ubuntu)"
 
     ```bash
-    mkdir -p ~/Repos
-    cd ~/Repos
+    mkdir -p ~/repos
+    cd ~/repos
     ```
 
 Next create the setup virtual environment in that directory. Python stores it
