@@ -1442,7 +1442,7 @@ def assess(
             (
                 f"selected components are configured; run {command} to verify the site"
                 if ready_to_build
-                else f"apply the selected integration stages before running {command}"
+                else f"apply the selected integration activities before running {command}"
             ),
         ),
     ]

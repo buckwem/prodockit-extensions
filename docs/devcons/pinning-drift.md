@@ -39,7 +39,7 @@ work together:
 
 Pins uses Prodockit's shared [field and decision
 language](../commands/output.md#command-output-fields), but presents its short
-package inventory without the full phase-and-stage frame.
+package inventory without the full phase-and-activity frame.
 
 \ref{fig-version-pinning-drift} shows the two controls in one cycle. The top
 row finds declarations or shared files that disagree and aligns the release

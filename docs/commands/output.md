@@ -9,29 +9,29 @@ icon: lucide/list-tree
 Prodockit's longer commands use one presentation language for checks,
 decisions, changes, and verification. Learn it once, then use the same visual
 landmarks in Bootstrap, Adopt, diagnostic repairs, and Template Sync. Pins uses
-the same decision vocabulary without the complete phase-and-stage frame.
+the same decision vocabulary without the complete phase-and-activity frame.
 
 The words are authoritative: colour helps you scan a long report, but never
 carries meaning on its own.
 
-## Scan phases and stages {: #command-output-structure }
+## Scan phases and activities {: #command-output-structure }
 
-A phase groups related work. A stage is one check or decision inside that
+A phase groups related work. An activity is one check or decision inside that
 phase. The current and total numbers show where you are without implying that
-every stage needs a change.
+every activity needs a change.
 
 \ref{fig-command-output-anatomy} keeps the command's own counters separate from
 the labels that explain its colour and structure. Select the figure to enlarge
 it.
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+![A left-aligned terminal report with separate callouts identifying a phase, activity, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-command-output-anatomy}
 
-How to scan a phase-and-stage report
+How to scan a phase-and-activity report
 ///
 
-`Stage [3/5]` means the third displayed stage out of five; it is not an error
+`Activity [3/5]` means the third displayed activity out of five; it is not an error
 count. `CHECK` normally means no change, while `ALIGN`, `CONFIGURE`, `INSTALL`,
 `REPAIR`, or `CHOOSE` names work an applied run may perform.
 
@@ -63,7 +63,7 @@ Pressing Enter accepts the safe default instead.
 ## Read the fields {: #command-output-fields }
 
 \ref{tab-command-output-fields} defines the recurring labels shown beneath a
-stage heading.
+activity heading.
 
 | Field {: width="24%" } | Meaning |
 |---|---|
@@ -75,7 +75,7 @@ stage heading.
 | `File` or `Affects` | Project-relative paths or system state within the action's scope. |
 | `Network` | Whether the action may contact a package service, mirror, or Git host. |
 | `Recovery` | What can be restored or where a recovery record will be kept. |
-| `Result` | Outcome of the stage, phase, plan, or complete command. |
+| `Result` | Outcome of the activity, phase, plan, or complete command. |
 /// table-caption | <
     attrs: {id: tab-command-output-fields}
 
@@ -99,7 +99,7 @@ protected work, drift, or a decision worth resolving before publication.
 ## Use plain or redirected output {: #command-output-without-colour }
 
 Prodockit removes terminal escape codes when output is redirected and writes
-plain-text logs. Labels such as `Phase`, `Stage`, `Action`, `WARN`, `WARNING`,
+plain-text logs. Labels such as `Phase`, `Activity`, `Action`, `WARN`, `WARNING`,
 `Decision`, and `Result` therefore retain the complete meaning without colour.
 Do not infer success from colour alone; read the final result and exit status.
 
@@ -110,9 +110,9 @@ each longer command uses.
 
 | Command {: width="20%" } | Shared presentation | Command-specific reference |
 |---|---|---|
-| Bootstrap | Phases, stages, actions, warnings, and applied verification | [`pdk bootstrap`](bootstrap.md) |
-| Diagnostics | Status labels normally; phases, stages, choices, recovery, and verification with `--dry-run` or `--apply` | [`pdk diag`](diag.md) |
-| Adopt | Four phases, selected stages, toolchain actions, and final verification | [`pdk adopt`](adopt.md) |
+| Bootstrap | Phases, activities, actions, warnings, and applied verification | [`pdk bootstrap`](bootstrap.md) |
+| Diagnostics | Status labels normally; phases, activities, choices, recovery, and verification with `--dry-run` or `--apply` | [`pdk diag`](diag.md) |
+| Adopt | Four phases, selected activities, toolchain actions, and final verification | [`pdk adopt`](adopt.md) |
 | Pins | Current, supported, and selected versions plus explicit package decisions | [`pdk pins`](pins.md) |
 | Template Sync | Four phases, protected-file decisions, diffs, and template release movement | [`pdk template-sync`](template-sync.md) |
 /// table-caption | <

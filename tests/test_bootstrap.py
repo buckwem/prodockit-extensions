@@ -1304,7 +1304,7 @@ def test_bare_bootstrap_defaults_to_checking(cli_bootstrap) -> None:
     somebody typed the command to see what it did."""
     result = cli_bootstrap()
     assert "Visual Studio Code" in result.output
-    assert "stages need work" in result.output
+    assert "activities need work" in result.output
     # The old behaviour: a usage error telling you to pass a flag.
     assert result.exit_code == 1
     assert "supports --check and --dry-run only" not in result.output
@@ -1334,7 +1334,7 @@ def test_bootstrap_exits_zero_when_everything_is_set_up(cli_bootstrap, tmp_path:
 
     # Against the list, not a number typed in: a count in prose drifts
     # the moment a stage is added, which is how "ten stages" shipped.
-    assert f"All {len(STAGES)} stages are set up." in result.output
+    assert f"All {len(STAGES)} activities are set up." in result.output
     assert result.exit_code == 0
 
 
@@ -2733,7 +2733,7 @@ def test_the_help_text_does_not_claim_a_stale_stage_count(cli_bootstrap) -> None
     drifts the moment the list behind it changes, so it is asserted
     against the list."""
     result = cli_bootstrap("--help")
-    assert f"all {len(STAGES)} stages" in result.output
+    assert f"all {len(STAGES)} activities" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -5464,7 +5464,7 @@ def test_apply_says_what_it_is_doing_before_it_starts(
     assert "setting up this machine and a prodockit-template project" in result.output
     assert "gitlab.surrey.ac.uk" in result.output, "which host it will use"
     assert "report-al01234" in result.output, "and where the project will land"
-    assert f"of {len(STAGES)} stages" in result.output
+    assert f"of {len(STAGES)} activities" in result.output
     assert "prodockit itself is installed in" in result.output
     # Before the first stage that has anything to do, or it is not an
     # announcement. Not "[1/" - stage 1 is the environment prodockit is

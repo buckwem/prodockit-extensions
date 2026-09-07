@@ -7,11 +7,11 @@ icon: lucide/list-checks
 # Bootstrap design
 
 This \index{bootstrap design} page is for contributors changing `prodockit bootstrap`. The author guide
-documents what to run; this page records the safety model behind its stages.
+documents what to run; this page records the safety model behind its activities.
 
-## Model every stage as evidence and a plan
+## Model every activity as evidence and a plan
 
-Each stage has two independent parts:
+Each activity has two independent parts:
 
 1. A `check` observes the machine or repository and reports `ok`, `warning`,
    `missing`, `wrong`, `unknown`, or `blocked` with evidence. A warning is
@@ -50,12 +50,12 @@ a personal access token.
 
 ## Treat fresh history as destructive
 
-The fresh history stage removes the template's Git records before creating the
+The fresh history activity removes the template's Git records before creating the
 reader's own repository history. It is offered only when `origin` still points
 at the known template remote. A clone already pointing at the reader's project
 must never qualify.
 
-This stage reports `wrong`, not `missing`, so pressing Enter cannot accept the
+This activity reports `wrong`, not `missing`, so pressing Enter cannot accept the
 destructive action. The plan explains exactly what is removed and requires an
 explicit answer.
 
@@ -67,9 +67,9 @@ explicitly when installing `requirements.txt`. A bare `pip` could otherwise
 install project dependencies into bootstrap's environment and leave the
 checkout unable to build.
 
-## Preserve stage order
+## Preserve activity order
 
-Stage order is dependency order: Git must exist before SSH and cloning; the
+Activity order is dependency order: Git must exist before SSH and cloning; the
 clone must exist before its environment and Node tools; the remote must exist
 before a push; the push must trigger a pipeline before the site can be
 verified. A failure stops the run because later findings would be consequences

@@ -191,7 +191,7 @@ def recovery_advice(
             "disk-space",
             (
                 "Free disk space in the VM and its temporary-file location.",
-                "Resume prodockit bootstrap; completed stages will be checked rather "
+                "Resume prodockit bootstrap; completed activities will be checked rather "
                 "than installed again.",
             ),
         )
@@ -335,7 +335,7 @@ def recovery_advice(
         "unclassified",
         (
             "Review the command output above and correct the reported condition.",
-            "Resume prodockit bootstrap; completed stages will be checked and skipped.",
+            "Resume prodockit bootstrap; completed activities will be checked and skipped.",
         ),
     )
 

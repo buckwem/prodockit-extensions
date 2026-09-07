@@ -3811,10 +3811,13 @@ def _adopt_readiness_checks(
                 "maintenance.adopt-readiness",
                 "Repository and template maintenance",
                 "warn",
-                f"Adopt has {len(pending)} integration stage(s) to apply",
+                (
+                    f"Adopt has {len(pending)} integration "
+                    f"{'activity' if len(pending) == 1 else 'activities'} to apply"
+                ),
                 (
                     *(f"{step.summary}: {step.detail}" for step in pending),
-                    "run `pdk adopt --dry-run`, then apply the reviewed stages",
+                    "run `pdk adopt --dry-run`, then apply the reviewed activities",
                 ),
                 data,
             )

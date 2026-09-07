@@ -885,7 +885,7 @@ def _offer_to_fill_gaps(config: BootstrapConfig, path: Path) -> tuple[BootstrapC
 
     click.echo(f"Some details are not set yet: {', '.join(blank)}.")
     if not click.confirm("Answer them now?", default=True):
-        click.echo("Carrying on - stages needing them will show as unknown.\n")
+        click.echo("Carrying on - activities needing them will show as unknown.\n")
         return config, answered_in_full
     # Nothing set at all is the configure arriving by a different door,
     # not a repair - so it is asked as one. Passing the fields by name
@@ -993,7 +993,7 @@ def _announce_apply(
     click.echo(f"  Running:  {Path(sys.argv[0]).name} from {Path(prodockit.__file__).parent}")
     click.echo(f"  Host:     {context.host.hostname}")
     click.echo(f"  Project:  {context.config.resolved_project_dir(context.home)}")
-    click.echo(f"  To do:    {outstanding} of {len(STAGES)} stages")
+    click.echo(f"  To do:    {outstanding} of {len(STAGES)} activities")
     if context.guided and reports:
         summary = _bootstrap_work_summary(reports)
         if summary:
@@ -1002,7 +1002,7 @@ def _announce_apply(
     click.echo(
         "  Run this from the setup directory containing .pdkboot.toml. The project\n"
         "  shown above will be created beneath it. Use the virtual environment\n"
-        "  prodockit itself is installed in - stage 16 builds the project's own.\n"
+        "  prodockit itself is installed in - activity 16 builds the project's own.\n"
         "  Nothing is changed without asking first."
     )
     click.echo("")
@@ -1028,7 +1028,7 @@ def _apply_outstanding(
     if not outstanding:
         if journal is not None:
             journal.settle()
-        click.echo("Nothing to do - every stage is either set up or waiting on configuration.")
+        click.echo("Nothing to do - every activity is either set up or waiting on configuration.")
         if journal is not None:
             click.echo(f"Recovery report: {journal.path}")
         return
@@ -1059,7 +1059,7 @@ def _apply_outstanding(
                     "message": "run interrupted by the user",
                 },
             )
-        click.echo("\nInterrupted. No later stages were started.", err=True)
+        click.echo("\nInterrupted. No later activities were started.", err=True)
         if journal is not None:
             click.echo(f"Recovery report: {journal.path}", err=True)
         raise
@@ -1199,7 +1199,7 @@ def _work_through(
             # pasted logs. The old bold-only ``[15/23]`` line disappeared
             # among instructions and command output during long installs.
             click.echo(click.style("─" * 78, fg="blue"))
-            heading = f"Stage [{number}/{total}] {report.stage.summary}"
+            heading = f"Activity [{number}/{total}] {report.stage.summary}"
             click.echo(click.style(heading, bold=True, fg="blue"))
         else:
             click.echo(click.style(f"[{number}/{total}] {report.stage.summary}", bold=True))
@@ -1362,7 +1362,7 @@ def _work_through(
                 )
                 click.echo(_bootstrap_error(f"  failed: {summary}"), err=True)
                 click.echo(
-                    _bootstrap_error("  Stopping - later stages depend on this one."),
+                    _bootstrap_error("  Stopping - later activities depend on this one."),
                     err=True,
                 )
                 advice = (
@@ -1381,7 +1381,7 @@ def _work_through(
                     click.echo(
                         f"  Fix the problem, then run `{_resume_command(context, config_path)}` "
                         "again; "
-                        "completed stages will be rechecked and skipped.",
+                        "completed activities will be rechecked and skipped.",
                         err=True,
                     )
                 if journal is not None:
@@ -1407,7 +1407,7 @@ def _work_through(
                 if outcome.recovered is not None:
                     recovered_detail = (
                         "command returned "
-                        f"{outcome.recovered.returncode}, but the stage now verifies correctly"
+                        f"{outcome.recovered.returncode}, but the activity now verifies correctly"
                     )
                     click.echo(f"  recovered: {recovered_detail}")
                     captured = "\n".join(
@@ -1443,7 +1443,7 @@ def _work_through(
                     click.echo(
                         f"  Fix the problem, then run `{_resume_command(context, config_path)}` "
                         "again; "
-                        "completed stages will be rechecked and skipped.",
+                        "completed activities will be rechecked and skipped.",
                         err=True,
                     )
                 if journal is not None:
@@ -1773,11 +1773,11 @@ def _diagnostic_phase_heading(number: int, total: int, name: str, *, err: bool) 
 
 
 def _diagnostic_stage_heading(number: int, total: int, summary: str, *, err: bool) -> None:
-    """Use bootstrap's blue stage divider for one diagnostic finding."""
+    """Use bootstrap's blue activity divider for one diagnostic finding."""
     click.echo("", err=err)
     click.echo(click.style("─" * 78, fg="blue"), err=err)
     click.echo(
-        click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="blue"),
+        click.style(f"Activity [{number}/{total}] {summary}", bold=True, fg="blue"),
         err=err,
     )
 
@@ -2515,7 +2515,7 @@ def shared_files(root: str, check: bool, apply_changes: bool, verbose: bool) -> 
     "--check",
     "check_only",
     is_flag=True,
-    help="Report each stage's state and change nothing.",
+    help="Report each activity's state and change nothing.",
 )
 @click.option(
     "-n",
@@ -2528,7 +2528,7 @@ def shared_files(root: str, check: bool, apply_changes: bool, verbose: bool) -> 
     "--apply",
     "apply_stages",
     is_flag=True,
-    help="Actually set up the stages that need it, asking before each one.",
+    help="Actually set up the activities that need it, asking before each one.",
 )
 @click.option(
     "--configure",
@@ -2553,10 +2553,10 @@ def bootstrap(
 ) -> None:
     """Set up this machine and a project based on prodockit-template.
 
-    Checks all 23 stages - prodockit's own environment, editor, git, SSH
+    Checks all 23 activities - prodockit's own environment, editor, git, SSH
     key/config/agent/upload, clone, history, remote, commit identity, the
     project's own environment, pandoc, Node and the rest - and reports
-    which are already done. Rerunnable: a stage that is set up correctly
+    which are already done. Rerunnable: an activity that is set up correctly
     is left alone.
 
     This is specifically for projects based on prodockit-template, not a
@@ -2664,9 +2664,9 @@ def bootstrap(
     click.echo()
     _report_contacts(context)
     if not outstanding:
-        click.echo(f"All {len(reports)} stages are set up.")
+        click.echo(f"All {len(reports)} activities are set up.")
         return
-    click.echo(f"{len(outstanding)} of {len(reports)} stages need work.")
+    click.echo(f"{len(outstanding)} of {len(reports)} activities need work.")
     if check_only:
         # Both halves, because only one was ever offered. A reader who has
         # just been told fourteen stages need work is being shown how to
@@ -3063,7 +3063,7 @@ def _adopt_phase_heading(number: int, name: str) -> None:
 def _adopt_stage_heading(number: int, total: int, summary: str) -> None:
     click.echo("")
     click.echo(click.style("─" * 78, fg="blue"))
-    click.echo(click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="blue"))
+    click.echo(click.style(f"Activity [{number}/{total}] {summary}", bold=True, fg="blue"))
 
 
 def _renderer_retry_warning(notice: RetryNotice) -> None:
@@ -3089,13 +3089,13 @@ def _renderer_retry_warning(notice: RetryNotice) -> None:
     "-n",
     "--dry-run",
     is_flag=True,
-    help="Show the stages and changes without writing or installing anything.",
+    help="Show the activities and changes without writing or installing anything.",
 )
 @click.option(
     "-a",
     "--apply",
     is_flag=True,
-    help="Apply the required stages, asking before each change.",
+    help="Apply the required activities, asking before each change.",
 )
 @click.option(
     "--offline",
@@ -3116,7 +3116,7 @@ def _renderer_retry_warning(notice: RetryNotice) -> None:
     "-v",
     "--verbose",
     is_flag=True,
-    help="Show the files and commands behind each concise stage description.",
+    help="Show the files and commands behind each concise activity description.",
 )
 def adopt_command(
     configure: bool,
@@ -3139,7 +3139,7 @@ def adopt_command(
 
     With no mode option it reports what is present. Use --configure to choose
     the independent Mermaid and maths options, --dry-run to review the plan,
-    and --apply to perform it one prominent stage at a time.
+    and --apply to perform it one prominent activity at a time.
     """
     if dry_run and apply:
         raise click.UsageError("choose either --dry-run or --apply, not both")
@@ -3186,7 +3186,7 @@ def adopt_command(
         )
         path = write_adopt_manifest(root, options)
         click.echo(f"\nSaved the choices to {path}.")
-        click.echo("Run `prodockit adopt --dry-run` to review the installation stages.")
+        click.echo("Run `prodockit adopt --dry-run` to review the installation activities.")
         return
 
     try:
@@ -3223,7 +3223,7 @@ def adopt_command(
             choice_detail += "; command-line overrides apply"
     click.echo(f"  Choices:  {choice_detail}")
     if not resolution.saved:
-        click.echo(f"  Will save: {root / ADOPT_MANIFEST} in the Component choices stage")
+        click.echo(f"  Will save: {root / ADOPT_MANIFEST} in the Component choices activity")
     click.echo("  Excluded: Git, SSH, remotes, editors, commits and pushes")
 
     current_phase = ""
@@ -3292,13 +3292,13 @@ def adopt_command(
         if step.status == "wrong":
             failed = True
             click.echo(
-                "\n  This stage must be corrected before project files can be changed.",
+                "\n  This activity must be corrected before project files can be changed.",
                 err=True,
             )
             continue
         if not step.needs_work or not apply or apply_blocked:
             continue
-        if not click.confirm("\n  Apply this stage?", default=True):
+        if not click.confirm("\n  Apply this activity?", default=True):
             click.echo("  skipped")
             continue
         try:
@@ -3319,14 +3319,15 @@ def adopt_command(
 
     if failed:
         raise click.ClickException(
-            "the assessment found a blocking stage; correct it and rerun `prodockit adopt`"
+            "the assessment found a blocking activity; correct it and rerun `prodockit adopt`"
         )
 
     if not apply:
         outstanding = sum(step.needs_work for step in steps)
         if outstanding:
             mode = "No changes made." if not dry_run else "Dry run complete; no changes made."
-            click.echo(f"\n{outstanding} selected stage(s) need work. {mode}")
+            noun = "activity" if outstanding == 1 else "activities"
+            click.echo(f"\n{outstanding} selected {noun} need work. {mode}")
             click.echo("Run `prodockit adopt --apply` to apply them.")
         else:
             click.echo("\nAll selected prodockit components are configured.")
@@ -3341,7 +3342,7 @@ def adopt_command(
             click.echo("No changes made.")
         return
 
-    click.echo("\nAdoption stages finished.")
+    click.echo("\nAdoption activities finished.")
     click.echo(f"Run `{build_command}`, then review the local changes with `git diff`.")
     click.echo("Nothing has been committed or pushed.")
 
@@ -3742,7 +3743,7 @@ def _template_sync_phase_heading(number: int) -> None:
 def _template_sync_stage_heading(number: int, total: int, summary: str) -> None:
     click.echo("")
     click.echo(click.style("─" * 78, fg="blue"))
-    click.echo(click.style(f"Stage [{number}/{total}] {summary}", bold=True, fg="blue"))
+    click.echo(click.style(f"Activity [{number}/{total}] {summary}", bold=True, fg="blue"))
 
 
 def _template_sync_key(text: str) -> str:
@@ -4351,7 +4352,7 @@ def _run_template_sync(
                 f"  Current:  will be assessed by Prodockit {package_plan.target} "
                 "after the fresh-process handoff"
             )
-            say_key("  Will do:  run Adopt's supported-toolchain and project integration stages")
+            say_key("  Will do:  run Adopt's supported-toolchain and project integration activities")
             say("  Command:  internal equivalent of `pdk adopt --apply`")
             say("  Files:    active environment and Adopt-managed project files")
             say(
@@ -4379,7 +4380,7 @@ def _run_template_sync(
                 step_say(
                     "  Will do:  no change"
                     if not step.needs_work
-                    else "  Will do:  apply this Adopt stage before the template update"
+                    else "  Will do:  apply this Adopt activity before the template update"
                 )
                 for command in step.commands:
                     say(f"  Command:  {_template_sync_command(command)}")

@@ -86,10 +86,10 @@ Diagnostics options
 ## Repair-plan output {: #cmd-diag-repair-plan-output }
 
 \ref{fig-cmd-diag-repair-output} shows the repair-plan structure. Use [section
-29.1, Scan phases and stages](output.md#command-output-structure) for the
+29.1, Scan phases and activities](output.md#command-output-structure) for the
 complete explanation of dry-run and apply output:
 
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+![A left-aligned terminal report with separate callouts identifying a phase, activity, review-first changes, and warning](../assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-cmd-diag-repair-output}
 
@@ -130,7 +130,7 @@ Diagnostics exit status
 Use the command named by the diagnostic result rather than treating apply as a
 blanket repair:
 
-- [`pdk adopt`](adopt.md) applies project integration stages named by the
+- [`pdk adopt`](adopt.md) applies project integration activities named by the
   Adopt-readiness check.
 - [`pdk pins`](pins.md) owns reviewed version-selection decisions.
 - [`pdk template-sync`](template-sync.md) checks and applies remote template

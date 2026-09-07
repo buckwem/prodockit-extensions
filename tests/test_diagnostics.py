@@ -341,7 +341,7 @@ def test_diagnostics_reports_the_same_pending_adopt_stages(
     check = diagnostics._adopt_readiness_checks(tmp_path, online=False)[0]
 
     assert check.status == "warn"
-    assert check.summary == "Adopt has 3 integration stage(s) to apply"
+    assert check.summary == "Adopt has 3 integration activities to apply"
     assert check.data["pending"] == ["dependency", "core", "choices"]
     assert "Supported toolchain" in check.details[0]
     assert "Standard authoring components" in check.details[1]
@@ -1498,10 +1498,10 @@ def test_diag_repair_output_uses_bootstrap_phases_stages_and_colours(
     result = CliRunner().invoke(main, ["diag", "--dry-run"], color=True)
 
     assert "Phase 1/2 — Inspect and plan" in result.output
-    assert "Stage [1/1] renderer.mermaid" in result.output
+    assert "Activity [1/1] renderer.mermaid" in result.output
     assert "Phase 2/2 — Summary" in result.output
     assert "\x1b[94m" in result.output  # bootstrap bright-blue phase boundary
-    assert "\x1b[34m" in result.output  # bootstrap blue stage boundary
+    assert "\x1b[34m" in result.output  # bootstrap blue activity boundary
     assert "\x1b[38;2;230;159;0m" in result.output  # amber warning/action styling
 
 
