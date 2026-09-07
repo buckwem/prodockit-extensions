@@ -65,6 +65,10 @@ def _supported_toolchain(monkeypatch: pytest.MonkeyPatch) -> None:
         "prodockit.toolchain.installed_pandoc_version",
         lambda: TESTED_VERSIONS["pandoc"],
     )
+    # Individual adoption tests use temporary project roots while pytest runs
+    # from this repository's own virtual environment. Environment-boundary
+    # behaviour has dedicated tests below and in test_environment.py.
+    monkeypatch.setattr("prodockit.adopt._interpreter_problem", lambda _root: None)
 
 
 def _project(
@@ -159,11 +163,53 @@ def test_assessment_warns_without_venv_and_rejects_wrong_active_venv(tmp_path, m
     assert "No virtual environment is active" in environment.detail
 
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
-    monkeypatch.setattr("sys.prefix", str(tmp_path / "parent-venv"))
+    monkeypatch.setattr(
+        "prodockit.adopt._interpreter_problem",
+        lambda _root: (
+            "Active Python is not the project's .venv: running parent-venv; "
+            "project environment .venv"
+        ),
+    )
     steps = assess(project, AdoptOptions(), offline=True)
     environment = next(step for step in steps if step.id == "environment")
     assert environment.status == "wrong"
     assert "Active Python is not the project's .venv" in environment.detail
+
+
+def test_assessment_blocks_selected_renderers_when_node_is_unavailable(tmp_path, monkeypatch):
+    from prodockit.adopt import AdoptOptions, assess
+
+    project = _project(tmp_path)
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: False)
+    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: None)
+
+    steps = assess(project, AdoptOptions(mermaid=True, maths=True), offline=True)
+
+    for step_id in ("mermaid", "maths"):
+        step = next(item for item in steps if item.id == step_id)
+        assert step.status == "wrong"
+        assert "Node.js and npm are required before Adopt" in step.detail
+
+
+def test_apply_checks_renderer_prerequisites_before_changing_project(tmp_path, monkeypatch):
+    project = _project(tmp_path)
+    config = project / "zensical.toml"
+    before = config.read_bytes()
+    monkeypatch.chdir(project)
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
+    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: None)
+
+    result = CliRunner().invoke(
+        main,
+        ["adopt", "--apply", "--mermaid", "--maths"],
+    )
+
+    assert result.exit_code != 0
+    assert result.output.count("Node.js and npm are required before Adopt") == 2
+    assert "Apply this stage?" not in result.output
+    assert config.read_bytes() == before
+    assert not (project / MANIFEST).exists()
+    assert not (project / "requirements.txt").exists()
 
 
 def test_reusable_apply_runs_selected_stages_and_verifies(monkeypatch, tmp_path) -> None:
