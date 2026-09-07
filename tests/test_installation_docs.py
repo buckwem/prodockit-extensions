@@ -137,6 +137,7 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
     ]
 
     for command in (
+        "brew --version",
         "brew install python@3.14",
         '"$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv',
         "py -3.14 --version",
@@ -146,6 +147,9 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
         "python --version",
     ):
         assert command in preparation
+
+    assert "[:simple-homebrew: Install Homebrew](https://brew.sh/)" in preparation
+    assert ".homebrew-button" in preparation
 
     assert preparation.count("//// step | ") == 4
     assert preparation.count('=== ":material-apple: macOS"') == 4
@@ -163,6 +167,19 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
         assert "brew install python@3.14" not in page
         assert "py -3.14 -m venv .venv" not in page
         assert "python3.14 -m venv .venv" not in page
+
+
+def test_reader_facing_homebrew_install_routes_link_to_the_official_installer() -> None:
+    button = "[:simple-homebrew: Install Homebrew](https://brew.sh/)"
+
+    routes = (
+        INSTALLATION,
+        REPO / "docs" / "extensions" / "bibliography.md",
+        REPO / "docs" / "pdf.md",
+    )
+    for path in routes:
+        page = path.read_text(encoding="utf-8")
+        assert button in page, f"{path.relative_to(REPO)} lacks the Homebrew installer action"
 
 
 def test_adoption_continues_after_shared_preparation() -> None:

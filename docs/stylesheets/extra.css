@@ -1,1 +1,20 @@
 /* Add project-specific website and PDF styles below this line. */
+
+/* Homebrew's amber brand colour with dark text keeps its installation action
+   recognisable and legible in both website colour schemes. */
+.md-typeset .homebrew-button {
+  border-color: #fbb040;
+  background-color: #fbb040;
+  color: #171717;
+}
+
+.md-typeset .homebrew-button:is(:hover, :focus) {
+  border-color: #e69f00;
+  background-color: #e69f00;
+  color: #171717;
+}
+
+.md-typeset .homebrew-button svg {
+  margin-right: 0.3em;
+  vertical-align: -0.15em;
+}

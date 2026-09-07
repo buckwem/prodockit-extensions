@@ -61,7 +61,19 @@ Install and verify the supported interpreter before creating an environment.
 
 === ":material-apple: macOS"
 
-    Install [Homebrew](https://brew.sh) if needed, then run:
+    If Homebrew is not installed, use its official installer. Follow every
+    post-install instruction it prints so that `brew` is added to your shell.
+
+    [:simple-homebrew: Install Homebrew](https://brew.sh/){ .md-button .homebrew-button target="_blank" rel="noopener" }
+
+    Open a new terminal if the installer tells you to, then check that
+    Homebrew is available:
+
+    ```bash
+    brew --version
+    ```
+
+    Install and verify Python 3.14:
 
     ```bash
     brew install python@3.14
