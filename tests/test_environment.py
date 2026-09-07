@@ -38,7 +38,7 @@ def test_commands_reject_parent_environment_before_work(tmp_path, monkeypatch, a
 
     assert result.exit_code != 0, result.output
     assert "Active Python is not the project's .venv" in result.output
-    assert "activate" in result.output
+    assert "activate" in result.output.lower()
     if arguments[0] == "diag":
         assert "project environment: .venv" in result.output
         assert "WeasyPrint" not in result.output
@@ -54,6 +54,16 @@ def test_project_environment_accepts_matching_prefix_and_no_local_venv(tmp_path,
     assert environment.project_environment_problem(tmp_path) is None
     (tmp_path / ".venv").mkdir()
     assert environment.project_environment_problem(tmp_path) is None
+
+
+def test_project_environment_activation_command_matches_the_platform(monkeypatch):
+    monkeypatch.setattr(environment.os, "name", "nt")
+    assert (
+        environment.project_environment_activation_command()
+        == r".\.venv\Scripts\Activate.ps1"
+    )
+    monkeypatch.setattr(environment.os, "name", "posix")
+    assert environment.project_environment_activation_command() == "source .venv/bin/activate"
 
 
 def test_adopt_without_venv_warns_and_allows_preview(tmp_path, monkeypatch):

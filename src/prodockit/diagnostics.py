@@ -2660,6 +2660,9 @@ def _environment_checks(root: Path) -> list[DiagnosticResult]:
             )
         )
     elif wrong_project_environment:
+        from prodockit.environment import project_environment_activation_command
+
+        activation = project_environment_activation_command()
         checks.append(
             DiagnosticResult(
                 "environment.virtual-env",
@@ -2669,8 +2672,7 @@ def _environment_checks(root: Path) -> list[DiagnosticResult]:
                 (
                     f"running prefix: {prefix}",
                     f"project environment: {_display_path(project_environment, root)}",
-                    "deactivate the current environment, activate the project's .venv, "
-                    "then rerun diagnostics",
+                    f"run `{activation}`, then rerun `pdk diag`",
                 ),
                 {
                     "declared": _display_path(declared, root) if declared else None,

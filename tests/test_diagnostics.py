@@ -295,7 +295,10 @@ def test_environment_rejects_the_setup_venv_inside_a_bootstrapped_project(
 
     assert check.status == "fail"
     assert check.summary == "Active Python is not the project's .venv"
-    assert "activate the project's .venv" in check.details[-1]
+    from prodockit.environment import project_environment_activation_command
+
+    assert project_environment_activation_command() in check.details[-1]
+    assert "rerun `pdk diag`" in check.details[-1]
 
 
 def test_diagnostics_reports_the_same_pending_adopt_stages(

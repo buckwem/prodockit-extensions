@@ -12,6 +12,7 @@ CI while preventing a local PDF build from silently using an older venv.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from dataclasses import dataclass
@@ -26,16 +27,24 @@ class BuildEnvironmentError(RuntimeError):
     """The active Python environment cannot satisfy the project build."""
 
 
+def project_environment_activation_command() -> str:
+    """The project-local activation command for the current platform."""
+
+    if os.name == "nt":
+        return r".\.venv\Scripts\Activate.ps1"
+    return "source .venv/bin/activate"
+
+
 def project_environment_problem(root: str | Path) -> str | None:
     """Describe a mismatch; each command decides whether it is blocking."""
     from prodockit.diagnostics import same_path
 
     expected = Path(root).expanduser().resolve() / ".venv"
     if expected.is_dir() and not same_path(sys.prefix, str(expected)):
+        activation = project_environment_activation_command()
         return (
             f"Active Python is not the project's .venv: running {sys.prefix}; "
-            f"project environment {expected}. If this is unintended, deactivate "
-            "the current environment, activate the project's .venv, then rerun the command."
+            f"project environment {expected}. Run `{activation}`, then rerun the command."
         )
     return None
 
