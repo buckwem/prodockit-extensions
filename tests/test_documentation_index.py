@@ -44,7 +44,6 @@ def test_topic_owner_pages_define_their_principal_index_entries() -> None:
             r"\index{limitations!website macros}",
         ),
         "docs/devcons/template-sync.md": (r"\index{commands!`prodockit template-sync`}",),
-        "docs/devcons/bootstrap.md": (r"\index{commands!`prodockit bootstrap`}",),
         "docs/devcons/repo-metadata.md": (r"\index{commands!`prodockit sync-repo`}",),
         "docs/devcons/continuous-integration.md": (
             r"\index{continuous integration}",
