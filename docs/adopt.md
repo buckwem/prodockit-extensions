@@ -4,7 +4,7 @@ icon: lucide/package-plus
 
 {{ heading_counter_reset(page) }}
 
-# Add prodockit to an existing document
+# Upgrade an existing site
 
 `prodockit adopt` is for an existing Zensical document, whether or not its
 Python working environment has already been established. It prepares that
