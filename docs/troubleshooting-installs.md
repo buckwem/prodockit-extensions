@@ -26,12 +26,12 @@ the checks most likely to help.
 
 | What you see | Checks that may help |
 | --- | --- |
-| Prodockit does not start, or it reports an unexpected project or version | [Open the correct project folder](#directory-holds-projects); [activate this project's environment](#wrong-virtual-environment); [make the command available](#installtooling-command-not-recognised) |
-| `pdk diag` reports the wrong Python or says installed packages are missing | [Activate this project's environment](#wrong-virtual-environment); [recreate it with the correct Python](#wrong-python); then rerun diagnostics before installing anything |
-| An installation appears stuck, times out, or stops part-way through | [Recover the interrupted installation](#installtooling-download-fails); [check the connection](#git-host-unreachable); then repeat only the failed command or stage |
-| Diagram, mathematics, or PDF setup fails | [Repair Node.js](#installtooling-npm-missing); [repair WeasyPrint](#installtooling-weasyprint-libraries); [bring project versions into step](#toolchain-not-aligned) |
-| Template Sync remains on `Checking this project...`, or Git cannot clone, pull, or push | [Check the connection to GitLab or GitHub](#git-host-unreachable); [check the SSH key](#installtooling-git-permission-denied); [check an existing project folder](#installtooling-directory-exists) |
-| `pdk diag` reports warnings after Prodockit was upgraded | [Activate this project's environment](#wrong-virtual-environment); [bring project versions into step](#toolchain-not-aligned); rerun `pdk diag` |
+| Prodockit does not start, or it reports an unexpected project or version | • [Open the correct project folder](#directory-holds-projects)<br>• [Activate this project's environment](#wrong-virtual-environment)<br>• [Make the command available](#installtooling-command-not-recognised) |
+| `pdk diag` reports the wrong Python or says installed packages are missing | • [Activate this project's environment](#wrong-virtual-environment)<br>• [Recreate it with the correct Python](#wrong-python)<br>• Rerun diagnostics before installing anything |
+| An installation appears stuck, times out, or stops part-way through | • [Recover the interrupted installation](#installtooling-download-fails)<br>• [Check the connection](#git-host-unreachable)<br>• Repeat only the failed command or stage |
+| Diagram, mathematics, or PDF setup fails | • [Repair Node.js](#installtooling-npm-missing)<br>• [Repair WeasyPrint](#installtooling-weasyprint-libraries)<br>• [Bring project versions into step](#toolchain-not-aligned) |
+| Template Sync remains on `Checking this project...`, or Git cannot clone, pull, or push | • [Check the connection to GitLab or GitHub](#git-host-unreachable)<br>• [Check the SSH key](#installtooling-git-permission-denied)<br>• [Check an existing project folder](#installtooling-directory-exists) |
+| `pdk diag` reports warnings after Prodockit was upgraded | • [Activate this project's environment](#wrong-virtual-environment)<br>• [Bring project versions into step](#toolchain-not-aligned)<br>• Rerun `pdk diag` |
 
 /// table-caption | <
     attrs: {id: tab-install-troubleshooting-symptoms}
