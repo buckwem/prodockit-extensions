@@ -104,6 +104,10 @@ operating system when the route above requires them:
 
 === ":material-apple: macOS"
 
+    Install Homebrew first if `brew` is not already available:
+
+    [:simple-homebrew: Install Homebrew](https://brew.sh/){ .md-button .homebrew-button target="_blank" rel="noopener" }
+
     ```bash
     brew install pango
     pip3 install weasyprint

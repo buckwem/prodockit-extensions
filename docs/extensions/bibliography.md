@@ -19,6 +19,10 @@ For a short reference list that you prefer to write yourself, use
 
 === "macOS"
 
+    Install Homebrew first if `brew` is not already available:
+
+    [:simple-homebrew: Install Homebrew](https://brew.sh/){ .md-button .homebrew-button target="_blank" rel="noopener" }
+
     ```bash
     brew install pandoc
     ```
