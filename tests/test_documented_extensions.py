@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Every registered extension is listed on the installation page.
+"""Every registered extension is listed on the feature-selection page.
 
 The page that tells a reader how to enable an extension listed four of
 them while nine were registered - `tables`, `tree`, `steps`,
@@ -26,7 +26,7 @@ from markdown.extensions import Extension
 from prodockit.template_sync import read_config
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PAGE = ROOT / "docs" / "installation.md"
+PAGE = ROOT / "docs" / "publishing.md"
 DOCSTRING = ROOT / "src" / "prodockit" / "__init__.py"
 
 
@@ -52,7 +52,7 @@ def extension_from_target(target: str) -> Extension:
     return extension
 
 
-def test_every_registered_extension_is_on_the_installation_page() -> None:
+def test_every_registered_extension_is_on_the_feature_selection_page() -> None:
     page = PAGE.read_text(encoding="utf-8")
     missing = [name for name in registered_extensions() if name not in page]
 
