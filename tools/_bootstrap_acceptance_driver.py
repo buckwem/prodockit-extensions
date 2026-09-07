@@ -1090,7 +1090,10 @@ def main() -> None:
     if git(["status", "--porcelain"], cwd=project, environment=environment).stdout:
         raise AcceptanceError("a second apply left uncommitted work")
 
-    backups = list(root.glob(f".{project.name}.git.pdk-template-backup*"))
+    backups = [
+        *root.glob(f".{project.name}.git.pdk-template-backup*"),
+        *(root / ".pdk-template-backups").glob(f"{project.name}.git*"),
+    ]
     if existing:
         if final_head != initial_head:
             raise AcceptanceError("option 1 changed the existing repository HEAD")

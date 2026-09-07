@@ -59,6 +59,14 @@ This activity reports `wrong`, not `missing`, so pressing Enter cannot accept th
 destructive action. The plan explains exactly what is removed and requires an
 explicit answer.
 
+Guided Bootstrap preserves the removed history outside the project under
+`.pdk-template-backups/<project-name>.git`. Keeping the project name below a
+dedicated sibling directory prevents the recovery copy from competing with the
+project during shell path completion, while still preventing `git add -A` from
+including the archived object database. Recovery also recognises the older
+`.project-name.git.pdk-template-backup[-N]` sibling layout, so interrupted runs
+from earlier releases remain resumable.
+
 ## Separate bootstrap and project environments
 
 Bootstrap necessarily runs before the target project exists. After cloning,

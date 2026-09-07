@@ -1792,6 +1792,42 @@ def _numbered_backup(path: Path, label: str) -> Path:
     return backup
 
 
+_TEMPLATE_HISTORY_BACKUP_DIRECTORY = ".pdk-template-backups"
+
+
+def _numbered_path(path: Path) -> Path:
+    """Return *path* or its first free, deterministically numbered sibling."""
+    candidate = path
+    suffix = 2
+    while candidate.exists():
+        candidate = path.with_name(f"{path.name}-{suffix}")
+        suffix += 1
+    return candidate
+
+
+def _template_history_backup_path(project: Path) -> Path:
+    """A recovery path outside both the project and its completion namespace."""
+    root = project.parent / _TEMPLATE_HISTORY_BACKUP_DIRECTORY
+    return _numbered_path(root / f"{project.name}.git")
+
+
+def _create_template_history_backup_directory(context: Context, project: Path) -> list[str]:
+    """Create the sibling archive container, hiding it from normal Windows listings."""
+    directory = project.parent / _TEMPLATE_HISTORY_BACKUP_DIRECTORY
+    if context.platform != WINDOWS:
+        return ["mkdir", "-p", str(directory)]
+    escaped = str(directory).replace("'", "''")
+    return [
+        "powershell",
+        "-NoProfile",
+        "-Command",
+        "$directory = [System.IO.Directory]::CreateDirectory("
+        f"'{escaped}'); "
+        "$directory.Attributes = $directory.Attributes -bor "
+        "[System.IO.FileAttributes]::Hidden",
+    ]
+
+
 def _move_path_command(context: Context, source: Path, destination: Path) -> list[str]:
     """Moves a path without putting a shell-interpreted path in the command."""
     if context.platform != WINDOWS:
@@ -1807,8 +1843,20 @@ def _move_path_command(context: Context, source: Path, destination: Path) -> lis
 
 
 def _template_history_backups(project: Path) -> list[Path]:
-    """Recovery copies left beside a project by the fresh-history stage."""
-    return sorted(project.parent.glob(f".{project.name}.git.pdk-template-backup*"))
+    """Current and legacy recovery copies left by the fresh-history stage."""
+
+    def numbered_existing(path: Path) -> list[tuple[int, Path]]:
+        found = [(1, path)] if path.exists() else []
+        prefix = f"{path.name}-"
+        for candidate in path.parent.glob(f"{path.name}-*"):
+            suffix = candidate.name.removeprefix(prefix)
+            if suffix.isdecimal() and int(suffix) >= 2:
+                found.append((int(suffix), candidate))
+        return found
+
+    current = project.parent / _TEMPLATE_HISTORY_BACKUP_DIRECTORY / f"{project.name}.git"
+    legacy = project.parent / f".{project.name}.git.pdk-template-backup"
+    return [path for _, path in sorted([*numbered_existing(current), *numbered_existing(legacy)])]
 
 
 def _repository_has_a_commit(context: Context, project: Path) -> bool:
@@ -2256,7 +2304,7 @@ def _plan_fresh_history(context: Context) -> Plan:
     # Outside the new repository: leaving the backup inside the project
     # would make `git add -A` include the entire archived object database in
     # the first commit.
-    backup = _numbered_backup(project, "git.pdk-template-backup")
+    backup = _template_history_backup_path(project)
     archive = _move_path_command(context, git_dir, backup)
     return Plan(
         cwd=str(project),
@@ -2274,6 +2322,7 @@ def _plan_fresh_history(context: Context) -> Plan:
         ],
         commands=[
             _record_template_release_command(project),
+            _create_template_history_backup_directory(context, project),
             archive,
             [git_command(context), "init", "-b", "main"],
             [git_command(context), "config", "core.fileMode", "false"],

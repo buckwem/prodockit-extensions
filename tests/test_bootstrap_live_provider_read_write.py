@@ -755,11 +755,15 @@ def test_history_archive_allows_macos_private_var_alias(tmp_path: Path) -> None:
     fixture = live.Fixture(**fixture_values())
     project = tmp_path / "setup" / live.SURREY_PROJECT
     aliased_home = Path(str(tmp_path).replace("/private/var/", "/var/", 1))
-    archive = project.parent / f".{project.name}.git.pdk-template-backup"
+    archive_root = project.parent / ".pdk-template-backups"
+    archive = archive_root / f"{project.name}.git"
 
     live.authorise_plan(
         "fresh-history",
-        [["mv", str(project / ".git"), str(archive)]],
+        [
+            ["mkdir", "-p", str(archive_root)],
+            ["mv", str(project / ".git"), str(archive)],
+        ],
         str(project),
         fixture=fixture,
         home=aliased_home,

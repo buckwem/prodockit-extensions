@@ -1363,13 +1363,22 @@ def test_source_url_overrides_the_template(tmp_path: Path) -> None:
     assert plan.commands[0][2] == own
 
 
+@pytest.mark.parametrize(
+    "archive",
+    (
+        Path(".pdk-template-backups/report-al01234.git"),
+        Path(".report-al01234.git.pdk-template-backup"),
+    ),
+    ids=("current-layout", "legacy-layout"),
+)
 def test_an_interrupted_history_archive_resumes_without_cloning_over_the_project(
     tmp_path: Path,
+    archive: Path,
 ) -> None:
     project = tmp_path / "GitLab" / "report-al01234"
     project.mkdir(parents=True)
     (project / "README.md").write_text("reader's files\n", encoding="utf-8")
-    (project.parent / ".report-al01234.git.pdk-template-backup").mkdir()
+    (project.parent / archive).mkdir(parents=True)
     stage = next(s for s in STAGES if s.id == "clone")
     context = _context(tmp_path)
 
@@ -3580,11 +3589,13 @@ def test_the_history_reset_preserves_a_recovery_copy(tmp_path: Path) -> None:
     joined = "\n".join(plan.instructions)
     flat = " ".join(" ".join(c) for c in plan.commands)
 
-    backup = project.parent / ".report-al01234.git.pdk-template-backup"
+    backup_root = project.parent / ".pdk-template-backups"
+    backup = backup_root / "report-al01234.git"
     assert str(backup) in joined
     assert "recovered" in joined
     assert "_record-template-release" in plan.commands[0]
-    assert plan.commands[1] == ["mv", str(project / ".git"), str(backup)]
+    assert plan.commands[1] == ["mkdir", "-p", str(backup_root)]
+    assert plan.commands[2] == ["mv", str(project / ".git"), str(backup)]
     assert "git init -b main" in flat
     # From the guide: cloud-sync clients rewrite the executable bit, so a
     # synced project shows every file as modified without a byte changing.
@@ -3596,19 +3607,72 @@ def test_the_history_reset_never_overwrites_an_existing_recovery_copy(
 ) -> None:
     project = tmp_path / "GitLab" / "report-al01234"
     (project / ".git").mkdir(parents=True)
-    (project.parent / ".report-al01234.git.pdk-template-backup").mkdir()
-    (project.parent / ".report-al01234.git.pdk-template-backup-2").mkdir()
+    backup_root = project.parent / ".pdk-template-backups"
+    (backup_root / "report-al01234.git").mkdir(parents=True)
+    (backup_root / "report-al01234.git-2").mkdir()
     runner = FakeRunner({"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)})
 
     plan = next(s for s in STAGES if s.id == "fresh-history").plan(
         _context(tmp_path, runner=runner)
     )
 
-    assert plan.commands[1][-1] == str(project.parent / ".report-al01234.git.pdk-template-backup-3")
+    assert plan.commands[2][-1] == str(backup_root / "report-al01234.git-3")
+
+
+def test_history_backup_does_not_compete_with_the_project_completion_prefix(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    (project / ".git").mkdir(parents=True)
+    backup = stages_module._template_history_backup_path(project)
+    backup.parent.mkdir()
+    backup.mkdir()
+
+    matches = [path.name for path in project.parent.iterdir() if "rep" in path.name.casefold()]
+
+    assert matches == [project.name]
+    assert backup.parent.parent == project.parent
+    assert project not in backup.parents
+
+
+def test_history_backup_discovery_accepts_numbered_current_and_legacy_layouts(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "GitLab" / "report-al01234"
+    current = project.parent / ".pdk-template-backups" / "report-al01234.git-2"
+    legacy = project.parent / ".report-al01234.git.pdk-template-backup-3"
+    ignored = project.parent / ".report-al01234.git.pdk-template-backup-notes"
+    current.mkdir(parents=True)
+    legacy.mkdir()
+    ignored.mkdir()
+
+    assert stages_module._template_history_backups(project) == [current, legacy]
+
+
+@pytest.mark.parametrize("platform", (MACOS, UBUNTU))
+def test_posix_history_archive_paths_with_spaces_and_apostrophes_are_arguments(
+    tmp_path: Path,
+    platform: str,
+) -> None:
+    project = tmp_path / "reader's GitLab" / "report with spaces"
+    (project / ".git").mkdir(parents=True)
+    runner = FakeRunner({"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)})
+
+    plan = next(s for s in STAGES if s.id == "fresh-history").plan(
+        _context(tmp_path, platform=platform, runner=runner, project_dir=str(project))
+    )
+
+    backup_root = project.parent / ".pdk-template-backups"
+    assert plan.commands[1] == ["mkdir", "-p", str(backup_root)]
+    assert plan.commands[2] == [
+        "mv",
+        str(project / ".git"),
+        str(backup_root / "report with spaces.git"),
+    ]
 
 
 def test_the_windows_history_reset_uses_literal_escaped_paths(tmp_path: Path) -> None:
-    project = tmp_path / "GitLab" / "reader's-report"
+    project = tmp_path / "reader's GitLab" / "reader's-report"
     (project / ".git").mkdir(parents=True)
     runner = FakeRunner({"remote get-url origin": CommandResult(0, SURREY_GITLAB.template_remote)})
 
@@ -3620,8 +3684,12 @@ def test_the_windows_history_reset_uses_literal_escaped_paths(tmp_path: Path) ->
             project_dir=str(project),
         )
     )
-    command = plan.commands[1]
+    create, command = plan.commands[1:3]
 
+    assert create[:3] == ["powershell", "-NoProfile", "-Command"]
+    assert "Directory]::CreateDirectory" in create[3]
+    assert "FileAttributes]::Hidden" in create[3]
+    assert "reader''s GitLab" in create[3]
     assert command[:3] == ["powershell", "-NoProfile", "-Command"]
     assert "Move-Item -LiteralPath" in command[3]
     assert "reader''s-report" in command[3]
@@ -7478,8 +7546,8 @@ def test_the_reset_only_ever_deletes_the_templates_history(tmp_path: Path) -> No
         _context(tmp_path, host="github.com", runner=FakeRunner(own))
     )
 
-    assert any("git.pdk-template-backup" in " ".join(c) for c in from_template.commands)
-    assert not any("git.pdk-template-backup" in " ".join(c) for c in mine.commands), (
+    assert any(".pdk-template-backups" in " ".join(c) for c in from_template.commands)
+    assert not any(".pdk-template-backups" in " ".join(c) for c in mine.commands), (
         "never archive the reader's own history"
     )
     assert mine.commands == [["git", "config", "core.fileMode", "false"]]
