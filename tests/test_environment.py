@@ -13,6 +13,8 @@ from prodockit.environment import BuildEnvironmentError, check_pdf_environment, 
 @pytest.mark.parametrize(
     "arguments",
     [
+        ["diag"],
+        ["diag", "--json"],
         ["adopt", "--dry-run"],
         ["adopt", "--apply"],
         ["adopt", "--configure"],
@@ -36,8 +38,13 @@ def test_commands_reject_parent_environment_before_work(tmp_path, monkeypatch, a
 
     assert result.exit_code != 0, result.output
     assert "Active Python is not the project's .venv" in result.output
-    assert str(project / ".venv") in result.output
     assert "activate" in result.output
+    if arguments[0] == "diag":
+        assert "project environment: .venv" in result.output
+        assert "WeasyPrint" not in result.output
+        assert "Adopt has" not in result.output
+    else:
+        assert str(project / ".venv") in result.output
     assert config.read_bytes() == before
     assert not (project / ".prodockit-components.toml").exists()
 
