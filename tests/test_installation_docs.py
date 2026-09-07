@@ -232,9 +232,9 @@ def test_adoption_continues_after_shared_preparation() -> None:
 
     assert "MkDocs" not in page
 
-    review = page[
-        page.index("## Review the existing project") : page.index("## Preview and apply")
-    ]
+    review_start = page.index("### Phase 1 — Review the existing project")
+    review_end = page.index("### Phase 2 — Preview and apply")
+    review = page[review_start:review_end]
     assert review.count("//// step | ") == 5
     assert "//// step | Prepare Python and the setup environment" in review
     assert "//// step | Enter the project and prepare its environment" in review

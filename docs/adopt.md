@@ -85,7 +85,9 @@ GLib, HarfBuzz and fontconfig libraries, and the document fonts, remain part of
 the existing machine setup. Follow the adoption row under [Prepare the PDF
 tools](pdf.md#pdf-requirements) before building a PDF.
 
-## Review the existing project
+## Adoption stages
+
+### Phase 1 — Review the existing project
 
 Start with the shared Python preparation, then move into the existing project
 and assess it before making any changes.
@@ -246,7 +248,7 @@ prodockit adopt --no-mermaid --maths --dry-run
 
 ///
 
-## Preview and apply
+### Phase 2 — Preview and apply
 
 Preview the complete plan before allowing any file or package change, then
 build the result yourself so the review remains under your control. Keep the
