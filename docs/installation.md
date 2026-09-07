@@ -48,8 +48,10 @@ Install and verify the supported interpreter before creating an environment.
 
     [:simple-homebrew: Install Homebrew](https://brew.sh/){ .md-button .homebrew-button target="_blank" rel="noopener" }
 
-    Open a new terminal if the installer tells you to, then check that
-    Homebrew is available:
+    **After Homebrew finishes installing, close Terminal completely and reopen
+    it. The current terminal will not know about the new `brew` command.**
+
+    In the reopened terminal, check that Homebrew is available:
 
     ```bash
     brew --version
