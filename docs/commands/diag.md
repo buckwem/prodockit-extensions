@@ -35,6 +35,12 @@ deliberately, pass `--config-file PATH`.
 After Bootstrap, complete [the project activation and checks](../devcons/bootstrap.md#bootstrap-project-checks)
 first. The parent setup environment stays active when you merely change directory.
 
+If the project has a `.venv` but another Python environment is active,
+Diagnostics reports that mismatch and stops after the environment preflight.
+Renderer failures and Adopt work would describe the wrong environment, so they
+are deliberately not assessed. Deactivate the current environment, activate
+the project's `.venv`, and rerun `pdk diag` for the complete report.
+
 If the current directory holds one or more project repositories, Diagnostics
 refuses to start and names them:
 

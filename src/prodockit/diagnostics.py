@@ -3878,6 +3878,21 @@ def inspect(
         "The Python environment",
         lambda: _environment_checks(root),
     )
+    # Every remaining probe must describe the project environment, not a
+    # setup/parent environment which merely happens to contain Prodockit.
+    # Continuing after this failure produces plausible but false secondary
+    # failures (for example, that WeasyPrint is missing) and an equally false
+    # Adopt plan for the wrong interpreter. Keep the useful Python and venv
+    # evidence, then make activation the one next action.
+    if any(
+        check.id == "environment.virtual-env" and check.status == "fail" for check in checks
+    ):
+        return DiagnosticReport(
+            config_file=_display_path(requested, root),
+            project_root=_display_path(root, Path.cwd()),
+            online=online,
+            checks=tuple(checks),
+        )
     collect(
         "installation.inspection",
         "Environment and installation",
