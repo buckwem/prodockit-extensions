@@ -87,7 +87,7 @@ tools](pdf.md#pdf-requirements) before building a PDF.
 
 ## Adoption stages
 
-### Phase 1 — Review the existing project
+### Stage 1 — Review the existing project
 
 Start with the shared Python preparation, then move into the existing project
 and assess it before making any changes.
@@ -248,7 +248,7 @@ prodockit adopt --no-mermaid --maths --dry-run
 
 ///
 
-### Phase 2 — Preview and apply
+### Stage 2 — Preview and apply
 
 Preview the complete plan before allowing any file or package change. Keep the
 project's `.venv` active throughout these steps.
@@ -362,7 +362,7 @@ not update the declarations.
 
 ///
 
-### Phase 3 — Build and review
+### Stage 3 — Build and review
 
 Build the actual document, then inspect the resulting project changes before
 accepting them into the repository.
