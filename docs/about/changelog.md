@@ -19,6 +19,22 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.61.2 (2026-09-07)
+
+- Made Diagnostics stop after detecting that another virtual environment is
+  active, avoiding misleading renderer and dependency failures from the wrong
+  Python. Its correction now gives the activation command for macOS, Ubuntu,
+  or Windows and asks the reader to rerun the complete report.
+- Made Diagnostics and Adopt reject a directory that contains project
+  repositories rather than being a project itself. The error names the child
+  repositories so a reader can change into the intended project directory.
+- Consolidated the Bootstrap and template setup guidance, moved the Windows
+  terminal restart into the point where it is needed, and added a guided route
+  for starting with Zensical before adopting Prodockit, configuring PDF and
+  source-bundle outputs, and running the first checks.
+- Recorded successful current-release Bootstrap and existing-repository tests
+  for Surrey GitLab on Windows, Ubuntu, and macOS.
+
 ## 0.61.1 (2026-09-06)
 
 - Made Bootstrap install and verify Pandoc 3.10.1 inside each project's virtual
