@@ -250,8 +250,7 @@ prodockit adopt --no-mermaid --maths --dry-run
 
 ### Phase 2 — Preview and apply
 
-Preview the complete plan before allowing any file or package change, then
-build the result yourself so the review remains under your control. Keep the
+Preview the complete plan before allowing any file or package change. Keep the
 project's `.venv` active throughout these steps.
 
 /// steps
@@ -360,6 +359,15 @@ Pandoc source. If either cache is incomplete, the stage fails clearly and does
 not update the declarations.
 
 ////
+
+///
+
+### Phase 3 — Build and review
+
+Build the actual document, then inspect the resulting project changes before
+accepting them into the repository.
+
+/// steps
 
 //// step | Build the website
 

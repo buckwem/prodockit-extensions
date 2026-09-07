@@ -243,6 +243,8 @@ def test_adoption_continues_after_shared_preparation() -> None:
     assert "py -3.14 -m venv --clear .venv" in review
     assert "python3.14 -m venv --clear .venv" in review
 
+    assert "### Phase 3 — Build and review" in page
+
     resume = page[
         page.index("//// step | Resume an interrupted installation") :
         page.index("//// step | Work from prepared caches when offline")
