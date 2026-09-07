@@ -849,3 +849,12 @@ requires them. On Windows, the `ssh-agent` service needs an Administrator
 window and the PDF fonts have no package-manager installation path. Bootstrap
 guides those steps and verifies their outcome rather than treating an
 instruction as proof that it was completed.
+
+## Where to go next {: #bootstrap-where-to-go-next }
+
+Choose the route that matches the result:
+
+- If setup has not completed or any check fails, use
+  [Troubleshooting](../troubleshooting-installs.md).
+- If setup has completed and `pdk diag` passes, continue with
+  [Publish a document](../publishing.md).

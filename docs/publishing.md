@@ -13,7 +13,8 @@ one, a downloadable PDF.
 This section is for a document author with a working local project. It covers
 template updates, \index{continuous integration} (CI), automated Pages
 deployment, and checks on the published result. For a new project, first choose
-[an installation path](choosing-installation.md).
+[an installation path](choosing-installation.md), including the manual installation
+route when every setup action must be performed directly.
 Maintainers changing
 the prodockit package itself should use
 [Maintain prodockit](project-maintenance.md).

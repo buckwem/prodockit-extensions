@@ -383,3 +383,12 @@ prodockit adopt --apply
 It reassesses installed versions and files, reuses valid caches, and continues
 with stages that still need work. It does not remove unrelated requirements or
 existing Zensical configuration.
+
+## Where to go next {: #adopt-where-to-go-next }
+
+Choose the route that matches the result:
+
+- If setup has not completed or any check fails, use
+  [Troubleshooting](troubleshooting-installs.md).
+- If setup has completed and `pdk diag` passes, continue with
+  [Publish a document](publishing.md).

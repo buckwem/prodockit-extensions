@@ -223,3 +223,50 @@ one.
 ////
 
 ///
+
+## Continue with an installation route
+
+The shared preparation is complete. Choose the card that matches what you are
+starting with; each route takes over from the parent repositories directory
+and explains when to enter or create the project itself.
+
+<div class="grid cards" markdown>
+
+-   :lucide-package-plus:{ .lg .middle } __Upgrade existing site__
+
+    ---
+
+    Bring an established Zensical project onto Prodockit's supported
+    toolchain without replacing its content, design, Git history, or
+    publishing workflow.
+
+    [:octicons-arrow-right-24: Open section 4](adopt.md)
+
+-   :lucide-rocket:{ .lg .middle } __Build a template site__
+
+    ---
+
+    Let Bootstrap prepare the machine, repository, build tools, and maintained
+    `prodockit-template` as one recoverable process.
+
+    [:octicons-arrow-right-24: Open section 5](devcons/bootstrap.md)
+
+-   :lucide-rocket:{ .lg .middle } __Build your first site__
+
+    ---
+
+    Start with an empty directory, create and test a Zensical site, then use
+    Adoption to add the Prodockit features you select.
+
+    [:octicons-arrow-right-24: Open section 6](getting-started.md)
+
+-   :lucide-book-open:{ .lg .middle } __Build site manually__
+
+    ---
+
+    Perform and verify the machine, repository, editor, renderer, and project
+    setup yourself instead of asking Bootstrap or Adoption to orchestrate it.
+
+    [:octicons-arrow-right-24: Open section 7](manual-install.md)
+
+</div>

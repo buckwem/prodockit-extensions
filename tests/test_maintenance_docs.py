@@ -30,14 +30,17 @@ def test_getting_started_holds_installation_routes() -> None:
     assert {"3. Prepare to install": "installation.md"} in getting_started
     assert {"4. Upgrade existing site": "adopt.md"} in getting_started
     assert {"5. Build a template site": "devcons/bootstrap.md"} in getting_started
+    assert {"6. Build your first site": "getting-started.md"} in getting_started
+    assert {"7. Build site manually": "manual-install.md"} in getting_started
+    assert {"8. Troubleshooting": "troubleshooting-installs.md"} in getting_started
     assert not any("prodockit-template.md" in item.values() for item in getting_started)
-    assert {"23. Staying in step with the template": "devcons/template-sync.md"} in publishing
+    assert {"11. Staying in step with the template": "devcons/template-sync.md"} in publishing
     assert maintenance == [
-        {"42. Maintenance overview": "project-maintenance.md"},
-        {"43. Diagnose a project": "devcons/diagnostics.md"},
-        {"44. Repository metadata": "devcons/repo-metadata.md"},
-        {"45. Version pinning and drift": "devcons/pinning-drift.md"},
-        {"46. Build and release": "devcons/releasing.md"},
+        {"15. Maintenance overview": "project-maintenance.md"},
+        {"16. Diagnose a project": "devcons/diagnostics.md"},
+        {"17. Repository metadata": "devcons/repo-metadata.md"},
+        {"18. Version pinning and drift": "devcons/pinning-drift.md"},
+        {"19. Build and release": "devcons/releasing.md"},
     ]
 
 

@@ -6,15 +6,14 @@ icon: lucide/signpost
 
 # Choose your install
 
-Prodockit supports three installation paths. Choose the one that matches the
+Prodockit supports four installation paths. Choose the one that matches the
 document and level of automation you have; the paths are alternatives rather
 than stages to complete in sequence.
 
 ## Choose an installation path
 
 \ref{fig-installation-approaches} follows the decision from an existing
-document or a new template project to Adoption, Bootstrap or Manual
-installation.
+document or project to Adoption, Bootstrap, a first site, or a manual build.
 
 <!-- Reused from prodockit-userguide/docs/images/installing-prodockit-decision-tree-components.png. The canonical editable source is the installing-prodockit-decision-tree-components page in prodockit-userguide/tools/documentation-diagrams/site-diagrams.drawio. -->
 ![Decision tree for choosing Adoption, Bootstrap, or Manual installation](assets/diagrams/2.1-installation-approaches.png){ .documentation-diagram }
@@ -31,7 +30,8 @@ starting point and result.
 |---|---|
 | An existing Zensical document whose working environment is already established | [Adoption](adopt.md) integrates selected authoring components without replacing the document's design, Git setup, editor, or publishing workflow |
 | No existing document, or a project that should start from the maintained report template | [Bootstrap](devcons/bootstrap.md) prepares the machine, repository, build tools, and template-based project |
-| A project whose author wants to perform setup directly | [Manual installation](installation.md) prepares the environment, installs the Python package, and configures extensions without running adoption or bootstrap; [Requirements and dependencies](requirements-dependencies.md) records the detailed toolchain |
+| An empty directory that should become a new Zensical site before adding Prodockit | [Build your first site](getting-started.md) creates and tests Zensical first, then adds Prodockit with Adoption |
+| A project whose author wants to perform every setup task directly | [Build site manually](manual-install.md) prepares the machine, repository, editor, environment, renderers, and output without Bootstrap or Adoption; [Requirements and dependencies](requirements-dependencies.md) records the detailed toolchain |
 /// table-caption | <
     attrs: {id: tab-choose-installation-route}
 
@@ -40,7 +40,7 @@ Choose an installation path
 
 [Build a template site](devcons/bootstrap.md#bootstrap-template) explains what the
 template supplies and which files become part of your own project. Adoption,
-bootstrap, and manual installation are alternative setup paths. Choose one as
+bootstrap, first-site, and manual installation are alternative setup paths. Choose one as
 the starting point; do not run bootstrap merely because a manually installed
 or adopted project later needs a PDF.
 
