@@ -49,6 +49,26 @@ def test_commands_reject_parent_environment_before_work(tmp_path, monkeypatch, a
     assert not (project / ".prodockit-components.toml").exists()
 
 
+def test_adopt_warns_about_parent_environment_before_project_venv_exists(tmp_path, monkeypatch):
+    from prodockit.cli import main
+
+    project = tmp_path / "project"
+    project.mkdir()
+    config = _project(project, "prodockit>=0.61.0\n")
+    monkeypatch.chdir(project)
+    monkeypatch.setattr(environment.sys, "prefix", str(tmp_path / ".venv"))
+    monkeypatch.setattr(environment.sys, "base_prefix", str(tmp_path / "base"))
+    before = config.read_bytes()
+
+    result = CliRunner().invoke(main, ["adopt", "--dry-run"])
+
+    assert "WARN  Active project environment" in result.output
+    assert "No project-local .venv is set up" in result.output
+    assert str(tmp_path / ".venv") in result.output
+    assert config.read_bytes() == before
+    assert not (project / ".prodockit-components.toml").exists()
+
+
 def test_project_environment_accepts_matching_prefix_and_no_local_venv(tmp_path, monkeypatch):
     monkeypatch.setattr(environment.sys, "prefix", str(tmp_path / ".venv"))
     assert environment.project_environment_problem(tmp_path) is None
@@ -58,10 +78,7 @@ def test_project_environment_accepts_matching_prefix_and_no_local_venv(tmp_path,
 
 def test_project_environment_activation_command_matches_the_platform(monkeypatch):
     monkeypatch.setattr(environment.os, "name", "nt")
-    assert (
-        environment.project_environment_activation_command()
-        == r".\.venv\Scripts\Activate.ps1"
-    )
+    assert environment.project_environment_activation_command() == r".\.venv\Scripts\Activate.ps1"
     monkeypatch.setattr(environment.os, "name", "posix")
     assert environment.project_environment_activation_command() == "source .venv/bin/activate"
 

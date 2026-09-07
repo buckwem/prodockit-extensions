@@ -1332,7 +1332,19 @@ def assess(
     maths_tool_ok, maths_detail = _tool_health(root, "mathjax")
     mermaid_ok = mermaid_tool_ok and "pymdownx.superfences" in configured
     maths_ok = maths_tool_ok and "pymdownx.arithmatex" in configured
-    interpreter_problem = _interpreter_problem(root) if _in_venv() else None
+    node_available = shutil.which("node") is not None
+    npm_available = shutil.which("npm") is not None
+    renderer_prerequisite = (
+        None
+        if node_available and npm_available
+        else "Node.js and npm are required before Adopt can install this selected renderer"
+    )
+    mermaid_blocked = options.mermaid and not mermaid_ok and renderer_prerequisite is not None
+    maths_blocked = options.maths and not maths_ok and renderer_prerequisite is not None
+    in_venv = _in_venv()
+    project_environment_exists = (root.resolve() / ".venv").is_dir()
+    interpreter_problem = _interpreter_problem(root) if in_venv else None
+    environment_warning = in_venv and not project_environment_exists
     ready_to_build = (
         not interpreter_problem
         and not toolchain.blocked
@@ -1355,15 +1367,23 @@ def assess(
             "environment",
             "Assess",
             "Active project environment",
-            "wrong" if interpreter_problem else ("ok" if _in_venv() else "warn"),
+            "wrong"
+            if interpreter_problem
+            else ("warn" if environment_warning or not in_venv else "ok"),
             (
                 interpreter_problem
                 or (
-                    f"using {sys.prefix}"
-                    if _in_venv()
-                    else "No virtual environment is active. Package changes will affect "
-                    "the running Python installation; create and activate a virtual "
-                    "environment first unless this is intentional."
+                    "No project-local .venv is set up. Adopt is using the active "
+                    f"environment at {sys.prefix}; package changes will affect it. "
+                    "Create and activate .venv first unless this is intentional."
+                    if environment_warning
+                    else (
+                        f"using {sys.prefix}"
+                        if in_venv
+                        else "No virtual environment is active. Package changes will affect "
+                        "the running Python installation; create and activate a virtual "
+                        "environment first unless this is intentional."
+                    )
                 )
             ),
         ),
@@ -1394,9 +1414,9 @@ def assess(
             "mermaid",
             "Optional renderers",
             "Mermaid diagrams",
-            "ok" if mermaid_ok else "missing",
+            "wrong" if mermaid_blocked else ("ok" if mermaid_ok else "missing"),
             (
-                f"selected; {mermaid_detail}"
+                f"selected; {renderer_prerequisite or mermaid_detail}"
                 if options.mermaid
                 else "not selected; Node.js is not needed for Mermaid"
             ),
@@ -1406,9 +1426,9 @@ def assess(
             "maths",
             "Optional renderers",
             "Mathematical notation",
-            "ok" if maths_ok else "missing",
+            "wrong" if maths_blocked else ("ok" if maths_ok else "missing"),
             (
-                f"selected; {maths_detail}"
+                f"selected; {renderer_prerequisite or maths_detail}"
                 if options.maths
                 else "not selected; MathJax is not installed"
             ),
