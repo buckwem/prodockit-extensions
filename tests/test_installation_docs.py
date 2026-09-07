@@ -205,7 +205,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     page = FIRST_SITE.read_text(encoding="utf-8")
 
     assert "installation.md#installation-preparation" in page
-    assert "independent of section 5's Bootstrap" in page
+    assert "independent of section 5's template-site" in page
     assert page.count("//// step | ") == 14
     assert page.count("/// tree") == 2
 

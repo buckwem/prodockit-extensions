@@ -4,7 +4,7 @@ icon: lucide/rocket
 
 {{ heading_counter_reset(page) }}
 
-# Machine bootstrap {: #bootstrap-machine-bootstrap }
+# Build a template site {: #bootstrap-machine-bootstrap }
 
 \index{commands!`prodockit bootstrap`} prepares a machine to create or resume a
 project based on `prodockit-template`. It is not a general Zensical installer:

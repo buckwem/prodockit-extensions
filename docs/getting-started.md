@@ -7,7 +7,7 @@ icon: lucide/rocket
 # Build your first site
 
 Use this route when you do not yet have a Zensical site and want to create one
-cleanly before adding Prodockit. It is independent of section 5's Bootstrap
+cleanly before adding Prodockit. It is independent of section 5's template-site
 route: Bootstrap creates a repository from `prodockit-template`, whereas this
 walkthrough starts with an empty directory, proves that Zensical works on its
 own, and then uses Adopt to integrate Prodockit without manual configuration.
