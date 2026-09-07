@@ -365,32 +365,39 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
 
     installation = page[page.index("## Install with bootstrap") : page.index("## What it covers")]
     assert "installation.md#installation-preparation" in installation
-    assert installation.count("//// step | ") == 8
+    assert installation.count("//// step | ") == 14
+    assert "### Stage 1 — Prepare the setup environment" in installation
+    assert "### Stage 2 — Assess and preview" in installation
+    assert "### Stage 3 — Apply and confirm" in installation
+    assert "### Stage 4 — Enter and verify the project" in installation
     assert "//// step | Prepare Python and the setup environment" in installation
     assert "//// step | Restart the terminal on Windows if instructed" in installation
     assert "//// step | Install Prodockit into the active environment" in installation
     install_step = installation[
         installation.index(
             "//// step | Install Prodockit into the active environment"
-        ) : installation.index("Confirm both the installed version")
+        ) : installation.index("//// step | Confirm the Prodockit version")
     ]
     assert '=== ":material-apple: macOS"' in install_step
     assert '=== ":fontawesome-brands-windows: Windows"' in install_step
     assert '=== ":material-linux: Linux (Ubuntu)"' in install_step
     assert "pip3 install --upgrade pip\n    pip3 install --upgrade prodockit" in install_step
     assert install_step.count("pip install --upgrade pip\n    pip install --upgrade prodockit") == 2
-    confirm = installation[installation.index("//// step | Confirm") :]
-    assert '!!! warning "Complete the manual step before confirming"' in confirm
-    assert "Type `yes` only after checking that the action succeeded" in " ".join(confirm.split())
+    manual_start = installation.index("//// step | Complete the browser actions")
+    manual_end = installation.index("//// step | Confirm every Bootstrap stage")
+    manual = installation[manual_start:manual_end]
+    assert '!!! warning "Complete the manual step before confirming"' in manual
+    assert "Type `yes` only after checking that the action succeeded" in " ".join(manual.split())
     assert "Do not run the complete `pdk diag` here" in installation
-    assert "Changing directory" in confirm
-    assert confirm.count("pdk diag") == 4
-    assert confirm.count("pdk template-sync") == 3
-    assert confirm.count('python -c "import sys; print(sys.prefix)"') == 3
-    assert "//// step | Activate the project and check the installation" in confirm
-    assert "Fully close Windows Terminal or VS Code" in confirm
-    assert "new and pre-existing" in confirm
-    assert "The `Project` line must name the clone" in confirm
+    verification = installation[installation.index("### Stage 4 — Enter and verify") :]
+    assert "Changing directory" in verification
+    assert verification.count("pdk diag") == 2
+    assert verification.count("pdk template-sync") == 1
+    assert verification.count('python -c "import sys; print(sys.prefix)"') == 1
+    assert "//// step | Enter and activate the project" in verification
+    assert "Fully close Windows Terminal or VS Code" in verification
+    assert "new and pre-existing" in verification
+    assert "The `Project` line must name the clone" in verification
     assert "python3.14 -m venv" not in installation
     assert "py -3.14 -m venv" not in installation
 

@@ -112,11 +112,16 @@ than by asking students to maintain a second configuration file.
 
 ## Install with bootstrap {: #bootstrap-quick-start }
 
-The seven steps below prepare the setup environment, install Prodockit into it, and
-continue from the first read-only assessment to the completed site. If you
-open a new terminal, reactivate and verify that environment as described in
-section 3.1. Each command is safe to repeat: bootstrap checks before it changes
-anything, and a completed stage is left alone.
+The four stages below prepare the setup environment, assess the proposed work,
+apply it, and verify the completed project. If you open a new terminal,
+reactivate and verify the appropriate environment as described in section 3.1.
+Each command is safe to repeat: Bootstrap checks before it changes anything,
+and a completed stage is left alone.
+
+### Stage 1 — Prepare the setup environment
+
+Create the shared setup environment, install Prodockit into it, and verify that
+the shell selects the command from that environment.
 
 /// steps
 
@@ -164,6 +169,10 @@ that active environment:
     Keep the intended virtual environment active and check that the alternative
     command belongs to it before installing packages.
 
+////
+
+//// step | Confirm the Prodockit version and command path
+
 Confirm both the installed version and the command selected by the shell:
 
 === ":material-apple: macOS"
@@ -191,12 +200,21 @@ The command path must be inside the setup `.venv`. An older Prodockit command
 from another Python can otherwise shadow the package just installed while
 `pip` still reports success. Do not run the complete `pdk diag` here: it is a
 project-scoped command, so a setup directory which holds project repositories
-is refused before diagnostics start. Step 6 runs it from the completed project
+is refused before diagnostics start. Stage 4 runs it from the completed project
 and its separate environment.
 
 ////
 
-//// step | Check what needs doing
+///
+
+### Stage 2 — Assess and preview
+
+Record the project choices, inspect the commands Bootstrap proposes, and
+resolve anything that needs attention before allowing changes.
+
+/// steps
+
+//// step | Record the project choices
 ```bash
 pdk boot
 ```
@@ -218,7 +236,7 @@ On any other host it is eight, since none of that can be derived there.
 `prodockit bootstrap` is the same command typed in full.
 ////
 
-//// step | Read the commands first
+//// step | Review the proposed commands
 ```bash
 pdk boot --dry-run
 ```
@@ -226,6 +244,14 @@ pdk boot --dry-run
 Every command it would run, and every step it would ask you to do
 yourself, without running any of them. Worth one read on a machine you
 care about.
+
+////
+
+//// step | Resolve warnings before applying
+
+Read each warning, decision, and proposed change before continuing. Do not
+apply the plan until you understand any manual action or potentially disruptive
+software change it identifies.
 
 \ref{fig-bootstrap-dry-run-output} is a short visual guide to the dry-run
 output. Use [section 28.1, Scan phases and
@@ -240,24 +266,29 @@ Reading Bootstrap's dry-run output
 ///
 ////
 
-//// step | Apply it
+///
+
+### Stage 3 — Apply and confirm
+
+Apply the reviewed plan, complete the actions that require a browser, and ask
+Bootstrap to confirm the finished installation.
+
+/// steps
+
+//// step | Apply the reviewed plan
 ```bash
 pdk boot --apply
 ```
 
-It asks before each stage and shows the commands first. Two steps need a
-browser - uploading your SSH key, and creating the project on the host -
-and those ask you to type `yes` when you have done them, because
-pressing Enter through a browser step is how a run finishes with a stage
-that never happened.
+It asks before each stage and shows the commands first.
 
 Stop whenever you like. The next run picks up from wherever it got to.
 ////
 
-//// step | Confirm
-```bash
-pdk boot
-```
+//// step | Complete the browser actions
+
+Two steps need a browser: uploading your SSH key and creating the project on
+the host. Bootstrap asks you to type `yes` when each action is complete.
 
 !!! warning "Complete the manual step before confirming"
 
@@ -266,11 +297,28 @@ pdk boot
     checking that the action succeeded; the confirmation tells Bootstrap to
     continue, but cannot perform or verify the action for you.
 
+////
+
+//// step | Confirm every Bootstrap stage
+
+```bash
+pdk boot
+```
+
 Every stage `ok`, and the last one names the address your site is
 published at. If a stage still reports work to do, its line says what
 and why - and running `--apply` again does only that stage.
 
 ////
+
+///
+
+### Stage 4 — Enter and verify the project
+
+Move from the shared setup environment into the project environment, account
+for a required Windows restart, and run the project-level checks.
+
+/// steps
 
 //// step | Restart the terminal on Windows if instructed
 
@@ -303,18 +351,13 @@ and why - and running `--apply` again does only that stage.
 
 ////
 
-//// step | Activate the project and check the installation
+//// step | Enter and activate the project
 
 <span id="bootstrap-project-checks"></span>
 
 Leave the setup environment, enter the project directory named by Bootstrap,
 and activate the project environment created in stage 16. Changing directory
 while the prompt already says `(.venv)` does not switch environments.
-Stage 16 also installs and verifies Pandoc **3.10.1** inside that environment,
-even if the system has a newer Pandoc. It leaves the system installation alone.
-Bootstrap also records Mermaid and maths as the project's selected components
-in `.prodockit-components.toml`. A later `pdk adopt` can therefore repair their
-installed software without asking you to configure those choices first.
 
 === ":material-apple: macOS"
 
@@ -322,9 +365,6 @@ installed software without asking you to configure those choices first.
     deactivate
     cd /path/to/your-project
     source .venv/bin/activate
-    python -c "import sys; print(sys.prefix)"
-    pdk diag
-    pdk template-sync
     ```
 
 === ":fontawesome-brands-windows: Windows"
@@ -336,9 +376,6 @@ installed software without asking you to configure those choices first.
     cd C:\path\to\your-project
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
-    python -c "import sys; print(sys.prefix)"
-    pdk diag
-    pdk template-sync
     ```
 
 === ":material-linux: Linux (Ubuntu)"
@@ -347,27 +384,56 @@ installed software without asking you to configure those choices first.
     deactivate
     cd /path/to/your-project
     source .venv/bin/activate
-    python -c "import sys; print(sys.prefix)"
-    pdk diag
-    pdk template-sync
     ```
 
+////
+
+//// step | Confirm the project environment
+
+```bash
+python -c "import sys; print(sys.prefix)"
+```
+
 The printed Python prefix must end in your project's `.venv`, not the parent
-GitHub/GitLab directory's `.venv`. These checks apply to both new and pre-existing
-repositories, on every host. If Diagnostics reports a failure, stop and resolve
-it before continuing to Template Sync; do not apply an update from the wrong
-environment. Template Sync here is a preview, not an installation or an apply.
+GitHub/GitLab directory's `.venv`. This check applies to new and pre-existing
+repositories on every host.
+
+////
+
+//// step | Run project diagnostics
+
+```bash
+pdk diag
+```
+
+Stage 16 installs and verifies Pandoc **3.10.1** inside the project environment,
+even if the system has a newer Pandoc. It leaves the system installation alone.
+Bootstrap also records Mermaid and maths as the project's selected components
+in `.prodockit-components.toml`. A later `pdk adopt` can therefore repair their
+installed software without asking you to configure those choices first.
 
 The `Project` line must name the clone rather than its parent setup directory.
 Add `--verbose` for resolved evidence or `--json` when attaching the report to
-a support request.
+a support request. If Diagnostics reports a failure, stop and resolve it before
+continuing; do not apply an update from the wrong environment.
+
+////
+
+//// step | Preview template updates
+
+```bash
+pdk template-sync
+```
+
+Template Sync here is a preview, not an installation or an apply. Review its
+report and leave any available update for the maintenance workflow.
 ////
 
 ///
 
 ## What it covers {: #bootstrap-stages }
 
-The six installation steps above describe what you do.
+The four installation stages above describe what you do.
 \ref{tab-bootstrap-stages} is about the
 [`--apply` phase](#bootstrap-apply), which is discussed later: Bootstrap groups
 its 23 setup stages into seven phases while it sets up the machine and project.
