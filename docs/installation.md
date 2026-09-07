@@ -92,27 +92,61 @@ Every check must report Python 3.14 before you continue.
 
 //// step | Create the virtual environment
 
-Change to the directory that holds all your repositories and create the setup
-`.venv` there. The examples use `your-repositories`; substitute its real path.
+First choose the parent directory that will hold your Git repositories. Keeping
+projects under one parent gives Bootstrap a predictable place to create a new
+project and makes it clear that this first `.venv` is a setup environment, not
+the environment belonging to one particular site.
+
+!!! tip "Create a repositories directory if this is your first one"
+
+    If you have not worked with a Git repository before, create one top-level
+    directory for all your repositories. `Repos` is a neutral name; `GitLab`
+    or `GitHub` can be useful when you prefer to group projects by host. Keep
+    using an existing repositories directory if you already have one, and
+    replace `Repos` in the examples with its name.
+
+Create or enter the repositories directory:
 
 === ":material-apple: macOS"
 
     ```bash
-    cd /path/to/your-repositories
+    mkdir -p ~/Repos
+    cd ~/Repos
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    New-Item -ItemType Directory -Force ~\Repos | Out-Null
+    Set-Location ~\Repos
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    mkdir -p ~/Repos
+    cd ~/Repos
+    ```
+
+Next create the setup virtual environment in that directory. Python stores it
+in a folder named `.venv` alongside, rather than inside, the individual
+repository folders that will be created later.
+
+=== ":material-apple: macOS"
+
+    ```bash
     "$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
     ```
 
 === ":fontawesome-brands-windows: Windows"
 
     ```powershell
-    cd C:\path\to\your-repositories
     py -3.14 -m venv .venv
     ```
 
 === ":material-linux: Linux (Ubuntu)"
 
     ```bash
-    cd /path/to/your-repositories
     python3.14 -m venv .venv
     ```
 
