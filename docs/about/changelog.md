@@ -19,12 +19,23 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## 0.61.2 (2026-09-07)
+## 0.61.3 (2026-09-08)
 
 - Moved Bootstrap's preserved template history into a dedicated sibling
   `.pdk-template-backups` directory, so hidden recovery data no longer competes
   with the project during PowerShell path completion. Interrupted runs still
   recognise recovery directories created by older releases.
+- Made Adopt identify a missing project-local environment even when another
+  virtual environment is active, and report missing Node.js or npm before a
+  selected Mermaid or MathJax activity can leave installation half-finished.
+- Standardised lifecycle output on phases containing activities, while the
+  installation guides use stages containing steps.
+- Reorganised installation guidance around four distinct routes, adding a
+  complete manual-build route and a troubleshooting guide for common setup,
+  environment, download, renderer, and repository problems.
+
+## 0.61.2 (2026-09-07)
+
 - Made Diagnostics stop after detecting that another virtual environment is
   active, avoiding misleading renderer and dependency failures from the wrong
   Python. Its correction now gives the activation command for macOS, Ubuntu,
