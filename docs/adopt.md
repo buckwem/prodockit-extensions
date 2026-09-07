@@ -297,6 +297,52 @@ with unrelated documents.
 
 ////
 
+//// step | Resume an interrupted installation
+
+!!! info "Skip this step when Apply completed successfully"
+
+    Use this step only if installation was interrupted or you are continuing
+    in a new terminal.
+
+Change to the project directory and reactivate its environment:
+
+=== ":material-apple: macOS"
+
+    ```bash
+    cd /path/to/your-document
+    source .venv/bin/activate
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    cd C:\path\to\your-document
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    cd /path/to/your-document
+    source .venv/bin/activate
+    ```
+
+Confirm that `python --version` still reports Python 3.14, then run the same
+command again:
+
+```bash
+python --version
+prodockit adopt --apply
+```
+
+The stages are idempotent: a satisfied stage is reported as `ok` and left
+alone. Adoption reassesses installed versions and files, reuses valid caches,
+and continues with stages that still need work. It does not remove unrelated
+requirements or existing Zensical configuration.
+
+////
+
 //// step | Work from prepared caches when offline
 
 Use offline mode only after putting the exact Python wheels in a directory and
@@ -356,46 +402,6 @@ Adoption deliberately stops before either action.
 ////
 
 ///
-
-## Run it again safely
-
-The stages are idempotent: a satisfied stage is reported as `ok` and left
-alone. If an installation is interrupted or you return in a new terminal,
-change to the project directory and reactivate its environment first:
-
-=== ":material-apple: macOS"
-
-    ```bash
-    cd /path/to/your-document
-    source .venv/bin/activate
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
-
-    ```powershell
-    cd C:\path\to\your-document
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    ```bash
-    cd /path/to/your-document
-    source .venv/bin/activate
-    ```
-
-Confirm that `python --version` still reports Python 3.14, then run the same
-command again:
-
-```bash
-python --version
-prodockit adopt --apply
-```
-
-It reassesses installed versions and files, reuses valid caches, and continues
-with stages that still need work. It does not remove unrelated requirements or
-existing Zensical configuration.
 
 ## Where to go next {: #adopt-where-to-go-next }
 
