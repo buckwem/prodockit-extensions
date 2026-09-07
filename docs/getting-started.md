@@ -14,6 +14,11 @@ own, and then uses Adopt to integrate Prodockit without manual configuration.
 
 ## Build and verify the site
 
+### Phase 1 — Prepare the project environment
+
+Create the empty project directory and verify that it uses its own Python 3.14
+environment rather than the shared setup environment.
+
 /// steps
 
 //// step | Prepare Python and the setup environment
@@ -105,6 +110,15 @@ environment. Correct the directory and repeat section 3.1 before installing
 Zensical.
 
 ////
+
+///
+
+### Phase 2 — Install and prove Zensical
+
+Install Zensical, create its starter site, and prove that the unmodified site
+builds and previews successfully before Prodockit is introduced.
+
+/// steps
 
 //// step | Install Zensical
 
@@ -202,6 +216,15 @@ Do not continue until both checks succeed. Any problem at this point belongs
 to the Python environment or the plain Zensical site, not Prodockit.
 
 ////
+
+///
+
+### Phase 3 — Add and configure Prodockit
+
+Install Prodockit, apply its integration stages, configure the shared website
+and PDF settings, and diagnose the resulting project.
+
+/// steps
 
 //// step | Install Prodockit
 
@@ -337,6 +360,15 @@ pass.
 
 ////
 
+///
+
+### Phase 4 — Verify the adopted website
+
+Add a small example using Prodockit's authoring features, then build and
+preview it to confirm that the integration works.
+
+/// steps
+
 //// step | Add and verify Prodockit content
 
 Replace `docs/index.md` with content that uses two of the extensions enabled by
@@ -376,6 +408,15 @@ reference is linked. Zensical rebuilds the preview when a source file changes;
 stop it with `Ctrl+C`.
 
 ////
+
+///
+
+### Phase 5 — Add downloadable outputs
+
+Generate the rendered document and source bundle, link both from the website,
+and verify the finished downloads locally.
+
+/// steps
 
 //// step | Generate the rendered PDF
 

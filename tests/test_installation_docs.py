@@ -254,6 +254,15 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert "independent of section 6's template-site" in page
     assert page.count("//// step | ") == 15
     assert page.count("/// tree") == 2
+    assert page.count("/// steps") == 5
+    for phase in (
+        "### Phase 1 — Prepare the project environment",
+        "### Phase 2 — Install and prove Zensical",
+        "### Phase 3 — Add and configure Prodockit",
+        "### Phase 4 — Verify the adopted website",
+        "### Phase 5 — Add downloadable outputs",
+    ):
+        assert phase in page
 
     prepare_python = page.index("//// step | Prepare Python and the setup environment")
     prepare_directory = page.index("//// step | Prepare the empty project directory")
