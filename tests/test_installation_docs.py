@@ -232,8 +232,8 @@ def test_adoption_continues_after_shared_preparation() -> None:
 
     assert "MkDocs" not in page
 
-    review_start = page.index("### Phase 1 — Review the existing project")
-    review_end = page.index("### Phase 2 — Preview and apply")
+    review_start = page.index("### Stage 1 — Review the existing project")
+    review_end = page.index("### Stage 2 — Preview and apply")
     review = page[review_start:review_end]
     assert review.count("//// step | ") == 5
     assert "//// step | Prepare Python and the setup environment" in review
@@ -243,7 +243,7 @@ def test_adoption_continues_after_shared_preparation() -> None:
     assert "py -3.14 -m venv --clear .venv" in review
     assert "python3.14 -m venv --clear .venv" in review
 
-    assert "### Phase 3 — Build and review" in page
+    assert "### Stage 3 — Build and review" in page
 
     resume = page[
         page.index("//// step | Resume an interrupted installation") :
