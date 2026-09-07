@@ -12,20 +12,6 @@ environment with the exact software combination supported by the installed
 Prodockit release, then adds Prodockit's authoring extensions and website
 styles without turning the project into a copy of prodockit-template.
 
-!!! warning "Existing custom styles can override Prodockit"
-
-    The Zensical theme loads first. Adoption adds Prodockit's managed
-    `pdk.css` after it so Prodockit can supply its component features and
-    presentation. Your existing `docs/stylesheets/extra.css` is left
-    unchanged and loads after `pdk.css`, so its custom rules can override
-    Prodockit's rules.
-
-    If an adopted feature does not look or behave as expected, you may need
-    to remove or revise a conflicting custom rule. Read [which stylesheets
-    Prodockit manages](stylesheets.md#keep-managed-and-author-styles-separate)
-    and [the stylesheet cascade order](stylesheets.md#load-the-cascade-in-order)
-    before deciding what to change.
-
 Use [machine bootstrap](devcons/bootstrap.md) for a new computer or a new
 repository. Adoption assumes that Git, SSH and the editor you prefer already
 work. It does not configure or change any of them.
@@ -62,6 +48,20 @@ The standard installation adds:
     the project's own rules can override it.
 - `.prodockit-components.toml`, recording whether this project selected
     Mermaid diagrams or mathematical notation.
+
+!!! warning "Existing custom styles can override Prodockit"
+
+    The Zensical theme loads first. Adoption adds Prodockit's managed
+    `pdk.css` after it so Prodockit can supply its component features and
+    presentation. Your existing `docs/stylesheets/extra.css` is left
+    unchanged and loads after `pdk.css`, so its custom rules can override
+    Prodockit's rules.
+
+    If an adopted feature does not look or behave as expected, you may need
+    to remove or revise a conflicting custom rule. Read [which stylesheets
+    Prodockit manages](stylesheets.md#keep-managed-and-author-styles-separate)
+    and [the stylesheet cascade order](stylesheets.md#load-the-cascade-in-order)
+    before deciding what to change.
 
 Mermaid and mathematics are independent options and are off by default. A
 document using neither does not need Node.js, MathJax, Mermaid CLI or a browser
