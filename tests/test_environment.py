@@ -32,6 +32,7 @@ def test_commands_reject_parent_environment_before_work(tmp_path, monkeypatch, a
     monkeypatch.chdir(project)
     monkeypatch.setattr(environment.sys, "prefix", str(tmp_path / ".venv"))
     monkeypatch.setattr(environment.sys, "base_prefix", str(tmp_path / "base"))
+    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / ".venv"))
     before = config.read_bytes()
 
     result = CliRunner().invoke(main, arguments)
