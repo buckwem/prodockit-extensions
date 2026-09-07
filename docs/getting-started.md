@@ -14,6 +14,9 @@ own, and then uses Adopt to integrate Prodockit without manual configuration.
 
 ## Build and verify the site
 
+Five stages take the site from an empty project directory to a verified
+website with downloadable PDF and source outputs.
+
 ### Stage 1 — Prepare the project environment
 
 Create the empty project directory and verify that it uses its own Python 3.14
