@@ -87,6 +87,9 @@ tools](pdf.md#pdf-requirements) before building a PDF.
 
 ## Adoption stages
 
+Three stages assess the existing project, apply the reviewed integration, and
+verify the resulting website and local changes.
+
 ### Stage 1 — Review the existing project
 
 Start with the shared Python preparation, then move into the existing project
