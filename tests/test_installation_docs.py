@@ -188,9 +188,10 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
 
     assert "installation.md#installation-preparation" in page
     assert "independent of section 5's Bootstrap" in page
-    assert page.count("//// step | ") == 13
+    assert page.count("//// step | ") == 14
     assert page.count("/// tree") == 2
 
+    prepare_directory = page.index("//// step | Prepare the empty project directory")
     install_zensical = page.index("//// step | Install Zensical")
     create_zensical = page.index("//// step | Create the Zensical site")
     build_zensical = page.index("//// step | Build the plain Zensical site")
@@ -205,7 +206,8 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     source = page.index("//// step | Generate the source bundle")
     downloads = page.index("//// step | Add both downloads to the site")
     assert (
-        install_zensical
+        prepare_directory
+        < install_zensical
         < create_zensical
         < build_zensical
         < serve_zensical
@@ -232,6 +234,12 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert "pdk diag" in page[diagnose:add_content]
     assert "pdk pdf" in page[pdf:source]
     assert "pdk source-bundle" in page[source:downloads]
+    handoff = page[prepare_directory:install_zensical]
+    assert "cd ~/Repos/prodockit-project" in handoff
+    assert "Set-Location ~\\Repos\\prodockit-project" in handoff
+    assert "python -c 'import sys; print(sys.prefix)'" in handoff
+    assert 'python -c "import sys; print(sys.prefix)"' in handoff
+    assert "~/Repos/.venv" in handoff
 
 
 def test_prodockit_is_not_presented_as_supporting_mkdocs() -> None:

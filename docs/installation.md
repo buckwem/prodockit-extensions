@@ -26,11 +26,21 @@ The environment keeps the documentation toolchain separate from system Python
 and avoids the `externally-managed-environment` error produced by package-
 managed Python installations under PEP 668.
 
-Choose the directory appropriate to the route you will follow: the existing
-repository for adoption, a parent working directory for bootstrap, the
-template repository for direct template use, or the empty project directory
-for the first-site walkthrough. The examples call it `your-project`; substitute
-the real path throughout.
+Choose the directory appropriate to the route you will follow. The location is
+part of the setup: `.venv` is created in the directory where you run the
+creation command.
+
+| Route | Directory to use in section 3.1 |
+| --- | --- |
+| Adoption | the root of the existing documentation project |
+| Bootstrap | the parent directory that will hold the future clone |
+| Direct template use | the root of the template repository |
+| Build your first site | the empty directory that will become the new site |
+
+The examples call the selected location `your-project`; substitute the real
+path throughout. If the first-site directory does not exist yet, create and
+enter it in [section 6](getting-started.md#prepare-the-empty-project-directory)
+before completing these steps.
 
 For Bootstrap, this first activation is in the parent directory, for example
 `~/GitHub`, `~/GitLab`, or `C:\Users\your-name\GitHub`, not the future clone.
@@ -38,6 +48,10 @@ After installation you must activate a second time, now inside the cloned
 repository. Follow [Activate the project and check the installation](devcons/bootstrap.md#bootstrap-project-checks)
 before running `pdk diag` or `pdk template-sync`. Changing directory alone does
 not change the active environment, even when both prompts show `(.venv)`.
+
+For the first-site walkthrough, do the opposite: create the named site
+directory first and create `.venv` inside it. Do not reuse Bootstrap's parent
+setup environment for the new site.
 
 /// steps
 
