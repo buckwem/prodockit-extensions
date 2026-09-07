@@ -6,10 +6,11 @@ icon: lucide/package-plus
 
 # Installation preparation
 
-Every installation route needs the same supported Python release and an active
-virtual environment.\index{virtual environment} Prepare those once in section
-3.1, then continue with the
-route that matches the work: [adoption](adopt.md) for an established document,
+Every installation route begins in the parent directory where you keep your
+repositories and needs the same supported Python release. Prepare Python and a
+setup virtual environment\index{virtual environment} there in section 3.1,
+then continue with the route that matches the work:
+[adoption](adopt.md) for an established document,
 [bootstrap](devcons/bootstrap.md) for a new machine and template project,
 [the template-project guide](devcons/bootstrap.md#bootstrap-template) for the supplied project structure,
 or the [first-site walkthrough](getting-started.md) for an empty directory.
@@ -22,36 +23,17 @@ project.
 ## Prepare Python and its environment {: #installation-preparation }
 
 Python must exist before it can create the environment that runs Prodockit.
-The environment keeps the documentation toolchain separate from system Python
-and avoids the `externally-managed-environment` error produced by package-
-managed Python installations under PEP 668.
+Always complete this section in the directory that holds all your repositories,
+for example `~/Repos`, `~/GitHub`, `~/GitLab`, or
+`C:\Users\your-name\GitHub`. Do not enter an individual project yet.
 
-Choose the directory appropriate to the route you will follow. The location is
-part of the setup: `.venv` is created in the directory where you run the
-creation command.
-
-| Route | Directory to use in section 3.1 |
-| --- | --- |
-| Adoption | the root of the existing documentation project |
-| Bootstrap | the parent directory that will hold the future clone |
-| Direct template use | the root of the template repository |
-| Build your first site | the empty directory that will become the new site |
-
-The examples call the selected location `your-project`; substitute the real
-path throughout. If the first-site directory does not exist yet, create and
-enter it in [section 6](getting-started.md#prepare-the-empty-project-directory)
-before completing these steps.
-
-For Bootstrap, this first activation is in the parent directory, for example
-`~/GitHub`, `~/GitLab`, or `C:\Users\your-name\GitHub`, not the future clone.
-After installation you must activate a second time, now inside the cloned
-repository. Follow [Activate the project and check the installation](devcons/bootstrap.md#bootstrap-project-checks)
-before running `pdk diag` or `pdk template-sync`. Changing directory alone does
-not change the active environment, even when both prompts show `(.venv)`.
-
-For the first-site walkthrough, do the opposite: create the named site
-directory first and create `.venv` inside it. Do not reuse Bootstrap's parent
-setup environment for the new site.
+The setup `.venv` keeps the initial tools separate from system Python and
+avoids the `externally-managed-environment` error produced by package-managed
+Python installations under PEP 668. Bootstrap uses this setup environment to
+create or prepare a project. Adoption and the first-site walkthrough later
+enter their project directory and create or replace that project's own
+`.venv`; those important transitions are shown in their own steps rather than
+hidden here.
 
 /// steps
 
@@ -108,26 +90,27 @@ Every check must report Python 3.14 before you continue.
 
 //// step | Create the virtual environment
 
-Change to the directory selected for your route and create `.venv` there.
+Change to the directory that holds all your repositories and create the setup
+`.venv` there. The examples use `your-repositories`; substitute its real path.
 
 === ":material-apple: macOS"
 
     ```bash
-    cd /path/to/your-project
+    cd /path/to/your-repositories
     "$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
     ```
 
 === ":fontawesome-brands-windows: Windows"
 
     ```powershell
-    cd C:\path\to\your-project
+    cd C:\path\to\your-repositories
     py -3.14 -m venv .venv
     ```
 
 === ":material-linux: Linux (Ubuntu)"
 
     ```bash
-    cd /path/to/your-project
+    cd /path/to/your-repositories
     python3.14 -m venv .venv
     ```
 
@@ -195,8 +178,10 @@ Verify both the version and the interpreter selected by the shell.
     ```
 
 The version must report Python 3.14 and the executable path must be inside the
-`.venv` directory. If either check points elsewhere, repeat the activation
-step before continuing with chapters 4, 5, 6 or 7.
+parent repositories directory's `.venv`. If either check points elsewhere,
+repeat the activation step. The route you follow next will say when to keep
+using this setup environment and when to create or activate a project-local
+one.
 
 ////
 
