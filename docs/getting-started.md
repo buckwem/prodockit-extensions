@@ -14,7 +14,7 @@ own, and then uses Adopt to integrate Prodockit without manual configuration.
 
 ## Build and verify the site
 
-### Phase 1 — Prepare the project environment
+### Stage 1 — Prepare the project environment
 
 Create the empty project directory and verify that it uses its own Python 3.14
 environment rather than the shared setup environment.
@@ -113,7 +113,7 @@ Zensical.
 
 ///
 
-### Phase 2 — Install and prove Zensical
+### Stage 2 — Install and prove Zensical
 
 Install Zensical, create its starter site, and prove that the unmodified site
 builds and previews successfully before Prodockit is introduced.
@@ -219,7 +219,7 @@ to the Python environment or the plain Zensical site, not Prodockit.
 
 ///
 
-### Phase 3 — Add and configure Prodockit
+### Stage 3 — Add and configure Prodockit
 
 Install Prodockit, apply its integration stages, configure the shared website
 and PDF settings, and diagnose the resulting project.
@@ -362,7 +362,7 @@ pass.
 
 ///
 
-### Phase 4 — Verify the adopted website
+### Stage 4 — Verify the adopted website
 
 Add a small example using Prodockit's authoring features, then build and
 preview it to confirm that the integration works.
@@ -411,7 +411,7 @@ stop it with `Ctrl+C`.
 
 ///
 
-### Phase 5 — Add downloadable outputs
+### Stage 5 — Add downloadable outputs
 
 Generate the rendered document and source bundle, link both from the website,
 and verify the finished downloads locally.
