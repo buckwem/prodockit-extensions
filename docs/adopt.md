@@ -344,44 +344,6 @@ Adoption deliberately stops before either action.
 
 ///
 
-### Restart the terminal after Windows installation {: #adopt-windows-restart }
-
-Use this Windows-only recovery step when an installer changes the terminal environment.
-
-=== ":fontawesome-brands-windows: Windows"
-
-    After Bootstrap or an installer changes Windows settings, fully close the
-    terminal application (Windows Terminal or VS Code), then reopen PowerShell.
-    A new tab or reactivating the virtual environment alone may retain old settings.
-    Bootstrap displays this amber message; Template Sync displays it if its
-    environment refresh cannot recover the required commands:
-
-    <pre style="color: #E69F00; background: #181818; padding: 1em; white-space: pre-wrap;">============================================================
-    RESTART YOUR TERMINAL — WINDOWS SETTINGS HAVE CHANGED
-    ============================================================
-    Fully close Windows Terminal or VS Code, then reopen it.
-    Open PowerShell in your project directory:
-    C:\path\to\your-project
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-    .\.venv\Scripts\Activate.ps1
-    pdk diag
-    ============================================================</pre>
-
-    The project path above is replaced with your actual path. If Template Sync
-    cannot continue, the banner also says: `Template Sync cannot continue in this terminal.`
-
-    In the reopened PowerShell, change to your project and check the environment:
-
-    ```powershell
-    cd C:\path\to\your-project
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-    .\.venv\Scripts\Activate.ps1
-    pdk diag
-    ```
-
-    Continue when the required checks pass. If commands are still missing, use
-    the diagnostic report to investigate installation before reinstalling tools.
-
 ## Run it again safely
 
 The stages are idempotent: a satisfied stage is reported as `ok` and left
