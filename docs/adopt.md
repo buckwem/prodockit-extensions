@@ -84,9 +84,9 @@ and assess it before making any changes.
 
 Complete section 3.1 in the parent directory that holds your repositories:
 
-[Open section 3.1: Prepare Python and its environment](installation.md#installation-preparation){ .md-button .md-button--primary target="_blank" rel="noopener" }
+[Open section 3.1 to prepare your environment](installation.md#installation-preparation){ .md-button .md-button--primary target="_blank" rel="noopener" }
 
-Return here with that setup environment active; the next step enters the
+Return here with that setup environment active. The next step enters the
 existing project and establishes its separate project environment.
 
 ////

@@ -159,7 +159,7 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
     for route in (ADOPTION, BOOTSTRAP_GUIDE, FIRST_SITE):
         page = route.read_text(encoding="utf-8")
         assert "installation.md#installation-preparation" in page
-        assert "Open section 3.1: Prepare Python and its environment" in page
+        assert "Open section 3.1 to prepare your environment" in page
         assert '.md-button--primary target="_blank" rel="noopener"' in page
 
     assert "the directory that holds all your repositories" in preparation
