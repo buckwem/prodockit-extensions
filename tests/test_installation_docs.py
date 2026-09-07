@@ -150,6 +150,8 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
 
     assert "[:simple-homebrew: Install Homebrew](https://brew.sh/)" in preparation
     assert ".homebrew-button" in preparation
+    assert "close Terminal completely and reopen" in preparation
+    assert "current terminal will not know about the new `brew` command" in preparation
 
     assert preparation.count("//// step | ") == 4
     assert preparation.count('=== ":material-apple: macOS"') == 4
