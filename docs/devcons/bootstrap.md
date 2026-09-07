@@ -770,7 +770,7 @@ username     = "al01234"
 host         = "surrey"
 namespace    = "comm058-2026"
 project_name = "report-al01234"
-project_dir  = "~/GitLab/report-al01234"
+project_dir  = "~/gitlab/report-al01234"
 source_url   = ""
 ```
 
