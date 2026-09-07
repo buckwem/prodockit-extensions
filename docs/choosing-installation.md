@@ -24,136 +24,72 @@ the installation manually.
 Choose the Prodockit installation approach
 ///
 
-\ref{tab-choose-installation-route} compares the four installation paths by
-starting point and result.
+The four routes below compare their starting points and results in the same
+order as the following sections.
 
-| Starting point | Installation path |
-|---|---|
-| An empty directory that should become a new Zensical site before adding Prodockit | [Build your first site](getting-started.md) creates and tests Zensical first, then adds Prodockit with Adoption |
-| An existing Zensical document whose working environment is already established | [Adoption](adopt.md) integrates selected authoring components without replacing the document's design, Git setup, editor, or publishing workflow |
-| No existing document, or a project that should start from the maintained report template | [Bootstrap](devcons/bootstrap.md) prepares the machine, repository, build tools, and template-based project |
-| A project whose author wants to perform every setup task directly | [Build site manually](manual-install.md) prepares the machine, repository, editor, environment, renderers, and output without Bootstrap or Adoption; [Requirements and dependencies](requirements-dependencies.md) records the detailed toolchain |
-/// table-caption | <
-    attrs: {id: tab-choose-installation-route}
+<div class="grid cards" markdown>
 
-Choose an installation path
-///
+-   :lucide-rocket:{ .lg .middle } __Build your first site__
 
-[Build a template site](devcons/bootstrap.md#bootstrap-template) explains what the
-template supplies and which files become part of your own project. Adoption,
-bootstrap, first-site, and manual installation are alternative setup paths.
-Choose one as the starting point; do not run bootstrap merely because a
-manually installed or adopted project later needs a PDF.
+    ---
 
-Continue with [Prepare to install](installation.md) after choosing the
-path. It establishes the supported Python and virtual environment shared by
-all four following installation chapters.
+    **Starting point:** an empty directory and no Zensical site.
 
-## Choose your features
+    Create the Python environment, install Zensical, and prove that its local
+    preview and strict build work. Then use Adoption to add Prodockit's
+    authoring components, PDF support, and selected renderers without using
+    the report template.
 
-Prodockit separates features that change authored Markdown from tools that
-build, inspect, or maintain the complete project. Start with the group that
-matches the outcome you need.
+    [:octicons-arrow-right-24: Open section 4](getting-started.md)
 
-### Authoring extensions
+-   :lucide-package-plus:{ .lg .middle } __Upgrade existing site__
 
-These are standard Python-Markdown extensions configured in `zensical.toml`:
+    ---
 
-\ref{tab-choose-authoring-extensions} explains the practical benefit each
-extension brings to an author.
+    **Starting point:** an established Zensical site that you want to keep.
 
-| Extension {: width="32%" } | Benefit to the author |
-|:---|:---|
-| [`prodockit.headings`](extensions/headings.md) | Numbers the document hierarchy consistently in the website and PDF. Sections can move without the author manually renumbering every later heading. |
-| [`prodockit.refs`](extensions/refs.md) | Links prose to headings, figures and tables by identity rather than a typed number. The displayed number and title follow the target when the document is reorganised, preventing stale “see section…” references. |
-| [`prodockit.citations`](extensions/citations.md) | Provides a lightweight citation and reference-list approach written entirely in Markdown. A short document can present credible evidence without requiring a separate bibliography database or processing tool. |
-| [`prodockit.glossary`](extensions/glossary.md) | Defines specialist terms and acronyms once, then presents them consistently throughout the document. Readers get expansions and a shared glossary while authors avoid repeating and synchronising definitions manually. |
-| [`prodockit.tables`](extensions/tables.md) | Adds widths, merged cells, grouped or rotated headings, shading and compact layout. Authors can give information the format it needs instead of struggling within basic Markdown table capabilities, with the result preserved across website and PDF. |
-| [`prodockit.tree`](extensions/tree.md) | Turns a simple indented description into a readable directory hierarchy. File relationships remain clear without maintaining fragile hand-drawn ASCII connectors. |
-| [`prodockit.steps`](extensions/steps.md) | Gives procedures and methods consistent numbering and visual progression. Steps can be inserted, removed or rearranged without manually repairing the sequence or layout. |
-| [`prodockit.bibliography`](extensions/bibliography.md) | Uses reusable BibTeX or BibLaTeX records and a CSL style to produce citations and a bibliography. It scales to larger evidence bases and formal publication styles while keeping references consistent. |
-| [`prodockit.index`](extensions/index-terms.md) | Generates a back-of-book index for the PDF from terms selected in the source. Readers can find related discussion across chapters without authors building and updating an index by hand. |
-/// table-caption | <
-    attrs: {id: tab-choose-authoring-extensions}
+    Adoption inspects the project, aligns it with Prodockit's supported
+    toolchain, and adds the standard authoring components and styles. It keeps
+    the site's content, design decisions, Git history, remotes, editor, and
+    publishing workflow rather than turning it into a template project.
 
-Authoring extensions
-///
+    [:octicons-arrow-right-24: Open section 5](adopt.md)
 
-Every extension is independent. Start with one; add another when the document
-needs it.
+-   :lucide-rocket:{ .lg .middle } __Build a template site__
 
-### Lifecycle management tooling
+    ---
 
-Prodockit provides commands that keep an installed project supportable after
-its first successful build. They separate assessment, software alignment,
-template updates and verification so an author can make deliberate changes
-without rebuilding the project by hand.
+    **Starting point:** a new computer, no existing site, or a project that
+    should use the maintained report template.
 
-[`prodockit adopt`](adopt.md)
+    Bootstrap guides and verifies the machine setup, Git host, repository,
+    project environment, build tools, and publishing configuration. The
+    resulting site starts from `prodockit-template` and can later receive its
+    maintained template updates.
 
-:   Brings an established Zensical project onto the software combination
-    supported by the installed Prodockit release, including upgrading or
-    downgrading managed Python packages and Pandoc when required. The benefit
-    is a repeatable route back to a tested toolchain without replacing the
-    project's content, design, Git history or publishing workflow.
+    [:octicons-arrow-right-24: Open section 6](devcons/bootstrap.md)
 
-[`prodockit template-sync`](devcons/template-sync.md)
+-   :lucide-book-open:{ .lg .middle } __Build site manually__
 
-:   Compares a project with the template release it came from and prepares
-    updates to shared workflows, configuration and other template-managed
-    files. It preserves author-owned content and isolates conflicts for review,
-    so fixes and lifecycle improvements can be adopted without overwriting
-    deliberate project customisation.
+    ---
 
-[`prodockit pins`](devcons/pinning-drift.md)
+    **Starting point:** a project whose author wants direct control of every
+    installation decision and command.
 
-:   Updates the version declarations spread across requirements, workflows and
-    tool configuration as one reviewed change. This matters because
-    independently upgraded or downgraded tools may still install successfully
-    while producing different website or PDF output; Pins returns the project
-    to a combination tested together.
+    Prepare and verify the machine, repository, editor, Python environment,
+    Zensical configuration, renderers, website, PDF, and source bundle
+    yourself. This manual installation route explains all dependencies but
+    does not use Bootstrap or Adoption to orchestrate them.
 
-[`pdk diag`](devcons/diagnostics.md)
+    [:octicons-arrow-right-24: Open section 7](manual-install.md)
 
-:   Checks the active interpreter, installed distributions, project
-    configuration, required renderers and version drift without changing the
-    project. It tells the author what is wrong and what evidence supports that
-    conclusion, reducing lifecycle maintenance from trial-and-error reinstalls
-    to a targeted remediation.
+</div>
 
-[`prodockit sync-repo`](devcons/repo-metadata.md)
+These routes are alternatives, not stages in a longer sequence. Choose only
+one. In particular, do not run Bootstrap merely because an adopted or manually
+built project later needs PDF support.
 
-:   Keeps repository links, badges, icons and related metadata consistent with
-    the configured Git remote. It prevents a cloned, renamed or transferred
-    project from continuing to publish stale ownership and repository
-    information.
-
-[`prodockit update-dates`](update-dates.md)
-
-:   Derives page modification dates from Git history and records them for
-    publication. Readers can judge how current the material is without
-    requiring authors to maintain dates manually.
-
-[`prodockit.testing`](devcons/testing.md)
-
-:   Checks the built website and PDF, including links, headings and required
-    content. Lifecycle changes are useful only when the delivered artifacts
-    still work, so these tests turn a successful command into evidence that
-    the publication remains usable.
-
-### Publishing outputs
-
-[`prodockit pdf`](pdf.md) builds a standalone printable document from the same
-navigation and source as the website, while [`prodockit
-source-bundle`](pdf.md#bundling-source-into-a-pdf) packages the underlying
-Markdown and configuration for disclosure or submission. The
-[`prodockit.zensical_macros`](macros.md) integration adds reusable project,
-repository and document values to website templates without duplicating them
-throughout the source.
-
-Go to the [Authoring reference](authoring.md) when you want to add document
-features, use website macros, build a PDF, or look up a command. Go to
-[Publish a document](publishing.md) when you are ready to update a
-template-derived project or publish with continuous integration. The
-[command-line reference](command-line.md) says which commands change files and
-which only report.
+Every route starts with [Prepare to install](installation.md). That shared
+preparation establishes the supported Python and a setup environment in the
+directory holding your repositories. Your chosen route then explains when to
+enter or create the project and activate its project-specific environment.

@@ -177,7 +177,8 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
 
     publishing = PUBLISHING.read_text(encoding="utf-8")
     assert "## Configure Prodockit features" in publishing
-    assert "### The nine extensions" in publishing
+    assert "## Choose your features" in publishing
+    assert "### Authoring extensions" in publishing
     assert "### What is *not* an extension" in publishing
 
 
