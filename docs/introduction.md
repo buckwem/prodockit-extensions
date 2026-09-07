@@ -93,7 +93,7 @@ navigation and review, while the PDF provides a controlled printable or
 submittable document from the same source. Testing support checks both outputs
 so links, headings and required content are verified rather than assumed.
 
-Continue with [Choosing your install and features](choosing-installation.md) to
+Continue with [Choose your install](choosing-installation.md) to
 decide whether Adoption, Bootstrap, or Manual installation matches the
 document you have.
 
