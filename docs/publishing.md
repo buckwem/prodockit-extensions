@@ -47,6 +47,116 @@ The template is a starting copy, not a live dependency. Your Markdown remains
 project-owned; later template fixes arrive only when you review and apply a
 template sync.
 
+## Choose your features
+
+Prodockit separates features that change authored Markdown from tools that
+build, inspect, or maintain the complete project. Start with the group that
+matches the outcome you need.
+
+<span id="installation-the-extensions"></span>
+
+### Authoring extensions {: #publishing-the-extensions }
+
+These are standard Python-Markdown extensions configured in `zensical.toml`:
+
+\ref{tab-choose-authoring-extensions} explains the practical benefit each
+extension brings to an author.
+
+| Extension {: width="32%" } | Benefit to the author |
+|:---|:---|
+| [`prodockit.headings`](extensions/headings.md) | Numbers the document hierarchy consistently in the website and PDF. Sections can move without the author manually renumbering every later heading. |
+| [`prodockit.refs`](extensions/refs.md) | Links prose to headings, figures and tables by identity rather than a typed number. The displayed number and title follow the target when the document is reorganised, preventing stale “see section…” references. |
+| [`prodockit.citations`](extensions/citations.md) | Provides a lightweight citation and reference-list approach written entirely in Markdown. A short document can present credible evidence without requiring a separate bibliography database or processing tool. |
+| [`prodockit.glossary`](extensions/glossary.md) | Defines specialist terms and acronyms once, then presents them consistently throughout the document. Readers get expansions and a shared glossary while authors avoid repeating and synchronising definitions manually. |
+| [`prodockit.tables`](extensions/tables.md) | Adds widths, merged cells, grouped or rotated headings, shading and compact layout. Authors can give information the format it needs instead of struggling within basic Markdown table capabilities, with the result preserved across website and PDF. |
+| [`prodockit.tree`](extensions/tree.md) | Turns a simple indented description into a readable directory hierarchy. File relationships remain clear without maintaining fragile hand-drawn ASCII connectors. |
+| [`prodockit.steps`](extensions/steps.md) | Gives procedures and methods consistent numbering and visual progression. Steps can be inserted, removed or rearranged without manually repairing the sequence or layout. |
+| [`prodockit.bibliography`](extensions/bibliography.md) | Uses reusable BibTeX or BibLaTeX records and a CSL style to produce citations and a bibliography. It scales to larger evidence bases and formal publication styles while keeping references consistent. |
+| [`prodockit.index`](extensions/index-terms.md) | Generates a back-of-book index for the PDF from terms selected in the source. Readers can find related discussion across chapters without authors building and updating an index by hand. |
+/// table-caption | <
+    attrs: {id: tab-choose-authoring-extensions}
+
+Authoring extensions
+///
+
+Every extension is independent. Start with one; add another when the document
+needs it.
+
+### Lifecycle management tooling
+
+Prodockit provides commands that keep an installed project supportable after
+its first successful build. They separate assessment, software alignment,
+template updates and verification so an author can make deliberate changes
+without rebuilding the project by hand.
+
+[`prodockit adopt`](adopt.md)
+
+:   Brings an established Zensical project onto the software combination
+    supported by the installed Prodockit release, including upgrading or
+    downgrading managed Python packages and Pandoc when required. The benefit
+    is a repeatable route back to a tested toolchain without replacing the
+    project's content, design, Git history or publishing workflow.
+
+[`prodockit template-sync`](devcons/template-sync.md)
+
+:   Compares a project with the template release it came from and prepares
+    updates to shared workflows, configuration and other template-managed
+    files. It preserves author-owned content and isolates conflicts for review,
+    so fixes and lifecycle improvements can be adopted without overwriting
+    deliberate project customisation.
+
+[`prodockit pins`](devcons/pinning-drift.md)
+
+:   Updates the version declarations spread across requirements, workflows and
+    tool configuration as one reviewed change. This matters because
+    independently upgraded or downgraded tools may still install successfully
+    while producing different website or PDF output; Pins returns the project
+    to a combination tested together.
+
+[`pdk diag`](devcons/diagnostics.md)
+
+:   Checks the active interpreter, installed distributions, project
+    configuration, required renderers and version drift without changing the
+    project. It tells the author what is wrong and what evidence supports that
+    conclusion, reducing lifecycle maintenance from trial-and-error reinstalls
+    to a targeted remediation.
+
+[`prodockit sync-repo`](devcons/repo-metadata.md)
+
+:   Keeps repository links, badges, icons and related metadata consistent with
+    the configured Git remote. It prevents a cloned, renamed or transferred
+    project from continuing to publish stale ownership and repository
+    information.
+
+[`prodockit update-dates`](update-dates.md)
+
+:   Derives page modification dates from Git history and records them for
+    publication. Readers can judge how current the material is without
+    requiring authors to maintain dates manually.
+
+[`prodockit.testing`](devcons/testing.md)
+
+:   Checks the built website and PDF, including links, headings and required
+    content. Lifecycle changes are useful only when the delivered artifacts
+    still work, so these tests turn a successful command into evidence that
+    the publication remains usable.
+
+### Publishing outputs
+
+[`prodockit pdf`](pdf.md) builds a standalone printable document from the same
+navigation and source as the website, while [`prodockit
+source-bundle`](pdf.md#bundling-source-into-a-pdf) packages the underlying
+Markdown and configuration for disclosure or submission. The
+[`prodockit.zensical_macros`](macros.md) integration adds reusable project,
+repository and document values to website templates without duplicating them
+throughout the source.
+
+After choosing the features and outputs this project needs, continue with
+[Follow the publishing path](#follow-the-publishing-path).
+Use the [Authoring reference](authoring.md) for syntax and examples.
+Use the [command-line reference](command-line.md) for the exact behaviour of
+each command.
+
 ## Configure Prodockit features
 
 Each Prodockit extension is registered as a standard Python-Markdown extension
@@ -83,31 +193,6 @@ name must be quoted:
 
 Enable only the features the document uses. Each extension is independent and
 none requires another.
-
-<span id="installation-the-extensions"></span>
-
-### The nine extensions {: #publishing-the-extensions }
-
-See each extension's own page for its syntax, examples, and configuration.
-
-\ref{tab-publishing-the-nine-extensions} maps each Markdown extension to the authoring feature it provides.
-
-| Extension {: width="40%" } | What it adds |
-| --- | --- |
-| [`prodockit.headings`](extensions/headings.md) | Numbered headings, and a number a cross-reference can point at |
-| [`prodockit.refs`](extensions/refs.md) | Cross-references that resolve to a number *and* a name |
-| [`prodockit.citations`](extensions/citations.md) | Citation handling |
-| [`prodockit.glossary`](extensions/glossary.md) | Acronyms and a glossary |
-| [`prodockit.tables`](extensions/tables.md) | Column widths, dense tables, multi-row headers, merged cells, rotated headings |
-| [`prodockit.tree`](extensions/tree.md) | A directory listing that looks like one |
-| [`prodockit.steps`](extensions/steps.md) | Numbered steps a reader works through in order |
-| [`prodockit.bibliography`](extensions/bibliography.md) | A bibliography built from a `.bib` file |
-| [`prodockit.index`](extensions/index-terms.md) | A back-of-book index (PDF only) |
-/// table-caption | <
-    attrs: {id: tab-publishing-the-nine-extensions}
-
-The nine extensions
-///
 
 <span id="installation-not-extensions"></span>
 

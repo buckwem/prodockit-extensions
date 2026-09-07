@@ -209,10 +209,12 @@ def test_reference_site_fails_when_a_macro_cannot_render() -> None:
 def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
     introduction = _text("docs/introduction.md")
     choices = _text("docs/choosing-installation.md")
+    publishing = _text("docs/publishing.md")
 
     assert "Start with the [maintenance cycle]" not in introduction
-    assert "[Authoring reference](authoring.md)" in choices
-    assert "[Publish a document](publishing.md)" in choices
+    assert "[Prepare to install](installation.md)" in choices
+    assert "[Authoring reference](authoring.md)" in publishing
+    assert "[command-line reference](command-line.md)" in publishing
 
 
 def test_introduction_offers_an_optional_tracking_free_support_link() -> None:
