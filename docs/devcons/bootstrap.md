@@ -122,12 +122,12 @@ anything, and a completed stage is left alone.
 
 //// step | Prepare Python and the setup environment
 
-Complete section 3.1 in the parent directory where you keep repositories:
+Complete section 3.1 in the parent directory that holds your repositories:
 
-[Open section 3.1: Prepare Python and its environment](../installation.md#installation-preparation){ .md-button .md-button--primary target="_blank" rel="noopener" }
+[Open section 3.1 to prepare your environment](../installation.md#installation-preparation){ .md-button .md-button--primary target="_blank" rel="noopener" }
 
-Return here with its setup `.venv` active. Bootstrap later creates a separate
-build environment inside the cloned project.
+Return here with that setup environment active. Bootstrap later creates a
+separate build environment inside the cloned project.
 
 ////
 

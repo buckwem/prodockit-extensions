@@ -18,7 +18,7 @@ own, and then uses Adopt to integrate Prodockit without manual configuration.
 
 Complete section 3.1 in the parent directory that holds your repositories:
 
-[Open section 3.1: Prepare Python and its environment](installation.md#installation-preparation){ .md-button .md-button--primary target="_blank" rel="noopener" }
+[Open section 3.1 to prepare your environment](installation.md#installation-preparation){ .md-button .md-button--primary target="_blank" rel="noopener" }
 
 Return here with that setup environment active. The next step enters the new
 site directory and creates a separate `.venv` for the site before Zensical is
