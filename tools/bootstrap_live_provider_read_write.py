@@ -796,12 +796,14 @@ def _authorise_non_git_command(
     if stage_id == "clone":
         accepted = command == record_template_release
     elif stage_id == "fresh-history":
+        archive_root = project.parent / ".pdk-template-backups"
         accepted = command in (
             record_template_release,
+            ["mkdir", "-p", str(archive_root)],
             [
                 "mv",
                 str(project / ".git"),
-                str(project.parent / f".{project.name}.git.pdk-template-backup"),
+                str(archive_root / f"{project.name}.git"),
             ],
         )
     elif stage_id == "remote":
@@ -1155,8 +1157,11 @@ def apply_repository_path(
             "user_email"
         ] != expected_email(fixture):
             raise LiveProviderError(f"the {name} local commit identity differs")
-        backup = setup / f".{fixture.destination_project}.git.pdk-template-backup"
-        if name == "path-two" and backup.exists():
+        backups = [
+            *setup.glob(f".{fixture.destination_project}.git.pdk-template-backup*"),
+            *(setup / ".pdk-template-backups").glob(f"{fixture.destination_project}.git*"),
+        ]
+        if name == "path-two" and backups:
             raise LiveProviderError("the populated destination archived its existing history")
         return PathResult(
             name=name,

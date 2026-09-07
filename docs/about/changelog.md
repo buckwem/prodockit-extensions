@@ -21,6 +21,10 @@ requests rather than here.
 
 ## 0.61.2 (2026-09-07)
 
+- Moved Bootstrap's preserved template history into a dedicated sibling
+  `.pdk-template-backups` directory, so hidden recovery data no longer competes
+  with the project during PowerShell path completion. Interrupted runs still
+  recognise recovery directories created by older releases.
 - Made Diagnostics stop after detecting that another virtual environment is
   active, avoiding misleading renderer and dependency failures from the wrong
   Python. Its correction now gives the activation command for macOS, Ubuntu,
