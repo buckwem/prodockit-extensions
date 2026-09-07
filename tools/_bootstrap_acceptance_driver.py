@@ -1015,7 +1015,7 @@ def main() -> None:
         click.confirm = original_confirm
         click.prompt = original_prompt
 
-    if "All 23 stages are set up" not in check_output:
+    if "All 23 activities are set up" not in check_output:
         raise AcceptanceError(f"second check was not complete:\n{check_output}")
     if args.old_software:
         expected_upgrades = {
