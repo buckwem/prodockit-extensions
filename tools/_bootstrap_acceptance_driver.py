@@ -533,8 +533,20 @@ class HarnessRunner:
                 )
             return CommandResult(0, "Welcome to GitLab, @mb0105!\n")
 
+        if executable == "mkdir" and words[1:2] == ["-p"]:
+            Path(words[2]).mkdir(parents=True, exist_ok=True)
+            return CommandResult(0)
         if executable == "mv":
             shutil.move(words[1], words[2])
+            return CommandResult(0)
+        if (
+            executable in {"powershell", "powershell.exe"}
+            and "CreateDirectory" in words[-1]
+        ):
+            paths = re.findall(r"'((?:''|[^'])*)'", words[-1])
+            if len(paths) != 1:
+                return CommandResult(1, stderr="could not read directory path")
+            Path(paths[0].replace("''", "'")).mkdir(parents=True, exist_ok=True)
             return CommandResult(0)
         if executable in {"powershell", "powershell.exe"} and "Move-Item" in words[-1]:
             paths = re.findall(r"'(.*?)'", words[-1])
