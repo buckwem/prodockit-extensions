@@ -154,9 +154,9 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
     assert "current terminal will not know about the new `brew` command" in preparation
 
     assert preparation.count("//// step | ") == 4
-    assert preparation.count('=== ":material-apple: macOS"') == 4
-    assert preparation.count('=== ":fontawesome-brands-windows: Windows"') == 4
-    assert preparation.count('=== ":material-linux: Linux (Ubuntu)"') == 4
+    assert preparation.count('=== ":material-apple: macOS"') == 5
+    assert preparation.count('=== ":fontawesome-brands-windows: Windows"') == 5
+    assert preparation.count('=== ":material-linux: Linux (Ubuntu)"') == 5
 
     for route in (ADOPTION, BOOTSTRAP_GUIDE, FIRST_SITE):
         page = route.read_text(encoding="utf-8")
@@ -166,8 +166,9 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
 
     assert "the directory that holds all your repositories" in preparation
     assert "| Route |" not in preparation
-    assert "cd /path/to/your-repositories" in preparation
-    assert "cd C:\\path\\to\\your-repositories" in preparation
+    assert "Create a repositories directory if this is your first one" in preparation
+    assert "mkdir -p ~/Repos" in preparation
+    assert "Set-Location ~\\Repos" in preparation
 
 
 def test_reader_facing_homebrew_install_routes_link_to_the_official_installer() -> None:
