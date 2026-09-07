@@ -232,6 +232,15 @@ and explains when to enter or create the project itself.
 
 <div class="grid cards" markdown>
 
+-   :lucide-rocket:{ .lg .middle } __Build your first site__
+
+    ---
+
+    Start with an empty directory, create and test a Zensical site, then use
+    Adoption to add the Prodockit features you select.
+
+    [:octicons-arrow-right-24: Open section 4](getting-started.md)
+
 -   :lucide-package-plus:{ .lg .middle } __Upgrade existing site__
 
     ---
@@ -240,7 +249,7 @@ and explains when to enter or create the project itself.
     toolchain without replacing its content, design, Git history, or
     publishing workflow.
 
-    [:octicons-arrow-right-24: Open section 4](adopt.md)
+    [:octicons-arrow-right-24: Open section 5](adopt.md)
 
 -   :lucide-rocket:{ .lg .middle } __Build a template site__
 
@@ -249,16 +258,7 @@ and explains when to enter or create the project itself.
     Let Bootstrap prepare the machine, repository, build tools, and maintained
     `prodockit-template` as one recoverable process.
 
-    [:octicons-arrow-right-24: Open section 5](devcons/bootstrap.md)
-
--   :lucide-rocket:{ .lg .middle } __Build your first site__
-
-    ---
-
-    Start with an empty directory, create and test a Zensical site, then use
-    Adoption to add the Prodockit features you select.
-
-    [:octicons-arrow-right-24: Open section 6](getting-started.md)
+    [:octicons-arrow-right-24: Open section 6](devcons/bootstrap.md)
 
 -   :lucide-book-open:{ .lg .middle } __Build site manually__
 

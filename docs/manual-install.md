@@ -669,6 +669,7 @@ section 3.1. The examples use `repos`; substitute the name you chose.
 
     ``` powershell
     Set-Location ~\repos
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     ```
 
@@ -1134,6 +1135,7 @@ packages and is the environment used for all later editing and building.
             === "PowerShell"
 
                 ``` powershell
+                Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
                 .\.venv\Scripts\Activate.ps1
                 ```
 
@@ -1410,6 +1412,7 @@ if the installed release is rejected by the toolchain.
     Then activate its virtual environment as a separate step:
 
     ``` powershell
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     ```
 
@@ -1490,6 +1493,7 @@ Then activate the project's virtual environment as a separate step:
 === ":fontawesome-brands-windows: Windows"
 
     ``` powershell
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     ```
 
