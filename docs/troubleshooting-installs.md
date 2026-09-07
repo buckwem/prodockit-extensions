@@ -63,6 +63,7 @@ Enter the named project, activate its environment, and try again:
 
     ``` powershell
     Set-Location ~\repos\your-project
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     ```
 
@@ -97,6 +98,7 @@ in the current project:
 
     ``` powershell
     deactivate
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     ```
 
@@ -141,6 +143,7 @@ recreate it with the intended interpreter.
     deactivate
     Rename-Item .venv .venv-python-backup
     py -3.14 -m venv .venv
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     ```
 
@@ -173,6 +176,7 @@ activated again.
 
     ``` powershell
     cd C:\path\to\your-project
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     ```
 
