@@ -4,7 +4,7 @@ icon: lucide/signpost
 
 {{ heading_counter_reset(page) }}
 
-# Choosing your install and features
+# Choose your install
 
 Prodockit supports three installation paths. Choose the one that matches the
 document and level of automation you have; the paths are alternatives rather
