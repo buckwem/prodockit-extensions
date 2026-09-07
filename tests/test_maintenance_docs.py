@@ -27,7 +27,7 @@ def test_getting_started_holds_installation_routes() -> None:
     maintenance = _nav_group("Maintain prodockit")
 
     assert {"4. Add prodockit to an existing document": "adopt.md"} in getting_started
-    assert {"5. Set up a template project": "devcons/bootstrap.md"} in getting_started
+    assert {"5. Build a template site": "devcons/bootstrap.md"} in getting_started
     assert not any("prodockit-template.md" in item.values() for item in getting_started)
     assert {"23. Staying in step with the template": "devcons/template-sync.md"} in publishing
     assert maintenance == [

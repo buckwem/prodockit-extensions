@@ -30,7 +30,7 @@ the appropriate publishing guide.
 
 | Starting point | First guide |
 |---|---|
-| You want the ready-made `prodockit-template` report project | [Set up a template project](devcons/bootstrap.md#bootstrap-template) explains what it provides and which files become yours |
+| You want the ready-made `prodockit-template` report project | [Build a template site](devcons/bootstrap.md#bootstrap-template) explains what it provides and which files become yours |
 | A new computer or an incomplete template-based checkout | [Bootstrap](devcons/bootstrap.md) checks and prepares Python, Git, Node, Pandoc, fonts, and the project environment |
 | An established documentation project that should keep its existing design and workflow | [Adoption](adopt.md) integrates selected prodockit components without replacing those choices |
 | A project whose dependencies are managed directly | [Manual installation](installation.md) covers preparation and package configuration; [Requirements and dependencies](requirements-dependencies.md) records the supported toolchain |
@@ -336,7 +336,7 @@ to inspect automatic Git or modification dates.
 Open the detailed guide for the part of the workflow that needs attention:
 
 - [Set up a machine](devcons/bootstrap.md) prepares a computer and checkout.
-- [Set up a template project](devcons/bootstrap.md#bootstrap-template) introduces the starter
+- [Build a template site](devcons/bootstrap.md#bootstrap-template) introduces the starter
   project, its two outputs, and the boundary between your work and shared
   publishing infrastructure.
 - [Staying in step with the template](devcons/template-sync.md) updates shared
