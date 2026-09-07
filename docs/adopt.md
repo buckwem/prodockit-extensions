@@ -76,12 +76,53 @@ tools](pdf.md#pdf-requirements) before building a PDF.
 ## Review the existing project
 
 Complete [section 3.1, Installation preparation](installation.md#installation-preparation)
-before continuing. For adoption, use the directory containing the existing
-project's `zensical.toml`, `zensical.yml` or `zensical.yaml` when section 3.1
-asks you to choose a directory. This establishes the project's own `.venv`;
-the steps below begin with installing Prodockit into it.
+in the parent directory that holds your repositories before continuing. The
+first step below then enters the existing project and establishes its separate
+project environment.
 
 /// steps
+
+//// step | Enter the project and prepare its environment
+
+Change into the directory containing the existing project's `zensical.toml`,
+`zensical.yml` or `zensical.yaml`. If the prompt already shows `(.venv)`, run
+`deactivate` first so that the parent setup environment is not mistaken for
+the project environment.
+
+If this project already has a `.venv`, activate it and run `python --version`.
+Keep it when it reports Python 3.14. If `.venv` is missing, uses another Python
+release, or is damaged, deactivate it if necessary and recreate it with the
+command for your platform:
+
+=== ":material-apple: macOS"
+
+    ```bash
+    cd /path/to/your-project
+    "$(brew --prefix python@3.14)/bin/python3.14" -m venv --clear .venv
+    source .venv/bin/activate
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    Set-Location C:\path\to\your-project
+    py -3.14 -m venv --clear .venv
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    cd /path/to/your-project
+    python3.14 -m venv --clear .venv
+    source .venv/bin/activate
+    ```
+
+Verify that `python --version` reports Python 3.14 and that the command path is
+inside this project's `.venv` before installing anything.
+
+////
 
 //// step | Install or update prodockit
 

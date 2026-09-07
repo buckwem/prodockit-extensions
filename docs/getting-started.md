@@ -12,11 +12,11 @@ route: Bootstrap creates a repository from `prodockit-template`, whereas this
 walkthrough starts with an empty directory, proves that Zensical works on its
 own, and then uses Adopt to integrate Prodockit without manual configuration.
 
-Start below by creating and entering the empty directory. The first step then
-sends you through [section 3.1, Prepare Python and its
-environment](installation.md#installation-preparation) from that exact
-location. Section 3.1 remains shared with Adoption and Bootstrap, but those
-routes deliberately select different directories.
+First complete [section 3.1, Prepare Python and its
+environment](installation.md#installation-preparation) in the parent directory
+that holds your repositories. Start below with that setup environment active.
+The first step enters the new site directory and creates a separate `.venv`
+for the site before Zensical is installed.
 
 /// steps
 
@@ -24,38 +24,47 @@ routes deliberately select different directories.
 
 //// step | Prepare the empty project directory
 
-Choose the site directory before creating its virtual environment. The
-examples use `prodockit-project`; replace that name if required.
+Leave the parent setup environment, create and enter the site directory, then
+create its project-local virtual environment. Use the same repositories path
+you selected in section 3.1. The examples call the site `prodockit-project`;
+replace that name if required.
 
 === ":material-apple: macOS"
 
     ```bash
-    mkdir -p ~/Repos/prodockit-project
-    cd ~/Repos/prodockit-project
+    deactivate
+    cd /path/to/your-repositories
+    mkdir -p prodockit-project
+    cd prodockit-project
+    "$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
+    source .venv/bin/activate
     ```
 
 === ":fontawesome-brands-windows: Windows"
 
     ```powershell
-    New-Item -ItemType Directory -Force ~\Repos\prodockit-project | Out-Null
-    Set-Location ~\Repos\prodockit-project
+    deactivate
+    Set-Location C:\path\to\your-repositories
+    New-Item -ItemType Directory -Force .\prodockit-project | Out-Null
+    Set-Location .\prodockit-project
+    py -3.14 -m venv .venv
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
     ```
 
 === ":material-linux: Linux (Ubuntu)"
 
     ```bash
-    mkdir -p ~/Repos/prodockit-project
-    cd ~/Repos/prodockit-project
+    deactivate
+    cd /path/to/your-repositories
+    mkdir -p prodockit-project
+    cd prodockit-project
+    python3.14 -m venv .venv
+    source .venv/bin/activate
     ```
 
-If the prompt already begins with `(.venv)`, it may be a Bootstrap setup
-environment belonging to the parent directory. Run `deactivate` before
-continuing.
-
-Now complete all four steps in [section 3.1, Prepare Python and its
-environment](installation.md#installation-preparation), using the current
-`prodockit-project` directory wherever it says `your-project`. Return here
-after activation and verify the handoff:
+This is the handoff from the shared setup environment to the new site's own
+environment. Verify it before installing Zensical:
 
 === ":material-apple: macOS"
 

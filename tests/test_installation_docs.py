@@ -156,17 +156,14 @@ def test_installation_preparation_is_shared_by_later_routes() -> None:
     assert preparation.count('=== ":fontawesome-brands-windows: Windows"') == 4
     assert preparation.count('=== ":material-linux: Linux (Ubuntu)"') == 4
 
-    routes = (
-        ADOPTION,
-        BOOTSTRAP_GUIDE,
-        REPO / "docs" / "getting-started.md",
-    )
-    for route in routes:
+    for route in (ADOPTION, BOOTSTRAP_GUIDE, FIRST_SITE):
         page = route.read_text(encoding="utf-8")
         assert "installation.md#installation-preparation" in page
-        assert "brew install python@3.14" not in page
-        assert "py -3.14 -m venv .venv" not in page
-        assert "python3.14 -m venv .venv" not in page
+
+    assert "the directory that holds all your repositories" in preparation
+    assert "| Route |" not in preparation
+    assert "cd /path/to/your-repositories" in preparation
+    assert "cd C:\\path\\to\\your-repositories" in preparation
 
 
 def test_reader_facing_homebrew_install_routes_link_to_the_official_installer() -> None:
@@ -191,7 +188,11 @@ def test_adoption_continues_after_shared_preparation() -> None:
     assert "MkDocs" not in page
 
     review = page[page.index("## Review the existing project") : page.index("## Choose optional")]
-    assert review.count("//// step | ") == 2
+    assert review.count("//// step | ") == 3
+    assert "//// step | Enter the project and prepare its environment" in review
+    assert 'python3.14" -m venv --clear .venv' in review
+    assert "py -3.14 -m venv --clear .venv" in review
+    assert "python3.14 -m venv --clear .venv" in review
 
     resume = page[page.index("## Run it again safely") :]
     assert '=== ":material-apple: macOS"' in resume
@@ -252,8 +253,13 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert "pdk pdf" in page[pdf:source]
     assert "pdk source-bundle" in page[source:downloads]
     handoff = page[prepare_directory:install_zensical]
-    assert "cd ~/Repos/prodockit-project" in handoff
-    assert "Set-Location ~\\Repos\\prodockit-project" in handoff
+    assert "cd /path/to/your-repositories" in handoff
+    assert "Set-Location C:\\path\\to\\your-repositories" in handoff
+    assert "cd prodockit-project" in handoff
+    assert "Set-Location .\\prodockit-project" in handoff
+    assert 'python3.14" -m venv .venv' in handoff
+    assert "py -3.14 -m venv .venv" in handoff
+    assert "python3.14 -m venv .venv" in handoff
     assert "python -c 'import sys; print(sys.prefix)'" in handoff
     assert 'python -c "import sys; print(sys.prefix)"' in handoff
     assert "~/Repos/.venv" in handoff
