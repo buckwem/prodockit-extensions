@@ -6,8 +6,6 @@ icon: lucide/rocket
 
 # Build your first site
 
-\index{`zensical serve`}
-
 Use this route when you do not yet have a Zensical site and want to create one
 cleanly before adding Prodockit. It is independent of section 6's template-site
 route: Bootstrap creates a repository from `prodockit-template`, whereas this
@@ -185,6 +183,8 @@ and produce the deployable site files; it does not start a web server.
 ////
 
 //// step | Preview the plain Zensical site
+
+\index{`zensical serve`}
 
 Start Zensical's local development server:
 
