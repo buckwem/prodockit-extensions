@@ -12,13 +12,19 @@ route: Bootstrap creates a repository from `prodockit-template`, whereas this
 walkthrough starts with an empty directory, proves that Zensical works on its
 own, and then uses Adopt to integrate Prodockit without manual configuration.
 
-First complete [section 3.1, Prepare Python and its
-environment](installation.md#installation-preparation) in the parent directory
-that holds your repositories. Start below with that setup environment active.
-The first step enters the new site directory and creates a separate `.venv`
-for the site before Zensical is installed.
-
 /// steps
+
+//// step | Prepare Python and the setup environment
+
+Complete section 3.1 in the parent directory that holds your repositories:
+
+[Open section 3.1: Prepare Python and its environment](installation.md#installation-preparation){ .md-button .md-button--primary target="_blank" rel="noopener" }
+
+Return here with that setup environment active. The next step enters the new
+site directory and creates a separate `.venv` for the site before Zensical is
+installed.
+
+////
 
 <span id="prepare-the-empty-project-directory"></span>
 

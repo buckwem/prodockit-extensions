@@ -112,18 +112,24 @@ than by asking students to maintain a second configuration file.
 
 ## Install with bootstrap {: #bootstrap-quick-start }
 
-Complete [section 3.1, Prepare Python and its environment](../installation.md#installation-preparation)
-before continuing. For bootstrap, create the setup `.venv` in the parent
-directory where you keep projects; bootstrap later creates a separate build
-environment inside the cloned project.
-
-The six steps below install Prodockit into the active setup environment and
+The seven steps below prepare the setup environment, install Prodockit into it, and
 continue from the first read-only assessment to the completed site. If you
 open a new terminal, reactivate and verify that environment as described in
 section 3.1. Each command is safe to repeat: bootstrap checks before it changes
 anything, and a completed stage is left alone.
 
 /// steps
+
+//// step | Prepare Python and the setup environment
+
+Complete section 3.1 in the parent directory where you keep repositories:
+
+[Open section 3.1: Prepare Python and its environment](../installation.md#installation-preparation){ .md-button .md-button--primary target="_blank" rel="noopener" }
+
+Return here with its setup `.venv` active. Bootstrap later creates a separate
+build environment inside the cloned project.
+
+////
 
 //// step | Install Prodockit into the active environment
 
