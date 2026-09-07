@@ -12,6 +12,8 @@ route: Bootstrap creates a repository from `prodockit-template`, whereas this
 walkthrough starts with an empty directory, proves that Zensical works on its
 own, and then uses Adopt to integrate Prodockit without manual configuration.
 
+## Build and verify the site
+
 /// steps
 
 //// step | Prepare Python and the setup environment
