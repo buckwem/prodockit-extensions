@@ -19,7 +19,7 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.61.6 (2026-09-08)
 
 - Made Adopt and its readiness checks recognise cache-versioned stylesheet and
   JavaScript references as the configured asset, preserving query strings such
