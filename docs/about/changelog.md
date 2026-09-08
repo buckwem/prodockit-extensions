@@ -19,8 +19,10 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.61.5 (2026-09-08)
 
+- Made Adopt extend existing dotted `project.extra.*` TOML settings without
+  appending a conflicting `[project.extra]` table.
 - Made Adopt install and register the complete stylesheet cascade: managed
   `pdk.css` and `pdk-pdf.css`, followed by user-managed `extra.css` and
   `print.css`. Missing user-managed files are created without replacing

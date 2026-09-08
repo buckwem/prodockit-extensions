@@ -351,6 +351,32 @@ pdf_extra_css = ["stylesheets/print.css"]
     assert print_css.read_text(encoding="utf-8") == "/* author PDF styles */\n"
 
 
+def test_core_adoption_preserves_dotted_project_extra_settings(
+    tmp_path: Path,
+) -> None:
+    project = _project(
+        tmp_path,
+        """\
+[project]
+site_name = "Dotted extras"
+extra.pdf_copyright = "Keep this footer"
+extra.pdf_extra_css = ["stylesheets/course-print.css"]
+""",
+    )
+
+    ensure_zensical_config(project, AdoptOptions())
+
+    config = (project / "zensical.toml").read_text(encoding="utf-8")
+    assert 'extra.pdf_copyright = "Keep this footer"' in config
+    assert "[project.extra]" not in config
+    assert config.index('"stylesheets/pdk-pdf.css"') < config.index(
+        '"stylesheets/course-print.css"'
+    )
+    assert config.index('"stylesheets/course-print.css"') < config.index(
+        '"stylesheets/print.css"'
+    )
+
+
 def test_core_adoption_creates_missing_user_managed_styles_without_replacing_them(
     tmp_path: Path,
 ) -> None:

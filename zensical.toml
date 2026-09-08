@@ -48,8 +48,10 @@ extra.website_heading_numbering = true
 # code. Its Apache-2.0 licence is published beside the bundle at
 # javascripts/vendor/mathjax/LICENSE.
 extra_javascript = [
+  "javascripts/pdk.js",
   "javascripts/mathjax.js",
   "javascripts/vendor/mathjax/tex-svg-full.js",
+  "javascripts/extra.js",
 ]
 
 nav = [
