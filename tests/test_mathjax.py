@@ -40,6 +40,25 @@ def test_it_writes_the_config_and_copies_the_bundle_and_license(tmp_path: Path) 
     assert "processHtmlClass" in config and "arithmatex" in config
 
 
+@pytest.mark.parametrize("filename", ["zensical.toml", "mkdocs.yml"])
+def test_configured_docs_directory_receives_all_assets(tmp_path: Path, filename: str) -> None:
+    project = _project(tmp_path)
+    source = (
+        '[project]\nsite_name = "Site"\ndocs_dir = "content"\n'
+        if filename.endswith("toml")
+        else "site_name: Site\ndocs_dir: content\n"
+    )
+    (project / filename).write_text(source)
+    result = install_mathjax(project)
+    assert result.bundle == project / "content/javascripts/vendor/mathjax/tex-svg-full.js"
+    assert result.license == result.bundle.parent / "LICENSE"
+    assert result.license.read_text() == "APACHE"
+    assert result.config == project / "content/javascripts/mathjax.js"
+    assert not (project / "docs/javascripts").exists()
+    assert "content/javascripts/vendor/" in (project / ".gitignore").read_text()
+    assert install_mathjax(project).ignored == []
+
+
 def test_the_delimiters_are_the_ones_arithmatex_emits(tmp_path: Path) -> None:
     """The reason one copy matters. Four layers of escaping, and a copy
     that looks right can be wrong - which fails silently, because both

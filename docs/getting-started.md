@@ -217,8 +217,9 @@ to the Python environment or the plain Zensical site, not Prodockit.
 
 ### Stage 3 — Add and configure Prodockit
 
-Install Prodockit, apply its integration stages, configure the shared website
-and PDF settings, and diagnose the resulting project.
+Install Prodockit, choose its optional renderers, prepare Node.js only when a
+selected renderer needs it, apply the integration stages, configure the shared
+website and PDF settings, and diagnose the resulting project.
 
 /// steps
 
@@ -259,6 +260,64 @@ pdk --version
 
 ////
 
+//// step | Choose optional renderers and prepare Node.js when required
+
+Save this project's choices before previewing Adopt:
+
+```bash
+pdk adopt --configure
+```
+
+Mermaid diagrams and mathematical notation are separate, optional choices and
+both default to **No**. A project created from `prodockit-template` already has
+a committed `.prodockit-components.toml` with both enabled; a plain Zensical
+site does not inherit choices merely because its starter configuration can
+support those features.
+
+If you answer **No** to both questions, continue to the next step. Node.js and
+npm are not required.
+
+If you answer **Yes** to Mermaid or mathematical notation, install Node.js and
+npm for your platform:
+
+=== ":material-apple: macOS"
+
+    ```bash
+    brew install node
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    In PowerShell:
+
+    ```powershell
+    winget install --id OpenJS.NodeJS.LTS
+    ```
+
+    Fully close and reopen PowerShell after installation, return to the project
+    directory, and reactivate `.venv` before continuing.
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    sudo apt install -y curl
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+    sudo apt install -y nodejs
+    ```
+
+Confirm that both commands are available:
+
+```bash
+node --version
+npm --version
+```
+
+Do not continue after selecting a renderer unless both commands print a
+version. Adopt uses npm only to install the selected project-local renderer;
+it does not install whole-machine Node.js itself.
+
+////
+
 //// step | Adopt the Zensical site
 
 Preview the integration stages before allowing Adopt to install the supported
@@ -270,9 +329,9 @@ pdk adopt --dry-run
 pdk adopt --apply
 ```
 
-Read each stage before accepting it. For this first site, leave Mermaid and
-maths off unless you intend to use them. Adopt does not configure Git, SSH,
-remotes, editors, commits, or publishing.
+Read each stage before accepting it. Adopt now uses the component choices you
+saved in the previous step. It does not configure Git, SSH, remotes, editors,
+commits, or publishing.
 
 After Adopt, the project retains the Zensical files and adds the [Prodockit
 project files shown in section

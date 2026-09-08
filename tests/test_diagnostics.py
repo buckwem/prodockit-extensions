@@ -39,9 +39,10 @@ def test_read_only_git_probes_cannot_display_ssh_prompts(
 
 
 def test_public_github_template_check_uses_https() -> None:
-    assert diagnostics._diagnostic_template_remote(
-        "git@github.com:buckwem/prodockit-template.git"
-    ) == "https://github.com/buckwem/prodockit-template.git"
+    assert (
+        diagnostics._diagnostic_template_remote("git@github.com:buckwem/prodockit-template.git")
+        == "https://github.com/buckwem/prodockit-template.git"
+    )
     assert (
         diagnostics._diagnostic_template_remote(
             "git@gitlab.surrey.ac.uk:mb0105/prodockit-template.git"
@@ -323,9 +324,7 @@ def test_diagnostics_offers_the_pending_standard_asset_repair() -> None:
         },
     )
 
-    plan = diagnostics.build_repair_dry_run(
-        DiagnosticReport("zensical.toml", ".", False, (check,))
-    )
+    plan = diagnostics.build_repair_dry_run(DiagnosticReport("zensical.toml", ".", False, (check,)))
     candidate = plan.candidates[0]
 
     assert candidate.id == "maintenance.adopt-readiness.core-assets"
@@ -386,7 +385,7 @@ def test_diagnostics_reports_the_same_pending_adopt_stages(
 
     monkeypatch.setattr(
         "prodockit.adopt.resolve_options",
-        lambda _root: AdoptChoiceResolution(AdoptOptions(), "zensical.toml", False),
+        lambda _root: AdoptChoiceResolution(AdoptOptions(), "defaults", False),
     )
     monkeypatch.setattr(
         "prodockit.adopt.assess",
@@ -410,7 +409,7 @@ def test_diagnostics_reports_the_same_pending_adopt_stages(
                 "Integrate",
                 "Component choices",
                 "missing",
-                "save the inferred component choices in .prodockit-components.toml",
+                "save the default component choices in .prodockit-components.toml",
             ),
             Step("verify", "Verify", "Ready for local build", "wait", "apply first"),
         ],
@@ -433,7 +432,7 @@ def test_diagnostics_passes_when_adopt_is_aligned(
 
     monkeypatch.setattr(
         "prodockit.adopt.resolve_options",
-        lambda _root: AdoptChoiceResolution(AdoptOptions(), "zensical.toml", False),
+        lambda _root: AdoptChoiceResolution(AdoptOptions(), "defaults", False),
     )
     monkeypatch.setattr(
         "prodockit.adopt.assess",
@@ -457,7 +456,7 @@ def test_adopt_readiness_does_not_turn_a_valid_non_venv_ci_run_into_a_failure(
 
     monkeypatch.setattr(
         "prodockit.adopt.resolve_options",
-        lambda _root: AdoptChoiceResolution(AdoptOptions(), "zensical.toml", False),
+        lambda _root: AdoptChoiceResolution(AdoptOptions(), "defaults", False),
     )
     monkeypatch.setattr(
         "prodockit.adopt.assess",

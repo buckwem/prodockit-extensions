@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -209,11 +210,35 @@ def test_apply_checks_renderer_prerequisites_before_changing_project(tmp_path, m
     )
 
     assert result.exit_code != 0
-    assert result.output.count("Node.js and npm are required before Adopt") == 2
+    # One deduplicated prominent summary plus the two affected renderer
+    # activities makes the dependency visible without hiding the detail.
+    assert result.output.count("Node.js and npm are required before Adopt") == 3
+    assert "ADOPT CANNOT CONTINUE" in result.output
+    assert "Problem:  Node.js and npm are required" in result.output
+    assert "node --version" in result.output
+    assert "npm --version" in result.output
+    assert "no project files have been changed" in result.output
     assert "Apply this stage?" not in result.output
     assert config.read_bytes() == before
     assert not (project / MANIFEST).exists()
     assert not (project / "requirements.txt").exists()
+
+
+def test_renderer_blocker_summary_is_prominently_coloured(tmp_path, monkeypatch):
+    project = _project(tmp_path)
+    monkeypatch.chdir(project)
+    monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
+    monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: None)
+
+    result = CliRunner().invoke(
+        main,
+        ["adopt", "--apply", "--mermaid", "--no-maths"],
+        color=True,
+    )
+
+    assert result.exit_code != 0
+    assert click.style("ADOPT CANNOT CONTINUE", bold=True, fg="bright_magenta") in (result.output)
+    assert click.style("Check:    node --version", fg=(230, 159, 0), bold=True) in (result.output)
 
 
 def test_reusable_apply_runs_selected_stages_and_verifies(monkeypatch, tmp_path) -> None:
@@ -304,6 +329,10 @@ language = "en-GB"
     assert 'language = "en-GB"' in config
     assert '"stylesheets/mine.css"' in config
     assert '"stylesheets/pdk.css"' in config
+    assert config.index('site_name = "Mine"') < config.index("extra_css = [")
+    assert config.index("extra_css = [") < config.index("extra.pdf_extra_css = [")
+    assert config.index("extra.pdf_extra_css = [") < config.index("extra_javascript = [")
+    assert config.index("extra_javascript = [") < config.index("[project.theme]")
     assert config.index('"stylesheets/pdk.css"') < config.index('"stylesheets/mine.css"')
     for extension in CORE_EXTENSIONS:
         assert f'[project.markdown_extensions."{extension}"]' in config
@@ -372,9 +401,7 @@ extra.pdf_extra_css = ["stylesheets/course-print.css"]
     assert config.index('"stylesheets/pdk-pdf.css"') < config.index(
         '"stylesheets/course-print.css"'
     )
-    assert config.index('"stylesheets/course-print.css"') < config.index(
-        '"stylesheets/print.css"'
-    )
+    assert config.index('"stylesheets/course-print.css"') < config.index('"stylesheets/print.css"')
 
 
 def test_core_adoption_creates_missing_user_managed_styles_without_replacing_them(
@@ -400,9 +427,7 @@ def test_core_adoption_creates_missing_user_managed_styles_without_replacing_the
     assert extra.read_text(encoding="utf-8") == "/* keep my website CSS */\n"
     assert print_css.read_text(encoding="utf-8") == "/* keep my PDF CSS */\n"
     assert (styles / "pdk.css").read_text(encoding="utf-8") != "/* old managed CSS */\n"
-    assert (styles / "pdk-pdf.css").read_text(encoding="utf-8") != (
-        "/* old managed PDF CSS */\n"
-    )
+    assert (styles / "pdk-pdf.css").read_text(encoding="utf-8") != ("/* old managed PDF CSS */\n")
 
 
 def test_core_adoption_installs_javascript_without_mathjax(tmp_path: Path) -> None:
@@ -561,8 +586,7 @@ extra:
 
     config = (project / "zensical.yml").read_text(encoding="utf-8")
     assert (
-        "extra_css: [stylesheets/pdk.css, stylesheets/theme.css, stylesheets/extra.css]"
-        in config
+        "extra_css: [stylesheets/pdk.css, stylesheets/theme.css, stylesheets/extra.css]" in config
     )
     assert (
         "pdf_extra_css: [stylesheets/pdk-pdf.css, stylesheets/custom-print.css, "
@@ -738,7 +762,7 @@ def test_assessment_refreshes_the_managed_stylesheet(tmp_path: Path) -> None:
     assert core.status == "ok"
     choices = next(step for step in assess(project, AdoptOptions()) if step.id == "choices")
     assert choices.status == "missing"
-    assert f"save the inferred component choices in {MANIFEST}" in choices.detail
+    assert f"save the selected component choices in {MANIFEST}" in choices.detail
     write_manifest(project, AdoptOptions())
     choices = next(step for step in assess(project, AdoptOptions()) if step.id == "choices")
     assert choices.status == "ok"
@@ -1095,7 +1119,7 @@ def test_manifest_is_not_needed_until_choices_are_saved(tmp_path: Path) -> None:
     assert not (project / MANIFEST).exists()
 
 
-def test_missing_manifest_infers_existing_mermaid_and_maths_configuration(
+def test_missing_manifest_keeps_optional_renderers_off_despite_capable_configuration(
     tmp_path: Path,
 ) -> None:
     project = _project(
@@ -1118,14 +1142,10 @@ custom_fences = [{ name = "mermaid", class = "mermaid" }]
 
     resolution = resolve_options(project)
 
-    assert resolution == AdoptChoiceResolution(
-        AdoptOptions(mermaid=True, maths=True), "zensical.toml", False
-    )
+    assert resolution == AdoptChoiceResolution(AdoptOptions(), "defaults", False)
 
 
-def test_adopt_labels_inferred_choices_instead_of_claiming_a_missing_file(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_adopt_labels_unconfigured_choices_as_default_off(tmp_path: Path, monkeypatch) -> None:
     project = _project(
         tmp_path,
         """\
@@ -1145,12 +1165,15 @@ custom_fences = [{ name = "mermaid" }]
     result = CliRunner().invoke(main, ["adopt", "--dry-run"])
 
     assert result.exit_code == 0, result.output
-    assert "Options:  Mermaid on · maths on" in result.output
-    assert "Choices:  inferred from zensical.toml; not yet saved" in result.output
+    assert "Options:  Mermaid off · maths off" in result.output
+    assert "Choices:  not configured; Mermaid and maths default off" in result.output
     assert f"Will save: {project / MANIFEST}" in result.output
 
 
-def test_mermaid_install_uses_only_the_selected_node_project(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("offline", [True, False])
+def test_mermaid_install_uses_only_the_selected_node_project(
+    tmp_path: Path, monkeypatch, offline: bool
+) -> None:
     project = _project(tmp_path)
     monkeypatch.setattr("prodockit.adopt.shutil.which", lambda _name: "/usr/bin/npm")
 
@@ -1161,7 +1184,7 @@ def test_mermaid_install_uses_only_the_selected_node_project(tmp_path: Path, mon
             "ci",
             "--no-audit",
             "--no-fund",
-            "--prefer-offline",
+            "--offline" if offline else "--prefer-offline",
         ]
         assert kwargs["cwd"] == project / "tools" / "mermaid"
         binary = project / "tools" / "mermaid" / "node_modules" / ".bin" / "mmdc"
@@ -1175,7 +1198,7 @@ def test_mermaid_install_uses_only_the_selected_node_project(tmp_path: Path, mon
         lambda path: SimpleNamespace(path=path, ok=True, version="11.0.0", error=None),
     )
 
-    written = install_tool(project, "mermaid")
+    written = install_tool(project, "mermaid", offline=offline)
 
     lock = project / "tools" / "mermaid" / "package-lock.json"
     assert written.count(lock) == 1
@@ -1574,7 +1597,10 @@ markdown_extensions:
     assert config.count("pymdownx.superfences:") == 1
 
 
-def test_apply_mapping_form_mermaid_is_transactional(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("renderer_usable", [True, False])
+def test_apply_mapping_form_mermaid_is_transactional(
+    tmp_path: Path, monkeypatch, renderer_usable: bool
+) -> None:
     project = _project(
         tmp_path,
         """\
@@ -1589,7 +1615,18 @@ markdown_extensions:
     (project / "requirements.txt").write_text("mkdocs-material==9.7.7\n", encoding="utf-8")
     monkeypatch.chdir(project)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
-    monkeypatch.setattr("prodockit.adopt.install_tool", lambda root, component, **_kwargs: [])
+    installed = set()
+
+    def install(root, component, **_kwargs):
+        if renderer_usable:
+            installed.add(component)
+        return []
+
+    monkeypatch.setattr("prodockit.adopt.install_tool", install)
+    monkeypatch.setattr(
+        "prodockit.adopt._tool_health",
+        lambda root, component, **_kwargs: (component in installed, "test renderer"),
+    )
 
     preview = CliRunner().invoke(main, ["adopt", "--dry-run", "--mermaid", "--no-maths"])
     assert preview.exit_code == 0, preview.output
@@ -1600,11 +1637,26 @@ markdown_extensions:
         input="y\ny\ny\ny\n",
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == (0 if renderer_usable else 1), result.output
+    if not renderer_usable:
+        assert "ADOPTION IS INCOMPLETE" in result.output
+        assert "Adoption configuration verified" not in result.output
     config = (project / "mkdocs.yml").read_text(encoding="utf-8")
     assert "  pymdownx.superfences:\n    custom_fences:" in config
     assert "      - name: mermaid" in config
     assert f"prodockit=={__version__}" in (project / "requirements.txt").read_text(encoding="utf-8")
+
+
+def test_declining_all_required_activities_reports_incomplete(tmp_path: Path, monkeypatch):
+    project = _project(tmp_path)
+    source = (project / "zensical.toml").read_text()
+    monkeypatch.chdir(project)
+    result = CliRunner().invoke(main, ["adopt", "--apply"], input="n\n" * 10)
+    assert result.exit_code == 1, result.output
+    assert "ADOPTION IS INCOMPLETE" in result.output
+    assert "required activities were declined" in result.output
+    assert (project / "zensical.toml").read_text() == source
+    assert not (project / MANIFEST).exists()
 
 
 def test_apply_refuses_an_unsafe_yaml_form_before_updating_requirements(

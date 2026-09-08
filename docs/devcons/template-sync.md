@@ -317,8 +317,9 @@ its installation logic independent of the template. Template Sync only
 orchestrates that implementation; it does not duplicate it.
 `.prodockit-components.toml` is project-owned and is therefore not copied or
 overwritten from the template. If it is absent in an older project, Adopt
-infers established Mermaid and maths choices from the Zensical configuration
-and saves that local record when its integration stage is approved. Files
+defaults Mermaid and maths off and saves that local record when its integration
+activity is approved. Run `pdk adopt --configure` before Template Sync when the
+project needs either optional renderer. Files
 declared in `.prodockit-shared-files.toml`, including the managed website and PDF
 stylesheets, are refreshed from the installed Prodockit release and included
 in the same review request. The merge request therefore contains a complete,

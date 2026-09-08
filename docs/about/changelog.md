@@ -19,6 +19,25 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Made optional Mermaid and maths renderers default off when a fresh project has no
+  `.prodockit-components.toml`; Zensical's capable starter configuration is no
+  longer mistaken for an author choice. Template projects retain both choices
+  through their committed component file.
+- Detect existing project-local renderer scaffolds when no component choices are
+  saved, including incomplete installations that need repair.
+- Add caption types and reusable website/PDF defaults during adoption without
+  replacing author settings. Configuration and shared-asset updates use atomic
+  file replacement; identical files are left untouched on a repeat run.
+- Honour the configured documentation directory when installing MathJax's
+  website bundle, configuration and licence. Interactive adoption now reports
+  incomplete work instead of unconditionally announcing success.
+- Added a prominent coloured Adopt blocker summary with platform-specific
+  Node.js recovery guidance before the detailed activity report.
+- Added an explicit renderer-configuration and conditional Node.js preparation
+  step to the first-site installation route.
+
 ## 0.61.6 (2026-09-08)
 
 - Made Adopt and its readiness checks recognise cache-versioned stylesheet and
