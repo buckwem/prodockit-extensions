@@ -279,6 +279,21 @@ def test_acceptance_cli_repair_is_scoped_to_the_seeded_failures(tmp_path: Path) 
     assert command.count("--apply-check") == len(diagnostics_acceptance_driver.REPAIRABLE_CHECKS)
 
 
+def test_online_update_notice_does_not_make_a_successful_pin_repair_fail() -> None:
+    check = {
+        "status": "warn",
+        "data": {
+            "inconsistent": [],
+            "supported_mismatches": [],
+            "updates": ["zensical"],
+        },
+    }
+
+    assert diagnostics_acceptance_driver._repair_cleared("dependencies.pins", check)
+    check["data"]["supported_mismatches"] = ["zensical"]
+    assert not diagnostics_acceptance_driver._repair_cleared("dependencies.pins", check)
+
+
 def test_diagnostic_repair_workflow_has_six_repair_and_twelve_toolchain_environments() -> None:
     workflow = (ROOT / ".github/workflows/diag-repair.yml").read_text(encoding="utf-8")
     runners = {

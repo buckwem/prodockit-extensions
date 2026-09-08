@@ -162,6 +162,7 @@ def main(arguments: list[str] | None = None) -> int:
         old_source = acceptance.snapshot(project)
 
         install_upgrade(python, wheel)
+        acceptance.install_tested_renderer(python, temporary_path)
         candidate_versions = installed_versions(python, temporary_path)
         if candidate_versions["prodockit"] == old_versions["prodockit"]:
             raise acceptance.AcceptanceError("candidate did not upgrade the installed Prodockit")

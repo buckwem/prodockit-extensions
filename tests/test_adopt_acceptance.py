@@ -208,6 +208,7 @@ def test_a_failed_run_still_writes_an_acceptance_report(
     )
     monkeypatch.setattr(adopt_acceptance, "venv_python", lambda path: Path(sys.executable))
     monkeypatch.setattr(adopt_acceptance, "install_candidate", lambda *args: None)
+    monkeypatch.setattr(adopt_acceptance, "install_tested_renderer", lambda *args: None)
     monkeypatch.setattr(
         adopt_acceptance,
         "exercise_fixture",
@@ -263,6 +264,8 @@ def test_site_snapshot_ignores_only_assets_added_by_adoption(tmp_path: Path) -> 
     adopted = (
         b'<html><head><link rel="stylesheet" href="./stylesheets/pdk.css">'
         b"</head><body><p>Same</p>"
+        b'<script src="./javascripts/pdk.js"></script>'
+        b'<script src="./javascripts/extra.js"></script>'
         b'<script src="./javascripts/mathjax.js"></script></body></html>'
     )
     (before / "index.html").write_bytes(original)
@@ -280,3 +283,33 @@ def test_site_snapshot_ignores_only_assets_added_by_adoption(tmp_path: Path) -> 
     assert adopt_acceptance.snapshot(before, site=True) != adopt_acceptance.snapshot(
         after, site=True
     )
+
+
+def test_baseline_renderer_uses_versions_declared_by_the_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    commands: list[list[str]] = []
+
+    def completed(command, **_kwargs):
+        commands.append(command)
+        output = (
+            "zensical==0.0.59\nMarkdown==3.10.3\n"
+            "pymdown-extensions==11.0.2\n"
+            if command[-2:] != ["pip", "install"]
+            else ""
+        )
+        return subprocess.CompletedProcess(command, 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(adopt_acceptance, "run", completed)
+
+    adopt_acceptance.install_tested_renderer(Path("python"), tmp_path)
+
+    assert commands[-1] == [
+        "python",
+        "-m",
+        "pip",
+        "install",
+        "zensical==0.0.59",
+        "Markdown==3.10.3",
+        "pymdown-extensions==11.0.2",
+    ]

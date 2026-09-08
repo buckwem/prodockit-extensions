@@ -248,6 +248,47 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
+      - name: Install Pango on macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew install pango
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
+      - name: Install Pango in the existing Windows x64 MSYS2
+        if: runner.os == 'Windows' && matrix.architecture == 'x64'
+        shell: pwsh
+        run: |
+          & "C:\msys64\usr\bin\bash.exe" -lc "pacman -S --noconfirm mingw-w64-ucrt-x86_64-pango"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Pango installation failed with exit code $LASTEXITCODE"
+          }
+      - id: pango-windows-arm64
+        name: Install Pango on Windows ARM64
+        if: runner.os == 'Windows' && matrix.architecture == 'arm64'
+        uses: msys2/setup-msys2@v2
+        with:
+          location: 'C:\'
+          msystem: CLANGARM64
+          update: true
+          install: mingw-w64-clang-aarch64-pango
+      - name: Expose Pango to WeasyPrint on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if ('${{ matrix.architecture }}' -eq 'arm64') {
+            $msysEnvironment = "clangarm64"
+            $root = '${{ steps.pango-windows-arm64.outputs.msys2-location }}'
+          } else {
+            $msysEnvironment = "ucrt64"
+            $root = "C:\msys64"
+          }
+          $bin = "$root\$msysEnvironment\bin"
+          if (-not (Test-Path "$bin\libpango-1.0-0.dll")) {
+            throw "Pango DLL was not installed at $bin"
+          }
+          [Environment]::SetEnvironmentVariable(
+            "WEASYPRINT_DLL_DIRECTORIES", $bin, "User"
+          )
+          "WEASYPRINT_DLL_DIRECTORIES=$bin" >> $env:GITHUB_ENV
       - name: Restore validated native download cache
         uses: actions/cache@v4
         with:
