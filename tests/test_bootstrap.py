@@ -2260,6 +2260,9 @@ _STAGE_ROW = re.compile(
     flags=re.MULTILINE,
 )
 BOOTSTRAP_PAGE = Path(__file__).resolve().parents[1] / "docs" / "devcons" / "bootstrap.md"
+BOOTSTRAP_COMMAND_PAGE = (
+    Path(__file__).resolve().parents[1] / "docs" / "commands" / "bootstrap.md"
+)
 
 
 def test_the_documented_stages_are_the_stages() -> None:
@@ -2270,7 +2273,7 @@ def test_the_documented_stages_are_the_stages() -> None:
     setup was told "All 23 stages are set up" by a page listing eighteen,
     and had no way to tell which of the two was wrong.
     """
-    page = BOOTSTRAP_PAGE.read_text(encoding="utf-8")
+    page = BOOTSTRAP_COMMAND_PAGE.read_text(encoding="utf-8")
     table = page[page.index('| Phase {: width="18%" } |') :]
     rows = _STAGE_ROW.findall(table[: table.index("\n\n")])
 

@@ -171,17 +171,10 @@ directory:
 zensical new .
 ```
 
-This creates the plain Zensical structure shown below:
-
-/// tree
-.github/
-  workflows/
-    docs.yml - Zensical's GitHub Pages workflow
-docs/
-  index.md - starter home page
-  markdown.md - starter Markdown example
-zensical.toml - Zensical project configuration
-///
+This creates the [clean Zensical project structure shown in section
+3.2](installation.md#installation-project-structure). Review that tree before
+continuing so you can distinguish Zensical's files from the files Prodockit
+adds later.
 
 ////
 
@@ -281,26 +274,11 @@ Read each stage before accepting it. For this first site, leave Mermaid and
 maths off unless you intend to use them. Adopt does not configure Git, SSH,
 remotes, editors, commits, or publishing.
 
-After Adopt, the project retains the Zensical files and adds the Prodockit
-project files shown below. The descriptions identify the additions; Adopt also
-updates `zensical.toml` to enable the standard components and load the shared
+After Adopt, the project retains the Zensical files and adds the [Prodockit
+project files shown in section
+3.2](installation.md#installation-project-structure). Adopt also updates
+`zensical.toml` to enable the standard components and load the shared
 stylesheet.
-
-/// tree
-.github/
-  workflows/
-    docs.yml - original Zensical workflow
-docs/
-  stylesheets/
-    pdk.css - shared Prodockit website styles added by Adopt
-  index.md - original starter home page
-  markdown.md - original starter Markdown example
-.prodockit-components.toml - optional component choices added by Adopt
-.prodockit-toolchain.toml - supported tool versions added by Adopt
-.python-version - supported Python release added by Adopt
-requirements.txt - supported Python packages added by Adopt
-zensical.toml - original configuration updated by Adopt
-///
 
 ////
 
@@ -484,6 +462,55 @@ the published downloads stay current.
 ////
 
 ///
+
+## Understand the completed project {: #first-site-completed-project }
+
+This section explains which parts of the adopted site Prodockit maintains and
+how to keep the completed project aligned after installation.
+
+### Know what becomes yours {: #first-site-ownership }
+
+This route starts with a clean Zensical site and then uses Adopt to add the
+selected Prodockit components. The [adopted project
+tree](installation.md#installation-adopted-structure) shows the principal
+managed and user-managed files together.
+
+Prodockit maintains its standard stylesheets, JavaScript, supported-toolchain
+record, and saved component choices. Your Markdown, images, bibliography,
+site identity, navigation, and the contents of `extra.css`, `print.css`, and
+`extra.js` remain yours. Generated output and `.venv` stay local and can be
+recreated.
+
+Adoption does not pair this clean site with `prodockit-template`, so
+`pdk template-sync` does not apply unless a template relationship is
+deliberately established later.
+
+### Keep the project current {: #first-site-maintenance }
+
+Follow this sequence inside the active project environment:
+
+1. Use the platform-specific command earlier in this section to upgrade
+   Prodockit.
+2. Ask Adopt to compare the project with the newly supported combination:
+
+   ```bash
+   pdk adopt --dry-run
+   ```
+
+   Review the reported files. If Adopt selects any activities, apply them:
+
+   ```bash
+   pdk adopt --apply
+   ```
+
+3. Run Diagnostics as the final integration check:
+
+   ```bash
+   pdk diag
+   ```
+
+Continue only when the required checks pass. Then rebuild the website and both
+downloadable outputs, inspect them, and commit only the reviewed project files.
 
 ## Where to go next {: #getting-started-where-to-go-next }
 

@@ -148,23 +148,14 @@ def test_template_introduction_explains_contents_and_ownership() -> None:
     guide = (ROOT / "docs" / "devcons" / "bootstrap.md").read_text(encoding="utf-8")
     required = (
         "one source, two outputs",
-        "zensical.toml",
-        ".github/",
-        "workflows/",
-        "docs.yml",
-        "release-redeploy.yml",
-        ".gitlab-ci.yml",
-        ".prodockit-template.toml",
+        "installation-template-structure",
         "Project-owned",
         "Template-owned",
-        "Shared",
+        "Generated and local files",
         "prodockit bootstrap",
-        "prodockit template-sync",
+        "pdk template-sync",
         "maintained on GitHub",
         "student-facing mirror",
-        "is_surrey",
-        "Surrey cover",
-        "Surrey logos",
     )
 
     missing = [item for item in required if item not in guide]

@@ -180,8 +180,8 @@ def test_bootstrap_maturity_distinguishes_manual_and_automated_coverage() -> Non
         "github.com",
         "new document repository",
         "existing online repository",
-        "not an automated cross-platform regression matrix",
-        "full test suite is also run locally on macOS",
+        "not an automated cross-platform full-suite regression matrix",
+        "The full test suite is also run locally",
     ):
         assert phrase in combined
 

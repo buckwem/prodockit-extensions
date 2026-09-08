@@ -27,6 +27,7 @@ ADOPTION = REPO / "docs" / "adopt.md"
 BOOTSTRAP_GUIDE = REPO / "docs" / "devcons" / "bootstrap.md"
 FIRST_SITE = REPO / "docs" / "getting-started.md"
 PUBLISHING = REPO / "docs" / "publishing.md"
+MANUAL_INSTALL = REPO / "docs" / "manual-install.md"
 POWERSHELL_POLICY = "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned"
 
 if sys.version_info >= (3, 11):  # pragma: no cover - version-gated import
@@ -262,8 +263,38 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert "installation.md#installation-preparation" in page
     assert "independent of section 6's template-site" in page
     assert page.count("//// step | ") == 15
-    assert page.count("/// tree") == 2
+    assert page.count("/// tree") == 0
     assert page.count("/// steps") == 5
+
+    preparation = INSTALLATION.read_text(encoding="utf-8")
+    structure = preparation[
+        preparation.index("## Understand the project structure") :
+        preparation.index("## Continue with an installation route")
+    ]
+    assert structure.count("/// tree") == 3
+    routes = preparation[preparation.index("## Continue with an installation route") :]
+    assert "grid cards installation-route-grid" in routes
+    assert routes.count(".md-button--primary .installation-route-button") == 4
+    assert "### A clean Zensical site" in structure
+    assert "### The site after adding Prodockit" in structure
+    assert "### A site created from prodockit-template" in structure
+    for stylesheet in (
+        "pdk.css",
+        "template.css",
+        "extra.css",
+        "pdk-pdf.css",
+        "print.css",
+    ):
+        assert stylesheet in structure
+    assert structure.count("USER-MANAGED") == 6
+    assert "`pdk.css` first and `extra.css` last" in structure
+    assert "`pdk-pdf.css` followed by `print.css`" in structure
+    assert structure.count("pdk.js - managed Prodockit website behaviour") == 2
+    assert structure.count("mathjax.js - generated Prodockit") == 2
+    assert structure.count("tex-svg-full.js - vendor MathJax browser bundle") == 2
+    assert structure.count("extra.js - USER-MANAGED website behaviour") == 2
+    assert structure.count("LICENSE - vendor licence supplied with MathJax") == 2
+    assert page.count("installation.md#installation-project-structure") == 2
     for phase in (
         "### Stage 1 — Prepare the project environment",
         "### Stage 2 — Install and prove Zensical",
@@ -360,10 +391,11 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     page = BOOTSTRAP_GUIDE.read_text(encoding="utf-8")
 
     assert ".prodockit-components.toml" in page
+    assert "/// tree" not in page
     assert "records Mermaid and maths as the project's selected components" in page
     assert "later `pdk adopt` can therefore repair" in page
 
-    installation = page[page.index("## Install with bootstrap") : page.index("## What it covers")]
+    installation = page[page.index("## Install with bootstrap") : page.index("## Understand the completed project")]
     assert "installation.md#installation-preparation" in installation
     assert installation.count("//// step | ") == 14
     assert "### Stage 1 — Prepare the setup environment" in installation
@@ -384,7 +416,7 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert "pip3 install --upgrade pip\n    pip3 install --upgrade prodockit" in install_step
     assert install_step.count("pip install --upgrade pip\n    pip install --upgrade prodockit") == 2
     manual_start = installation.index("//// step | Complete the browser actions")
-    manual_end = installation.index("//// step | Confirm every Bootstrap stage")
+    manual_end = installation.index("//// step | Confirm every Bootstrap activity")
     manual = installation[manual_start:manual_end]
     assert '!!! warning "Complete the manual step before confirming"' in manual
     assert "Type `yes` only after checking that the action succeeded" in " ".join(manual.split())
@@ -403,3 +435,52 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
 
     for legacy_tab in ('=== "macOS"', '=== "Windows"', '=== "Ubuntu"'):
         assert legacy_tab not in page
+
+
+def test_install_routes_explain_ownership_and_maintenance() -> None:
+    routes = {
+        FIRST_SITE: "installation.md#installation-adopted-structure",
+        ADOPTION: "installation.md#installation-adopted-structure",
+        BOOTSTRAP_GUIDE: "fig-template-file-ownership",
+        MANUAL_INSTALL: "installation.md#installation-project-structure",
+    }
+
+    for path, ownership_reference in routes.items():
+        page = path.read_text(encoding="utf-8")
+        completed = page[
+            page.index("## Understand the completed project") :
+            page.index("## Where to go next")
+        ]
+        assert "### Know what becomes yours" in completed
+        assert "### Keep the project current" in completed
+        assert ownership_reference in completed
+
+    first_site = FIRST_SITE.read_text(encoding="utf-8")
+    assert "does not pair this clean site with `prodockit-template`" in first_site
+
+    adoption = ADOPTION.read_text(encoding="utf-8")
+    assert "neither creates nor removes a template relationship" in adoption
+
+    for page in (first_site, adoption):
+        maintenance = page[
+            page.index("### Keep the project current") :
+            page.index("## Where to go next")
+        ]
+        assert maintenance.index("upgrade\n   Prodockit") < maintenance.index("pdk adopt --dry-run")
+        assert maintenance.index("pdk adopt --dry-run") < maintenance.index("pdk diag")
+        assert "pdk adopt --apply" in maintenance
+        assert "Continue only when the required checks pass" in maintenance
+
+    bootstrap = BOOTSTRAP_GUIDE.read_text(encoding="utf-8")
+    maintenance = bootstrap[
+        bootstrap.index("### Keep the project current") :
+        bootstrap.index("## Where to go next")
+    ]
+    assert maintenance.index("pdk template-sync") < maintenance.index("pdk adopt --dry-run")
+    assert maintenance.index("pdk adopt --dry-run") < maintenance.index("pdk diag")
+    assert "pdk adopt --apply" in maintenance
+    assert "Continue only when the required checks pass" in maintenance
+
+    manual = MANUAL_INSTALL.read_text(encoding="utf-8")
+    assert "Path 1" in manual and "Path 2" in manual
+    assert "preview `pdk template-sync`" in manual

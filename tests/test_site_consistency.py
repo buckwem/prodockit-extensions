@@ -213,6 +213,8 @@ def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
 
     assert "Start with the [maintenance cycle]" not in introduction
     assert "[Prepare to install](installation.md)" in choices
+    assert "grid cards installation-route-grid" in choices
+    assert choices.count(".md-button--primary .installation-route-button") == 4
     assert "[Authoring reference](authoring.md)" in publishing
     assert "[command-line reference](command-line.md)" in publishing
 
@@ -263,7 +265,7 @@ def test_bootstrap_documents_current_hosts_and_local_config() -> None:
 
     assert "github.com is declared but not yet supported" not in guide
     assert "currently implements gitlab.surrey.ac.uk only" not in guide
-    for phrase in ("gitlab.surrey.ac.uk", "github.com", "gitlab.com", ".pdkboot.toml", "--config"):
+    for phrase in ("gitlab.surrey.ac.uk", "GitHub.com", "GitLab.com", ".pdkboot.toml", "--config"):
         assert phrase in guide
 
 

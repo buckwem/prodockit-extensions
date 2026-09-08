@@ -15,9 +15,9 @@ an existing repository.
 `pdk bootstrap` prepares a machine and a project created from
 `prodockit-template`. `pdk boot` is an exact shorter alias.
 
-For the installation procedure and explanations of the 23 activities, use the
-[Bootstrap task guide](../devcons/bootstrap.md). This page is the command
-interface reference.
+For the installation procedure, use the [Bootstrap task
+guide](../devcons/bootstrap.md). This page defines the command interface,
+phases, activities, modes, and saved configuration.
 
 ## Synopsis {: #cmd-bootstrap-synopsis }
 
@@ -75,6 +75,83 @@ explanation:
 
 Bootstrap output structure
 ///
+
+## Phases and activities {: #cmd-bootstrap-phases }
+
+The task guide uses **stages and steps** for the sequence followed by the
+reader. Bootstrap itself groups 23 independently checked **activities** into
+seven **phases**. \ref{tab-cmd-bootstrap-phases} maps every activity to its
+phase and identifies whether Bootstrap can automate it.
+
+| Phase {: width="18%" } | # {: width="3rem" } | Activity | Automated? {: width="22%" } |
+| --- | --- | --- | --- |
+| 1. Preflight | 1 | prodockit runs in an environment of its own | yes, after a step of your own |
+| 2. Core tools {: rowspan=2 } | 2 | Visual Studio Code | yes, after a step of your own |
+| | 3 | Git, installed and configured | yes |
+| 3. Git and host {: rowspan=4 } | 4 | SSH keypair | yes, after a step of your own |
+| | 5 | SSH config points at the key | yes |
+| | 6 | Key loaded into the ssh agent | yes, after a step of your own |
+| | 7 | SSH key on the host | guide and verify |
+| 4. Project {: rowspan=7 } | 8 | Your own project on the host | guide and verify |
+| | 9 | Pages switched on | guide and verify |
+| | 10 | Where the project comes from | a choice |
+| | 11 | Project cloned | yes |
+| | 12 | A history of your own | yes |
+| | 13 | Clone pointed at your project | yes |
+| | 14 | Commit identity in the project | yes |
+| 5. Build toolchain {: rowspan=3 } | 15 | Pandoc, and the libraries WeasyPrint needs | yes |
+| | 16 | Project environment, dependencies and Adoption component choices | yes |
+| | 17 | Node.js and the render toolchains | yes |
+| 6. Editor and project {: rowspan=4 } | 18 | VS Code extensions | yes |
+| | 19 | VS Code settings for the project | yes |
+| | 20 | Citation style for the first build | yes |
+| | 21 | MathJax for the website | yes |
+| 7. Publish {: rowspan=2 } | 22 | First commit pushed | yes, after a step of your own |
+| | 23 | Documentation site published | guide and verify |
+/// table-caption | <
+    attrs: {id: tab-cmd-bootstrap-phases}
+
+Bootstrap activities grouped into phases
+///
+
+Each activity checks observable evidence before proposing work. An applied
+activity is checked again before Bootstrap continues, and a failure stops later
+dependent activities from running.
+
+## Modes and activity states {: #cmd-bootstrap-modes }
+
+A normal check and `--dry-run` make no changes. `--apply` shows and asks
+about each outstanding activity before acting; `--configure` saves the
+answers and stops. Destructive work requires an explicit answer rather than
+being accepted by pressing Enter. \ref{tab-cmd-bootstrap-states} explains the
+states that can appear beside an activity.
+
+| State | Meaning |
+| --- | --- |
+| `ok` | The activity is set up correctly; a rerun leaves it alone. |
+| `WARN` | It may be usable, but a compatibility fact could not be verified. |
+| `MISS` | The required item is absent. |
+| `WRONG` | An item exists but is not usable in its current state. |
+| `?` | Bootstrap needs a configuration answer before it can decide. |
+| `WAIT` | An earlier activity must complete first. |
+/// table-caption | <
+    attrs: {id: tab-cmd-bootstrap-states}
+
+Bootstrap activity states
+///
+
+## Configuration {: #cmd-bootstrap-configuration }
+
+Bootstrap saves personal, host, and project choices in `.pdkboot.toml` in the
+setup directory. It supports GitHub.com, GitLab.com, and the University of
+Surrey GitLab. The source is normally the appropriate maintained template;
+when an existing repository is supplied, Bootstrap clones that repository
+without replacing its history.
+
+Use `--configure` to review all answers or `--config PATH` to deliberately
+use another file. The configuration can include a name, email, username, host,
+namespace, project name, project directory, and optional source URL. It must
+never contain a password, token, or SSH passphrase.
 
 ## Effects and prompts {: #cmd-bootstrap-effects-and-prompts }
 
