@@ -21,7 +21,6 @@ def test_topic_owner_pages_define_their_principal_index_entries() -> None:
         "docs/devcons/bootstrap.md": (
             r"\index{commands!`prodockit bootstrap`}",
             r"\index{`prodockit-template`}",
-            r"\index{`is_surrey`}",
         ),
         "docs/command-line.md": (r"\index{command-line interface}",),
         "docs/update-dates.md": (r"\index{page update dates}",),

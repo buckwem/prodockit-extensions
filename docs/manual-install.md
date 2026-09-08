@@ -1626,6 +1626,48 @@ section rather than replacing the repository's history.
 
 ///
 
+## Understand the completed project {: #manual-completed-project }
+
+This section explains how ownership and future maintenance depend on the manual
+path used to obtain the project.
+
+### Know what becomes yours {: #manual-project-ownership }
+
+A manual installation gives you direct responsibility for the commands and
+project decisions in this section. Use the [project structure
+overview](installation.md#installation-project-structure) to distinguish
+source files from the local environments, installed renderer bundles, caches,
+and generated output that can be recreated.
+
+The maintenance model depends on the path used to obtain the project. Path 1
+starts from `prodockit-template`, so its template manifest continues to
+classify template-managed, project-owned, and generated files. Path 2 keeps
+whatever ownership and maintenance metadata the existing repository already
+had; manually installing Prodockit does not create a template relationship.
+
+Your authored content and project-specific overrides remain yours in both
+paths. Running the commands manually does not transfer ownership of those
+files to Prodockit.
+
+### Keep the project current {: #manual-project-maintenance }
+
+Start every maintenance pass in the active project environment. Upgrade the
+declared requirements by following the same platform-specific installation
+steps used above, then run Diagnostics before rebuilding:
+
+```bash
+pdk diag
+zensical build --clean --strict
+pdk pdf
+```
+
+For a Path 1 template project, preview `pdk template-sync` and follow the
+Template Sync review workflow when an update is available. For a Path 2
+project without template metadata, maintain its files through its existing
+workflow. If you later want Adopt to align the toolchain and selected
+components, begin with `pdk adopt --dry-run` and review the proposed scope
+before applying it.
+
 ## Where to go next {: #installtooling-where-to-go-next }
 
 Choose the route that matches the result:

@@ -124,7 +124,7 @@ def test_the_bootstrap_quick_start_uses_it() -> None:
     with commands in them, which is what the layout is for."""
     page = BOOTSTRAP_PAGE.read_text(encoding="utf-8")
     quick = page[
-        page.index("## Install with bootstrap") : page.index("## What it covers")
+        page.index("## Install with bootstrap") : page.index("## Understand the completed project")
     ]
 
     assert "/// steps" in quick

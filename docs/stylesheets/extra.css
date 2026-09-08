@@ -18,3 +18,16 @@
   margin-right: 0.3em;
   vertical-align: -0.15em;
 }
+
+
+/* Keep the installation-route actions aligned at the foot of each card,
+   even when the descriptions occupy different numbers of lines. */
+.md-typeset .grid.cards.installation-route-grid > ul > li {
+  display: flex;
+  flex-direction: column;
+}
+
+.md-typeset .grid.cards.installation-route-grid > ul > li > p:last-child {
+  margin-top: auto;
+  padding-top: 0.8rem;
+}

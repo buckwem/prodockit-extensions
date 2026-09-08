@@ -87,9 +87,9 @@ Manual instructions also declare whether they occur before or after commands.
 Passphrase advice must precede `ssh-keygen`; instructions for configuring an
 installed editor must follow installation.
 
-## Add or change a stage
+## Add or change an activity
 
-When changing a stage, add tests for its complete state classification, plan,
+When changing an activity, add tests for its complete state classification, plan,
 non-interactive command arguments, re-check behaviour, platform/host branches,
 and refusal boundaries. Test the real end-to-end path on supported operating
 systems when the change touches installers, shells, SSH, browsers, or host
@@ -102,3 +102,15 @@ the tools before creating the project. The Surrey existing-repository route
 must make the same upgrades without changing the repository's existing
 history. Both routes must pass a second check and leave a second apply
 unchanged.
+
+## Verify supported platforms and hosts
+
+Automated tests cover every Bootstrap mode and activity. Before a release
+changes installers, shells, SSH, repository hosts, or project environments,
+repeat the connected workflow on the affected platforms rather than treating
+mocked subprocesses as end-to-end evidence.
+
+The complete installation workflow has been exercised manually on Ubuntu,
+Windows, and macOS with GitHub.com, GitLab.com, and the University of Surrey
+GitLab. This is point-in-time integration evidence; it does not replace the
+automated regression suite.

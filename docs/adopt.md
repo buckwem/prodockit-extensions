@@ -422,6 +422,58 @@ Adoption deliberately stops before either action.
 
 ///
 
+## Understand the completed project {: #adopt-completed-project }
+
+This section separates the established project choices retained by Adoption
+from the files and versions Prodockit can maintain later.
+
+### Know what becomes yours {: #adopt-project-ownership }
+
+Adoption integrates Prodockit into the existing site without replacing its
+identity. The [adopted project
+tree](installation.md#installation-adopted-structure) identifies the
+principal files the route adds, but an established project may contain many
+more author-owned pages, assets, extensions, and workflow files.
+
+Prodockit maintains its standard stylesheets, JavaScript, supported-toolchain
+record, and selected renderer configuration. Existing content, Git history,
+remotes, publishing workflow, custom styles, and custom JavaScript remain
+under author control, as shown in the reviewed diff.
+
+Adoption neither creates nor removes a template relationship. If the existing
+project already has valid Template Sync metadata, continue maintaining that
+relationship separately; otherwise `pdk template-sync` does not apply.
+
+### Keep the project current {: #adopt-project-maintenance }
+
+Follow this sequence inside the active project environment:
+
+1. Use the platform-specific command earlier in this section to upgrade
+   Prodockit.
+2. Ask Adopt to compare the existing project with the newly supported
+   combination:
+
+   ```bash
+   pdk adopt --dry-run
+   ```
+
+   Review the proposed files and activities. If work is selected, apply it:
+
+   ```bash
+   pdk adopt --apply
+   ```
+
+3. Run Diagnostics as the final integration check:
+
+   ```bash
+   pdk diag
+   ```
+
+Continue only when the required checks pass. Then rebuild the site and PDF.
+Use `git diff` and `git status --short` before committing because an existing
+project can contain deliberate configuration and design choices that automated
+checks cannot judge.
+
 ## Where to go next {: #adopt-where-to-go-next }
 
 Choose the route that matches the result:

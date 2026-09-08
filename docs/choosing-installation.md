@@ -27,7 +27,7 @@ Choose the Prodockit installation approach
 The four routes below compare their starting points and results in the same
 order as the following sections.
 
-<div class="grid cards" markdown>
+<div class="grid cards installation-route-grid" markdown>
 
 -   :lucide-rocket:{ .lg .middle } __Build your first site__
 
@@ -40,7 +40,7 @@ order as the following sections.
     authoring components, PDF support, and selected renderers without using
     the report template.
 
-    [:octicons-arrow-right-24: Open section 4](getting-started.md)
+    [:octicons-arrow-right-24: Open section 4](getting-started.md){ .md-button .md-button--primary .installation-route-button }
 
 -   :lucide-package-plus:{ .lg .middle } __Upgrade existing site__
 
@@ -53,7 +53,7 @@ order as the following sections.
     the site's content, design decisions, Git history, remotes, editor, and
     publishing workflow rather than turning it into a template project.
 
-    [:octicons-arrow-right-24: Open section 5](adopt.md)
+    [:octicons-arrow-right-24: Open section 5](adopt.md){ .md-button .md-button--primary .installation-route-button }
 
 -   :lucide-rocket:{ .lg .middle } __Build a template site__
 
@@ -67,7 +67,7 @@ order as the following sections.
     resulting site starts from `prodockit-template` and can later receive its
     maintained template updates.
 
-    [:octicons-arrow-right-24: Open section 6](devcons/bootstrap.md)
+    [:octicons-arrow-right-24: Open section 6](devcons/bootstrap.md){ .md-button .md-button--primary .installation-route-button }
 
 -   :lucide-book-open:{ .lg .middle } __Build site manually__
 
@@ -81,7 +81,7 @@ order as the following sections.
     yourself. This manual installation route explains all dependencies but
     does not use Bootstrap or Adoption to orchestrate them.
 
-    [:octicons-arrow-right-24: Open section 7](manual-install.md)
+    [:octicons-arrow-right-24: Open section 7](manual-install.md){ .md-button .md-button--primary .installation-route-button }
 
 </div>
 
