@@ -81,9 +81,13 @@ Adopt output structure
 
 Adopt can install, upgrade, or downgrade software in the active project
 environment to the combination supported by the installed Prodockit release.
-It can also align version declarations, enable the standard extensions and
-styles, save component choices, provision the supported configured citation
-style when it is missing, and initialise selected project-local renderers.
+It can also align version declarations, enable the standard extensions, install
+the managed `pdk.css`, `pdk-pdf.css`, and `pdk.js` files; create missing
+user-managed `extra.css`, `print.css`, and `extra.js` files without replacing
+their contents; record the stylesheet and JavaScript cascades; save component
+choices; provision the supported
+configured citation style when it is missing, and initialise selected
+project-local renderers.
 Existing citation styles are preserved; an unknown custom filename receives
 manual guidance rather than a guessed download. System-native libraries remain
 outside its repair boundary.

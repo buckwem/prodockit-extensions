@@ -19,6 +19,17 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Made Adopt install and register the complete stylesheet cascade: managed
+  `pdk.css` and `pdk-pdf.css`, followed by user-managed `extra.css` and
+  `print.css`. Missing user-managed files are created without replacing
+  existing author CSS, and an existing template layer remains between the
+  managed defaults and author overrides.
+- Moved the standard external-link behaviour into managed `pdk.js`. Adopt
+  installs it before the optional MathJax files and an empty user-managed
+  `extra.js`, preserving existing project JavaScript.
+
 ## 0.61.4 (2026-09-08)
 
 - Made Adopt fetch, validate and cache the configured standard Harvard CSL file

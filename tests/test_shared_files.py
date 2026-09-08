@@ -29,9 +29,16 @@ def _manifest(root: Path, *, source: str = "pdk.css", target: str = "docs/styles
     )
 
 
-@pytest.mark.parametrize("name", ["pdk.css", "pdk-pdf.css"])
-def test_canonical_resources_are_the_extensions_stylesheets(name: str) -> None:
-    assert resource_bytes(name) == (ROOT / "docs/stylesheets" / name).read_bytes()
+@pytest.mark.parametrize(
+    ("name", "path"),
+    [
+        ("pdk.css", "docs/stylesheets/pdk.css"),
+        ("pdk-pdf.css", "docs/stylesheets/pdk-pdf.css"),
+        ("pdk.js", "docs/javascripts/pdk.js"),
+    ],
+)
+def test_canonical_resources_are_the_extensions_assets(name: str, path: str) -> None:
+    assert resource_bytes(name) == (ROOT / path).read_bytes()
 
 
 def test_shared_website_stylesheet_has_no_project_specific_logo_dependency() -> None:
@@ -47,6 +54,7 @@ def test_manifest_manages_only_prodockit_owned_stylesheets() -> None:
     assert [(item.source, item.target) for item in declared] == [
         ("pdk.css", "docs/stylesheets/pdk.css"),
         ("pdk-pdf.css", "docs/stylesheets/pdk-pdf.css"),
+        ("pdk.js", "docs/javascripts/pdk.js"),
     ]
     assert (ROOT / "docs/stylesheets/extra.css").is_file()
     assert (ROOT / "docs/stylesheets/print.css").is_file()

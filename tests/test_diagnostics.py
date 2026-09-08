@@ -301,6 +301,84 @@ def test_environment_rejects_the_setup_venv_inside_a_bootstrapped_project(
     assert "rerun `pdk diag`" in check.details[-1]
 
 
+def test_diagnostics_offers_the_pending_standard_asset_repair() -> None:
+    check = DiagnosticResult(
+        "maintenance.adopt-readiness",
+        "Repository and template maintenance",
+        "warn",
+        "Adopt has one integration activity to apply",
+        (),
+        {
+            "pending": ["core"],
+            "core_fingerprint": "planned-state",
+            "core_paths": [
+                "zensical.toml",
+                "docs/stylesheets/pdk.css",
+                "docs/stylesheets/extra.css",
+                "docs/stylesheets/pdk-pdf.css",
+                "docs/stylesheets/print.css",
+                "docs/javascripts/pdk.js",
+                "docs/javascripts/extra.js",
+            ],
+        },
+    )
+
+    plan = diagnostics.build_repair_dry_run(
+        DiagnosticReport("zensical.toml", ".", False, (check,))
+    )
+    candidate = plan.candidates[0]
+
+    assert candidate.id == "maintenance.adopt-readiness.core-assets"
+    assert candidate.status == "available"
+    assert candidate.choices[0].id == "apply-core-assets"
+    assert "docs/javascripts/pdk.js" in candidate.choices[0].affected_paths
+
+
+def test_diagnostics_repairs_standard_assets_and_preserves_user_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prodockit.adopt import Step
+
+    (tmp_path / "zensical.toml").write_text(
+        """[project]
+site_name = "Existing"
+extra_javascript = ["javascripts/extra.js"]
+
+[project.markdown_extensions]
+""",
+        encoding="utf-8",
+    )
+    scripts = tmp_path / "docs/javascripts"
+    scripts.mkdir(parents=True)
+    extra_js = scripts / "extra.js"
+    extra_js.write_text("// author behaviour\\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "prodockit.adopt.assess",
+        lambda _root, _options, **_kwargs: [
+            Step("core", "Integrate", "Standard authoring components", "ok", "aligned")
+        ],
+    )
+
+    result = diagnostics.repair_adopt_core_assets(
+        tmp_path,
+        options={"mermaid": False, "maths": False},
+        expected_fingerprint=diagnostics._adopt_core_fingerprint(tmp_path),
+        timestamp="20260908T120000.000000Z",
+    )
+
+    config = (tmp_path / "zensical.toml").read_text(encoding="utf-8")
+    assert result.status == "applied"
+    assert (scripts / "pdk.js").is_file()
+    assert extra_js.read_text(encoding="utf-8") == "// author behaviour\\n"
+    assert config.index('"javascripts/pdk.js"') < config.index('"javascripts/extra.js"')
+    assert all(
+        (tmp_path / "docs/stylesheets" / name).is_file()
+        for name in ("pdk.css", "extra.css", "pdk-pdf.css", "print.css")
+    )
+    assert result.manifest is not None
+
+
 def test_diagnostics_reports_the_same_pending_adopt_stages(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

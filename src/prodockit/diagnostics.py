@@ -333,10 +333,10 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "Run `pdk template-sync` to preview it before applying it.",
     ),
     "maintenance.adopt-readiness": RepairPolicy(
-        "manual",
-        "Adopt owns supported-toolchain and standard-component integration independently "
-        "of prodockit-template.",
-        "Run `pdk adopt --dry-run`, review its stages, then run `pdk adopt --apply`.",
+        "confirmable",
+        "The standard asset activity has deterministic package-owned inputs and "
+        "preserves user-managed files.",
+        "Use `pdk diag --apply` for standard assets; use Adopt for other integration work.",
     ),
     "repository.inspection": RepairPolicy(
         "manual",
@@ -1238,6 +1238,42 @@ def _renderer_candidate(check: DiagnosticResult, report: DiagnosticReport) -> Re
     )
 
 
+def _adopt_candidates(check: DiagnosticResult) -> list[RepairCandidate]:
+    """Offer only the deterministic core-asset part of pending Adopt work."""
+    policy = REPAIR_REGISTRY[check.id]
+    if "core" not in check.data.get("pending", ()):
+        return [_generic_candidate(check)]
+    paths = tuple(str(path) for path in check.data.get("core_paths", ()))
+    if not paths or not check.data.get("core_fingerprint"):
+        return [_generic_candidate(check)]
+    return [
+        RepairCandidate(
+            "maintenance.adopt-readiness.core-assets",
+            check.id,
+            "confirmable",
+            "available",
+            "Install and configure the standard Prodockit CSS and JavaScript assets",
+            policy.reason,
+            policy.remediation,
+            (
+                RepairChoice(
+                    "apply-core-assets",
+                    "Apply the standard asset and configuration repair",
+                    internal_operation="maintenance.adopt-readiness.apply-core-assets",
+                    affected_paths=paths,
+                    warning=(
+                        "Managed assets are refreshed; existing user-managed extra.css, "
+                        "print.css, and extra.js contents are preserved."
+                    ),
+                    warning_severity="warning",
+                    rollback="restore the configuration and assets from diagnostic quarantine",
+                ),
+                _leave_unchanged(),
+            ),
+        )
+    ]
+
+
 def build_repair_dry_run(
     report: DiagnosticReport, *, check_ids: tuple[str, ...] = ()
 ) -> RepairDryRun:
@@ -1280,6 +1316,8 @@ def build_repair_dry_run(
             candidates.append(_renderer_candidate(check, report))
         elif check.id == "project.configuration" and check.data.get("repairable_problems"):
             candidates.extend(_configuration_candidates(check))
+        elif check.id == "maintenance.adopt-readiness":
+            candidates.extend(_adopt_candidates(check))
         else:
             candidates.append(_generic_candidate(check))
     for check_id in sorted(selected - seen):
@@ -3737,6 +3775,98 @@ def _repository_checks(root: Path, online: bool) -> list[DiagnosticResult]:
     return checks
 
 
+def _adopt_core_paths(root: Path) -> tuple[Path, ...]:
+    from prodockit.adopt import _config, _javascript_paths, _stylesheet_paths
+
+    config_path, _source, parsed = _config(root)
+    styles = _stylesheet_paths(root, parsed)
+    scripts = _javascript_paths(root, parsed)
+    return (config_path, *styles.values(), *scripts.values())
+
+
+def _adopt_core_fingerprint(root: Path) -> str:
+    digest = hashlib.sha256()
+    for path in _adopt_core_paths(root):
+        relative = path.relative_to(root).as_posix()
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        if path.is_file() and not path.is_symlink():
+            digest.update(path.read_bytes())
+        elif path.exists() or path.is_symlink():
+            digest.update(b"<unsafe>")
+        else:
+            digest.update(b"<missing>")
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def repair_adopt_core_assets(
+    root: Path,
+    *,
+    options: dict[str, bool],
+    expected_fingerprint: str,
+    timestamp: str | None = None,
+) -> RepairApplyResult:
+    """Transactionally apply only Adopt's standard extension and asset activity."""
+    from prodockit.adopt import AdoptOptions, apply_step, assess
+
+    project = root.resolve()
+    if _adopt_core_fingerprint(project) != expected_fingerprint:
+        raise RepairTransactionError(
+            "standard asset repair plan became stale; rerun `pdk diag --apply`"
+        )
+    selected = AdoptOptions(
+        mermaid=bool(options.get("mermaid", False)),
+        maths=bool(options.get("maths", False)),
+    )
+    paths = _adopt_core_paths(project)
+    before = {
+        path: path.read_bytes() if path.is_file() and not path.is_symlink() else None
+        for path in paths
+    }
+    transaction = RepairTransaction(
+        project,
+        action_id="maintenance.adopt-readiness.core-assets",
+        check_id="maintenance.adopt-readiness",
+        choice_id="apply-core-assets",
+        timestamp=timestamp,
+    )
+    try:
+        transaction.begin()
+        for path in paths:
+            relative = path.relative_to(project).as_posix()
+            if path.exists() or path.is_symlink():
+                transaction.backup_path(path, backup_name=relative)
+            else:
+                transaction.record_creation(path)
+        apply_step(project, selected, "core", offline=True)
+        core = next(step for step in assess(project, selected, offline=True) if step.id == "core")
+        if core.needs_work:
+            raise RepairTransactionError(
+                f"verification still reports standard asset work: {core.detail}"
+            )
+        transaction.commit()
+    except Exception as error:
+        try:
+            transaction.rollback(str(error))
+        except RepairRollbackError:
+            raise
+        if isinstance(error, RepairTransactionError):
+            raise
+        raise RepairTransactionError(f"standard asset repair failed: {error}") from error
+    changed = tuple(
+        path.relative_to(project).as_posix()
+        for path in paths
+        if (path.read_bytes() if path.is_file() else None) != before[path]
+    )
+    return RepairApplyResult(
+        "applied" if changed else "not-needed",
+        changed,
+        str(transaction.quarantine.relative_to(project)),
+        str(transaction.manifest_path.relative_to(project)),
+    )
+
+
 def _adopt_readiness_checks(
     root: Path,
     *,
@@ -3777,12 +3907,14 @@ def _adopt_readiness_checks(
         step for step in integration_steps if step.selected and step.status == "wrong"
     ]
     pending = [step for step in integration_steps if step.needs_work]
-    data = {
+    data: dict[str, Any] = {
         "options": {"mermaid": options.mermaid, "maths": options.maths},
         "options_source": resolution.source,
         "options_saved": resolution.saved,
         "blockers": [step.id for step in blockers],
         "pending": [step.id for step in pending],
+        "core_paths": [],
+        "core_fingerprint": None,
         "steps": [
             {
                 "id": step.id,
@@ -3794,6 +3926,16 @@ def _adopt_readiness_checks(
             for step in steps
         ],
     }
+    if "core" in data["pending"]:
+        try:
+            data["core_paths"] = [
+                path.relative_to(root).as_posix() for path in _adopt_core_paths(root)
+            ]
+            data["core_fingerprint"] = _adopt_core_fingerprint(root)
+        except (AdoptError, OSError, RepairTransactionError, ValueError):
+            # The enclosing Adopt report remains useful. Without an exact
+            # bounded target set, Diagnostics deliberately leaves repair to Adopt.
+            pass
     if blockers:
         return [
             DiagnosticResult(

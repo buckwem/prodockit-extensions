@@ -7,3 +7,7 @@ target = "docs/stylesheets/pdk.css"
 [[files]]
 source = "pdk-pdf.css"
 target = "docs/stylesheets/pdk-pdf.css"
+
+[[files]]
+source = "pdk.js"
+target = "docs/javascripts/pdk.js"

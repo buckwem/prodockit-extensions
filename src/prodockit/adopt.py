@@ -57,6 +57,13 @@ else:  # pragma: no cover - exercised by the Python 3.10 CI job
 
 MANIFEST = ".prodockit-components.toml"
 STYLESHEET = Path("docs/stylesheets/pdk.css")
+MANAGED_STYLESHEETS = ("pdk.css", "pdk-pdf.css")
+MANAGED_JAVASCRIPTS = ("pdk.js",)
+USER_MANAGED_JAVASCRIPTS = {"extra.js": ""}
+USER_MANAGED_STYLESHEETS = {
+    "extra.css": "/* Add project-specific website and PDF styles below this line. */\n",
+    "print.css": "/* Add project-specific PDF-only styles below this line. */\n",
+}
 CONFIG_NAMES = (
     "zensical.toml",
     "zensical.yml",
@@ -457,8 +464,29 @@ def _docs_dir(parsed: dict[str, Any]) -> Path:
     return path
 
 
+def _stylesheet_dir(root: Path, parsed: dict[str, Any]) -> Path:
+    return root / _docs_dir(parsed) / "stylesheets"
+
+
 def _stylesheet_path(root: Path, parsed: dict[str, Any]) -> Path:
-    return root / _docs_dir(parsed) / "stylesheets" / "pdk.css"
+    """Return the original public pdk.css path for compatibility."""
+    return _stylesheet_dir(root, parsed) / "pdk.css"
+
+
+def _stylesheet_paths(root: Path, parsed: dict[str, Any]) -> dict[str, Path]:
+    directory = _stylesheet_dir(root, parsed)
+    return {
+        name: directory / name
+        for name in (*MANAGED_STYLESHEETS, *USER_MANAGED_STYLESHEETS)
+    }
+
+
+def _javascript_paths(root: Path, parsed: dict[str, Any]) -> dict[str, Path]:
+    directory = root / _docs_dir(parsed) / "javascripts"
+    return {
+        name: directory / name
+        for name in (*MANAGED_JAVASCRIPTS, *USER_MANAGED_JAVASCRIPTS)
+    }
 
 
 def _missing_core_extensions(parsed: dict[str, Any]) -> list[str]:
@@ -485,11 +513,32 @@ def _tree_icons_ok(parsed: dict[str, Any], *, require_python_names: bool = False
 def _style_ok(root: Path, parsed: dict[str, Any]) -> bool:
     project = parsed.get("project", parsed)
     extra_css = project.get("extra_css", []) if isinstance(project, dict) else []
-    path = _stylesheet_path(root, parsed)
+    extra_javascript = project.get("extra_javascript", []) if isinstance(project, dict) else []
+    extra = project.get("extra", {}) if isinstance(project, dict) else {}
+    pdf_extra_css = extra.get("pdf_extra_css", []) if isinstance(extra, dict) else []
+    styles = _stylesheet_paths(root, parsed)
+    scripts = _javascript_paths(root, parsed)
     return (
-        path.is_file()
-        and same_text_content(path.read_bytes(), resource_bytes("pdk.css"))
-        and "stylesheets/pdk.css" in extra_css
+        all(path.is_file() for path in (*styles.values(), *scripts.values()))
+        and all(
+            same_text_content(styles[name].read_bytes(), resource_bytes(name))
+            for name in MANAGED_STYLESHEETS
+        )
+        and all(
+            same_text_content(scripts[name].read_bytes(), resource_bytes(name))
+            for name in MANAGED_JAVASCRIPTS
+        )
+        and all(
+            configured in values
+            for configured, values in (
+                ("stylesheets/pdk.css", extra_css),
+                ("stylesheets/extra.css", extra_css),
+                ("stylesheets/pdk-pdf.css", pdf_extra_css),
+                ("stylesheets/print.css", pdf_extra_css),
+                ("javascripts/pdk.js", extra_javascript),
+                ("javascripts/extra.js", extra_javascript),
+            )
+        )
     )
 
 
@@ -755,6 +804,25 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
         '"stylesheets/pdk.css"',
         prepend=True,
     )
+    source = _add_array_value(
+        source,
+        "project",
+        "extra_css",
+        '"stylesheets/extra.css"',
+    )
+    source = _add_array_value(
+        source,
+        "project.extra",
+        "pdf_extra_css",
+        '"stylesheets/pdk-pdf.css"',
+        prepend=True,
+    )
+    source = _add_array_value(
+        source,
+        "project.extra",
+        "pdf_extra_css",
+        '"stylesheets/print.css"',
+    )
     if options.mermaid:
         existing = configured.get("pymdownx.superfences")
         fences = existing.get("custom_fences", []) if isinstance(existing, dict) else []
@@ -794,14 +862,29 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
             source,
             "project",
             "extra_javascript",
-            '"javascripts/mathjax.js"',
+            '"javascripts/vendor/mathjax/tex-svg-full.js"',
+            prepend=True,
         )
         source = _add_array_value(
             source,
             "project",
             "extra_javascript",
-            '"javascripts/vendor/mathjax/tex-svg-full.js"',
+            '"javascripts/mathjax.js"',
+            prepend=True,
         )
+    source = _add_array_value(
+        source,
+        "project",
+        "extra_javascript",
+        '"javascripts/pdk.js"',
+        prepend=True,
+    )
+    source = _add_array_value(
+        source,
+        "project",
+        "extra_javascript",
+        '"javascripts/extra.js"',
+    )
     try:
         tomllib.loads(source)
     except tomllib.TOMLDecodeError as error:  # pragma: no cover - defensive transaction guard
@@ -891,7 +974,75 @@ def _yaml_add_top_list_value(
     if header_end <= 0:
         header_end = end
     indent = _yaml_list_indent(source, located)
-    return source[:header_end] + f"{indent}- {rendered}\n" + source[header_end:]
+    item = f"{indent}- {rendered}\n"
+    if prepend:
+        return source[:header_end] + item + source[header_end:]
+    return source[:end] + item + source[end:]
+
+
+def _yaml_add_nested_list_value(
+    source: str,
+    parent: str,
+    key: str,
+    rendered: str,
+    *,
+    prepend: bool = False,
+) -> str:
+    """Add an item to a list below one top-level YAML mapping."""
+    parent_block = _yaml_block(source, parent)
+    if parent_block is None:
+        if re.search(rf"(?m)^{re.escape(parent)}:", source):
+            raise AdoptError(
+                f"{parent} uses a YAML form prodockit cannot update safely; "
+                "write it as an indented mapping and rerun"
+            )
+        lead = "" if source.endswith("\n") else "\n"
+        return f"{source}{lead}\n{parent}:\n  {key}:\n    - {rendered}\n"
+
+    parent_start, parent_end = parent_block
+    region = source[parent_start:parent_end]
+    child = re.search(
+        rf"(?m)^(?P<indent>[ \t]+){re.escape(key)}:[ \t]*(?P<inline>\[[^\]\n]*\])?[ \t]*$",
+        region,
+    )
+    if child is None:
+        if re.search(rf"(?m)^[ \t]+{re.escape(key)}:", region):
+            raise AdoptError(
+                f"{parent}.{key} uses a YAML form prodockit cannot update safely; "
+                "write it as a block or inline list and rerun"
+            )
+        header_end = source.find("\n", parent_start, parent_end) + 1
+        return source[:header_end] + f"  {key}:\n    - {rendered}\n" + source[header_end:]
+
+    absolute_start = parent_start + child.start()
+    absolute_end = parent_start + child.end()
+    inline = child.group("inline")
+    if inline is not None:
+        body_start = parent_start + child.start("inline") + 1
+        body_end = parent_start + child.end("inline") - 1
+        body = source[body_start:body_end]
+        if rendered.strip("\"'") in body:
+            return source
+        separator = ", " if body.strip() else ""
+        if prepend:
+            return source[:body_start] + rendered + separator + source[body_start:]
+        return source[:body_end] + separator + rendered + source[body_end:]
+
+    child_indent = child.group("indent")
+    following = re.search(
+        rf"(?m)^(?:[ \t]{{0,{len(child_indent)}}}\S|{re.escape(child_indent)}[^ \t-][^:]*:)",
+        source[absolute_end:parent_end],
+    )
+    child_end = absolute_end + following.start() if following else parent_end
+    child_region = source[absolute_start:child_end]
+    if rendered.strip("\"'") in child_region:
+        return source
+    header_end = source.find("\n", absolute_start, child_end) + 1
+    item = re.search(r"(?m)^(?P<indent>[ \t]*)- ", child_region)
+    item_indent = item.group("indent") if item else child_indent + "  "
+    if prepend:
+        return source[:header_end] + f"{item_indent}- {rendered}\n" + source[header_end:]
+    return source[:child_end] + f"{item_indent}- {rendered}\n" + source[child_end:]
 
 
 def _yaml_add_extension(source: str, name: str, lines: tuple[str, ...] = ()) -> str:
@@ -1144,16 +1295,47 @@ def _planned_yaml_config(
         "stylesheets/pdk.css",
         prepend=True,
     )
+    source = _yaml_add_top_list_value(
+        source,
+        "extra_css",
+        "stylesheets/extra.css",
+    )
+    source = _yaml_add_nested_list_value(
+        source,
+        "extra",
+        "pdf_extra_css",
+        "stylesheets/pdk-pdf.css",
+        prepend=True,
+    )
+    source = _yaml_add_nested_list_value(
+        source,
+        "extra",
+        "pdf_extra_css",
+        "stylesheets/print.css",
+    )
     if options.mermaid:
         source = _yaml_ensure_mermaid(source)
     if options.maths:
         source = _yaml_ensure_arithmatex(source)
-        source = _yaml_add_top_list_value(source, "extra_javascript", "javascripts/mathjax.js")
         source = _yaml_add_top_list_value(
             source,
             "extra_javascript",
             "javascripts/vendor/mathjax/tex-svg-full.js",
+            prepend=True,
         )
+        source = _yaml_add_top_list_value(
+            source,
+            "extra_javascript",
+            "javascripts/mathjax.js",
+            prepend=True,
+        )
+    source = _yaml_add_top_list_value(
+        source,
+        "extra_javascript",
+        "javascripts/pdk.js",
+        prepend=True,
+    )
+    source = _yaml_add_top_list_value(source, "extra_javascript", "javascripts/extra.js")
     try:
         yaml.load(source, Loader=_MarkdownConfigLoader)
     except yaml.YAMLError as error:  # pragma: no cover - defensive transaction guard
@@ -1161,12 +1343,44 @@ def _planned_yaml_config(
     return source
 
 
-def ensure_stylesheet(root: Path) -> Path:
+def ensure_stylesheets(root: Path) -> list[Path]:
+    """Install managed styles and create missing user-managed styles."""
     _config_path, _source, parsed = _config(root)
-    path = _stylesheet_path(root, parsed)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(resource_bytes("pdk.css"))
-    return path
+    paths = _stylesheet_paths(root, parsed)
+    paths["pdk.css"].parent.mkdir(parents=True, exist_ok=True)
+    for name in MANAGED_STYLESHEETS:
+        paths[name].write_bytes(resource_bytes(name))
+    for name, initial_content in USER_MANAGED_STYLESHEETS.items():
+        if not paths[name].exists():
+            paths[name].write_text(initial_content, encoding="utf-8")
+    return list(paths.values())
+
+
+def ensure_javascripts(root: Path) -> list[Path]:
+    """Install managed scripts and create missing user-managed scripts."""
+    _config_path, _source, parsed = _config(root)
+    paths = _javascript_paths(root, parsed)
+    paths["pdk.js"].parent.mkdir(parents=True, exist_ok=True)
+    for name in MANAGED_JAVASCRIPTS:
+        paths[name].write_bytes(resource_bytes(name))
+    for name, initial_content in USER_MANAGED_JAVASCRIPTS.items():
+        if not paths[name].exists():
+            paths[name].write_text(initial_content, encoding="utf-8")
+        elif name == "extra.js" and same_text_content(
+            paths[name].read_bytes(), resource_bytes("pdk.js")
+        ):
+            # Older templates put this exact stock behaviour in the author
+            # extension point. Move it to managed pdk.js without erasing any
+            # file that differs by more than normal line-ending conversion.
+            paths[name].write_text(initial_content, encoding="utf-8")
+    return list(paths.values())
+
+
+def ensure_stylesheet(root: Path) -> Path:
+    """Install standard assets and return pdk.css for compatibility."""
+    ensure_stylesheets(root)
+    ensure_javascripts(root)
+    return _stylesheet_path(root, _config(root)[2])
 
 
 def _tool_files_ok(root: Path, component: str) -> bool:
@@ -1358,7 +1572,8 @@ def assess(
     toolchain = supported_toolchain.plan(root, offline=offline)
     configured = _extensions(parsed)
     missing = _missing_core_extensions(parsed)
-    style_path = _stylesheet_path(root, parsed)
+    style_paths = _stylesheet_paths(root, parsed)
+    javascript_paths = _javascript_paths(root, parsed)
     core_ok = (
         not config_error
         and not missing
@@ -1367,7 +1582,6 @@ def assess(
             require_python_names=config_path.suffix != ".toml",
         )
         and _style_ok(root, parsed)
-        and style_path.is_file()
     )
     core_problems: list[str] = []
     if missing:
@@ -1379,14 +1593,42 @@ def assess(
         core_problems.append("configure pymdownx.emoji for prodockit.tree icons")
     project = parsed.get("project", parsed)
     extra_css = project.get("extra_css", []) if isinstance(project, dict) else []
-    if not style_path.is_file():
-        core_problems.append(f"add shared website stylesheet {style_path.relative_to(root)}")
-    elif not same_text_content(style_path.read_bytes(), resource_bytes("pdk.css")):
-        core_problems.append(f"refresh shared website stylesheet {style_path.relative_to(root)}")
-    if "stylesheets/pdk.css" not in extra_css:
-        core_problems.append("register stylesheets/pdk.css in project.extra_css")
+    extra = project.get("extra", {}) if isinstance(project, dict) else {}
+    pdf_extra_css = extra.get("pdf_extra_css", []) if isinstance(extra, dict) else []
+    extra_javascript = project.get("extra_javascript", []) if isinstance(project, dict) else []
+    for name in MANAGED_STYLESHEETS:
+        style_path = style_paths[name]
+        if not style_path.is_file():
+            core_problems.append(f"add managed stylesheet {style_path.relative_to(root)}")
+        elif not same_text_content(style_path.read_bytes(), resource_bytes(name)):
+            core_problems.append(f"refresh managed stylesheet {style_path.relative_to(root)}")
+    for name in USER_MANAGED_STYLESHEETS:
+        style_path = style_paths[name]
+        if not style_path.is_file():
+            core_problems.append(f"add user-managed stylesheet {style_path.relative_to(root)}")
+    for name in MANAGED_JAVASCRIPTS:
+        javascript_path = javascript_paths[name]
+        if not javascript_path.is_file():
+            core_problems.append(f"add managed JavaScript {javascript_path.relative_to(root)}")
+        elif not same_text_content(javascript_path.read_bytes(), resource_bytes(name)):
+            core_problems.append(f"refresh managed JavaScript {javascript_path.relative_to(root)}")
+    for name in USER_MANAGED_JAVASCRIPTS:
+        javascript_path = javascript_paths[name]
+        if not javascript_path.is_file():
+            core_problems.append(f"add user-managed JavaScript {javascript_path.relative_to(root)}")
+    registrations = (
+        ("stylesheets/pdk.css", extra_css, "project.extra_css"),
+        ("stylesheets/extra.css", extra_css, "project.extra_css"),
+        ("stylesheets/pdk-pdf.css", pdf_extra_css, "project.extra.pdf_extra_css"),
+        ("stylesheets/print.css", pdf_extra_css, "project.extra.pdf_extra_css"),
+        ("javascripts/pdk.js", extra_javascript, "project.extra_javascript"),
+        ("javascripts/extra.js", extra_javascript, "project.extra_javascript"),
+    )
+    for stylesheet, configured_styles, setting in registrations:
+        if stylesheet not in configured_styles:
+            core_problems.append(f"register {stylesheet} in {setting}")
     core_detail = config_error or (
-        "all standard extensions and shared website styles are configured"
+        "all standard extensions and managed and user styles and scripts are configured"
         if core_ok
         else "; ".join(core_problems)
     )
@@ -1549,7 +1791,8 @@ def apply_step(
     if step_id == "core":
         return [
             ensure_zensical_config(root, options),
-            ensure_stylesheet(root),
+            *ensure_stylesheets(root),
+            *ensure_javascripts(root),
         ]
     if step_id == "csl":
         activity = _csl_activity(root, _config(root)[2], offline=offline)
