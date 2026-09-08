@@ -360,8 +360,9 @@ capability still needs review.
 
 ## 3. Run the local release gates
 
-Activate the development environment first. On Apple Silicon macOS, expose
-Homebrew's Pango libraries in the same terminal that will run the gates:
+Activate the [development environment](development.md#create-a-development-environment)
+first. On Apple Silicon macOS, expose Homebrew's Pango libraries in the same
+terminal that will run the gates:
 
 ```bash
 export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib

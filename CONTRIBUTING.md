@@ -29,23 +29,40 @@ the change and do not edit directly on `main`.
 
 ## Create a development environment
 
-Fork the repository on GitHub, then clone your fork and create an editable
-environment:
+Fork the repository on GitHub, then follow the complete sequence for your
+platform. Each tab clones your fork, enters the checkout, creates and activates
+a Python 3.14 virtual environment, and installs this checkout in editable mode.
 
-```bash
-git clone https://github.com/YOUR-USERNAME/prodockit-extensions.git
-cd prodockit-extensions
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[dev]"
-```
+=== ":material-apple: macOS"
 
-On Windows PowerShell, activate the environment with:
+    ```bash
+    git clone https://github.com/YOUR-USERNAME/prodockit-extensions.git
+    cd prodockit-extensions
+    "$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
+    source .venv/bin/activate
+    python -m pip install -e ".[dev]"
+    ```
 
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-.\.venv\Scripts\Activate.ps1
-```
+=== ":fontawesome-brands-windows: Windows PowerShell"
+
+    ```powershell
+    git clone https://github.com/YOUR-USERNAME/prodockit-extensions.git
+    Set-Location prodockit-extensions
+    py -3.14 -m venv .venv
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+    python -m pip install -e ".[dev]"
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    git clone https://github.com/YOUR-USERNAME/prodockit-extensions.git
+    cd prodockit-extensions
+    python3.14 -m venv .venv
+    source .venv/bin/activate
+    python -m pip install -e ".[dev]"
+    ```
 
 Activate the environment before running commands. Calling `.venv/bin/python`
 without activating it is not equivalent for the PDF tests: Pandoc looks up the

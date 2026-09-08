@@ -13,24 +13,40 @@ keeps the checkout connected to the environment.
 
 ## Create a development environment
 
-Clone the repository and install it in editable mode inside a dedicated virtual
-environment:
+Use the complete sequence for your platform. Each tab clones the repository,
+enters the checkout, creates and activates a dedicated Python 3.14 virtual
+environment, and installs the checkout in editable mode.
 
-```bash
-git clone https://github.com/buckwem/prodockit-extensions
-cd prodockit-extensions
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[dev]"
-```
+=== ":material-apple: macOS"
 
-On Windows PowerShell, allow locally created scripts for the current account,
-then activate the environment:
+    ```bash
+    git clone https://github.com/buckwem/prodockit-extensions.git
+    cd prodockit-extensions
+    "$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
+    source .venv/bin/activate
+    python -m pip install -e ".[dev]"
+    ```
 
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-.\.venv\Scripts\Activate.ps1
-```
+=== ":fontawesome-brands-windows: Windows PowerShell"
+
+    ```powershell
+    git clone https://github.com/buckwem/prodockit-extensions.git
+    Set-Location prodockit-extensions
+    py -3.14 -m venv .venv
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+    python -m pip install -e ".[dev]"
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    git clone https://github.com/buckwem/prodockit-extensions.git
+    cd prodockit-extensions
+    python3.14 -m venv .venv
+    source .venv/bin/activate
+    python -m pip install -e ".[dev]"
+    ```
 
 The editable install provides `prodockit`, `pdk`, and Zensical while importing
 package code directly from `src/`.
