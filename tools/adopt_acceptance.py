@@ -52,7 +52,8 @@ SCENARIOS = (
 SCENARIO_NAMES = tuple(item[0] for item in SCENARIOS)
 ASSET_TAG = re.compile(
     rb"(?:<link\b[^>]*(?:pdk|extra)\.css[^>]*>|"
-    rb"<script\b[^>]*(?:javascripts/mathjax\.js|"
+    rb"<script\b[^>]*(?:javascripts/(?:pdk|extra)\.js|"
+    rb"javascripts/mathjax\.js|"
     rb"javascripts/vendor/mathjax/tex-svg-full\.js)[^>]*>\s*</script>)\s*",
     re.IGNORECASE | re.DOTALL,
 )
@@ -359,6 +360,23 @@ def install_candidate(python: Path, wheel: Path, project: Path | None) -> None:
     print(f"Installed candidate: {location}")
 
 
+def install_tested_renderer(python: Path, root: Path) -> None:
+    """Align the baseline build with the candidate's tested renderer stack.
+
+    The acceptance comparison is about the assets Adopt adds, not about
+    unrelated output changes between the newest Zensical release on PyPI and
+    the exact release supported by the candidate wheel.
+    """
+
+    script = (
+        "from prodockit.pins import TESTED_VERSIONS; "
+        "print('\\n'.join(f'{name}=={TESTED_VERSIONS[name]}' for name in "
+        "('zensical', 'markdown', 'pymdown-extensions')))"
+    )
+    requirements = run([str(python), "-c", script], cwd=root).stdout.splitlines()
+    run([str(python), "-m", "pip", "install", *requirements], cwd=root)
+
+
 def build(python: Path, project: Path, config: Path, *, fixture_content: bool) -> None:
     run(
         [str(python), "-m", "zensical", "build", "-f", config.name, "--clean"],
@@ -555,6 +573,7 @@ def main(arguments: list[str] | None = None) -> int:
                 raise AcceptanceError("source project changed during acceptance testing")
         else:
             install_candidate(python, wheel, None)
+            install_tested_renderer(python, temporary_path)
             scenarios = select_scenarios(args.scenario)
             print("Scenarios: " + ", ".join(item[0] for item in scenarios))
             workers = min(args.scenario_workers, len(scenarios))

@@ -184,6 +184,19 @@ def main(arguments: list[str] | None = None) -> int:
         venv.EnvBuilder(with_pip=True).create(environment)
         python = environment_python(environment)
         run([str(python), "-m", "pip", "install", str(wheel)], cwd=root)
+        tested_zensical = run(
+            [
+                str(python),
+                "-c",
+                "from prodockit.pins import TESTED_VERSIONS; "
+                "print(TESTED_VERSIONS['zensical'])",
+            ],
+            cwd=root,
+        ).stdout.strip()
+        run(
+            [str(python), "-m", "pip", "install", f"zensical=={tested_zensical}"],
+            cwd=root,
+        )
         prefix_result = run(
             [str(python), "-c", "import sys; print(sys.prefix)"],
             cwd=root,

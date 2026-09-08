@@ -197,6 +197,20 @@ def _checks(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {check["id"]: check for check in payload["checks"]}
 
 
+def _repair_cleared(check_id: str, check: dict[str, Any]) -> bool:
+    """Accept a repaired pin check that only reports a newer PyPI release."""
+
+    if check["status"] == "pass":
+        return True
+    return (
+        check_id == "dependencies.pins"
+        and check["status"] == "warn"
+        and not check["data"]["inconsistent"]
+        and not check["data"]["supported_mismatches"]
+        and bool(check["data"]["updates"])
+    )
+
+
 def _reported_path(value: str, project: Path) -> Path:
     """Resolve an absolute, project-relative, or home-relative report path."""
     path = Path(value).expanduser()
@@ -292,7 +306,9 @@ def exercise(project: Path) -> dict[str, Any]:
 
     after = _checks(payload["after"])
     failed = sorted(
-        check_id for check_id in REPAIRABLE_CHECKS if after[check_id]["status"] != "pass"
+        check_id
+        for check_id in REPAIRABLE_CHECKS
+        if not _repair_cleared(check_id, after[check_id])
     )
     if failed:
         raise AcceptanceError(
