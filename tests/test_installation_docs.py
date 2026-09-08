@@ -247,8 +247,9 @@ def test_adoption_continues_after_shared_preparation() -> None:
     assert "### Stage 3 — Build and review" in page
 
     resume = page[
-        page.index("//// step | Resume an interrupted installation") :
-        page.index("//// step | Work from prepared caches when offline")
+        page.index("//// step | Resume an interrupted installation") : page.index(
+            "//// step | Work from prepared caches when offline"
+        )
     ]
     assert "Skip this step when Apply completed successfully" in resume
     assert '=== ":material-apple: macOS"' in resume
@@ -262,14 +263,15 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
 
     assert "installation.md#installation-preparation" in page
     assert "independent of section 6's template-site" in page
-    assert page.count("//// step | ") == 15
+    assert page.count("//// step | ") == 16
     assert page.count("/// tree") == 0
     assert page.count("/// steps") == 5
 
     preparation = INSTALLATION.read_text(encoding="utf-8")
     structure = preparation[
-        preparation.index("## Understand the project structure") :
-        preparation.index("## Continue with an installation route")
+        preparation.index("## Understand the project structure") : preparation.index(
+            "## Continue with an installation route"
+        )
     ]
     assert structure.count("/// tree") == 3
     routes = preparation[preparation.index("## Continue with an installation route") :]
@@ -311,8 +313,11 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     build_zensical = page.index("//// step | Build the plain Zensical site")
     serve_zensical = page.index("//// step | Preview the plain Zensical site")
     install_prodockit = page.index("//// step | Install Prodockit")
+    choose_renderers = page.index(
+        "//// step | Choose optional renderers and prepare Node.js when required"
+    )
     adopt = page.index("//// step | Adopt the Zensical site")
-    configure = page.index('//// step | Review and configure `zensical.toml`')
+    configure = page.index("//// step | Review and configure `zensical.toml`")
     diagnose = page.index("//// step | Diagnose the adopted site")
     add_content = page.index("//// step | Add and verify Prodockit content")
     build_adopted = page.index("//// step | Build and preview the adopted website")
@@ -327,6 +332,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
         < build_zensical
         < serve_zensical
         < install_prodockit
+        < choose_renderers
         < adopt
         < configure
         < diagnose
@@ -343,6 +349,13 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
         "zensical serve"
     )
     assert "pip install --upgrade prodockit" not in before_prodockit
+    renderer_choice = page[choose_renderers:adopt]
+    assert "pdk adopt --configure" in renderer_choice
+    assert "brew install node" in renderer_choice
+    assert "winget install --id OpenJS.NodeJS.LTS" in renderer_choice
+    assert "https://deb.nodesource.com/setup_22.x" in renderer_choice
+    assert "node --version" in renderer_choice
+    assert "npm --version" in renderer_choice
     assert "pdk adopt --dry-run\npdk adopt --apply" in page[adopt:]
     assert 'pdf_output = "docs/site_documentation.pdf"' in page[configure:diagnose]
     assert 'pdf_source_bundle_output = "docs/source_bundle.pdf"' in page[configure:diagnose]
@@ -395,7 +408,9 @@ def test_bootstrap_continues_after_shared_preparation() -> None:
     assert "records Mermaid and maths as the project's selected components" in page
     assert "later `pdk adopt` can therefore repair" in page
 
-    installation = page[page.index("## Install with bootstrap") : page.index("## Understand the completed project")]
+    installation = page[
+        page.index("## Install with bootstrap") : page.index("## Understand the completed project")
+    ]
     assert "installation.md#installation-preparation" in installation
     assert installation.count("//// step | ") == 14
     assert "### Stage 1 — Prepare the setup environment" in installation
@@ -448,8 +463,7 @@ def test_install_routes_explain_ownership_and_maintenance() -> None:
     for path, ownership_reference in routes.items():
         page = path.read_text(encoding="utf-8")
         completed = page[
-            page.index("## Understand the completed project") :
-            page.index("## Where to go next")
+            page.index("## Understand the completed project") : page.index("## Where to go next")
         ]
         assert "### Know what becomes yours" in completed
         assert "### Keep the project current" in completed
@@ -463,8 +477,7 @@ def test_install_routes_explain_ownership_and_maintenance() -> None:
 
     for page in (first_site, adoption):
         maintenance = page[
-            page.index("### Keep the project current") :
-            page.index("## Where to go next")
+            page.index("### Keep the project current") : page.index("## Where to go next")
         ]
         assert maintenance.index("upgrade\n   Prodockit") < maintenance.index("pdk adopt --dry-run")
         assert maintenance.index("pdk adopt --dry-run") < maintenance.index("pdk diag")
@@ -473,8 +486,7 @@ def test_install_routes_explain_ownership_and_maintenance() -> None:
 
     bootstrap = BOOTSTRAP_GUIDE.read_text(encoding="utf-8")
     maintenance = bootstrap[
-        bootstrap.index("### Keep the project current") :
-        bootstrap.index("## Where to go next")
+        bootstrap.index("### Keep the project current") : bootstrap.index("## Where to go next")
     ]
     assert maintenance.index("pdk template-sync") < maintenance.index("pdk adopt --dry-run")
     assert maintenance.index("pdk adopt --dry-run") < maintenance.index("pdk diag")

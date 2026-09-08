@@ -93,14 +93,19 @@ manual guidance rather than a guessed download. System-native libraries remain
 outside its repair boundary.
 
 `.prodockit-components.toml` belongs to the project. When it is missing, Adopt
-infers established Mermaid and maths choices from the project configuration and
-offers to save them rather than silently selecting new features.
+detects existing project-local renderer installations, including partial installs.
+Otherwise Mermaid and maths default off: Zensical's capable starter configuration
+alone is not an author choice. Run `pdk adopt --configure` or use
+explicit flags to select them. Template projects ship the component file with
+both enabled.
 
 ## Result {: #cmd-adopt-result }
 
 Assessment and dry-run modes report the number of activities needing work. Apply
-mode verifies each completed activity and finishes by naming the strict local
-build command. A blocking project or environment check stops the integration.
+mode reassesses the resulting configuration and names the strict local build
+command. It reports an incomplete result if required work remains; configuration
+verification does not replace a successful build. A blocking project or environment
+check stops the integration.
 
 Adopt is independent of Bootstrap. If a virtual environment is active and the
 project has its own `.venv`, they must match; otherwise Adopt stops before

@@ -87,6 +87,14 @@ def install_mathjax(root: str | Path = ".", *, update_gitignore: bool = True) ->
     to disagree.
     """
     project = Path(root)
+    # Resolve the same configuration as the build command. Keep the default
+    # for init-mathjax's standalone scaffold use without a config file.
+    from prodockit.project_config import CONFIG_FILENAMES, load_project_config
+
+    config_path = next(
+        (project / name for name in CONFIG_FILENAMES if (project / name).is_file()), None
+    )
+    docs = load_project_config(config_path).docs_dir if config_path else project / "docs"
     source = project.joinpath(*SOURCE)
     license_source = project.joinpath(*LICENSE_SOURCE)
     missing = [path for path in (source, license_source) if not path.is_file()]
@@ -96,29 +104,40 @@ def install_mathjax(root: str | Path = ".", *, update_gitignore: bool = True) ->
             "so the website and the PDF use the same MathJax"
         )
 
-    bundle = project.joinpath(*DEST, BUNDLE)
+    bundle = docs / "javascripts" / "vendor" / "mathjax" / BUNDLE
     bundle.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, bundle)
-    license_path = project.joinpath(*DEST, LICENSE)
+    license_path = bundle.parent / LICENSE
     shutil.copyfile(license_source, license_path)
 
-    config = project.joinpath(*CONFIG)
+    config = docs / "javascripts" / "mathjax.js"
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(CONFIG_SOURCE, encoding="utf-8")
 
     added: list[str] = []
-    if update_gitignore:
-        added = _ignore(project / ".gitignore")
+    if update_gitignore and docs.resolve().is_relative_to(project.resolve()):
+        added = (
+            _ignore(
+                project / ".gitignore",
+                (
+                    (docs / "javascripts" / "vendor").relative_to(project.resolve()).as_posix()
+                    + "/",
+                    config.relative_to(project.resolve()).as_posix(),
+                ),
+            )
+            if config_path
+            else _ignore(project / ".gitignore")
+        )
     return InstallResult(bundle=bundle, license=license_path, config=config, ignored=added)
 
 
-def _ignore(path: Path) -> list[str]:
+def _ignore(path: Path, entries: tuple[str, ...] = IGNORED) -> list[str]:
     """Adds the two entries, once. A rerun must not stack them."""
     try:
         current = path.read_text(encoding="utf-8")
     except OSError:
         current = ""
-    missing = [line for line in IGNORED if line not in current.splitlines()]
+    missing = [line for line in entries if line not in current.splitlines()]
     if not missing:
         return []
     lead = "" if current.endswith("\n") or not current else "\n"

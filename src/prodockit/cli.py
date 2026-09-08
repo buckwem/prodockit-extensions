@@ -43,6 +43,7 @@ from prodockit.adopt import (
 from prodockit.adopt import (
     AdoptError,
     AdoptOptions,
+    Step,
 )
 from prodockit.adopt import apply as apply_adoption
 from prodockit.adopt import (
@@ -3088,6 +3089,49 @@ def _adopt_stage_heading(number: int, total: int, summary: str) -> None:
     click.echo(click.style(f"Activity [{number}/{total}] {summary}", bold=True, fg="blue"))
 
 
+def _adopt_blocker_summary(steps: Sequence[Step]) -> None:
+    """Put blocking prerequisites before the detailed adoption report."""
+
+    blockers = [step for step in steps if step.selected and step.status == "wrong"]
+    if not blockers:
+        return
+    boundary = click.style("═" * 78, bold=True, fg="bright_magenta")
+    click.echo("")
+    click.echo(boundary, err=True)
+    click.echo(
+        click.style("ADOPT CANNOT CONTINUE", bold=True, fg="bright_magenta"),
+        err=True,
+    )
+    click.echo(boundary, err=True)
+    details = (step.detail.removeprefix("selected; ") for step in blockers)
+    for detail in dict.fromkeys(details):
+        click.echo(
+            click.style(f"Problem:  {detail}", bold=True, fg="bright_magenta"),
+            err=True,
+        )
+    if any(step.id in {"mermaid", "maths"} for step in blockers):
+        if sys.platform == "darwin":
+            click.echo(_bootstrap_warning("Install:  brew install node"), err=True)
+        elif sys.platform == "win32":
+            click.echo(
+                _bootstrap_warning("Install:  winget install --id OpenJS.NodeJS.LTS"),
+                err=True,
+            )
+            click.echo(_bootstrap_warning("Then fully close and reopen PowerShell."), err=True)
+        else:
+            click.echo(
+                _bootstrap_warning(
+                    "Install:  follow the supported Ubuntu Node.js instructions in section 4"
+                ),
+                err=True,
+            )
+        click.echo(_bootstrap_warning("Check:    node --version"), err=True)
+        click.echo(_bootstrap_warning("Check:    npm --version"), err=True)
+    click.echo(_bootstrap_warning("Then:     rerun `pdk adopt`"), err=True)
+    click.echo(_bootstrap_warning("Result:   no project files have been changed"), err=True)
+    click.echo(boundary, err=True)
+
+
 def _renderer_retry_warning(notice: RetryNotice) -> None:
     """Show a bounded external retry without echoing pages of tool output."""
 
@@ -3240,13 +3284,19 @@ def adopt_command(
         if override:
             choice_detail += "; command-line overrides apply to this run"
     else:
-        choice_detail = f"inferred from {resolution.source}; not yet saved"
+        choice_detail = (
+            "not configured; Mermaid and maths default off"
+            if resolution.source == "defaults"
+            else f"{resolution.source}; not yet saved"
+        )
         if override:
             choice_detail += "; command-line overrides apply"
     click.echo(f"  Choices:  {choice_detail}")
     if not resolution.saved:
         click.echo(f"  Will save: {root / ADOPT_MANIFEST} in the Component choices activity")
     click.echo("  Excluded: Git, SSH, remotes, editors, commits and pushes")
+
+    _adopt_blocker_summary(steps)
 
     current_phase = ""
     total = len(steps)
@@ -3359,14 +3409,30 @@ def adopt_command(
 
     if applied_stages == 0:
         if any(step.needs_work for step in steps):
-            click.echo("\nNo changes were applied.")
-            click.echo("Rerun `prodockit adopt --apply` when you are ready to apply them.")
+            click.echo(_bootstrap_warning("\nADOPTION IS INCOMPLETE — no changes were applied."))
+            raise click.ClickException(
+                "required activities were declined; rerun `prodockit adopt --apply` to resume"
+            )
         else:
             click.echo("\nAll selected prodockit components are already configured.")
             click.echo("No changes made.")
         return
 
-    click.echo("\nAdoption activities finished.")
+    remaining = [
+        step
+        for step in assess_adoption(
+            root, options, retry_reporter=_renderer_retry_warning, offline=offline
+        )
+        if step.selected and step.status not in {"ok", "warn"}
+    ]
+    if remaining:
+        click.echo(_bootstrap_warning("\nADOPTION IS INCOMPLETE"), err=True)
+        for step in remaining:
+            click.echo(_bootstrap_warning(f"  {step.summary}: {step.detail}"), err=True)
+        raise click.ClickException(
+            "some activities remain; rerun `pdk adopt --apply` to review and resume"
+        )
+    click.echo("\nAdoption configuration verified.")
     click.echo(f"Run `{build_command}`, then review the local changes with `git diff`.")
     click.echo("Nothing has been committed or pushed.")
 
@@ -4377,8 +4443,7 @@ def _run_template_sync(
                 "after the fresh-process handoff"
             )
             say_key(
-                "  Will do:  run Adopt's supported-toolchain and project "
-                "integration activities"
+                "  Will do:  run Adopt's supported-toolchain and project integration activities"
             )
             say("  Command:  internal equivalent of `pdk adopt --apply`")
             say("  Files:    active environment and Adopt-managed project files")

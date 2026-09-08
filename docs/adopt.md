@@ -73,13 +73,22 @@ The standard installation adds:
 
 Mermaid and mathematics are independent options and are off by default. A
 document using neither does not need Node.js, MathJax, Mermaid CLI or a browser
-renderer.
+renderer. Without `.prodockit-components.toml`, existing project-local renderer
+installations (including incomplete scaffolds) are selected for repair. Zensical's
+starter configuration alone does not select a renderer. Run `pdk adopt --configure` or
+use explicit command-line flags to select either renderer. Template projects
+ship the component file with both enabled.
 
 When either option is selected, adoption writes the component's `package.json`
 and `package-lock.json` before installing it. The lockfile records the tested
 dependency set, while npm's download cache makes later reinstalls quicker. If
 the project already has an author-maintained Node manifest, adoption leaves it
 unchanged and uses its existing lockfile when one is present.
+
+Node.js and npm are machine-level prerequisites rather than project-local
+packages. Install them before applying a selected renderer. If either command
+is missing, Adopt stops before changing packages or project files and displays
+a prominent platform-specific recovery summary.
 
 The command never commits, pushes, changes a remote, or writes editor settings.
 

@@ -17,10 +17,13 @@ toolchain is written into a project which did not ask for it.
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,6 +50,7 @@ from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
 from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries
+from prodockit.settings import EXTRA_SETTINGS
 from prodockit.shared_files import resource_bytes, same_text_content
 
 if sys.version_info >= (3, 11):
@@ -89,6 +93,13 @@ CORE_EXTENSIONS = (
     "prodockit.steps",
     "prodockit.tree",
     "prodockit.index",
+    "pymdownx.blocks.caption",
+)
+
+CAPTION_TYPES = (
+    {"name": "caption"},
+    {"name": "figure-caption", "prefix": "{}.", "classes": "prodockit-figure-caption"},
+    {"name": "table-caption", "prefix": "{}.", "classes": "prodockit-table-caption"},
 )
 
 # These extensions provide alternative citation-definition sources. The
@@ -156,55 +167,46 @@ def load_manifest(root: Path) -> AdoptOptions:
     except (OSError, tomllib.TOMLDecodeError) as error:
         raise AdoptError(f"could not read {path}: {error}") from error
     components = data.get("components", {})
+    if not isinstance(components, dict) or any(
+        not isinstance(components.get(name, False), bool) for name in ("mermaid", "maths")
+    ):
+        raise AdoptError(
+            f"{path}: [components] mermaid and maths must be TOML true or false, not quoted text"
+        )
     return AdoptOptions(
         mermaid=bool(components.get("mermaid", False)),
         maths=bool(components.get("maths", False)),
     )
 
 
-def _has_mermaid_fence(configured: Mapping[str, Any]) -> bool:
-    settings = configured.get("pymdownx.superfences")
-    if not isinstance(settings, Mapping):
-        return False
-    fences = settings.get("custom_fences", ())
-    return isinstance(fences, list) and any(
-        isinstance(fence, Mapping) and fence.get("name") == "mermaid" for fence in fences
-    )
-
-
-def _project_extra(parsed: Mapping[str, Any]) -> Mapping[str, Any]:
-    project = parsed.get("project", parsed)
-    if not isinstance(project, Mapping):
-        return {}
-    extra = project.get("extra", {})
-    return extra if isinstance(extra, Mapping) else {}
-
-
 def resolve_options(root: Path) -> AdoptChoiceResolution:
-    """Resolve saved choices, or infer established use from project config.
+    """Resolve saved choices, installed renderers, then neutral defaults.
 
-    A missing manifest must not silently switch existing optional renderers off.
-    Configuration is the authoritative evidence: generated tools can be stale,
-    while a configured fence or renderer is part of the author's document.
+    A Zensical starter may contain Mermaid or MathJax-capable configuration
+    without the author having selected either renderer for Prodockit. Only the
+    project-owned manifest, ``adopt --configure``, or explicit command-line
+    flags may opt in; existing project installations are also retained.
+    Template projects ship the manifest with both enabled.
     """
     path = root / MANIFEST
     if path.is_file():
         return AdoptChoiceResolution(load_manifest(root), str(path), True)
-
-    try:
-        config_path, _source, parsed = _config(root)
-    except AdoptError:
-        # Assessment owns the actionable configuration error. Preserve the
-        # historical neutral options here so Template Sync can still preview
-        # a package handoff before fresh code performs that assessment.
-        return AdoptChoiceResolution(AdoptOptions(), "no project configuration", False)
-    configured = _extensions(parsed)
-    extra = _project_extra(parsed)
-    options = AdoptOptions(
-        mermaid=_has_mermaid_fence(configured) or "pdf_mmdc_bin" in extra,
-        maths="pymdownx.arithmatex" in configured or "pdf_tex2svg_script" in extra,
+    # Starter extension declarations describe capability, not installation.
+    # A scaffold remains evidence even when an interrupted install has left
+    # node_modules incomplete. Saved and explicit choices take precedence.
+    detected = {}
+    for option, component in (("mermaid", "mermaid"), ("maths", "mathjax")):
+        directory = root / "tools" / component
+        detected[option] = any(
+            (directory / name).exists()
+            for name in ("package.json", "package-lock.json", "node_modules")
+        )
+    options = AdoptOptions(**detected)
+    return AdoptChoiceResolution(
+        options,
+        "detected project renderer installation" if any(detected.values()) else "defaults",
+        False,
     )
-    return AdoptChoiceResolution(options, config_path.name, False)
 
 
 def manifest_source(options: AdoptOptions) -> str:
@@ -220,8 +222,37 @@ def manifest_source(options: AdoptOptions) -> str:
 
 def write_manifest(root: Path, options: AdoptOptions) -> Path:
     path = root / MANIFEST
-    path.write_text(manifest_source(options), encoding="utf-8")
+    _atomic_write(path, manifest_source(options).encode("utf-8"))
     return path
+
+
+def _atomic_write(path: Path, content: bytes) -> None:
+    """Replace one validated file without exposing a truncated intermediate.
+
+    Keep identical files untouched on a rerun. This is per-file safety, not
+    rollback of package installations or an entire adoption activity.
+    """
+    destination = path.resolve()
+    if destination.is_file() and destination.read_bytes() == content:
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if destination.exists():
+            shutil.copymode(destination, temporary)
+        os.replace(temporary, destination)
+    except OSError as error:
+        raise AdoptError(
+            f"could not safely update {path}: {error}; rerun Adopt to resume"
+        ) from error
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 class _MarkdownConfigLoader(yaml.SafeLoader):  # type: ignore[misc, unused-ignore]
@@ -475,18 +506,12 @@ def _stylesheet_path(root: Path, parsed: dict[str, Any]) -> Path:
 
 def _stylesheet_paths(root: Path, parsed: dict[str, Any]) -> dict[str, Path]:
     directory = _stylesheet_dir(root, parsed)
-    return {
-        name: directory / name
-        for name in (*MANAGED_STYLESHEETS, *USER_MANAGED_STYLESHEETS)
-    }
+    return {name: directory / name for name in (*MANAGED_STYLESHEETS, *USER_MANAGED_STYLESHEETS)}
 
 
 def _javascript_paths(root: Path, parsed: dict[str, Any]) -> dict[str, Path]:
     directory = root / _docs_dir(parsed) / "javascripts"
-    return {
-        name: directory / name
-        for name in (*MANAGED_JAVASCRIPTS, *USER_MANAGED_JAVASCRIPTS)
-    }
+    return {name: directory / name for name in (*MANAGED_JAVASCRIPTS, *USER_MANAGED_JAVASCRIPTS)}
 
 
 def _missing_core_extensions(parsed: dict[str, Any]) -> list[str]:
@@ -680,8 +705,14 @@ def _add_array_value(
     region = source[start:end]
     assignment = re.search(rf"(?m)^{re.escape(key)}\s*=\s*\[", region)
     if assignment is None:
-        header_end = source.find("\n", start) + 1
-        return source[:header_end] + f"{key} = [\n  {rendered},\n]\n" + source[header_end:]
+        # Keep the site's own settings at the top of the table.  Inserting
+        # each missing managed setting immediately below ``[project]`` made
+        # a starter configuration look as though Adopt had prepended a
+        # second project configuration, and reversed the managed hierarchy
+        # as subsequent settings were inserted at the same position.
+        insert = len(source[:end].rstrip())
+        block = f"\n{key} = [\n  {rendered},\n]"
+        return source[:insert] + block + source[insert:]
     array_start = start + assignment.end() - 1
     array_end = _matching_bracket(source, array_start)
     array_source = source[array_start : array_end + 1]
@@ -826,6 +857,7 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
         _parsed,
         extension_array=extension_array,
     )
+    source = _ensure_authoring_settings(source, _parsed, toml=True)
     source = _add_array_value(
         source,
         "project",
@@ -938,8 +970,111 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
 
 def ensure_zensical_config(root: Path, options: AdoptOptions) -> Path:
     path, source = _planned_zensical_config(root, options)
-    path.write_text(source, encoding="utf-8")
+    _atomic_write(path, source.encode("utf-8"))
     return path
+
+
+def _missing_caption_types(parsed: dict[str, Any]) -> list[dict[str, str]]:
+    settings = _extensions(parsed).get("pymdownx.blocks.caption", {})
+    types = settings.get("types", []) if isinstance(settings, Mapping) else []
+    if not isinstance(types, list):
+        raise AdoptError("pymdownx.blocks.caption.types must be a list")
+    existing = {item.get("name"): item for item in types if isinstance(item, Mapping)}
+    missing = []
+    for required in CAPTION_TYPES:
+        current = existing.get(required["name"])
+        if current is None:
+            missing.append(required)
+        elif any(current.get(key) != value for key, value in required.items()):
+            raise AdoptError(
+                f"caption type {required['name']} conflicts with Prodockit's required "
+                "numbering/classes; preserve your custom type under a different name"
+            )
+    return missing
+
+
+def _extra_defaults_missing(parsed: dict[str, Any]) -> dict[str, Any]:
+    project = parsed.get("project", parsed)
+    extra = project.get("extra", {})
+    # Context-dependent paths and optional renderer settings remain inferred
+    # at runtime. Existing author values always win.
+    return {
+        setting.key: setting.default
+        for setting in EXTRA_SETTINGS
+        if isinstance(setting.default, (str, bool)) and setting.key not in extra
+    }
+
+
+def _ensure_authoring_settings(source: str, parsed: dict[str, Any], *, toml: bool) -> str:
+    """Materialise reusable settings without rewriting the user's document."""
+    captions = _missing_caption_types(parsed)
+    if toml:
+        if isinstance(parsed["project"].get("markdown_extensions"), list):
+            configured = _extensions(parsed).get("pymdownx.blocks.caption", {})
+            types = list(configured.get("types", [])) + captions
+            if captions:
+                source = _set_array_extension(
+                    source, "pymdownx.blocks.caption", f"types = {_toml_value(types)}"
+                )
+        else:
+            table, key = _toml_extension_setting(source, "pymdownx.blocks.caption", "types")
+            for item in captions:
+                source = _add_array_value(source, table, key, _toml_value(item))
+        for key, value in _extra_defaults_missing(parsed).items():
+            table = "project.extra" if _section(source, "project.extra") else "project"
+            name = key if table == "project.extra" else f"extra.{key}"
+            located = _section(source, table)
+            assert located is not None
+            insert = len(source[: located[1]].rstrip())
+            source = source[:insert] + f"\n{name} = {_toml_value(value)}" + source[insert:]
+        return source
+    source = _yaml_add_extension(source, "pymdownx.blocks.caption", ("types: []",))
+    item = _yaml_extension_item(source, "pymdownx.blocks.caption")
+    if captions:
+        if item is None:
+            raise AdoptError("caption settings use an unsupported YAML layout")
+        start, end = item
+        block = _yaml_block(source, "markdown_extensions")
+        assert block is not None
+        style, indent = _yaml_extension_layout(source, block)
+        settings_indent = indent + ("    " if style == "sequence" else "  ")
+        types = re.search(rf"(?m)^{re.escape(settings_indent)}types:[ \t]*$", source[start:end])
+        empty_types = re.search(
+            rf"(?m)^{re.escape(settings_indent)}types:[ \t]*\[\][ \t]*$", source[start:end]
+        )
+        if empty_types:
+            pos = start + empty_types.start()
+            stop = start + empty_types.end()
+            addition = f"{settings_indent}types:" + "".join(
+                f"\n{settings_indent}  - {json.dumps(t)}" for t in captions
+            )
+            source = source[:pos] + addition + source[stop:]
+            captions = []
+        elif types:
+            pos = start + types.end()
+            addition = "".join(f"\n{settings_indent}  - {json.dumps(t)}" for t in captions)
+        else:
+            if "types:" in source[start:end]:
+                raise AdoptError("write caption types as a YAML block list before adopting")
+            pos = source.find("\n", start)
+            addition = f"\n{settings_indent}types:" + "".join(
+                f"\n{settings_indent}  - {json.dumps(t)}" for t in captions
+            )
+        if captions:
+            source = source[:pos] + addition + source[pos:]
+    missing = _extra_defaults_missing(parsed)
+    if missing:
+        block = _yaml_block(source, "extra")
+        if block is None:
+            if re.search(r"(?m)^extra:", source):
+                raise AdoptError("write extra as a YAML block mapping before adopting")
+            source = source.rstrip() + "\n\nextra:\n"
+            block = _yaml_block(source, "extra")
+        assert block is not None
+        pos = len(source[: block[1]].rstrip())
+        addition = "".join(f"\n  {key}: {json.dumps(value)}" for key, value in missing.items())
+        source = source[:pos] + addition + source[pos:]
+    return source
 
 
 def _yaml_block(source: str, key: str) -> tuple[int, int] | None:
@@ -994,9 +1129,9 @@ def _yaml_add_top_list_value(
     if located is None:
         inline = re.search(rf"(?m)^{re.escape(key)}:[ \t]*\[(?P<body>[^\]\n]*)\][ \t]*$", source)
         if inline:
-            if (
-                asset and _text_contains_asset_reference(inline.group("body"), rendered)
-            ) or (not asset and rendered.strip("\"'") in inline.group("body")):
+            if (asset and _text_contains_asset_reference(inline.group("body"), rendered)) or (
+                not asset and rendered.strip("\"'") in inline.group("body")
+            ):
                 return source
             body = inline.group("body")
             if prepend:
@@ -1343,6 +1478,7 @@ def _planned_yaml_config(
     for name in _missing_core_extensions(parsed):
         source = _yaml_add_extension(source, name)
     source = _yaml_ensure_tree_icons(source, parsed)
+    source = _ensure_authoring_settings(source, parsed, toml=False)
     source = _yaml_add_top_list_value(
         source,
         "extra_css",
@@ -1415,10 +1551,10 @@ def ensure_stylesheets(root: Path) -> list[Path]:
     paths = _stylesheet_paths(root, parsed)
     paths["pdk.css"].parent.mkdir(parents=True, exist_ok=True)
     for name in MANAGED_STYLESHEETS:
-        paths[name].write_bytes(resource_bytes(name))
+        _atomic_write(paths[name], resource_bytes(name))
     for name, initial_content in USER_MANAGED_STYLESHEETS.items():
         if not paths[name].exists():
-            paths[name].write_text(initial_content, encoding="utf-8")
+            _atomic_write(paths[name], initial_content.encode("utf-8"))
     return list(paths.values())
 
 
@@ -1428,17 +1564,17 @@ def ensure_javascripts(root: Path) -> list[Path]:
     paths = _javascript_paths(root, parsed)
     paths["pdk.js"].parent.mkdir(parents=True, exist_ok=True)
     for name in MANAGED_JAVASCRIPTS:
-        paths[name].write_bytes(resource_bytes(name))
+        _atomic_write(paths[name], resource_bytes(name))
     for name, initial_content in USER_MANAGED_JAVASCRIPTS.items():
         if not paths[name].exists():
-            paths[name].write_text(initial_content, encoding="utf-8")
+            _atomic_write(paths[name], initial_content.encode("utf-8"))
         elif name == "extra.js" and same_text_content(
             paths[name].read_bytes(), resource_bytes("pdk.js")
         ):
             # Older templates put this exact stock behaviour in the author
             # extension point. Move it to managed pdk.js without erasing any
             # file that differs by more than normal line-ending conversion.
-            paths[name].write_text(initial_content, encoding="utf-8")
+            _atomic_write(paths[name], initial_content.encode("utf-8"))
     return list(paths.values())
 
 
@@ -1486,9 +1622,17 @@ def _tool_health(
             if probe.ok
             else (False, f"mmdc health check failed: {probe.error}")
         )
+    docs = root / _docs_dir(_config(root)[2])
     installed = (
         root / "tools" / "mathjax" / "node_modules" / "mathjax-full" / "es5" / "tex-svg-full.js"
-    ).is_file() and (root / "docs" / "javascripts" / "mathjax.js").is_file()
+    ).is_file() and all(
+        path.is_file()
+        for path in (
+            docs / "javascripts" / "mathjax.js",
+            docs / "javascripts" / "vendor" / "mathjax" / "tex-svg-full.js",
+            docs / "javascripts" / "vendor" / "mathjax" / "LICENSE",
+        )
+    )
     if not installed:
         return False, "MathJax inputs are incomplete"
     node = shutil.which("node")
@@ -1529,6 +1673,7 @@ def install_tool(
     component: str,
     *,
     retry_reporter: RetryReporter | None = None,
+    offline: bool = False,
 ) -> list[Path]:
     """Install one selected Node renderer after writing its scaffold."""
     if component not in COMPONENT_FILES:
@@ -1559,7 +1704,7 @@ def install_tool(
         ),
         "--no-audit",
         "--no-fund",
-        "--prefer-offline",
+        "--offline" if offline else "--prefer-offline",
     ]
     try:
         npm_result = run_npm_with_retries(
@@ -1567,6 +1712,7 @@ def install_tool(
             cwd=tool_root,
             timeout=600,
             reporter=retry_reporter,
+            **({"retry_delays": ()} if offline else {}),
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise AdoptError(f"could not install {component}: {error}") from error
@@ -1643,6 +1789,8 @@ def assess(
     core_ok = (
         not config_error
         and not missing
+        and not _missing_caption_types(parsed)
+        and not _extra_defaults_missing(parsed)
         and _tree_icons_ok(
             parsed,
             require_python_names=config_path.suffix != ".toml",
@@ -1652,6 +1800,10 @@ def assess(
     core_problems: list[str] = []
     if missing:
         core_problems.append("add standard extension(s): " + ", ".join(missing))
+    if not config_error and _missing_caption_types(parsed):
+        core_problems.append("configure figure and table caption types")
+    if _extra_defaults_missing(parsed):
+        core_problems.append("add missing Prodockit website and PDF defaults")
     if not _tree_icons_ok(
         parsed,
         require_python_names=config_path.suffix != ".toml",
@@ -1702,7 +1854,7 @@ def assess(
     choices_detail = (
         f"component choices are saved in {MANIFEST}"
         if choices_ok
-        else f"save the inferred component choices in {MANIFEST}"
+        else f"save the selected component choices in {MANIFEST}"
     )
     csl = _csl_activity(root, parsed, offline=offline)
     mermaid_tool_ok, mermaid_detail = _tool_health(root, "mermaid", retry_reporter=retry_reporter)
@@ -1874,13 +2026,23 @@ def apply_step(
         return [
             ensure_zensical_config(root, options),
             write_manifest(root, options),
-            *install_tool(root, "mermaid", retry_reporter=retry_reporter),
+            *install_tool(
+                root,
+                "mermaid",
+                retry_reporter=retry_reporter,
+                **({"offline": True} if offline else {}),
+            ),
         ]
     if step_id == "maths":
         return [
             ensure_zensical_config(root, options),
             write_manifest(root, options),
-            *install_tool(root, "mathjax", retry_reporter=retry_reporter),
+            *install_tool(
+                root,
+                "mathjax",
+                retry_reporter=retry_reporter,
+                **({"offline": True} if offline else {}),
+            ),
         ]
     return []
 
