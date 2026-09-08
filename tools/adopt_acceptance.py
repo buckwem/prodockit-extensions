@@ -33,6 +33,11 @@ REQUIREMENTS = ("requirements.txt", "requirements/docs.txt", "docs/requirements.
 GENERATED_DIRS = {".cache", ".git", ".venv", "site", "__pycache__", "node_modules"}
 ADOPTED_SITE_FILES = {
     "stylesheets/pdk.css",
+    "stylesheets/extra.css",
+    "stylesheets/pdk-pdf.css",
+    "stylesheets/print.css",
+    "javascripts/pdk.js",
+    "javascripts/extra.js",
     "javascripts/mathjax.js",
     "javascripts/vendor/mathjax/LICENSE",
     "javascripts/vendor/mathjax/tex-svg-full.js",
@@ -46,7 +51,7 @@ SCENARIOS = (
 )
 SCENARIO_NAMES = tuple(item[0] for item in SCENARIOS)
 ASSET_TAG = re.compile(
-    rb"(?:<link\b[^>]*pdk\.css[^>]*>|"
+    rb"(?:<link\b[^>]*(?:pdk|extra)\.css[^>]*>|"
     rb"<script\b[^>]*(?:javascripts/mathjax\.js|"
     rb"javascripts/vendor/mathjax/tex-svg-full\.js)[^>]*>\s*</script>)\s*",
     re.IGNORECASE | re.DOTALL,

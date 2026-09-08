@@ -42,8 +42,14 @@ The standard installation adds:
     manifest used by `prodockit pins` and `pdk diag`.
 - The standard prodockit Markdown extensions to the existing
     `zensical.toml`, `zensical.yml` or `zensical.yaml`.
-- `docs/stylesheets/pdk.css`, loaded before any project stylesheet so
-    the project's own rules can override it.
+- Four standard stylesheets and their cascade in `zensical.toml`:
+    managed `pdk.css` followed by user-managed `extra.css` for the website,
+    then managed `pdk-pdf.css` followed by user-managed `print.css` for the
+    PDF.
+- Managed `pdk.js` followed by user-managed `extra.js`. When mathematics
+    is selected, the generated MathJax configuration and installed vendor
+    bundle sit between those two files. Missing user-managed files are created,
+    but their existing contents are never replaced.
 - `.prodockit-components.toml`, recording whether this project selected
     Mermaid diagrams or mathematical notation.
 - The configured `harvard-cite-them-right.csl` citation style when it is
@@ -54,9 +60,10 @@ The standard installation adds:
 
     The Zensical theme loads first. Adoption adds Prodockit's managed
     `pdk.css` after it so Prodockit can supply its component features and
-    presentation. Your existing `docs/stylesheets/extra.css` is left
-    unchanged and loads after `pdk.css`, so its custom rules can override
-    Prodockit's rules.
+    presentation. A template site's `template.css` remains next when it is
+    already configured. User-managed `extra.css` then has the final website
+    override. For PDF output, `pdk-pdf.css` follows the website styles and
+    user-managed `print.css` has the final PDF override.
 
     If an adopted feature does not look or behave as expected, you may need
     to remove or revise a conflicting custom rule. Read [which stylesheets

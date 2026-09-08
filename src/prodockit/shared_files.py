@@ -36,6 +36,7 @@ MANIFEST_VERSION = 1
 RESOURCES = {
     "pdk.css": ("assets", "pdk.css"),
     "pdk-pdf.css": ("assets", "pdk-pdf.css"),
+    "pdk.js": ("assets", "pdk.js"),
 }
 
 # An editable install imports directly from src/ and therefore does not see
@@ -47,6 +48,7 @@ DEVELOPMENT_SOURCES = {
     / "docs"
     / "stylesheets"
     / "pdk-pdf.css",
+    "pdk.js": Path(__file__).resolve().parents[2] / "docs" / "javascripts" / "pdk.js",
 }
 
 

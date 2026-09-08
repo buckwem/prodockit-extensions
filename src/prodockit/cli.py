@@ -1983,6 +1983,7 @@ def diag_command(
         _sanitise_text,
         build_repair_dry_run,
         inspect,
+        repair_adopt_core_assets,
         repair_distribution_metadata,
         repair_locked_renderer,
         repair_mixed_virtual_environment,
@@ -2043,6 +2044,7 @@ def diag_command(
                 or candidate.id.startswith("renderer.mathjax.install-locked")
                 or candidate.id == "renderer.weasyprint.repair-windows-pango"
                 or candidate.id.startswith("project.configuration.")
+                or candidate.id == "maintenance.adopt-readiness.core-assets"
             )
             for candidate in repair_plan.candidates
         )
@@ -2076,6 +2078,7 @@ def diag_command(
                 or candidate.id.startswith("renderer.mathjax.install-locked")
                 or candidate.id == "renderer.weasyprint.repair-windows-pango"
                 or candidate.id.startswith("project.configuration.")
+                or candidate.id == "maintenance.adopt-readiness.core-assets"
             )
             if candidate.status != "available" or not supported:
                 base_action["status"] = "skipped"
@@ -2158,6 +2161,10 @@ def diag_command(
                     "and a fresh Python imports WeasyPrint"
                 ),
                 "project.configuration": "the edited TOML parses and the selected problem is gone",
+                "maintenance.adopt-readiness": (
+                    "the standard extensions, stylesheets, JavaScript files, and "
+                    "configuration hierarchy pass Adopt assessment"
+                ),
             }[candidate.check_id]
             click.echo(f"Verify: {verification}", err=True)
             if choice.warning:
@@ -2264,6 +2271,21 @@ def diag_command(
                     changed = renderer_repair.changed
                     action_manifest = renderer_repair.manifest
                     action_quarantine = renderer_repair.quarantine
+                elif candidate.check_id == "maintenance.adopt-readiness":
+                    adopt_check = next(
+                        check
+                        for check in before.checks
+                        if check.id == "maintenance.adopt-readiness"
+                    )
+                    adopt_repair = repair_adopt_core_assets(
+                        project_root,
+                        options=adopt_check.data["options"],
+                        expected_fingerprint=adopt_check.data["core_fingerprint"],
+                    )
+                    result_status = adopt_repair.status
+                    changed = adopt_repair.changed
+                    action_manifest = adopt_repair.manifest
+                    action_quarantine = adopt_repair.quarantine
                 elif candidate.check_id == "renderer.weasyprint":
                     renderer_check = next(
                         check for check in before.checks if check.id == candidate.check_id

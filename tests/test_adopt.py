@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -25,8 +26,10 @@ from prodockit.adopt import (
     Step,
     _mermaid_bin,
     assess,
+    ensure_javascripts,
     ensure_requirement,
     ensure_stylesheet,
+    ensure_stylesheets,
     ensure_tools,
     ensure_zensical_config,
     install_tool,
@@ -39,6 +42,7 @@ from prodockit.adopt import (
 )
 from prodockit.cli import main
 from prodockit.pins import TESTED_VERSIONS
+from prodockit.shared_files import resource_bytes
 
 
 @pytest.fixture(autouse=True)
@@ -307,6 +311,172 @@ language = "en-GB"
     stylesheet = (project / STYLESHEET).read_text(encoding="utf-8")
     assert "logo_white.png" not in stylesheet
     assert "logo_black.png" not in stylesheet
+
+
+def test_core_adoption_installs_and_registers_the_stylesheet_hierarchy(
+    tmp_path: Path,
+) -> None:
+    project = _project(
+        tmp_path,
+        """\
+[project]
+site_name = "Styled"
+extra_css = ["stylesheets/template.css", "stylesheets/extra.css"]
+
+[project.extra]
+pdf_extra_css = ["stylesheets/print.css"]
+""",
+    )
+    styles = project / "docs" / "stylesheets"
+    styles.mkdir()
+    extra = styles / "extra.css"
+    print_css = styles / "print.css"
+    extra.write_text("/* author website styles */\n", encoding="utf-8")
+    print_css.write_text("/* author PDF styles */\n", encoding="utf-8")
+
+    ensure_zensical_config(project, AdoptOptions())
+    written = ensure_stylesheets(project)
+
+    config = (project / "zensical.toml").read_text(encoding="utf-8")
+    assert config.index('"stylesheets/pdk.css"') < config.index('"stylesheets/template.css"')
+    assert config.index('"stylesheets/template.css"') < config.index('"stylesheets/extra.css"')
+    assert config.index('"stylesheets/pdk-pdf.css"') < config.index('"stylesheets/print.css"')
+    assert {path.name for path in written} == {
+        "pdk.css",
+        "pdk-pdf.css",
+        "extra.css",
+        "print.css",
+    }
+    assert extra.read_text(encoding="utf-8") == "/* author website styles */\n"
+    assert print_css.read_text(encoding="utf-8") == "/* author PDF styles */\n"
+
+
+def test_core_adoption_creates_missing_user_managed_styles_without_replacing_them(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+
+    ensure_zensical_config(project, AdoptOptions())
+    ensure_stylesheets(project)
+    styles = project / "docs" / "stylesheets"
+    extra = styles / "extra.css"
+    print_css = styles / "print.css"
+    assert "project-specific website and PDF" in extra.read_text(encoding="utf-8")
+    assert "project-specific PDF-only" in print_css.read_text(encoding="utf-8")
+
+    extra.write_text("/* keep my website CSS */\n", encoding="utf-8")
+    print_css.write_text("/* keep my PDF CSS */\n", encoding="utf-8")
+    (styles / "pdk.css").write_text("/* old managed CSS */\n", encoding="utf-8")
+    (styles / "pdk-pdf.css").write_text("/* old managed PDF CSS */\n", encoding="utf-8")
+
+    ensure_stylesheets(project)
+
+    assert extra.read_text(encoding="utf-8") == "/* keep my website CSS */\n"
+    assert print_css.read_text(encoding="utf-8") == "/* keep my PDF CSS */\n"
+    assert (styles / "pdk.css").read_text(encoding="utf-8") != "/* old managed CSS */\n"
+    assert (styles / "pdk-pdf.css").read_text(encoding="utf-8") != (
+        "/* old managed PDF CSS */\n"
+    )
+
+
+def test_core_adoption_installs_javascript_without_mathjax(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+
+    ensure_zensical_config(project, AdoptOptions(maths=False))
+    written = ensure_javascripts(project)
+
+    config = (project / "zensical.toml").read_text(encoding="utf-8")
+    assert config.index('"javascripts/pdk.js"') < config.index('"javascripts/extra.js"')
+    assert "javascripts/mathjax.js" not in config
+    assert "javascripts/vendor/mathjax/tex-svg-full.js" not in config
+    assert {path.name for path in written} == {"pdk.js", "extra.js"}
+    assert (project / "docs/javascripts/extra.js").read_text(encoding="utf-8") == ""
+
+
+def test_core_adoption_orders_javascript_with_mathjax(tmp_path: Path) -> None:
+    project = _project(
+        tmp_path,
+        """[project]
+site_name = "Scripted"
+extra_javascript = ["javascripts/site.js", "javascripts/extra.js"]
+""",
+    )
+
+    ensure_zensical_config(project, AdoptOptions(maths=True))
+    ensure_javascripts(project)
+
+    config = (project / "zensical.toml").read_text(encoding="utf-8")
+    ordered = (
+        '"javascripts/pdk.js"',
+        '"javascripts/mathjax.js"',
+        '"javascripts/vendor/mathjax/tex-svg-full.js"',
+        '"javascripts/site.js"',
+        '"javascripts/extra.js"',
+    )
+    assert [config.index(value) for value in ordered] == sorted(
+        config.index(value) for value in ordered
+    )
+
+
+def test_core_adoption_refreshes_pdk_javascript_but_preserves_extra(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    ensure_zensical_config(project, AdoptOptions())
+    ensure_javascripts(project)
+    scripts = project / "docs/javascripts"
+    (scripts / "pdk.js").write_text("// old managed behaviour\\n", encoding="utf-8")
+    (scripts / "extra.js").write_text("// keep my behaviour\\n", encoding="utf-8")
+
+    ensure_javascripts(project)
+
+    assert (scripts / "pdk.js").read_bytes() == resource_bytes("pdk.js")
+    assert (scripts / "extra.js").read_text(encoding="utf-8") == "// keep my behaviour\\n"
+
+
+def test_core_adoption_empties_only_the_former_stock_extra_javascript(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    ensure_zensical_config(project, AdoptOptions())
+    scripts = project / "docs/javascripts"
+    scripts.mkdir(parents=True)
+    scripts.joinpath("extra.js").write_bytes(resource_bytes("pdk.js"))
+
+    ensure_javascripts(project)
+
+    assert scripts.joinpath("pdk.js").read_bytes() == resource_bytes("pdk.js")
+    assert scripts.joinpath("extra.js").read_text(encoding="utf-8") == ""
+
+
+def test_yaml_adoption_registers_website_and_pdf_styles_in_cascade_order(
+    tmp_path: Path,
+) -> None:
+    project = _project(
+        tmp_path,
+        """\
+site_name: Styled
+extra_css: [stylesheets/theme.css]
+extra:
+  pdf_extra_css: [stylesheets/custom-print.css]
+""",
+        config_name="zensical.yml",
+    )
+
+    ensure_zensical_config(project, AdoptOptions())
+    ensure_stylesheets(project)
+
+    config = (project / "zensical.yml").read_text(encoding="utf-8")
+    assert (
+        "extra_css: [stylesheets/pdk.css, stylesheets/theme.css, stylesheets/extra.css]"
+        in config
+    )
+    assert (
+        "pdf_extra_css: [stylesheets/pdk-pdf.css, stylesheets/custom-print.css, "
+        "stylesheets/print.css]" in config
+    )
+    assert all(
+        (project / "docs" / "stylesheets" / name).is_file()
+        for name in ("pdk.css", "pdk-pdf.css", "extra.css", "print.css")
+    )
 
 
 def test_toml_without_extensions_preserves_zensical_markdown_defaults(
@@ -1178,6 +1348,11 @@ def test_stylesheet_follows_a_custom_docs_directory(tmp_path: Path) -> None:
 
     assert path == project / "docs" / "src" / "markdown" / "stylesheets" / "pdk.css"
     assert path.is_file()
+    stylesheet_dir = project / "docs" / "src" / "markdown" / "stylesheets"
+    assert all(
+        (stylesheet_dir / name).is_file()
+        for name in ("pdk.css", "extra.css", "pdk-pdf.css", "print.css")
+    )
     assert not (project / STYLESHEET).exists()
 
 
@@ -1240,7 +1415,7 @@ def test_mkdocs_inline_css_list_is_extended_without_a_duplicate_key(tmp_path: Pa
     ensure_zensical_config(project, AdoptOptions())
 
     config = (project / "mkdocs.yml").read_text(encoding="utf-8")
-    assert config.count("extra_css:") == 1
+    assert len(re.findall(r"(?m)^extra_css:", config)) == 1
     assert "stylesheets/pdk.css, stylesheets/mine.css" in config
 
 

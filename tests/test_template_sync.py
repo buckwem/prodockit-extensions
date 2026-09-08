@@ -1084,6 +1084,82 @@ pdf_extra_css = ["stylesheets/print.css"]
     ]
 
 
+def test_asset_lists_correct_an_older_css_and_javascript_cascade() -> None:
+    template = {
+        "project": {
+            "extra_css": [
+                "stylesheets/pdk.css?v=3",
+                "stylesheets/template.css",
+                "stylesheets/extra.css",
+            ],
+            "extra_javascript": [
+                "javascripts/pdk.js?v=1",
+                "javascripts/mathjax.js",
+                "javascripts/vendor/mathjax/tex-svg-full.js",
+                "javascripts/extra.js",
+            ],
+            "extra": {
+                "pdf_extra_css": [
+                    "stylesheets/pdk-pdf.css",
+                    "stylesheets/print.css",
+                ]
+            },
+        }
+    }
+    project = {
+        "project": {
+            "extra_css": [
+                "stylesheets/pdk.css?v=2",
+                "stylesheets/extra.css",
+                "stylesheets/template.css",
+                "stylesheets/course.css",
+            ],
+            "extra_javascript": [
+                "javascripts/mathjax.js",
+                "javascripts/vendor/mathjax/tex-svg-full.js",
+                "javascripts/extra.js",
+                "javascripts/course.js",
+            ],
+            "extra": {
+                "pdf_extra_css": [
+                    "stylesheets/print.css",
+                    "stylesheets/pdk-pdf.css",
+                    "stylesheets/course-print.css",
+                ]
+            },
+        }
+    }
+
+    added, updated = config_changes(load_manifest(MANIFEST), template, project)
+    source = """[project]
+extra_css = ["stylesheets/pdk.css?v=2", "stylesheets/extra.css", "stylesheets/template.css", "stylesheets/course.css"]
+extra_javascript = ["javascripts/mathjax.js", "javascripts/vendor/mathjax/tex-svg-full.js", "javascripts/extra.js", "javascripts/course.js"]
+
+[project.extra]
+pdf_extra_css = ["stylesheets/print.css", "stylesheets/pdk-pdf.css", "stylesheets/course-print.css"]
+"""
+    parsed = read_config(apply_config_changes(source, template, added, updated))["project"]
+
+    assert parsed["extra_css"] == [
+        "stylesheets/pdk.css?v=3",
+        "stylesheets/template.css",
+        "stylesheets/extra.css",
+        "stylesheets/course.css",
+    ]
+    assert parsed["extra_javascript"] == [
+        "javascripts/pdk.js?v=1",
+        "javascripts/mathjax.js",
+        "javascripts/vendor/mathjax/tex-svg-full.js",
+        "javascripts/extra.js",
+        "javascripts/course.js",
+    ]
+    assert parsed["extra"]["pdf_extra_css"] == [
+        "stylesheets/pdk-pdf.css",
+        "stylesheets/print.css",
+        "stylesheets/course-print.css",
+    ]
+
+
 def test_missing_asset_lists_are_added_even_when_an_old_manifest_does_not_take_them() -> None:
     template = {
         "project": {
