@@ -22,7 +22,9 @@ def test_contributing_links_to_the_detailed_site_guides() -> None:
 
 def test_contributing_setup_is_copyable_and_names_external_pdf_tools() -> None:
     for phrase in (
-        'python -m venv .venv',
+        '"$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv',
+        "py -3.14 -m venv .venv",
+        "python3.14 -m venv .venv",
         'python -m pip install -e ".[dev]"',
         "Pandoc",
         "WeasyPrint",
@@ -52,3 +54,30 @@ def test_contributing_lists_the_pdf_and_built_output_gates_in_order() -> None:
     built = GUIDE.index("python -m pytest tests/test_built_docs.py -m built -v", pdf)
 
     assert section < site < pdf < built
+
+
+def test_contributing_has_one_complete_ordered_setup_tab_per_platform() -> None:
+    headings = (
+        '=== ":material-apple: macOS"',
+        '=== ":fontawesome-brands-windows: Windows PowerShell"',
+        '=== ":material-linux: Linux (Ubuntu)"',
+    )
+    starts = [GUIDE.index(heading) for heading in headings]
+    ends = [*starts[1:], GUIDE.index("Activate the environment before running commands")]
+
+    for start, end in zip(starts, ends, strict=True):
+        tab = GUIDE[start:end]
+        clone = tab.index("git clone ")
+        enter = min(
+            position
+            for command in ("cd prodockit-extensions", "Set-Location prodockit-extensions")
+            if (position := tab.find(command)) >= 0
+        )
+        create = tab.index(" -m venv .venv")
+        activate = (
+            tab.index("Activate.ps1")
+            if "PowerShell" in tab
+            else tab.index("source .venv/bin/activate")
+        )
+        install = tab.index('python -m pip install -e ".[dev]"')
+        assert clone < enter < create < activate < install
