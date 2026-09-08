@@ -529,7 +529,7 @@ def _style_ok(root: Path, parsed: dict[str, Any]) -> bool:
             for name in MANAGED_JAVASCRIPTS
         )
         and all(
-            configured in values
+            _asset_is_configured(configured, values)
             for configured, values in (
                 ("stylesheets/pdk.css", extra_css),
                 ("stylesheets/extra.css", extra_css),
@@ -637,6 +637,31 @@ def _matching_bracket(source: str, start: int) -> int:
     raise AdoptError("could not find the end of a TOML array")
 
 
+def _asset_reference(value: object) -> str | None:
+    """Return an asset path without browser cache keys or fragments."""
+    if not isinstance(value, str):
+        return None
+    return re.split(r"[?#]", value, maxsplit=1)[0]
+
+
+def _asset_is_configured(expected: str, values: object) -> bool:
+    """Treat cache-versioned and plain references to one asset as equivalent."""
+    if not isinstance(values, list):
+        return False
+    return any(_asset_reference(value) == expected for value in values)
+
+
+def _text_contains_asset_reference(source: str, rendered: str) -> bool:
+    expected = rendered.strip("\"'")
+    return bool(
+        re.search(
+            rf"(?<![\w./-]){re.escape(expected)}(?:[?#][^\"'\s,\]]*)?"
+            r"(?=[\"'\s,\]])",
+            source,
+        )
+    )
+
+
 def _add_array_value(
     source: str,
     table: str,
@@ -644,6 +669,7 @@ def _add_array_value(
     rendered: str,
     *,
     prepend: bool = False,
+    asset: bool = False,
 ) -> str:
     located = _section(source, table)
     if located is None:
@@ -658,7 +684,10 @@ def _add_array_value(
         return source[:header_end] + f"{key} = [\n  {rendered},\n]\n" + source[header_end:]
     array_start = start + assignment.end() - 1
     array_end = _matching_bracket(source, array_start)
-    if rendered in source[array_start : array_end + 1]:
+    array_source = source[array_start : array_end + 1]
+    if (asset and _text_contains_asset_reference(array_source, rendered)) or (
+        not asset and rendered in array_source
+    ):
         return source
     if prepend:
         addition = f"\n  {rendered},"
@@ -803,12 +832,14 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
         "extra_css",
         '"stylesheets/pdk.css"',
         prepend=True,
+        asset=True,
     )
     source = _add_array_value(
         source,
         "project",
         "extra_css",
         '"stylesheets/extra.css"',
+        asset=True,
     )
     pdf_css_table = "project.extra"
     pdf_css_key = "pdf_extra_css"
@@ -823,12 +854,14 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
         pdf_css_key,
         '"stylesheets/pdk-pdf.css"',
         prepend=True,
+        asset=True,
     )
     source = _add_array_value(
         source,
         pdf_css_table,
         pdf_css_key,
         '"stylesheets/print.css"',
+        asset=True,
     )
     if options.mermaid:
         existing = configured.get("pymdownx.superfences")
@@ -871,6 +904,7 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
             "extra_javascript",
             '"javascripts/vendor/mathjax/tex-svg-full.js"',
             prepend=True,
+            asset=True,
         )
         source = _add_array_value(
             source,
@@ -878,6 +912,7 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
             "extra_javascript",
             '"javascripts/mathjax.js"',
             prepend=True,
+            asset=True,
         )
     source = _add_array_value(
         source,
@@ -885,12 +920,14 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
         "extra_javascript",
         '"javascripts/pdk.js"',
         prepend=True,
+        asset=True,
     )
     source = _add_array_value(
         source,
         "project",
         "extra_javascript",
         '"javascripts/extra.js"',
+        asset=True,
     )
     try:
         tomllib.loads(source)
@@ -951,12 +988,15 @@ def _yaml_add_top_list_value(
     rendered: str,
     *,
     prepend: bool = False,
+    asset: bool = False,
 ) -> str:
     located = _yaml_block(source, key)
     if located is None:
         inline = re.search(rf"(?m)^{re.escape(key)}:[ \t]*\[(?P<body>[^\]\n]*)\][ \t]*$", source)
         if inline:
-            if rendered.strip("\"'") in inline.group("body"):
+            if (
+                asset and _text_contains_asset_reference(inline.group("body"), rendered)
+            ) or (not asset and rendered.strip("\"'") in inline.group("body")):
                 return source
             body = inline.group("body")
             if prepend:
@@ -975,7 +1015,9 @@ def _yaml_add_top_list_value(
         return f"{source}{lead}\n{key}:\n  - {rendered}\n"
     start, end = located
     region = source[start:end]
-    if rendered.strip("\"'") in region:
+    if (asset and _text_contains_asset_reference(region, rendered)) or (
+        not asset and rendered.strip("\"'") in region
+    ):
         return source
     header_end = source.find("\n", start) + 1
     if header_end <= 0:
@@ -994,6 +1036,7 @@ def _yaml_add_nested_list_value(
     rendered: str,
     *,
     prepend: bool = False,
+    asset: bool = False,
 ) -> str:
     """Add an item to a list below one top-level YAML mapping."""
     parent_block = _yaml_block(source, parent)
@@ -1028,7 +1071,9 @@ def _yaml_add_nested_list_value(
         body_start = parent_start + child.start("inline") + 1
         body_end = parent_start + child.end("inline") - 1
         body = source[body_start:body_end]
-        if rendered.strip("\"'") in body:
+        if (asset and _text_contains_asset_reference(body, rendered)) or (
+            not asset and rendered.strip("\"'") in body
+        ):
             return source
         separator = ", " if body.strip() else ""
         if prepend:
@@ -1042,7 +1087,9 @@ def _yaml_add_nested_list_value(
     )
     child_end = absolute_end + following.start() if following else parent_end
     child_region = source[absolute_start:child_end]
-    if rendered.strip("\"'") in child_region:
+    if (asset and _text_contains_asset_reference(child_region, rendered)) or (
+        not asset and rendered.strip("\"'") in child_region
+    ):
         return source
     header_end = source.find("\n", absolute_start, child_end) + 1
     item = re.search(r"(?m)^(?P<indent>[ \t]*)- ", child_region)
@@ -1301,11 +1348,13 @@ def _planned_yaml_config(
         "extra_css",
         "stylesheets/pdk.css",
         prepend=True,
+        asset=True,
     )
     source = _yaml_add_top_list_value(
         source,
         "extra_css",
         "stylesheets/extra.css",
+        asset=True,
     )
     source = _yaml_add_nested_list_value(
         source,
@@ -1313,12 +1362,14 @@ def _planned_yaml_config(
         "pdf_extra_css",
         "stylesheets/pdk-pdf.css",
         prepend=True,
+        asset=True,
     )
     source = _yaml_add_nested_list_value(
         source,
         "extra",
         "pdf_extra_css",
         "stylesheets/print.css",
+        asset=True,
     )
     if options.mermaid:
         source = _yaml_ensure_mermaid(source)
@@ -1329,20 +1380,28 @@ def _planned_yaml_config(
             "extra_javascript",
             "javascripts/vendor/mathjax/tex-svg-full.js",
             prepend=True,
+            asset=True,
         )
         source = _yaml_add_top_list_value(
             source,
             "extra_javascript",
             "javascripts/mathjax.js",
             prepend=True,
+            asset=True,
         )
     source = _yaml_add_top_list_value(
         source,
         "extra_javascript",
         "javascripts/pdk.js",
         prepend=True,
+        asset=True,
     )
-    source = _yaml_add_top_list_value(source, "extra_javascript", "javascripts/extra.js")
+    source = _yaml_add_top_list_value(
+        source,
+        "extra_javascript",
+        "javascripts/extra.js",
+        asset=True,
+    )
     try:
         yaml.load(source, Loader=_MarkdownConfigLoader)
     except yaml.YAMLError as error:  # pragma: no cover - defensive transaction guard
@@ -1632,7 +1691,7 @@ def assess(
         ("javascripts/extra.js", extra_javascript, "project.extra_javascript"),
     )
     for stylesheet, configured_styles, setting in registrations:
-        if stylesheet not in configured_styles:
+        if not _asset_is_configured(stylesheet, configured_styles):
             core_problems.append(f"register {stylesheet} in {setting}")
     core_detail = config_error or (
         "all standard extensions and managed and user styles and scripts are configured"

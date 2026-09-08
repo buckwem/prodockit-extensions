@@ -444,6 +444,75 @@ extra_javascript = ["javascripts/site.js", "javascripts/extra.js"]
     )
 
 
+def test_core_adoption_preserves_cache_versioned_assets_without_duplicates(
+    tmp_path: Path,
+) -> None:
+    project = _project(
+        tmp_path,
+        """[project]
+site_name = "Cache-versioned assets"
+extra_css = ["stylesheets/pdk.css?v=4", "stylesheets/extra.css?v=2"]
+extra_javascript = [
+  "javascripts/mathjax.js?v=config-2",
+  "javascripts/vendor/mathjax/tex-svg-full.js?v=3.2.2",
+  "javascripts/extra.js?v=7",
+]
+
+[project.extra]
+pdf_extra_css = ["stylesheets/pdk-pdf.css?v=4", "stylesheets/print.css?v=2"]
+""",
+    )
+
+    ensure_zensical_config(project, AdoptOptions(maths=True))
+    ensure_stylesheets(project)
+    ensure_javascripts(project)
+    first = (project / "zensical.toml").read_text(encoding="utf-8")
+    ensure_zensical_config(project, AdoptOptions(maths=True))
+    second = (project / "zensical.toml").read_text(encoding="utf-8")
+
+    assert second == first
+    assert '"javascripts/mathjax.js",' not in second
+    assert '"javascripts/vendor/mathjax/tex-svg-full.js",' not in second
+    assert second.count("javascripts/mathjax.js?v=config-2") == 1
+    assert second.count("javascripts/vendor/mathjax/tex-svg-full.js?v=3.2.2") == 1
+    assert second.index('"javascripts/pdk.js"') < second.index(
+        '"javascripts/mathjax.js?v=config-2"'
+    )
+    core = next(step for step in assess(project, AdoptOptions(maths=True)) if step.id == "core")
+    assert core.status == "ok", core.detail
+
+
+def test_mkdocs_adoption_preserves_cache_versioned_assets(tmp_path: Path) -> None:
+    project = _project(
+        tmp_path,
+        """site_name: Cache-versioned YAML
+extra_css:
+  - stylesheets/pdk.css?v=4
+  - stylesheets/extra.css?v=2
+extra_javascript:
+  - javascripts/mathjax.js?v=config-2
+  - javascripts/vendor/mathjax/tex-svg-full.js?v=3.2.2
+  - javascripts/extra.js?v=7
+extra:
+  pdf_extra_css:
+    - stylesheets/pdk-pdf.css?v=4
+    - stylesheets/print.css?v=2
+""",
+        config_name="mkdocs.yml",
+    )
+
+    ensure_zensical_config(project, AdoptOptions(maths=True))
+    config = (project / "mkdocs.yml").read_text(encoding="utf-8")
+
+    assert "- javascripts/mathjax.js\n" not in config
+    assert "- javascripts/vendor/mathjax/tex-svg-full.js\n" not in config
+    assert config.count("javascripts/mathjax.js?v=config-2") == 1
+    assert config.count("javascripts/vendor/mathjax/tex-svg-full.js?v=3.2.2") == 1
+    assert config.index("- javascripts/pdk.js") < config.index(
+        "- javascripts/mathjax.js?v=config-2"
+    )
+
+
 def test_core_adoption_refreshes_pdk_javascript_but_preserves_extra(tmp_path: Path) -> None:
     project = _project(tmp_path)
     ensure_zensical_config(project, AdoptOptions())
