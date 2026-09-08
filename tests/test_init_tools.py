@@ -110,6 +110,7 @@ def test_scaffolded_manifests_are_valid_json_with_the_expected_dependency(
         (tmp_path / "tools/mathjax/package-lock.json").read_text(encoding="utf-8")
     )
     assert mermaid_lock["packages"][""]["dependencies"] == mermaid["dependencies"]
+    assert "node_modules/tailwindcss" in mermaid_lock["packages"]
     assert mathjax_lock["packages"][""]["dependencies"] == mathjax["dependencies"]
 
 
