@@ -19,6 +19,15 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.61.4 (2026-09-08)
+
+- Made Adopt fetch, validate and cache the configured standard Harvard CSL file
+  when it is missing, reuse a validated cached copy offline, preserve existing
+  citation styles, and give explicit guidance for author-owned custom styles.
+- Made Adopt and Diagnostics install Mermaid CLI with its required Puppeteer
+  peer dependency on current Node.js and npm releases, including npm 11, and
+  added the required Tailwind peer entry to the packaged lockfile.
+
 ## 0.61.3 (2026-09-08)
 
 - Moved Bootstrap's preserved template history into a dedicated sibling
