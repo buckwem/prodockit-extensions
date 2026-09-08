@@ -2122,7 +2122,7 @@ def repair_locked_renderer(
             [
                 npm,
                 "ci",
-                "--legacy-peer-deps",
+                *(["--legacy-peer-deps"] if component == "mathjax" else []),
                 "--no-audit",
                 "--no-fund",
                 "--prefer-offline",
@@ -3771,7 +3771,7 @@ def _adopt_readiness_checks(
     # correctly run from setup-python without VIRTUAL_ENV, and ordinary
     # diagnostics explicitly accepts that arrangement. Only compare the
     # integration stages shared with Template Sync here.
-    integration_ids = {"dependency", "core", "choices", "mermaid", "maths"}
+    integration_ids = {"dependency", "core", "csl", "choices", "mermaid", "maths"}
     integration_steps = [step for step in steps if step.id in integration_ids]
     blockers = [
         step for step in integration_steps if step.selected and step.status == "wrong"

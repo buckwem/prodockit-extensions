@@ -32,6 +32,17 @@ from packaging.version import InvalidVersion, Version
 from prodockit import __version__
 from prodockit import toolchain as supported_toolchain
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
+from prodockit.csl import (
+    CSL_STYLE_URL,
+    DEFAULT_CSL_STYLE,
+    CslError,
+)
+from prodockit.csl import (
+    cache_path as csl_cache_path,
+)
+from prodockit.csl import (
+    install as install_csl,
+)
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
@@ -479,6 +490,59 @@ def _style_ok(root: Path, parsed: dict[str, Any]) -> bool:
         path.is_file()
         and same_text_content(path.read_bytes(), resource_bytes("pdk.css"))
         and "stylesheets/pdk.css" in extra_css
+    )
+
+
+def _csl_activity(root: Path, parsed: dict[str, Any], *, offline: bool) -> Step:
+    """Describe the configured bibliography style without guessing its source."""
+    bibliography = _extensions(parsed).get("prodockit.bibliography")
+    configured = bibliography.get("csl_style") if isinstance(bibliography, Mapping) else None
+    if not configured:
+        return Step(
+            "csl",
+            "Integrate",
+            "Citation style",
+            "ok",
+            "no external citation style is configured",
+        )
+
+    relative = Path(str(configured))
+    target = relative if relative.is_absolute() else root / relative
+    if target.is_file():
+        return Step(
+            "csl",
+            "Integrate",
+            "Citation style",
+            "ok",
+            f"preserve the existing {configured}",
+            files=(target,),
+        )
+
+    try:
+        safe_relative = not relative.is_absolute() and target.resolve().is_relative_to(
+            root.resolve()
+        )
+    except OSError:
+        safe_relative = False
+    if relative.name != DEFAULT_CSL_STYLE or not safe_relative:
+        return Step(
+            "csl",
+            "Integrate",
+            "Citation style",
+            "wrong",
+            f"{configured} is missing. Adopt does not know a trusted source for this custom "
+            "style; download the intended CSL file to that configured path, then rerun Adopt",
+            files=(target,),
+        )
+
+    source = f"the validated cache at {csl_cache_path()}" if offline else CSL_STYLE_URL
+    return Step(
+        "csl",
+        "Integrate",
+        "Citation style",
+        "missing",
+        f"install {configured} from {source}",
+        files=(target,),
     )
 
 
@@ -1208,7 +1272,11 @@ def install_tool(
     command = [
         npm,
         "ci" if (tool_root / "package-lock.json").is_file() else "install",
-        *(["--legacy-peer-deps"] if (tool_root / "package-lock.json").is_file() else []),
+        *(
+            ["--legacy-peer-deps"]
+            if component == "mathjax" and (tool_root / "package-lock.json").is_file()
+            else []
+        ),
         "--no-audit",
         "--no-fund",
         "--prefer-offline",
@@ -1328,6 +1396,7 @@ def assess(
         if choices_ok
         else f"save the inferred component choices in {MANIFEST}"
     )
+    csl = _csl_activity(root, parsed, offline=offline)
     mermaid_tool_ok, mermaid_detail = _tool_health(root, "mermaid", retry_reporter=retry_reporter)
     maths_tool_ok, maths_detail = _tool_health(root, "mathjax")
     mermaid_ok = mermaid_tool_ok and "pymdownx.superfences" in configured
@@ -1350,6 +1419,7 @@ def assess(
         and not toolchain.blocked
         and not toolchain.needs_work
         and core_ok
+        and csl.status == "ok"
         and choices_ok
         and (not options.mermaid or mermaid_ok)
         and (not options.maths or maths_ok)
@@ -1403,6 +1473,7 @@ def assess(
             "wrong" if config_error else ("ok" if core_ok else "missing"),
             core_detail,
         ),
+        csl,
         Step(
             "choices",
             "Integrate",
@@ -1480,6 +1551,14 @@ def apply_step(
             ensure_zensical_config(root, options),
             ensure_stylesheet(root),
         ]
+    if step_id == "csl":
+        activity = _csl_activity(root, _config(root)[2], offline=offline)
+        if not activity.files:
+            return []
+        try:
+            return [install_csl(activity.files[0], offline=offline)]
+        except CslError as error:
+            raise AdoptError(str(error)) from error
     if step_id == "choices":
         return [write_manifest(root, options)]
     if step_id == "mermaid":

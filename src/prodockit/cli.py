@@ -3272,6 +3272,8 @@ def adopt_command(
         click.echo(f"  Current:  {step.detail}")
         if step.id in {"dependency", "core", "choices"}:
             click.echo(f"  Will do:  {step.detail}")
+        elif step.id == "csl":
+            click.echo("  Will do:  fetch and validate the configured citation style")
         elif step.id == "mermaid":
             click.echo(
                 "  Will do:  scaffold and install the project-local Mermaid renderer with npm"
