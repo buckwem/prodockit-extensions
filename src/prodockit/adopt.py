@@ -810,17 +810,24 @@ def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, s
         "extra_css",
         '"stylesheets/extra.css"',
     )
+    pdf_css_table = "project.extra"
+    pdf_css_key = "pdf_extra_css"
+    if _section(source, pdf_css_table) is None:
+        # Dotted project keys already define the same TOML table. Keep that
+        # representation instead of appending a duplicate [project.extra].
+        pdf_css_table = "project"
+        pdf_css_key = "extra.pdf_extra_css"
     source = _add_array_value(
         source,
-        "project.extra",
-        "pdf_extra_css",
+        pdf_css_table,
+        pdf_css_key,
         '"stylesheets/pdk-pdf.css"',
         prepend=True,
     )
     source = _add_array_value(
         source,
-        "project.extra",
-        "pdf_extra_css",
+        pdf_css_table,
+        pdf_css_key,
         '"stylesheets/print.css"',
     )
     if options.mermaid:

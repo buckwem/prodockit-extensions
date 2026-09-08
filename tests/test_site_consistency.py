@@ -117,6 +117,12 @@ def test_reference_site_enables_website_heading_numbering() -> None:
         "stylesheets/pdk-pdf.css",
         "stylesheets/print.css",
     ]
+    assert config["extra_javascript"] == [
+        "javascripts/pdk.js",
+        "javascripts/mathjax.js",
+        "javascripts/vendor/mathjax/tex-svg-full.js",
+        "javascripts/extra.js",
+    ]
     assert "config.extra.website_heading_numbering == false" in _text("overrides/main.html")
 
 
