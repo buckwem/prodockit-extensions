@@ -46,6 +46,9 @@ The standard installation adds:
     the project's own rules can override it.
 - `.prodockit-components.toml`, recording whether this project selected
     Mermaid diagrams or mathematical notation.
+- The configured `harvard-cite-them-right.csl` citation style when it is
+    missing. The download is checked as CSL/XML and cached before it is placed
+    in the project. Existing and custom style files remain author-owned.
 
 !!! warning "Existing custom styles can override Prodockit"
 
@@ -287,7 +290,10 @@ timeouts. Set `PDK_PYPI_MIRROR` to add an institutional Python package mirror.
 Pandoc downloads are validated as archives, retained in Prodockit's native
 download cache and retried before moving from a configured
 `PDK_PANDOC_MIRROR` to the official release source. A rerun reuses any valid
-cached download rather than fetching it again.
+cached download rather than fetching it again. The supported Cite Them Right
+Harvard style follows the same cache-first rule and is written only after its
+XML and CSL structure have been validated. In offline mode, the report names
+the exact cache path and canonical URL when no validated copy is available.
 
 Routine npm output is captured; a failure is reported with its own error rather
 than leaving an apparently successful stage. After npm completes, Adoption

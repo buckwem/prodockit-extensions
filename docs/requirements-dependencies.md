@@ -61,26 +61,29 @@ pip cannot install and the features that use them.
 | \index{dependencies!`pandoc`} (>= 3, builds pin 3.10.1) | `prodockit.pdf`, and `prodockit.bibliography` even without a PDF build. Genuinely not a Python package - there is nothing for `pip` to install |
 | \index{dependencies!`mermaid-cli`}, `mathjax-full` (Node >= 22) | only Mermaid diagrams and TeX maths in the PDF |
 | Chrome or Chromium | only Mermaid diagrams - `mermaid-cli` renders them through a headless browser |
-| A citation style (`.csl`) | only `prodockit.bibliography`. Fetched per build, not vendored - see below |
+| A citation style (`.csl`) | only `prodockit.bibliography`. The standard style is fetched and validated by Bootstrap or Adopt; custom styles remain author-owned - see below |
 /// table-caption | <
     attrs: {id: tab-installation-not-installed-by-pip}
 
 Not installed by pip
 ///
 
-The citation style is a download rather than an install. Pandoc resolves
-`harvard-cite-them-right.csl` from the directory it runs in, and every CI
-script here fetches it immediately before building:
+The citation style is a download rather than a Python package. Pandoc resolves
+`harvard-cite-them-right.csl` from the directory it runs in. Bootstrap fetches
+that standard style for a new template project, and Adopt now offers the same
+validated download when an existing project's configuration names it but the
+file is missing. Adopt retains its validated download in Prodockit's native
+download cache, so a later offline Adopt run can restore a known-good copy.
+
+The style is deliberately not committed: it is third-party content with its
+own licence and release cadence. Adopt preserves an existing file and never
+guesses a source for a differently named custom style; obtain that chosen
+style yourself and place it at the path configured by `csl_style`. A manual
+installation can fetch the supported standard style with:
 
 ```bash
 curl -fsSL -o harvard-cite-them-right.csl "https://www.zotero.org/styles/harvard-cite-them-right"
 ```
-
-It is deliberately not committed: it is third-party content with its own
-licence and release cadence. `prodockit bootstrap` fetches it for a
-bootstrapped project. An adopted or manually installed project can fetch it in
-its own build workflow, and `.gitignore` should keep a local copy out of
-commits.
 
 WeasyPrint is worth separating from Pandoc rather than filing both as external
 binaries: one is a `pip install` away and the other is not.
