@@ -3868,8 +3868,10 @@ def _puppeteer_exports() -> str:
     return f"export {PUPPETEER_PATH_VAR}={_WHICH_CHROMIUM}; export {PUPPETEER_SKIP_VAR}=true; "
 
 
-def _plan_node(context: Context) -> Plan:
-    project = context.config.resolved_project_dir(context.home)
+def node_runtime_install_plan(
+    context: Context,
+) -> tuple[list[list[str]], bool, bool, list[str]]:
+    """Shared Node/npm installation policy, without renderers or repository work."""
     ubuntu_node_install = [
         _apt("install", "-y", "curl"),
         ["bash", "-c", "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"],
@@ -3944,6 +3946,12 @@ def _plan_node(context: Context) -> Plan:
             }[context.platform]
             repair = True
 
+    return install, upgrade, repair, upgrade_parts
+
+
+def _plan_node(context: Context) -> Plan:
+    project = context.config.resolved_project_dir(context.home)
+    install, upgrade, repair, upgrade_parts = node_runtime_install_plan(context)
     mermaid = str(project / "tools" / "mermaid")
     mathjax = str(project / "tools" / "mathjax")
 

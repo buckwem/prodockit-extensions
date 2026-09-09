@@ -55,6 +55,9 @@ def _supported_toolchain(monkeypatch: pytest.MonkeyPatch) -> None:
     tests describe an already-supported active environment.
     """
 
+    from prodockit.adopt_node import NodePlan
+
+    monkeypatch.setattr("prodockit.adopt_node.plan", lambda **kwargs: NodePlan())
     monkeypatch.setattr(
         "prodockit.toolchain.installed_python_version",
         lambda: TESTED_VERSIONS["python"],
@@ -120,7 +123,7 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
 
     assert result.exit_code == 0, result.output
     assert "Phase 1/4 — Assess" in result.output
-    assert "Activity [3/9] Supported toolchain" in result.output
+    assert "Activity [3/10] Supported toolchain" in result.output
     assert "Component choices" in result.output
     assert "\x1b[94m" in result.output
     assert "\x1b[34m" in result.output
@@ -131,7 +134,10 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     assert "WAIT  Ready for local build" in result.output
     assert "apply the selected integration activities" in result.output
     assert "zensical build --clean --strict" in result.output
-    assert "active project environment and local project files" in result.output
+    assert (
+        "active project environment, local project files and selected runtime prerequisites"
+        in result.output
+    )
     assert "Git, SSH, remotes, editors, commits and pushes" in result.output
 
 
@@ -184,6 +190,14 @@ def test_assessment_warns_without_venv_and_rejects_wrong_active_venv(tmp_path, m
 
 def test_assessment_blocks_selected_renderers_when_node_is_unavailable(tmp_path, monkeypatch):
     from prodockit.adopt import AdoptOptions, assess
+    from prodockit.adopt_node import NodePlan
+
+    monkeypatch.setattr(
+        "prodockit.adopt_node.plan",
+        lambda **kwargs: NodePlan(
+            blocked="Node.js/npm needs installation or repair, but Adopt is offline"
+        ),
+    )
 
     project = _project(tmp_path)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: False)
@@ -191,13 +205,18 @@ def test_assessment_blocks_selected_renderers_when_node_is_unavailable(tmp_path,
 
     steps = assess(project, AdoptOptions(mermaid=True, maths=True), offline=True)
 
-    for step_id in ("mermaid", "maths"):
-        step = next(item for item in steps if item.id == step_id)
-        assert step.status == "wrong"
-        assert "Node.js and npm are required before Adopt" in step.detail
+    step = next(item for item in steps if item.id == "node")
+    assert step.status == "wrong"
+    assert "Adopt is offline" in step.detail
 
 
 def test_apply_checks_renderer_prerequisites_before_changing_project(tmp_path, monkeypatch):
+    from prodockit.adopt_node import NodePlan
+
+    monkeypatch.setattr(
+        "prodockit.adopt_node.plan",
+        lambda **kwargs: NodePlan(blocked="Node.js/npm cannot be installed offline"),
+    )
     project = _project(tmp_path)
     config = project / "zensical.toml"
     before = config.read_bytes()
@@ -211,13 +230,8 @@ def test_apply_checks_renderer_prerequisites_before_changing_project(tmp_path, m
     )
 
     assert result.exit_code != 0
-    # One deduplicated prominent summary plus the two affected renderer
-    # activities makes the dependency visible without hiding the detail.
-    assert result.output.count("Node.js and npm are required before Adopt") == 3
     assert "ADOPT CANNOT CONTINUE" in result.output
-    assert "Problem:  Node.js and npm are required" in result.output
-    assert "node --version" in result.output
-    assert "npm --version" in result.output
+    assert "Problem:  Node.js/npm cannot be installed offline" in result.output
     assert "no project files have been changed" in result.output
     assert "Apply this stage?" not in result.output
     assert config.read_bytes() == before
@@ -226,6 +240,12 @@ def test_apply_checks_renderer_prerequisites_before_changing_project(tmp_path, m
 
 
 def test_renderer_blocker_summary_is_prominently_coloured(tmp_path, monkeypatch):
+    from prodockit.adopt_node import NodePlan
+
+    monkeypatch.setattr(
+        "prodockit.adopt_node.plan",
+        lambda **kwargs: NodePlan(blocked="Node.js/npm cannot be installed offline"),
+    )
     project = _project(tmp_path)
     monkeypatch.chdir(project)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
@@ -239,7 +259,12 @@ def test_renderer_blocker_summary_is_prominently_coloured(tmp_path, monkeypatch)
 
     assert result.exit_code != 0
     assert click.style("ADOPT CANNOT CONTINUE", bold=True, fg="bright_magenta") in (result.output)
-    assert click.style("Check:    node --version", fg=(230, 159, 0), bold=True) in (result.output)
+    assert (
+        click.style(
+            "Problem:  Node.js/npm cannot be installed offline", fg="bright_magenta", bold=True
+        )
+        in result.output
+    )
 
 
 def test_reusable_apply_runs_selected_stages_and_verifies(monkeypatch, tmp_path) -> None:
