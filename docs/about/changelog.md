@@ -21,6 +21,9 @@ requests rather than here.
 
 ## Unreleased
 
+- Added a Node.js/npm runtime activity for selected renderers, reusing Bootstrap's
+  platform installation, upgrade and repair policy with explicit administrator
+  approval, bounded retries, PATH refresh and post-install verification.
 - Align selected renderer manifests, lockfiles and helper scripts with the installed
   release, keeping recoverable backups before replacement. Renderer readiness now
   rejects working but mismatched Mermaid and MathJax versions.

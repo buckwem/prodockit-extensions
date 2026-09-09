@@ -81,14 +81,17 @@ ship the component file with both enabled.
 
 When either option is selected, adoption writes the component's `package.json`
 and `package-lock.json` before installing it. The lockfile records the tested
-dependency set, while npm's download cache makes later reinstalls quicker. If
-the project already has an author-maintained Node manifest, adoption leaves it
-unchanged and uses its existing lockfile when one is present.
+dependency set, while npm's download cache makes later reinstalls quicker.
+Existing tool manifests, lockfiles and helper scripts are backed up before
+alignment, including customised copies. Unselected renderers are left alone.
 
 Node.js and npm are machine-level prerequisites rather than project-local
-packages. Install them before applying a selected renderer. If either command
-is missing, Adopt stops before changing packages or project files and displays
-a prominent platform-specific recovery summary.
+packages. For a selected renderer, Adopt offers a separate runtime activity to
+install, upgrade or repair them using the same package-manager routines as
+Bootstrap. No Node installation is requested when both renderers are off.
+Administrator approval may be required. Offline runs cannot install a missing
+runtime. Homebrew on macOS and Windows App Installer (`winget`) must already
+be available from environment preparation.
 
 The command never commits, pushes, changes a remote, or writes editor settings.
 

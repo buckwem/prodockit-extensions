@@ -96,6 +96,7 @@ _ALL_RUNTIME_FILES = {
 _ADOPT_RUNTIME_FILES = {
     "src/prodockit/_zensical_defaults.py",
     "src/prodockit/adopt.py",
+    "src/prodockit/adopt_node.py",
     "src/prodockit/adopt_renderers.py",
     "src/prodockit/adopt_settings.py",
     "src/prodockit/adopt_toml.py",

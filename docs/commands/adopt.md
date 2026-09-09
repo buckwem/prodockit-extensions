@@ -88,6 +88,19 @@ their contents; record the stylesheet and JavaScript cascades; save component
 choices; provision the supported
 configured citation style when it is missing, and initialise selected
 project-local renderers.
+For selected renderers, a separate Node.js and npm activity uses Bootstrap's
+runtime installation policy on macOS, Ubuntu and Windows. It reuses an adequate
+runtime, installs a missing one, or upgrades/repairs an unsupported one. Node
+and npm follow Bootstrap's minimum supported versions; the renderer packages
+themselves use the installed release's exact lockfile.
+The system package manager may request administrator approval. Adopt refreshes
+its own PATH after installation and verifies both commands before continuing.
+It cannot rewrite the parent terminal's environment: if the verification still
+fails, an uppercase restart message includes the platform's activation command.
+Missing Homebrew or `winget`, or an offline runtime installation, is reported as
+a blocker before any project activity is applied. Git, SSH and editors are not
+part of this runtime activity.
+
 Existing citation styles are preserved; an unknown custom filename receives
 manual guidance rather than a guessed download. System-native libraries remain
 outside its repair boundary.

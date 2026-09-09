@@ -3290,7 +3290,10 @@ def adopt_command(
 
     click.echo(click.style("prodockit adoption — existing documentation project", bold=True))
     click.echo(f"\n  Project:  {root}")
-    click.echo("  Changes:  active project environment and local project files")
+    click.echo(
+        "  Changes:  active project environment, local project files "
+        "and selected runtime prerequisites"
+    )
     click.echo(
         "  Options:  "
         + " · ".join(
@@ -3364,7 +3367,7 @@ def adopt_command(
         action = "CHECK" if step.status == "ok" else "CONFIGURE"
         click.echo(f"  Action:   {action}")
         click.echo(f"  Current:  {step.detail}")
-        if step.id in {"dependency", "core", "choices"}:
+        if step.id in {"dependency", "core", "choices", "node"}:
             click.echo(f"  Will do:  {step.detail}")
         elif step.id == "csl":
             click.echo("  Will do:  fetch and validate the configured citation style")
@@ -3406,6 +3409,11 @@ def adopt_command(
                 offline=offline,
             )
         except AdoptError as error:
+            if step.id == "node":
+                click.echo(_bootstrap_warning(str(error)), err=True)
+                raise click.ClickException(
+                    "Node.js/npm activity is incomplete; follow the recovery guidance above."
+                ) from error
             raise click.ClickException(str(error)) from error
         applied_stages += 1
         click.echo("  done")

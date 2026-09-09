@@ -1381,8 +1381,8 @@ def install_tool(
     npm = shutil.which("npm")
     if npm is None:
         raise AdoptError(
-            f"{component} was selected but npm is not available. Install Node.js, "
-            "then rerun `prodockit adopt --apply`; no editor or Git setup is required."
+            f"{component} was selected but npm is not available. "
+            "Rerun `prodockit adopt --apply` and approve the Node.js and npm runtime activity."
         )
     options = AdoptOptions(mermaid=component == "mermaid", maths=component == "mathjax")
     written = ensure_tools(root, options)
@@ -1570,15 +1570,13 @@ def assess(
     maths_tool_ok, maths_detail = _tool_health(root, "mathjax")
     mermaid_ok = mermaid_tool_ok and "pymdownx.superfences" in configured
     maths_ok = maths_tool_ok and "pymdownx.arithmatex" in configured
-    node_available = shutil.which("node") is not None
-    npm_available = shutil.which("npm") is not None
-    renderer_prerequisite = (
-        None
-        if node_available and npm_available
-        else "Node.js and npm are required before Adopt can install this selected renderer"
+    from prodockit import adopt_node
+
+    node = (
+        adopt_node.plan(offline=offline)
+        if options.mermaid or options.maths
+        else adopt_node.NodePlan()
     )
-    mermaid_blocked = options.mermaid and not mermaid_ok and renderer_prerequisite is not None
-    maths_blocked = options.maths and not maths_ok and renderer_prerequisite is not None
     in_venv = _in_venv()
     project_environment_exists = (root.resolve() / ".venv").is_dir()
     interpreter_problem = _interpreter_problem(root) if in_venv else None
@@ -1590,6 +1588,7 @@ def assess(
         and core_ok
         and csl.status == "ok"
         and choices_ok
+        and not node.needs_work
         and (not options.mermaid or mermaid_ok)
         and (not options.maths or maths_ok)
     )
@@ -1651,12 +1650,27 @@ def assess(
             choices_detail,
         ),
         Step(
+            "node",
+            "Optional renderers",
+            "Node.js and npm runtime",
+            "wrong" if node.blocked else ("missing" if node.needs_work else "ok"),
+            node.blocked
+            or (
+                "install or repair Node.js/npm using the system package manager; "
+                "administrator approval may be required"
+                if node.needs_work
+                else "Node.js and npm meet the supported runtime requirements"
+            ),
+            commands=node.commands,
+            selected=options.mermaid or options.maths,
+        ),
+        Step(
             "mermaid",
             "Optional renderers",
             "Mermaid diagrams",
-            "wrong" if mermaid_blocked else ("ok" if mermaid_ok else "missing"),
+            "ok" if mermaid_ok else "missing",
             (
-                f"selected; {renderer_prerequisite or mermaid_detail}"
+                f"selected; {mermaid_detail}"
                 if options.mermaid
                 else "not selected; Node.js is not needed for Mermaid"
             ),
@@ -1669,9 +1683,9 @@ def assess(
             "maths",
             "Optional renderers",
             "Mathematical notation",
-            "wrong" if maths_blocked else ("ok" if maths_ok else "missing"),
+            "ok" if maths_ok else "missing",
             (
-                f"selected; {renderer_prerequisite or maths_detail}"
+                f"selected; {maths_detail}"
                 if options.maths
                 else "not selected; MathJax is not installed"
             ),
@@ -1716,6 +1730,21 @@ def apply_step(
     retry_reporter: RetryReporter | None = None,
     offline: bool = False,
 ) -> list[Path]:
+    if step_id in {"mermaid", "maths"}:
+        from prodockit import adopt_node
+
+        if adopt_node.plan(offline=offline).needs_work:
+            raise AdoptError(
+                "Complete the Node.js and npm runtime activity before installing renderers."
+            )
+    if step_id == "node":
+        from prodockit import adopt_node
+
+        try:
+            adopt_node.apply(root, offline=offline, reporter=retry_reporter)
+        except (OSError, subprocess.SubprocessError, supported_toolchain.ToolchainError) as error:
+            raise AdoptError(str(error)) from error
+        return []
     if step_id == "dependency":
         try:
             return supported_toolchain.apply(root, offline=offline, reporter=retry_reporter)
