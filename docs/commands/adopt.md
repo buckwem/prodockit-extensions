@@ -108,7 +108,11 @@ the project's current configuration and installed software.
 
 For a `zensical.toml` project, Adopt also checks the template for settings it has
 not reviewed before. It reads the public template over HTTPS; Git, SSH and a
-GitHub account are not required. The configuration and version declaration come
+GitHub account are not required. Downloads use bounded requests: temporary
+network failures are retried twice, with visible warnings and waits of two and
+five seconds. Permanent HTTP errors and invalid
+responses are not retried. A compatible cached snapshot can be used if the
+download still fails. The configuration and version declaration come
 from the same immutable commit. A template requiring a newer Prodockit release
 is not used automatically. Known defaults still come from the **installed
 Prodockit release**, not from the template's values.

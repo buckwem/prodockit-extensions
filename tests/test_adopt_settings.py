@@ -173,6 +173,47 @@ def test_bad_cache_rejected(tmp_path, monkeypatch):
         settings.load_snapshot(offline=True)
 
 
+def test_download_retries_transient_failure_then_recovers(monkeypatch):
+    calls, delays, notices = [], [], []
+
+    def fetch(url):
+        calls.append(url)
+        if len(calls) < 3:
+            raise settings.urllib.error.URLError("connection reset")
+        return TEMPLATE
+
+    monkeypatch.setattr(settings, "_fetch_once", fetch)
+    monkeypatch.setattr(settings.time, "sleep", delays.append)
+    assert settings._fetch("https://example.test/template", reporter=notices.append) == TEMPLATE
+    assert delays == [2.0, 5.0]
+    assert len(notices) == 2
+
+
+@pytest.mark.parametrize("code,attempts", [(404, 1), (403, 1), (429, 3), (503, 3)])
+def test_download_http_retry_is_bounded(monkeypatch, code, attempts):
+    calls = []
+
+    def fetch(url):
+        calls.append(url)
+        raise settings.urllib.error.HTTPError(url, code, "test", {}, None)
+
+    monkeypatch.setattr(settings, "_fetch_once", fetch)
+    monkeypatch.setattr(settings.time, "sleep", lambda delay: None)
+    with pytest.raises(settings.urllib.error.HTTPError):
+        settings._fetch("https://example.test/template")
+    assert len(calls) == attempts
+
+
+def test_invalid_download_is_not_retried(monkeypatch):
+    def fetch(url):
+        raise settings.SettingsError("template response exceeds the size limit")
+
+    monkeypatch.setattr(settings, "_fetch_once", fetch)
+    monkeypatch.setattr(settings.time, "sleep", lambda delay: pytest.fail("retried invalid data"))
+    with pytest.raises(settings.SettingsError, match="size limit"):
+        settings._fetch("https://example.test/template")
+
+
 def test_online_source_uses_same_immutable_revision_and_compatible_pin(monkeypatch):
     from prodockit import __version__
 

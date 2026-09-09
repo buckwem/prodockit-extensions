@@ -9,6 +9,7 @@ import hashlib
 import json
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Mapping
@@ -22,6 +23,7 @@ from packaging.version import Version
 from prodockit import __version__
 from prodockit.adopt_toml import inline
 from prodockit.project_config import _markdown_extensions
+from prodockit.renderer_resilience import RetryReporter, run_with_retries
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -78,7 +80,7 @@ def _parse(source: str) -> dict[str, Any]:
     return parsed
 
 
-def _fetch(url: str) -> str:
+def _fetch_once(url: str) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": "prodockit-adopt"})
     with urllib.request.urlopen(request, timeout=15) as response:
         data: bytes = response.read(MAX_BYTES + 1)
@@ -87,9 +89,44 @@ def _fetch(url: str) -> str:
     return data.decode("utf-8")
 
 
-def _online_snapshot() -> Snapshot:
+def _fetch(url: str, *, reporter: RetryReporter | None = None) -> str:
+    """Retry read-only requests, never malformed data or permanent HTTP failures."""
+
+    def attempt() -> str | OSError:
+        try:
+            return _fetch_once(url)
+        except urllib.error.HTTPError as error:
+            if error.code not in {408, 429, 500, 502, 503, 504}:
+                raise
+            error.close()
+            return error
+        except (OSError, urllib.error.URLError) as error:
+            return error
+
+    def detail(value: str | OSError) -> str:
+        if isinstance(value, urllib.error.HTTPError):
+            return f"service temporarily unavailable: HTTP {value.code}"
+        return str(value)
+
+    result = run_with_retries(
+        "template settings download",
+        attempt,
+        succeeded=lambda value: isinstance(value, str),
+        failure_detail=detail,
+        reporter=reporter,
+        sleeper=time.sleep,
+    )
+    if isinstance(result.value, OSError):
+        raise result.value
+    return result.value
+
+
+def _online_snapshot(*, reporter: RetryReporter | None = None) -> Snapshot:
+    def fetch(url: str) -> str:
+        return _fetch(url, reporter=reporter) if reporter is not None else _fetch(url)
+
     metadata = json.loads(
-        _fetch("https://api.github.com/repos/buckwem/prodockit-template/commits/main")
+        fetch("https://api.github.com/repos/buckwem/prodockit-template/commits/main")
     )
     if not isinstance(metadata, dict):
         raise SettingsError("GitHub returned invalid template metadata")
@@ -97,14 +134,14 @@ def _online_snapshot() -> Snapshot:
     if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise SettingsError("GitHub did not return a valid template revision")
     base = f"https://raw.githubusercontent.com/buckwem/prodockit-template/{revision}/"
-    requirements = _fetch(base + "requirements.txt")
+    requirements = fetch(base + "requirements.txt")
     pins = re.findall(r"(?mi)^\s*prodockit\s*==\s*([^\s;#]+)\s*(?:#.*)?$", requirements)
     if len(pins) != 1 or Version(pins[0]) > Version(__version__):
         raise SettingsError(
             f"current template requires newer or unspecified Prodockit (installed {__version__}); "
             "use a compatible cached snapshot or --template-config"
         )
-    source = _fetch(base + "zensical.toml")
+    source = fetch(base + "zensical.toml")
     _parse(source)
     return Snapshot(source, f"github:prodockit-template@{revision}")
 
@@ -115,7 +152,9 @@ def cache_path() -> Path:
     return cache_root() / "adopt-settings" / f"{__version__}.json"
 
 
-def load_snapshot(*, offline: bool = False, local: Path | None = None) -> Snapshot:
+def load_snapshot(
+    *, offline: bool = False, local: Path | None = None, reporter: RetryReporter | None = None
+) -> Snapshot:
     """Resolve once per command. A preview never writes the cache."""
     if local is not None:
         if local.stat().st_size > MAX_BYTES:
@@ -126,7 +165,9 @@ def load_snapshot(*, offline: bool = False, local: Path | None = None) -> Snapsh
     failure = "offline mode"
     if not offline:
         try:
-            return _online_snapshot()
+            return (
+                _online_snapshot(reporter=reporter) if reporter is not None else _online_snapshot()
+            )
         except (OSError, ValueError, urllib.error.URLError) as error:
             failure = str(error)
     path = cache_path()
