@@ -230,3 +230,12 @@ and whitespace checks pass. The rebuilt wheel's real `toml-default` acceptance
 scenario passes site, diagnostics, authored content, PDF/source bundle and
 repeat-apply checks on pre-provisioned macOS ARM64.
 Report: `/private/tmp/prodockit-782-release-guard-acceptance.json`.
+
+The rebuilt wheel also passes real dependency downgrade acceptance after the
+release guard: Pandoc 3.10.2 becomes 3.10.1 while compatible Python packages
+remain unchanged, verified by code fingerprints. Offline cache recovery passes.
+Report: `/private/tmp/prodockit-782-guard-downgrade.json`.
+
+User-facing message findings and the proposed normal/verbose output contract
+are recorded in `issue-782-message-review.md`. No message redesign has yet been
+implemented. Native Windows/Ubuntu and clean-machine acceptance remain open.
