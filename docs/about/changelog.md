@@ -21,6 +21,9 @@ requests rather than here.
 
 ## Unreleased
 
+- Added native PDF library and font provisioning through Bootstrap's platform
+  recipes, preserving Adopt's exact Pandoc pin. Verify with PDF generation and
+  font matching, and persist macOS's library path in the active environment.
 - Added a Node.js/npm runtime activity for selected renderers, reusing Bootstrap's
   platform installation, upgrade and repair policy with explicit administrator
   approval, bounded retries, PATH refresh and post-install verification.

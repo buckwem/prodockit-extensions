@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -91,8 +92,34 @@ def apply(root: Path, *, offline: bool = False, reporter: RetryReporter | None =
         raise ToolchainError(pending.blocked)
     if not pending.commands:
         return
+    run_commands(root, pending.commands, offline=offline, reporter=reporter)
+    remaining = plan(offline=offline)
+    if remaining.needs_work:
+        activation = (
+            r".\.venv\Scripts\Activate.ps1"
+            if sys.platform == "win32"
+            else "source .venv/bin/activate"
+        )
+        raise ToolchainError(
+            "\n" + "=" * 78 + "\nRESTART YOUR TERMINAL — NODE.JS/NPM IS NOT READY\n"
+            "Fully close and reopen your terminal application in this project, then run:\n"
+            f"{activation}\npdk adopt --apply\n" + "=" * 78
+        )
+
+
+def run_commands(
+    root: Path,
+    commands: Sequence[Sequence[str]],
+    *,
+    offline: bool = False,
+    reporter: RetryReporter | None = None,
+    refresh: Callable[[], None] | None = None,
+    label: str = "Node",
+) -> None:
+    """Execute native commands with visible approval and bounded shared retries."""
+    refresh = refresh or _refresh
     root_user = hasattr(os, "geteuid") and os.geteuid() == 0
-    if not root_user and any(command[0] == "sudo" for command in pending.commands):
+    if not root_user and any(command[0] == "sudo" for command in commands):
         # Authenticate visibly once; captured installers must never wait for a password.
         authenticated = (
             subprocess.run(["sudo", "-n", "-v"], check=False, timeout=30).returncode == 0
@@ -105,11 +132,11 @@ def apply(root: Path, *, offline: bool = False, reporter: RetryReporter | None =
                 )
             if subprocess.run(["sudo", "-v"], check=False, timeout=300).returncode:
                 raise ToolchainError(
-                    "Administrator approval was declined; Node.js was not installed"
+                    f"Administrator approval was declined; {label} was not installed"
                 )
     # Never reuse Bootstrap's fixed download pathname for a privileged script.
     with tempfile.TemporaryDirectory(prefix="prodockit-node-") as temporary:
-        for command in pending.commands:
+        for command in commands:
             arguments = [
                 str(Path(temporary) / "nodesource-setup.sh")
                 if part == "/tmp/nodesource-setup.sh"
@@ -125,19 +152,7 @@ def apply(root: Path, *, offline: bool = False, reporter: RetryReporter | None =
                 run_install_command(arguments, root=root, reporter=reporter, offline=offline)
             except subprocess.TimeoutExpired as error:
                 raise ToolchainError(
-                    "Node installer timed out. Check that it and its child processes have "
+                    f"{label} installer timed out. Check that it and its child processes have "
                     "stopped before rerunning Adopt; no automatic retry was started."
                 ) from error
-            _refresh()
-    remaining = plan(offline=offline)
-    if remaining.needs_work:
-        activation = (
-            r".\.venv\Scripts\Activate.ps1"
-            if sys.platform == "win32"
-            else "source .venv/bin/activate"
-        )
-        raise ToolchainError(
-            "\n" + "=" * 78 + "\nRESTART YOUR TERMINAL — NODE.JS/NPM IS NOT READY\n"
-            "Fully close and reopen your terminal application in this project, then run:\n"
-            f"{activation}\npdk adopt --apply\n" + "=" * 78
-        )
+            refresh()

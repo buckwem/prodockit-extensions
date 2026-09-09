@@ -1488,6 +1488,9 @@ def assess(
         config_error = str(error)
 
     toolchain = supported_toolchain.plan(root, offline=offline)
+    from prodockit import adopt_pdf_runtime
+
+    native = adopt_pdf_runtime.plan(offline=offline)
     configured = _extensions(parsed)
     missing = _missing_core_extensions(parsed)
     style_paths = _stylesheet_paths(root, parsed)
@@ -1585,6 +1588,7 @@ def assess(
         not interpreter_problem
         and not toolchain.blocked
         and not toolchain.needs_work
+        and not native.needs_work
         and core_ok
         and csl.status == "ok"
         and choices_ok
@@ -1633,6 +1637,14 @@ def assess(
             toolchain.detail,
             commands=toolchain.commands,
             files=toolchain.files,
+        ),
+        Step(
+            "pdf-runtime",
+            "Integrate",
+            "Native PDF libraries and fonts",
+            "wrong" if native.blocked else ("missing" if native.needs_work else "ok"),
+            native.blocked or native.detail,
+            commands=native.commands,
         ),
         Step(
             "core",
@@ -1730,6 +1742,14 @@ def apply_step(
     retry_reporter: RetryReporter | None = None,
     offline: bool = False,
 ) -> list[Path]:
+    if step_id == "pdf-runtime":
+        from prodockit import adopt_pdf_runtime
+
+        try:
+            adopt_pdf_runtime.apply(root, offline=offline, reporter=retry_reporter)
+        except (OSError, subprocess.SubprocessError, supported_toolchain.ToolchainError) as error:
+            raise AdoptError(str(error)) from error
+        return []
     if step_id in {"mermaid", "maths"}:
         from prodockit import adopt_node
 
@@ -1813,7 +1833,7 @@ def apply(
 
     written: list[Path] = []
     for original in initial:
-        if not original.selected or not original.needs_work or original.id == "verify":
+        if not original.selected or original.id == "verify":
             continue
         current = next(
             step

@@ -2883,8 +2883,12 @@ def _windows_font_install_command() -> list[str]:
     return ["powershell", "-NoProfile", "-Command", script]
 
 
-def _plan_pandoc(context: Context) -> Plan:
-    installed = context.runner.run([pandoc_command(context), "--version"])
+def _plan_pandoc(context: Context, *, native_only: bool = False) -> Plan:
+    installed = (
+        CommandResult(returncode=0, stdout=f"pandoc {PANDOC_VERSION}")
+        if native_only
+        else context.runner.run([pandoc_command(context), "--version"])
+    )
     installed_version = _pandoc_version(installed.stdout) if installed.ok else None
     installed_major = installed_version.split(".")[0] if installed_version else ""
     pandoc_upgrade = installed_major.isdigit() and int(installed_major) < PANDOC_MIN_MAJOR
@@ -2898,7 +2902,9 @@ def _plan_pandoc(context: Context) -> Plan:
         if pango_upgrade or not pango_result.ok:
             package_commands.append(_brew_upgrade_or_install("pango"))
         if not package_commands and not upgrade:
-            package_commands.append(["brew", "install", "pandoc", "pango"])
+            package_commands.append(
+                ["brew", "install", *([] if native_only else ["pandoc"]), "pango"]
+            )
         return Plan(
             commands=[
                 *package_commands,
@@ -2940,14 +2946,14 @@ def _plan_pandoc(context: Context) -> Plan:
             ]
         return Plan(
             commands=[
-                _apt("install", "-y", "curl"),
-                *download_and_install,
+                *([] if native_only else [_apt("install", "-y", "curl"), *download_and_install]),
                 _apt(
                     "install",
                     "-y",
                     "libpango-1.0-0",
                     "libpangoft2-1.0-0",
                     "libharfbuzz-subset0",
+                    *(["fontconfig"] if native_only else []),
                     *PDF_FONT_PACKAGES,
                 ),
             ],

@@ -3333,10 +3333,9 @@ def adopt_command(
             current_phase = step.phase
             _adopt_phase_heading(_ADOPT_PHASES.index(step.phase) + 1, step.phase)
 
-        # Earlier stages can make the project ready to build during this same
-        # --apply run. Refresh the final read-only readiness check so its
-        # status describes the files now on disk rather than the initial plan.
-        if apply and step.id == "verify":
+        # An earlier installation may expose a later runtime repair. Reassess
+        # before each decision rather than trusting the initial readiness state.
+        if apply and not apply_blocked:
             step = next(
                 item
                 for item in assess_adoption(
@@ -3345,7 +3344,7 @@ def adopt_command(
                     retry_reporter=_renderer_retry_warning,
                     offline=offline,
                 )
-                if item.id == "verify"
+                if item.id == step.id
             )
 
         if not step.selected:
@@ -3367,7 +3366,7 @@ def adopt_command(
         action = "CHECK" if step.status == "ok" else "CONFIGURE"
         click.echo(f"  Action:   {action}")
         click.echo(f"  Current:  {step.detail}")
-        if step.id in {"dependency", "core", "choices", "node"}:
+        if step.id in {"dependency", "core", "choices", "node", "pdf-runtime"}:
             click.echo(f"  Will do:  {step.detail}")
         elif step.id == "csl":
             click.echo("  Will do:  fetch and validate the configured citation style")
@@ -3382,7 +3381,9 @@ def adopt_command(
         elif step.id == "verify":
             click.echo(f"  Next:     run `{build_command}` after this command finishes")
 
-        if step.id == "dependency" and (dry_run or verbose):
+        if step.id in {"dependency", "node", "pdf-runtime", "mermaid", "maths"} and (
+            dry_run or verbose or step.id != "dependency"
+        ):
             for path in step.files:
                 click.echo(f"  File:     {path}")
             for command in step.commands:
@@ -3390,6 +3391,7 @@ def adopt_command(
 
         if step.status == "wrong":
             failed = True
+            apply_blocked = True
             click.echo(
                 "\n  This activity must be corrected before project files can be changed.",
                 err=True,
@@ -3409,10 +3411,10 @@ def adopt_command(
                 offline=offline,
             )
         except AdoptError as error:
-            if step.id == "node":
+            if step.id in {"node", "pdf-runtime"}:
                 click.echo(_bootstrap_warning(str(error)), err=True)
                 raise click.ClickException(
-                    "Node.js/npm activity is incomplete; follow the recovery guidance above."
+                    f"{step.summary} activity is incomplete; follow the recovery guidance above."
                 ) from error
             raise click.ClickException(str(error)) from error
         applied_stages += 1
