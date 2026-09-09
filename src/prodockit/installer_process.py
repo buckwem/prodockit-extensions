@@ -62,6 +62,17 @@ def _windows() -> bool:
     return os.name == "nt"
 
 
+def _wait_for_children(pid: int, *, grace: float) -> bool:
+    """Allow normal child teardown; never start another installer while waiting."""
+    deadline = time.monotonic() + max(0, grace)
+    while _descendants_remain(pid):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.25, remaining))
+    return True
+
+
 def _stop(process: subprocess.Popen[bytes]) -> bool:
     """Stop the owned group/tree, without assuming detached services are owned."""
     try:
@@ -154,10 +165,13 @@ def run_installer(
                 flush=True,
             )
             raise
-        if _descendants_remain(process.pid):
+        if not _wait_for_children(
+            process.pid, grace=min(5.0, max(0, timeout - (time.monotonic() - started)))
+        ):
             _stop(process)
             raise InstallerCleanupError(
-                "Installer exited while child processes remained active; "
+                f"Installer {label} exited while child processes remained active "
+                "after waiting for shutdown; "
                 "cleanup was requested, but no automatic retry is safe. "
                 "Check for detached installers before rerunning."
             )
