@@ -127,6 +127,19 @@ the project's current configuration and installed software.
 
 ### Selected renderer versions and backups
 
+Mermaid needs a browser; MathJax does not. On Ubuntu, Adopt reuses a detected
+browser or installs the system Chromium package, which selects the machine's
+architecture. It disables npm's automatic Puppeteer browser download so ARM64
+hosts do not receive an incompatible Chrome build. On macOS and Windows it
+reuses an available browser or invokes the already installed, locked Puppeteer
+CLI to download its matching browser. The browser download has bounded retries;
+timeouts stop with recovery guidance rather than starting another installer.
+
+Offline use requires an existing system browser or, on macOS/Windows, a usable
+Puppeteer cache. A missing explicitly configured `PUPPETEER_EXECUTABLE_PATH` is
+reported rather than silently replaced. Browser-file detection is only a
+prerequisite: the final Mermaid check must actually generate an SVG diagram.
+
 For selected Mermaid and maths components, Adopt aligns `tools/mermaid` and
 `tools/mathjax` with the renderer files shipped in the installed Prodockit
 release. It installs from that release's lockfile, allowing both upgrades and

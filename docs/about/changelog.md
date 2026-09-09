@@ -21,6 +21,9 @@ requests rather than here.
 
 ## Unreleased
 
+- Provision Mermaid's browser explicitly, using Ubuntu's architecture-matched
+  Chromium or the installed Puppeteer CLI on macOS/Windows. Disable hidden npm
+  browser downloads; preserve explicit browser overrides and verify SVG rendering.
 - Added native PDF library and font provisioning through Bootstrap's platform
   recipes, preserving Adopt's exact Pandoc pin. Verify with PDF generation and
   font matching, and persist macOS's library path in the active environment.

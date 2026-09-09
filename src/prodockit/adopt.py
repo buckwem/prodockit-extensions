@@ -1385,6 +1385,14 @@ def install_tool(
             "Rerun `prodockit adopt --apply` and approve the Node.js and npm runtime activity."
         )
     options = AdoptOptions(mermaid=component == "mermaid", maths=component == "mathjax")
+    environment = None
+    if component == "mermaid":
+        from prodockit import adopt_browser
+
+        try:
+            environment = adopt_browser.prepare(root, offline=offline, reporter=retry_reporter)
+        except (OSError, subprocess.SubprocessError, supported_toolchain.ToolchainError) as error:
+            raise AdoptError(str(error)) from error
     written = ensure_tools(root, options)
     # On Windows npm is a command shim named npm.cmd. Passing the path found
     # by shutil avoids depending on PATHEXT handling inside subprocess.
@@ -1410,6 +1418,7 @@ def install_tool(
             timeout=600,
             reporter=retry_reporter,
             retry_delays=() if offline else DEFAULT_RETRY_DELAYS,
+            environment=environment,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise AdoptError(f"could not install {component}: {error}") from error
@@ -1418,6 +1427,10 @@ def install_tool(
         detail = npm_result.failure_detail
         raise AdoptError(f"npm could not install {component}: {detail}")
     if component == "mermaid":
+        try:
+            adopt_browser.complete(root, offline=offline, reporter=retry_reporter)
+        except (OSError, subprocess.SubprocessError, supported_toolchain.ToolchainError) as error:
+            raise AdoptError(str(error)) from error
         binary = _mermaid_bin(root)
         probe = (
             (
@@ -1580,6 +1593,13 @@ def assess(
         if options.mermaid or options.maths
         else adopt_node.NodePlan()
     )
+    from prodockit import adopt_browser
+
+    browser = (
+        adopt_browser.plan(root, offline=offline)
+        if options.mermaid
+        else adopt_browser.BrowserPlan()
+    )
     in_venv = _in_venv()
     project_environment_exists = (root.resolve() / ".venv").is_dir()
     interpreter_problem = _interpreter_problem(root) if in_venv else None
@@ -1593,6 +1613,7 @@ def assess(
         and csl.status == "ok"
         and choices_ok
         and not node.needs_work
+        and not browser.blocked
         and (not options.mermaid or mermaid_ok)
         and (not options.maths or maths_ok)
     )
@@ -1680,13 +1701,14 @@ def assess(
             "mermaid",
             "Optional renderers",
             "Mermaid diagrams",
-            "ok" if mermaid_ok else "missing",
+            "wrong" if browser.blocked else ("ok" if mermaid_ok else "missing"),
             (
-                f"selected; {mermaid_detail}"
+                f"selected; {browser.blocked or mermaid_detail}; {browser.detail}"
                 if options.mermaid
                 else "not selected; Node.js is not needed for Mermaid"
             ),
             selected=options.mermaid,
+            commands=browser.commands,
             files=tuple(root / "tools" / "mermaid" / name for name in COMPONENT_FILES["mermaid"])
             if options.mermaid and not mermaid_ok
             else (),
