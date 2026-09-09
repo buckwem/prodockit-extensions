@@ -341,8 +341,8 @@ def test_toolchain_subprocess_failure_includes_command_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        toolchain.subprocess,
-        "run",
+        toolchain,
+        "run_installer",
         lambda *_args, **_kwargs: subprocess.CompletedProcess(
             ["pip"], 2, stdout="", stderr="permanent resolver failure"
         ),

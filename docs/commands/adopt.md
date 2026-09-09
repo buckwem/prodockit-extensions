@@ -143,6 +143,17 @@ reuses an available browser or invokes the already installed, locked Puppeteer
 CLI to download its matching browser. The browser download has bounded retries;
 timeouts stop with recovery guidance rather than starting another installer.
 
+During installation, Adopt reports elapsed progress. After a completed failed
+renderer installation it removes the incomplete `node_modules` directory before
+retrying, or before returning the final error. Your configuration, lockfiles and
+source files are retained. Partial Pandoc downloads are also discarded rather
+than reused. System packages are recovered through their package manager, not
+by deleting system directories.
+
+If an installer times out or you interrupt it, Adopt attempts to stop its process
+tree. It does not automatically retry or delete files that a detached installer
+could still be using; check the recovery message before running Adopt again.
+
 Offline use requires an existing system browser or, on macOS/Windows, a usable
 Puppeteer cache. A missing explicitly configured `PUPPETEER_EXECUTABLE_PATH` is
 reported rather than silently replaced. Browser-file detection is only a

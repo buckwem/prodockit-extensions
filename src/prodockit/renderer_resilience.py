@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Generic, TypeVar
 
+from prodockit.installer_process import run_installer
+
 DEFAULT_RETRY_DELAYS = (2.0, 5.0)
 
 _TRANSIENT_MARKERS = (
@@ -173,24 +175,20 @@ def run_npm_with_retries(
 ) -> NpmResult:
     """Run an idempotent npm install, retrying completed transient failures.
 
-    A ``TimeoutExpired`` is deliberately not caught. Killing npm does not
-    prove that all descendants have stopped, so automatically starting a new
-    installer could race a surviving process. A returned process is finished;
-    its partial ``node_modules`` can therefore be removed before a safe retry.
+    Completed failures discard generated ``node_modules``, including the last
+    failed attempt, so the next invocation starts clean. Manifests, lockfiles
+    and author files are retained. Timeout/interruption stops the owned process
+    tree but is deliberately not retried or cleaned here: detached installers
+    may still be using those files.
     """
 
     modules = cwd / "node_modules"
 
     def run() -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
+        return run_installer(
             list(command),
             cwd=cwd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=timeout,
-            check=False,
             env=dict(environment) if environment is not None else None,
         )
 
@@ -204,6 +202,8 @@ def run_npm_with_retries(
         before_retry=lambda: _remove_partial_modules(modules),
         sleeper=time.sleep,
     )
+    if result.value.returncode != 0:
+        _remove_partial_modules(modules)
     return NpmResult(result.value, result.attempts, result.transient_failures)
 
 

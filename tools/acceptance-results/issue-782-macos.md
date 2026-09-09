@@ -183,3 +183,34 @@ Report: `/private/tmp/prodockit-782-inferred-upgrade.json`.
 
 Latest full regression result: **2,937 passed, 11 skipped, 17 deselected**.
 Changed harnesses and tests also pass lint, formatting and whitespace checks.
+
+## Follow-up: installer cleanup and template preservation
+
+Installer execution now reports elapsed progress and stops its owned process
+group/tree on timeout or interruption. A real POSIX test confirms a child is
+stopped before writing its delayed output. Windows tree cleanup has mocked
+coverage only. Detached/elevated processes remain a reason not to retry timed-out
+installers automatically. Completed npm failures discard incomplete node_modules
+even after the final failed attempt, retaining manifests and author files.
+
+Full regression result: **2,945 passed, 11 skipped, 17 deselected**. A subsequently
+added template asset preservation/repeat regression also passes separately.
+Lint and whitespace checks pass.
+
+The rebuilt wheel passes the real `toml-both` acceptance scenario on this
+pre-provisioned macOS ARM64 host: Mermaid and MathJax, strict site build,
+diagnostics, PDF, source bundle and repeat apply.
+Report: `/private/tmp/prodockit-782-clean-retry-acceptance.json`.
+
+File operations were also exercised twice on a disposable tracked-file copy of
+the local prodockit-template checkout (paired Prodockit 0.61.6). No original
+files were deleted. Template/author assets and toolchain declarations were
+unchanged. Four renderer manifest/lock files were aligned with backups and six
+configuration defaults added. Mermaid remained 11.16.0 and MathJax 3.2.2.
+The second file-alignment pass was byte-identical. This was not a full
+template-sync-to-Adopt installation test.
+
+Open risk: Adopt's managed-file alignment targets its installed release, so an
+older installed Prodockit can still replace files supplied by a newer template.
+These results do not establish a cross-version no-downgrade guarantee or native
+Windows/Ubuntu acceptance.
