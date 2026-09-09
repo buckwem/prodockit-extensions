@@ -135,6 +135,15 @@ the project's current configuration and installed software.
 
 ### Selected renderer versions and backups
 
+Normal output explains why a change is needed and what Adopt will change.
+Healthy checks are kept short. Run `pdk adopt --dry-run --verbose` to include
+the file lists, installer commands and technical checks. Version-change details,
+warnings and recovery instructions remain visible without `--verbose`.
+
+After setup, run `pdk diag` and the displayed build command to check your
+project. Setup being complete does not mean that the website has been built
+or published.
+
 Adopt stops if the project's managed declarations require a newer Prodockit
 than the command currently running. Activate the project's environment and
 install that release (or a compatible newer release) before trying again.

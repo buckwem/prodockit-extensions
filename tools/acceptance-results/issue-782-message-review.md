@@ -105,3 +105,28 @@ temporary capture files and does not provide this persistent failure log.
 
 Native Windows/Ubuntu acceptance is still outstanding; this review does not
 mark the cross-platform installer test programme complete.
+
+## Implementation checkpoint
+
+The first message implementation now provides Why/Change descriptions, concise
+healthy checks and normal/verbose separation for snapshot/choice provenance,
+file lists and installer commands. Dependency and renderer version details,
+warnings and recovery information remain in normal output. Declaration-only
+alignment explicitly says no software installation is needed.
+
+It removes generic Node-install advice from renderer blockers, describes
+unselected features without claiming their files are absent, makes a restart
+conditional after failed Node verification, and warns that earlier completed
+changes remain after an activity fails. Completed/no-change runs give diagnostic
+and build commands and distinguish local building from publication.
+
+Remaining improvements from this review: persistent redacted failure logs,
+human-readable progress labels passed into every installer, structured runtime
+reason/recovery fields instead of technical detail strings, and platform-specific
+novice timeout recovery. Raw failure evidence remains visible until it can be
+preserved reliably; it has not simply been hidden behind verbose output.
+
+Verification: **2,966 passed, 11 skipped, 17 deselected** in the full regression
+suite after edits stopped. Focused tests cover normal/verbose differences,
+colour/plain output, visible downgrade warnings, declaration-only updates and
+browser-specific blockers. Lint, formatting and whitespace checks pass.

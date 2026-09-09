@@ -3092,6 +3092,72 @@ def _adopt_stage_heading(number: int, total: int, summary: str) -> None:
     click.echo(click.style(f"Activity [{number}/{total}] {summary}", bold=True, fg="blue"))
 
 
+def _adopt_change_summary(step: Step, *, verbose: bool) -> None:
+    """Explain the consequence before showing implementation evidence."""
+    descriptions = {
+        "dependency": (
+            "The software or version settings do not match this Prodockit release.",
+            "Align the active Python environment and project version settings. "
+            "Software may be upgraded or downgraded.",
+        ),
+        "core": (
+            "Some settings or shared files for Prodockit's formatting are missing or outdated.",
+            "Update Prodockit settings and managed styles/scripts; retain your custom files.",
+        ),
+        "choices": (
+            "Your diagram and maths choices need to be saved for future runs.",
+            "Save these choices in this project.",
+        ),
+        "pdf-runtime": (
+            "PDF generation needs additional software, fonts or environment settings.",
+            "Prepare PDF support. System software changes may require administrator approval.",
+        ),
+        "node": (
+            "Your selected diagram or maths features need Node.js and its package installer.",
+            "Install or repair Node.js on this computer; administrator approval may be required.",
+        ),
+        "mermaid": (
+            "Diagram rendering is not ready for this project.",
+            "Install the project's diagram tools and, if needed, a browser to draw diagrams.",
+        ),
+        "maths": (
+            "Mathematical notation is not ready for this project.",
+            "Install the project's maths tools and connect them to the website.",
+        ),
+        "csl": (
+            "The citation style controls how your citations and references look.",
+            "Download and check the citation style selected in your configuration.",
+        ),
+    }
+    if step.status == "wrong":
+        click.echo(_bootstrap_warning(f"  Problem:  {step.detail}"))
+        click.echo("  Next:     resolve this problem before applying changes.")
+    elif step.status == "ok":
+        click.echo("  Ready:    no change needed.")
+    else:
+        why, change = descriptions.get(step.id, (step.summary, step.detail))
+        if step.id == "dependency" and not step.commands:
+            why = "The project records different software versions from this Prodockit release."
+            change = "Update the project version settings; no software installation is needed."
+        click.echo(f"  Why:      {why}")
+        click.echo(click.style(f"  Change:   {change}", fg="bright_magenta", bold=True))
+    # Version changes and dependency scope must remain visible before approval.
+    if step.status != "wrong" and (verbose or step.id in {"dependency", "mermaid", "maths"}):
+        click.echo(f"  Details:  {step.detail}")
+    if verbose:
+        for path in step.files:
+            click.echo(f"  File:     {path}")
+        for command in step.commands:
+            click.echo(f"  Command:  {' '.join(command)}")
+
+
+def _adopt_next_steps(build_command: str) -> None:
+    click.echo("Next, check your project:")
+    click.echo("  pdk diag")
+    click.echo(f"  {build_command}")
+    click.echo("The build checks your website locally; it does not publish it.")
+
+
 def _adopt_blocker_summary(steps: Sequence[Step]) -> None:
     """Put blocking prerequisites before the detailed adoption report."""
 
@@ -3112,25 +3178,9 @@ def _adopt_blocker_summary(steps: Sequence[Step]) -> None:
             click.style(f"Problem:  {detail}", bold=True, fg="bright_magenta"),
             err=True,
         )
-    if any(step.id in {"mermaid", "maths"} for step in blockers):
-        if sys.platform == "darwin":
-            click.echo(_bootstrap_warning("Install:  brew install node"), err=True)
-        elif sys.platform == "win32":
-            click.echo(
-                _bootstrap_warning("Install:  winget install --id OpenJS.NodeJS.LTS"),
-                err=True,
-            )
-            click.echo(_bootstrap_warning("Then fully close and reopen PowerShell."), err=True)
-        else:
-            click.echo(
-                _bootstrap_warning(
-                    "Install:  follow the supported Ubuntu Node.js instructions in section 4"
-                ),
-                err=True,
-            )
-        click.echo(_bootstrap_warning("Check:    node --version"), err=True)
-        click.echo(_bootstrap_warning("Check:    npm --version"), err=True)
-    click.echo(_bootstrap_warning("Then:     rerun `pdk adopt`"), err=True)
+    click.echo(
+        _bootstrap_warning("Next:     resolve the problem above, then rerun `pdk adopt`."), err=True
+    )
     click.echo(_bootstrap_warning("Result:   no project files have been changed"), err=True)
     click.echo(boundary, err=True)
 
@@ -3141,8 +3191,9 @@ def _renderer_retry_warning(notice: RetryNotice) -> None:
     delay = int(notice.delay) if notice.delay.is_integer() else notice.delay
     click.echo(
         _bootstrap_warning(
-            f"  warning: transient {notice.operation} failure on attempt "
-            f"{notice.attempt}/{notice.maximum_attempts}; retrying in {delay}s"
+            f"  Warning: {notice.operation} was interrupted. Retrying in {delay}s "
+            f"(attempt {notice.attempt + 1} of {notice.maximum_attempts}). "
+            "You do not need to do anything."
         ),
         err=True,
     )
@@ -3273,7 +3324,8 @@ def adopt_command(
         except (OSError, AdoptSettingsError) as error:
             raise click.ClickException(str(error)) from error
         options = replace(options, template_snapshot=snapshot)
-        click.echo(f"Template settings: {snapshot.identity}")
+        if verbose:
+            click.echo(f"Template settings: {snapshot.identity}")
     elif template_config is not None:
         raise click.UsageError("--template-config settings review currently requires zensical.toml")
 
@@ -3290,6 +3342,9 @@ def adopt_command(
 
     click.echo(click.style("prodockit adoption — existing documentation project", bold=True))
     click.echo(f"\n  Project:  {root}")
+    click.echo(
+        "  Mode:     " + ("Apply — ask before each change" if apply else "Preview — no changes")
+    )
     click.echo(
         "  Changes:  active project environment, local project files "
         "and selected runtime prerequisites"
@@ -3316,9 +3371,12 @@ def adopt_command(
         )
         if override:
             choice_detail += "; command-line overrides apply"
-    click.echo(f"  Choices:  {choice_detail}")
-    if not resolution.saved:
-        click.echo(f"  Will save: {root / ADOPT_MANIFEST} in the Component choices activity")
+    if verbose:
+        click.echo(f"  Choices:  {choice_detail}")
+        if not resolution.saved:
+            click.echo(f"  Will save: {root / ADOPT_MANIFEST} in the Component choices activity")
+    if not verbose:
+        click.echo("  Use --verbose to see file paths, commands and technical details.")
     click.echo("  Excluded: Git, SSH, remotes, editors, commits and pushes")
 
     _adopt_blocker_summary(steps)
@@ -3348,7 +3406,7 @@ def adopt_command(
             )
 
         if not step.selected:
-            click.echo(f"{number:2}  SKIP  {step.summary} — {step.detail}")
+            click.echo(f"{number:2}  SKIP  {step.summary} — not selected for this run")
             continue
         if step.status == "warn":
             click.secho(
@@ -3359,35 +3417,11 @@ def adopt_command(
             click.echo(f"{number:2}  WAIT  {step.summary} — {step.detail}")
             continue
         if step.status == "ok" and not verbose:
-            click.echo(f"{number:2}  ok    {step.summary} — {step.detail}")
+            click.echo(f"{number:2}  ok    {step.summary} — ready; no change needed")
             continue
 
         _adopt_stage_heading(number, total, step.summary)
-        action = "CHECK" if step.status == "ok" else "CONFIGURE"
-        click.echo(f"  Action:   {action}")
-        click.echo(f"  Current:  {step.detail}")
-        if step.id in {"dependency", "core", "choices", "node", "pdf-runtime"}:
-            click.echo(f"  Will do:  {step.detail}")
-        elif step.id == "csl":
-            click.echo("  Will do:  fetch and validate the configured citation style")
-        elif step.id == "mermaid":
-            click.echo(
-                "  Will do:  scaffold and install the project-local Mermaid renderer with npm"
-            )
-        elif step.id == "maths":
-            click.echo(
-                "  Will do:  scaffold MathJax, install it with npm, and configure the website"
-            )
-        elif step.id == "verify":
-            click.echo(f"  Next:     run `{build_command}` after this command finishes")
-
-        if step.id in {"dependency", "node", "pdf-runtime", "mermaid", "maths"} and (
-            dry_run or verbose or step.id != "dependency"
-        ):
-            for path in step.files:
-                click.echo(f"  File:     {path}")
-            for command in step.commands:
-                click.echo(f"  Command:  {' '.join(command)}")
+        _adopt_change_summary(step, verbose=verbose)
 
         if step.status == "wrong":
             failed = True
@@ -3411,6 +3445,12 @@ def adopt_command(
                 offline=offline,
             )
         except AdoptError as error:
+            click.echo(
+                _bootstrap_warning(
+                    "This activity did not finish. Earlier completed changes are retained."
+                ),
+                err=True,
+            )
             if step.id in {"node", "pdf-runtime"}:
                 click.echo(_bootstrap_warning(str(error)), err=True)
                 raise click.ClickException(
@@ -3437,6 +3477,7 @@ def adopt_command(
             click.echo("Run `prodockit adopt --apply` to apply them.")
         else:
             click.echo("\nAll selected prodockit components are configured.")
+            _adopt_next_steps(build_command)
         return
 
     if applied_stages == 0:
@@ -3448,6 +3489,7 @@ def adopt_command(
         else:
             click.echo("\nAll selected prodockit components are already configured.")
             click.echo("No changes made.")
+            _adopt_next_steps(build_command)
         return
 
     remaining = [
@@ -3465,7 +3507,9 @@ def adopt_command(
             "some activities remain; rerun `pdk adopt --apply` to review and resume"
         )
     click.echo("\nAdoption configuration verified.")
-    click.echo(f"Run `{build_command}`, then review the local changes with `git diff`.")
+    _adopt_next_steps(build_command)
+    if verbose:
+        click.echo("Review local changes with `git diff` if this project uses Git.")
     click.echo("Nothing has been committed or pushed.")
 
 

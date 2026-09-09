@@ -1743,7 +1743,7 @@ def assess(
             (
                 f"selected; {maths_detail}"
                 if options.maths
-                else "not selected; MathJax is not installed"
+                else "not selected for this run; existing files are left in place"
             ),
             selected=options.maths,
             files=tuple(root / "tools" / "mathjax" / name for name in COMPONENT_FILES["mathjax"])
