@@ -17,6 +17,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  GITHUB_TOKEN: ${{ github.token }}
   PDK_NATIVE_DOWNLOAD_CACHE: ${{ github.workspace }}/.cache/native-downloads
   PIP_RETRIES: 5
   PIP_TIMEOUT: 30

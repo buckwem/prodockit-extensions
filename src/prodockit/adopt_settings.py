@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -80,9 +82,35 @@ def _parse(source: str) -> dict[str, Any]:
     return parsed
 
 
+class _NoCredentialRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        raise SettingsError(
+            "authenticated template request redirected; refusing to forward credentials"
+        )
+
+
 def _fetch_once(url: str) -> str:
-    request = urllib.request.Request(url, headers={"User-Agent": "prodockit-adopt"})
-    with urllib.request.urlopen(request, timeout=15) as response:
+    headers = {"User-Agent": "prodockit-adopt"}
+    parsed = urllib.parse.urlsplit(url)
+    token = os.environ.get("GITHUB_TOKEN", "")
+    authenticated = bool(token and parsed.scheme == "https" and parsed.netloc == "api.github.com")
+    if authenticated:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(url, headers=headers)
+    open_request = (
+        urllib.request.build_opener(_NoCredentialRedirect()).open
+        if authenticated
+        else urllib.request.urlopen
+    )
+    with open_request(request, timeout=15) as response:
         data: bytes = response.read(MAX_BYTES + 1)
     if len(data) > MAX_BYTES:
         raise SettingsError("template response exceeds the size limit")

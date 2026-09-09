@@ -208,7 +208,7 @@ def exercise(
     os.chdir(project)
     dry_run = _run_cli(
         project,
-        ["adopt", "--dry-run", "--no-mermaid", "--no-maths"],
+        ["adopt", "--dry-run", "--verbose", "--no-mermaid", "--no-maths"],
     )
     dry_output = _output(dry_run)
     if dry_run.returncode:

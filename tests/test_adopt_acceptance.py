@@ -47,6 +47,46 @@ def test_site_directory_rejects_unsafe_build_targets(tmp_path, monkeypatch, outs
         adopt_acceptance.site_directory(Path("python"), tmp_path, tmp_path / "zensical.toml")
 
 
+def test_windows_command_inherits_persisted_pdf_setting(tmp_path, monkeypatch):
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    registry = SimpleNamespace(
+        HKEY_CURRENT_USER=1,
+        OpenKey=lambda *args: nullcontext(1),
+        QueryValueEx=lambda *args: (r"C:\msys64\clangarm64\bin", 1),
+        ExpandEnvironmentStrings=lambda value: value,
+    )
+    monkeypatch.setitem(sys.modules, "winreg", registry)
+    monkeypatch.setattr(adopt_acceptance.sys, "platform", "win32")
+    calls = []
+
+    def completed(command, **kwargs):
+        calls.append(kwargs["env"])
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(adopt_acceptance.subprocess, "run", completed)
+    adopt_acceptance.run(["python", "-V"], cwd=tmp_path)
+    assert calls[0]["WEASYPRINT_DLL_DIRECTORIES"] == r"C:\msys64\clangarm64\bin"
+
+
+def test_macos_commands_source_the_disposable_environment(tmp_path, monkeypatch):
+    executable = tmp_path / "bin/python"
+    executable.parent.mkdir()
+    (executable.parent / "activate").write_text("# fixture activation")
+    monkeypatch.setattr(adopt_acceptance.sys, "platform", "darwin")
+    calls = []
+
+    def completed(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(adopt_acceptance.subprocess, "run", completed)
+    adopt_acceptance.run([str(executable), "-V"], cwd=tmp_path)
+    assert calls[0][:3] == ["/bin/bash", "-c", 'source "$1"; shift; exec "$@"']
+    assert calls[0][-2:] == [str(executable), "-V"]
+
+
 def test_a_wheel_file_or_single_wheel_directory_is_accepted(tmp_path: Path) -> None:
     wheel = tmp_path / "prodockit-1.2.3-py3-none-any.whl"
     wheel.write_bytes(b"wheel")

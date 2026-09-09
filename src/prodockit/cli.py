@@ -3507,6 +3507,22 @@ def adopt_command(
             "some activities remain; rerun `pdk adopt --apply` to review and resume"
         )
     click.echo("\nAdoption configuration verified.")
+    if sys.platform == "darwin":
+        click.echo(_bootstrap_warning("Refresh your environment before the checks below:"))
+        activate = Path(sys.prefix) / "bin" / "activate"
+        click.echo(f"  source {shlex.quote(str(activate))}")
+    elif sys.platform == "win32":
+        click.echo(_bootstrap_warning("=" * 78))
+        click.echo(_bootstrap_warning("RESTART YOUR TERMINAL BEFORE CHECKING THE PROJECT"))
+        click.echo(
+            _bootstrap_warning(
+                "Fully close Windows Terminal or VS Code, then reopen it in this project."
+            )
+        )
+        click.echo(f"  Project: {root}")
+        activate = str(Path(sys.prefix) / "Scripts" / "Activate.ps1").replace("'", "''")
+        click.echo(f"  & '{activate}'")
+        click.echo(_bootstrap_warning("=" * 78))
     _adopt_next_steps(build_command)
     if verbose:
         click.echo("Review local changes with `git diff` if this project uses Git.")
