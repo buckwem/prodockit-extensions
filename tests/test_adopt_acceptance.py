@@ -27,6 +27,36 @@ def test_a_wheel_file_or_single_wheel_directory_is_accepted(tmp_path: Path) -> N
     assert adopt_acceptance.resolve_wheel(tmp_path) == wheel.resolve()
 
 
+def test_deliverables_allow_only_expected_optional_warnings(tmp_path, monkeypatch):
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        name = command[3]
+        if name == "diag":
+            output = "  WARN Project is not inside a Git repository\nResult: WARN (1 passed)"
+        else:
+            filename = f"{name}.pdf"
+            (tmp_path / filename).write_bytes(b"%PDF-1.7\n")
+            output = f"Wrote {filename}" + (" in 1.2s" if name == "pdf" else "")
+        return subprocess.CompletedProcess(command, 0, stdout=output)
+
+    monkeypatch.setattr(adopt_acceptance, "run", run)
+    adopt_acceptance.verify_deliverables(Path("python"), tmp_path, tmp_path / "zensical.toml")
+    assert [call[3] for call in calls] == ["diag", "pdf", "source-bundle"]
+
+
+@pytest.mark.parametrize("output", ["", "  WARN Broken package\nResult: WARN (1 warning)"])
+def test_deliverables_reject_unexpected_diagnostics(tmp_path, monkeypatch, output):
+    monkeypatch.setattr(
+        adopt_acceptance,
+        "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, stdout=output),
+    )
+    with pytest.raises(adopt_acceptance.AcceptanceError, match="diagnostics did not pass"):
+        adopt_acceptance.verify_deliverables(Path("python"), tmp_path, tmp_path / "zensical.toml")
+
+
 def test_an_ambiguous_wheel_directory_is_rejected(tmp_path: Path) -> None:
     (tmp_path / "prodockit-1-py3-none-any.whl").write_bytes(b"one")
     (tmp_path / "prodockit-2-py3-none-any.whl").write_bytes(b"two")

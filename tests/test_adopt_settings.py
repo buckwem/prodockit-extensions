@@ -214,7 +214,8 @@ def test_invalid_download_is_not_retried(monkeypatch):
         settings._fetch("https://example.test/template")
 
 
-def test_online_source_uses_same_immutable_revision_and_compatible_pin(monkeypatch):
+@pytest.mark.parametrize("operator", ["==", ">="])
+def test_online_source_uses_same_immutable_revision_and_compatible_pin(monkeypatch, operator):
     from prodockit import __version__
 
     urls = []
@@ -225,7 +226,7 @@ def test_online_source_uses_same_immutable_revision_and_compatible_pin(monkeypat
         if "api.github.com" in url:
             return json.dumps({"sha": sha})
         if url.endswith("requirements.txt"):
-            return f"prodockit=={__version__}\n"
+            return f"prodockit{operator}{__version__}\n"
         return TEMPLATE
 
     monkeypatch.setattr(settings, "_fetch", fetch)

@@ -135,7 +135,7 @@ def _online_snapshot(*, reporter: RetryReporter | None = None) -> Snapshot:
         raise SettingsError("GitHub did not return a valid template revision")
     base = f"https://raw.githubusercontent.com/buckwem/prodockit-template/{revision}/"
     requirements = fetch(base + "requirements.txt")
-    pins = re.findall(r"(?mi)^\s*prodockit\s*==\s*([^\s;#]+)\s*(?:#.*)?$", requirements)
+    pins = re.findall(r"(?mi)^\s*prodockit\s*(?:==|>=)\s*([^\s;#]+)\s*(?:#.*)?$", requirements)
     if len(pins) != 1 or Version(pins[0]) > Version(__version__):
         raise SettingsError(
             f"current template requires newer or unspecified Prodockit (installed {__version__}); "
