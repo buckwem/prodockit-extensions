@@ -136,6 +136,12 @@ def plan(*, offline: bool = False) -> NativePlan:
         context = _context()
     except UnsupportedHostError as error:
         return NativePlan(blocked=str(error))
+    if context.platform == WINDOWS:
+        # A previous Adopt process may have installed the libraries/fonts,
+        # while this command still inherits the original terminal environment.
+        # Discover persisted paths before deciding another install is needed,
+        # including during an offline assessment.
+        refresh_windows_path()
     problem = _probe(context)
     if problem == "WeasyPrint Python package is pending":
         return NativePlan(
