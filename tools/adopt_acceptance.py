@@ -90,9 +90,7 @@ def transient_renderer_failure(detail: str) -> bool:
     """
 
     lowered = detail.casefold()
-    renderer = any(
-        name in lowered for name in ("npm", "mermaid", "mmdc", "puppeteer", "chrome")
-    )
+    renderer = any(name in lowered for name in ("npm", "mermaid", "mmdc", "puppeteer", "chrome"))
     return renderer and any(marker in lowered for marker in _TRANSIENT_RENDERER_MARKERS)
 
 
@@ -100,17 +98,14 @@ def prepare_renderer_retry(project: Path, detail: str) -> None:
     """Discard a partial renderer install and validate npm's shared cache."""
 
     lowered = detail.casefold()
-    components = [
-        component for component in ("mermaid", "mathjax") if component in lowered
-    ]
+    components = [component for component in ("mermaid", "mathjax") if component in lowered]
     if not components and "npm" in lowered:
         components = ["mermaid", "mathjax"]
     for component in components:
         shutil.rmtree(project / "tools" / component / "node_modules", ignore_errors=True)
 
     npm_install_failed = any(
-        marker in lowered
-        for marker in ("could not install", "npm ci", "npm err", "npm error")
+        marker in lowered for marker in ("could not install", "npm ci", "npm err", "npm error")
     )
     if npm_install_failed and (npm := shutil.which("npm")):
         # The locked install is the evidence that matters. Cache verification
@@ -189,9 +184,7 @@ def run(
             prepare_renderer_retry(cwd, detail)
             continue
         attempts = f" after {attempt} attempts" if attempt > 1 else ""
-        raise AcceptanceError(
-            f"command failed{attempts} ({' '.join(command)}):\n{detail}"
-        )
+        raise AcceptanceError(f"command failed{attempts} ({' '.join(command)}):\n{detail}")
     raise AssertionError("unreachable")
 
 
@@ -379,7 +372,7 @@ def install_tested_renderer(python: Path, root: Path) -> None:
 
 def build(python: Path, project: Path, config: Path, *, fixture_content: bool) -> None:
     run(
-        [str(python), "-m", "zensical", "build", "-f", config.name, "--clean"],
+        [str(python), "-m", "zensical", "build", "-f", config.name, "--clean", "--strict"],
         cwd=project,
     )
     index = project / "site" / "index.html"
@@ -389,6 +382,37 @@ def build(python: Path, project: Path, config: Path, *, fixture_content: bool) -
         html = index.read_text(encoding="utf-8")
         if "still highlighted" not in html or "highlight" not in html or "headerlink" not in html:
             raise AcceptanceError("build lost prose, code highlighting or heading permalinks")
+
+
+def verify_deliverables(python: Path, project: Path, config: Path) -> None:
+    """Exercise the public diagnostics and both document-generation commands."""
+    for command in ("diag", "pdf", "source-bundle"):
+        completed = run(
+            [str(python), "-m", "prodockit", command, "--config-file", config.name],
+            cwd=project,
+        )
+        if command == "diag":
+            allowed = {
+                "Mermaid CLI is missing (optional)",
+                "MathJax PDF renderer is incomplete (optional)",
+                "Project is not inside a Git repository",
+            }
+            warnings = re.findall(r"(?m)^\s+WARN (.+)$", completed.stdout)
+            if (
+                not re.search(r"Result: (?:PASS|WARN) \(", completed.stdout)
+                or "FAIL " in completed.stdout
+                or any(item not in allowed for item in warnings)
+            ):
+                raise AcceptanceError(f"diagnostics did not pass:\n{completed.stdout}")
+            continue
+        outputs = re.findall(r"(?m)^Wrote (.+)$", completed.stdout)
+        if len(outputs) != 1:
+            raise AcceptanceError(f"{command} did not report its output:\n{completed.stdout}")
+        # PDF prints timing after its path; source-bundle prints only the path.
+        filename = re.sub(r" in [0-9.]+s$", "", outputs[0])
+        path = project / filename
+        if not path.is_file() or not path.read_bytes().startswith(b"%PDF"):
+            raise AcceptanceError(f"{command} did not produce a PDF: {path}")
 
 
 def adopt(
@@ -454,6 +478,7 @@ def exercise(
             f"{', '.join(site_changes)}"
         )
 
+    verify_deliverables(python, project, config)
     stable = snapshot(project)
     second_output = adopt(python, project, mermaid=mermaid, maths=maths, apply=True)
     if snapshot(project) != stable:
@@ -580,18 +605,12 @@ def main(arguments: list[str] | None = None) -> int:
             print(f"Scenario workers: {workers}")
             if workers == 1:
                 for scenario in scenarios:
-                    result_items.append(
-                        exercise_fixture(python, temporary_path, scenario)
-                    )
+                    result_items.append(exercise_fixture(python, temporary_path, scenario))
             else:
-                with concurrent.futures.ThreadPoolExecutor(
-                    max_workers=workers
-                ) as executor:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
                     result_items = list(
                         executor.map(
-                            lambda scenario: exercise_fixture(
-                                python, temporary_path, scenario
-                            ),
+                            lambda scenario: exercise_fixture(python, temporary_path, scenario),
                             scenarios,
                         )
                     )
@@ -607,9 +626,7 @@ def main(arguments: list[str] | None = None) -> int:
                 "results": [asdict(item) for item in result_items],
             }
             args.report.parent.mkdir(parents=True, exist_ok=True)
-            args.report.write_text(
-                json.dumps(failure_report, indent=2) + "\n", encoding="utf-8"
-            )
+            args.report.write_text(json.dumps(failure_report, indent=2) + "\n", encoding="utf-8")
         print(f"Work directory preserved for diagnosis: {temporary_path}", file=sys.stderr)
         raise
     else:
@@ -633,10 +650,7 @@ def main(arguments: list[str] | None = None) -> int:
             "### Adopt installed-wheel timing",
             "",
             f"- Total: {report['duration_seconds']:.3f} seconds",
-            *(
-                f"- `{item.name}`: {item.duration_seconds:.3f} seconds"
-                for item in result_items
-            ),
+            *(f"- `{item.name}`: {item.duration_seconds:.3f} seconds" for item in result_items),
             "",
         ]
         with Path(summary).open("a", encoding="utf-8") as stream:
