@@ -21,6 +21,14 @@ requests rather than here.
 
 ## Unreleased
 
+- Added a template-setting review ledger for TOML adoption. New unknown settings
+  are commented for review, excluded template branding is omitted, and existing
+  values are preserved. Deleting `.prodockit-adopt.toml` resets the review without
+  disabling software checks. Supports a compatible cached or local template source.
+- Replaced Adopt's text-based TOML editing with TOML Kit, preserving comments and
+  validating the result with `tomllib`. Fixed recognition of the template's nested
+  `pymdownx.blocks.caption` configuration.
+
 - Made optional Mermaid and maths renderers default off when a fresh project has no
   `.prodockit-components.toml`; Zensical's capable starter configuration is no
   longer mistaken for an author choice. Template projects retain both choices

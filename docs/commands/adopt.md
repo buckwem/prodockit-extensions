@@ -101,6 +101,69 @@ both enabled.
 
 ## Result {: #cmd-adopt-result }
 
+Adopt records its template-setting review separately from the checks that verify
+the project's current configuration and installed software.
+
+### Template settings and the review ledger
+
+For a `zensical.toml` project, Adopt also checks the template for settings it has
+not reviewed before. It reads the public template over HTTPS; Git, SSH and a
+GitHub account are not required. The configuration and version declaration come
+from the same immutable commit. A template requiring a newer Prodockit release
+is not used automatically. Known defaults still come from the **installed
+Prodockit release**, not from the template's values.
+
+- Existing project values are preserved.
+- Missing settings recognised by Adopt use its existing configuration rules.
+- New, unrecognised settings are added as **commented examples**, never enabled
+  just because they appeared in the template. Merge a reviewed example into
+  its named table; do not create a duplicate table or key.
+- Site identity, navigation, theme/branding, repository details, template-only
+  plugin configuration, custom template icons and PDF copyright are excluded.
+  `template.css` is not introduced. Existing user-owned settings are not removed.
+
+Adopt records each full setting path and its outcome in
+`.prodockit-adopt.toml`: `added`, `commented`, `excluded` or `already present`.
+This is separate from `.prodockit-components.toml`, which saves the Mermaid and
+maths choices. Commit the review ledger if the team should share this history.
+Later runs review only unseen template keys; changes to the value of an already
+reviewed template key do not overwrite the project or its examples.
+
+To reset the template review, delete **only `.prodockit-adopt.toml`**, then run
+`pdk adopt --dry-run` and `pdk adopt --apply`. Existing active settings and
+generated examples are preserved, and generated examples are not duplicated.
+Deleting the ledger does not uninstall software or clear component choices.
+
+The ledger controls template-setting import, **not readiness checks**. Required
+known configuration, software versions and renderer health are still checked;
+an installation record is never accepted as proof that a tool currently works.
+Configuration and ledger edits use TOML Kit to preserve comments and layout,
+with a separate TOML parse validation before atomic file replacement. The ledger
+is saved after the configuration, so an interrupted write can be retried safely.
+
+#### Offline or locally supplied template
+
+A successful settings application caches the downloaded snapshot for the
+installed Prodockit version. `--offline` uses that cache without contacting
+GitHub. A failed online lookup can also use this cache; the command identifies
+the cached source. If neither a usable online snapshot nor cache is available,
+Adopt stops with recovery guidance before starting installation activities.
+
+You can supply a compatible template configuration directly, including offline:
+
+```sh
+pdk adopt --dry-run --template-config /path/to/template/zensical.toml
+pdk adopt --apply --template-config /path/to/template/zensical.toml
+```
+
+Choose a configuration compatible with your installed release when using this
+explicit override. A local override is not saved into the global download cache.
+Assessment/dry-run does not write the project, ledger or snapshot cache. The
+template ledger currently applies to TOML projects; existing YAML adoption
+continues to use its standard configuration handlers.
+
+### Completion checks
+
 Assessment and dry-run modes report the number of activities needing work. Apply
 mode reassesses the resulting configuration and names the strict local build
 command. It reports an incomplete result if required work remains; configuration

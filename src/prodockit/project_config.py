@@ -144,9 +144,15 @@ def _markdown_extensions(value: object) -> dict[str, dict[str, Any]]:
             text_name = str(name)
             if text_name == "pymdownx" and isinstance(options, Mapping):
                 for child, child_options in options.items():
-                    extensions[f"pymdownx.{child}"] = (
-                        dict(child_options) if isinstance(child_options, Mapping) else {}
-                    )
+                    if child == "blocks" and isinstance(child_options, Mapping):
+                        for block, block_options in child_options.items():
+                            extensions[f"pymdownx.blocks.{block}"] = (
+                                dict(block_options) if isinstance(block_options, Mapping) else {}
+                            )
+                    else:
+                        extensions[f"pymdownx.{child}"] = (
+                            dict(child_options) if isinstance(child_options, Mapping) else {}
+                        )
             elif text_name == "zensical" and isinstance(options, Mapping):
                 zensical_extensions = options.get("extensions")
                 if isinstance(zensical_extensions, Mapping):

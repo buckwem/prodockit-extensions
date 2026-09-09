@@ -94,10 +94,7 @@ def test_only_external_renderer_failures_are_classified_as_transient() -> None:
 @pytest.mark.parametrize(
     "failure",
     [
-        (
-            "Error: could not install mermaid: Command "
-            "['npm', 'ci'] timed out after 600 seconds"
-        ),
+        ("Error: could not install mermaid: Command ['npm', 'ci'] timed out after 600 seconds"),
         (
             "Error: npm completed but Mermaid CLI is unusable: Command "
             "['mmdc', '-i', 'health.mmd'] timed out after 30.0 seconds"
@@ -183,9 +180,7 @@ def test_absolute_venv_python_activates_its_executable_path(
     assert observed["PATH"].split(os.pathsep)[0] == str(scripts.resolve())
 
 
-def test_a_failed_run_still_writes_an_acceptance_report(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_a_failed_run_still_writes_an_acceptance_report(tmp_path: Path, monkeypatch) -> None:
     wheel = tmp_path / "prodockit-1.2.3-py3-none-any.whl"
     wheel.write_bytes(b"wheel")
     work = tmp_path / "work"
@@ -293,8 +288,7 @@ def test_baseline_renderer_uses_versions_declared_by_the_candidate(
     def completed(command, **_kwargs):
         commands.append(command)
         output = (
-            "zensical==0.0.59\nMarkdown==3.10.3\n"
-            "pymdown-extensions==11.0.2\n"
+            "zensical==0.0.59\nMarkdown==3.10.3\npymdown-extensions==11.0.2\n"
             if command[-2:] != ["pip", "install"]
             else ""
         )

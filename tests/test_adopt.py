@@ -43,6 +43,7 @@ from prodockit.adopt import (
 )
 from prodockit.cli import main
 from prodockit.pins import TESTED_VERSIONS
+from prodockit.project_config import load_project_config
 from prodockit.shared_files import resource_bytes
 
 
@@ -330,8 +331,10 @@ language = "en-GB"
     assert '"stylesheets/mine.css"' in config
     assert '"stylesheets/pdk.css"' in config
     assert config.index('site_name = "Mine"') < config.index("extra_css = [")
-    assert config.index("extra_css = [") < config.index("extra.pdf_extra_css = [")
-    assert config.index("extra.pdf_extra_css = [") < config.index("extra_javascript = [")
+    assert load_project_config(project / "zensical.toml").extra["pdf_extra_css"] == [
+        "stylesheets/pdk-pdf.css",
+        "stylesheets/print.css",
+    ]
     assert config.index("extra_javascript = [") < config.index("[project.theme]")
     assert config.index('"stylesheets/pdk.css"') < config.index('"stylesheets/mine.css"')
     for extension in CORE_EXTENSIONS:
@@ -397,7 +400,7 @@ extra.pdf_extra_css = ["stylesheets/course-print.css"]
 
     config = (project / "zensical.toml").read_text(encoding="utf-8")
     assert 'extra.pdf_copyright = "Keep this footer"' in config
-    assert "[project.extra]" not in config
+    assert not re.search(r"(?m)^\[project.extra\]", config)
     assert config.index('"stylesheets/pdk-pdf.css"') < config.index(
         '"stylesheets/course-print.css"'
     )
@@ -612,11 +615,16 @@ site_name = "Implicit defaults"
     ensure_zensical_config(project, AdoptOptions())
 
     config = (project / "zensical.toml").read_text(encoding="utf-8")
-    assert '[project.markdown_extensions."toc"]\npermalink = true' in config
+    assert (
+        load_project_config(project / "zensical.toml").markdown_extensions["toc"]["permalink"]
+        is True
+    )
     assert '[project.markdown_extensions."pymdownx.highlight"]' in config
     assert 'line_spans = "__span"' in config
     assert '[project.markdown_extensions."pymdownx.superfences"]' in config
-    assert 'custom_fences = [{ name = "mermaid", class = "mermaid" }]' in config
+    assert load_project_config(project / "zensical.toml").markdown_extensions[
+        "pymdownx.superfences"
+    ]["custom_fences"] == [{"name": "mermaid", "class": "mermaid"}]
 
 
 def test_official_zensical_starter_dotted_extensions_are_adopted_in_place(
@@ -644,8 +652,9 @@ pymdownx.superfences.custom_fences = [
     config = (project / "zensical.toml").read_text(encoding="utf-8")
     assert config.count("pymdownx.arithmatex") == 1
     assert config.count("pymdownx.superfences") == 2
-    assert config.count("pymdownx.emoji") == 2
-    assert "[project.markdown_extensions.pymdownx" not in config
+    active = "\n".join(line for line in config.splitlines() if not line.lstrip().startswith("#"))
+    assert active.count("pymdownx.emoji") == 2
+    assert "[project.markdown_extensions.pymdownx" not in active
 
 
 def test_adoption_without_optional_renderers_passes_config_check(
@@ -883,9 +892,10 @@ name = "Later array table"
 
     config = (project / "zensical.toml").read_text(encoding="utf-8")
     assert '"prodockit.headings"' in config
-    assert '[project.markdown_extensions."prodockit.headings"]' not in config
-    assert '"pymdownx.arithmatex" = { generic = true }' in config
-    assert '"pymdownx.superfences" = { custom_fences = [' in config
+    assert not re.search(r'(?m)^\[project.markdown_extensions\."prodockit.headings"\]', config)
+    extensions = load_project_config(project / "zensical.toml").markdown_extensions
+    assert extensions["pymdownx.arithmatex"]["generic"] is True
+    assert extensions["pymdownx.superfences"]["custom_fences"][0]["name"] == "mermaid"
     assert 'name = "Later array table"' in config
 
 

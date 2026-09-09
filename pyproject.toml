@@ -65,6 +65,8 @@ dependencies = [
   # so the backport is needed there and only there. Pure Python and small;
   # the `testing` extra already declares the same line for the same reason.
   "tomli>=2.0; python_version < '3.11'",
+  # Preserve existing comments and formatting when Adopt edits project TOML.
+  "tomlkit>=0.13.2",
   "beautifulsoup4>=4.12",
   "click>=8.0",
   # A direct import for `prodockit adopt`, which preserves existing MkDocs

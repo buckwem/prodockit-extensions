@@ -25,14 +25,15 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import tomlkit
 import yaml  # type: ignore[import-untyped, unused-ignore]
 from packaging.version import InvalidVersion, Version
 
-from prodockit import __version__
+from prodockit import __version__, adopt_settings
 from prodockit import toolchain as supported_toolchain
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.csl import (
@@ -49,7 +50,7 @@ from prodockit.csl import (
 from prodockit.init_tools import COMPONENT_FILES, init_tools
 from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
-from prodockit.renderer_resilience import RetryReporter, run_npm_with_retries
+from prodockit.renderer_resilience import DEFAULT_RETRY_DELAYS, RetryReporter, run_npm_with_retries
 from prodockit.settings import EXTRA_SETTINGS
 from prodockit.shared_files import resource_bytes, same_text_content
 
@@ -131,6 +132,9 @@ class AdoptError(Exception):
 class AdoptOptions:
     mermaid: bool = False
     maths: bool = False
+    template_snapshot: adopt_settings.Snapshot | None = field(
+        default=None, repr=False, compare=False
+    )
 
 
 @dataclass(frozen=True)
@@ -201,7 +205,7 @@ def resolve_options(root: Path) -> AdoptChoiceResolution:
             (directory / name).exists()
             for name in ("package.json", "package-lock.json", "node_modules")
         )
-    options = AdoptOptions(**detected)
+    options = AdoptOptions(mermaid=detected["mermaid"], maths=detected["maths"])
     return AdoptChoiceResolution(
         options,
         "detected project renderer installation" if any(detected.values()) else "defaults",
@@ -211,13 +215,11 @@ def resolve_options(root: Path) -> AdoptChoiceResolution:
 
 def manifest_source(options: AdoptOptions) -> str:
     """Return the commit-safe record of an author's component choices."""
-    return (
-        "# Selected by `prodockit adopt`; safe to commit.\n"
-        "schema = 1\n\n"
-        "[components]\n"
-        f"mermaid = {str(options.mermaid).lower()}\n"
-        f"maths = {str(options.maths).lower()}\n"
-    )
+    document = tomlkit.document()
+    document.add(tomlkit.comment("Selected by `prodockit adopt`; safe to commit."))
+    document["schema"] = 1
+    document["components"] = {"mermaid": options.mermaid, "maths": options.maths}
+    return tomlkit.dumps(document)
 
 
 def write_manifest(root: Path, options: AdoptOptions) -> Path:
@@ -406,7 +408,11 @@ def _extensions(parsed: dict[str, Any]) -> dict[str, Any]:
         for name, options in value.items():
             if name == "pymdownx" and isinstance(options, Mapping):
                 for child, child_options in options.items():
-                    mapped[f"pymdownx.{child}"] = child_options
+                    if child == "blocks" and isinstance(child_options, Mapping):
+                        for block, block_options in child_options.items():
+                            mapped[f"pymdownx.blocks.{block}"] = block_options
+                    else:
+                        mapped[f"pymdownx.{child}"] = child_options
             elif name == "prodockit" and isinstance(options, Mapping):
                 for child, child_options in options.items():
                     mapped[f"prodockit.{child}"] = child_options
@@ -442,32 +448,9 @@ def _serializable_default(value: Any) -> Any:
 
 
 def _toml_value(value: Any) -> str:
-    """Render the small TOML value vocabulary used by Zensical's defaults."""
-    value = _serializable_default(value)
-    if isinstance(value, bool):
-        return str(value).lower()
-    if isinstance(value, str):
-        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-        return f'"{escaped}"'
-    if isinstance(value, list):
-        return "[" + ", ".join(_toml_value(item) for item in value) + "]"
-    if isinstance(value, Mapping):
-        body = ", ".join(f"{key} = {_toml_value(item)}" for key, item in value.items())
-        return "{ " + body + " }"
-    raise AdoptError(f"cannot preserve Zensical's Markdown default value {value!r}")
+    from prodockit.adopt_toml import inline
 
-
-def _seed_toml_markdown_defaults(source: str) -> str:
-    """Materialise defaults which an explicit extension table would replace."""
-    chunks: list[str] = []
-    for name, settings in DOCUMENTED_MARKDOWN_DEFAULTS.items():
-        if not isinstance(settings, Mapping):  # pragma: no cover - upstream contract guard
-            raise AdoptError(f"Zensical's Markdown default for {name} is not a mapping")
-        lines = [f'[project.markdown_extensions."{name}"]']
-        lines.extend(f"{key} = {_toml_value(value)}" for key, value in settings.items())
-        chunks.append("\n".join(lines))
-    lead = "" if source.endswith("\n") else "\n"
-    return f"{source}{lead}\n" + "\n".join(chunks) + "\n"
+    return inline(_serializable_default(value)).as_string()
 
 
 def _seed_yaml_markdown_defaults(source: str) -> str:
@@ -620,48 +603,6 @@ def _csl_activity(root: Path, parsed: dict[str, Any], *, offline: bool) -> Step:
     )
 
 
-def _section(source: str, table: str) -> tuple[int, int] | None:
-    match = re.search(rf"(?m)^\[{re.escape(table)}\]\s*$", source)
-    if match is None:
-        return None
-    following = re.search(r"(?m)^\[", source[match.end() :])
-    end = match.end() + following.start() if following else len(source)
-    return match.start(), end
-
-
-def _append_tables(source: str, tables: tuple[str, ...]) -> str:
-    missing = [table for table in tables if _section(source, table) is None]
-    if not missing:
-        return source
-    lead = "" if source.endswith("\n") else "\n"
-    return source + lead + "\n" + "\n".join(f"[{table}]" for table in missing) + "\n"
-
-
-def _matching_bracket(source: str, start: int) -> int:
-    depth = 0
-    quote = ""
-    escaped = False
-    for position in range(start, len(source)):
-        char = source[position]
-        if quote:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == quote:
-                quote = ""
-            continue
-        if char in "\"'":
-            quote = char
-        elif char == "[":
-            depth += 1
-        elif char == "]":
-            depth -= 1
-            if depth == 0:
-                return position
-    raise AdoptError("could not find the end of a TOML array")
-
-
 def _asset_reference(value: object) -> str | None:
     """Return an asset path without browser cache keys or fragments."""
     if not isinstance(value, str):
@@ -687,290 +628,45 @@ def _text_contains_asset_reference(source: str, rendered: str) -> bool:
     )
 
 
-def _add_array_value(
-    source: str,
-    table: str,
-    key: str,
-    rendered: str,
-    *,
-    prepend: bool = False,
-    asset: bool = False,
-) -> str:
-    located = _section(source, table)
-    if located is None:
-        source = _append_tables(source, (table,))
-        located = _section(source, table)
-    assert located is not None
-    start, end = located
-    region = source[start:end]
-    assignment = re.search(rf"(?m)^{re.escape(key)}\s*=\s*\[", region)
-    if assignment is None:
-        # Keep the site's own settings at the top of the table.  Inserting
-        # each missing managed setting immediately below ``[project]`` made
-        # a starter configuration look as though Adopt had prepended a
-        # second project configuration, and reversed the managed hierarchy
-        # as subsequent settings were inserted at the same position.
-        insert = len(source[:end].rstrip())
-        block = f"\n{key} = [\n  {rendered},\n]"
-        return source[:insert] + block + source[insert:]
-    array_start = start + assignment.end() - 1
-    array_end = _matching_bracket(source, array_start)
-    array_source = source[array_start : array_end + 1]
-    if (asset and _text_contains_asset_reference(array_source, rendered)) or (
-        not asset and rendered in array_source
-    ):
-        return source
-    if prepend:
-        addition = f"\n  {rendered},"
-        return source[: array_start + 1] + addition + source[array_start + 1 :]
-    body = source[array_start + 1 : array_end]
-    separator = "" if not body.strip() or body.rstrip().endswith(",") else ","
-    addition = f"{separator}\n  {rendered},\n"
-    return source[:array_end] + addition + source[array_end:]
-
-
-def _set_table_bool(source: str, table: str, key: str, value: bool) -> str:
-    located = _section(source, table)
-    if located is None:
-        source = _append_tables(source, (table,))
-        located = _section(source, table)
-    assert located is not None
-    start, end = located
-    region = source[start:end]
-    rendered = str(value).lower()
-    assignment = re.search(rf"(?m)^{re.escape(key)}\s*=\s*(?:true|false)[ \t]*$", region)
-    if assignment:
-        absolute_start = start + assignment.start()
-        absolute_end = start + assignment.end()
-        return source[:absolute_start] + f"{key} = {rendered}" + source[absolute_end:]
-    header_end = source.find("\n", start) + 1
-    return source[:header_end] + f"{key} = {rendered}\n" + source[header_end:]
-
-
-def _toml_extension_setting(
-    source: str,
-    extension: str,
-    setting: str,
-) -> tuple[str, str]:
-    """Locate a setting in explicit-table or Zensical dotted-key syntax."""
-    table = f"project.markdown_extensions.{extension}"
-    if _section(source, table) is not None:
-        return table, setting
-    quoted_table = f'project.markdown_extensions."{extension}"'
-    if _section(source, quoted_table) is not None:
-        return quoted_table, setting
-    return "project.markdown_extensions", f"{extension}.{setting}"
-
-
-def _add_table_string(source: str, table: str, key: str, value: str) -> str:
-    """Add a missing string setting without replacing existing table data."""
-    located = _section(source, table)
-    if located is None:
-        source = _append_tables(source, (table,))
-        located = _section(source, table)
-    assert located is not None
-    start, end = located
-    if re.search(rf"(?m)^{re.escape(key)}\s*=", source[start:end]):
-        return source
-    header_end = source.find("\n", start) + 1
-    return source[:header_end] + f"{key} = {_toml_value(value)}\n" + source[header_end:]
-
-
-def _set_array_extension(source: str, name: str, setting: str) -> str:
-    """Configure an extension stored in ``project.markdown_extensions``.
-
-    Zensical's TOML syntax accepts an array containing strings and inline
-    tables.  A string has no settings, so replace it with the equivalent
-    inline table when Mermaid or maths needs one.  Refuse an unfamiliar
-    preconfigured inline table rather than risk discarding project settings.
-    """
-    located = _section(source, "project")
-    assert located is not None
-    start, end = located
-    assignment = re.search(r"(?m)^markdown_extensions\s*=\s*\[", source[start:end])
-    assert assignment is not None
-    array_start = start + assignment.end() - 1
-    array_end = _matching_bracket(source, array_start)
-    region = source[array_start : array_end + 1]
-    simple = re.search(rf"(?P<quote>[\"']){re.escape(name)}(?P=quote)(?![ \t]*=)", region)
-    rendered = f'{{ "{name}" = {{ {setting} }} }}'
-    if simple is not None:
-        absolute_start = array_start + simple.start()
-        absolute_end = array_start + simple.end()
-        return source[:absolute_start] + rendered + source[absolute_end:]
-    if name in region:
-        raise AdoptError(
-            f"the configured {name} inline table cannot be updated safely; "
-            "add the required setting yourself and rerun"
-        )
-    return _add_array_value(source, "project", "markdown_extensions", rendered)
-
-
-def _ensure_toml_tree_icons(
-    source: str,
-    parsed: dict[str, Any],
-    *,
-    extension_array: bool,
-) -> str:
-    """Materialise the icon renderer required by prodockit.tree."""
-    configured = _extensions(parsed)
-    existing = configured.get(TREE_ICON_EXTENSION)
-
-    if extension_array:
-        if _tree_icons_ok(parsed):
-            return source
-        setting = ", ".join(
-            f"{key} = {_toml_value(value)}" for key, value in TREE_ICON_SETTINGS.items()
-        )
-        return _set_array_extension(source, TREE_ICON_EXTENSION, setting)
-
-    table = f'project.markdown_extensions."{TREE_ICON_EXTENSION}"'
-    for key, value in TREE_ICON_SETTINGS.items():
-        if not isinstance(existing, Mapping) or key not in existing:
-            source = _add_table_string(source, table, key, str(value))
-    return source
-
-
 def _planned_zensical_config(root: Path, options: AdoptOptions) -> tuple[Path, str]:
-    """Return the validated configuration update without writing it."""
-    path, source, _parsed = _config(root)
+    """Plan with TOML Kit, then independently validate with tomllib."""
+    path, source, parsed = _config(root)
     if path.suffix != ".toml":
-        return path, _planned_yaml_config(path, source, _parsed, options)
-    project = _parsed["project"]
-    if "markdown_extensions" not in project:
-        source = _seed_toml_markdown_defaults(source)
-        _parsed = tomllib.loads(source)
-        project = _parsed["project"]
-    extension_array = isinstance(project.get("markdown_extensions"), list)
-    configured = _extensions(_parsed)
-    missing = _missing_core_extensions(_parsed)
-    if extension_array:
-        for name in missing:
-            source = _add_array_value(source, "project", "markdown_extensions", f'"{name}"')
-    else:
-        source = _append_tables(
-            source,
-            tuple(f'project.markdown_extensions."{name}"' for name in missing),
-        )
-    source = _ensure_toml_tree_icons(
-        source,
-        _parsed,
-        extension_array=extension_array,
-    )
-    source = _ensure_authoring_settings(source, _parsed, toml=True)
-    source = _add_array_value(
-        source,
-        "project",
-        "extra_css",
-        '"stylesheets/pdk.css"',
-        prepend=True,
-        asset=True,
-    )
-    source = _add_array_value(
-        source,
-        "project",
-        "extra_css",
-        '"stylesheets/extra.css"',
-        asset=True,
-    )
-    pdf_css_table = "project.extra"
-    pdf_css_key = "pdf_extra_css"
-    if _section(source, pdf_css_table) is None:
-        # Dotted project keys already define the same TOML table. Keep that
-        # representation instead of appending a duplicate [project.extra].
-        pdf_css_table = "project"
-        pdf_css_key = "extra.pdf_extra_css"
-    source = _add_array_value(
-        source,
-        pdf_css_table,
-        pdf_css_key,
-        '"stylesheets/pdk-pdf.css"',
-        prepend=True,
-        asset=True,
-    )
-    source = _add_array_value(
-        source,
-        pdf_css_table,
-        pdf_css_key,
-        '"stylesheets/print.css"',
-        asset=True,
-    )
-    if options.mermaid:
-        existing = configured.get("pymdownx.superfences")
-        fences = existing.get("custom_fences", []) if isinstance(existing, dict) else []
-        has_mermaid = any(
-            isinstance(item, dict) and item.get("name") == "mermaid" for item in fences
-        )
-        if extension_array:
-            if not has_mermaid:
-                source = _set_array_extension(
-                    source,
-                    "pymdownx.superfences",
-                    f"custom_fences = [{MERMAID_FENCE}]",
-                )
-        elif not has_mermaid:
-            table, key = _toml_extension_setting(source, "pymdownx.superfences", "custom_fences")
-            source = _add_array_value(
-                source,
-                table,
-                key,
-                MERMAID_FENCE,
-            )
-    if options.maths:
-        existing = configured.get("pymdownx.arithmatex")
-        has_generic_maths = isinstance(existing, dict) and existing.get("generic") is True
-        if extension_array:
-            if not has_generic_maths:
-                source = _set_array_extension(source, "pymdownx.arithmatex", "generic = true")
-        elif not has_generic_maths:
-            table, key = _toml_extension_setting(source, "pymdownx.arithmatex", "generic")
-            source = _set_table_bool(
-                source,
-                table,
-                key,
-                True,
-            )
-        source = _add_array_value(
-            source,
-            "project",
-            "extra_javascript",
-            '"javascripts/vendor/mathjax/tex-svg-full.js"',
-            prepend=True,
-            asset=True,
-        )
-        source = _add_array_value(
-            source,
-            "project",
-            "extra_javascript",
-            '"javascripts/mathjax.js"',
-            prepend=True,
-            asset=True,
-        )
-    source = _add_array_value(
-        source,
-        "project",
-        "extra_javascript",
-        '"javascripts/pdk.js"',
-        prepend=True,
-        asset=True,
-    )
-    source = _add_array_value(
-        source,
-        "project",
-        "extra_javascript",
-        '"javascripts/extra.js"',
-        asset=True,
-    )
+        return path, _planned_yaml_config(path, source, parsed, options)
+    from prodockit.adopt_toml import update
+
     try:
-        tomllib.loads(source)
-    except tomllib.TOMLDecodeError as error:  # pragma: no cover - defensive transaction guard
-        raise AdoptError(f"the planned {path.name} would be invalid: {error}") from error
-    return path, source
+        planned = update(source, options)
+        if options.template_snapshot is not None:
+            planned = adopt_settings.review(
+                root, planned, options.template_snapshot, original=source
+            ).source
+        tomllib.loads(planned)
+    except (ValueError, TypeError) as error:
+        raise AdoptError(f"could not safely update {path.name}: {error}") from error
+    return path, planned
 
 
 def ensure_zensical_config(root: Path, options: AdoptOptions) -> Path:
+    _, original, _ = _config(root)
     path, source = _planned_zensical_config(root, options)
+    reviewed = None
+    if path.suffix == ".toml" and options.template_snapshot is not None:
+        try:
+            reviewed = adopt_settings.review(
+                root, source, options.template_snapshot, original=original
+            )
+        except adopt_settings.SettingsError as error:
+            raise AdoptError(str(error)) from error
+        if options.template_snapshot.identity.startswith("github:"):
+            _atomic_write(
+                adopt_settings.cache_path(), adopt_settings.cache_content(options.template_snapshot)
+            )
     _atomic_write(path, source.encode("utf-8"))
+    if reviewed is not None and (reviewed.count or not (root / adopt_settings.LEDGER).exists()):
+        # Only mark work processed after the valid configuration is in place.
+        # If this write fails, generated comment markers make a retry safe.
+        _atomic_write(root / adopt_settings.LEDGER, reviewed.ledger.encode("utf-8"))
     return path
 
 
@@ -1005,29 +701,9 @@ def _extra_defaults_missing(parsed: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _ensure_authoring_settings(source: str, parsed: dict[str, Any], *, toml: bool) -> str:
-    """Materialise reusable settings without rewriting the user's document."""
+def _ensure_authoring_settings(source: str, parsed: dict[str, Any]) -> str:
+    """Materialise reusable YAML settings; TOML uses adopt_toml."""
     captions = _missing_caption_types(parsed)
-    if toml:
-        if isinstance(parsed["project"].get("markdown_extensions"), list):
-            configured = _extensions(parsed).get("pymdownx.blocks.caption", {})
-            types = list(configured.get("types", [])) + captions
-            if captions:
-                source = _set_array_extension(
-                    source, "pymdownx.blocks.caption", f"types = {_toml_value(types)}"
-                )
-        else:
-            table, key = _toml_extension_setting(source, "pymdownx.blocks.caption", "types")
-            for item in captions:
-                source = _add_array_value(source, table, key, _toml_value(item))
-        for key, value in _extra_defaults_missing(parsed).items():
-            table = "project.extra" if _section(source, "project.extra") else "project"
-            name = key if table == "project.extra" else f"extra.{key}"
-            located = _section(source, table)
-            assert located is not None
-            insert = len(source[: located[1]].rstrip())
-            source = source[:insert] + f"\n{name} = {_toml_value(value)}" + source[insert:]
-        return source
     source = _yaml_add_extension(source, "pymdownx.blocks.caption", ("types: []",))
     item = _yaml_extension_item(source, "pymdownx.blocks.caption")
     if captions:
@@ -1478,7 +1154,7 @@ def _planned_yaml_config(
     for name in _missing_core_extensions(parsed):
         source = _yaml_add_extension(source, name)
     source = _yaml_ensure_tree_icons(source, parsed)
-    source = _ensure_authoring_settings(source, parsed, toml=False)
+    source = _ensure_authoring_settings(source, parsed)
     source = _yaml_add_top_list_value(
         source,
         "extra_css",
@@ -1712,7 +1388,7 @@ def install_tool(
             cwd=tool_root,
             timeout=600,
             reporter=retry_reporter,
-            **({"retry_delays": ()} if offline else {}),
+            retry_delays=() if offline else DEFAULT_RETRY_DELAYS,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise AdoptError(f"could not install {component}: {error}") from error
@@ -1776,8 +1452,17 @@ def assess(
         return [Step("project", "Assess", "Existing documentation project", "wrong", str(error))]
 
     config_error = ""
+    review_pending = False
     try:
         _planned_zensical_config(root, options)
+        if config_path.suffix == ".toml" and options.template_snapshot is not None:
+            review_pending = bool(
+                adopt_settings.review(
+                    root, _source, options.template_snapshot, original=_source
+                ).count
+            )
+    except adopt_settings.SettingsError as error:
+        config_error = str(error)
     except AdoptError as error:
         config_error = str(error)
 
@@ -1788,6 +1473,7 @@ def assess(
     javascript_paths = _javascript_paths(root, parsed)
     core_ok = (
         not config_error
+        and not review_pending
         and not missing
         and not _missing_caption_types(parsed)
         and not _extra_defaults_missing(parsed)
@@ -1798,6 +1484,8 @@ def assess(
         and _style_ok(root, parsed)
     )
     core_problems: list[str] = []
+    if review_pending:
+        core_problems.append("review new template settings and record .prodockit-adopt.toml")
     if missing:
         core_problems.append("add standard extension(s): " + ", ".join(missing))
     if not config_error and _missing_caption_types(parsed):
