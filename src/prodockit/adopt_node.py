@@ -93,8 +93,10 @@ def apply(root: Path, *, offline: bool = False, reporter: RetryReporter | None =
             else "source .venv/bin/activate"
         )
         raise ToolchainError(
-            "\n" + "=" * 78 + "\nRESTART YOUR TERMINAL — NODE.JS/NPM IS NOT READY\n"
-            "Fully close and reopen your terminal application in this project, then run:\n"
+            "\n" + "=" * 78 + "\nINSTALLATION INCOMPLETE — NODE.JS/NPM IS NOT READY\n"
+            "The installer finished, but Node.js still needs installation or repair.\n"
+            "If it was just installed, RESTART YOUR TERMINAL to refresh its commands.\n"
+            "Return to this project, then run:\n"
             f"{activation}\npdk adopt --apply\n" + "=" * 78
         )
 

@@ -1094,7 +1094,7 @@ def test_apply_core_never_invokes_git_or_editor_setup(tmp_path: Path, monkeypatc
     assert (project / "requirements.txt").is_file()
     assert (project / STYLESHEET).is_file()
     assert "ok    Ready for local build" in result.output
-    assert "Run `zensical build --clean --strict`" in result.output
+    assert "  pdk diag\n  zensical build --clean --strict" in result.output
     assert not (project / ".vscode").exists()
     assert "Nothing has been committed or pushed" in result.output
 
@@ -1209,8 +1209,12 @@ custom_fences = [{ name = "mermaid" }]
 
     assert result.exit_code == 0, result.output
     assert "Options:  Mermaid off · maths off" in result.output
-    assert "Choices:  not configured; Mermaid and maths default off" in result.output
-    assert f"Will save: {project / MANIFEST}" in result.output
+    assert "Choices:" not in result.output
+    assert "Use --verbose" in result.output
+    verbose = CliRunner().invoke(main, ["adopt", "--dry-run", "--verbose"])
+    assert verbose.exit_code == 0, verbose.output
+    assert "Choices:  not configured; Mermaid and maths default off" in verbose.output
+    assert f"Will save: {project / MANIFEST}" in verbose.output
 
 
 @pytest.mark.parametrize("offline", [True, False])
