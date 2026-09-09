@@ -44,6 +44,27 @@ def test_offline_missing_native_dependency_blocks(tmp_path, monkeypatch):
     assert "online run" in runtime.plan(offline=True).blocked
 
 
+@pytest.mark.parametrize("offline", [False, True])
+def test_windows_assessment_refreshes_persisted_paths_before_probe(tmp_path, monkeypatch, offline):
+    monkeypatch.setattr(runtime, "_context", lambda: context(tmp_path, WINDOWS))
+    monkeypatch.delenv("WEASYPRINT_DLL_DIRECTORIES", raising=False)
+    monkeypatch.setenv("PATH", "session-tools")
+
+    def refresh():
+        monkeypatch.setenv("WEASYPRINT_DLL_DIRECTORIES", "installed-pdf-libraries")
+        monkeypatch.setenv("PATH", "session-tools;installed-font-tools")
+
+    def probe(ctx):
+        assert runtime.os.environ["WEASYPRINT_DLL_DIRECTORIES"] == "installed-pdf-libraries"
+        assert "installed-font-tools" in runtime.os.environ["PATH"]
+        return ""
+
+    monkeypatch.setattr(runtime, "refresh_windows_path", refresh)
+    monkeypatch.setattr(runtime, "_probe", probe)
+    monkeypatch.setattr(runtime.shutil, "which", lambda name: pytest.fail("unexpected install"))
+    assert not runtime.plan(offline=offline).needs_work
+
+
 def test_pending_python_package_is_not_mistaken_for_native_install_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, "_context", lambda: context(tmp_path, UBUNTU))
     monkeypatch.setattr(

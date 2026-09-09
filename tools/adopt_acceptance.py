@@ -599,7 +599,7 @@ def exercise(
     if snapshot(project, exclude=output_directory) != stable:
         raise AcceptanceError(f"{name}: a second apply changed project files")
     if "All selected prodockit components are already configured" not in second_output:
-        raise AcceptanceError(f"{name}: second apply did not finish cleanly")
+        raise AcceptanceError(f"{name}: second apply did not finish cleanly:\n{second_output}")
 
     print(f"PASS {name}: {len(modifications)} project file(s) changed as planned")
     return Result(
