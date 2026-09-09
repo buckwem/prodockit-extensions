@@ -416,6 +416,56 @@ def verify_deliverables(python: Path, project: Path, config: Path) -> None:
             raise AcceptanceError(f"{command} did not produce a PDF: {path}")
 
 
+def verify_authoring(python: Path, project: Path, config: Path) -> None:
+    """Add representative author content only after preservation checks pass."""
+    page = project / "docs" / "index.md"
+    page.write_text(
+        page.read_text(encoding="utf-8")
+        + """
+
+## Adopted authoring checks
+
+/// steps
+
+//// step | Acceptance step
+
+The numbered procedure must render.
+
+////
+
+///
+
+/// tree
+docs/
+  index.md - Acceptance tree file
+///
+
+| Name | Value |
+| --- | --- |
+| Example | Present |
+/// table-caption | <
+    attrs: {id: acceptance-table}
+
+Acceptance table caption
+///
+""",
+        encoding="utf-8",
+    )
+    build(python, project, config, fixture_content=True)
+    rendered = (project / "site" / "index.html").read_text(encoding="utf-8")
+    for expected in (
+        "prodockit-steps",
+        "prodockit-tree",
+        "prodockit-table-caption",
+        "acceptance-table",
+    ):
+        if expected not in rendered:
+            raise AcceptanceError(f"required authoring feature did not render: {expected}")
+    for raw in ("/// steps", "//// step", "/// tree", "/// table-caption", ":material-folder:"):
+        if raw in rendered:
+            raise AcceptanceError(f"unrendered authoring directive: {raw}")
+
+
 def adopt(
     python: Path,
     project: Path,
@@ -447,6 +497,7 @@ def exercise(
     mermaid: bool,
     maths: bool,
     fixture_content: bool = False,
+    use_defaults: bool = False,
 ) -> Result:
     started = time.perf_counter()
     config = find_config(project)
@@ -457,8 +508,9 @@ def exercise(
     shutil.copytree(project / "site", before_site_copy)
 
     default_choices = name == "toml-default"
+    use_defaults = use_defaults or default_choices
     dry_output = adopt(
-        python, project, mermaid=mermaid, maths=maths, apply=False, use_defaults=default_choices
+        python, project, mermaid=mermaid, maths=maths, apply=False, use_defaults=use_defaults
     )
     after_dry_run = snapshot(project)
     dry_changes = changed(source_before, after_dry_run)
@@ -468,7 +520,7 @@ def exercise(
         raise AcceptanceError(f"{name}: dry-run did not clearly state that it made no changes")
 
     apply_output = adopt(
-        python, project, mermaid=mermaid, maths=maths, apply=True, use_defaults=default_choices
+        python, project, mermaid=mermaid, maths=maths, apply=True, use_defaults=use_defaults
     )
     if default_choices:
         if "Mermaid off" not in apply_output or "maths off" not in apply_output:
@@ -492,10 +544,12 @@ def exercise(
             f"{', '.join(site_changes)}"
         )
 
+    if fixture_content:
+        verify_authoring(python, project, config)
     verify_deliverables(python, project, config)
     stable = snapshot(project)
     second_output = adopt(
-        python, project, mermaid=mermaid, maths=maths, apply=True, use_defaults=default_choices
+        python, project, mermaid=mermaid, maths=maths, apply=True, use_defaults=use_defaults
     )
     if snapshot(project) != stable:
         raise AcceptanceError(f"{name}: a second apply changed project files")

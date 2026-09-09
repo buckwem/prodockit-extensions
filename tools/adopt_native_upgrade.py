@@ -9,8 +9,9 @@ real Zensical project with Mermaid and maths selected, then installs the
 candidate wheel over the same environment and project.  The candidate must
 refresh its managed files, build successfully, and be idempotent.
 
-The test deliberately stays within Adopt's project boundary.  Git, SSH,
-editors, and operating-system packages belong to Bootstrap's native gates.
+The test uses Adopt's runtime-only boundary. Git, SSH and editors are excluded;
+Adopt may provision missing rendering prerequisites. A pre-provisioned runner
+does not establish clean-machine native installation coverage.
 """
 
 from __future__ import annotations
@@ -32,6 +33,18 @@ import adopt_acceptance as acceptance
 OLD_PRODOCKIT_VERSION = "0.47.0"
 
 
+def renderer_versions(project: Path) -> dict[str, str]:
+    packages = {"mermaid": "@mermaid-js/mermaid-cli", "mathjax": "mathjax-full"}
+    result = {}
+    for component, package in packages.items():
+        path = project / "tools" / component / "node_modules" / package / "package.json"
+        version = json.loads(path.read_text(encoding="utf-8"))["version"]
+        if not isinstance(version, str):
+            raise acceptance.AcceptanceError(f"invalid installed renderer version: {path}")
+        result[component] = version
+    return result
+
+
 def installed_versions(python: Path, cwd: Path) -> dict[str, str]:
     """Return the installed versions which define the adoption boundary."""
 
@@ -42,8 +55,7 @@ def installed_versions(python: Path, cwd: Path) -> dict[str, str]:
     )
     value = json.loads(acceptance.run([str(python), "-c", source], cwd=cwd).stdout)
     if not isinstance(value, dict) or not all(
-        isinstance(name, str) and isinstance(version, str)
-        for name, version in value.items()
+        isinstance(name, str) and isinstance(version, str) for name, version in value.items()
     ):
         raise acceptance.AcceptanceError("installed version inventory was not a string mapping")
     return value
@@ -159,6 +171,10 @@ def main(arguments: list[str] | None = None) -> int:
             acceptance.find_config(project),
             fixture_content=True,
         )
+        old_renderers = renderer_versions(project)
+        # A legacy installation may lack saved choices. Test inference from
+        # real installed renderers, not explicit flags or a prefilled manifest.
+        (project / ".prodockit-components.toml").unlink(missing_ok=True)
         old_source = acceptance.snapshot(project)
 
         install_upgrade(python, wheel)
@@ -174,6 +190,7 @@ def main(arguments: list[str] | None = None) -> int:
             mermaid=True,
             maths=True,
             fixture_content=True,
+            use_defaults=True,
         )
         expected = {
             "requirements.txt",
@@ -186,6 +203,23 @@ def main(arguments: list[str] | None = None) -> int:
             )
         if acceptance.snapshot(project) == old_source:
             raise acceptance.AcceptanceError("candidate left the old adopted project unchanged")
+        after_renderers = renderer_versions(project)
+        supported_renderers = json.loads(
+            acceptance.run(
+                [
+                    str(python),
+                    "-c",
+                    "import json; from prodockit.adopt_renderers import expected_version; "
+                    "print(json.dumps({name: expected_version(name) "
+                    "for name in ('mermaid', 'mathjax')}))",
+                ],
+                cwd=project,
+            ).stdout
+        )
+        if after_renderers != supported_renderers:
+            raise acceptance.AcceptanceError(
+                "inferred renderers do not match the candidate's specification"
+            )
 
         report: dict[str, Any] = {
             "wheel": str(wheel),
@@ -193,6 +227,9 @@ def main(arguments: list[str] | None = None) -> int:
             "architecture": machine,
             "old_versions": old_versions,
             "candidate_versions": candidate_versions,
+            "old_renderers": old_renderers,
+            "candidate_renderers": after_renderers,
+            "inferred_without_saved_choices": True,
             "duration_seconds": round(time.perf_counter() - started, 3),
             "result": asdict(result),
         }
