@@ -147,6 +147,17 @@ def run(
     environment = dict(os.environ)
     environment.pop("PYTHONPATH", None)
     environment["PYTHONUTF8"] = "1"
+    if sys.platform == "win32":
+        # Simulate a new terminal after native installers persist user settings.
+        # Do not invent a DLL directory: verify the value actually saved by Adopt.
+        import winreg
+
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+                value, _ = winreg.QueryValueEx(key, "WEASYPRINT_DLL_DIRECTORIES")
+            environment["WEASYPRINT_DLL_DIRECTORIES"] = winreg.ExpandEnvironmentStrings(str(value))
+        except OSError:
+            pass
     executable = Path(command[0])
     if executable.name.lower() in {"python", "python.exe"} and executable.parent.name in {
         "bin",
@@ -161,9 +172,23 @@ def run(
         environment["PATH"] = os.pathsep.join(
             (str(executable.parent.resolve()), environment.get("PATH", ""))
         )
+    execution_command = command
+    if sys.platform == "darwin" and executable.parent.name == "bin":
+        activate = executable.parent / "activate"
+        if activate.is_file():
+            # Adopt persists Homebrew library discovery in activation. Start
+            # each new command as a user who has activated that environment.
+            execution_command = [
+                "/bin/bash",
+                "-c",
+                'source "$1"; shift; exec "$@"',
+                "adopt-acceptance",
+                str(activate),
+                *command,
+            ]
     for attempt in range(1, transient_attempts + 1):
         completed = subprocess.run(
-            command,
+            execution_command,
             cwd=cwd,
             input=input_text,
             capture_output=True,

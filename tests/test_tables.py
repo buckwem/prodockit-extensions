@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import os
+import shutil
 from pathlib import Path
 
 import markdown
@@ -780,6 +781,7 @@ def test_a_rotated_heading_really_is_rotated_in_the_pdf() -> None:
     assert directions == {(0.0, -1.0)}, directions
 
 
+@pytest.mark.skipif(shutil.which("pandoc") is None, reason="PDF integration requires Pandoc")
 def test_both_header_rows_repeat_when_the_table_breaks() -> None:
     """The reason the marker exists, measured on a table that paginates."""
     fitz = pytest.importorskip("pymupdf")

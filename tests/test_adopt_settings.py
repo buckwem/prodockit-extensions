@@ -49,6 +49,36 @@ def test_outcomes_and_inactive_unknowns(tmp_path):
     assert "template.css" not in source
 
 
+def test_github_credentials_are_scoped_and_redirects_blocked(monkeypatch):
+    import io
+    from types import SimpleNamespace
+
+    calls = []
+
+    def opener(request, **kwargs):
+        calls.append(request)
+        return io.BytesIO(b"response")
+
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setattr(settings.urllib.request, "urlopen", opener)
+    monkeypatch.setattr(
+        settings.urllib.request, "build_opener", lambda *handlers: SimpleNamespace(open=opener)
+    )
+    for url in (
+        "https://api.github.com/repos/example",
+        "https://raw.githubusercontent.com/example",
+        "http://api.github.com/repos/example",
+        "https://api.github.com.evil.test/example",
+    ):
+        assert settings._fetch_once(url) == "response"
+    assert calls[0].get_header("Authorization") == "Bearer test-token"
+    assert all(request.get_header("Authorization") is None for request in calls[1:])
+    with pytest.raises(settings.SettingsError, match="refusing to forward credentials"):
+        settings._NoCredentialRedirect().redirect_request(
+            calls[0], None, 302, "redirect", {}, "https://example.test"
+        )
+
+
 def test_new_template_key_is_discovered_without_an_adopt_change(tmp_path):
     path = project(tmp_path)
     ensure_zensical_config(tmp_path, options())
