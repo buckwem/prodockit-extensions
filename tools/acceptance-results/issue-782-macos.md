@@ -214,3 +214,19 @@ Open risk: Adopt's managed-file alignment targets its installed release, so an
 older installed Prodockit can still replace files supplied by a newer template.
 These results do not establish a cross-version no-downgrade guarantee or native
 Windows/Ubuntu acceptance.
+
+## Follow-up: reject an older Adopt before project mutation
+
+Assessment and direct activity application now check the project's managed
+Prodockit declarations. A newer exact pin, minimum requirement or toolchain
+manifest stops Adopt with upgrade guidance before file/runtime changes. The
+previous test expecting a newer Prodockit floor to be lowered was replaced.
+Same/older project declarations still permit alignment to the installed release;
+dependency upgrade/downgrade behavior is unchanged. This protection relies on
+the project retaining its managed version declarations, not file provenance.
+
+Regression result: **2,951 passed, 11 skipped, 17 deselected**. Lint, formatting
+and whitespace checks pass. The rebuilt wheel's real `toml-default` acceptance
+scenario passes site, diagnostics, authored content, PDF/source bundle and
+repeat-apply checks on pre-provisioned macOS ARM64.
+Report: `/private/tmp/prodockit-782-release-guard-acceptance.json`.

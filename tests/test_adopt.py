@@ -763,14 +763,15 @@ def test_assessment_upgrades_an_older_prodockit_floor(tmp_path: Path) -> None:
     assert f"prodockit>={__version__}" in (project / "requirements.txt").read_text(encoding="utf-8")
 
 
-def test_assessment_aligns_a_newer_prodockit_floor(tmp_path: Path) -> None:
+def test_assessment_rejects_a_newer_prodockit_floor(tmp_path: Path) -> None:
     project = _project(tmp_path)
     (project / "requirements.txt").write_text("prodockit>=999.0.0\n", encoding="utf-8")
 
-    dependency = next(step for step in assess(project, AdoptOptions()) if step.id == "dependency")
-
-    assert dependency.status == "missing"
-    assert "align version declarations" in dependency.detail
+    steps = assess(project, AdoptOptions())
+    assert len(steps) == 1
+    assert steps[0].status == "wrong"
+    assert "999.0.0" in steps[0].detail
+    assert "No project files or software have been changed" in steps[0].detail
 
 
 def test_crlf_stylesheet_does_not_need_adopt_refresh(tmp_path: Path) -> None:

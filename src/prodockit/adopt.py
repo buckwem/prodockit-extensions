@@ -1472,6 +1472,27 @@ def install_tool(
     return written
 
 
+def _check_project_release(root: Path) -> None:
+    """Do not rewrite a newer project's managed files with an older release."""
+    from prodockit.pins import discover
+
+    state = discover(str(root), ("prodockit",))["prodockit"]
+    for site in state.sites:
+        if site.kind != "manifest" and site.op not in {"==", ">="}:
+            continue
+        try:
+            newer = Version(site.version) > Version(__version__)
+        except InvalidVersion:
+            continue
+        if newer:
+            raise AdoptError(
+                f"{site.path} declares Prodockit {site.version}, but this command uses "
+                f"{__version__}. Activate the project's environment and install "
+                f"Prodockit {site.version} or a compatible newer release before running Adopt. "
+                "No project files or software have been changed."
+            )
+
+
 def assess(
     root: Path,
     options: AdoptOptions,
@@ -1480,6 +1501,7 @@ def assess(
     offline: bool = False,
 ) -> list[Step]:
     try:
+        _check_project_release(root)
         config_path, _source, parsed = _config(root)
         config_status = ("ok", f"{config_path.name} is valid")
     except AdoptError as error:
@@ -1764,6 +1786,7 @@ def apply_step(
     retry_reporter: RetryReporter | None = None,
     offline: bool = False,
 ) -> list[Path]:
+    _check_project_release(root)
     if step_id == "pdf-runtime":
         from prodockit import adopt_pdf_runtime
 
