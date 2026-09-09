@@ -32,6 +32,9 @@ import os
 import shutil
 import subprocess
 import tempfile
+from pathlib import Path
+
+from pathspec import GitIgnoreSpec
 
 from prodockit.sync_repo import get_remote_url
 from prodockit.tools import find
@@ -100,8 +103,7 @@ def _is_excluded(rel_path: str) -> bool:
     named in `_EXCLUDED_FILE_NAMES`."""
     parts = rel_path.split("/")
     return (
-        any(part in _EXCLUDED_DIR_NAMES for part in parts[:-1])
-        or parts[-1] in _EXCLUDED_FILE_NAMES
+        any(part in _EXCLUDED_DIR_NAMES for part in parts[:-1]) or parts[-1] in _EXCLUDED_FILE_NAMES
     )
 
 
@@ -169,21 +171,58 @@ def discover_markdown_and_config_files(
     reason to bundle its own tooling alongside the document it produced
     (prodockit-extensions#212).
 
-    Still built on `discover_source_files()`, so a `.gitignore`d or
-    always-excluded file (see `_EXCLUDED_DIR_NAMES`/`_EXCLUDED_FILE_NAMES`)
-    is filtered out here too, before the narrower `.md`/config check ever
-    runs.
+    Repositories use `discover_source_files()` and Git's ignore semantics.
+    Standalone projects use a non-symlink traversal with local/nested ignore
+    rules, excluding hidden and generated tooling directories.
     """
     docs_path = _git_relative_path(root, docs_dir).rstrip("/")
     docs_prefix = f"{docs_path}/" if docs_path not in {"", "."} else ""
     config_path = _git_relative_path(root, config_file)
+    base = Path(root).resolve()
+    in_repository = any((parent / ".git").exists() for parent in (base, *base.parents))
+    candidates = discover_source_files(root) if in_repository else _local_document_files(base)
     return [
         f
-        for f in discover_source_files(root)
-        if f == "README.md"
-        or f == config_path
-        or (f.startswith(docs_prefix) and f.endswith(".md"))
+        for f in candidates
+        if f == "README.md" or f == config_path or (f.startswith(docs_prefix) and f.endswith(".md"))
     ]
+
+
+def _local_document_files(root: Path) -> list[str]:
+    """Discover non-Git inputs without following links or traversing tool caches."""
+    excluded = {".venv", "venv", "node_modules", "__pycache__", "site", "public"}
+    result: list[str] = []
+
+    def walk(directory: Path, rules: list[tuple[Path, GitIgnoreSpec]]) -> None:
+        ignore = directory / ".gitignore"
+        if ignore.is_file() and not ignore.is_symlink():
+            rules = [
+                *rules,
+                (
+                    directory,
+                    GitIgnoreSpec.from_lines(ignore.read_text(encoding="utf-8").splitlines()),
+                ),
+            ]
+        for path in sorted(directory.iterdir()):
+            if path.is_symlink() or path.name.startswith(".") or path.name in excluded:
+                continue
+            ignored = False
+            for origin, spec in rules:
+                relative = path.relative_to(origin).as_posix() + ("/" if path.is_dir() else "")
+                decision = spec.check_file(relative).include
+                if decision is not None:
+                    ignored = decision
+            if ignored:
+                continue
+            if path.is_dir():
+                walk(path, rules)
+            elif path.is_file():
+                relative = path.relative_to(root).as_posix()
+                if not _is_excluded(relative):
+                    result.append(relative)
+
+    walk(root, [])
+    return sorted(result)
 
 
 def is_probably_text(path: str) -> bool:
@@ -395,7 +434,7 @@ def build_source_bundle(
 
         html_path = os.path.join(resolved_work_dir, "_prodockit_source_bundle.html")
         with open(html_path, "w", encoding="utf-8") as f:
-            f.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\">")
+            f.write('<!DOCTYPE html><html><head><meta charset="utf-8">')
             f.write(f"<style>{css}</style>")
             f.write("</head><body>")
             f.write("\n".join(body_parts))

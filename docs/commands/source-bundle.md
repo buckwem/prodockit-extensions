@@ -21,13 +21,12 @@ pdk source [OPTIONS]
 ## Working directory {: #cmd-source-bundle-working-directory }
 
 Run this command from the **project root** so the default `zensical.toml` and
-the project's Git-tracked and untracked source files are selected together.
+the project's documentation sources are selected together. A Git repository
+is not required.
 Use `--config-file PATH` for another project deliberately.
 
 From the wrong directory it normally reports `project configuration not found:
-.../zensical.toml`. A configuration path outside the current repository may
-instead reach `git ls-files failed`; change to that project's root before
-retrying so the bundle cannot draw files from the wrong repository.
+.../zensical.toml`. Change to the intended project's root before retrying.
 
 ## Options {: #cmd-source-bundle-options }
 
@@ -48,6 +47,12 @@ Source-bundle options
 The command reads the configured document sources and writes the configured
 source-bundle output. It is separate from the rendered documentation PDF so a
 project can build either or both artifacts.
+
+For a Git repository, Git selects tracked and untracked files using its normal
+ignore rules. Without a repository, the command selects the root `README.md`,
+Markdown under the configured documentation directory, and the site configuration.
+It honours local and nested `.gitignore` files, skips hidden directories,
+virtual environments and generated tooling, and never follows symbolic links.
 
 Use it when an assessment, archive, or review requires the authored source in
 addition to the rendered document. It does not alter the Markdown or

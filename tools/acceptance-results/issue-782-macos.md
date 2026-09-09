@@ -40,7 +40,7 @@ preview failed. Accept a compatible minimum declaration as well as the existing
 exact-version form, while rejecting a newer template requirement. Regression
 tests exercise both forms at the same immutable template revision.
 
-## Confirmed remaining blockers
+## Blockers found in the first run
 
 1. **Python dependency repair:** the real upgrade/downgrade fixtures install
    genuine distributions with `--no-deps`. Adopt checks top-level versions but
@@ -85,3 +85,35 @@ Local reports from this checkpoint are `/private/tmp/prodockit-782-acceptance.js
 `/private/tmp/prodockit-782-downgrade.json`, and
 `/private/tmp/prodockit-782-renderer-deliverables.json`. They are disposable
 machine-local evidence, not required repository inputs.
+
+## Follow-up: dependency repair and standalone source bundles
+
+The dependency assessment now walks required installed-package dependencies,
+including explicitly requested dependency extras, and plans a resolving repair
+even when the top-level version already matches. After a version change it
+checks again for newly introduced dependencies before writing declarations.
+Missing Python imports no longer trigger native-library installation.
+
+Standalone documentation projects now generate source bundles without Git.
+The filesystem path honours local/nested ignore rules with `pathspec`, does
+not follow symlinks, and excludes hidden and generated-tooling directories.
+The existing Git-based selection remains unchanged for repositories.
+
+All five **strengthened** installed-wheel scenarios now pass, including strict
+site builds, applicable diagnostics, PDF and source-bundle generation, and
+repeat-apply stability. Reports: `/private/tmp/prodockit-782-deliverables-retest.json`.
+
+The real upgrade and downgrade scenarios also pass, including repair of missing
+transitive dependencies and offline Pandoc cache recovery. Their harnesses now
+default to a per-run download cache rather than sharing a checkout cache;
+an explicitly configured cache remains supported. Report:
+`/private/tmp/prodockit-782-upgrade-isolated.json` and
+`/private/tmp/prodockit-782-downgrade-isolated.json`.
+
+The missing-package-manager provisioning and full native platform/matrix gaps
+listed above remain open. Passing these pre-provisioned-Mac checks does not
+close issue 782.
+
+Follow-up regression result: **2,925 passed, 11 skipped, 17 deselected**.
+Strict documentation build, focused Ruff checks, changed-source mypy checks,
+and whitespace validation also pass.

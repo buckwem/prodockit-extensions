@@ -131,6 +131,17 @@ def test_probe_reports_the_actual_library_error(tmp_path, monkeypatch):
     assert "OSError: libpango is missing" in REAL_PROBE(context(tmp_path, UBUNTU))
 
 
+def test_missing_python_dependency_is_not_a_native_library_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        runtime.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=1, stdout="", stderr="ModuleNotFoundError: No module named 'cssselect2'"
+        ),
+    )
+    assert REAL_PROBE(context(tmp_path, UBUNTU)) == "WeasyPrint Python package is pending"
+
+
 def test_apply_rechecks_native_runtime_after_package_upgrade(tmp_path, monkeypatch):
     from prodockit import adopt
 

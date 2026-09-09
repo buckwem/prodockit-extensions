@@ -10,11 +10,46 @@ import sys
 import urllib.error
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from prodockit import toolchain
 from prodockit.pins import DEFAULT_PACKAGES, TESTED_VERSIONS, discover
+
+
+def test_dependency_graph_detects_missing_nested_package_and_ignores_unused_extra(monkeypatch):
+    graph = {
+        "weasyprint": ["cssselect2>=0.8", "unused; extra == 'test'"],
+        "cssselect2": ["tinycss2>=1"],
+    }
+    monkeypatch.setattr(
+        toolchain.importlib.metadata,
+        "distribution",
+        lambda name: SimpleNamespace(requires=graph[name]),
+    )
+
+    def version(name):
+        if name == "tinycss2":
+            raise toolchain.importlib.metadata.PackageNotFoundError(name)
+        return "1.0"
+
+    monkeypatch.setattr(toolchain.importlib.metadata, "version", version)
+    assert toolchain.dependency_repairs(("weasyprint",)) == ("weasyprint",)
+    graph["cssselect2"] = []
+    assert toolchain.dependency_repairs(("weasyprint",)) == ()
+
+
+def test_matching_version_with_broken_dependencies_gets_resolving_repair(tmp_path, monkeypatch):
+    _supported(monkeypatch)
+    monkeypatch.setattr(toolchain, "dependency_repairs", lambda packages: ("weasyprint",))
+    planned = toolchain.plan(tmp_path)
+    assert any(
+        action.package == "weasyprint" and action.action == "repair" for action in planned.actions
+    )
+    command = next(command for command in planned.commands if "pip" in command)
+    assert "--no-deps" not in command
+    assert f"weasyprint=={TESTED_VERSIONS['weasyprint']}" in command
 
 
 def _supported(monkeypatch: pytest.MonkeyPatch) -> None:

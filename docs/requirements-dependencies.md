@@ -36,6 +36,7 @@ with Prodockit and explains why each one is needed.
 | \index{dependencies!`pypdf`} (>= 4.0) | `prodockit.pdf` |
 | \index{dependencies!`tomli`} (>= 2.0) | reading a template manifest on Python 3.10, where `tomllib` does not exist yet |
 | [`tomlkit`](https://tomlkit.readthedocs.io/) (>= 0.13.2) | editing Adopt's TOML configuration and review ledger while preserving existing comments and formatting |
+| `pathspec` (>= 0.12) | respecting `.gitignore` when collecting documentation sources outside a Git repository |
 | \index{dependencies!`pymupdf`} (>= 1.24) | only the back-of-book index - `pip install prodockit[index]` |
 /// table-caption | <
     attrs: {id: tab-installation-requirements}
