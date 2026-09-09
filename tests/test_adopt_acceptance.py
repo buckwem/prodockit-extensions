@@ -105,6 +105,18 @@ def test_default_choice_run_does_not_pass_renderer_overrides(tmp_path, monkeypat
     assert calls == [["python", "-m", "prodockit", "adopt", "--apply"]]
 
 
+def test_authoring_gate_rejects_unrendered_directives(tmp_path, monkeypatch):
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/index.md").write_text("# Site\n")
+    (tmp_path / "site").mkdir()
+    (tmp_path / "site/index.html").write_text(
+        "prodockit-steps prodockit-tree prodockit-table-caption acceptance-table /// tree"
+    )
+    monkeypatch.setattr(adopt_acceptance, "build", lambda *args, **kwargs: None)
+    with pytest.raises(adopt_acceptance.AcceptanceError, match="unrendered authoring directive"):
+        adopt_acceptance.verify_authoring(Path("python"), tmp_path, tmp_path / "zensical.toml")
+
+
 def test_named_acceptance_scenarios_keep_the_declared_order() -> None:
     selected = adopt_acceptance.select_scenarios(["toml-both", "toml-core"])
 

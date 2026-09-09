@@ -156,3 +156,30 @@ strict build, applicable diagnostics, both PDF commands and repeat apply.
 Report: `/private/tmp/prodockit-782-default-acceptance.json`. The 65 focused
 acceptance/manager/CI regression tests, lint and strict documentation build
 also pass. The last full-suite result remains the 2,934-test checkpoint above.
+
+## Follow-up: real authoring and older-project acceptance
+
+The fresh default-choice scenario also passes with authored steps, a directory
+tree and a table caption added after the existing-content preservation check.
+Acceptance requires the expected generated classes and rejects raw block
+directives. The content is included in the subsequent PDF and source bundle.
+Report: `/private/tmp/prodockit-782-authoring-acceptance.json`.
+
+A genuine project first adopted with published Prodockit 0.47.0 successfully
+upgrades to the candidate 0.61.6 and passes the strengthened deliverable checks.
+Report: `/private/tmp/prodockit-782-old-project-upgrade.json`.
+
+The native-upgrade harness is further strengthened to remove only its own
+disposable component-choice file, run the candidate without renderer flags,
+and require automatic inference and alignment of actual installed Mermaid and
+MathJax versions to the candidate's packaged specification. It records both
+before/after renderer versions rather than relying on top-level Python pins.
+
+The inferred upgrade scenario passes on this Mac. It detects both renderers
+without saved choices or flags and downgrades the actual Mermaid CLI from
+11.17.0 to the candidate's packaged 11.16.0; MathJax remains at the required
+3.2.2. Authoring, diagnostics, both PDF commands and repeat apply pass.
+Report: `/private/tmp/prodockit-782-inferred-upgrade.json`.
+
+Latest full regression result: **2,937 passed, 11 skipped, 17 deselected**.
+Changed harnesses and tests also pass lint, formatting and whitespace checks.
