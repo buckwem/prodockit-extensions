@@ -19,7 +19,7 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.63.0 (2026-09-09)
 
 - Bootstrap distinguishes verified, missing and unverified PDF fonts. Shared
   fontconfig family checks inspect the renderer's actual selection, including
