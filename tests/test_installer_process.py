@@ -88,6 +88,29 @@ def test_exited_parent_with_surviving_child_blocks_retry(tmp_path):
     )
 
 
+@pytest.mark.parametrize("recovers", [True, False])
+def test_child_shutdown_wait_is_bounded(monkeypatch, recovers):
+    clock = [0.0]
+    monkeypatch.setattr(installer_process.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        installer_process.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds)
+    )
+    monkeypatch.setattr(
+        installer_process, "_descendants_remain", lambda pid: not recovers or clock[0] < 0.5
+    )
+    assert installer_process._wait_for_children(2345, grace=1) is recovers
+    assert clock[0] == (0.5 if recovers else 1)
+
+
+def test_child_shutdown_wait_does_not_hide_unknown_inventory(monkeypatch):
+    def unknown(pid):
+        raise installer_process.InstallerCleanupError("unverified")
+
+    monkeypatch.setattr(installer_process, "_descendants_remain", unknown)
+    with pytest.raises(installer_process.InstallerCleanupError, match="unverified"):
+        installer_process._wait_for_children(2345, grace=1)
+
+
 def test_cancellation_requests_cleanup_and_propagates(tmp_path, monkeypatch):
     stopped = []
 
