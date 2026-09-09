@@ -15,6 +15,25 @@ import prodockit.renderer_resilience as resilience
 from prodockit.renderer_health import RendererProbe
 
 
+@pytest.mark.parametrize(
+    "detail",
+    [
+        "EACCES after ECONNRESET",
+        "permission denied; service unavailable",
+        "No matching distribution; connection reset",
+        "invalid configuration; timed out",
+        "no automatic retry; ECONNRESET",
+        "did not finish within 1800 seconds",
+    ],
+)
+def test_permanent_or_unverified_failure_is_never_transient(detail):
+    from prodockit.bootstrap import _temporary_network_failure
+    from prodockit.bootstrap.model import CommandResult
+
+    assert not resilience.transient_runtime_failure(detail)
+    assert not _temporary_network_failure(CommandResult(1, stderr=detail))
+
+
 def test_mermaid_probe_recovers_from_the_ubuntu_snap_content_race(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -27,7 +46,9 @@ def test_mermaid_probe_recovers_from_the_ubuntu_snap_content_race(
     )
     notices = []
     delays = []
-    monkeypatch.setattr(renderer_health, "_probe_mermaid_once", lambda *_args, **_kw: next(outcomes))
+    monkeypatch.setattr(
+        renderer_health, "_probe_mermaid_once", lambda *_args, **_kw: next(outcomes)
+    )
     monkeypatch.setattr(renderer_health.time, "sleep", delays.append)
 
     result = renderer_health.probe_mermaid(binary, reporter=notices.append)
@@ -107,9 +128,7 @@ def test_npm_retry_removes_partial_modules_and_reports_the_attempt(
     monkeypatch.setattr(resilience, "run_installer", run)
     monkeypatch.setattr(resilience.time, "sleep", delays.append)
 
-    result = resilience.run_npm_with_retries(
-        ["npm", "ci"], cwd=tmp_path, reporter=notices.append
-    )
+    result = resilience.run_npm_with_retries(["npm", "ci"], cwd=tmp_path, reporter=notices.append)
 
     assert result.completed.returncode == 0
     assert result.attempts == 2
@@ -202,9 +221,7 @@ def test_npm_exhaustion_preserves_bounded_attempt_history(
     monkeypatch.setattr(
         resilience,
         "run_installer",
-        lambda command, **_kwargs: subprocess.CompletedProcess(
-            command, 1, "", next(attempts)
-        ),
+        lambda command, **_kwargs: subprocess.CompletedProcess(command, 1, "", next(attempts)),
     )
     monkeypatch.setattr(resilience.time, "sleep", lambda _delay: None)
 

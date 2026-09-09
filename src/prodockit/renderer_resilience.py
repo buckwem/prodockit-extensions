@@ -18,6 +18,20 @@ from prodockit.installer_process import run_installer
 DEFAULT_RETRY_DELAYS = (2.0, 5.0)
 
 _TRANSIENT_MARKERS = (
+    "server returned 408",
+    "server returned 429",
+    "server returned 500",
+    "server returned 502",
+    "server returned 503",
+    "server returned 504",
+    "http status code 408",
+    "too many requests",
+    "could not resolve host",
+    "remote name could not be resolved",
+    "temporary failure in name resolution",
+    "operation timed out",
+    "remote end closed connection",
+    "transfer closed with",
     "eai_again",
     "econnrefused",
     "econnreset",
@@ -79,23 +93,39 @@ class NpmResult:
     def failure_detail(self) -> str:
         """Return the final npm error with bounded prior-attempt evidence."""
 
-        return failure_with_history(
-            _detail(self.completed), self.attempts, self.transient_failures
-        )
+        return failure_with_history(_detail(self.completed), self.attempts, self.transient_failures)
 
 
 def transient_renderer_failure(detail: str | None) -> bool:
     """Return whether renderer output names a recognized external failure."""
 
+    return transient_runtime_failure(detail)
+
+
+def transient_runtime_failure(detail: str | None) -> bool:
+    """Classify completed failures consistently for Bootstrap and Adopt."""
     lowered = (detail or "").casefold()
-    return any(marker in lowered for marker in _TRANSIENT_MARKERS)
+    permanent = (
+        "permission denied",
+        "access is denied",
+        "eacces",
+        "eperm",
+        "no matching distribution",
+        "no matching version",
+        "invalid configuration",
+        "could not find a version",
+        "no automatic retry",
+        "did not finish within",
+        "process cleanup could not be verified",
+    )
+    return not any(marker in lowered for marker in permanent) and any(
+        marker in lowered for marker in _TRANSIENT_MARKERS
+    )
 
 
 def _detail(completed: subprocess.CompletedProcess[str]) -> str:
     return "\n".join(
-        part.strip()
-        for part in (completed.stdout, completed.stderr)
-        if part and part.strip()
+        part.strip() for part in (completed.stdout, completed.stderr) if part and part.strip()
     )
 
 
@@ -118,10 +148,7 @@ def failure_with_history(
     if attempts <= 1 or not transient_failures:
         return final
     history = " | ".join(value[-500:] for value in transient_failures)
-    return (
-        f"{final}\nFailed after {attempts} attempts. "
-        f"Earlier transient failures: {history}"
-    )
+    return f"{final}\nFailed after {attempts} attempts. Earlier transient failures: {history}"
 
 
 def run_with_retries(

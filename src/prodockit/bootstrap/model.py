@@ -28,6 +28,7 @@ from typing import Any, Protocol
 
 from prodockit.bootstrap.config import BootstrapConfig
 from prodockit.bootstrap.fetch import fetch as _fetch_url
+from prodockit.installer_process import run_installer
 
 #: Platform identifiers. Deliberately not `sys.platform` values - these
 #: name the *install recipe* rather than the kernel, and "ubuntu" is a
@@ -594,10 +595,7 @@ def benign_outcome(command: Sequence[str], result: CommandResult) -> bool:
     if name != "winget":
         return False
     output = f"{result.stdout}\n{result.stderr}".lower()
-    if (
-        "a package version is already installed" in output
-        and "installation cancelled" in output
-    ):
+    if "a package version is already installed" in output and "installation cancelled" in output:
         # A pinned `winget install --version ... --no-upgrade` uses exit 1
         # for the requested version already being present. Unlike the
         # unsigned App Installer code below, there is no distinctive exit
@@ -746,16 +744,25 @@ class SubprocessRunner:
                 stderr=f"working directory does not exist: {cwd}",
             )
         try:
-            completed = subprocess.run(
-                list(command),
-                cwd=cwd,
-                capture_output=capture,
-                stdin=subprocess.DEVNULL if capture else None,
-                text=True,
-                encoding="utf-8",
-                env=_no_prompt_env(self.git_ssh_executable),
-                timeout=CHECK_TIMEOUT_SECONDS if timeout is None else timeout,
-            )
+            if capture and timeout == INSTALL_TIMEOUT_SECONDS:
+                completed = run_installer(
+                    command,
+                    cwd=Path(cwd) if cwd else Path.cwd(),
+                    env=_no_prompt_env(self.git_ssh_executable),
+                    timeout=timeout,
+                    show_progress=False,
+                )
+            else:
+                completed = subprocess.run(
+                    list(command),
+                    cwd=cwd,
+                    capture_output=capture,
+                    stdin=subprocess.DEVNULL if capture else None,
+                    text=True,
+                    encoding="utf-8",
+                    env=_no_prompt_env(self.git_ssh_executable),
+                    timeout=CHECK_TIMEOUT_SECONDS if timeout is None else timeout,
+                )
         except FileNotFoundError:
             # The command isn't installed. That is a finding, not a crash -
             # "is this installed?" is exactly what most checks are asking.
@@ -772,7 +779,8 @@ class SubprocessRunner:
                 stderr=(
                     f"{command[0]} did not finish within {seconds} seconds. "
                     "It may still be running, or still be waiting for input - "
-                    "check, then run `prodockit bootstrap --apply` again."
+                    "no automatic retry is safe. Check for detached installers, "
+                    "then run `prodockit bootstrap --apply` again."
                 ),
             )
         except (OSError, subprocess.SubprocessError) as error:

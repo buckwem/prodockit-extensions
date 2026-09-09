@@ -27,6 +27,10 @@ requests rather than here.
   inspection tool produces an actionable warning rather than a verified pass.
 - Bootstrap's macOS and Ubuntu PDF recipes explicitly include fontconfig.
   Adopt uses the same font-family verification.
+- Bootstrap's captured installers now share Adopt's process-group/tree cleanup
+  and conservative failure classification. An exited installer with surviving
+  children, an unverified cleanup or a timeout cannot trigger an automatic retry.
+  Existing package-manager recovery and post-install health checks remain in place.
 - Complete the first-site guide with an optional command-line GitHub publishing
   stage, including commit identity, file review, Pages enablement and deployment
   checks.

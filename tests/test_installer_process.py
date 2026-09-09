@@ -58,6 +58,97 @@ def test_nonpositive_limits_rejected_before_launch(tmp_path):
         run_installer(["never-run"], cwd=tmp_path, timeout=0)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX process-group fixture")
+def test_exited_parent_with_surviving_child_blocks_retry(tmp_path):
+    from prodockit.renderer_resilience import run_with_retries
+
+    calls = []
+    child = "import time; time.sleep(10)"
+    parent = (
+        f"import subprocess,sys; subprocess.Popen([sys.executable,'-c',{child!r}]); sys.exit(1)"
+    )
+
+    def invoke():
+        calls.append(True)
+        return run_installer([sys.executable, "-c", parent], cwd=tmp_path, timeout=5)
+
+    with pytest.raises(installer_process.InstallerCleanupError, match="child processes"):
+        run_with_retries(
+            "fixture",
+            invoke,
+            succeeded=lambda result: result.returncode == 0,
+            failure_detail=lambda result: "ECONNRESET",
+            retry_delays=(0, 0),
+        )
+    assert calls == [True]
+    # A subsequent explicit invocation remains usable after owned-tree cleanup.
+    assert (
+        run_installer([sys.executable, "-c", "print('ok')"], cwd=tmp_path, timeout=5).returncode
+        == 0
+    )
+
+
+def test_cancellation_requests_cleanup_and_propagates(tmp_path, monkeypatch):
+    stopped = []
+
+    def interrupted(**kwargs):
+        raise KeyboardInterrupt
+
+    process = SimpleNamespace(pid=2345, wait=interrupted)
+    monkeypatch.setattr(installer_process.subprocess, "Popen", lambda *args, **kw: process)
+    monkeypatch.setattr(installer_process, "_stop", lambda value: stopped.append(value) or False)
+    with pytest.raises(KeyboardInterrupt):
+        run_installer(["fixture"], cwd=tmp_path, timeout=5)
+    assert stopped == [process]
+
+
+@pytest.mark.parametrize("output,returncode,expected", [("0", 0, False), ("2", 0, True)])
+def test_windows_process_inventory(monkeypatch, output, returncode, expected):
+    monkeypatch.setattr(installer_process, "_windows", lambda: True)
+    monkeypatch.setattr(
+        installer_process.subprocess,
+        "run",
+        lambda *args, **kw: SimpleNamespace(stdout=output, returncode=returncode),
+    )
+    assert installer_process._descendants_remain(2345) is expected
+
+
+@pytest.mark.parametrize("output,returncode", [("", 1), ('"unknown"', 0)])
+def test_unverified_windows_inventory_blocks(monkeypatch, output, returncode):
+    monkeypatch.setattr(installer_process, "_windows", lambda: True)
+    monkeypatch.setattr(
+        installer_process.subprocess,
+        "run",
+        lambda *args, **kw: SimpleNamespace(stdout=output, returncode=returncode),
+    )
+    with pytest.raises(installer_process.InstallerCleanupError, match="no automatic retry"):
+        installer_process._descendants_remain(2345)
+
+
+def test_bootstrap_install_uses_shared_capture_but_checks_do_not(tmp_path, monkeypatch):
+    from prodockit.bootstrap import model
+
+    calls = []
+
+    def install(command, **kwargs):
+        calls.append(kwargs)
+        return subprocess.CompletedProcess(command, 0, "done", "")
+
+    monkeypatch.setattr(model, "run_installer", install)
+    result = model.SubprocessRunner().run(
+        ["fixture"], cwd=str(tmp_path), timeout=model.INSTALL_TIMEOUT_SECONDS
+    )
+    assert result.ok
+    assert calls[0]["show_progress"] is False
+    monkeypatch.setattr(
+        model.subprocess,
+        "run",
+        lambda command, **kw: subprocess.CompletedProcess(command, 0, "", ""),
+    )
+    assert model.SubprocessRunner().run(["probe"]).ok
+    assert len(calls) == 1
+
+
 @pytest.mark.parametrize("status,verified", [(0, True), (1, False)])
 def test_windows_cleanup_targets_owned_tree_and_reports_failure(monkeypatch, status, verified):
     commands = []
