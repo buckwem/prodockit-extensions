@@ -55,6 +55,7 @@ from prodockit.bootstrap.model import (
     Status,
     windows_system_ssh,
 )
+from prodockit.pdf_fonts import FontEvidence, inspect_fonts
 from prodockit.renderer_resilience import (
     DEFAULT_RETRY_DELAYS,
     RetryNotice,
@@ -2703,13 +2704,15 @@ def _check_pandoc(context: Context) -> CheckResult:
             f"pandoc {version} is too old - {PANDOC_MIN_MAJOR}.x or later is "
             f"needed (the builds pin {PANDOC_VERSION})"
         )
-    missing_fonts = _absent_pdf_fonts(context)
-    if missing_fonts:
+    fonts = _pdf_font_evidence(context)
+    if fonts.status == "missing":
         # The plan installs these, so the check has to be able to see
         # them (#224). WeasyPrint substitutes silently when they are
         # absent, so nothing else will notice until a test does.
         prefix = f"pandoc {version}" if version is not None else "pandoc"
-        return _wrong(f"{prefix}, but the PDF fonts are missing: {missing_fonts}")
+        return _wrong(f"{prefix}, but {fonts.detail}")
+    if fonts.status == "unverified":
+        warnings.append(fonts.detail)
     if context.guided and context.platform == WINDOWS:
         from prodockit.windows_pango import pango_spec, parse_evidence, probe_script
 
@@ -2739,6 +2742,8 @@ def _check_pandoc(context: Context) -> CheckResult:
         if problems:
             return _wrong("; ".join(problems))
         pandoc_text = version if version is not None else "unknown"
+        if warnings:
+            return _warning(f"pandoc {pandoc_text}; " + "; ".join(warnings))
         return _ok(
             f"pandoc {pandoc_text}; {spec.environment} Pango package and DLL verified for "
             f"{spec.architecture} Python"
@@ -2782,45 +2787,12 @@ def _check_pandoc(context: Context) -> CheckResult:
     return _ok(f"pandoc {version}; Pango {pango_text}")
 
 
-def _absent_pdf_fonts(context: Context) -> str:
-    """Which of the PDF's fonts are not installed, as a readable list.
+def _pdf_font_evidence(context: Context) -> FontEvidence:
+    def run(command: list[str]) -> tuple[int, str]:
+        result = context.runner.run(command)
+        return result.returncode, result.stdout
 
-    Empty when they are all present *or* when the machine cannot be
-    asked. "I could not tell" must not read as "they are missing": a
-    false alarm here sends the reader to reinstall fonts they already
-    have, which is worse than the silence this replaces.
-    """
-    wanted = ("Inter", "JetBrains Mono")
-    if context.platform == WINDOWS:
-        # Windows has no package manager for these, so the plan asks the
-        # reader to install them - which is a reason to check, not a
-        # reason not to. An instruction nobody verifies is how a font
-        # goes missing silently, and a per-user install lands here.
-        fonts = context.home / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts"
-        if not fonts.is_dir():
-            return ""
-        blob = " ".join(path.name for path in fonts.iterdir())
-        blob = blob.replace("-", " ").replace("_", " ")
-        absent = [name for name in wanted if name.replace(" ", "") not in blob.replace(" ", "")]
-        return ", ".join(absent)
-    listed = context.runner.run(["fc-list", ":", "family"])
-    if not listed.ok:
-        # fontconfig is not there to ask. On macOS it often is not.
-        # Under `home` only. `/Library/Fonts` would answer for the
-        # machine running the tests rather than the machine being
-        # described - the same trap `Context.exists` was added for - and
-        # a cask installs into the user's own directory anyway.
-        fonts = context.home / "Library" / "Fonts"
-        if not fonts.is_dir():
-            return ""
-        installed = [path.name for path in fonts.iterdir()]
-        if not installed:
-            return ""
-        blob = " ".join(installed).replace("-", " ").replace("_", " ")
-    else:
-        blob = listed.stdout
-    absent = [name for name in wanted if name.replace(" ", "") not in blob.replace(" ", "")]
-    return ", ".join(absent)
+    return inspect_fonts(run)
 
 
 def _windows_font_install_command() -> list[str]:
@@ -2908,6 +2880,7 @@ def _plan_pandoc(context: Context, *, native_only: bool = False) -> Plan:
         return Plan(
             commands=[
                 *package_commands,
+                ["brew", "install", "fontconfig"],
                 # The PDF embeds these; the website loads them from a CDN
                 # at view time and so never notices they are absent
                 # (prodockit-userguide#101, #249).
@@ -2953,7 +2926,7 @@ def _plan_pandoc(context: Context, *, native_only: bool = False) -> Plan:
                     "libpango-1.0-0",
                     "libpangoft2-1.0-0",
                     "libharfbuzz-subset0",
-                    *(["fontconfig"] if native_only else []),
+                    "fontconfig",
                     *PDF_FONT_PACKAGES,
                 ),
             ],

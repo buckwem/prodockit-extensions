@@ -428,6 +428,31 @@ exists. Keep the version declared by the installed Prodockit combination—for
 the current release, Pandoc 3.10.1—until Pins or diagnostics reports a changed
 tested default.
 
+## Check PDF fonts {: #installtooling-fonts }
+
+If the PDF uses an unexpected font, or Bootstrap says that fonts could not be
+verified, distinguish these two cases:
+
+- **Missing:** the PDF font resolver selected a substitute instead of Inter or
+  JetBrains Mono. Run `pdk adopt --apply` and approve the PDF runtime repair.
+- **Unverified:** the inspection command could not run or returned no usable
+  evidence. This does not prove the fonts are absent; do not repeatedly reinstall
+  fonts just because their per-user directory is empty.
+
+Check the actual family selected for each font:
+
+```bash
+fc-match -f "%{family}" Inter
+fc-match -f "%{family}" "JetBrains Mono"
+```
+
+The results should name the requested families, not substitutes such as DejaVu
+Sans. The font resolver includes configured system and per-user locations.
+If `fc-match` is not found, macOS users can run `brew install fontconfig`;
+Ubuntu users can run `sudo apt install fontconfig`. On Windows, run
+`pdk adopt --apply` to repair the selected Pango runtime and follow its
+environment-refresh instructions. Then rerun Bootstrap or Adopt to verify.
+
 ## Publish a document {: #troubleshooting-installs-next }
 
 After correcting the problem, repeat the command that stopped and run

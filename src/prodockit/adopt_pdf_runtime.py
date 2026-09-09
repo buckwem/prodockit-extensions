@@ -30,6 +30,7 @@ from prodockit.bootstrap.stages import (
     _macos_loader_line,
     _plan_pandoc,
 )
+from prodockit.pdf_fonts import inspect_fonts
 from prodockit.renderer_resilience import RetryReporter
 from prodockit.toolchain import ToolchainError
 
@@ -101,9 +102,10 @@ def _probe(context: Context, *, render: bool = False) -> str:
             return f"WeasyPrint library/PDF health check failed: {detail[-400:]}"
         if "PDK_PYTHON_PACKAGE_PENDING" in result.stdout:
             return "WeasyPrint Python package is pending"
-        for family in ("Inter", "JetBrains Mono"):
+
+        def run_font_probe(command: list[str]) -> tuple[int, str]:
             match = subprocess.run(
-                ["fc-match", "-f", "%{family}", family],
+                command,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -112,11 +114,11 @@ def _probe(context: Context, *, render: bool = False) -> str:
                 env=_environment(context),
                 check=False,
             )
-            if match.returncode or family.casefold().replace(
-                " ", ""
-            ) not in match.stdout.casefold().replace(" ", ""):
-                matched = match.stdout.strip() or "nothing"
-                return f"PDF font {family} is unavailable (matched {matched})"
+            return match.returncode, match.stdout
+
+        fonts = inspect_fonts(run_font_probe)
+        if fonts.status != "available":
+            return fonts.detail
     except (OSError, subprocess.SubprocessError) as error:
         return f"PDF library or font health could not be verified: {error}"
     return ""

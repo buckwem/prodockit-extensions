@@ -261,7 +261,7 @@ def _ready_machine(tmp_path: Path) -> dict[str, CommandResult]:
         "npm": CommandResult(0, "10.9.2\n"),
         "import zensical": CommandResult(0),
         "-m pip --version": CommandResult(0, "pip 26.0.1"),
-        "fc-list": CommandResult(0, "Inter\nJetBrains Mono\nDejaVu Sans\n"),
+        "fc-match": CommandResult(0, "Inter\nJetBrains Mono\nDejaVu Sans\n"),
         "config core.fileMode": CommandResult(0, "false\n"),
         # A finished project has nothing uncommitted and something on the
         # remote - without both, the first-push stage is rightly not done.
@@ -2881,7 +2881,7 @@ def test_pandoc_current_version_is_ok(tmp_path: Path) -> None:
         {
             "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
             "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
-            "fc-list": CommandResult(0, "Inter\nJetBrains Mono\n"),
+            "fc-match": CommandResult(0, "Inter\nJetBrains Mono\n"),
         }
     )
     result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
@@ -4716,7 +4716,7 @@ def test_the_pandoc_stage_notices_its_own_fonts_are_missing(tmp_path: Path) -> N
     runner = FakeRunner(
         {
             "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
-            "fc-list": CommandResult(0, "DejaVu Sans\n"),
+            "fc-match": CommandResult(0, "DejaVu Sans\n"),
         }
     )
     result = next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
@@ -4831,6 +4831,7 @@ def test_arm64_host_with_x64_python_requires_ucrt64_pango_evidence(tmp_path: Pat
             "pango-view": CommandResult(0, "pango-view (pango) 1.57.1\n"),
             "int.from_bytes": CommandResult(0, "0x8664\n"),
             "ConvertTo-Json": evidence,
+            "fc-match": CommandResult(0, "Inter\nJetBrains Mono"),
         }
     )
 
@@ -4875,6 +4876,7 @@ def test_windows_fonts_are_checked_even_though_they_are_installed_by_hand(
             "pandoc": CommandResult(0, "pandoc 3.10.1\n"),
             "pango-view": CommandResult(0, "pango-view (pango) 1.56.3\n"),
             **_windows_pango_response(),
+            "fc-match": CommandResult(0, "DejaVu Sans"),
         }
     )
 
@@ -4885,6 +4887,7 @@ def test_windows_fonts_are_checked_even_though_they_are_installed_by_hand(
 
     for name in ("Inter-Regular.ttf", "JetBrainsMono-Regular.ttf"):
         (fonts / name).write_text("", encoding="utf-8")
+    runner.responses["fc-match"] = CommandResult(0, "Inter\nJetBrains Mono")
     result = next(s for s in STAGES if s.id == "pandoc").check(
         _context(tmp_path, runner=runner, platform=WINDOWS)
     )
@@ -6482,7 +6485,7 @@ def test_checks_are_still_captured(tmp_path: Path) -> None:
     runner = FakeRunner(
         {
             "pandoc": CommandResult(0, "pandoc 3.10.1"),
-            "fc-list": CommandResult(0, "Inter\nJetBrains Mono"),
+            "fc-match": CommandResult(0, "Inter\nJetBrains Mono"),
         }
     )
     next(s for s in STAGES if s.id == "pandoc").check(_context(tmp_path, runner=runner))
