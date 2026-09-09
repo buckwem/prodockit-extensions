@@ -3,7 +3,37 @@
 
 """File alignment must preserve template-owned and author-owned content."""
 
+import pytest
+
 from prodockit import adopt, adopt_renderers
+
+
+@pytest.mark.parametrize(
+    "filename,source",
+    [
+        ("requirements.txt", "prodockit>=999.0.0\n"),
+        ("requirements.txt", "prodockit==999.0.0\n"),
+        (".prodockit-toolchain.toml", '[packages]\nprodockit = "999.0.0"\n'),
+    ],
+)
+def test_newer_project_blocks_assessment_and_direct_apply(tmp_path, filename, source):
+    (tmp_path / "zensical.toml").write_text('[project]\nsite_name = "Newer"\n')
+    (tmp_path / filename).write_text(source)
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+    steps = adopt.assess(tmp_path, adopt.AdoptOptions())
+    assert len(steps) == 1
+    assert steps[0].status == "wrong"
+    assert filename in steps[0].detail
+    assert "999.0.0" in steps[0].detail
+    with pytest.raises(adopt.AdoptError, match="No project files or software"):
+        adopt.apply_step(tmp_path, adopt.AdoptOptions(), "toolchain")
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before
+
+
+@pytest.mark.parametrize("version", ["0.1.0", adopt.__version__])
+def test_same_or_older_project_can_align_to_installed_release(tmp_path, version):
+    (tmp_path / "requirements.txt").write_text(f"prodockit>={version}\n")
+    adopt._check_project_release(tmp_path)
 
 
 def test_template_assets_survive_alignment_and_repeat(tmp_path):

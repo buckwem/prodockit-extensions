@@ -135,6 +135,13 @@ the project's current configuration and installed software.
 
 ### Selected renderer versions and backups
 
+Adopt stops if the project's managed declarations require a newer Prodockit
+than the command currently running. Activate the project's environment and
+install that release (or a compatible newer release) before trying again.
+This prevents an older Adopt from replacing files supplied by a newer template
+sync. Once Prodockit is compatible, Adopt can still upgrade or downgrade its
+dependencies to the supported combination.
+
 Mermaid needs a browser; MathJax does not. On Ubuntu, Adopt reuses a detected
 browser or installs the system Chromium package, which selects the machine's
 architecture. It disables npm's automatic Puppeteer browser download so ARM64
