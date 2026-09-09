@@ -266,3 +266,24 @@ source bundle, and byte-stable second apply. Both renderers were selected.
 The harness also verified the original source snapshot was unchanged.
 Report: `/private/tmp/prodockit-782-template-full-acceptance-aligned.json`.
 This tests the local template checkout, not a fresh live template-sync transaction.
+
+## Follow-up: installed-package message acceptance
+
+The wheel rebuilt after message commit `03d14c5` passes both `toml-default` and
+`toml-both` acceptance on pre-provisioned macOS ARM64. Checks include strict site
+build, source preservation, diagnostics, PDF/source bundle, and stable repeat
+apply. The default scenario also checks authored steps/tree/table-caption output.
+Report: `/private/tmp/prodockit-782-message-acceptance.json`.
+
+A separate fresh installed-wheel fixture declares `prodockit>=999.0.0` and runs
+Adopt apply offline with a local template configuration, in normal and verbose
+modes. Both return a nonzero exit status, show the prominent blocker, required
+release and next action, omit approval prompts/ANSI escapes in captured output,
+and preserve every project file. Template snapshot details appear only with
+verbose. Report: `/private/tmp/prodockit-782-installed-blocker-report.json`.
+The first version of that test fixture omitted Click/dependencies and failed
+before command startup; the corrected fixture installs the wheel's dependencies.
+
+These tests do not establish native Windows/Ubuntu or clean-machine runtime
+provisioning acceptance. The remaining message refinements are listed in the
+message review; no additional runtime behavior changed in this testing pass.
