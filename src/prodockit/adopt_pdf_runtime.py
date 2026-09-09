@@ -82,16 +82,25 @@ def _probe(context: Context, *, render: bool = False) -> str:
             "assert data.startswith(b'%PDF')"
         )
     try:
-        result = subprocess.run(
-            [sys.executable, "-c", code],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=60,
-            env=_environment(context),
-            check=False,
-        )
+        for attempt in range(2):
+            try:
+                result = subprocess.run(
+                    [sys.executable, "-c", code],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=60,
+                    env=_environment(context),
+                    check=False,
+                )
+                break
+            except subprocess.TimeoutExpired:
+                # subprocess.run has killed and waited for this read-only probe.
+                # Retry once for transient loader/font-cache contention, never
+                # treating a timeout as proof that software needs reinstalling.
+                if attempt:
+                    raise
         if result.returncode:
             if "ModuleNotFoundError:" in result.stderr:
                 return "WeasyPrint Python package is pending"

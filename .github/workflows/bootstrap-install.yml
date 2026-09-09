@@ -124,6 +124,9 @@ jobs:
           architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
+      - name: Disable unused Chrome package source on the hosted runner
+        if: runner.os == 'Linux'
+        run: sudo python3 tools/ci_disable_chrome_source.py
       - name: Use a Chromium-accessible temporary directory on Linux
         if: runner.os == 'Linux'
         run: |
@@ -189,6 +192,9 @@ jobs:
             id: github-new-real-upgrade
     steps:
       - uses: actions/checkout@v5
+      - name: Disable unused Chrome package source on the hosted runner
+        if: runner.os == 'Linux'
+        run: sudo python3 tools/ci_disable_chrome_source.py
       # The old-version fixtures are immutable but several have only one
       # official binary source. Keep validated downloads across runs so a
       # prolonged CDN outage does not repeatedly block the release gate.

@@ -125,6 +125,9 @@ jobs:
       # Retries are deliberately not raised: they re-ask the dead mirror
       # rather than moving on, which is what exhausted the budget when
       # this was first tried.
+      - name: Disable unused Chrome package source on the hosted runner
+        if: matrix.python-version == '3.14'
+        run: sudo python3 tools/ci_disable_chrome_source.py
       - if: matrix.python-version == '3.14'
         run: >
           sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install -y
