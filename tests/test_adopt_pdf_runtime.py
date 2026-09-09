@@ -141,6 +141,25 @@ def test_verification_generates_pdf_not_just_import(tmp_path, monkeypatch):
     assert "b'%PDF'" in calls[0][2]
 
 
+@pytest.mark.parametrize("recovers", [True, False])
+def test_pdf_probe_retries_timeout_once(tmp_path, monkeypatch, recovers):
+    calls = []
+
+    def probe(command, **kwargs):
+        calls.append(command)
+        if len(calls) == 1 or not recovers:
+            raise runtime.subprocess.TimeoutExpired(command, 60)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(runtime.subprocess, "run", probe)
+    monkeypatch.setattr(runtime, "inspect_fonts", lambda run: SimpleNamespace(status="available"))
+    result = REAL_PROBE(context(tmp_path, WINDOWS))
+    assert len(calls) == 2
+    assert (result == "") is recovers
+    if not recovers:
+        assert "could not be verified" in result
+
+
 def test_probe_reports_the_actual_library_error(tmp_path, monkeypatch):
     monkeypatch.setattr(
         runtime.subprocess,
