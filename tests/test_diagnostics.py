@@ -2071,7 +2071,7 @@ def test_stage4_locked_mermaid_repair_uses_npm_ci_and_verifies(
         binary.write_text("installed", encoding="utf-8")
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr("prodockit.diagnostics.subprocess.run", npm_ci)
+    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm_ci)
     monkeypatch.setattr(
         "prodockit.diagnostics.probe_mermaid",
         lambda path: SimpleNamespace(ok=True, error=None, version="11.0", path=path),
@@ -2118,7 +2118,7 @@ def test_stage4_renderer_repair_retries_transient_npm_inside_one_transaction(
         binary.write_text("installed", encoding="utf-8")
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr("prodockit.diagnostics.subprocess.run", npm_ci)
+    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm_ci)
     monkeypatch.setattr(renderer_resilience.time, "sleep", lambda _delay: None)
     monkeypatch.setattr(
         "prodockit.diagnostics.probe_mermaid",
@@ -2168,7 +2168,7 @@ def test_stage4_mathjax_repair_regenerates_browser_assets(
         (package / "LICENSE").write_text("licence", encoding="utf-8")
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr("prodockit.diagnostics.subprocess.run", npm_ci)
+    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm_ci)
     monkeypatch.setattr(
         "prodockit.diagnostics.probe_mathjax",
         lambda node, path: SimpleNamespace(ok=True, error=None, path=path),

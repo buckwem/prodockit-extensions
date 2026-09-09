@@ -86,6 +86,7 @@ _ALL_RUNTIME_FILES = {
     "src/prodockit/environment.py",
     "src/prodockit/renderer_health.py",
     "src/prodockit/renderer_resilience.py",
+    "src/prodockit/installer_process.py",
     "src/prodockit/shared_files.py",
     "src/prodockit/windows_terminal.py",
     "src/prodockit/util.py",

@@ -34,6 +34,7 @@ from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
+from prodockit.installer_process import run_installer
 from prodockit.pins import DEFAULT_PACKAGES, TESTED_VERSIONS, PinError, apply_version, discover
 from prodockit.renderer_resilience import (
     DEFAULT_RETRY_DELAYS,
@@ -500,15 +501,10 @@ def _run_resilient(
     offline: bool,
 ) -> None:
     def invoke() -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
+        return run_installer(
             list(command),
             cwd=root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=1800,
-            check=False,
         )
 
     result = run_with_retries(

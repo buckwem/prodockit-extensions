@@ -104,7 +104,7 @@ def test_npm_retry_removes_partial_modules_and_reports_the_attempt(
 
     notices = []
     delays = []
-    monkeypatch.setattr(resilience.subprocess, "run", run)
+    monkeypatch.setattr(resilience, "run_installer", run)
     monkeypatch.setattr(resilience.time, "sleep", delays.append)
 
     result = resilience.run_npm_with_retries(
@@ -128,7 +128,7 @@ def test_npm_does_not_retry_an_unrecognized_failure(
         calls.append(command)
         return subprocess.CompletedProcess(command, 1, "", "invalid package manifest")
 
-    monkeypatch.setattr(resilience.subprocess, "run", run)
+    monkeypatch.setattr(resilience, "run_installer", run)
     monkeypatch.setattr(
         resilience.time,
         "sleep",
@@ -140,6 +140,31 @@ def test_npm_does_not_retry_an_unrecognized_failure(
     assert result.completed.returncode == 1
     assert result.attempts == 1
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("detail", ["invalid package manifest", "ECONNRESET"])
+def test_npm_final_failure_cleans_generated_files_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, detail: str
+) -> None:
+    manifest = tmp_path / "package.json"
+    manifest.write_text('{"private": true}', encoding="utf-8")
+    script = tmp_path / "author.js"
+    script.write_text("// keep", encoding="utf-8")
+
+    def run(command, **_kwargs):
+        modules = tmp_path / "node_modules"
+        modules.mkdir()
+        (modules / "partial").write_text("incomplete", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 1, "", detail)
+
+    monkeypatch.setattr(resilience, "run_installer", run)
+    monkeypatch.setattr(resilience.time, "sleep", lambda _delay: None)
+    result = resilience.run_npm_with_retries(["npm", "ci"], cwd=tmp_path)
+
+    assert result.completed.returncode == 1
+    assert not (tmp_path / "node_modules").exists()
+    assert manifest.read_text(encoding="utf-8") == '{"private": true}'
+    assert script.read_text(encoding="utf-8") == "// keep"
 
 
 def test_npm_retry_unlinks_partial_modules_symlink(
@@ -160,7 +185,7 @@ def test_npm_retry_unlinks_partial_modules_symlink(
             "npm ERR! code ETIMEDOUT" if len(calls) == 1 else "",
         )
 
-    monkeypatch.setattr(resilience.subprocess, "run", run)
+    monkeypatch.setattr(resilience, "run_installer", run)
     monkeypatch.setattr(resilience.time, "sleep", lambda _delay: None)
 
     result = resilience.run_npm_with_retries(["npm", "ci"], cwd=tmp_path)
@@ -175,8 +200,8 @@ def test_npm_exhaustion_preserves_bounded_attempt_history(
 ) -> None:
     attempts = iter(("EAI_AGAIN first", "ECONNRESET second", "ETIMEDOUT final"))
     monkeypatch.setattr(
-        resilience.subprocess,
-        "run",
+        resilience,
+        "run_installer",
         lambda command, **_kwargs: subprocess.CompletedProcess(
             command, 1, "", next(attempts)
         ),
@@ -202,7 +227,7 @@ def test_npm_timeout_is_not_retried_while_descendant_state_is_unknown(
         calls.append(command)
         raise subprocess.TimeoutExpired(command, kwargs["timeout"])
 
-    monkeypatch.setattr(resilience.subprocess, "run", run)
+    monkeypatch.setattr(resilience, "run_installer", run)
 
     with pytest.raises(subprocess.TimeoutExpired):
         resilience.run_npm_with_retries(["npm", "ci"], cwd=tmp_path)

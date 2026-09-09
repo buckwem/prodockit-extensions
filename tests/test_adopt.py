@@ -1234,7 +1234,7 @@ def test_mermaid_install_uses_only_the_selected_node_project(
         binary.write_text("renderer", encoding="utf-8")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
     monkeypatch.setattr(
         "prodockit.adopt.probe_mermaid",
         lambda path: SimpleNamespace(path=path, ok=True, version="11.0.0", error=None),
@@ -1291,7 +1291,7 @@ def test_maths_install_copies_the_browser_bundle_after_npm(tmp_path: Path, monke
         (bundle.parent.parent / "LICENSE").write_text("Apache-2.0", encoding="utf-8")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
     monkeypatch.setattr(
         "prodockit.adopt.probe_mathjax",
         lambda node, script: SimpleNamespace(path=script, ok=True, version=None, error=None),
@@ -1314,7 +1314,7 @@ def test_maths_install_rejects_npm_success_when_renderer_probe_fails(
     def npm(_command, **_kwargs):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
     monkeypatch.setattr(
         "prodockit.adopt.probe_mathjax",
         lambda node, script: SimpleNamespace(
@@ -1348,7 +1348,7 @@ def test_custom_node_manifest_is_backed_up_before_locked_install(
         binary.write_text("renderer", encoding="utf-8")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
     monkeypatch.setattr(
         "prodockit.adopt.probe_mermaid",
         lambda path: SimpleNamespace(path=path, ok=True, version="11.0.0", error=None),
@@ -1374,7 +1374,7 @@ def test_mermaid_install_rejects_npm_success_when_cli_probe_fails(
         binary.write_text("incomplete", encoding="utf-8")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
     monkeypatch.setattr(
         "prodockit.adopt.probe_mermaid",
         lambda path: SimpleNamespace(
@@ -1409,7 +1409,7 @@ def test_mermaid_install_retries_a_completed_transient_npm_failure(
         binary.write_text("renderer", encoding="utf-8")
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr("prodockit.adopt.subprocess.run", npm)
+    monkeypatch.setattr("prodockit.renderer_resilience.run_installer", npm)
     monkeypatch.setattr(renderer_resilience.time, "sleep", lambda _delay: None)
     monkeypatch.setattr(
         "prodockit.adopt.probe_mermaid",
