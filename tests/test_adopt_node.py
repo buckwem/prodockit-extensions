@@ -22,7 +22,7 @@ def test_platform_plan_installs_upgrades_or_repairs_only_node(
     monkeypatch, platform, manager, state
 ):
     monkeypatch.setattr(node, "current_platform", lambda: platform)
-    monkeypatch.setattr(node.shutil, "which", lambda command: command)
+    monkeypatch.setattr(node.adopt_package_manager.shutil, "which", lambda command: command)
     monkeypatch.setattr(stages, "_node_runtime_state", lambda context: state)
     monkeypatch.setattr(stages, "_windows_node_needs_architecture_handover", lambda context: False)
     planned = node.plan()
@@ -35,7 +35,7 @@ def test_platform_plan_installs_upgrades_or_repairs_only_node(
 
 def test_supported_runtime_does_not_need_a_package_manager_or_network(monkeypatch):
     monkeypatch.setattr(node, "current_platform", lambda: MACOS)
-    monkeypatch.setattr(node.shutil, "which", lambda command: None)
+    monkeypatch.setattr(node.adopt_package_manager.shutil, "which", lambda command: None)
     monkeypatch.setattr(stages, "_node_runtime_state", lambda context: ("24.0.0", "11.0.0", True))
     assert not node.plan(offline=True).needs_work
 

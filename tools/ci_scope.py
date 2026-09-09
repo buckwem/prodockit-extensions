@@ -97,6 +97,7 @@ _ADOPT_RUNTIME_FILES = {
     "src/prodockit/_zensical_defaults.py",
     "src/prodockit/adopt.py",
     "src/prodockit/adopt_browser.py",
+    "src/prodockit/adopt_package_manager.py",
     "src/prodockit/adopt_node.py",
     "src/prodockit/adopt_pdf_runtime.py",
     "src/prodockit/adopt_renderers.py",

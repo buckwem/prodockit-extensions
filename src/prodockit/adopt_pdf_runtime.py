@@ -12,13 +12,13 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from prodockit import adopt_package_manager
 from prodockit.adopt_node import run_commands
 from prodockit.bootstrap import UnsupportedHostError, current_platform
 from prodockit.bootstrap.config import BootstrapConfig
 from prodockit.bootstrap.model import (
     GITHUB_COM,
     MACOS,
-    UBUNTU,
     WINDOWS,
     Context,
     SubprocessRunner,
@@ -151,14 +151,12 @@ def plan(*, offline: bool = False) -> NativePlan:
         )
     if offline:
         return NativePlan(blocked=f"{problem}; native installation requires an online run")
-    manager = {MACOS: "brew", UBUNTU: "apt", WINDOWS: "winget"}[context.platform]
-    if not shutil.which(manager):
-        return NativePlan(
-            blocked=f"{problem}; {manager} is required for automatic native installation"
-        )
+    manager = adopt_package_manager.plan(context.platform, offline=offline)
+    if manager.blocked:
+        return NativePlan(blocked=f"{problem}; {manager.blocked}")
     commands = _plan_pandoc(context, native_only=True).commands
     return NativePlan(
-        tuple(tuple(command) for command in commands),
+        manager.commands + tuple(tuple(command) for command in commands),
         problem + "; install or repair PDF libraries and fonts",
     )
 
