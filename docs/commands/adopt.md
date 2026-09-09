@@ -100,8 +100,11 @@ fails, an uppercase restart message includes the platform's activation command.
 On Windows, a missing WinGet is registered or installed using Microsoft's
 `Microsoft.WinGet.Client` repair workflow in current-user scope, before the
 runtime installer runs. It does not change PowerShell execution policy.
-Missing Homebrew remains a blocker: its supported installation requires Xcode
-Command Line Tools, outside Adopt's runtime-only scope. An offline run cannot
+Homebrew is the agreed manual prerequisite on macOS: install it from
+[the Homebrew website](https://brew.sh), complete its shell setup instructions,
+then reopen the terminal, activate the project's environment and rerun Adopt.
+Adopt installs the required runtime packages once Homebrew is available.
+An offline run cannot
 provision a missing package manager. Git, SSH and editors are not part of this
 runtime activity. Windows package-manager provisioning still requires native
 acceptance testing before issue 782 can be considered complete.

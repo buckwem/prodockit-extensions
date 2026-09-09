@@ -71,10 +71,11 @@ def plan(platform: str, *, offline: bool = False) -> ManagerPlan:
     if platform == MACOS:
         return ManagerPlan(
             blocked=(
-                "Homebrew is unavailable. Its supported installer requires "
-                "Xcode Command Line Tools, which are outside Adopt's runtime-only scope. "
-                "No development tools were installed. "
-                "Automatic installation without those prerequisites remains unsupported."
+                "Homebrew is unavailable. Install it from https://brew.sh and follow "
+                "the installer's shell setup instructions. Close and reopen your terminal, "
+                "return to this project, run source .venv/bin/activate, then rerun "
+                "pdk adopt --apply. Homebrew is the manual macOS prerequisite; "
+                "Adopt installs the required runtimes after it is available."
             )
         )
     return ManagerPlan(

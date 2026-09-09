@@ -91,6 +91,20 @@ def test_all_acceptance_scenarios_are_selected_by_default() -> None:
     assert adopt_acceptance.select_scenarios(["all"]) == adopt_acceptance.SCENARIOS
 
 
+def test_default_choice_run_does_not_pass_renderer_overrides(tmp_path, monkeypatch):
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="done")
+
+    monkeypatch.setattr(adopt_acceptance, "run", run)
+    adopt_acceptance.adopt(
+        Path("python"), tmp_path, mermaid=False, maths=False, apply=True, use_defaults=True
+    )
+    assert calls == [["python", "-m", "prodockit", "adopt", "--apply"]]
+
+
 def test_named_acceptance_scenarios_keep_the_declared_order() -> None:
     selected = adopt_acceptance.select_scenarios(["toml-both", "toml-core"])
 

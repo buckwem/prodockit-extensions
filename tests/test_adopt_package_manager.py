@@ -40,7 +40,9 @@ def test_macos_does_not_silently_install_development_tools(monkeypatch):
     monkeypatch.setattr(manager.shutil, "which", lambda name: None)
     planned = manager.plan(MACOS)
     assert not planned.commands
-    assert "outside Adopt's runtime-only scope" in planned.blocked
+    assert "https://brew.sh" in planned.blocked
+    assert "source .venv/bin/activate" in planned.blocked
+    assert "pdk adopt --apply" in planned.blocked
 
 
 def test_missing_powershell_blocks_automatic_windows_install(monkeypatch):

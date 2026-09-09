@@ -135,3 +135,24 @@ silently installed to bypass that constraint.
 
 WinGet checkpoint: **2,934 passed, 11 skipped, 17 deselected**. Strict
 documentation build, lint, formatting and changed-source type checks pass.
+
+## Agreed prerequisite exception and default-choice coverage
+
+The user has approved **manual Homebrew installation** on macOS. It is now
+an agreed prerequisite, not an unmet automatic-provisioning requirement.
+When absent, Adopt points to brew.sh, asks the author to complete the installer's
+shell setup, reopen the terminal, activate the project environment, and rerun
+Adopt. Native runtime packages remain Adopt's responsibility afterwards.
+Windows WinGet provisioning remains automatic and still needs native acceptance.
+
+A new `toml-default` installed-wheel scenario passes no component-selection
+flags. It requires both renderers to remain off, verifies that neither renderer
+directory is created, and exercises the full build/diagnostics/PDF/source-bundle
+and second-apply checks. The cross-platform installed-wheel workflow includes
+this scenario on every runner.
+
+The real installed-wheel `toml-default` scenario passes on this Mac, including
+strict build, applicable diagnostics, both PDF commands and repeat apply.
+Report: `/private/tmp/prodockit-782-default-acceptance.json`. The 65 focused
+acceptance/manager/CI regression tests, lint and strict documentation build
+also pass. The last full-suite result remains the 2,934-test checkpoint above.

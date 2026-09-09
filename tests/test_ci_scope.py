@@ -399,9 +399,10 @@ def test_adopt_matrix_caches_node_packages_and_keeps_full_windows_architecture_c
     assert "cache: npm" in workflow
     assert "src/prodockit/_tools_template/mermaid/package-lock.json" in workflow
     assert "src/prodockit/_tools_template/mathjax/package-lock.json" in workflow
-    assert workflow.count("scenario_args: --scenario toml-both") == 2
+    assert workflow.count("scenario_args: --scenario toml-default --scenario toml-both") == 2
     assert workflow.count(
-        "scenario_args: --scenario toml-core --scenario yaml-core --scenario toml-both"
+        "scenario_args: --scenario toml-default --scenario toml-core "
+        "--scenario yaml-core --scenario toml-both"
     ) == 3
     assert "runner: windows-2025" in workflow
     assert "runner: windows-11-arm" in workflow
