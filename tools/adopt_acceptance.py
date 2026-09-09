@@ -43,6 +43,7 @@ ADOPTED_SITE_FILES = {
     "javascripts/vendor/mathjax/tex-svg-full.js",
 }
 SCENARIOS = (
+    ("toml-default", "zensical.toml", False, False),
     ("toml-core", "zensical.toml", False, False),
     ("yaml-core", "mkdocs.yml", False, False),
     ("toml-mermaid", "zensical.toml", True, False),
@@ -422,11 +423,13 @@ def adopt(
     mermaid: bool,
     maths: bool,
     apply: bool,
+    use_defaults: bool = False,
 ) -> str:
     command = [str(python), "-m", "prodockit", "adopt"]
     command.append("--apply" if apply else "--dry-run")
-    command.append("--mermaid" if mermaid else "--no-mermaid")
-    command.append("--maths" if maths else "--no-maths")
+    if not use_defaults:
+        command.append("--mermaid" if mermaid else "--no-mermaid")
+        command.append("--maths" if maths else "--no-maths")
     completed = run(
         command,
         cwd=project,
@@ -453,7 +456,10 @@ def exercise(
     before_site_copy = project.parent / f"{project.name}-site-before"
     shutil.copytree(project / "site", before_site_copy)
 
-    dry_output = adopt(python, project, mermaid=mermaid, maths=maths, apply=False)
+    default_choices = name == "toml-default"
+    dry_output = adopt(
+        python, project, mermaid=mermaid, maths=maths, apply=False, use_defaults=default_choices
+    )
     after_dry_run = snapshot(project)
     dry_changes = changed(source_before, after_dry_run)
     if dry_changes:
@@ -461,7 +467,15 @@ def exercise(
     if "no changes made" not in dry_output.lower():
         raise AcceptanceError(f"{name}: dry-run did not clearly state that it made no changes")
 
-    apply_output = adopt(python, project, mermaid=mermaid, maths=maths, apply=True)
+    apply_output = adopt(
+        python, project, mermaid=mermaid, maths=maths, apply=True, use_defaults=default_choices
+    )
+    if default_choices:
+        if "Mermaid off" not in apply_output or "maths off" not in apply_output:
+            raise AcceptanceError("fresh project did not default both renderers off")
+        for component in ("mermaid", "mathjax"):
+            if (project / "tools" / component).exists():
+                raise AcceptanceError(f"default adoption unexpectedly created {component}")
     if "Nothing has been committed or pushed" not in apply_output:
         raise AcceptanceError(f"{name}: apply did not state its Git boundary")
     source_after = snapshot(project)
@@ -480,7 +494,9 @@ def exercise(
 
     verify_deliverables(python, project, config)
     stable = snapshot(project)
-    second_output = adopt(python, project, mermaid=mermaid, maths=maths, apply=True)
+    second_output = adopt(
+        python, project, mermaid=mermaid, maths=maths, apply=True, use_defaults=default_choices
+    )
     if snapshot(project) != stable:
         raise AcceptanceError(f"{name}: a second apply changed project files")
     if "All selected prodockit components are already configured" not in second_output:
