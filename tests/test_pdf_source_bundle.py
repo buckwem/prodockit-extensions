@@ -5,6 +5,7 @@ import os
 import shutil
 import stat
 import subprocess
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,28 @@ real_weasyprint_required = pytest.mark.skipif(
     "file needs an actual weasyprint render - the fake-weasyprint stub "
     "every other test here uses ignores the real HTML/CSS entirely.",
 )
+
+
+def test_non_git_document_discovery_honours_ignores_and_rejects_symlinks(tmp_path, monkeypatch):
+    (tmp_path / "content").mkdir()
+    (tmp_path / "README.md").write_text("readme")
+    (tmp_path / "zensical.toml").write_text("[project]")
+    (tmp_path / ".gitignore").write_text("content/private*.md\n")
+    (tmp_path / "content/.gitignore").write_text("!private-public.md\n")
+    for name in ("index.md", "private.md", "private-public.md"):
+        (tmp_path / "content" / name).write_text(name)
+    (tmp_path / "content/node_modules").mkdir()
+    (tmp_path / "content/node_modules/README.md").write_text("vendor")
+    # Windows may require permission to create a symlink.
+    with suppress(OSError):
+        (tmp_path / "content/linked.md").symlink_to(tmp_path / "README.md")
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: pytest.fail("Git must not run"))
+    assert discover_markdown_and_config_files(str(tmp_path), docs_dir="content") == [
+        "README.md",
+        "content/index.md",
+        "content/private-public.md",
+        "zensical.toml",
+    ]
 
 
 def _init_git_repo(root: Path) -> None:
@@ -237,9 +260,7 @@ def test_discover_markdown_and_config_files_keeps_only_md_and_config(tmp_path: P
         (tmp_path / generated).write_text("generated\n", encoding="utf-8")
     (tmp_path / "macros.py").write_text("def word_count(): ...\n", encoding="utf-8")
     (tmp_path / "zensical.toml").write_text('site_name = "T"\n', encoding="utf-8")
-    subprocess.run(
-        ["git", "add", "-A"], cwd=tmp_path, check=True
-    )
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
 
     files = discover_markdown_and_config_files(str(tmp_path))
 
@@ -256,9 +277,7 @@ def test_discover_markdown_and_config_files_finds_md_only_below_docs_dir(
     (tmp_path / "notes.md").write_text("generated\n", encoding="utf-8")
     (tmp_path / "other").mkdir()
     (tmp_path / "other" / "page.md").write_text("generated\n", encoding="utf-8")
-    subprocess.run(
-        ["git", "add", "-A"], cwd=tmp_path, check=True
-    )
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
 
     files = discover_markdown_and_config_files(str(tmp_path))
 
@@ -370,7 +389,9 @@ def test_builds_the_pdf_to_the_given_output_path(tmp_path: Path, fake_weasyprint
     assert count == 3
 
 
-def test_relative_output_path_resolves_against_root(tmp_path: Path, fake_weasyprint_on_path) -> None:
+def test_relative_output_path_resolves_against_root(
+    tmp_path: Path, fake_weasyprint_on_path
+) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     _make_sample_repo(repo)
@@ -479,9 +500,7 @@ def test_a_vendored_icons_directory_is_excluded_from_the_built_bundle(
     (repo / "overrides" / ".icons" / "bootstrap" / "icon.svg").write_text(
         "<svg></svg>\n", encoding="utf-8"
     )
-    subprocess.run(
-        ["git", "add", "overrides/.icons/bootstrap/icon.svg"], cwd=repo, check=True
-    )
+    subprocess.run(["git", "add", "overrides/.icons/bootstrap/icon.svg"], cwd=repo, check=True)
     fake_weasyprint_on_path('echo "%PDF-1.4 stub" > "$2"')
     work_dir = tmp_path / "work"
 
@@ -520,9 +539,7 @@ def test_running_header_names_the_file_actually_on_that_page(tmp_path: Path) -> 
     )
     (repo / "b_second.py").write_text("print(1)\n", encoding="utf-8")
     (repo / "c_third.py").write_text("print(1)\n", encoding="utf-8")
-    subprocess.run(
-        ["git", "add", "a_first.py", "b_second.py", "c_third.py"], cwd=repo, check=True
-    )
+    subprocess.run(["git", "add", "a_first.py", "b_second.py", "c_third.py"], cwd=repo, check=True)
     output_path = tmp_path / "out.pdf"
 
     build_source_bundle(str(output_path), root=str(repo), report_name="Test Report")

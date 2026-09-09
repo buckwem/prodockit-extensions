@@ -67,6 +67,7 @@ dependencies = [
   "tomli>=2.0; python_version < '3.11'",
   # Preserve existing comments and formatting when Adopt edits project TOML.
   "tomlkit>=0.13.2",
+  "pathspec>=0.12",
   "beautifulsoup4>=4.12",
   "click>=8.0",
   # A direct import for `prodockit adopt`, which preserves existing MkDocs

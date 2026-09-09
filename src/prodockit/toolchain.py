@@ -30,6 +30,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
 from prodockit.pins import DEFAULT_PACKAGES, TESTED_VERSIONS, PinError, apply_version, discover
@@ -80,6 +82,8 @@ class ToolAction:
         name = DISPLAY_NAMES[self.package]
         if self.action == "install":
             return f"install {name} {self.supported}"
+        if self.action == "repair":
+            return f"repair {name} {self.supported} Python dependencies"
         return f"{self.action} {name} {self.installed} to {self.supported}"
 
 
@@ -312,6 +316,40 @@ def pandoc_install_command(version: str, *, offline: bool = False) -> tuple[str,
     )
 
 
+def dependency_repairs(packages: Sequence[str]) -> tuple[str, ...]:
+    """Check each installed runtime's dependency graph, excluding unused extras."""
+
+    def broken(
+        package: str, visited: set[tuple[str, frozenset[str]]], extras: frozenset[str] = frozenset()
+    ) -> bool:
+        name = canonicalize_name(package)
+        key = (name, extras)
+        if key in visited:
+            return False
+        visited.add(key)
+        try:
+            distribution = importlib.metadata.distribution(name)
+        except importlib.metadata.PackageNotFoundError:
+            return True
+        for value in distribution.requires or ():
+            requirement = Requirement(value)
+            if requirement.marker and not any(
+                requirement.marker.evaluate({"extra": extra}) for extra in ("", *extras)
+            ):
+                continue
+            try:
+                version = importlib.metadata.version(requirement.name)
+            except importlib.metadata.PackageNotFoundError:
+                return True
+            if version not in requirement.specifier or broken(
+                requirement.name, visited, frozenset(requirement.extras)
+            ):
+                return True
+        return False
+
+    return tuple(package for package in packages if broken(package, set()))
+
+
 def plan(root: Path, *, offline: bool = False, fresh: bool = False) -> ToolchainPlan:
     python = installed_python_version()
     supported_python = TESTED_VERSIONS["python"]
@@ -342,15 +380,24 @@ def plan(root: Path, *, offline: bool = False, fresh: bool = False) -> Toolchain
         for package in (*PYTHON_PACKAGES, "pandoc")
         if (action := _action(package, installed[package])) is not None
     )
+    repairs = dependency_repairs(tuple(p for p in PYTHON_PACKAGES if installed[p] is not None))
+    actions += tuple(
+        ToolAction(p, installed[p], TESTED_VERSIONS[p], "repair")
+        for p in repairs
+        if not any(action.package == p for action in actions)
+    )
     missing_packages = tuple(
         action.package
         for action in actions
-        if action.package in PYTHON_PACKAGES and action.installed is None
+        if action.package in PYTHON_PACKAGES
+        and (action.installed is None or action.package in repairs)
     )
     installed_packages = tuple(
         action.package
         for action in actions
-        if action.package in PYTHON_PACKAGES and action.installed is not None
+        if action.package in PYTHON_PACKAGES
+        and action.installed is not None
+        and action.package not in repairs
     )
     commands: list[tuple[str, ...]] = []
     if missing_packages:
@@ -504,6 +551,18 @@ def apply(
         raise ToolchainError(planned.blocked)
     for command in planned.commands:
         _run_resilient(command, root=root, reporter=reporter, offline=offline)
+        importlib.invalidate_caches()
+
+    # A changed distribution may introduce dependencies absent from the old
+    # metadata. Resolve those once, then verify rather than retry indefinitely.
+    repairs = dependency_repairs(PYTHON_PACKAGES)
+    if repairs:
+        _run_resilient(
+            pip_install_command(repairs, offline=offline),
+            root=root,
+            reporter=reporter,
+            offline=offline,
+        )
         importlib.invalidate_caches()
 
     # Verify installed state before changing the project's declarations. A
@@ -687,8 +746,7 @@ def _replace_pandoc_executable(staged: Path, target: Path) -> None:
         except PermissionError as error:
             if not _running_on_windows() or not delay:
                 raise ToolchainError(
-                    f"could not replace {target}; close programs using Pandoc and retry: "
-                    f"{error}"
+                    f"could not replace {target}; close programs using Pandoc and retry: {error}"
                 ) from error
             time.sleep(delay)
 

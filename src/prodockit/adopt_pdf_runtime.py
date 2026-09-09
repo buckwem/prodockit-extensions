@@ -92,6 +92,8 @@ def _probe(context: Context, *, render: bool = False) -> str:
             check=False,
         )
         if result.returncode:
+            if "ModuleNotFoundError:" in result.stderr:
+                return "WeasyPrint Python package is pending"
             detail = next(
                 (line for line in reversed(result.stderr.splitlines()) if line.strip()),
                 "no error detail",

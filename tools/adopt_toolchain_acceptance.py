@@ -263,7 +263,7 @@ def main(arguments: list[str] | None = None) -> int:
             (str(environment_scripts(environment)), child_environment.get("PATH", ""))
         )
         child_environment.setdefault(
-            "PDK_NATIVE_DOWNLOAD_CACHE", str(Path.cwd() / ".cache" / "native-downloads")
+            "PDK_NATIVE_DOWNLOAD_CACHE", str(root / "native-downloads")
         )
         install_stdout = root / "install.stdout.log"
         install_stderr = root / "install.stderr.log"

@@ -338,12 +338,13 @@ def test_source_bundle_command_builds_into_docs_dir(
 def test_source_bundle_command_reports_a_source_bundle_error_instead_of_crashing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`tmp_path` here is deliberately not a git working tree, so
-    `discover_markdown_and_config_files()` raises `SourceBundleError`
-    before `weasyprint` is ever invoked. Guards the same class of bug the
-    `pdf` command already learned from once (prodockit-extensions#188):
-    an except clause that omits `SourceBundleError` lets it escape
-    uncaught instead of exiting cleanly with an `Error: ...` message."""
+    """A real source/render failure is presented without an uncaught traceback."""
+    from prodockit.pdf.source_bundle import SourceBundleError
+
+    def fail(*args, **kwargs):
+        raise SourceBundleError("source rendering failed")
+
+    monkeypatch.setattr("prodockit.cli.build_source_bundle_from_zensical_config", fail)
     _write_project(tmp_path)
     monkeypatch.chdir(tmp_path)
 
