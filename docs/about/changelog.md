@@ -21,6 +21,12 @@ requests rather than here.
 
 ## Unreleased
 
+- Bootstrap distinguishes verified, missing and unverified PDF fonts. Shared
+  fontconfig family checks inspect the renderer's actual selection, including
+  system and per-user fonts, and reject fallback families. An unavailable
+  inspection tool produces an actionable warning rather than a verified pass.
+- Bootstrap's macOS and Ubuntu PDF recipes explicitly include fontconfig.
+  Adopt uses the same font-family verification.
 - Complete the first-site guide with an optional command-line GitHub publishing
   stage, including commit identity, file review, Pages enablement and deployment
   checks.

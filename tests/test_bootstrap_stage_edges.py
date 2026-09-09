@@ -191,7 +191,9 @@ def test_font_fallback_handles_an_empty_font_directory(tmp_path: Path) -> None:
     (tmp_path / "Library" / "Fonts").mkdir(parents=True)
     runner = CliFakeRunner({"fc-list : family": CommandResult(127)})
 
-    assert stages._absent_pdf_fonts(_context(tmp_path, runner=runner)) == ""
+    evidence = stages._pdf_font_evidence(_context(tmp_path, runner=runner))
+    assert evidence.status == "unverified"
+    assert "fc-match" in evidence.detail
 
 
 def test_font_fallback_normalises_font_filenames(tmp_path: Path) -> None:
@@ -201,7 +203,8 @@ def test_font_fallback_normalises_font_filenames(tmp_path: Path) -> None:
     (fonts / "JetBrains_Mono.ttf").touch()
     runner = CliFakeRunner({"fc-list : family": CommandResult(127)})
 
-    assert stages._absent_pdf_fonts(_context(tmp_path, runner=runner)) == ""
+    # Filenames alone do not prove that the PDF renderer can select the fonts.
+    assert stages._pdf_font_evidence(_context(tmp_path, runner=runner)).status == "unverified"
 
 
 def test_project_environment_reports_a_missing_requirements_file(tmp_path: Path) -> None:
