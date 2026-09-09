@@ -1294,7 +1294,9 @@ def test_maths_install_rejects_npm_success_when_renderer_probe_fails(
         install_tool(project, "mathjax")
 
 
-def test_custom_node_manifest_without_a_lock_uses_npm_install(tmp_path: Path, monkeypatch) -> None:
+def test_custom_node_manifest_is_backed_up_before_locked_install(
+    tmp_path: Path, monkeypatch
+) -> None:
     project = _project(tmp_path)
     manifest = project / "tools" / "mermaid" / "package.json"
     manifest.parent.mkdir(parents=True)
@@ -1304,7 +1306,7 @@ def test_custom_node_manifest_without_a_lock_uses_npm_install(tmp_path: Path, mo
     def npm(command, **kwargs):
         assert command == [
             "/usr/bin/npm",
-            "install",
+            "ci",
             "--no-audit",
             "--no-fund",
             "--prefer-offline",
@@ -1322,7 +1324,10 @@ def test_custom_node_manifest_without_a_lock_uses_npm_install(tmp_path: Path, mo
 
     install_tool(project, "mermaid")
 
-    assert not (manifest.parent / "package-lock.json").exists()
+    assert (manifest.parent / "package-lock.json").exists()
+    backups = list((project / ".prodockit-adopt-backups").rglob("package.json"))
+    assert len(backups) == 1
+    assert backups[0].read_text() == '{"name": "author-owned"}\n'
 
 
 def test_mermaid_install_rejects_npm_success_when_cli_probe_fails(

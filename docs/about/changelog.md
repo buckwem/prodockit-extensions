@@ -21,6 +21,9 @@ requests rather than here.
 
 ## Unreleased
 
+- Align selected renderer manifests, lockfiles and helper scripts with the installed
+  release, keeping recoverable backups before replacement. Renderer readiness now
+  rejects working but mismatched Mermaid and MathJax versions.
 - Retry temporary template-setting download failures twice with coloured recovery
   notices before falling back to a compatible cache; permanent errors are not retried.
 - Added a template-setting review ledger for TOML adoption. New unknown settings
