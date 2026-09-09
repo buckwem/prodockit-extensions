@@ -3266,7 +3266,10 @@ def adopt_command(
 
     if (root / "zensical.toml").is_file():
         try:
-            snapshot = load_adopt_settings_snapshot(offline=offline, local=template_config)
+            click.echo("Checking template settings...")
+            snapshot = load_adopt_settings_snapshot(
+                offline=offline, local=template_config, reporter=_renderer_retry_warning
+            )
         except (OSError, AdoptSettingsError) as error:
             raise click.ClickException(str(error)) from error
         options = replace(options, template_snapshot=snapshot)

@@ -21,6 +21,8 @@ requests rather than here.
 
 ## Unreleased
 
+- Retry temporary template-setting download failures twice with coloured recovery
+  notices before falling back to a compatible cache; permanent errors are not retried.
 - Added a template-setting review ledger for TOML adoption. New unknown settings
   are commented for review, excluded template branding is omitted, and existing
   values are preserved. Deleting `.prodockit-adopt.toml` resets the review without
