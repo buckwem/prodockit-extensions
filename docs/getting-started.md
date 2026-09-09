@@ -16,6 +16,7 @@ own, and then uses Adopt to integrate Prodockit without manual configuration.
 
 Five stages take the site from an empty project directory to a verified
 website with downloadable PDF and source outputs.
+An optional sixth stage saves the source to GitHub and publishes the website.
 
 ### Stage 1 — Prepare the project environment
 
@@ -312,9 +313,9 @@ node --version
 npm --version
 ```
 
-Do not continue after selecting a renderer unless both commands print a
-version. Adopt uses npm only to install the selected project-local renderer;
-it does not install whole-machine Node.js itself.
+These commands show whether Node.js and npm are already available. If either
+is missing, Adopt can install the required runtime when you apply the selected
+renderer activities. On macOS, Homebrew must already be installed and usable.
 
 ////
 
@@ -341,6 +342,45 @@ stylesheet.
 
 ////
 
+//// step | Refresh the project environment
+
+After Adopt completes, refresh the environment **before running diagnostics,
+building the site or generating a PDF**. Adopt may have added paths needed by
+the installed tools and PDF libraries. Follow its highlighted instructions.
+
+=== ":material-apple: macOS"
+
+    In the same terminal and project directory, run:
+
+    ```bash
+    source .venv/bin/activate
+    ```
+
+    This reloads the PDF library settings. You do not need to recreate `.venv`.
+
+=== ":fontawesome-brands-windows: Windows"
+
+    If Adopt displays its restart banner, fully close Windows Terminal or
+    VS Code and reopen it. Open PowerShell in your project directory, then run:
+
+    ```powershell
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    Keep the project environment active. If you reopened the terminal, return
+    to the project directory and reactivate it:
+
+    ```bash
+    source .venv/bin/activate
+    ```
+
+Use the activation path printed by Adopt if your environment has another name.
+
+////
+
 //// step | Review and configure `zensical.toml`
 
 `zensical.toml` is the single project configuration used by the website and
@@ -348,7 +388,11 @@ Prodockit's PDF commands. Adopt keeps Zensical's existing `[project]` settings,
 adds the standard `project.markdown_extensions` tables, and adds
 `"stylesheets/pdk.css"` to `project.extra_css`.
 
-In the existing `[project]` table, give the site its real name and make the
+The defaults work without editing this file. Stage 6 uses `pdk sync-repo` to
+set your site title and URL through prompts. The examples below explain optional
+customisation; you can continue with the generated values.
+
+In the existing `[project]` table, you can give the site its real name and make the
 page order explicit. Do not add a second `[project]` table, and retain the
 extension and stylesheet settings written by Adopt:
 
@@ -370,8 +414,8 @@ pdf_output = "docs/site_documentation.pdf"
 pdf_source_bundle_output = "docs/source_bundle.pdf"
 ```
 
-These are the default locations, but recording them here makes the download
-filenames visible to the next steps. Check the edited configuration before
+These are the default locations, so you do not need to add them manually.
+Check the configuration before
 continuing:
 
 ```bash
@@ -517,6 +561,196 @@ zensical serve
 Open both links in the browser before publishing the site. Regenerate the PDFs
 whenever their Markdown or configuration changes, then rebuild the website so
 the published downloads stay current.
+
+////
+
+///
+
+### Stage 6 — Save and publish with GitHub (optional)
+
+You now have a working local site. This optional stage puts a copy of its
+source on GitHub and enables GitHub Pages. Stay in your project directory.
+The commands below do not require a text editor.
+
+!!! warning "Check what you are sharing"
+
+    A public repository exposes its committed files. A public Pages site exposes
+    the generated website, even when its source repository is private.
+    Do not upload passwords, tokens, personal data or confidential documents.
+    Private-repository Pages availability depends on your GitHub plan. Do not
+    make a repository public merely to work around an error.
+
+/// steps
+
+//// step | Install Git and the GitHub command line
+
+Skip installation if both `git --version` and `gh --version` already work.
+
+=== ":fontawesome-brands-apple: macOS"
+
+    With Homebrew installed:
+
+    ```bash
+    brew install git gh
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    winget install --id Git.Git --exact
+    winget install --id GitHub.cli --exact
+    ```
+
+    If either command is still not found, fully close and reopen your terminal,
+    return to the project directory and activate its environment:
+
+    ```powershell
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    sudo apt update
+    sudo apt install git gh
+    ```
+
+Sign in when prompted. Choose GitHub.com and follow the browser sign-in:
+
+```bash
+gh auth login
+```
+
+////
+
+//// step | Prepare the files and your commit identity
+
+Run Adopt again to add the local-output ignore rules and repair the standard
+Zensical GitHub workflow. The repaired workflow installs `requirements.txt`
+instead of Zensical alone, and restores MathJax website files when selected.
+Custom workflows are left unchanged.
+
+```bash
+pdk adopt --apply
+git init -b main
+```
+
+Replace the two example values below with your name and your GitHub-verified
+email or GitHub no-reply address. These settings apply only to this project:
+
+```bash
+git config user.name "Your name"
+git config user.email "your-github-email"
+git status --short --untracked-files=all
+```
+
+The list should contain your documentation, configuration, shared styles/scripts,
+renderer manifests and lockfiles. Keep the three `.prodockit-*.toml` files.
+It should not contain `.venv`, `node_modules`, generated PDFs, website output,
+backups or `docs/.prodockit-pdf-mermaid`. Stop if anything private appears.
+
+////
+
+//// step | Create the first commit and GitHub repository
+
+Review the staged files before committing:
+
+```bash
+git add .
+git diff --cached --stat
+git diff --cached
+git commit -m "Create documentation site with Prodockit"
+```
+
+Press `q` to leave Git's diff viewer. Then choose a repository name, replacing
+`prodockit-project` below if needed. This creates a private repository but does
+not push yet:
+
+```bash
+gh repo create prodockit-project --private --source=. --remote=origin
+```
+
+If the repository already exists, do not create it again; check `git remote -v`
+and use its existing remote. See the [GitHub CLI repository guide](https://cli.github.com/manual/gh_repo_create).
+
+////
+
+//// step | Set the website and repository details
+
+```bash
+pdk sync-repo --create-readme
+```
+
+Confirm the detected repository, enter the website title and confirm or change
+the suggested Pages address. The command adds missing TOML settings in the right
+tables and creates a README only if absent. It preserves existing custom values.
+The suggested address is not evidence of a published site.
+
+If a title or address needs changing later, no editor is necessary:
+
+```bash
+pdk sync-repo --site-name "My report" --site-url "https://your-account.github.io/your-repository/"
+```
+
+Replace the examples before running. Then verify and commit:
+
+```bash
+pdk config --check
+zensical build --clean --strict
+git add zensical.toml README.md .github/workflows/docs.yml .gitignore
+git diff --cached --stat
+git commit -m "Configure repository and website publishing"
+```
+
+////
+
+//// step | Enable GitHub Pages and push
+
+This command enables website publishing through GitHub Actions. Only run it
+when you are ready to publish:
+
+```bash
+gh api --method POST "repos/{owner}/{repo}/pages" -f build_type=workflow
+```
+
+Keep `{owner}` and `{repo}` exactly as shown; GitHub CLI fills them from your
+remote. If Pages already exists, inspect it with:
+
+```bash
+gh api "repos/{owner}/{repo}/pages" --jq .build_type
+```
+
+It should say `workflow`. For an existing site using another source:
+
+```bash
+gh api --method PUT "repos/{owner}/{repo}/pages" -f build_type=workflow
+```
+
+If GitHub reports a permissions or plan restriction, resolve that before continuing;
+do not change visibility automatically. See [GitHub Pages configuration](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+
+```bash
+git push -u origin main
+```
+
+////
+
+//// step | Check the published website
+
+```bash
+gh run list --limit 5
+gh run watch
+gh api "repos/{owner}/{repo}/pages" --jq .html_url
+```
+
+Open the returned address and check the pages, navigation and maths. A successful
+push is not the same as a successful deployment. If a run fails, inspect it with
+`gh run view --log-failed` rather than repeatedly retrying.
+
+The stock workflow publishes the website; it does not generate the downloadable
+PDFs from Stage 5. Follow [Publish a document](publishing.md) to configure the
+full PDF and source-bundle publishing workflow before sharing those download links.
 
 ////
 

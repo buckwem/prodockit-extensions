@@ -44,6 +44,9 @@ doubt.
 | `--remote NAME` | Read another Git remote; defaults to `origin`. |
 | `--branch NAME` | Use an explicit default branch instead of detecting it. |
 | `--check` | Report drift and exit non-zero without writing. |
+| `--site-name TEXT` | Set the website title without opening an editor. |
+| `--site-url URL` | Set the full website address; this does not enable or verify hosting. |
+| `--create-readme` | Create a minimal README only if it is missing. |
 | `-h`, `--help` | Show installed help and exit. |
 /// table-caption | <
     attrs: {id: tab-cmd-sync-repo-options}
@@ -57,6 +60,16 @@ Without `--check`, the command updates the relevant repository settings in the
 configuration and the managed README badge block when present. It preserves
 unrelated configuration and README content. It does not change the Git remote,
 create a repository, commit, or push.
+
+For a fresh Zensical project, run `pdk sync-repo --create-readme` in a terminal.
+When details are missing or still use starter placeholders, it asks you to confirm
+the repository, title and suggested website address. Missing TOML tables and
+settings are created using a comment-preserving TOML editor. An absent README is
+optional, not an error. Existing README content is never replaced.
+
+Without a terminal, use `--site-name` and `--site-url` for explicit values.
+Check mode never prompts or writes. A suggested Pages address is not proof of a
+successful deployment; custom domains are preserved unless explicitly changed.
 
 ## Related commands {: #cmd-sync-repo-related-commands }
 

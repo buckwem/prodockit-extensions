@@ -91,8 +91,14 @@ Body text.
         # (prodockit-extensions#201). This case previously asserted the
         # truncated form, with a comment claiming it was what the badge
         # and edit URLs needed - the opposite of what they need.
-        ("https://gitlab.surrey.ac.uk/group/sub/repo", ("gitlab.surrey.ac.uk", "group/sub", "repo")),
-        ("git@gitlab.surrey.ac.uk:cs-dept/year3/report.git", ("gitlab.surrey.ac.uk", "cs-dept/year3", "report")),
+        (
+            "https://gitlab.surrey.ac.uk/group/sub/repo",
+            ("gitlab.surrey.ac.uk", "group/sub", "repo"),
+        ),
+        (
+            "git@gitlab.surrey.ac.uk:cs-dept/year3/report.git",
+            ("gitlab.surrey.ac.uk", "cs-dept/year3", "report"),
+        ),
     ],
 )
 def test_parse_remote_handles_ssh_and_https_forms(url: str, expected: tuple[str, str, str]) -> None:
@@ -152,8 +158,7 @@ def test_site_url_handles_the_owner_named_repository() -> None:
     """A repository called `<owner>.github.io` is served at the bare origin,
     not one level down inside itself."""
     assert (
-        site_url_for("github", "buckwem", "buckwem.github.io", None)
-        == "https://buckwem.github.io/"
+        site_url_for("github", "buckwem", "buckwem.github.io", None) == "https://buckwem.github.io/"
     )
 
 
@@ -267,19 +272,82 @@ def test_update_config_inserts_edit_uri_when_the_config_predates_it() -> None:
     assert lines[lines.index('edit_uri = "edit/main/docs/"') - 1].startswith("repo_name =")
 
 
-def test_update_config_raises_when_a_required_setting_is_missing() -> None:
-    with pytest.raises(SyncRepoError, match="repo_url"):
-        update_config(
-            "[project]\n",
-            repo_url="https://github.com/new/new",
-            namespace="new",
-            repo_name="new",
-            icon="fontawesome/brands/github",
-            edit_uri=None,
-        )
+def test_update_config_creates_missing_tables() -> None:
+    updated, changes = update_config(
+        "[project]\n",
+        repo_url="https://github.com/new/new",
+        namespace="new",
+        repo_name="new",
+        icon="fontawesome/brands/github",
+        edit_uri=None,
+    )
+    import tomlkit
+
+    parsed = tomlkit.loads(updated)["project"]
+    assert parsed["repo_url"] == "https://github.com/new/new"
+    assert parsed["theme"]["icon"]["repo"] == "fontawesome/brands/github"
+    assert "theme.icon.repo" in changes
 
 
 # --- repo_name shape -------------------------------------------------------
+
+
+def test_clean_zensical_setup_is_prompted_and_repeatable(git_project, monkeypatch):
+    import tomlkit
+
+    project = git_project("https://github.com/new/new-repo.git")
+    monkeypatch.chdir(project)
+    (project / "README.md").unlink()
+    config = project / "zensical.toml"
+    config.write_text(
+        '[project]\nsite_name = "Documentation"\nsite_url = "https://www.example.com/"\n'
+        '# repo_url = "https://github.com/user/repo"\n'
+        '[project.theme]\nlanguage = "en"\n# [project.theme.icon]\n',
+        encoding="utf-8",
+    )
+    calls = []
+
+    def configure(repo, name, url):
+        calls.append((repo, name, url))
+        return "My report", url
+
+    result = sync_repo_metadata(configure=configure, create_readme=True)
+    assert calls == [
+        ("https://github.com/new/new-repo", "new-repo", "https://new.github.io/new-repo/")
+    ]
+    data = tomlkit.loads(config.read_text())["project"]
+    assert data["site_name"] == "My report"
+    assert data["theme"]["icon"]["repo"] == "fontawesome/brands/github"
+    assert data["theme"]["language"] == "en"
+    assert "README" in result.changes
+    assert not sync_repo_metadata(configure=configure, create_readme=True).changed
+    assert len(calls) == 1
+
+
+def test_check_missing_readme_never_writes_or_prompts(git_project, monkeypatch):
+    project = git_project("https://github.com/new/new-repo.git")
+    monkeypatch.chdir(project)
+    (project / "README.md").unlink()
+    before = (project / "zensical.toml").read_bytes()
+
+    def unexpected(*args):
+        pytest.fail("Check must not prompt")
+
+    result = sync_repo_metadata(check=True, create_readme=True, configure=unexpected)
+    assert result.changed
+    assert (project / "zensical.toml").read_bytes() == before
+    assert not (project / "README.md").exists()
+
+
+def test_invalid_table_fails_without_writing(git_project, monkeypatch):
+    project = git_project("https://github.com/new/new-repo.git")
+    monkeypatch.chdir(project)
+    path = project / "zensical.toml"
+    path.write_text('[project]\ntheme = "not a table"\n', encoding="utf-8")
+    before = path.read_bytes()
+    with pytest.raises(SyncRepoError, match="theme"):
+        sync_repo_metadata()
+    assert path.read_bytes() == before
 
 
 def test_repo_name_keeps_the_owner_prefix_when_the_config_already_uses_one() -> None:
@@ -503,9 +571,9 @@ def test_sync_leaves_a_custom_domain_alone(git_project, monkeypatch) -> None:
     result = sync_repo_metadata(default_branch="main")
 
     assert "site_url" not in result.changes
-    assert 'site_url = "https://docs.example.com/"' in (
-        project / "zensical.toml"
-    ).read_text(encoding="utf-8")
+    assert 'site_url = "https://docs.example.com/"' in (project / "zensical.toml").read_text(
+        encoding="utf-8"
+    )
     assert any("custom domain" in note for note in result.notes)
 
 
@@ -546,10 +614,8 @@ def test_a_known_instance_gets_its_pages_url_derived() -> None:
         assert site_url_for("gitlab", "mb0105", "report", None, host) is None, host
 
 
-def test_a_host_shields_cannot_read_is_taken_as_private(
-    git_project, monkeypatch
-) -> None:
-    """"Could not tell whether GitLab is public" was printed on every run
+def test_a_host_shields_cannot_read_is_taken_as_private(git_project, monkeypatch) -> None:
+    """ "Could not tell whether GitLab is public" was printed on every run
     against a self-hosted instance - a question with no answer from
     outside, and none needed: the badges that turn on it come from
     shields.io, which cannot read that host either (#392)."""
@@ -632,7 +698,11 @@ def test_a_documentation_badge_links_to_the_published_site() -> None:
     - the page a human actually lands on - had no way through to the site
     at all (#326)."""
     badges = badges_for_host(
-        "github", "github.com", "owner", "repo", "main",
+        "github",
+        "github.com",
+        "owner",
+        "repo",
+        "main",
         site_url="https://owner.github.io/repo/",
     )
     assert badges is not None
@@ -716,6 +786,8 @@ def test_the_same_question_gets_the_same_answer_twice(monkeypatch) -> None:
 
     assert first is True
     assert second is True, "the second call must not see a different world"
+
+
 def test_the_tool_is_installable_under_a_short_name() -> None:
     """`pdk` is the same entry point as `prodockit`, for a tool whose
     commands are typed at a prompt, often several times over while a
@@ -751,8 +823,16 @@ def test_no_alias_shadows_a_command() -> None:
     it, and the help would still list one name."""
     from prodockit.cli import COMMAND_ALIASES
 
-    real = {"bootstrap", "source-bundle", "pdf", "pins", "shared-files", "sync-repo",
-            "init-tools", "init-mathjax"}
+    real = {
+        "bootstrap",
+        "source-bundle",
+        "pdf",
+        "pins",
+        "shared-files",
+        "sync-repo",
+        "init-tools",
+        "init-mathjax",
+    }
 
     assert not (set(COMMAND_ALIASES) & real), "an alias may not take a command's own name"
 

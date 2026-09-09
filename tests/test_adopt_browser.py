@@ -2,12 +2,50 @@
 # SPDX-License-Identifier: MIT
 
 import json
+import shutil
 import subprocess
 
 import pytest
 
 from prodockit import adopt_browser as browser
 from prodockit.bootstrap.model import MACOS, UBUNTU, WINDOWS
+
+REAL_CACHED_BROWSER = browser._cached_browser
+NODE = shutil.which("node")
+
+
+@pytest.mark.skipif(NODE is None, reason="real browser-path probe requires Node.js")
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_real_node_resolves_cached_browser_and_reuses_it_offline(
+    tmp_path, monkeypatch, asynchronous
+):
+    package = tmp_path / "tools/mermaid/node_modules/puppeteer"
+    package.mkdir(parents=True)
+    executable = tmp_path / "browser cache/Google Chrome for Testing"
+    executable.parent.mkdir()
+    executable.write_text("browser fixture")
+    value = json.dumps(str(executable))
+    result = f"Promise.resolve({value})" if asynchronous else value
+    (package / "index.js").write_text(f"exports.executablePath = () => {result};")
+    monkeypatch.setattr(browser.shutil, "which", lambda name: NODE)
+    monkeypatch.setattr(browser, "_cached_browser", REAL_CACHED_BROWSER)
+    monkeypatch.setattr(browser, "current_platform", lambda: MACOS)
+    monkeypatch.setattr(browser, "run_install_command", lambda *a, **k: pytest.fail("download"))
+    assert browser._cached_browser(tmp_path) == str(executable)
+    browser.complete(tmp_path, offline=True)
+    executable.unlink()
+    assert browser._cached_browser(tmp_path) is None
+
+
+@pytest.mark.skipif(NODE is None, reason="real browser-path probe requires Node.js")
+def test_rejected_browser_path_promise_is_not_a_cached_browser(tmp_path, monkeypatch):
+    package = tmp_path / "tools/mermaid/node_modules/puppeteer"
+    package.mkdir(parents=True)
+    (package / "index.js").write_text(
+        "exports.executablePath = () => Promise.reject(new Error('cache unavailable'));"
+    )
+    monkeypatch.setattr(browser.shutil, "which", lambda name: NODE)
+    assert REAL_CACHED_BROWSER(tmp_path) is None
 
 
 @pytest.fixture(autouse=True)
@@ -87,6 +125,31 @@ def cli_file(root):
     path.parent.mkdir(parents=True)
     path.write_text("// fixture")
     return path
+
+
+@pytest.mark.skipif(NODE is None, reason="real browser-path probe requires Node.js")
+def test_new_browser_install_is_recognised_through_async_path(tmp_path, monkeypatch):
+    cli_file(tmp_path)
+    package = tmp_path / "tools/mermaid/node_modules/puppeteer"
+    executable = tmp_path / "downloaded browser"
+    (package / "index.js").write_text(
+        "exports.executablePath = () => Promise.resolve("
+        + json.dumps(str(executable))
+        + ");"
+    )
+    monkeypatch.setattr(browser.shutil, "which", lambda name: NODE)
+    monkeypatch.setattr(browser, "_cached_browser", REAL_CACHED_BROWSER)
+    monkeypatch.setattr(browser, "current_platform", lambda: MACOS)
+    installs = []
+
+    def install(command, **kwargs):
+        installs.append(command)
+        executable.write_text("downloaded browser fixture")
+
+    monkeypatch.setattr(browser, "run_install_command", install)
+    browser.complete(tmp_path)
+    browser.complete(tmp_path, offline=True)
+    assert len(installs) == 1
 
 
 @pytest.mark.parametrize("platform", [MACOS, WINDOWS])

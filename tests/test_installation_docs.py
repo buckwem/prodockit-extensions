@@ -30,6 +30,21 @@ PUBLISHING = REPO / "docs" / "publishing.md"
 MANUAL_INSTALL = REPO / "docs" / "manual-install.md"
 POWERSHELL_POLICY = "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned"
 
+
+def test_adoption_routes_refresh_environment_between_apply_and_build():
+    for page in (FIRST_SITE, ADOPTION):
+        text = page.read_text(encoding="utf-8")
+        refresh = text.index("//// step | Refresh the project environment")
+        assert text.index("adopt --apply") < refresh
+        section = text[refresh:].split("\n////\n", 1)[0]
+        assert "source .venv/bin/activate" in section
+        assert r".\.venv\Scripts\Activate.ps1" in section
+        assert "Windows Terminal" in section
+        assert "macOS" in section
+        assert "Linux (Ubuntu)" in section
+        assert "zensical build" in text[refresh:]
+
+
 if sys.version_info >= (3, 11):  # pragma: no cover - version-gated import
     import tomllib
 else:  # pragma: no cover
@@ -263,9 +278,9 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
 
     assert "installation.md#installation-preparation" in page
     assert "independent of section 6's template-site" in page
-    assert page.count("//// step | ") == 16
+    assert page.count("//// step | ") == 23
     assert page.count("/// tree") == 0
-    assert page.count("/// steps") == 5
+    assert page.count("/// steps") == 6
 
     preparation = INSTALLATION.read_text(encoding="utf-8")
     structure = preparation[

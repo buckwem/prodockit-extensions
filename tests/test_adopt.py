@@ -94,6 +94,9 @@ def _project(
     config_name: str = "zensical.toml",
 ) -> Path:
     (tmp_path / "docs").mkdir()
+    from prodockit.adopt import ensure_local_ignores
+
+    ensure_local_ignores(tmp_path)
     (tmp_path / "docs" / "index.md").write_text("# Existing document\n", encoding="utf-8")
     (tmp_path / config_name).write_text(
         config
