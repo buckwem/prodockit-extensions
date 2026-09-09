@@ -92,6 +92,14 @@ a prominent platform-specific recovery summary.
 
 The command never commits, pushes, changes a remote, or writes editor settings.
 
+For TOML projects, Adoption also reviews new template settings. Unknown options
+arrive as commented examples rather than becoming active automatically; branding
+and `template.css` are left out. `.prodockit-adopt.toml` records which setting
+paths have been reviewed. Delete that file to start a fresh review without
+overwriting your existing values. Software and health checks still run normally.
+See [Template settings and the review ledger](commands/adopt.md#template-settings-and-the-review-ledger)
+for the source, cache, exceptions and reset behaviour.
+
 Adoption installs, upgrades or downgrades the managed Python packages in the
 active virtual environment and installs the supported Pandoc executable into
 that environment. It does not replace the Python interpreter that is running

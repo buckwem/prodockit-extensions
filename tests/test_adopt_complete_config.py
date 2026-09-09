@@ -89,7 +89,78 @@ def test_second_configuration_pass_does_not_rewrite(tmp_path: Path):
     assert path.stat().st_mtime_ns == before
 
 
+def test_toml_edit_preserves_user_comments_and_literal_values(tmp_path: Path):
+    path = tmp_path / "zensical.toml"
+    path.write_text(
+        "# My project configuration\n[project]\n"
+        "site_name = 'My site' # keep this comment\n"
+        "extra_css = [\n  'stylesheets/custom.css', # my styling\n]\n"
+        "[project.extra]\n"
+        "custom = { label = 'Keep me', count = 3 } # user settings\n"
+    )
+    ensure_zensical_config(tmp_path, AdoptOptions())
+    source = path.read_text()
+    assert "# My project configuration" in source
+    assert "site_name = 'My site' # keep this comment" in source
+    assert "'stylesheets/custom.css', # my styling" in source
+    assert "custom = { label = 'Keep me', count = 3 } # user settings" in source
+    ensure_zensical_config(tmp_path, AdoptOptions())
+    assert path.read_text() == source
+
+
 def test_quoted_false_cannot_accidentally_enable_a_renderer(tmp_path: Path):
     (tmp_path / ".prodockit-components.toml").write_text('[components]\nmermaid = "false"\n')
     with pytest.raises(AdoptError, match="must be TOML true or false"):
         resolve_options(tmp_path)
+
+
+def test_template_examples_are_commented_without_branding(tmp_path: Path):
+    from prodockit.adopt_settings import Snapshot
+
+    snapshot = Snapshot(
+        '[project]\nsite_name = "Template branding"\n'
+        '[project.extra]\npdf_copyright = "Template footer"\npdf_margin_bottom = "2.75cm"\n'
+        '[project.markdown_extensions."prodockit.headings"]\nnumbering = "continuous"\n'
+        '[project.markdown_extensions."prodockit.bibliography"]\n'
+        'bib_file = "references.bib"\ncsl_style = "harvard-cite-them-right.csl"\n',
+        "test:template",
+    )
+    options = AdoptOptions(template_snapshot=snapshot)
+    path = tmp_path / "zensical.toml"
+    path.write_text('[project]\nsite_name = "Mine"\n')
+    ensure_zensical_config(tmp_path, options)
+    source = path.read_text()
+    config = load_project_config(path)
+    assert '# "numbering" = "continuous"' in source
+    assert '# "bib_file" = "references.bib"' in source
+    assert '# "csl_style" = "harvard-cite-them-right.csl"' in source
+    assert "template.css" not in source
+    assert "Template branding" not in source
+    assert "Template footer" not in source
+    assert "numbering" not in config.markdown_extensions["prodockit.headings"]
+    assert "csl_style" not in config.markdown_extensions["prodockit.bibliography"]
+    assert config.extra["pdf_margin_bottom"] == "2.5cm"
+    assert "pdf_copyright" not in config.extra
+    assert config.site_name == "Mine"
+    ensure_zensical_config(tmp_path, options)
+    assert path.read_text() == source
+
+
+def test_template_nested_blocks_caption_is_preserved(tmp_path: Path):
+    from prodockit.adopt import CAPTION_TYPES, _extensions, _toml_value, tomllib
+
+    path = tmp_path / "zensical.toml"
+    path.write_text(
+        '[project]\nsite_name = "Mine"\n'
+        "[project.markdown_extensions.pymdownx.blocks.caption]\n"
+        f"types = {_toml_value(list(CAPTION_TYPES))}\n"
+    )
+    ensure_zensical_config(tmp_path, AdoptOptions())
+    source = path.read_text()
+    assert source.count("types =") == 1
+    assert load_project_config(path).markdown_extensions["pymdownx.blocks.caption"][
+        "types"
+    ] == list(CAPTION_TYPES)
+    assert "pymdownx.blocks.caption" in _extensions(tomllib.loads(source))
+    ensure_zensical_config(tmp_path, AdoptOptions())
+    assert path.read_text() == source

@@ -30,6 +30,7 @@ import textwrap
 import threading
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal, ParamSpec, TypeVar
 
@@ -57,6 +58,8 @@ from prodockit.adopt import resolve_options as resolve_adopt_options
 from prodockit.adopt import (
     write_manifest as write_adopt_manifest,
 )
+from prodockit.adopt_settings import SettingsError as AdoptSettingsError
+from prodockit.adopt_settings import load_snapshot as load_adopt_settings_snapshot
 from prodockit.bootstrap import (
     PROMPTS,
     STAGES,
@@ -3147,6 +3150,11 @@ def _renderer_retry_warning(notice: RetryNotice) -> None:
 
 @main.command("adopt")
 @click.option(
+    "--template-config",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Use this compatible template zensical.toml for the settings review instead of GitHub.",
+)
+@click.option(
     "--configure",
     is_flag=True,
     help="Choose optional components and save the choices for this project.",
@@ -3185,6 +3193,7 @@ def _renderer_retry_warning(notice: RetryNotice) -> None:
     help="Show the files and commands behind each concise activity description.",
 )
 def adopt_command(
+    template_config: Path | None,
     configure: bool,
     dry_run: bool,
     apply: bool,
@@ -3254,6 +3263,16 @@ def adopt_command(
         click.echo(f"\nSaved the choices to {path}.")
         click.echo("Run `prodockit adopt --dry-run` to review the installation activities.")
         return
+
+    if (root / "zensical.toml").is_file():
+        try:
+            snapshot = load_adopt_settings_snapshot(offline=offline, local=template_config)
+        except (OSError, AdoptSettingsError) as error:
+            raise click.ClickException(str(error)) from error
+        options = replace(options, template_snapshot=snapshot)
+        click.echo(f"Template settings: {snapshot.identity}")
+    elif template_config is not None:
+        raise click.UsageError("--template-config settings review currently requires zensical.toml")
 
     try:
         steps = assess_adoption(

@@ -96,6 +96,8 @@ _ALL_RUNTIME_FILES = {
 _ADOPT_RUNTIME_FILES = {
     "src/prodockit/_zensical_defaults.py",
     "src/prodockit/adopt.py",
+    "src/prodockit/adopt_settings.py",
+    "src/prodockit/adopt_toml.py",
     "src/prodockit/init_tools.py",
     "src/prodockit/mathjax.py",
 }
