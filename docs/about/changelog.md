@@ -19,7 +19,20 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
-## Unreleased
+## 0.62.0 (2026-09-09)
+
+- Adopt now prepares the document-building runtime on Windows, Ubuntu and macOS,
+  without installing Git, SSH or editor tools. Homebrew remains a manual
+  prerequisite on macOS; Windows can provision missing WinGet support.
+- Repair and align installed Python dependencies and selected renderers to the
+  running Prodockit release, including upgrades and downgrades. Projects requiring
+  a newer Prodockit release are rejected before changes are made.
+- Explain proposed changes in plain language, highlight blockers and recovery
+  actions, and move routine file paths and commands to `--verbose` output.
+- Refresh saved Windows runtime paths before assessment, so subsequent and
+  offline runs recognise installed PDF libraries and fonts. Show explicit
+  environment-refresh instructions before follow-up checks.
+- Support source bundles for standalone documentation projects without Git.
 
 - Provision Mermaid's browser explicitly, using Ubuntu's architecture-matched
   Chromium or the installed Puppeteer CLI on macOS/Windows. Disable hidden npm
@@ -55,10 +68,8 @@ requests rather than here.
 - Honour the configured documentation directory when installing MathJax's
   website bundle, configuration and licence. Interactive adoption now reports
   incomplete work instead of unconditionally announcing success.
-- Added a prominent coloured Adopt blocker summary with platform-specific
-  Node.js recovery guidance before the detailed activity report.
-- Added an explicit renderer-configuration and conditional Node.js preparation
-  step to the first-site installation route.
+- Added explicit renderer-configuration guidance to the first-site installation
+  route; Adopt installs the Node.js runtime when selected renderers require it.
 
 ## 0.61.6 (2026-09-08)
 
