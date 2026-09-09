@@ -3507,6 +3507,11 @@ def adopt_command(
             _adopt_next_steps(build_command)
         return
 
+    # Probes can become ready during the per-activity reassessments without an
+    # installation. Do not report declined work from the stale initial plan.
+    steps = assess_adoption(
+        root, options, retry_reporter=_renderer_retry_warning, offline=offline
+    )
     if applied_stages == 0:
         if any(step.needs_work for step in steps):
             click.echo(_bootstrap_warning("\nADOPTION IS INCOMPLETE — no changes were applied."))
@@ -3521,9 +3526,7 @@ def adopt_command(
 
     remaining = [
         step
-        for step in assess_adoption(
-            root, options, retry_reporter=_renderer_retry_warning, offline=offline
-        )
+        for step in steps
         if step.selected and step.status not in {"ok", "warn"}
     ]
     if remaining:
