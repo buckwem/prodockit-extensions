@@ -55,9 +55,16 @@ def _supported_toolchain(monkeypatch: pytest.MonkeyPatch) -> None:
     tests describe an already-supported active environment.
     """
 
+    from prodockit.adopt_browser import BrowserPlan
     from prodockit.adopt_node import NodePlan
 
     monkeypatch.setattr("prodockit.adopt_node.plan", lambda **kwargs: NodePlan())
+    monkeypatch.setattr("prodockit.adopt_browser.plan", lambda *args, **kwargs: BrowserPlan())
+    monkeypatch.setattr(
+        "prodockit.adopt_browser.prepare",
+        lambda *args, **kwargs: {"PUPPETEER_SKIP_DOWNLOAD": "true"},
+    )
+    monkeypatch.setattr("prodockit.adopt_browser.complete", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         "prodockit.toolchain.installed_python_version",
         lambda: TESTED_VERSIONS["python"],
