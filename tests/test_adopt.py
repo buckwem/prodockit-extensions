@@ -1702,6 +1702,32 @@ markdown_extensions:
     assert f"prodockit=={__version__}" in (project / "requirements.txt").read_text(encoding="utf-8")
 
 
+def test_apply_uses_current_readiness_when_initial_probe_recovers(tmp_path: Path, monkeypatch):
+    project = _project(tmp_path)
+    monkeypatch.chdir(project)
+    calls = 0
+
+    def assessment(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return [
+            Step(
+                "core",
+                "Integrate",
+                "Standard authoring components",
+                "configure" if calls == 1 else "ok",
+                "probe result",
+            )
+        ]
+
+    monkeypatch.setattr("prodockit.cli.assess_adoption", assessment)
+    result = CliRunner().invoke(main, ["adopt", "--apply"])
+    assert result.exit_code == 0, result.output
+    assert "already configured" in result.output
+    assert "declined" not in result.output
+    assert "Apply this activity?" not in result.output
+
+
 def test_declining_all_required_activities_reports_incomplete(tmp_path: Path, monkeypatch):
     project = _project(tmp_path)
     source = (project / "zensical.toml").read_text()
