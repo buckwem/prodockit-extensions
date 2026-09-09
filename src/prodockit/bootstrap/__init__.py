@@ -153,37 +153,9 @@ def _temporary_network_failure(outcome: CommandResult) -> bool:
     with recovery advice. These are failures where the command itself has
     returned and repeating an idempotent download/install is safe.
     """
-    output = f"{outcome.stdout}\n{outcome.stderr}".lower()
-    return any(
-        marker in output
-        for marker in (
-            "server returned 408",
-            "server returned 429",
-            "server returned 500",
-            "server returned 502",
-            "server returned 503",
-            "server returned 504",
-            "http status code 408",
-            "request timeout",
-            "service unavailable",
-            "too many requests",
-            "temporarily unavailable",
-            "could not resolve host",
-            "remote name could not be resolved",
-            "temporary failure in name resolution",
-            "name or service not known",
-            "network is unreachable",
-            "connection refused",
-            "connection reset",
-            "econnreset",
-            "etimedout",
-            "operation timed out",
-            "tls handshake timeout",
-            "unexpected eof",
-            "remote end closed connection",
-            "transfer closed with",
-        )
-    )
+    from prodockit.renderer_resilience import transient_runtime_failure
+
+    return transient_runtime_failure(f"{outcome.stdout}\n{outcome.stderr}")
 
 
 def _temporary_windows_installer_failure(
