@@ -19,6 +19,34 @@ sys.path.insert(0, str(ROOT))
 adopt_acceptance = importlib.import_module("tools.adopt_acceptance")
 
 
+@pytest.mark.parametrize("name", ["public", "build/web"])
+def test_configured_site_directory_and_snapshot_exclusion(tmp_path, monkeypatch, name):
+    output = tmp_path / name
+    output.mkdir(parents=True)
+    (output / "index.html").write_text("generated")
+    (tmp_path / "zensical.toml").write_text("source")
+    monkeypatch.setattr(
+        adopt_acceptance,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess([], 0, stdout=str(output)),
+    )
+    found = adopt_acceptance.site_directory(Path("python"), tmp_path, tmp_path / "zensical.toml")
+    assert found == output
+    assert list(adopt_acceptance.snapshot(tmp_path, exclude=found)) == ["zensical.toml"]
+
+
+@pytest.mark.parametrize("outside", [False, True])
+def test_site_directory_rejects_unsafe_build_targets(tmp_path, monkeypatch, outside):
+    output = tmp_path.parent if outside else tmp_path
+    monkeypatch.setattr(
+        adopt_acceptance,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess([], 0, stdout=str(output)),
+    )
+    with pytest.raises(adopt_acceptance.AcceptanceError, match="inside the disposable project"):
+        adopt_acceptance.site_directory(Path("python"), tmp_path, tmp_path / "zensical.toml")
+
+
 def test_a_wheel_file_or_single_wheel_directory_is_accepted(tmp_path: Path) -> None:
     wheel = tmp_path / "prodockit-1.2.3-py3-none-any.whl"
     wheel.write_bytes(b"wheel")
@@ -113,6 +141,7 @@ def test_authoring_gate_rejects_unrendered_directives(tmp_path, monkeypatch):
         "prodockit-steps prodockit-tree prodockit-table-caption acceptance-table /// tree"
     )
     monkeypatch.setattr(adopt_acceptance, "build", lambda *args, **kwargs: None)
+    monkeypatch.setattr(adopt_acceptance, "site_directory", lambda *args: tmp_path / "site")
     with pytest.raises(adopt_acceptance.AcceptanceError, match="unrendered authoring directive"):
         adopt_acceptance.verify_authoring(Path("python"), tmp_path, tmp_path / "zensical.toml")
 
