@@ -97,9 +97,14 @@ The system package manager may request administrator approval. Adopt refreshes
 its own PATH after installation and verifies both commands before continuing.
 It cannot rewrite the parent terminal's environment: if the verification still
 fails, an uppercase restart message includes the platform's activation command.
-Missing Homebrew or `winget`, or an offline runtime installation, is reported as
-a blocker before any project activity is applied. Git, SSH and editors are not
-part of this runtime activity.
+On Windows, a missing WinGet is registered or installed using Microsoft's
+`Microsoft.WinGet.Client` repair workflow in current-user scope, before the
+runtime installer runs. It does not change PowerShell execution policy.
+Missing Homebrew remains a blocker: its supported installation requires Xcode
+Command Line Tools, outside Adopt's runtime-only scope. An offline run cannot
+provision a missing package manager. Git, SSH and editors are not part of this
+runtime activity. Windows package-manager provisioning still requires native
+acceptance testing before issue 782 can be considered complete.
 
 The native PDF activity installs or repairs Pango and the required PDF fonts.
 It reuses Bootstrap's Homebrew, Ubuntu and architecture-aware Windows MSYS2

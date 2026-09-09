@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,6 +13,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from prodockit import adopt_package_manager
 from prodockit.bootstrap import UnsupportedHostError, current_platform
 from prodockit.bootstrap.config import BootstrapConfig
 from prodockit.bootstrap.model import (
@@ -62,18 +62,10 @@ def plan(*, offline: bool = False) -> NodePlan:
         return NodePlan()
     if offline:
         return NodePlan(blocked="Node.js/npm needs installation or repair, but Adopt is offline")
-    if platform == MACOS and not shutil.which("brew"):
-        return NodePlan(
-            blocked="Homebrew is required for automatic Node.js installation; "
-            "complete environment preparation first"
-        )
-    if platform == WINDOWS and not shutil.which("winget"):
-        return NodePlan(
-            blocked="Windows App Installer (winget) is required for automatic Node.js installation"
-        )
-    if platform == UBUNTU and not shutil.which("apt"):
-        return NodePlan(blocked="Automatic Linux runtime installation requires Ubuntu with apt")
-    return NodePlan(tuple(tuple(command) for command in commands))
+    manager = adopt_package_manager.plan(platform, offline=offline)
+    if manager.blocked:
+        return NodePlan(blocked=manager.blocked)
+    return NodePlan(manager.commands + tuple(tuple(command) for command in commands))
 
 
 def _refresh() -> None:

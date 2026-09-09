@@ -117,3 +117,21 @@ close issue 782.
 Follow-up regression result: **2,925 passed, 11 skipped, 17 deselected**.
 Strict documentation build, focused Ruff checks, changed-source mypy checks,
 and whitespace validation also pass.
+
+## Follow-up: Windows package-manager provisioning
+
+Node and native-PDF plans now prepend current-user App Installer registration
+and, if needed, Microsoft's stable WinGet repair/install workflow. They use
+the existing bounded installer execution and PATH refresh. The script verifies
+WinGet before later runtime commands and does not change execution policy,
+install for all users, or request a preview release.
+
+Planning/integration tests cover manager reuse, offline refusal, missing
+PowerShell, and installation ordering for both consumers. Native Windows
+execution remains untested on this Mac. The macOS gap remains explicit:
+Homebrew's supported prerequisite includes Xcode Command Line Tools, outside
+the agreed runtime-only installation boundary. No development tools are
+silently installed to bypass that constraint.
+
+WinGet checkpoint: **2,934 passed, 11 skipped, 17 deselected**. Strict
+documentation build, lint, formatting and changed-source type checks pass.
