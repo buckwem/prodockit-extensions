@@ -34,7 +34,7 @@ from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
-from prodockit.installer_process import run_installer
+from prodockit.installer_process import InstallerCleanupError, run_installer
 from prodockit.pins import DEFAULT_PACKAGES, TESTED_VERSIONS, PinError, apply_version, discover
 from prodockit.renderer_resilience import (
     DEFAULT_RETRY_DELAYS,
@@ -501,11 +501,14 @@ def _run_resilient(
     offline: bool,
 ) -> None:
     def invoke() -> subprocess.CompletedProcess[str]:
-        return run_installer(
-            list(command),
-            cwd=root,
-            timeout=1800,
-        )
+        try:
+            return run_installer(
+                list(command),
+                cwd=root,
+                timeout=1800,
+            )
+        except InstallerCleanupError as error:
+            raise ToolchainError(str(error)) from error
 
     result = run_with_retries(
         "toolchain installation",

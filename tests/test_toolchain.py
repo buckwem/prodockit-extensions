@@ -18,6 +18,19 @@ from prodockit import toolchain
 from prodockit.pins import DEFAULT_PACKAGES, TESTED_VERSIONS, discover
 
 
+def test_cleanup_uncertainty_is_reported_without_retry(tmp_path, monkeypatch):
+    calls = []
+
+    def installer(*args, **kwargs):
+        calls.append(args)
+        raise toolchain.InstallerCleanupError("cleanup unverified; no automatic retry")
+
+    monkeypatch.setattr(toolchain, "run_installer", installer)
+    with pytest.raises(toolchain.ToolchainError, match="cleanup unverified"):
+        toolchain._run_resilient(("pip", "install"), root=tmp_path, reporter=None, offline=False)
+    assert len(calls) == 1
+
+
 def test_dependency_graph_detects_missing_nested_package_and_ignores_unused_extra(monkeypatch):
     graph = {
         "weasyprint": ["cssselect2>=0.8", "unused; extra == 'test'"],

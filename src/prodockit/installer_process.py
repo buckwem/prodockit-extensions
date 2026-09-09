@@ -21,7 +21,7 @@ class InstallerCleanupError(subprocess.SubprocessError):
     """An installer cannot safely be followed by another invocation."""
 
 
-def _descendants_remain(pid: int) -> bool:
+def _descendants_remain(pid: int, *, launched_at: float = 0) -> bool:
     if not _windows():
         try:
             os.killpg(pid, 0)
@@ -37,8 +37,12 @@ def _descendants_remain(pid: int) -> bool:
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
-                f"@(Get-CimInstance Win32_Process -ErrorAction Stop | "
-                f"Where-Object {{ $_.ParentProcessId -eq {pid} }}).Count | ConvertTo-Json",
+                "$ErrorActionPreference = 'Stop'; "
+                f"$children = @(Get-CimInstance Win32_Process -ErrorAction Stop | "
+                f"Where-Object {{ $_.ParentProcessId -eq {pid} }} | "
+                "ForEach-Object { if (-not $_.CreationDate) { throw 'Missing creation time' }; "
+                "([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds() }); "
+                "ConvertTo-Json -InputObject $children -Compress",
             ],
             capture_output=True,
             text=True,
@@ -47,10 +51,16 @@ def _descendants_remain(pid: int) -> bool:
             timeout=30,
             check=False,
         )
-        count = json.loads(result.stdout)
-        if result.returncode or type(count) is not int:
+        creation_times = json.loads(result.stdout)
+        if (
+            result.returncode
+            or not isinstance(creation_times, list)
+            or any(type(value) is not int for value in creation_times)
+        ):
             raise ValueError("unverified process inventory")
-        return count != 0
+        # ParentProcessId can refer to an earlier process which had this PID.
+        # Such stale children predate our launch and are not ours to stop.
+        return any(value >= int(launched_at * 1000) for value in creation_times)
     except (ValueError, TypeError, OSError, subprocess.SubprocessError) as error:
         raise InstallerCleanupError(
             "Installer process cleanup could not be verified; no automatic retry. "
@@ -62,10 +72,10 @@ def _windows() -> bool:
     return os.name == "nt"
 
 
-def _wait_for_children(pid: int, *, grace: float) -> bool:
+def _wait_for_children(pid: int, *, grace: float, launched_at: float = 0) -> bool:
     """Allow normal child teardown; never start another installer while waiting."""
     deadline = time.monotonic() + max(0, grace)
-    while _descendants_remain(pid):
+    while _descendants_remain(pid, launched_at=launched_at):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return False
@@ -123,6 +133,7 @@ def run_installer(
     if show_progress:
         print(f"  Installing with {label}...", file=sys.stderr, flush=True)
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+        launched_at = time.time()
         process = subprocess.Popen(
             list(command),
             cwd=cwd,
@@ -166,7 +177,9 @@ def run_installer(
             )
             raise
         if not _wait_for_children(
-            process.pid, grace=min(5.0, max(0, timeout - (time.monotonic() - started)))
+            process.pid,
+            grace=min(5.0, max(0, timeout - (time.monotonic() - started))),
+            launched_at=launched_at,
         ):
             _stop(process)
             raise InstallerCleanupError(

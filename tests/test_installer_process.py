@@ -96,14 +96,14 @@ def test_child_shutdown_wait_is_bounded(monkeypatch, recovers):
         installer_process.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds)
     )
     monkeypatch.setattr(
-        installer_process, "_descendants_remain", lambda pid: not recovers or clock[0] < 0.5
+        installer_process, "_descendants_remain", lambda pid, **kw: not recovers or clock[0] < 0.5
     )
     assert installer_process._wait_for_children(2345, grace=1) is recovers
     assert clock[0] == (0.5 if recovers else 1)
 
 
 def test_child_shutdown_wait_does_not_hide_unknown_inventory(monkeypatch):
-    def unknown(pid):
+    def unknown(pid, **kwargs):
         raise installer_process.InstallerCleanupError("unverified")
 
     monkeypatch.setattr(installer_process, "_descendants_remain", unknown)
@@ -125,7 +125,7 @@ def test_cancellation_requests_cleanup_and_propagates(tmp_path, monkeypatch):
     assert stopped == [process]
 
 
-@pytest.mark.parametrize("output,returncode,expected", [("0", 0, False), ("2", 0, True)])
+@pytest.mark.parametrize("output,returncode,expected", [("[]", 0, False), ("[1000]", 0, True)])
 def test_windows_process_inventory(monkeypatch, output, returncode, expected):
     monkeypatch.setattr(installer_process, "_windows", lambda: True)
     monkeypatch.setattr(
@@ -134,6 +134,19 @@ def test_windows_process_inventory(monkeypatch, output, returncode, expected):
         lambda *args, **kw: SimpleNamespace(stdout=output, returncode=returncode),
     )
     assert installer_process._descendants_remain(2345) is expected
+
+
+@pytest.mark.parametrize(
+    "times,expected", [("[999]", False), ("[1000]", True), ("[999,1001]", True)]
+)
+def test_windows_pid_reuse_excludes_older_children(monkeypatch, times, expected):
+    monkeypatch.setattr(installer_process, "_windows", lambda: True)
+    monkeypatch.setattr(
+        installer_process.subprocess,
+        "run",
+        lambda *args, **kw: SimpleNamespace(stdout=times, returncode=0),
+    )
+    assert installer_process._descendants_remain(2345, launched_at=1) is expected
 
 
 @pytest.mark.parametrize("output,returncode", [("", 1), ('"unknown"', 0)])
