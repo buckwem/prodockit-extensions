@@ -101,9 +101,17 @@ Missing Homebrew or `winget`, or an offline runtime installation, is reported as
 a blocker before any project activity is applied. Git, SSH and editors are not
 part of this runtime activity.
 
+The native PDF activity installs or repairs Pango and the required PDF fonts.
+It reuses Bootstrap's Homebrew, Ubuntu and architecture-aware Windows MSYS2
+recipes without changing Adopt's separately pinned Pandoc installation.
+On macOS it preserves the Homebrew library path in the active virtual
+environment's activation script. On Windows it refreshes the current process
+from the persistent library/PATH settings. Verification generates a small PDF
+and checks that Inter and JetBrains Mono are available rather than accepting
+fallback fonts. A failed verification leaves the activity incomplete.
+
 Existing citation styles are preserved; an unknown custom filename receives
-manual guidance rather than a guessed download. System-native libraries remain
-outside its repair boundary.
+manual guidance rather than a guessed download.
 
 `.prodockit-components.toml` belongs to the project. When it is missing, Adopt
 detects existing project-local renderer installations, including partial installs.

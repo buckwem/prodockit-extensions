@@ -123,7 +123,7 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
 
     assert result.exit_code == 0, result.output
     assert "Phase 1/4 — Assess" in result.output
-    assert "Activity [3/10] Supported toolchain" in result.output
+    assert "Activity [3/11] Supported toolchain" in result.output
     assert "Component choices" in result.output
     assert "\x1b[94m" in result.output
     assert "\x1b[34m" in result.output

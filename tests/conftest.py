@@ -8,6 +8,17 @@ from bootstrap_cli_harness import BootstrapCliHarness
 
 
 @pytest.fixture(autouse=True)
+def native_pdf_runtime_is_host_independent(monkeypatch):
+    """Configuration unit tests must not inspect or install the host's fonts.
+
+    Native-runtime tests override these probes explicitly; native acceptance
+    subprocesses run the real probes without these in-process test fixtures.
+    """
+    monkeypatch.setattr("prodockit.adopt_pdf_runtime._probe", lambda *args, **kwargs: "")
+    monkeypatch.setattr("prodockit.adopt_pdf_runtime._loader_missing", lambda *args: False)
+
+
+@pytest.fixture(autouse=True)
 def offline_adopt_template_source(monkeypatch: pytest.MonkeyPatch):
     """CLI regression tests never depend on the live GitHub template.
 
