@@ -334,6 +334,50 @@ with unrelated documents.
 
 ////
 
+//// step | Refresh the project environment
+
+After Apply completes, follow the highlighted environment instructions
+**before running diagnostics or building**. This loads any new tool and PDF
+library paths; it does not recreate the environment.
+
+=== ":material-apple: macOS"
+
+    In the same terminal, from the project directory:
+
+    ```bash
+    source .venv/bin/activate
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    If Adopt displays its restart banner, fully close Windows Terminal or
+    VS Code, then reopen it. Open PowerShell in the project directory and run:
+
+    ```powershell
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    Keep the project environment active. After opening a new terminal, return
+    to the project directory and run:
+
+    ```bash
+    source .venv/bin/activate
+    ```
+
+Use the activation path printed by Adopt if you use a differently named
+environment. Then verify the project:
+
+```bash
+pdk diag
+```
+
+Resolve any failures before proceeding to the build stage.
+
+////
+
 //// step | Resume an interrupted installation
 
 !!! info "Skip this step when Apply completed successfully"

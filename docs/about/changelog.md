@@ -19,6 +19,22 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## Unreleased
+
+- Complete the first-site guide with an optional command-line GitHub publishing
+  stage, including commit identity, file review, Pages enablement and deployment
+  checks.
+- Make `sync-repo` support fresh Zensical configurations: create missing TOML
+  tables, prompt for starter website details, accept explicit title/URL options,
+  and optionally create a README. Missing READMEs no longer prevent syncing.
+- Adopt now supplies baseline Git ignore rules and repairs the stock Zensical
+  GitHub workflow to install project dependencies and restore optional MathJax
+  assets. Custom dependency-install commands are preserved.
+- Recognise Puppeteer's asynchronously reported browser path so Adopt reuses
+  a downloaded browser rather than reporting that installation failed.
+- Add an explicit environment-refresh step after Adopt and before diagnostics
+  and builds in the first-site and existing-site installation instructions.
+
 ## 0.62.0 (2026-09-09)
 
 - Adopt now prepares the document-building runtime on Windows, Ubuntu and macOS,

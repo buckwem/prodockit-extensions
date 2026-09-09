@@ -33,7 +33,7 @@ import tomlkit
 import yaml  # type: ignore[import-untyped, unused-ignore]
 from packaging.version import InvalidVersion, Version
 
-from prodockit import __version__, adopt_renderers, adopt_settings
+from prodockit import __version__, adopt_renderers, adopt_settings, adopt_workflow
 from prodockit import toolchain as supported_toolchain
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.csl import (
@@ -1340,6 +1340,44 @@ def _tool_health(
     )
 
 
+LOCAL_IGNORE_PATTERNS = (
+    ".venv/",
+    "__pycache__/",
+    "*.py[cod]",
+    "/site/",
+    "/public/",
+    "/docs/site_documentation.pdf",
+    "/docs/source_bundle.pdf",
+    "/docs/.prodockit-pdf-mermaid/",
+    "/.prodockit-adopt-backups/",
+)
+
+
+def _missing_local_ignores(root: Path) -> list[str]:
+    path = root / ".gitignore"
+    lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    return [pattern for pattern in LOCAL_IGNORE_PATTERNS if pattern not in lines]
+
+
+def ensure_local_ignores(root: Path) -> list[Path]:
+    missing = _missing_local_ignores(root)
+    if not missing:
+        return []
+    path = root / ".gitignore"
+    original = path.read_text(encoding="utf-8") if path.is_file() else ""
+    _atomic_write(
+        path,
+        (
+            original
+            + ("\n" if original and not original.endswith("\n") else "")
+            + "\n# Local environments and generated output — added by prodockit adopt\n"
+            + "\n".join(missing)
+            + "\n"
+        ).encode("utf-8"),
+    )
+    return [path]
+
+
 def ensure_tools(root: Path, options: AdoptOptions) -> list[Path]:
     components = tuple(
         name
@@ -1541,8 +1579,14 @@ def assess(
             require_python_names=config_path.suffix != ".toml",
         )
         and _style_ok(root, parsed)
+        and not _missing_local_ignores(root)
+        and adopt_workflow.plan(root) is None
     )
     core_problems: list[str] = []
+    if _missing_local_ignores(root):
+        core_problems.append("exclude local environments and generated output from Git")
+    if adopt_workflow.plan(root) is not None:
+        core_problems.append("update the standard GitHub workflow to install project dependencies")
     if review_pending:
         core_problems.append("review new template settings and record .prodockit-adopt.toml")
     if missing:
@@ -1816,10 +1860,18 @@ def apply_step(
         except supported_toolchain.ToolchainError as error:
             raise AdoptError(str(error)) from error
     if step_id == "core":
+        workflow = adopt_workflow.plan(root)
+        workflow_files = []
+        if workflow is not None:
+            path, content = workflow
+            _atomic_write(path, content.encode("utf-8"))
+            workflow_files.append(path)
         return [
             ensure_zensical_config(root, options),
             *ensure_stylesheets(root),
             *ensure_javascripts(root),
+            *ensure_local_ignores(root),
+            *workflow_files,
         ]
     if step_id == "csl":
         activity = _csl_activity(root, _config(root)[2], offline=offline)

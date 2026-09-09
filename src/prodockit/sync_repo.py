@@ -31,9 +31,13 @@ from __future__ import annotations
 
 import re
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 from urllib.parse import quote, urlparse
+
+import tomlkit
 
 from prodockit.tools import find
 
@@ -222,6 +226,16 @@ def site_url_for(
     return None
 
 
+def _parse_config(text: str) -> tomlkit.TOMLDocument:
+    try:
+        document = tomlkit.parse(text)
+    except ValueError as error:
+        raise SyncRepoError(f"Invalid TOML: {error}") from error
+    if not isinstance(document.get("project"), MutableMapping):
+        raise SyncRepoError("The config must contain a [project] table")
+    return document
+
+
 def site_url_is_ours_to_replace(current: str) -> bool:
     """Whether an existing `site_url` may be rewritten.
 
@@ -238,6 +252,8 @@ def site_url_is_ours_to_replace(current: str) -> bool:
     every run afterwards and redden builds for a correct config.
     """
     host = (urlparse(current).hostname or "").lower()
+    if host in {"example.com", "www.example.com", "example.org", "www.example.org"}:
+        return True
     if not host:
         return False
     if any(host == suffix.lstrip(".") or host.endswith(suffix) for suffix in _PAGES_HOST_SUFFIXES):
@@ -294,59 +310,40 @@ def update_config(
     icon: str,
     edit_uri: str | None,
     site_url: str | None = None,
+    site_name: str | None = None,
 ) -> tuple[str, list[str]]:
-    """Rewrites `repo_url`/`repo_name`/`theme.icon.repo`/`edit_uri`, and
-    `site_url` when one is supplied, in a Zensical config - returning the
-    new text and which settings changed.
-
-    Deliberately a line-level regex rewrite rather than a parse-and-dump:
-    round-tripping TOML through a writer would reformat the whole file and
-    discard its comments, which in these projects carry most of the
-    explanation for why each setting is what it is.
-    """
+    """Update actual TOML tables, preserving comments and unrelated values."""
+    document = _parse_config(text)
+    project: Any = document["project"]
     changes: list[str] = []
-    display_name = repo_name_matching_existing(text, namespace, repo_name)
-    for pattern, replacement, label in (
-        (r'^repo_url = ".*"$', f'repo_url = "{repo_url}"', "repo_url"),
-        (r'^repo_name = ".*"$', f'repo_name = "{display_name}"', "repo_name"),
-        (r'^repo = ".*"$', f'repo = "{icon}"', "theme.icon.repo"),
-    ):
-        text, did_change = _replace_setting(text, pattern, replacement, label)
-        if did_change:
+
+    def set_value(table: Any, key: str, value: str | None, label: str) -> None:
+        if value is not None and table.get(key) != value:
+            table[key] = value
             changes.append(label)
 
-    # Unlike the settings above, a missing `site_url` is not inserted. It
-    # is optional in Zensical, and a project that has deliberately left it
-    # out has no canonical URL by choice - adding one silently would change
-    # what the site publishes rather than keeping it in step.
-    if site_url is not None and re.search(r'^site_url = ".*"$', text, flags=re.MULTILINE):
-        text, did_change = _replace_setting(
-            text, r'^site_url = ".*"$', f'site_url = "{site_url}"', "site_url"
-        )
-        if did_change:
-            changes.append("site_url")
-
-    if edit_uri is not None:
-        edit_uri_line = f'edit_uri = "{edit_uri}"'
-        if re.search(r'^edit_uri = ".*"$', text, flags=re.MULTILINE):
-            text, did_change = _replace_setting(
-                text, r'^edit_uri = ".*"$', edit_uri_line, "edit_uri"
-            )
-        else:
-            # A config predating this setting - insert it after repo_name
-            # rather than requiring it to already be there.
-            text, count = re.subn(
-                r'^(repo_name = ".*")$',
-                r"\1\n" + edit_uri_line,
-                text,
-                count=1,
-                flags=re.MULTILINE,
-            )
-            if count == 0:
-                raise SyncRepoError("could not find repo_name to insert edit_uri after")
-            did_change = True
-        if did_change:
-            changes.append("edit_uri")
+    current_name = str(project.get("repo_name", ""))
+    display_name = (
+        f"{namespace.rsplit('/', 1)[-1]}/{repo_name}"
+        if "/" in current_name or not current_name
+        else repo_name
+    )
+    set_value(project, "repo_url", repo_url, "repo_url")
+    set_value(project, "repo_name", display_name, "repo_name")
+    set_value(project, "edit_uri", edit_uri, "edit_uri")
+    set_value(project, "site_url", site_url, "site_url")
+    set_value(project, "site_name", site_name, "site_name")
+    if "theme" not in project:
+        project["theme"] = tomlkit.table()
+    theme = project["theme"]
+    if not isinstance(theme, MutableMapping):
+        raise SyncRepoError("project.theme must be a TOML table")
+    if "icon" not in theme:
+        theme["icon"] = tomlkit.table()
+    if not isinstance(theme["icon"], MutableMapping):
+        raise SyncRepoError("project.theme.icon must be a TOML table")
+    set_value(theme["icon"], "repo", icon, "theme.icon.repo")
+    text = tomlkit.dumps(document)
 
     return text, changes
 
@@ -549,8 +546,9 @@ def _site_url_to_write(
     """The `site_url` to write, or `None` to leave the config's alone -
     recording on `result` why, when the answer is None for a reason worth
     telling the user about."""
-    current_match = re.search(r'^site_url = "(.*)"$', config, flags=re.MULTILINE)
-    if current_match is None:
+    project: Any = _parse_config(config)["project"]
+    current = project.get("site_url")
+    if current is None:
         return None
     desired = site_url_for(kind, namespace, repo_name, pages_base, host)
     if desired is None:
@@ -559,11 +557,8 @@ def _site_url_to_write(
             "(set pages_base in your config to have it managed)"
         )
         return None
-    current = current_match.group(1)
     if current != desired and not site_url_is_ours_to_replace(current):
-        result.notes.append(
-            f"site_url is a custom domain ({current}); left unchanged"
-        )
+        result.notes.append(f"site_url is a custom domain ({current}); left unchanged")
         return None
     return desired
 
@@ -576,6 +571,10 @@ def sync_repo_metadata(
     default_branch: str | None = None,
     check: bool = False,
     cwd: str | None = None,
+    site_name: str | None = None,
+    site_address: str | None = None,
+    create_readme: bool = False,
+    configure: Callable[[str, str, str], tuple[str | None, str | None]] | None = None,
 ) -> SyncResult:
     """Brings `config_path` (and `readme_path`, if it has badge markers)
     into line with `remote`'s URL, and returns what changed.
@@ -596,14 +595,58 @@ def sync_repo_metadata(
     result = SyncResult(host=host, label=label, repo_url=repo_url)
 
     original_config = _read(config_path)
-    docs_dir_match = re.search(r'^docs_dir\s*=\s*"([^"]*)"', original_config, re.MULTILINE)
-    docs_dir = docs_dir_match.group(1) if docs_dir_match else "docs"
-
-    pages_base_match = re.search(r'^pages_base\s*=\s*"([^"]*)"', original_config, re.MULTILINE)
-    pages_base = pages_base_match.group(1) if pages_base_match else None
+    original_readme = _read(readme_path) if readme_path and Path(readme_path).is_file() else None
+    project: Any = _parse_config(original_config)["project"]
+    docs_dir = str(project.get("docs_dir", "docs"))
+    pages_base = project.get("extra", {}).get("pages_base")
+    pages_base = project.get("pages_base", pages_base)
     site_url = _site_url_to_write(
         original_config, kind, namespace, repo_name, pages_base, result, host
     )
+    name_missing = str(project.get("site_name", "")).strip().lower() in {
+        "",
+        "documentation",
+        "my docs",
+        "my site",
+        "your site",
+        "your site name",
+    }
+    address = str(project.get("site_url", ""))
+    address_missing = not address or (urlparse(address).hostname or "").lower() in {
+        "example.com",
+        "www.example.com",
+        "example.org",
+        "www.example.org",
+    }
+    if (
+        configure is not None
+        and not check
+        and (name_missing or address_missing or not project.get("repo_url"))
+    ):
+        suggested = site_url_for(kind, namespace, repo_name, pages_base, host) or ""
+        chosen_name, chosen_url = configure(
+            repo_url,
+            site_name or (repo_name if name_missing else str(project["site_name"])),
+            site_address or (suggested if address_missing else address),
+        )
+        site_name = chosen_name
+        site_address = chosen_url
+        site_url = chosen_url
+    if site_address is not None:
+        parsed_url = urlparse(site_address)
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            raise SyncRepoError("Site URL must be a full http:// or https:// address")
+        site_url = site_address
+    if name_missing and site_name is None:
+        result.notes.append(
+            "Set your website title with --site-name or run sync-repo in a terminal."
+        )
+        if check:
+            result.changes.append("site_name needs configuration")
+    if address_missing and site_url is None:
+        result.notes.append("No website address configured; use --site-url when it is known.")
+    if site_url is not None:
+        result.notes.append("The website address is configured, not verified as published.")
 
     updated_config, config_changes = update_config(
         original_config,
@@ -613,11 +656,21 @@ def sync_repo_metadata(
         icon=icon,
         edit_uri=edit_uri_for_host(kind, docs_dir, branch),
         site_url=site_url,
+        site_name=site_name,
     )
     result.changes.extend(config_changes)
     if config_changes and not check:
         _write(config_path, updated_config)
 
+    if readme_path and original_readme is None and create_readme:
+        title = site_name or str(project.get("site_name") or repo_name)
+        original_readme = f"# {title}\n\nDocumentation built with Zensical and Prodockit.\n"
+        result.changes.append("README")
+        if not check:
+            _write(readme_path, original_readme)
+    if readme_path is not None and original_readme is None:
+        result.notes.append(f"No {readme_path}; optional README badges skipped.")
+        readme_path = None
     if readme_path is not None:
         # Asked once, and only to decide whether shields.io can read
         # this repository. A private one is invisible to it, so its star
@@ -647,7 +700,7 @@ def sync_repo_metadata(
         if badges is None:
             result.notes.append(f"no known README badge set for {label}; README left unchanged")
         else:
-            original_readme = _read(readme_path)
+            assert original_readme is not None
             updated_readme, readme_changed = update_readme(original_readme, badges)
             if readme_changed:
                 result.changes.append("README badges")

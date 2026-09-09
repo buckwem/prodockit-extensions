@@ -47,7 +47,11 @@ def _cached_browser(root: Path) -> str | None:
             [
                 node,
                 "-e",
-                "process.stdout.write(require(process.argv[1]).executablePath())",
+                # Puppeteer 25 returns a Promise; older releases returned a
+                # string. Await either form before validating the file path.
+                "Promise.resolve(require(process.argv[1]).executablePath())"
+                ".then(path => process.stdout.write(path))"
+                ".catch(error => { console.error(error); process.exitCode = 1; })",
                 str(package),
             ],
             capture_output=True,

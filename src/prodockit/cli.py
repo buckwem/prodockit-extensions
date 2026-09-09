@@ -2913,12 +2913,18 @@ def source_bundle(config_file: str) -> None:
         "the remote it is served from."
     ),
 )
+@click.option("--site-name", default=None, help="Set the website title.")
+@click.option("--site-url", "site_address", default=None, help="Set the published website address.")
+@click.option("--create-readme", is_flag=True, help="Create a minimal README if it is missing.")
 def sync_repo(
     config_file: str,
     readme_path: str,
     remote: str,
     default_branch: str | None,
     check: bool,
+    site_name: str | None,
+    site_address: str | None,
+    create_readme: bool,
 ) -> None:
     """Match your repo links, brand icon and README badges to the git
     remote this checkout actually uses.
@@ -2928,6 +2934,23 @@ def sync_repo(
     your README if those markers are present. Run it after changing a
     remote, or as a build step before `zensical build`.
     """
+
+    def configure(repo_url: str, name: str, address: str) -> tuple[str, str | None]:
+        click.secho("Complete your website details", fg="cyan", bold=True)
+        click.echo(f"Repository from {remote}: {repo_url}")
+        click.confirm("Use this repository?", default=True, abort=True)
+        title = click.prompt("Website title", default=name).strip()
+        click.secho(
+            "The suggested Pages address is not proof that the website is published.",
+            fg="yellow",
+        )
+        if not click.confirm("Configure the website address now?", default=True):
+            return title, None
+        url = click.prompt(
+            "Website address (leave blank if not known)", default=address, show_default=True
+        ).strip()
+        return title, url or None
+
     try:
         result = sync_repo_metadata(
             config_file,
@@ -2935,6 +2958,10 @@ def sync_repo(
             remote=remote,
             default_branch=default_branch,
             check=check,
+            site_name=site_name,
+            site_address=site_address,
+            create_readme=create_readme,
+            configure=configure if sys.stdin.isatty() and not check else None,
         )
     except SyncRepoError as error:
         click.echo(f"Error: {error}", err=True)
