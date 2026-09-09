@@ -239,3 +239,30 @@ Report: `/private/tmp/prodockit-782-guard-downgrade.json`.
 User-facing message findings and the proposed normal/verbose output contract
 are recorded in `issue-782-message-review.md`. No message redesign has yet been
 implemented. Native Windows/Ubuntu and clean-machine acceptance remain open.
+
+## Follow-up: real template project acceptance
+
+The disposable-copy harness initially assumed `site/` for every project. The
+template uses `public/`, so the baseline build succeeded but the harness failed
+to locate it. It now reads the configured output directory through the installed
+candidate, excludes that output from source-mutation checks, and rejects output
+paths equal to or outside the disposable project. Configurable/nested directory
+and unsafe-path regression tests were added.
+
+The next run detected generated site differences: the fresh environment had
+installed Zensical 0.0.60 from the template's `>=0.0.59` requirement, while Adopt
+aligned it to the candidate's supported 0.0.59. The homepage diff consisted of
+the generator version and bundled CSS/JS references. This is dependency
+alignment, not evidence of deleted author assets. Existing-project preservation
+tests now align the baseline build engine first, matching the built-in fixture
+policy; actual upgrade/downgrade behavior is covered separately.
+
+Harness, toolchain acceptance and CI-scope regressions: **64 passed**. Lint,
+formatting and whitespace checks pass. Original template checkout remains clean.
+
+The aligned-baseline real template-copy acceptance passes: unchanged dry-run,
+11 planned file changes, generated-site preservation, diagnostics, PDF and
+source bundle, and byte-stable second apply. Both renderers were selected.
+The harness also verified the original source snapshot was unchanged.
+Report: `/private/tmp/prodockit-782-template-full-acceptance-aligned.json`.
+This tests the local template checkout, not a fresh live template-sync transaction.

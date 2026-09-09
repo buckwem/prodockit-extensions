@@ -308,9 +308,11 @@ theme:
     (project / config_name).write_text(config, encoding="utf-8")
 
 
-def snapshot(root: Path, *, site: bool = False) -> dict[str, str]:
+def snapshot(root: Path, *, site: bool = False, exclude: Path | None = None) -> dict[str, str]:
     result: dict[str, str] = {}
     for path in sorted(item for item in root.rglob("*") if item.is_file()):
+        if exclude is not None and path.is_relative_to(exclude):
+            continue
         relative = path.relative_to(root)
         if any(part in GENERATED_DIRS - ({"site"} if site else set()) for part in relative.parts):
             continue
@@ -371,12 +373,29 @@ def install_tested_renderer(python: Path, root: Path) -> None:
     run([str(python), "-m", "pip", "install", *requirements], cwd=root)
 
 
+def site_directory(python: Path, project: Path, config: Path) -> Path:
+    result = run(
+        [
+            str(python),
+            "-c",
+            "from prodockit.project_config import load_project_config; "
+            "import sys; print(load_project_config(sys.argv[1]).site_dir)",
+            str(config),
+        ],
+        cwd=project,
+    )
+    directory = Path(result.stdout.strip()).resolve()
+    if directory == project.resolve() or not directory.is_relative_to(project.resolve()):
+        raise AcceptanceError("site output must be inside the disposable project")
+    return directory
+
+
 def build(python: Path, project: Path, config: Path, *, fixture_content: bool) -> None:
     run(
         [str(python), "-m", "zensical", "build", "-f", config.name, "--clean", "--strict"],
         cwd=project,
     )
-    index = project / "site" / "index.html"
+    index = site_directory(python, project, config) / "index.html"
     if not index.is_file():
         raise AcceptanceError(f"build did not create {index}")
     if fixture_content:
@@ -452,7 +471,7 @@ Acceptance table caption
         encoding="utf-8",
     )
     build(python, project, config, fixture_content=True)
-    rendered = (project / "site" / "index.html").read_text(encoding="utf-8")
+    rendered = (site_directory(python, project, config) / "index.html").read_text(encoding="utf-8")
     for expected in (
         "prodockit-steps",
         "prodockit-tree",
@@ -501,18 +520,19 @@ def exercise(
 ) -> Result:
     started = time.perf_counter()
     config = find_config(project)
-    source_before = snapshot(project)
+    output_directory = site_directory(python, project, config)
+    source_before = snapshot(project, exclude=output_directory)
     build(python, project, config, fixture_content=fixture_content)
-    site_before = snapshot(project / "site", site=True)
+    site_before = snapshot(output_directory, site=True)
     before_site_copy = project.parent / f"{project.name}-site-before"
-    shutil.copytree(project / "site", before_site_copy)
+    shutil.copytree(output_directory, before_site_copy)
 
     default_choices = name == "toml-default"
     use_defaults = use_defaults or default_choices
     dry_output = adopt(
         python, project, mermaid=mermaid, maths=maths, apply=False, use_defaults=use_defaults
     )
-    after_dry_run = snapshot(project)
+    after_dry_run = snapshot(project, exclude=output_directory)
     dry_changes = changed(source_before, after_dry_run)
     if dry_changes:
         raise AcceptanceError(f"{name}: dry-run changed project files: {', '.join(dry_changes)}")
@@ -530,13 +550,13 @@ def exercise(
                 raise AcceptanceError(f"default adoption unexpectedly created {component}")
     if "Nothing has been committed or pushed" not in apply_output:
         raise AcceptanceError(f"{name}: apply did not state its Git boundary")
-    source_after = snapshot(project)
+    source_after = snapshot(project, exclude=output_directory)
     modifications = changed(source_before, source_after)
     if not modifications:
         raise AcceptanceError(f"{name}: apply made no project changes")
 
     build(python, project, config, fixture_content=fixture_content)
-    site_after = snapshot(project / "site", site=True)
+    site_after = snapshot(output_directory, site=True)
     site_changes = changed(site_before, site_after)
     if site_changes:
         raise AcceptanceError(
@@ -547,11 +567,11 @@ def exercise(
     if fixture_content:
         verify_authoring(python, project, config)
     verify_deliverables(python, project, config)
-    stable = snapshot(project)
+    stable = snapshot(project, exclude=output_directory)
     second_output = adopt(
         python, project, mermaid=mermaid, maths=maths, apply=True, use_defaults=use_defaults
     )
-    if snapshot(project) != stable:
+    if snapshot(project, exclude=output_directory) != stable:
         raise AcceptanceError(f"{name}: a second apply changed project files")
     if "All selected prodockit components are already configured" not in second_output:
         raise AcceptanceError(f"{name}: second apply did not finish cleanly")
@@ -655,6 +675,10 @@ def main(arguments: list[str] | None = None) -> int:
             output = args.output.resolve()
             copy_project(source, output)
             install_candidate(python, wheel, output)
+            # Compare site preservation using the same supported build engine
+            # before and after adoption, as for the built-in scenarios.
+            # Dependency upgrade/downgrade acceptance is tested separately.
+            install_tested_renderer(python, temporary_path)
             result_items.append(
                 exercise(
                     python,
