@@ -33,7 +33,7 @@ import tomlkit
 import yaml  # type: ignore[import-untyped, unused-ignore]
 from packaging.version import InvalidVersion, Version
 
-from prodockit import __version__, adopt_settings
+from prodockit import __version__, adopt_renderers, adopt_settings
 from prodockit import toolchain as supported_toolchain
 from prodockit._zensical_defaults import DOCUMENTED_MARKDOWN_DEFAULTS
 from prodockit.csl import (
@@ -47,7 +47,7 @@ from prodockit.csl import (
 from prodockit.csl import (
     install as install_csl,
 )
-from prodockit.init_tools import COMPONENT_FILES, init_tools
+from prodockit.init_tools import COMPONENT_FILES
 from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
 from prodockit.renderer_resilience import DEFAULT_RETRY_DELAYS, RetryReporter, run_npm_with_retries
@@ -1281,7 +1281,18 @@ def _tool_health(
     retry_reporter: RetryReporter | None = None,
 ) -> tuple[bool, str]:
     if not _tool_files_ok(root, component):
-        return False, "renderer scaffold is incomplete"
+        return False, (
+            "renderer scaffold is incomplete; restore release files, preserving existing "
+            f"files under {adopt_renderers.BACKUPS}"
+        )
+    try:
+        if adopt_renderers.changes(root, component):
+            return False, (
+                "align renderer files to this Prodockit release; existing files will be "
+                f"backed up under {adopt_renderers.BACKUPS}"
+            )
+    except (OSError, ValueError) as error:
+        return False, str(error)
     if component == "mermaid":
         binary = _mermaid_bin(root)
         if binary is None:
@@ -1293,6 +1304,9 @@ def _tool_health(
         )
         attempts = getattr(probe, "attempts", 1)
         recovered = f" after {attempts} attempts" if attempts > 1 else ""
+        expected = adopt_renderers.expected_version(component)
+        if probe.ok and probe.version != expected:
+            return False, f"align Mermaid CLI {probe.version} to supported {expected}"
         return (
             (True, f"mmdc {probe.version or 'is available'}{recovered}")
             if probe.ok
@@ -1311,6 +1325,10 @@ def _tool_health(
     )
     if not installed:
         return False, "MathJax inputs are incomplete"
+    version = adopt_renderers.installed_version(root, component)
+    expected = adopt_renderers.expected_version(component)
+    if version != expected:
+        return False, f"align MathJax {version or 'unknown version'} to supported {expected}"
     node = shutil.which("node")
     if node is None:
         return False, "node is unavailable for the MathJax renderer"
@@ -1330,10 +1348,16 @@ def ensure_tools(root: Path, options: AdoptOptions) -> list[Path]:
     )
     if not components:
         return []
-    result = init_tools(root / "tools", components=components)
+    written: list[Path] = []
+    try:
+        for component in components:
+            written.extend(adopt_renderers.align(root, component, write=_atomic_write))
+    except (OSError, ValueError) as error:
+        raise AdoptError(f"cannot align renderer files: {error}") from error
     ignore = root / ".gitignore"
     current = ignore.read_text(encoding="utf-8") if ignore.is_file() else ""
     additions = [f"tools/{name}/node_modules/" for name in components]
+    additions.append("/.prodockit-adopt-backups/")
     missing = [line for line in additions if line not in current.splitlines()]
     if missing:
         lead = "" if not current or current.endswith("\n") else "\n"
@@ -1341,7 +1365,7 @@ def ensure_tools(root: Path, options: AdoptOptions) -> list[Path]:
             f"{current}{lead}\n# Installed by `prodockit adopt`\n" + "\n".join(missing) + "\n",
             encoding="utf-8",
         )
-    return [*result.written, *([ignore] if missing else [])]
+    return [*written, *([ignore] if missing else [])]
 
 
 def install_tool(
@@ -1365,14 +1389,11 @@ def install_tool(
     # On Windows npm is a command shim named npm.cmd. Passing the path found
     # by shutil avoids depending on PATHEXT handling inside subprocess.
     tool_root = root / "tools" / component
-    # New scaffolds contain prodockit's canonical lockfile, so npm can reuse
-    # its download cache without resolving the dependency graph again.  Keep
-    # the fallback for a project whose author supplied a custom package.json
-    # without a matching lockfile; init_tools deliberately does not pair that
-    # manifest with prodockit's unrelated lock.
+    # Adopt aligns and backs up the manifest/lock pair before installing.
+    # The packaged lock fixes both upgrades and downgrades to this release.
     command = [
         npm,
-        "ci" if (tool_root / "package-lock.json").is_file() else "install",
+        "ci",
         *(
             ["--legacy-peer-deps"]
             if component == "mathjax" and (tool_root / "package-lock.json").is_file()
@@ -1640,6 +1661,9 @@ def assess(
                 else "not selected; Node.js is not needed for Mermaid"
             ),
             selected=options.mermaid,
+            files=tuple(root / "tools" / "mermaid" / name for name in COMPONENT_FILES["mermaid"])
+            if options.mermaid and not mermaid_ok
+            else (),
         ),
         Step(
             "maths",
@@ -1652,6 +1676,9 @@ def assess(
                 else "not selected; MathJax is not installed"
             ),
             selected=options.maths,
+            files=tuple(root / "tools" / "mathjax" / name for name in COMPONENT_FILES["mathjax"])
+            if options.maths and not maths_ok
+            else (),
         ),
         Step(
             "verify",

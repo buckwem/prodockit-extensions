@@ -104,6 +104,28 @@ both enabled.
 Adopt records its template-setting review separately from the checks that verify
 the project's current configuration and installed software.
 
+### Selected renderer versions and backups
+
+For selected Mermaid and maths components, Adopt aligns `tools/mermaid` and
+`tools/mathjax` with the renderer files shipped in the installed Prodockit
+release. It installs from that release's lockfile, allowing both upgrades and
+downgrades. A renderer that still works but has the wrong version is not
+reported as aligned. Unselected renderers are left alone.
+
+The activity lists the tool files it may change. Before replacing existing
+manifests, lockfiles or the MathJax conversion script, Adopt saves their original
+contents under `.prodockit-adopt-backups/renderers`. This includes customised
+copies: selecting Adopt's supported renderer replaces those tool files, not
+just their version numbers. Your documentation and user-managed website assets
+are not replaced by this operation. Backups are excluded from Git; retain them
+until you have checked the result. Restoring a custom tool file will make the
+next assessment request alignment again.
+
+If writing a backup fails, no renderer files in that component are replaced.
+If a later file write or npm install fails, rerun Adopt: the backups remain and
+it will check the actual files and renderer health again. Existing Windows line
+endings alone do not cause a replacement.
+
 ### Template settings and the review ledger
 
 For a `zensical.toml` project, Adopt also checks the template for settings it has
