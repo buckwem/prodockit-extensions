@@ -447,14 +447,14 @@ writing with the newly enabled components:
 pdk diag
 ```
 
-Resolve every `FAIL` before continuing. Because this clean-site route does not
-create a Git repository, a warning that Git or repository metadata is absent
-is expected until you choose to initialise or clone a repository. The Python,
+Resolve every `FAIL` before continuing. If you declined optional repository
+setup, a warning that Git or repository metadata is absent is expected until
+you choose to initialise or clone a repository. The Python,
 configuration, dependency, managed-file, and selected-renderer checks should
 pass.
 
 Publishing warnings do not mean that installation failed. Follow the correction
-route shown by each check:
+route shown by each check in \ref{tab-first-site-diagnostic-corrections}:
 
 | Diagnostic finding | Where to correct it |
 | --- | --- |
@@ -464,6 +464,11 @@ route shown by each check:
 | Generated files already tracked by Git | Review them before removing them from Git tracking, retaining local copies. Ignore rules alone do not fix this; diagnostics never deletes files. |
 | A stock workflow installs only Zensical | Run `pdk adopt --apply` to review its repair. |
 | A workflow refers to a missing dependency file | Restore the file or review the workflow using [Build and publish](devcons/continuous-integration.md). |
+
+/// table-caption | <
+attrs: {id: tab-first-site-diagnostic-corrections}
+Where to correct diagnostic findings during first-site setup.
+///
 
 The workflow check is a basic local check, not a substitute for a successful
 pipeline. A configured website address does not prove publication: verify the

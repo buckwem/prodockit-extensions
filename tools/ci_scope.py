@@ -145,6 +145,10 @@ _CI_ONLY_FILES = {
 }
 
 _COMPONENT_FILES: dict[str, frozenset[str]] = {
+    "src/prodockit/adopt_identity.py": frozenset({"adopt", "diagnostics"}),
+    "src/prodockit/adopt_repo_tools.py": frozenset({"adopt"}),
+    "src/prodockit/adopt_repository.py": frozenset({"adopt"}),
+    "src/prodockit/diagnostic_readiness.py": frozenset({"diagnostics"}),
     "docs/stylesheets/pdk.css": frozenset({"adopt", "pdf"}),
     "docs/stylesheets/pdk-pdf.css": frozenset({"pdf"}),
     "src/prodockit/project_config.py": frozenset({"adopt", "pdf", "diagnostics"}),
