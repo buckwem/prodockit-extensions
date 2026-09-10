@@ -19,6 +19,20 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.65.0 (2026-09-10)
+
+- Adopt previews now show a concise plan with software actions, supported
+  versions, configuration changes and genuine blockers. Use `--verbose` for
+  the detailed activity walkthrough.
+- Apply shows the plan first and asks whether to continue, defaulting to No.
+  Each component group still requires its own approval before changes are made.
+- Guided repository configuration replaces commented `repo_url` and
+  `repo_name` examples in place, preserving saved values without duplicates.
+  `edit_uri` is left unchanged.
+- Expand the installation guide for clean and existing Zensical sites, with
+  distinct path badges, optional steps, command explanations, clearer Pages
+  setup and diagnostic guidance moved into Troubleshooting.
+
 ## 0.64.0 (2026-09-10)
 
 - Adopt now offers a final, optional guided setup for website and repository
