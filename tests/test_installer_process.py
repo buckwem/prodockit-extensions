@@ -13,6 +13,75 @@ from prodockit import installer_process
 from prodockit.installer_process import run_installer
 
 
+@pytest.mark.parametrize(
+    "python", ["/project/.venv/bin/python3.14", r"C:\project\.venv\Scripts\python.exe"]
+)
+def test_pip_progress_names_packages_not_python(python):
+    label = installer_process._progress_label(
+        [
+            python,
+            "-m",
+            "pip",
+            "install",
+            "--retries",
+            "5",
+            "--index-url",
+            "https://user:secret@example.test/simple",
+            "zensical==0.0.59",
+            "weasyprint==69.0",
+        ]
+    )
+    assert label == "Installing project packages: zensical==0.0.59, weasyprint==69.0"
+    assert "secret" not in label
+    assert "python" not in label
+
+
+def test_pip_progress_fallback_does_not_expose_urls():
+    label = installer_process._progress_label(
+        ["python", "-m", "pip", "install", "https://user:secret@example.test/pkg.whl"]
+    )
+    assert label == "Installing project packages in the active environment"
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        (
+            ["bash", "-c", "private script"],
+            "Preparing required system software and environment settings",
+        ),
+        (["brew", "install", "pango"], "Installing or updating PDF text-layout libraries"),
+        (["brew", "install", "fontconfig"], "Installing or updating font detection tools"),
+        (
+            ["brew", "install", "--cask", "font-inter", "font-jetbrains-mono"],
+            "Installing or updating Inter font, JetBrains Mono font",
+        ),
+        (["fc-cache", "-f"], "Refreshing the font list so PDF tools can find installed fonts"),
+        (
+            ["sudo", "-n", "-E", "apt-get", "install", "pango"],
+            "Installing or updating required system software",
+        ),
+        ([r"C:\tools\npm.cmd", "ci"], "Installing project diagram or maths dependencies"),
+        (
+            ["node", "private/path/cli.js", "browsers", "install"],
+            "Preparing the browser used to render diagrams",
+        ),
+        (["curl", "https://user:secret@example.test"], "Downloading required software"),
+        (["unknown", "secret"], "Preparing required project tools"),
+    ],
+)
+def test_progress_describes_work_without_raw_commands(command, expected):
+    assert installer_process._progress_label(command) == expected
+
+
+def test_homebrew_shell_wrapper_names_the_package():
+    from prodockit.bootstrap.stages import _brew_upgrade_or_install
+
+    assert installer_process._progress_label(_brew_upgrade_or_install("pango")) == (
+        "Installing or updating PDF text-layout libraries"
+    )
+
+
 def test_real_installer_captures_output_and_exit_status(tmp_path):
     result = run_installer(
         [

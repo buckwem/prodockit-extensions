@@ -2448,6 +2448,22 @@ def diag_command(
             click.echo("Required checks passed; review the warnings above.")
         else:
             click.echo("Every required diagnostic check passed.")
+        publishing_attention = any(
+            check.id.startswith("publishing.") and check.status != "pass" for check in report.checks
+        )
+        if publishing_attention:
+            local_attention = any(
+                not check.id.startswith("publishing.")
+                and check.id != "repository.git"
+                and check.status != "pass"
+                for check in report.checks
+            )
+            if not local_attention:
+                click.echo("Local prerequisites passed; run the local build to verify the site.")
+            click.echo(
+                "Publishing preparation needs attention; follow the correction routes above. "
+                "Publishing warnings alone do not block local testing."
+            )
 
     if report.status == "fail" or repair_failed:
         raise click.exceptions.Exit(1)
@@ -3097,7 +3113,93 @@ def init_tools_command(tools_dir: str, mermaid: bool, mathjax: bool, force: bool
         )
 
 
-_ADOPT_PHASES = ("Assess", "Integrate", "Optional renderers", "Verify")
+_ADOPT_PHASES = (
+    "Assess",
+    "Integrate",
+    "Optional renderers",
+    "Verify",
+    "Site and repository details",
+)
+
+
+def _adopt_correction_summary(checks: Sequence[Any]) -> None:
+    groups: dict[str, list[str]] = {}
+    for check in checks:
+        if check.status == "pass":
+            continue
+        if check.id in {"publishing.details", "repository.git", "maintenance.adopt-readiness"}:
+            command = "pdk adopt --apply"
+        elif check.id in {"dependencies.pins", "dependencies.shared-files"}:
+            command = "pdk diag --apply"
+        else:
+            command = ""
+        groups.setdefault(command, []).append(check.summary)
+    for command, problems in groups.items():
+        heading = (
+            f"Run '{command}' to correct:"
+            if command
+            else "Other actions needed (see details above):"
+        )
+        click.secho(heading, fg="yellow", bold=True)
+        for number, problem in enumerate(problems, 1):
+            click.echo(f"{number}. {problem}")
+
+
+def _adopt_finish_details(root: Path, *, apply: bool, offline: bool) -> None:
+    from prodockit.adopt_identity import configure
+    from prodockit.adopt_repository import setup
+    from prodockit.project_config import find_project_config
+
+    path = find_project_config(root)
+    if path is None:
+        return
+    _adopt_phase_heading(5, _ADOPT_PHASES[-1])
+    interactive = sys.stdin.isatty()
+    repository_setup = bool(
+        apply
+        and interactive
+        and click.confirm(
+            "Would you like to set up a GitHub or GitLab repository for this site?", default=False
+        )
+    )
+    configure(
+        path,
+        apply=apply,
+        interactive=interactive,
+        repository_setup=repository_setup if apply and interactive else True,
+    )
+    if apply and interactive:
+        if repository_setup:
+            try:
+                setup(path, offline=offline)
+            except (OSError, subprocess.SubprocessError):
+                click.secho(
+                    "Repository setup could not finish. Check the host and local repository "
+                    "before retrying; no automatic retry or push was attempted.",
+                    fg="yellow",
+                )
+        if click.confirm("Run diagnostics now to check the completed setup?", default=True):
+            from prodockit.diagnostics import inspect
+
+            report = inspect(path, online=False)
+            for check in report.checks:
+                if check.status != "pass":
+                    click.secho(
+                        f"{check.status.upper()}: {check.summary}",
+                        fg="red" if check.status == "fail" else "yellow",
+                    )
+                    for detail in check.details:
+                        click.echo(f"  {detail}")
+            if report.status == "pass":
+                click.secho(
+                    "Diagnostics passed. The local setup is ready for build testing.", fg="green"
+                )
+            else:
+                click.secho(
+                    "Setup still has items to resolve or deferred publishing details.",
+                    fg="yellow",
+                )
+                _adopt_correction_summary(report.checks)
 
 
 def _adopt_phase_heading(number: int, name: str) -> None:
@@ -3287,8 +3389,8 @@ def adopt_command(
     with the project's virtual
     environment active. The command changes the active project's packages and
     local project files:
-    it does not configure Git, SSH, an editor, a remote repository or Pages,
-    and it never commits or pushes.
+    its final phase offers separately confirmed Git and repository setup.
+    It does not configure SSH, editors or Pages, and it never commits or pushes.
 
     With no mode option it reports what is present. Use --configure to choose
     the independent Mermaid and maths options, --dry-run to review the plan,
@@ -3404,7 +3506,8 @@ def adopt_command(
             click.echo(f"  Will save: {root / ADOPT_MANIFEST} in the Component choices activity")
     if not verbose:
         click.echo("  Use --verbose to see file paths, commands and technical details.")
-    click.echo("  Excluded: Git, SSH, remotes, editors, commits and pushes")
+    click.echo("  Optional: site details and separately confirmed Git/repository setup")
+    click.echo("  Excluded: SSH, editors, commits, pushes and Pages configuration")
 
     _adopt_blocker_summary(steps)
 
@@ -3496,6 +3599,7 @@ def adopt_command(
         )
 
     if not apply:
+        _adopt_finish_details(root, apply=False, offline=offline)
         outstanding = sum(step.needs_work for step in steps)
         if outstanding:
             mode = "No changes made." if not dry_run else "Dry run complete; no changes made."
@@ -3509,9 +3613,7 @@ def adopt_command(
 
     # Probes can become ready during the per-activity reassessments without an
     # installation. Do not report declined work from the stale initial plan.
-    steps = assess_adoption(
-        root, options, retry_reporter=_renderer_retry_warning, offline=offline
-    )
+    steps = assess_adoption(root, options, retry_reporter=_renderer_retry_warning, offline=offline)
     if applied_stages == 0:
         if any(step.needs_work for step in steps):
             click.echo(_bootstrap_warning("\nADOPTION IS INCOMPLETE — no changes were applied."))
@@ -3521,14 +3623,11 @@ def adopt_command(
         else:
             click.echo("\nAll selected prodockit components are already configured.")
             click.echo("No changes made.")
+            _adopt_finish_details(root, apply=True, offline=offline)
             _adopt_next_steps(build_command)
         return
 
-    remaining = [
-        step
-        for step in steps
-        if step.selected and step.status not in {"ok", "warn"}
-    ]
+    remaining = [step for step in steps if step.selected and step.status not in {"ok", "warn"}]
     if remaining:
         click.echo(_bootstrap_warning("\nADOPTION IS INCOMPLETE"), err=True)
         for step in remaining:
@@ -3537,6 +3636,7 @@ def adopt_command(
             "some activities remain; rerun `pdk adopt --apply` to review and resume"
         )
     click.echo("\nAdoption configuration verified.")
+    _adopt_finish_details(root, apply=True, offline=offline)
     if sys.platform == "darwin":
         click.echo(_bootstrap_warning("Refresh your environment before the checks below:"))
         activate = Path(sys.prefix) / "bin" / "activate"
