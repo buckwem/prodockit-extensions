@@ -164,7 +164,13 @@ def test_ledger_does_not_skip_software_assessment(tmp_path, monkeypatch):
     def plan(*args, **kwargs):
         calls.append(True)
         return SimpleNamespace(
-            blocked=False, needs_work=True, detail="software changed", commands=(), files=()
+            blocked=False,
+            needs_work=True,
+            detail="software changed",
+            commands=(),
+            files=(),
+            actions=(),
+            declaration_changes=(),
         )
 
     monkeypatch.setattr(adopt.supported_toolchain, "plan", plan)

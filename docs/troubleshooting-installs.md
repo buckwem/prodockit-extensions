@@ -453,6 +453,30 @@ Ubuntu users can run `sudo apt install fontconfig`. On Windows, run
 `pdk adopt --apply` to repair the selected Pango runtime and follow its
 environment-refresh instructions. Then rerun Bootstrap or Adopt to verify.
 
+## Correct diagnostic findings {: #diagnostic-corrections }
+
+Publishing warnings do not mean that installation failed. Follow the correction
+route shown by each check in \ref{tab-first-site-diagnostic-corrections}:
+
+| Diagnostic finding | Where to correct it |
+| --- | --- |
+| Starter site title, example website address, or missing repository link | Run `pdk adopt --apply` and answer the final questions. If an existing remote has changed, use `pdk sync-repo --create-readme`. |
+| Missing PDF libraries, fonts, or renderer prerequisites | Run `pdk adopt --dry-run`, review the proposed repair, then run `pdk adopt --apply`. Refresh the environment before rerunning diagnostics. |
+| Missing ignore rules for local or generated files | Run `pdk adopt --apply` for the baseline rules. Custom output paths need matching ignore rules. |
+| Generated files already tracked by Git | Review them before removing them from Git tracking, retaining local copies. Ignore rules alone do not fix this; diagnostics never deletes files. |
+| A stock workflow installs only Zensical | Run `pdk adopt --apply` to review its repair. |
+| A workflow refers to a missing dependency file | Restore the file or review the workflow using [Build and publish](devcons/continuous-integration.md). |
+/// table-caption | <
+    attrs: {id: tab-first-site-diagnostic-corrections}
+
+Where to correct diagnostic findings during first-site setup.
+///
+
+The workflow check is a basic local check, not a substitute for a successful
+pipeline. A configured website address does not prove publication: verify the
+pipeline and hosting settings in [the publishing stage](getting-started.md#stage-6-save-and-publish-optional).
+Normal `pdk diag` does not change files, repository settings or hosting settings.
+
 ## Publish a document {: #troubleshooting-installs-next }
 
 After correcting the problem, repeat the command that stopped and run

@@ -3280,6 +3280,32 @@ def _adopt_change_summary(step: Step, *, verbose: bool) -> None:
             click.echo(f"  Command:  {' '.join(command)}")
 
 
+def _adopt_plan_summary(steps: Sequence[Step]) -> None:
+    """Show the assessed changes without repeating the activity walkthrough."""
+    click.echo("\nAdopt plan")
+    for step in steps:
+        if not step.selected or step.status == "wait":
+            continue
+        if step.status == "wrong":
+            click.secho(f"BLOCKED: {step.detail}", fg="bright_magenta", bold=True)
+        elif step.status == "warn":
+            click.secho(f"WARNING: {step.detail}", fg=(230, 159, 0), bold=True)
+        elif step.plan_lines:
+            for line in step.plan_lines:
+                click.secho(line, fg="green" if line.startswith("READY:") else "bright_magenta")
+        elif step.status == "ok":
+            click.secho(f"READY: {step.summary}", fg="green")
+        elif step.id == "dependency":
+            for change in step.detail.split("; "):
+                action, _, detail = change.partition(" ")
+                if action in {"install", "upgrade", "downgrade", "repair"}:
+                    click.secho(f"{action.upper()}: {detail}", fg="bright_magenta")
+                else:
+                    click.echo(f"CONFIGURE: {change}")
+        else:
+            click.echo(f"CONFIGURE: {step.summary}")
+
+
 def _adopt_next_steps(build_command: str) -> None:
     click.echo("Next, check your project:")
     click.echo("  pdk diag")
@@ -3469,6 +3495,14 @@ def adopt_command(
         raise click.ClickException(str(error)) from error
     build_command = adopt_build_command(root)
 
+    _adopt_plan_summary(steps)
+    if not apply and not verbose:
+        if any(step.selected and step.status == "wrong" for step in steps):
+            raise click.ClickException("Correct the blocker above, then run `pdk adopt --dry-run`.")
+        click.echo("\nPreview only — nothing has changed.")
+        click.echo("Run `pdk adopt --apply` to continue.")
+        return
+
     click.echo(click.style("prodockit adoption — existing documentation project", bold=True))
     click.echo(f"\n  Project:  {root}")
     click.echo(
@@ -3510,6 +3544,19 @@ def adopt_command(
     click.echo("  Excluded: SSH, editors, commits, pushes and Pages configuration")
 
     _adopt_blocker_summary(steps)
+
+    if (
+        apply
+        and any(step.needs_work for step in steps)
+        and not any(step.selected and step.status == "wrong" for step in steps)
+    ):
+        click.echo(
+            "\nYou'll be asked to approve or skip each group of components "
+            "before any changes are made."
+        )
+        if not click.confirm("Do you want to continue?", default=False):
+            click.echo("No changes made. Run `pdk adopt --apply` when you are ready.")
+            return
 
     current_phase = ""
     total = len(steps)

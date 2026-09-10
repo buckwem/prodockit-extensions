@@ -371,7 +371,7 @@ and explains when to enter or create the project itself.
 
 <div class="grid cards installation-route-grid" markdown>
 
--   :lucide-rocket:{ .lg .middle } __Build your first site__
+-   :lucide-rocket:{ .lg .middle } __Build or update a site__
 
     ---
 

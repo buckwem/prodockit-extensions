@@ -29,7 +29,7 @@ order as the following sections.
 
 <div class="grid cards installation-route-grid" markdown>
 
--   :lucide-rocket:{ .lg .middle } __Build your first site__
+-   :lucide-rocket:{ .lg .middle } __Build or update a site__
 
     ---
 

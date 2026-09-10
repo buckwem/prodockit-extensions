@@ -10,6 +10,47 @@ from click.testing import CliRunner
 from prodockit import adopt_identity, adopt_repo_tools, adopt_repository
 
 
+def test_repository_examples_replaced_in_place_without_touching_edit_uri():
+    source = """[project]
+site_name = "Report"
+# Keep this explanation
+# repo_url = "https://github.com/user/repo"
+# repo_name = "user/repo"
+# edit_uri = "edit/main/docs/"
+edit_uri = "custom/edit/"
+site_url = "https://example.test/"
+repo_url = "https://github.com/author/report"
+repo_name = "My report"
+[project.theme]
+language = "en"
+"""
+    document = tomlkit.parse(source)
+    adopt_identity._replace_repository_examples(document, {})
+    rendered = tomlkit.dumps(document)
+    assert "# repo_url" not in rendered
+    assert "# repo_name" not in rendered
+    assert rendered.count("repo_url =") == 1
+    assert rendered.count("repo_name =") == 1
+    assert rendered.index("repo_url =") < rendered.index("site_url =")
+    assert "# Keep this explanation" in rendered
+    assert '# edit_uri = "edit/main/docs/"' in rendered
+    assert 'edit_uri = "custom/edit/"' in rendered
+    assert tomlkit.parse(rendered)["project"]["repo_name"] == "My report"
+    assert tomlkit.parse(rendered)["project"]["theme"]["language"] == "en"
+    adopt_identity._replace_repository_examples(document, {})
+    assert tomlkit.dumps(document) == rendered
+
+
+def test_new_repository_answers_activate_commented_examples():
+    document = tomlkit.parse('[project]\n# repo_url = "old"\n# repo_name = "old"\n')
+    adopt_identity._replace_repository_examples(
+        document, {"repo_url": "https://github.com/me/site", "repo_name": "me/site"}
+    )
+    assert document["project"]["repo_url"] == "https://github.com/me/site"
+    assert document["project"]["repo_name"] == "me/site"
+    assert "# repo_" not in tomlkit.dumps(document)
+
+
 def test_guided_identity_saves_and_preserves_comments(tmp_path, monkeypatch):
     path = tmp_path / "zensical.toml"
     path.write_text(
