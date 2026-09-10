@@ -19,6 +19,23 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.64.0 (2026-09-10)
+
+- Adopt now offers a final, optional guided setup for website and repository
+  details. It prompts for missing starter settings and updates TOML configuration
+  while preserving existing values and comments.
+- Opt-in GitHub or GitLab repository setup checks for Git and the appropriate
+  command-line client, offers installation and authentication, and can initialise
+  the local repository, set local commit identity, and connect or create a remote
+  repository. Commits, pushes and Pages publication remain separate actions.
+- Diagnostics now flags unfinished website details, repository mismatches,
+  generated-file ignore problems and common publishing-workflow omissions.
+  Correction messages group problems by the command needed to address them.
+- Installer progress identifies the software or operation being performed,
+  rather than repeatedly naming Python, Bash or the package manager.
+- Update the first-site guide for guided Adopt setup, separate preview and apply
+  commands, and optional GitHub/GitLab publishing instructions.
+
 ## 0.63.0 (2026-09-09)
 
 - Bootstrap distinguishes verified, missing and unverified PDF fonts. Shared
