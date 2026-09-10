@@ -3499,7 +3499,7 @@ def adopt_command(
     if not apply and not verbose:
         if any(step.selected and step.status == "wrong" for step in steps):
             raise click.ClickException("Correct the blocker above, then run `pdk adopt --dry-run`.")
-        click.echo("\nPreview only — nothing has changed.")
+        click.echo("\nPreview only — no changes made.")
         click.echo("Run `pdk adopt --apply` to continue.")
         return
 
