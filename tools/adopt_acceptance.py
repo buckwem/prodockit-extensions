@@ -441,6 +441,8 @@ def verify_deliverables(python: Path, project: Path, config: Path) -> None:
                 "Mermaid CLI is missing (optional)",
                 "MathJax PDF renderer is incomplete (optional)",
                 "Project is not inside a Git repository",
+                # This local-only fixture deliberately has no hosting identity.
+                "Publishing details need attention; local testing can continue",
             }
             warnings = re.findall(r"(?m)^\s+WARN (.+)$", completed.stdout)
             if (

@@ -332,7 +332,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
         "//// step | Choose optional renderers and prepare Node.js when required"
     )
     adopt = page.index("//// step | Adopt the Zensical site")
-    configure = page.index("//// step | Review and configure `zensical.toml`")
+    configure = page.index("//// step | Check the generated configuration")
     diagnose = page.index("//// step | Diagnose the adopted site")
     add_content = page.index("//// step | Add and verify Prodockit content")
     build_adopted = page.index("//// step | Build and preview the adopted website")
@@ -371,9 +371,10 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert "https://deb.nodesource.com/setup_22.x" in renderer_choice
     assert "node --version" in renderer_choice
     assert "npm --version" in renderer_choice
-    assert "pdk adopt --dry-run\npdk adopt --apply" in page[adopt:]
-    assert 'pdf_output = "docs/site_documentation.pdf"' in page[configure:diagnose]
-    assert 'pdf_source_bundle_output = "docs/source_bundle.pdf"' in page[configure:diagnose]
+    assert "pdk adopt --dry-run\n```" in page[adopt:]
+    assert "```bash\npdk adopt --apply\n```" in page[adopt:]
+    assert "`docs/site_documentation.pdf`" in page[configure:diagnose]
+    assert "`docs/source_bundle.pdf`" in page[configure:diagnose]
     assert "pdk diag" in page[diagnose:add_content]
     assert "pdk pdf" in page[pdf:source]
     assert "pdk source-bundle" in page[source:downloads]

@@ -102,7 +102,11 @@ def test_deliverables_allow_only_expected_optional_warnings(tmp_path, monkeypatc
         calls.append(command)
         name = command[3]
         if name == "diag":
-            output = "  WARN Project is not inside a Git repository\nResult: WARN (1 passed)"
+            output = (
+                "  WARN Project is not inside a Git repository\n"
+                "  WARN Publishing details need attention; local testing can continue\n"
+                "Result: WARN (1 passed)"
+            )
         else:
             filename = f"{name}.pdf"
             (tmp_path / filename).write_bytes(b"%PDF-1.7\n")
