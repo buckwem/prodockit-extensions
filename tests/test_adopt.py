@@ -1217,7 +1217,7 @@ custom_fences = [{ name = "mermaid" }]
     assert result.exit_code == 0, result.output
     assert "Mermaid diagrams" not in result.output
     assert "Choices:" not in result.output
-    assert "Preview only" in result.output
+    assert "Preview only — no changes made." in result.output
     verbose = CliRunner().invoke(main, ["adopt", "--dry-run", "--verbose"])
     assert verbose.exit_code == 0, verbose.output
     assert "Choices:  not configured; Mermaid and maths default off" in verbose.output
