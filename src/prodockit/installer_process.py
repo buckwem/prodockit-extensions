@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -111,6 +112,62 @@ def _stop(process: subprocess.Popen[bytes]) -> bool:
         return False
 
 
+def _progress_label(command: Sequence[str]) -> str:
+    """Describe package work without exposing command paths or index credentials."""
+    executable = command[0].replace("\\", "/").rsplit("/", 1)[-1].lower()
+    executable = executable.removesuffix(".exe").removesuffix(".cmd")
+    if executable == "sudo":
+        arguments = list(command[1:])
+        while arguments and arguments[0] in {"-n", "-E"}:
+            arguments.pop(0)
+        if arguments:
+            return _progress_label(arguments)
+    if list(command[1:4]) == ["-m", "pip", "install"]:
+        packages = [
+            item
+            for item in command[4:]
+            if re.fullmatch(
+                r"[A-Za-z0-9][A-Za-z0-9_.-]*(?:\[[A-Za-z0-9_,.-]+\])?"
+                r"(?:==|>=|<=|~=|>|<)[A-Za-z0-9.*+_-]+",
+                item,
+            )
+        ]
+        if packages:
+            return "Installing project packages: " + ", ".join(packages)
+        return "Installing project packages in the active environment"
+    if executable == "fc-cache":
+        return "Refreshing the font list so PDF tools can find installed fonts"
+    if executable == "brew":
+        names = {
+            "pango": "PDF text-layout libraries",
+            "fontconfig": "font detection tools",
+            "font-inter": "Inter font",
+            "font-jetbrains-mono": "JetBrains Mono font",
+            "pandoc": "Pandoc document converter",
+            "node": "Node.js and npm",
+            "python@3.14": "Python 3.14",
+        }
+        packages = [names[item] for item in command[1:] if item in names]
+        return "Installing or updating " + (", ".join(packages) or "required system software")
+    if executable in {"bash", "sh", "powershell", "pwsh"}:
+        # Bootstrap's Homebrew wrapper checks ownership before upgrading.
+        # Recognise its package check, but never print the shell script.
+        if executable in {"bash", "sh"} and len(command) == 3 and command[1] == "-c":
+            package = re.search(r"brew list --(?:formula|cask) ([a-z0-9@.-]+)", command[2])
+            if package:
+                return _progress_label(["brew", "install", package.group(1)])
+        return "Preparing required system software and environment settings"
+    if executable == "npm":
+        return "Installing project diagram or maths dependencies"
+    if executable == "node" and "browsers" in command and "install" in command:
+        return "Preparing the browser used to render diagrams"
+    if executable in {"curl", "wget"}:
+        return "Downloading required software"
+    if executable in {"apt", "apt-get", "dpkg", "winget", "pacman", "installer"}:
+        return "Installing or updating required system software"
+    return "Preparing required project tools"
+
+
 def run_installer(
     command: Sequence[str],
     *,
@@ -129,9 +186,10 @@ def run_installer(
     if timeout <= 0 or progress_interval <= 0:
         raise ValueError("installer timeout and progress interval must be positive")
     label = Path(command[0]).name
+    progress_label = _progress_label(command)
     started = time.monotonic()
     if show_progress:
-        print(f"  Installing with {label}...", file=sys.stderr, flush=True)
+        print(f"  {progress_label}...", file=sys.stderr, flush=True)
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         launched_at = time.time()
         process = subprocess.Popen(
@@ -158,7 +216,7 @@ def run_installer(
                 except subprocess.TimeoutExpired:
                     if show_progress:
                         print(
-                            f"  Working: {label} ({time.monotonic() - started:.0f}s)",
+                            f"  Working: {progress_label} ({time.monotonic() - started:.0f}s)",
                             file=sys.stderr,
                             flush=True,
                         )

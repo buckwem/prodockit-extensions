@@ -327,12 +327,36 @@ website styles:
 
 ```bash
 pdk adopt --dry-run
+```
+
+Review the preview, then apply the changes:
+
+```bash
 pdk adopt --apply
 ```
 
 Read each stage before accepting it. Adopt now uses the component choices you
-saved in the previous step. It does not configure Git, SSH, remotes, editors,
-commits, or publishing.
+saved in the previous step. Its final phase asks for missing site details and
+offers optional Git and remote repository setup, with separate confirmation.
+It never commits or pushes files, and does not configure SSH, editors or publishing.
+
+Answer the site-title, repository-host, account or group, and repository-name
+questions. Adopt proposes a website address where the host's layout is known;
+confirm that address or supply your custom address. For GitLab, use the exact
+Pages address from the hosting service if no reliable suggestion is available.
+Unknown details can be deferred without preventing local testing.
+
+Repository setup is optional. Adopt asks before initialising Git locally,
+connecting an origin remote, or creating an empty hosted repository. Creation
+uses `gh` for GitHub or `glab` for GitLab. Adopt offers to install missing Git
+and hosting tools, then guides sign-in through the selected tool. Homebrew is
+the manual macOS prerequisite. Repository creation asks for visibility (private
+by default). Existing remotes are never replaced.
+No files are committed or pushed automatically. You can decline and complete
+these steps in Stage 6 instead.
+
+At the end, accept the diagnostic check to see anything still outstanding.
+Correction commands are followed by numbered lists of the problems they address.
 
 After Adopt, the project retains the Zensical files and adds the [Prodockit
 project files shown in section
@@ -381,42 +405,29 @@ Use the activation path printed by Adopt if your environment has another name.
 
 ////
 
-//// step | Review and configure `zensical.toml`
+//// step | Check the generated configuration
 
 `zensical.toml` is the single project configuration used by the website and
 Prodockit's PDF commands. Adopt keeps Zensical's existing `[project]` settings,
 adds the standard `project.markdown_extensions` tables, and adds
 `"stylesheets/pdk.css"` to `project.extra_css`.
 
-The defaults work without editing this file. Stage 6 uses `pdk sync-repo` to
-set your site title and URL through prompts. The examples below explain optional
-customisation; you can continue with the generated values.
+You do not need to open an editor or complete the publishing details at this
+step. The generated defaults are enough to build and test your site locally.
 
-In the existing `[project]` table, you can give the site its real name and make the
-page order explicit. Do not add a second `[project]` table, and retain the
-extension and stylesheet settings written by Adopt:
+!!! note "Site details are collected by Adopt"
 
-```toml
-[project]
-site_name = "My first document"
-nav = [
-  {"Home" = "index.md"},
-]
-```
+    Adopt's final phase asks for missing `site_name`, `site_url`, `repo_url`
+    and `repo_name` and updates `zensical.toml` after confirmation. Existing
+    values are preserved. If you deferred these questions, run `pdk adopt --apply`
+    again when the details are known. Stage 6 covers publishing and any repository
+    setup you chose not to do in Adopt.
 
-The `nav` order controls both the website navigation and the page order in the
-rendered PDF. Add or extend `[project.extra]` to make the two generated artifact
-paths explicit:
+The existing `nav` setting controls website navigation and PDF page order.
+The default PDF outputs are `docs/site_documentation.pdf` and
+`docs/source_bundle.pdf`; you do not need to add these settings manually.
 
-```toml
-[project.extra]
-pdf_output = "docs/site_documentation.pdf"
-pdf_source_bundle_output = "docs/source_bundle.pdf"
-```
-
-These are the default locations, so you do not need to add them manually.
-Check the configuration before
-continuing:
+Check that the generated configuration is valid before continuing:
 
 ```bash
 pdk config --check
@@ -441,6 +452,23 @@ create a Git repository, a warning that Git or repository metadata is absent
 is expected until you choose to initialise or clone a repository. The Python,
 configuration, dependency, managed-file, and selected-renderer checks should
 pass.
+
+Publishing warnings do not mean that installation failed. Follow the correction
+route shown by each check:
+
+| Diagnostic finding | Where to correct it |
+| --- | --- |
+| Starter site title, example website address, or missing repository link | Run `pdk adopt --apply` and answer the final questions. If an existing remote has changed, use `pdk sync-repo --create-readme`. |
+| Missing PDF libraries, fonts, or renderer prerequisites | Run `pdk adopt --dry-run`, review the proposed repair, then run `pdk adopt --apply`. Refresh the environment before rerunning diagnostics. |
+| Missing ignore rules for local or generated files | Run `pdk adopt --apply` for the baseline rules. Custom output paths need matching ignore rules. |
+| Generated files already tracked by Git | Review them before removing them from Git tracking, retaining local copies. Ignore rules alone do not fix this; diagnostics never deletes files. |
+| A stock workflow installs only Zensical | Run `pdk adopt --apply` to review its repair. |
+| A workflow refers to a missing dependency file | Restore the file or review the workflow using [Build and publish](devcons/continuous-integration.md). |
+
+The workflow check is a basic local check, not a substitute for a successful
+pipeline. A configured website address does not prove publication: verify the
+pipeline and hosting settings in Stage 6. Normal `pdk diag` does not change files,
+repository settings or hosting settings.
 
 ////
 
@@ -566,10 +594,10 @@ the published downloads stay current.
 
 ///
 
-### Stage 6 — Save and publish with GitHub (optional)
+### Stage 6 — Save and publish (optional)
 
 You now have a working local site. This optional stage puts a copy of its
-source on GitHub and enables GitHub Pages. Stay in your project directory.
+source on your chosen GitHub or GitLab host. Stay in your project directory.
 The commands below do not require a text editor.
 
 !!! warning "Check what you are sharing"
@@ -582,45 +610,34 @@ The commands below do not require a text editor.
 
 /// steps
 
-//// step | Install Git and the GitHub command line
+//// step | Complete any deferred repository setup
 
-Skip installation if both `git --version` and `gh --version` already work.
-
-=== ":fontawesome-brands-apple: macOS"
-
-    With Homebrew installed:
-
-    ```bash
-    brew install git gh
-    ```
-
-=== ":fontawesome-brands-windows: Windows"
-
-    ```powershell
-    winget install --id Git.Git --exact
-    winget install --id GitHub.cli --exact
-    ```
-
-    If either command is still not found, fully close and reopen your terminal,
-    return to the project directory and activate its environment:
-
-    ```powershell
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-=== ":material-linux: Linux (Ubuntu)"
-
-    ```bash
-    sudo apt update
-    sudo apt install git gh
-    ```
-
-Sign in when prompted. Choose GitHub.com and follow the browser sign-in:
+Skip this step if you completed Adopt's optional repository setup. Otherwise run:
 
 ```bash
-gh auth login
+pdk adopt --apply
 ```
+
+Answer **Yes** to “Would you like to set up a GitHub or GitLab repository for
+this site?” Adopt offers to install missing Git and hosting tools, guides
+sign-in, asks for missing commit identity, and confirms repository creation
+or connection separately. Existing settings are reused. It does not push files.
+
+If you need to sign in again manually, use your host's tab:
+
+=== "GitHub"
+
+    ```bash
+    gh auth login --hostname github.com
+    ```
+
+=== "GitLab"
+
+    ```bash
+    glab auth login --hostname gitlab.com
+    ```
+
+    For Surrey, replace `gitlab.com` with `gitlab.surrey.ac.uk`.
 
 ////
 
@@ -632,16 +649,13 @@ instead of Zensical alone, and restores MathJax website files when selected.
 Custom workflows are left unchanged.
 
 ```bash
-pdk adopt --apply
-git init -b main
+pdk diag
 ```
 
-Replace the two example values below with your name and your GitHub-verified
-email or GitHub no-reply address. These settings apply only to this project:
+Adopt asks for missing commit identity and saves it only for this project.
+Existing identity settings are preserved. Check the files before staging:
 
 ```bash
-git config user.name "Your name"
-git config user.email "your-github-email"
 git status --short --untracked-files=all
 ```
 
@@ -652,7 +666,7 @@ backups or `docs/.prodockit-pdf-mermaid`. Stop if anything private appears.
 
 ////
 
-//// step | Create the first commit and GitHub repository
+//// step | Create the first commit
 
 Review the staged files before committing:
 
@@ -663,16 +677,14 @@ git diff --cached
 git commit -m "Create documentation site with Prodockit"
 ```
 
-Press `q` to leave Git's diff viewer. Then choose a repository name, replacing
-`prodockit-project` below if needed. This creates a private repository but does
-not push yet:
+Press `q` to leave Git's diff viewer. Adopt's optional setup has already created
+or connected your repository. Do not create it again. Check the connection:
 
 ```bash
-gh repo create prodockit-project --private --source=. --remote=origin
+git remote -v
 ```
 
-If the repository already exists, do not create it again; check `git remote -v`
-and use its existing remote. See the [GitHub CLI repository guide](https://cli.github.com/manual/gh_repo_create).
+If `origin` is missing, rerun `pdk adopt --apply` and complete repository setup.
 
 ////
 
@@ -682,8 +694,9 @@ and use its existing remote. See the [GitHub CLI repository guide](https://cli.g
 pdk sync-repo --create-readme
 ```
 
-Confirm the detected repository, enter the website title and confirm or change
-the suggested Pages address. The command adds missing TOML settings in the right
+The command derives repository details from `origin`, retains the site title
+and address confirmed during Adopt, and asks only for missing details. It adds
+missing TOML settings in the right
 tables and creates a README only if absent. It preserves existing custom values.
 The suggested address is not evidence of a published site.
 
@@ -705,30 +718,52 @@ git commit -m "Configure repository and website publishing"
 
 ////
 
-//// step | Enable GitHub Pages and push
+//// step | Prepare publishing and push
 
-This command enables website publishing through GitHub Actions. Only run it
-when you are ready to publish:
+Repository setup does not enable website publishing. Only continue when you
+are ready to publish and have reviewed the workflow for your chosen host.
 
-```bash
-gh api --method POST "repos/{owner}/{repo}/pages" -f build_type=workflow
-```
+=== "GitHub"
 
-Keep `{owner}` and `{repo}` exactly as shown; GitHub CLI fills them from your
-remote. If Pages already exists, inspect it with:
+    Check whether Pages is already configured:
 
-```bash
-gh api "repos/{owner}/{repo}/pages" --jq .build_type
-```
+    ```bash
+    gh api "repos/{owner}/{repo}/pages" --jq .build_type
+    ```
 
-It should say `workflow`. For an existing site using another source:
+    Keep `{owner}` and `{repo}` as shown; GitHub CLI derives them from `origin`.
+    If Pages does not exist, enable it when ready:
 
-```bash
-gh api --method PUT "repos/{owner}/{repo}/pages" -f build_type=workflow
-```
+    ```bash
+    gh api --method POST "repos/{owner}/{repo}/pages" -f build_type=workflow
+    ```
 
-If GitHub reports a permissions or plan restriction, resolve that before continuing;
-do not change visibility automatically. See [GitHub Pages configuration](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+    For an existing site using another source, change it only after review:
+
+    ```bash
+    gh api --method PUT "repos/{owner}/{repo}/pages" -f build_type=workflow
+    ```
+
+    Resolve permission or plan restrictions rather than making the repository
+    public to bypass an error. See [GitHub Pages configuration](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+
+=== "GitLab"
+
+    Ensure the project has a GitLab Pages workflow in `.gitlab-ci.yml`.
+    Adopt's repository setup does not create a Pages workflow or configure its
+    visibility. Follow [Build and publish](devcons/continuous-integration.md)
+    before pushing if that workflow is missing.
+
+    Open the selected project to review its pipeline and Pages settings:
+
+    ```bash
+    glab repo view --web
+    ```
+
+    Confirm the actual website address under Deploy > Pages. Do not infer it
+    from the GitLab repository address; custom domains and instance settings differ.
+
+For either host, push only after checking the files and publishing configuration:
 
 ```bash
 git push -u origin main
@@ -738,15 +773,29 @@ git push -u origin main
 
 //// step | Check the published website
 
-```bash
-gh run list --limit 5
-gh run watch
-gh api "repos/{owner}/{repo}/pages" --jq .html_url
-```
+=== "GitHub"
+
+    ```bash
+    gh run list --limit 5
+    gh run watch
+    gh api "repos/{owner}/{repo}/pages" --jq .html_url
+    ```
+
+    Inspect a failed run with `gh run view --log-failed`.
+
+=== "GitLab"
+
+    ```bash
+    glab ci status
+    glab repo view --web
+    ```
+
+    Inspect the pipeline and open the address shown under Deploy > Pages.
 
 Open the returned address and check the pages, navigation and maths. A successful
-push is not the same as a successful deployment. If a run fails, inspect it with
-`gh run view --log-failed` rather than repeatedly retrying.
+push is not the same as a successful deployment. Inspect a failed pipeline
+before retrying. If the actual website address differs from the configured one,
+update it with `pdk sync-repo --site-url "https://your-actual-site-address/"`.
 
 The stock workflow publishes the website; it does not generate the downloadable
 PDFs from Stage 5. Follow [Publish a document](publishing.md) to configure the

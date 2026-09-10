@@ -120,7 +120,7 @@ def test_help_sets_the_existing_project_boundary() -> None:
     assert "existing Zensical document" in output
     assert "Zensical or MkDocs" not in output
     assert "virtual environment active" in output
-    assert "does not configure Git, SSH, an editor" in output
+    assert "separately confirmed Git and repository setup" in output
     assert "--mermaid" in result.output and "--maths" in result.output
 
 
@@ -132,7 +132,8 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     result = CliRunner().invoke(main, ["adopt", "--dry-run"], color=True)
 
     assert result.exit_code == 0, result.output
-    assert "Phase 1/4 — Assess" in result.output
+    assert "Phase 1/5 — Assess" in result.output
+    assert "Phase 5/5 — Site and repository details" in result.output
     assert "Activity [3/11] Supported toolchain" in result.output
     assert "Component choices" in result.output
     assert "\x1b[94m" in result.output
@@ -148,7 +149,7 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
         "active project environment, local project files and selected runtime prerequisites"
         in result.output
     )
-    assert "Git, SSH, remotes, editors, commits and pushes" in result.output
+    assert "Excluded: SSH, editors, commits, pushes and Pages configuration" in result.output
 
 
 def test_adopt_refuses_a_mixed_project_environment_before_mutation(

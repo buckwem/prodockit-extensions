@@ -88,6 +88,9 @@ DIAGNOSTIC_IDS = frozenset(
         "repository.template-update",
         "maintenance.adopt-readiness",
         "repository.inspection",
+        "publishing.details",
+        "publishing.workflow",
+        "repository.generated-files",
     }
 )
 
@@ -202,6 +205,21 @@ class RepairDryRun:
 
 
 REPAIR_REGISTRY: dict[str, RepairPolicy] = {
+    "publishing.details": RepairPolicy(
+        "manual",
+        "Site identity and publishing destinations require author confirmation.",
+        "Complete Stage 6 and run `pdk sync-repo --create-readme` for guided configuration.",
+    ),
+    "publishing.workflow": RepairPolicy(
+        "manual",
+        "Publishing workflows require a separately reviewed change.",
+        "Use Adopt for stock workflow repair; review custom CI in Build and publish.",
+    ),
+    "repository.generated-files": RepairPolicy(
+        "manual",
+        "Tracked files must not be removed automatically.",
+        "Use Adopt for baseline ignore rules; explicitly review already tracked generated files.",
+    ),
     "environment.python": RepairPolicy(
         "manual",
         "Prodockit cannot replace or reselect the Python process that is running it.",
@@ -1430,9 +1448,7 @@ def _run(
     """Run one read-only probe with consistent text decoding and no prompts."""
     environment = dict(os.environ)
     environment["GIT_TERMINAL_PROMPT"] = "0"
-    environment["GIT_SSH_COMMAND"] = (
-        "ssh -o BatchMode=yes -o StrictHostKeyChecking=yes"
-    )
+    environment["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=yes"
     return subprocess.run(
         command,
         cwd=cwd,
@@ -3901,11 +3917,19 @@ def _adopt_readiness_checks(
     # correctly run from setup-python without VIRTUAL_ENV, and ordinary
     # diagnostics explicitly accepts that arrangement. Only compare the
     # integration stages shared with Template Sync here.
-    integration_ids = {"dependency", "core", "csl", "choices", "mermaid", "maths"}
+    integration_ids = {
+        "dependency",
+        "pdf-runtime",
+        "node",
+        "browser",
+        "core",
+        "csl",
+        "choices",
+        "mermaid",
+        "maths",
+    }
     integration_steps = [step for step in steps if step.id in integration_ids]
-    blockers = [
-        step for step in integration_steps if step.selected and step.status == "wrong"
-    ]
+    blockers = [step for step in integration_steps if step.selected and step.status == "wrong"]
     pending = [step for step in integration_steps if step.needs_work]
     data: dict[str, Any] = {
         "options": {"mermaid": options.mermaid, "maths": options.maths},
@@ -4031,9 +4055,7 @@ def inspect(
     # failures (for example, that WeasyPrint is missing) and an equally false
     # Adopt plan for the wrong interpreter. Keep the useful Python and venv
     # evidence, then make activation the one next action.
-    if any(
-        check.id == "environment.virtual-env" and check.status == "fail" for check in checks
-    ):
+    if any(check.id == "environment.virtual-env" and check.status == "fail" for check in checks):
         return DiagnosticReport(
             config_file=_display_path(requested, root),
             project_root=_display_path(root, Path.cwd()),
@@ -4047,6 +4069,15 @@ def inspect(
         lambda: _installation_checks(root),
     )
     checks.append(config_check)
+    if config is not None:
+        from prodockit.diagnostic_readiness import checks as readiness_checks
+
+        collect(
+            "publishing.details",
+            "Publishing preparation (not required for local builds)",
+            "Publishing preparation",
+            lambda: readiness_checks(config),
+        )
     collect(
         "dependencies.inspection",
         "Dependency and managed-file consistency",
