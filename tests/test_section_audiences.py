@@ -17,7 +17,7 @@ def test_top_level_sections_open_with_an_introduction() -> None:
     nav = config["project"]["nav"]
 
     expected_first_items = {
-        "Getting started": {"1. Overview": "introduction.md"},
+        "Getting started": {"1. prodockit overview": "introduction.md"},
         "Publish a document": {"9. Publishing overview": "publishing.md"},
         "Maintain prodockit": {"15. Maintenance overview": "project-maintenance.md"},
         "Authoring reference": {"20. Overview": "authoring.md"},
