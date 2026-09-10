@@ -285,7 +285,8 @@ def exercise(
     cached = _run_cli(
         project,
         ["adopt", "--apply", "--offline", "--no-mermaid", "--no-maths"],
-        input_text="y\n",
+        # Approve the overall plan, then the Pandoc repair activity.
+        input_text="y\ny\n",
     )
     if cached.returncode:
         raise AcceptanceError(f"offline Pandoc cache repair failed:\n{_output(cached)}")
