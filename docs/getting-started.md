@@ -250,7 +250,7 @@ and produce the deployable site files; it does not start a web server.
 
 //// step | Preview the plain Zensical site
 
-Start Zensical's local development server:
+Start Zensical's local development server with \index{`zensical serve`}:
 
 ```bash
 zensical serve

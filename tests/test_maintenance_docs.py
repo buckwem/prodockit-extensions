@@ -28,7 +28,7 @@ def test_getting_started_holds_installation_routes() -> None:
 
     assert {"2. Choose your install": "choosing-installation.md"} in getting_started
     assert {"3. Prepare to install": "installation.md"} in getting_started
-    assert {"4. Build your first site": "getting-started.md"} in getting_started
+    assert {"4. Build or update a site": "getting-started.md"} in getting_started
     assert {"5. Upgrade existing site": "adopt.md"} in getting_started
     assert {"6. Build a template site": "devcons/bootstrap.md"} in getting_started
     assert {"7. Build site manually": "manual-install.md"} in getting_started
