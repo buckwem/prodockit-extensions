@@ -63,7 +63,7 @@ def test_adopt_warns_about_parent_environment_before_project_venv_exists(tmp_pat
 
     result = CliRunner().invoke(main, ["adopt", "--dry-run"])
 
-    assert "WARN  Active project environment" in result.output
+    assert "WARNING: No project-local .venv" in result.output
     assert "No project-local .venv is set up" in result.output
     assert str(tmp_path / ".venv") in result.output
     assert config.read_bytes() == before

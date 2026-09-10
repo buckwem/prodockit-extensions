@@ -154,6 +154,9 @@ command for your platform:
 
     ```bash
     cd /path/to/your-project
+    ```
+
+    ```bash
     "$(brew --prefix python@3.14)/bin/python3.14" -m venv --clear .venv
     source .venv/bin/activate
     ```
@@ -162,6 +165,9 @@ command for your platform:
 
     ```powershell
     Set-Location C:\path\to\your-project
+    ```
+
+    ```powershell
     py -3.14 -m venv --clear .venv
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
@@ -171,6 +177,9 @@ command for your platform:
 
     ```bash
     cd /path/to/your-project
+    ```
+
+    ```bash
     python3.14 -m venv --clear .venv
     source .venv/bin/activate
     ```
@@ -218,30 +227,6 @@ prodockit --version
 Adoption later aligns Prodockit and the other managed versions with the
 combination supported by this installed command. This installation step makes
 the command available for the first run.
-
-////
-
-//// step | Ask for an assessment
-
-```bash
-prodockit adopt
-```
-
-The report is read-only. It groups the work into phases and gives every change
-its own stage, using the same presentation as `prodockit bootstrap`. It also says explicitly
-that Git, SSH, remotes and editors are outside its scope.
-
-\ref{fig-adopt-assessment-output} is a short visual guide to the assessment.
-Use [section 28.1, Scan phases and
-stages](commands/output.md#command-output-structure) for the complete
-explanation of its phases, stages, colours, and default-No decisions:
-
-![A left-aligned terminal report with separate callouts identifying a phase, stage, review-first changes, and warning](assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
-/// figure-caption
-    attrs: {id: fig-adopt-assessment-output}
-
-Reading an Adopt assessment
-///
 
 ////
 
@@ -301,6 +286,17 @@ detail for the other stages.
 ////
 
 //// step | Apply the reviewed stages
+
+\ref{fig-adopt-assessment-output} explains the coloured messages to look for
+when reviewing each proposed change. Read [the command-output guide](commands/output.md#command-output-structure)
+for more about phases, activities, colours, and default-No decisions.
+
+![A terminal report with callouts identifying phases, activities, proposed changes, and warnings](assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-adopt-assessment-output}
+
+Reading an Adopt assessment
+///
 
 ```bash
 prodockit adopt --apply

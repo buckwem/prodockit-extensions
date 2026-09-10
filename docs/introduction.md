@@ -4,7 +4,7 @@ icon: lucide/signpost
 
 {{ heading_counter_reset(page) }}
 
-# Overview
+# `prodockit` overview
 
 This section is for anyone new to prodockit. It explains what the package
 adds to Zensical, how to install it, and how to build a first local site before

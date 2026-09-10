@@ -251,7 +251,10 @@ def test_adoption_continues_after_shared_preparation() -> None:
     review_start = page.index("### Stage 1 — Review the existing project")
     review_end = page.index("### Stage 2 — Preview and apply")
     review = page[review_start:review_end]
-    assert review.count("//// step | ") == 5
+    assert review.count("//// step | ") == 4
+    assert "Ask for an assessment" not in review
+    apply_step = page.split("//// step | Apply the reviewed stages", 1)[1].split("////", 1)[0]
+    assert "command-output-anatomy.svg" in apply_step
     assert "//// step | Prepare Python and the setup environment" in review
     assert "//// step | Enter the project and prepare its environment" in review
     assert "//// step | Choose optional renderers" in review
@@ -277,8 +280,8 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     page = FIRST_SITE.read_text(encoding="utf-8")
 
     assert "installation.md#installation-preparation" in page
-    assert "independent of section 6's template-site" in page
-    assert page.count("//// step | ") == 23
+    assert "Unlike the template-site route" in page
+    assert page.count("//// step | ") == 24
     assert page.count("/// tree") == 0
     assert page.count("/// steps") == 6
 
@@ -328,9 +331,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     build_zensical = page.index("//// step | Build the plain Zensical site")
     serve_zensical = page.index("//// step | Preview the plain Zensical site")
     install_prodockit = page.index("//// step | Install Prodockit")
-    choose_renderers = page.index(
-        "//// step | Choose optional renderers and prepare Node.js when required"
-    )
+    choose_renderers = page.index("//// step | Choose optional renderers")
     adopt = page.index("//// step | Adopt the Zensical site")
     configure = page.index("//// step | Check the generated configuration")
     diagnose = page.index("//// step | Diagnose the adopted site")
@@ -366,11 +367,8 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert "pip install --upgrade prodockit" not in before_prodockit
     renderer_choice = page[choose_renderers:adopt]
     assert "pdk adopt --configure" in renderer_choice
-    assert "brew install node" in renderer_choice
-    assert "winget install --id OpenJS.NodeJS.LTS" in renderer_choice
-    assert "https://deb.nodesource.com/setup_22.x" in renderer_choice
-    assert "node --version" in renderer_choice
-    assert "npm --version" in renderer_choice
+    assert "Adopt will check Node.js and npm" in renderer_choice
+    assert "need to install them manually first" in renderer_choice
     assert "pdk adopt --dry-run\n```" in page[adopt:]
     assert "```bash\npdk adopt --apply\n```" in page[adopt:]
     assert "`docs/site_documentation.pdf`" in page[configure:diagnose]
@@ -486,7 +484,7 @@ def test_install_routes_explain_ownership_and_maintenance() -> None:
         assert ownership_reference in completed
 
     first_site = FIRST_SITE.read_text(encoding="utf-8")
-    assert "does not pair this clean site with `prodockit-template`" in first_site
+    assert "Adoption does not create or remove a template relationship" in first_site
 
     adoption = ADOPTION.read_text(encoding="utf-8")
     assert "neither creates nor removes a template relationship" in adoption

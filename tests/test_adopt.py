@@ -129,7 +129,7 @@ def test_report_uses_prominent_phases_and_stages(tmp_path: Path, monkeypatch) ->
     monkeypatch.chdir(project)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
 
-    result = CliRunner().invoke(main, ["adopt", "--dry-run"], color=True)
+    result = CliRunner().invoke(main, ["adopt", "--dry-run", "--verbose"], color=True)
 
     assert result.exit_code == 0, result.output
     assert "Phase 1/5 — Assess" in result.output
@@ -711,7 +711,7 @@ nav = [{ Home = "index.md" }]
     adopted = CliRunner().invoke(
         main,
         ["adopt", "--apply", "--no-mermaid", "--no-maths"],
-        input="y\ny\ny\n",
+        input="y\ny\ny\ny\n",
     )
     checked = CliRunner().invoke(main, ["config", "--check"])
 
@@ -968,7 +968,7 @@ markdown_extensions = [
     result = CliRunner().invoke(
         main,
         ["adopt", "--apply", "--no-mermaid", "--no-maths"],
-        input="y\ny\ny\n",
+        input="y\ny\ny\ny\n",
     )
     assert result.exit_code == 0, result.output
 
@@ -1092,7 +1092,7 @@ def test_apply_core_never_invokes_git_or_editor_setup(tmp_path: Path, monkeypatc
     monkeypatch.chdir(project)
     monkeypatch.setattr("prodockit.adopt._in_venv", lambda: True)
 
-    result = CliRunner().invoke(main, ["adopt", "--apply"], input="y\ny\ny\n")
+    result = CliRunner().invoke(main, ["adopt", "--apply"], input="y\ny\ny\ny\n")
 
     assert result.exit_code == 0, result.output
     assert (project / "requirements.txt").is_file()
@@ -1134,7 +1134,10 @@ def test_report_recommends_the_discovered_configuration(
     result = CliRunner().invoke(main, ["adopt", "--dry-run"])
 
     assert result.exit_code == 0, result.output
-    assert command in result.output
+    assert (
+        "Run `prodockit adopt --apply`" in result.output
+        or "Run `pdk adopt --apply`" in result.output
+    )
 
 
 def test_report_refuses_a_directory_without_zensical_config(tmp_path: Path, monkeypatch) -> None:
@@ -1212,9 +1215,9 @@ custom_fences = [{ name = "mermaid" }]
     result = CliRunner().invoke(main, ["adopt", "--dry-run"])
 
     assert result.exit_code == 0, result.output
-    assert "Options:  Mermaid off · maths off" in result.output
+    assert "Mermaid diagrams" not in result.output
     assert "Choices:" not in result.output
-    assert "Use --verbose" in result.output
+    assert "Preview only" in result.output
     verbose = CliRunner().invoke(main, ["adopt", "--dry-run", "--verbose"])
     assert verbose.exit_code == 0, verbose.output
     assert "Choices:  not configured; Mermaid and maths default off" in verbose.output
@@ -1690,7 +1693,7 @@ markdown_extensions:
     result = CliRunner().invoke(
         main,
         ["adopt", "--apply", "--mermaid", "--no-maths"],
-        input="y\ny\ny\ny\n",
+        input="y\ny\ny\ny\ny\n",
     )
 
     assert result.exit_code == (0 if renderer_usable else 1), result.output
@@ -1722,18 +1725,44 @@ def test_apply_uses_current_readiness_when_initial_probe_recovers(tmp_path: Path
         ]
 
     monkeypatch.setattr("prodockit.cli.assess_adoption", assessment)
-    result = CliRunner().invoke(main, ["adopt", "--apply"])
+    result = CliRunner().invoke(main, ["adopt", "--apply"], input="y\n")
     assert result.exit_code == 0, result.output
     assert "already configured" in result.output
     assert "declined" not in result.output
     assert "Apply this activity?" not in result.output
 
 
+@pytest.mark.parametrize("answer", ["n\n", "\n"])
+def test_declining_overall_confirmation_leaves_project_unchanged(tmp_path, monkeypatch, answer):
+    project = _project(tmp_path)
+    source = (project / "zensical.toml").read_bytes()
+    monkeypatch.chdir(project)
+    result = CliRunner().invoke(main, ["adopt", "--apply"], input=answer)
+    assert result.exit_code == 0, result.output
+    assert "Do you want to continue? [y/N]" in result.output
+    assert "Apply this activity?" not in result.output
+    assert (project / "zensical.toml").read_bytes() == source
+    assert not (project / MANIFEST).exists()
+
+
+def test_concise_preview_has_no_activity_walkthrough(tmp_path, monkeypatch):
+    project = _project(tmp_path)
+    monkeypatch.chdir(project)
+    result = CliRunner().invoke(main, ["adopt", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert "READY:" in result.output
+    assert "CONFIGURE:" in result.output
+    assert "Phase 1/" not in result.output
+    assert "Do you want to continue?" not in result.output
+    assert "Preview only" in result.output
+    assert not (project / MANIFEST).exists()
+
+
 def test_declining_all_required_activities_reports_incomplete(tmp_path: Path, monkeypatch):
     project = _project(tmp_path)
     source = (project / "zensical.toml").read_text()
     monkeypatch.chdir(project)
-    result = CliRunner().invoke(main, ["adopt", "--apply"], input="n\n" * 10)
+    result = CliRunner().invoke(main, ["adopt", "--apply"], input="y\n" + "n\n" * 10)
     assert result.exit_code == 1, result.output
     assert "ADOPTION IS INCOMPLETE" in result.output
     assert "required activities were declined" in result.output

@@ -19,6 +19,34 @@ from prodockit.project_config import load_project_config
 from prodockit.sync_repo import SyncRepoError, icon_for_host, parse_remote, site_url_for
 
 
+def _replace_repository_examples(document: Any, updates: dict[str, Any]) -> None:
+    """Activate repository examples in their original positions using TOML items."""
+    project = document["project"]
+    values = {key: updates.get(key, project.get(key)) for key in ("repo_url", "repo_name")}
+    examples = {}
+    for index, (key, item) in enumerate(project.value.body):
+        if key is not None or not isinstance(item, tomlkit.items.Comment):
+            continue
+        match = re.match(r"\s*#\s*(repo_url|repo_name)\s*=", item.as_string())
+        if match and values[match[1]]:
+            examples[index] = match[1]
+    if not examples:
+        return
+    replacement = tomlkit.table()
+    activated: set[str] = set()
+    for index, (key, item) in enumerate(project.value.body):
+        if index in examples:
+            name = examples[index]
+            if name not in activated:
+                replacement.add(name, values[name])
+                activated.add(name)
+        elif key is not None and key.key in examples.values():
+            continue
+        else:
+            replacement.append(key, item)
+    document["project"] = replacement
+
+
 def missing_fields(project: dict[str, Any]) -> list[str]:
     missing = []
     for key in ("site_name", "site_url", "repo_url", "repo_name"):
@@ -85,6 +113,19 @@ def configure(
     if not repository_setup:
         missing = [key for key in missing if key in {"site_name", "site_url"}]
     if not missing:
+        if apply and interactive and config.path.suffix == ".toml" and repository_setup:
+            source = config.path.read_text(encoding="utf-8")
+            document = tomlkit.parse(source)
+            _replace_repository_examples(document, {})
+            rendered = tomlkit.dumps(document)
+            if rendered != source and click.confirm(
+                "Replace commented repository examples with your saved details?", default=True
+            ):
+                from prodockit.adopt import _atomic_write
+
+                _atomic_write(config.path, rendered.encode("utf-8"))
+                click.secho("Repository examples updated; edit_uri left unchanged.", fg="green")
+                return True
         click.secho("Selected site details are already configured; no change needed.", fg="green")
         return False
     click.secho("Site details still to complete: " + ", ".join(missing), fg="yellow", bold=True)
@@ -214,6 +255,7 @@ def configure(
     from prodockit.adopt import _atomic_write
 
     document = tomlkit.parse(config.path.read_text(encoding="utf-8"))
+    _replace_repository_examples(document, updates)
     for key, value in updates.items():
         project: Any = document["project"]
         project[key] = value

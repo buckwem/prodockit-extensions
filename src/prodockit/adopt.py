@@ -49,6 +49,7 @@ from prodockit.csl import (
 )
 from prodockit.init_tools import COMPONENT_FILES
 from prodockit.mathjax import MathJaxError, install_mathjax
+from prodockit.pins import TESTED_VERSIONS
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
 from prodockit.renderer_resilience import DEFAULT_RETRY_DELAYS, RetryReporter, run_npm_with_retries
 from prodockit.settings import EXTRA_SETTINGS
@@ -156,6 +157,7 @@ class Step:
     selected: bool = True
     commands: tuple[tuple[str, ...], ...] = ()
     files: tuple[Path, ...] = ()
+    plan_lines: tuple[str, ...] = ()
 
     @property
     def needs_work(self) -> bool:
@@ -1724,6 +1726,24 @@ def assess(
             toolchain.detail,
             commands=toolchain.commands,
             files=toolchain.files,
+            plan_lines=tuple(
+                f"{action.action.upper()}: "
+                f"{supported_toolchain.DISPLAY_NAMES[action.package]} "
+                + (
+                    f"{action.installed} → {action.supported}"
+                    if action.action in {"upgrade", "downgrade", "align"}
+                    else action.supported
+                )
+                for action in toolchain.actions
+            )
+            + tuple(
+                f"READY: {supported_toolchain.DISPLAY_NAMES[package]} "
+                f"{TESTED_VERSIONS[package]}"
+                for package in (*supported_toolchain.PYTHON_PACKAGES, "pandoc")
+                if not toolchain.blocked
+                and not any(action.package == package for action in toolchain.actions)
+            )
+            + (("CONFIGURE: Project version settings",) if toolchain.declaration_changes else ()),
         ),
         Step(
             "pdf-runtime",

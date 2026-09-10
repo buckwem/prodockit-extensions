@@ -1,5 +1,17 @@
 /* Add project-specific website and PDF styles below this line. */
 
+/* Path labels remain distinct from blue actions and green Optional labels. */
+.md-typeset .install-clean,
+.md-typeset .install-update {
+  color: #ffffff;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.md-typeset .install-clean { background-color: #7040a0; }
+.md-typeset .install-update { background-color: #a34300; }
+
 /* Homebrew's amber brand colour with dark text keeps its installation action
    recognisable and legible in both website colour schemes. */
 .md-typeset .homebrew-button {

@@ -134,7 +134,13 @@ def test_unselected_renderers_do_not_probe_or_install_node(tmp_path, monkeypatch
         adopt.supported_toolchain,
         "plan",
         lambda *args, **kwargs: SimpleNamespace(
-            blocked="", needs_work=False, detail="aligned", commands=(), files=()
+            blocked="",
+            needs_work=False,
+            detail="aligned",
+            commands=(),
+            files=(),
+            actions=(),
+            declaration_changes=(),
         ),
     )
     steps = adopt.assess(tmp_path, adopt.AdoptOptions(mermaid=False, maths=False))
