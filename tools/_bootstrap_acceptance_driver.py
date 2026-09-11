@@ -576,7 +576,10 @@ class HarnessRunner:
                     "process_environment": bin_directory if healthy else None,
                 }
                 return CommandResult(0, json.dumps(evidence) + "\n")
-            if "pacman -S" in words[-1]:
+            if (
+                "pacman -S" in words[-1]
+                or "-m prodockit.windows_msys2 --root $root" in words[-1]
+            ):
                 self._upgrade("pango")
             if "npm.cmd ci" in words[-1] and "Set-Location -LiteralPath" in words[-1]:
                 match = re.search(r"Set-Location -LiteralPath '((?:''|[^'])+)'", words[-1])
