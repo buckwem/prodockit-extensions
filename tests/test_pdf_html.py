@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
+import pytest
 from bs4 import BeautifulSoup
 
 from prodockit.pdf.html import (
@@ -658,3 +659,76 @@ def test_inline_code_outside_pre_is_untouched() -> None:
     html = '<p>Run <code>prodockit <em>pdf</em></code> now.</p>'
     soup = BeautifulSoup(_fix(html), "html.parser")
     assert soup.find("code").find("em") is not None
+
+
+@pytest.mark.parametrize("absolute_docs", [False, True])
+@pytest.mark.parametrize("repo_url, blob", [
+    ("https://github.com/example/repo", "/blob/main/"),
+    ("https://gitlab.com/example/repo", "/-/blob/main/"),
+])
+def test_repo_file_links_are_relative_to_project_root(tmp_path, absolute_docs, repo_url, blob):
+    docs = tmp_path / "writing" / "docs"
+    docs.mkdir(parents=True)
+    html = _fix(
+        '<a href="../assets/My%20file.pdf?download=1#page=2">Download</a>',
+        current_docs_rel_path="guide/install.md",
+        docs_dir=str(docs) if absolute_docs else "writing/docs",
+        project_root=str(tmp_path),
+        repo_url=repo_url,
+    )
+    assert BeautifulSoup(html, "html.parser").a["href"] == (
+        repo_url + blob + "writing/docs/assets/My%20file.pdf?download=1#page=2"
+    )
+
+
+def test_excluded_page_links_point_to_repository_markdown(tmp_path):
+    html = _fix(
+        '<a href="../changelog/#release">Release notes</a>',
+        current_docs_rel_path="about/support.md",
+        docs_dir=str(tmp_path / "docs"),
+        project_root=str(tmp_path),
+        source_page_paths=["about/support.md", "about/changelog.md"],
+        page_anchor_map={"about/support.md": "page-about-support"},
+        repo_url="https://github.com/example/repo",
+    )
+    assert BeautifulSoup(html, "html.parser").a["href"] == (
+        "https://github.com/example/repo/blob/main/docs/about/changelog.md#release"
+    )
+
+
+def test_included_page_links_remain_internal(tmp_path):
+    html = _fix(
+        '<a href="../changelog/">Release notes</a>',
+        current_docs_rel_path="about/support.md",
+        docs_dir=str(tmp_path / "docs"),
+        project_root=str(tmp_path),
+        source_page_paths=["about/changelog.md"],
+        page_anchor_map={"about/changelog.md": "page-about-changelog"},
+        repo_url="https://github.com/example/repo",
+    )
+    assert BeautifulSoup(html, "html.parser").a["href"] == "#page-about-changelog"
+
+
+@pytest.mark.parametrize("symlink", [False, True])
+def test_outside_project_file_links_keep_only_the_label(tmp_path, symlink):
+    root = tmp_path / "project"
+    docs = root / "docs"
+    docs.mkdir(parents=True)
+    outside = tmp_path / "private.txt"
+    outside.write_text("private")
+    href = "../../private.txt"
+    if symlink:
+        try:
+            (docs / "external.txt").symlink_to(outside)
+        except OSError:
+            pytest.skip("symlinks unavailable")
+        href = "external.txt"
+    html = _fix(
+        f'<a href="{href}">Private</a>',
+        docs_dir=str(docs),
+        project_root=str(root),
+        repo_url="https://github.com/example/repo",
+    )
+    assert BeautifulSoup(html, "html.parser").a is None
+    assert "Private" in html
+    assert str(tmp_path) not in html

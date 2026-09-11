@@ -595,6 +595,12 @@ def _build_pdf_from_config(
         page_objects,
         build_output_path,
         docs_dir=source_docs_dir if project_config is not None else docs_dir,
+        project_root=str(
+            project_config.root
+            if project_config is not None
+            else Path(config_path).resolve().parent
+        ),
+        source_page_paths=[page["url"] for page in flatten_nav(config.get("nav") or [])],
         extra_css=extra_css,
         repo_url=config.get("repo_url") or "",
         admonition_icon_config=admonition_icon_config,

@@ -283,6 +283,8 @@ def test_built_site_candidate_uses_the_documented_build_output(
     assert captured["built"] is True
     assert [page.docs_rel_path for page in captured["pages"]] == ["index.md", "chapter1.md"]
     assert metadata_paths == [root / "docs" / "index.md", root / "docs" / "chapter1.md"]
+    assert captured["kwargs"]["project_root"] == str(root)
+    assert captured["kwargs"]["source_page_paths"] == ["index.md", "chapter1.md"]
     assert captured["kwargs"]["main_font"] == "Roboto"
     assert captured["kwargs"]["mono_font"] == "Roboto Mono"
 
