@@ -106,6 +106,9 @@ def _stop(process: subprocess.Popen[bytes]) -> bool:
             # The leader can exit while a descendant ignores SIGTERM.
             with suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
+            # The wrapper may have been stopped before creating its group.
+            if process.poll() is None:
+                process.kill()
         process.wait(timeout=10)
         return True
     except (OSError, subprocess.SubprocessError):
@@ -168,6 +171,31 @@ def _progress_label(command: Sequence[str]) -> str:
     return "Preparing required project tools"
 
 
+# Python 3.10 has no Popen(process_group=...). Start a minimal interpreter
+# which sets its own group and then replaces itself, retaining the PID and
+# terminal session. Avoid preexec_fn: it can deadlock a threaded caller.
+_POSIX_GROUP_EXEC = """
+import os
+import signal
+import sys
+os.setpgid(0, 0)
+for name in ("SIGPIPE", "SIGXFZ", "SIGXFSZ"):
+    if hasattr(signal, name):
+        signal.signal(getattr(signal, name), signal.SIG_DFL)
+try:
+    os.execvpe(sys.argv[1], sys.argv[1:], os.environ)
+except OSError as error:
+    print(str(error), file=sys.stderr)
+    sys.exit(127 if isinstance(error, FileNotFoundError) else 126)
+"""
+
+
+def _group_command(command: Sequence[str]) -> list[str]:
+    if _windows():
+        return list(command)
+    return [sys.executable, "-I", "-S", "-c", _POSIX_GROUP_EXEC, *command]
+
+
 def run_installer(
     command: Sequence[str],
     *,
@@ -179,7 +207,8 @@ def run_installer(
 ) -> subprocess.CompletedProcess[str]:
     """Capture output in files so inherited pipes cannot hang a finished process.
 
-    Timeout/interruption stops the owned process group (POSIX) or tree
+    The POSIX child keeps the caller's terminal session for sudo credentials,
+    but owns a separate process group. Timeout/interruption stops that group or tree
     (Windows). Timeouts remain non-retriable: detached/elevated processes may
     be outside that ownership boundary and must not race another installer.
     """
@@ -193,13 +222,12 @@ def run_installer(
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         launched_at = time.time()
         process = subprocess.Popen(
-            list(command),
+            _group_command(command),
             cwd=cwd,
             env=dict(env) if env is not None else None,
             stdin=subprocess.DEVNULL,
             stdout=stdout,
             stderr=stderr,
-            start_new_session=not _windows(),
             creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200)
             if _windows()
             else 0,

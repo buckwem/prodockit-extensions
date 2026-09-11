@@ -39,6 +39,18 @@ the checks most likely to help.
 Use the visible behaviour to choose one or more recovery checks
 ///
 
+## Sudo requires a terminal after authentication {: #sudo-authentication }
+
+If Bootstrap reports `sudo: A terminal is required to authenticate` or
+`sudo: interactive authentication is required`, run `sudo -v` in the same
+terminal, then resume `pdk boot --apply`. Keep that terminal open throughout
+setup. Captured installers retain its authentication context while using
+separate process groups for timeout cleanup.
+
+If authentication is still refused, check that the account has sudo access.
+Changing sudo's authentication policy or installing another package manager
+is not a remedy for this error.
+
 ## Open the correct project folder {: #directory-holds-projects }
 
 `pdk diag`, `pdk adopt`, and `pdk template-sync` operate on one project. Run

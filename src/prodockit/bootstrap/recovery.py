@@ -83,6 +83,23 @@ def recovery_advice(
             }[category]
             return RecoveryAdvice(f"msys2-{category}", steps)
 
+    if "sudo:" in output and any(
+        marker in output
+        for marker in (
+            "a terminal is required", "interactive authentication is required",
+            "a password is required", "no tty present", "authentication failure",
+        )
+    ):
+        return RecoveryAdvice(
+            "sudo-authentication",
+            (
+                "Sudo could not reuse the terminal's authentication. Run `sudo -v` in "
+                "the same terminal, then resume `prodockit bootstrap --apply`.",
+                "If authentication still fails, check the account's sudo access and "
+                "keep the original terminal open; do not weaken sudo policy.",
+            ),
+        )
+
     missing = outcome.returncode == 127 or any(
         marker in output for marker in ("not found", "not recognized")
     )
