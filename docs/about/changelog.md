@@ -19,6 +19,20 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.65.1 (2026-09-11)
+
+- Adopt preserves customised build workflows and supplies separate, inactive
+  workflow proposals for manual merging. It replaces a stock Zensical workflow
+  only when its SHA-256 matches a trusted baseline.
+- Optional repository setup has clearer activity headings and authentication
+  recovery guidance, and verifies uncertain remote-creation results before
+  continuing without automatically retrying creation or pushing files.
+- Simplify the installation guide with separate clean and update paths,
+  shorter steps, navigation badges and explicit review of Adopt's file changes.
+- PDF repository links now use URL-encoded project-relative paths rather than
+  the builder's checkout path. Pages excluded from the PDF link to their
+  Markdown source; links to included pages remain internal destinations.
+
 ## 0.65.0 (2026-09-10)
 
 - Adopt previews now show a concise plan with software actions, supported
