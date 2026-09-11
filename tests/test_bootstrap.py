@@ -4798,8 +4798,7 @@ def test_windows_installs_pango_rather_than_describing_it(tmp_path: Path) -> Non
     assert "MSYS2.MSYS2" in flat
     assert 'Test-Path "$_\\usr\\bin\\bash.exe"' in flat
     assert "Reusing MSYS2 at $root" in flat
-    assert "--noconfirm" in flat, "pacman asks otherwise"
-    assert "--needed" in flat, "a rerun should be a no-op, not a reinstall"
+    assert "-m prodockit.windows_msys2 --root $root" in flat
     assert "SetEnvironmentVariable" in flat
     assert "WEASYPRINT_DLL_DIRECTORIES" in flat
     assert "mingw-w64-ucrt-x86_64-pango" in flat
@@ -6426,7 +6425,7 @@ def test_msys2_says_where_it_looked_rather_than_failing_on_a_guess(tmp_path: Pat
     plan = next(s for s in STAGES if s.id == "pandoc").plan(
         _context(tmp_path, platform=WINDOWS, runner=runner)
     )
-    pacman = next(c for c in plan.commands if "pacman" in " ".join(c))
+    pacman = next(c for c in plan.commands if "prodockit.windows_msys2" in " ".join(c))
     script = " ".join(pacman)
 
     assert len(_MSYS2_ROOTS) > 1

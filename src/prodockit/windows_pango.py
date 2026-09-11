@@ -72,8 +72,7 @@ class WindowsPangoEvidence:
 def _same_path(left: str | None, right: str) -> bool:
     return bool(
         left
-        and os.path.normcase(os.path.normpath(left))
-        == os.path.normcase(os.path.normpath(right))
+        and os.path.normcase(os.path.normpath(left)) == os.path.normcase(os.path.normpath(right))
     )
 
 
@@ -115,13 +114,22 @@ def pango_spec(*, arm64: bool | None = None) -> PangoSpec:
     return PangoSpec("x64", "ucrt64", "mingw-w64-ucrt-x86_64-pango")
 
 
-def probe_script(spec: PangoSpec) -> str:
+def _root_script() -> str:
     roots = ", ".join(f'"{root}"' for root in MSYS2_ROOTS)
     return (
-        f"$roots = @({roots}); "
+        "$configuredBins = @($env:WEASYPRINT_DLL_DIRECTORIES, "
+        "[Environment]::GetEnvironmentVariable('WEASYPRINT_DLL_DIRECTORIES','User')); "
+        "$configuredRoots = @($configuredBins | Where-Object { $_ } | ForEach-Object { "
+        "Split-Path (Split-Path $_ -Parent) -Parent }); "
+        f"$roots = @($configuredRoots) + @({roots}); "
         '$root = $roots | Where-Object { Test-Path "$_\\usr\\bin\\bash.exe" } '
         "| Select-Object -First 1; "
-        f"$msysEnv = '{spec.environment}'; $pkg = '{spec.package}'; "
+    )
+
+
+def probe_script(spec: PangoSpec) -> str:
+    return (
+        _root_script() + f"$msysEnv = '{spec.environment}'; $pkg = '{spec.package}'; "
         '$bin = if ($root) { Join-Path $root "$msysEnv\\bin" } else { $null }; '
         '$dll = if ($bin) { Join-Path $bin "libpango-1.0-0.dll" } else { $null }; '
         "$integrity = $false; "
@@ -140,27 +148,15 @@ def probe_script(spec: PangoSpec) -> str:
 
 
 def repair_script(spec: PangoSpec) -> str:
-    roots = ", ".join(f'"{root}"' for root in MSYS2_ROOTS)
     return (
-        f"$roots = @({roots}); "
-        '$root = $roots | Where-Object { Test-Path "$_\\usr\\bin\\bash.exe" } '
-        "| Select-Object -First 1; "
-        "if (-not $root) { Write-Error \"MSYS2 was not found. Looked in: "
+        _root_script() + 'if (-not $root) { Write-Error "MSYS2 was not found. Looked in: '
         "$($roots -join ', ')\"; exit 1 }; "
         f"$msysEnv = '{spec.environment}'; $pkg = '{spec.package}'; "
         '$bin = Join-Path $root "$msysEnv\\bin"; '
         '$dll = Join-Path $bin "libpango-1.0-0.dll"; '
-        '& "$root\\usr\\bin\\bash.exe" -lc "pacman -S --noconfirm --needed $pkg"; '
-        "if ($LASTEXITCODE -ne 0) { throw 'Pango package installation failed' }; "
-        '& "$root\\usr\\bin\\bash.exe" -lc "pacman -Qkk $pkg" *> $null; '
-        "$integrity = ($LASTEXITCODE -eq 0); "
-        "if (-not $integrity -or -not (Test-Path $dll)) { "
-        '& "$root\\usr\\bin\\bash.exe" -lc "pacman -S --noconfirm $pkg"; '
-        "if ($LASTEXITCODE -ne 0) { throw 'Pango package reinstall failed' }; "
-        '& "$root\\usr\\bin\\bash.exe" -lc "pacman -Qkk $pkg" *> $null; '
-        "$integrity = ($LASTEXITCODE -eq 0) }; "
-        "if (-not $integrity) { throw 'Pango package integrity check failed after reinstall' }; "
-        "if (-not (Test-Path $dll)) { throw \"Pango DLL is missing after reinstall: $dll\" }; "
+        f"& '{sys.executable.replace(chr(39), chr(39) * 2)}' "
+        "-m prodockit.windows_msys2 --root $root; "
+        "if ($LASTEXITCODE -ne 0) { throw 'MSYS2 setup failed; see the setup log' }; "
         "$path = [Environment]::GetEnvironmentVariable('Path','User'); "
         '$entries = @($path -split ";" | Where-Object { '
         '$_ -and $_.TrimEnd("\\") -ine $bin.TrimEnd("\\") }); '
@@ -189,9 +185,7 @@ def parse_evidence(output: str) -> WindowsPangoEvidence:
                 str(value["user_environment"]) if value.get("user_environment") else None
             ),
             process_environment=(
-                str(value["process_environment"])
-                if value.get("process_environment")
-                else None
+                str(value["process_environment"]) if value.get("process_environment") else None
             ),
         )
     except (KeyError, StopIteration, TypeError, ValueError) as error:

@@ -59,6 +59,30 @@ def recovery_advice(
             ),
         )
 
+    if platform == WINDOWS and ("msys2" in output or "pacman" in output):
+        from prodockit.windows_msys2 import failure_category
+
+        category = failure_category(output)
+        if category in {"trust", "lock", "architecture"}:
+            steps = {
+                "trust": (
+                    "MSYS2 signature verification failed. Review the native setup log and "
+                    "check the system clock and https://www.msys2.org/docs/updating/.",
+                    "Keep signature checks enabled. Do not import arbitrary keys or delete "
+                    "the MSYS2 installation; resume after the reported trust problem is fixed.",
+                ),
+                "lock": (
+                    "Wait for the other MSYS2 package manager to finish; do not delete db.lck.",
+                    "Resume when no package-manager process is still running.",
+                ),
+                "architecture": (
+                    "Select Pango for the Python executable's architecture, including x64 "
+                    "Python running on an ARM64 host.",
+                    "Use UCRT64 for x64 Python or CLANGARM64 for ARM64 Python.",
+                ),
+            }[category]
+            return RecoveryAdvice(f"msys2-{category}", steps)
+
     missing = outcome.returncode == 127 or any(
         marker in output for marker in ("not found", "not recognized")
     )

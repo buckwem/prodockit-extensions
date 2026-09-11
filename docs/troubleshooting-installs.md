@@ -327,6 +327,19 @@ repair:
 pdk diag --apply --apply-check renderer.weasyprint
 ```
 
+Windows native setup uses the same bounded MSYS2 recovery in Adopt, guided
+Bootstrap and this repair. It performs a full MSYS2 upgrade before installing
+Pango, so close other MSYS2 terminals and package managers first. Signature
+errors trigger a refresh of existing signing keys, then a signed keyring update
+and full upgrade if the error persists. Signature checks stay enabled.
+
+If recovery stops, review `%LOCALAPPDATA%\prodockit\logs\msys2-setup.log`
+for the selected architecture, MSYS2 directory, failed phase and exit status.
+Check the system clock and [MSYS2's update guidance](https://www.msys2.org/docs/updating/).
+A lock or unverified process shutdown stops automatic retries; wait for other
+installers to finish. Do not delete lock files, disable signature checks or
+remove the MSYS2 installation to work around the error.
+
 The DLL architecture must match `python.exe`, not necessarily the computer.
 An x64 Python requires `C:\msys64\ucrt64\bin`; an ARM64 Python requires the
 CLANGARM64 libraries. Mixing them commonly produces Windows error `0xc1`.

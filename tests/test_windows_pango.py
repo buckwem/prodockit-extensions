@@ -76,14 +76,11 @@ def test_probe_distinguishes_dll_package_and_both_environment_scopes() -> None:
     assert "$env:WEASYPRINT_DLL_DIRECTORIES" in script
 
 
-def test_repair_reinstalls_only_after_integrity_or_dll_failure() -> None:
+def test_repair_uses_shared_recovery_before_persisting_user_environment() -> None:
     script = repair_script(pango_spec(arm64=True))
 
-    assert "pacman -S --noconfirm --needed" in script
-    assert "if (-not $integrity -or -not (Test-Path $dll))" in script
-    assert "pacman -S --noconfirm $pkg" in script
-    assert "integrity check failed after reinstall" in script
-    assert "Pango DLL is missing after reinstall" in script
+    assert "-m prodockit.windows_msys2 --root $root" in script
+    assert script.index("$LASTEXITCODE -ne 0") < script.index("SetEnvironmentVariable")
     assert "(@($bin) + $entries)" in script
 
 
