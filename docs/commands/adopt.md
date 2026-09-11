@@ -7,10 +7,42 @@ icon: lucide/blocks
 # `pdk adopt`
 
 `pdk adopt` adds selected Prodockit components and the supported toolchain to
-an existing Zensical document. It is project-scoped: it does not configure Git,
-SSH, an editor, a remote, or Pages, and it never commits or pushes.
+an existing Zensical document. Its final apply phase offers separately confirmed
+site details and optional Git/remote setup. It does not configure SSH, editors
+or Pages, and it never commits or pushes.
 
 Use the [Adopt task guide](../adopt.md) for the preparation and review workflow.
+
+### Build workflow protection
+
+Adopt compares the SHA-256 hash of `.github/workflows/docs.yml` with a verified
+Zensical starter from its upstream repository. An exact match can be updated
+in place. Modified or unknown files are preserved, with proposed instructions
+written to `pdk.yml` in the project root instead. Existing proposal files are
+also preserved so rerunning Adopt does not overwrite review work.
+
+For an existing `.gitlab-ci.yml`, Adopt writes `.gitlab-pdk.yml`. There is no
+verified GitLab starter in the pinned Zensical source, so Adopt does not
+overwrite GitLab pipelines. Both proposals are inactive until you manually
+merge the relevant instructions into your build file. They cover website
+building, not PDF generation. Missing build files are not created automatically.
+
+See [Stage 7b — Review the project changes](../getting-started.md#stage-7-review-the-project-changes)
+for the manual merge and review steps.
+
+## Recover interrupted repository setup
+
+If sign-in times out, completed installation work is retained. Follow the
+printed sign-in command to start a fresh login, complete its browser prompts
+promptly, then rerun `pdk adopt --apply`.
+
+A hosting tool can report failure after creating a repository. Adopt checks
+the exact repository address and requested visibility once without retrying
+creation. If verified, it asks whether to finish the local connection. If it
+cannot verify both, it leaves the connection unchanged and asks you to check
+the hosting service. On a later run, answer **Yes** to the existing-repository
+question if the repository is already there. Existing origin remotes are never
+replaced, and no files are committed or pushed.
 
 ## Synopsis {: #cmd-adopt-synopsis }
 

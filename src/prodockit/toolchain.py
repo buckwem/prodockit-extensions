@@ -35,7 +35,14 @@ from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
 from prodockit.installer_process import InstallerCleanupError, run_installer
-from prodockit.pins import DEFAULT_PACKAGES, TESTED_VERSIONS, PinError, apply_version, discover
+from prodockit.pins import (
+    DEFAULT_PACKAGES,
+    TESTED_VERSIONS,
+    PackageState,
+    PinError,
+    apply_version,
+    discover,
+)
 from prodockit.renderer_resilience import (
     DEFAULT_RETRY_DELAYS,
     RetryReporter,
@@ -220,8 +227,23 @@ def _requirements_path(root: Path) -> Path:
     )
 
 
-def _declarations(root: Path) -> tuple[tuple[str, ...], tuple[Path, ...]]:
+def _local_declarations(root: Path) -> dict[str, PackageState]:
+    """Leave CI files to the baseline-verified workflow planner, not Pins."""
     states = discover(str(root))
+    for state in states.values():
+        state.sites = [
+            site
+            for site in state.sites
+            if not (
+                site.path.replace("\\", "/").startswith((".github/workflows/", ".gitlab/"))
+                or site.path in {".gitlab-ci.yml", ".gitlab-ci.yaml"}
+            )
+        ]
+    return states
+
+
+def _declarations(root: Path) -> tuple[tuple[str, ...], tuple[Path, ...]]:
+    states = _local_declarations(root)
     changed: set[str] = set()
     for package in DEFAULT_PACKAGES:
         state = states[package]
@@ -452,7 +474,7 @@ def write_declarations(root: Path) -> list[Path]:
     """Align existing sites, then add the canonical missing declarations."""
 
     written: set[Path] = set()
-    states = discover(str(root))
+    states = _local_declarations(root)
     try:
         for package, state in states.items():
             differs = any(site.version != TESTED_VERSIONS[package] for site in state.sites)

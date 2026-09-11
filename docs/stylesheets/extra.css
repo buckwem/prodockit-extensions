@@ -1,8 +1,19 @@
 /* Add project-specific website and PDF styles below this line. */
 
+/* Match Adopt's amber warning output on a dark terminal background. */
+.md-typeset pre.terminal-banner code {
+  background-color: #1e1e1e;
+  color: #f5f5f5;
+}
+.md-typeset .terminal-banner .terminal-warning {
+  color: #e69f00;
+  font-weight: bold;
+}
+
 /* Path labels remain distinct from blue actions and green Optional labels. */
 .md-typeset .install-clean,
-.md-typeset .install-update {
+.md-typeset .install-update,
+.md-typeset a.install-go {
   color: #ffffff;
   padding: 2px 4px;
   border-radius: 4px;
@@ -11,6 +22,14 @@
 
 .md-typeset .install-clean { background-color: #7040a0; }
 .md-typeset .install-update { background-color: #a34300; }
+.md-typeset a.install-go {
+  background-color: var(--md-primary-fg-color);
+  white-space: nowrap;
+}
+.md-typeset a.install-go:hover,
+.md-typeset a.install-go:focus-visible {
+  text-decoration: underline;
+}
 
 /* Homebrew's amber brand colour with dark text keeps its installation action
    recognisable and legible in both website colour schemes. */
