@@ -715,3 +715,15 @@ def test_every_nav_page_reached_the_site(prodockit_nav_pages, prodockit_site_dir
         if not any(candidate.is_file() for candidate in candidates):
             missing.append(page)
     assert not missing, f"Nav pages missing from the built site: {missing}"
+
+
+def test_pdf_links_do_not_publish_checkout_paths(prodockit_pdf):
+    from urllib.parse import unquote
+
+    for page in prodockit_pdf:
+        for link in page.get_links():
+            uri = unquote(link.get("uri", ""))
+            assert str(ROOT) not in uri, f"Checkout path in PDF link: {uri}"
+            assert "/blob/main//" not in uri, f"Absolute path in repository URL: {uri}"
+            if "/blob/main/" in uri and "changelog" in uri:
+                assert uri.endswith("/docs/about/changelog.md"), uri

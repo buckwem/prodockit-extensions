@@ -24,7 +24,9 @@ import base64
 import os
 import re
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup, Tag
 
@@ -150,6 +152,8 @@ def fix_up_page_html(
     *,
     current_docs_rel_path: str,
     docs_dir: str,
+    project_root: str = ".",
+    source_page_paths: list[str] | None = None,
     page_anchor_map: dict[str, str],
     is_index: bool = False,
     is_appendix: bool = False,
@@ -168,6 +172,9 @@ def fix_up_page_html(
     `current_docs_rel_path` is this page's own docs_dir-relative path (e.g.
     ``"starthere/installtooling.md"``) - used to resolve this page's own
     relative image/link references and its own anchor id.
+    `project_root` anchors repository file URLs independently of the working
+    directory. `source_page_paths` also includes pages omitted from the PDF,
+    so their website links can point to the corresponding repository source.
     `page_anchor_map` is shared across every page in the build (see
     :func:`build_page_anchor_map`), used to rewrite cross-page links to
     in-document anchors.
@@ -509,32 +516,41 @@ def fix_up_page_html(
         if anchor is not None:
             a["href"] = f"#{frag}" if frag else f"#{anchor}"
 
-    # Repo file links: a relative link to a non-markdown repo file isn't
-    # part of the concatenated PDF at all (unlike a page link above) -
-    # resolved relative to wherever Pandoc happens to run, it's meaningless
-    # (and reveals a local file path) to anyone else reading the PDF, so
-    # rewrite it to the file's canonical GitHub/GitLab "blob" URL instead.
-    # Unlike the clean-URL page links above, this one *is* just a direct
-    # relative path from the source file's own directory - Zensical doesn't
-    # clean-URL-rewrite links to non-page assets.
+    # Pages omitted from the PDF still have clean website URLs. Recover
+    # their source paths before falling back to repository-file links.
+    source_page_map = {virtual_page_path(path): path for path in source_page_paths or []}
+    root = Path(project_root).resolve()
+    source_docs = (root / docs_dir).resolve()
     current_dir = os.path.dirname(current_docs_rel_path)
     repo_url_lower = repo_url.lower()
     if "github.com" in repo_url_lower:
-        blob_prefix: str | None = f"{repo_url}/blob/main/"
+        blob_prefix: str | None = f"{repo_url.rstrip('/')}/blob/main/"
     elif "gitlab" in repo_url_lower:
-        blob_prefix = f"{repo_url}/-/blob/main/"
+        blob_prefix = f"{repo_url.rstrip('/')}/-/blob/main/"
     else:
         blob_prefix = None
     for a in soup.find_all("a", href=True):
         href = a["href"]
-        if href.startswith(("http://", "https://", "mailto:", "#", "/")):
+        parts = urlsplit(href)
+        if parts.scheme or parts.netloc or href.startswith(("#", "/")):
             continue
         if blob_prefix is None:
             a.unwrap()
             continue
-        joined = os.path.normpath(os.path.join(docs_dir, current_dir, href))
-        repo_rel_path = joined.replace("\\", "/")
-        a["href"] = f"{blob_prefix}{repo_rel_path}"
+        target = unquote(parts.path)
+        virtual_target = os.path.normpath(os.path.join(current_virtual_dir, target))
+        virtual_target = virtual_target.replace("\\", "/")
+        source_page = source_page_map.get(virtual_target.rstrip("/"))
+        candidate = source_docs / source_page if source_page else source_docs / current_dir / target
+        try:
+            repo_path = candidate.resolve().relative_to(root).as_posix()
+        except ValueError:
+            # Preserve the label, but never publish an out-of-project path.
+            a.unwrap()
+            continue
+        a["href"] = urlunsplit(
+            ("", "", f"{blob_prefix}{quote(repo_path, safe='/')}", parts.query, parts.fragment)
+        )
 
     # Prepend-position figure-caption/table-caption ("/// figure-caption | <"
     # or "/// table-caption | <" in pymdownx.blocks.caption): Pandoc's Figure

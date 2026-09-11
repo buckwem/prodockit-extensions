@@ -163,6 +163,8 @@ def build_pdf(
     output_path: str,
     *,
     docs_dir: str = "docs",
+    project_root: str = ".",
+    source_page_paths: list[str] | None = None,
     extra_css: str = "",
     repo_url: str = "",
     admonition_icon_config: dict[str, Any] | None = None,
@@ -215,6 +217,8 @@ def build_pdf(
 
     `docs_dir` is your project's docs root (used to resolve each page's own
     relative image/link references - see `prodockit.pdf.html.fix_up_page_html`).
+    `project_root` is the repository base for file URLs; `source_page_paths`
+    lists all navigation sources, including pages omitted from this PDF.
     `extra_css` is your own website stylesheet's content (e.g. your theme
     CSS plus any custom stylesheet), concatenated *before* the CSS this
     function generates, so its own `!important` rules can still override a
@@ -367,6 +371,8 @@ def build_pdf(
                     page.html,
                     current_docs_rel_path=page.docs_rel_path,
                     docs_dir=docs_dir,
+                    project_root=project_root,
+                    source_page_paths=source_page_paths,
                     page_anchor_map=page_anchor_map,
                     is_index=page.is_index,
                     is_appendix=page.is_appendix,
