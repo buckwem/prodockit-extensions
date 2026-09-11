@@ -306,46 +306,34 @@ def test_simulated_old_software_understands_resilient_homebrew_upgrades(
     assert runner.versions["vscode"] == "1.100.0"
 
 
+@pytest.mark.parametrize("arm64", [False, True])
 def test_simulated_windows_pango_upgrade_returns_strict_probe_evidence(
-    monkeypatch, tmp_path: Path
+    monkeypatch, tmp_path: Path, arm64: bool
 ) -> None:
+    from prodockit.windows_pango import pango_spec, probe_script, repair_script
+
     runner = bootstrap_acceptance_driver.HarnessRunner(
         {},
         "git@example.invalid:group/project.git",
         home=tmp_path,
         old_software=True,
     )
-    select_spec = bootstrap_acceptance_driver.pango_spec
-    monkeypatch.setattr(
-        bootstrap_acceptance_driver,
-        "pango_spec",
-        lambda: select_spec(arm64=False),
-    )
-    probe = [
-        "powershell",
-        "-NoProfile",
-        "-Command",
-        "pacman -Qkk mingw-w64-ucrt-x86_64-pango; ConvertTo-Json -Compress",
-    ]
+    spec = pango_spec(arm64=arm64)
+    monkeypatch.setattr(bootstrap_acceptance_driver, "pango_spec", lambda: spec)
+    probe = ["powershell", "-NoProfile", "-Command", probe_script(spec)]
 
     before = json.loads(runner.run(probe).stdout)
-    runner.run(
-        [
-            "powershell",
-            "-NoProfile",
-            "-Command",
-            "pacman -S --noconfirm mingw-w64-ucrt-x86_64-pango",
-        ]
-    )
+    runner.run(["powershell", "-NoProfile", "-Command", repair_script(spec)])
     after = json.loads(runner.run(probe).stdout)
 
     assert before["dll_exists"] is False
-    assert after["architecture"] == "x64"
-    assert after["environment"] == "ucrt64"
+    assert before["package_integrity"] is False
+    assert after["architecture"] == spec.architecture
+    assert after["environment"] == spec.environment
     assert after["dll_exists"] is True
     assert after["package_integrity"] is True
-    assert after["user_environment"] == r"C:\msys64\ucrt64\bin"
-    assert after["process_environment"] == r"C:\msys64\ucrt64\bin"
+    assert after["user_environment"] == rf"C:\msys64\{spec.environment}\bin"
+    assert after["process_environment"] == after["user_environment"]
 
 
 def test_a_wheel_file_or_single_wheel_directory_is_accepted(tmp_path: Path) -> None:
