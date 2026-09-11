@@ -1,0 +1,189 @@
+# Copyright (c) 2026 Mark Buckwell and contributors
+# SPDX-License-Identifier: MIT
+name: Zensical compatibility
+'on':
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: Exact supported Zensical release
+        default: 0.0.59
+        required: true
+      candidate:
+        description: Exact candidate Zensical release
+        default: 0.0.61
+        required: true
+      template_ref:
+        description: Template Git ref (resolved commit is recorded)
+        default: main
+        required: true
+      full:
+        description: Also qualify complete extensions and template outputs
+        type: boolean
+        default: true
+  pull_request:
+    paths:
+    - tools/zensical_compatibility.py
+    - tools/compatibility/**
+    - tests/test_zensical_compatibility.py
+    - .github/workflows/zensical-compatibility.yml
+    - pyproject.toml
+permissions:
+  contents: read
+jobs:
+  configurations:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-24.04
+        - macos-15
+        - windows-2025
+        python-version:
+        - '3.10'
+        - '3.11'
+        - '3.12'
+        - '3.13'
+        - '3.14'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Compare consumer configurations
+      shell: bash
+      env:
+        BASELINE: ${{ inputs.baseline || '0.0.59' }}
+        CANDIDATE: ${{ inputs.candidate || '0.0.61' }}
+      run: python tools/zensical_compatibility.py pair --baseline "$BASELINE" --candidate "$CANDIDATE" --output
+        "$RUNNER_TEMP/zensical-config"
+    - name: Publish report
+      if: always()
+      shell: bash
+      run: if [ -f "$RUNNER_TEMP/zensical-config/analysis.md" ]; then cat "$RUNNER_TEMP/zensical-config/analysis.md"
+        >> "$GITHUB_STEP_SUMMARY"; fi
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: zensical-config-${{ matrix.os }}-${{ matrix.python-version }}
+        path: '${{ runner.temp }}/zensical-config/analysis.md
+
+          ${{ runner.temp }}/zensical-config/*requirements.txt
+
+          ${{ runner.temp }}/zensical-config/*.log
+
+          ${{ runner.temp }}/zensical-config/*/result.json
+
+          ${{ runner.temp }}/zensical-config/*/probes/*/*.log
+
+          ${{ runner.temp }}/zensical-config/*/probes/*/mkdocs.yml
+
+          ${{ runner.temp }}/zensical-config/*/probes/*/docs/*.md
+
+          ${{ runner.temp }}/zensical-config/*/probes/*/includes/**
+
+          ${{ runner.temp }}/zensical-config/*/probes/*/*.csv
+
+          ${{ runner.temp }}/zensical-config/*/probes/*/browser-failure.*'
+        retention-days: 14
+  complete-documents:
+    if: github.event_name == 'workflow_dispatch' && inputs.full
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: extensions
+    env:
+      PANDOC_VERSION: 3.10.1
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome-stable
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+        path: extensions
+    - uses: actions/checkout@v5
+      with:
+        repository: buckwem/prodockit-template
+        ref: ${{ inputs.template_ref }}
+        path: template
+        fetch-depth: 0
+    - uses: actions/setup-python@v5
+      with:
+        python-version-file: extensions/.python-version
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - name: Point apt at a mirror that answers
+      timeout-minutes: 2
+      run: "list=/etc/apt/apt-mirrors.txt\nif [ ! -f \"$list\" ]; then\n  echo \"::notice::no $list in this image\
+        \ - apt left as it is\"\nelif ! grep -q 'azure.archive.ubuntu.com' \"$list\"; then\n  echo \"::notice::$list\
+        \ no longer names Azure - apt left as it is\"\nelse\n  sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g'\
+        \ \"$list\"\n  echo \"mirrorlist now:\"; cat \"$list\"\nfi\n"
+    - run: sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install
+        -y curl fonts-inter fonts-jetbrains-mono
+      timeout-minutes: 8
+    - id: pandoc-cache
+      uses: actions/cache@v4
+      with:
+        path: /tmp/pandoc.deb
+        key: pandoc-${{ env.PANDOC_VERSION }}-amd64-deb
+    - if: steps.pandoc-cache.outputs.cache-hit != 'true'
+      run: 'curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 20 -o /tmp/pandoc.deb "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
+
+        '
+    - run: sudo apt install -y /tmp/pandoc.deb
+    - run: curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg
+        > /dev/null
+    - run: echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/
+        stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+    - run: sudo apt-get -o Acquire::http::Timeout=10 update && sudo apt-get -o Acquire::http::Timeout=10 install
+        -y google-chrome-stable
+      timeout-minutes: 8
+    - run: npm ci --prefix tools/mermaid
+    - run: npm ci --prefix tools/mathjax
+    - name: Fetch shared template citation style
+      run: curl -fsSL --retry 3 --max-time 60 https://www.zotero.org/styles/harvard-cite-them-right -o ../template/harvard-cite-them-right.csl
+    - name: Qualify complete documents
+      env:
+        BASELINE: ${{ inputs.baseline }}
+        CANDIDATE: ${{ inputs.candidate }}
+      run: python tools/zensical_compatibility.py pair --baseline "$BASELINE" --candidate "$CANDIDATE" --full --template
+        ../template --browser-script tools/compatibility/redirect_browser.cjs --output "$RUNNER_TEMP/zensical-full"
+    - name: Publish report
+      if: always()
+      run: if [ -f "$RUNNER_TEMP/zensical-full/analysis.md" ]; then cat "$RUNNER_TEMP/zensical-full/analysis.md"
+        >> "$GITHUB_STEP_SUMMARY"; fi
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: zensical-full-evidence
+        path: '${{ runner.temp }}/zensical-full/analysis.md
+
+          ${{ runner.temp }}/zensical-full/*requirements.txt
+
+          ${{ runner.temp }}/zensical-full/*.log
+
+          ${{ runner.temp }}/zensical-full/*/result.json
+
+          ${{ runner.temp }}/zensical-full/*/probes/*/*.log
+
+          ${{ runner.temp }}/zensical-full/*/probes/*/mkdocs.yml
+
+          ${{ runner.temp }}/zensical-full/*/probes/*/docs/*.md
+
+          ${{ runner.temp }}/zensical-full/*/probes/*/includes/**
+
+          ${{ runner.temp }}/zensical-full/*/probes/*/*.csv
+
+          ${{ runner.temp }}/zensical-full/*/probes/*/browser-failure.*
+
+          ${{ runner.temp }}/zensical-full/*-comparison.json
+
+          ${{ runner.temp }}/zensical-full/*/*-results/**
+
+          ${{ runner.temp }}/zensical-full/*/extensions/docs/*.pdf
+
+          ${{ runner.temp }}/zensical-full/*/template/docs/*.pdf'
+        retention-days: 14

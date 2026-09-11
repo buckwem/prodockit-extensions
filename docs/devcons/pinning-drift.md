@@ -156,7 +156,7 @@ several files at once, and nothing keeps them in step.
 | --- | --- | --- |
 | `pyproject.toml` | `zensical>=0.0.57` | A **floor**. An exact pin in a library's metadata propagates to every consumer and conflicts with any project needing a different Zensical. |
 | CI docs/build job | `zensical==0.0.57` | An **exact pin**. The site and PDF are artifacts; they should change deliberately. |
-| CI test job | `weasyprint==69.0` | An **exact pin**. Tests that assert on where things land in a rendered PDF treat the layout engine as an input, not an implementation detail. |
+| Ordinary CI test job | Package dependency floors | A latest-version canary; resolved versions can advance independently of publishing pins. |
 | Drift job | both, exactly | The baseline it compares the newest release against. |
 /// table-caption | <
     attrs: {id: tab-devcons-pinning-drift-where-a-version-gets-declared}
@@ -674,3 +674,71 @@ Specific to pinning:
   to report newer PyPI releases or use `--latest`. The combination tested by
   the installed Prodockit release is carried in its wheel, so `--offline`
   still offers those versions interactively.
+
+
+## Zensical release qualification
+
+Use `.github/workflows/zensical-compatibility.yml` for an isolated Zensical
+comparison. Ordinary `ci.yml` resolves library dependency floors and is a
+latest-version canary; `docs.yml` pins publishing inputs. The older drift job
+upgrades several dependencies together and cannot attribute a change to
+Zensical alone.
+
+The compatibility workflow accepts exact baseline and candidate releases.
+Its configuration matrix covers Python 3.10–3.14 on Ubuntu, macOS and Windows.
+The Windows macro fixture uses an extended-length include path. A manual run
+with `full` enabled additionally builds both complete extensions documents,
+both complete template documents and both template source bundles on Ubuntu.
+It tests browser redirect navigation and feature PDFs separately. Choose an
+explicit template commit for repeatable qualification; the resolved commit
+and working-tree state are recorded in the evidence.
+
+Run the same gate locally from a checkout with the normal PDF prerequisites:
+
+```bash
+python tools/zensical_compatibility.py pair \
+  --baseline 0.0.59 --candidate 0.0.61 \
+  --output /tmp/zensical-config-review
+
+python tools/zensical_compatibility.py pair \
+  --baseline 0.0.59 --candidate 0.0.61 --full \
+  --template ../prodockit-template \
+  --browser-script tools/compatibility/redirect_browser.cjs \
+  --output /tmp/zensical-full-review
+```
+
+Use a fresh output directory. The runner creates two private virtual environments,
+freezes the baseline dependencies, and changes only Zensical in the candidate.
+It never installs into the invoking environment. Complete builds use disposable
+Git copies and the same template citation-style bytes; supply
+`harvard-cite-them-right.csl` in the template checkout as its publishing workflow
+does. Node, Chrome, Pandoc and fonts must already be available for full builds.
+
+Read `analysis.md`, `result.json`, command logs and the comparison JSON artifacts.
+Configuration checks report pass/fail, strict expected failure, unsupported
+feature and not-run counts separately. JUnit reports retain executed, passed,
+failed, error and skipped suite counts. Configuration-only results do not qualify
+an upgrade. Build failure or incomplete output fails the gate. Byte differences
+are recorded for review, not automatically classified as regressions.
+
+All pages of each generated PDF are compared for dimensions, text, raster output
+at 144 dpi, bookmarks and link annotations. Navigation coverage and published PDF
+copies are checked independently. A short feature-fixture PDF never substitutes
+for the full extensions/template documents. Website redirect success does not
+imply JavaScript aliases work inside a PDF.
+
+### Known limitations {: #pinning-compatibility-known-limitations }
+
+Zensical 0.0.61 rejects Mike's documented `version_selector` option. The gate
+retains the real CLI reproduction as a strict expected failure for exactly that
+version and diagnostic. An unrelated failure still fails; an unexpected pass
+also fails so the exception must be reviewed. This is an upstream limitation,
+not a passing Prodockit test. See
+[the compatibility issue](https://github.com/buckwem/prodockit-extensions/issues/799).
+New candidate versions are not automatically exempted.
+
+The full link audit also exposes existing defects such as
+[absolute checkout paths in PDFs](https://github.com/buckwem/prodockit-extensions/issues/798).
+A defect present on both releases is not a new Zensical regression, but it still
+prevents a clean full qualification until repaired. No result from one local
+OS/Python run substitutes for the workflow matrix.
