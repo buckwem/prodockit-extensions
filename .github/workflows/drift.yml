@@ -1,7 +1,11 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-# docs.yml and ci.yml pin `zensical` and `weasyprint` exactly, so the
+# docs.yml pins the publishing inputs exactly; ordinary ci.yml resolves
+# the library floors as a latest-version canary. This job compares all
+# tracked dependencies together. Use zensical-compatibility.yml to isolate
+# a Zensical change and qualify consumer configurations and full documents.
+# The publishing pins mean the
 # published site and PDF only change when someone decides they should. The
 # cost of pinning is going quietly stale: nothing says a newer release
 # exists, or what it would do to the output.
@@ -245,7 +249,7 @@ jobs:
           - **Built-output checks against the newest build**: $TESTS_OUTCOME
 
           Both builds used the same pandoc, Chrome, fonts and runner image, so
-          any difference above is attributable to these two packages alone.
+          differences reflect the combined dependency changes, not Zensical alone.
 
           A difference is not automatically a problem - when the pins last
           moved, 0.0.52 changed every page of the site (Font Awesome redrew the
@@ -253,7 +257,7 @@ jobs:
           rather than have it arrive unnoticed.
 
           To take the upgrade: bump the versions in \`.github/workflows/docs.yml\`
-          and \`.github/workflows/ci.yml\`, and \`zensical\`'s floor in
+          and the drift baseline, and \`zensical\`'s floor in
           \`pyproject.toml\`, then rebuild and diff before committing.
 
           <sub>Opened by \`drift.yml\`. Updated in place rather than reopened while this stays open.</sub>

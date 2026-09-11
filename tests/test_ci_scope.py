@@ -388,6 +388,10 @@ def test_every_artifact_workflow_uses_the_python_314_project_pin() -> None:
         for name, step in steps
         if "python-version-file: .python-version" not in step
         and "python-version: ${{ matrix.python-version }}" not in step
+        and not (
+            name == "zensical-compatibility.yml"
+            and "python-version-file: extensions/.python-version" in step
+        )
     ]
     assert not unpinned, f"setup-python does not use the 3.14 project pin: {unpinned}"
 
