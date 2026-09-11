@@ -2440,3 +2440,66 @@ def test_author_guide_documents_every_stable_check_id() -> None:
     }
 
     assert not {check_id for check_id in check_ids if f"`{check_id}`" not in guide}
+
+
+@pytest.mark.parametrize("component", ["mermaid", "mathjax"])
+def test_each_managed_renderer_security_lookup_is_explicit_offline(tmp_path, monkeypatch, component):
+    tool_root = tmp_path / "tools" / component
+    tool_root.mkdir(parents=True)
+    (tool_root / "package-lock.json").write_text("{}")
+    monkeypatch.setattr(diagnostics, "_run", lambda *a, **kw: pytest.fail("offline network request"))
+    checks = {check.id: check for check in diagnostics._node_security_checks(tmp_path, False)}
+    assert checks[f"renderer.{component}-security"].data["reason"] == "offline"
+    other = "mathjax" if component == "mermaid" else "mermaid"
+    assert checks[f"renderer.{other}-security"].data["reason"] == "not-configured"
+
+
+def test_mathjax_advisories_are_reported_separately_from_clean_mermaid(tmp_path, monkeypatch):
+    for component in ("mermaid", "mathjax"):
+        tool_root = tmp_path / "tools" / component
+        tool_root.mkdir(parents=True)
+        (tool_root / "package-lock.json").write_text("{}")
+    calls = []
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda name: "/bin/npm")
+
+    def audit(command, *, cwd, timeout):
+        calls.append(cwd.name)
+        assert command == ["/bin/npm", "audit", "--omit=dev", "--audit-level=moderate", "--json"]
+        vulnerable = cwd.name == "mathjax"
+        counts = {"low": 0, "moderate": int(vulnerable), "high": int(vulnerable), "critical": 0}
+        return subprocess.CompletedProcess(command, int(vulnerable), json.dumps({"metadata": {"vulnerabilities": counts}}), "")
+
+    monkeypatch.setattr(diagnostics, "_run", audit)
+    checks = {check.id: check for check in diagnostics._node_security_checks(tmp_path, True)}
+    assert calls == ["mermaid", "mathjax"]
+    assert checks["renderer.mermaid-security"].status == "pass"
+    mathjax = checks["renderer.mathjax-security"]
+    assert mathjax.status == "warn"
+    assert mathjax.summary == "MathJax dependencies have 2 moderate-or-higher advisories"
+    assert "tools/mathjax" in mathjax.details[-1]
+    assert diagnostics.REPAIR_REGISTRY["renderer.mathjax-security"].disposition == "prohibited"
+
+
+@pytest.mark.parametrize("output,code", [
+    ("not JSON", 0), ("{}", 1),
+    ('{"metadata":{"vulnerabilities":{"low":0,"moderate":"bad","high":0,"critical":0}}}', 0),
+])
+def test_mathjax_audit_errors_do_not_report_a_clean_graph(tmp_path, monkeypatch, output, code):
+    tool_root = tmp_path / "tools/mathjax"
+    tool_root.mkdir(parents=True)
+    (tool_root / "package-lock.json").write_text("{}")
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda name: "/bin/npm")
+    monkeypatch.setattr(diagnostics, "_run", lambda *a, **kw: subprocess.CompletedProcess([], code, output, ""))
+    checks = {check.id: check for check in diagnostics._node_security_checks(tmp_path, True)}
+    assert checks["renderer.mathjax-security"].status == "warn"
+    assert checks["renderer.mathjax-security"].data["reason"] == "audit-error"
+
+
+def test_mathjax_audit_missing_npm_is_a_warning(tmp_path, monkeypatch):
+    tool_root = tmp_path / "tools/mathjax"
+    tool_root.mkdir(parents=True)
+    (tool_root / "package-lock.json").write_text("{}")
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda name: None)
+    checks = {check.id: check for check in diagnostics._node_security_checks(tmp_path, True)}
+    assert checks["renderer.mathjax-security"].status == "warn"
+    assert checks["renderer.mathjax-security"].data["reason"] == "npm-missing"
