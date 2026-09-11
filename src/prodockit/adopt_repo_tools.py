@@ -57,6 +57,7 @@ def ensure(root: Path, client: str, *, offline: bool) -> bool:
     _refresh()
     missing = [name for name in ("git", client) if not shutil.which(name)]
     if not missing:
+        click.secho(f"READY: Git and {client} are already installed.", fg="green")
         return True
     if offline:
         click.secho(

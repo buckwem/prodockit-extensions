@@ -20,89 +20,97 @@ Follow the badges beside the step titles:
 - **Clean**{: .install-clean}: only for a new site in an empty directory.
 - **Update**{: .install-update}: only for an existing Zensical site, with or without Prodockit.
 - **Optional**{: .bg-green}: skip when already completed or not needed.
+- [Go to](#stage-1-prepare-the-project-environment){ .install-go }: click to jump to another section.
 
 Steps without a path badge apply to both routes. The words identify the path
 as well as the colours. Keep your existing site's content and configuration;
 do not copy new-site examples over them.
 
-Five stages take the site from an empty project directory to a verified
-website with downloadable PDF and source outputs.
-An optional sixth stage saves the source to GitHub and publishes the website.
+Follow Stage 3a for a clean site or Stage 3b for an existing Zensical site;
+both routes join at Stage 4 and lead to a verified website with downloadable outputs.
+An optional seventh stage saves the source to GitHub and publishes the website.
 
-### Stage 1 — Prepare the project environment
+### Stage 1 — Prepare the setup environment {: #stage-1-prepare-the-project-environment }
 
-Prepare or enter the project directory and verify that it uses its own Python
-3.14 environment rather than the shared setup environment.
+Python 3.14 must be installed before either a clean installation or an upgrade.
+An existing Zensical site may use an older Python version; installing or
+updating Prodockit does not upgrade Python itself.
 
-/// steps
-
-//// step | Prepare Python and the setup environment
-
-Complete section 3.1 in the parent directory that holds your repositories:
+If Python 3.14 is not already installed, complete section 3.1 in the parent
+directory that holds your repositories. It also prepares the shared setup
+environment:
 
 [Open section 3.1 to prepare your environment](installation.md#installation-preparation){ .md-button .md-button--primary target="_blank" rel="noopener" }
 
-Return here with that setup environment active. The next step enters the new
-site directory and creates a separate `.venv` for the site before Zensical is
-installed.
+Once you have Python 3.14 installed, choose the route that matches whether you are creating a new site or updating an existing one:
 
-////
+- For a **Clean**{: .install-clean} install, continue: [Go to Stage 2](#stage-2-prepare-the-project-environment){ .install-go }.
+- For an **Upgrade**{: .install-update} install, skip ahead: [Go to Stage 3b](#stage-2b-return-to-zensical-environment){ .install-go }.
+
+### Stage 2 — Prepare the project environment **Clean**{: .install-clean} {: #stage-2-prepare-the-project-environment }
+
+Create the new site directory and its own Python environment. For an existing
+Zensical site, skip to Stage 3b and use its existing directory and environment.
+
+/// steps
 
 <span id="prepare-the-empty-project-directory"></span>
 
 //// step | Prepare the empty project directory **Clean**{: .install-clean}
 
-Leave the parent setup environment, create and enter the site directory, then
-create its project-local virtual environment. Use the same repositories path
-you selected in section 3.1. The examples call the site `prodockit-project`;
-replace that name if required.
+Leave the setup environment, then create and enter your new site's folder.
+Change `~/repos` and `prodockit-project` if you chose different names. Skip
+`deactivate` if no environment is active, and `mkdir` if the intended folder
+already exists and is empty.
 
-!!! warning "Already have a site? Keep its files and environment"
-
-    Enter the existing directory containing `zensical.toml`, `zensical.yml`
-    or `zensical.yaml` instead of creating a new project. Do not run
-    `zensical new .` there or replace its pages with the starter examples.
-    Activate its existing `.venv` and check `python --version` first. If it
-    reports Python 3.14, keep that environment. If it is missing or damaged,
-    follow [the environment recovery instructions](troubleshooting-installs.md#wrong-python)
-    before continuing. Adopt aligns packages but cannot replace the running
-    Python interpreter.
-
-The commands below perform these actions in order:
-
-- `deactivate` leaves the currently active setup environment; it does not
-  delete it. Omit this command if no environment is active.
-- `cd` or PowerShell's `Set-Location` changes the directory you are working in.
-  Replace the example repositories path with your own before running it.
-- `mkdir -p` or `New-Item -ItemType Directory -Force` creates the project folder
-  if it does not exist. `Out-Null` hides PowerShell's folder-creation listing.
-- The second directory-change command enters that project folder.
-- The Python command ending in `-m venv .venv` creates its isolated environment.
-  On macOS, `brew --prefix python@3.14` locates Homebrew's Python 3.14;
-  Windows uses `py -3.14`, and Ubuntu uses `python3.14`.
-- On Windows, `Set-ExecutionPolicy ... RemoteSigned` allows locally created
-  activation scripts for your user account; it does not change every user's policy.
-- `source .venv/bin/activate` or the PowerShell activation script activates that
-  environment so subsequent Python commands use the project's installation.
+Run each line in turn. **If `cd` fails, stop and correct the path before continuing.**
 
 === ":material-apple: macOS"
 
     ```bash
     deactivate
-    cd /path/to/your-repositories
+    cd ~/repos
     mkdir -p prodockit-project
     cd prodockit-project
-    "$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
-    source .venv/bin/activate
     ```
 
 === ":fontawesome-brands-windows: Windows"
 
     ```powershell
     deactivate
-    Set-Location C:\path\to\your-repositories
-    New-Item -ItemType Directory -Force .\prodockit-project | Out-Null
-    Set-Location .\prodockit-project
+    cd ~/repos
+    mkdir prodockit-project
+    cd prodockit-project
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    deactivate
+    cd ~/repos
+    mkdir -p prodockit-project
+    cd prodockit-project
+    ```
+
+////
+
+//// step | Create and activate the project environment **Clean**{: .install-clean}
+
+Create a Python 3.14 environment in `.venv`, then activate it so subsequent
+commands use this site's packages rather than another project's.
+
+=== ":material-apple: macOS"
+
+    ```bash
+    "$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
+    source .venv/bin/activate
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    The policy command allows activation scripts for your Windows account.
+
+    ```powershell
     py -3.14 -m venv .venv
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
@@ -111,20 +119,16 @@ The commands below perform these actions in order:
 === ":material-linux: Linux (Ubuntu)"
 
     ```bash
-    deactivate
-    cd /path/to/your-repositories
-    mkdir -p prodockit-project
-    cd prodockit-project
     python3.14 -m venv .venv
     source .venv/bin/activate
     ```
 
-This is the handoff from the shared setup environment to the new site's own
-environment. Verify it before installing Zensical:
+////
 
-`pwd` (or `Get-Location`) prints your current directory. `python --version`
-prints the Python version. The final `python -c ...` command prints the active
-Python environment's directory; it only reads this information.
+//// step | Verify the project environment
+
+Check your current directory, Python version and active environment before
+installing Zensical:
 
 === ":material-apple: macOS"
 
@@ -137,7 +141,7 @@ Python environment's directory; it only reads this information.
 === ":fontawesome-brands-windows: Windows"
 
     ```powershell
-    Get-Location
+    pwd
     python --version
     python -c "import sys; print(sys.prefix)"
     ```
@@ -150,23 +154,18 @@ Python environment's directory; it only reads this information.
     python -c 'import sys; print(sys.prefix)'
     ```
 
-The first path must be the new project directory, Python must be 3.14, and the
-last path must end in `prodockit-project/.venv`. A parent path such as
-`~/repos/.venv` is the Bootstrap setup environment and is not this site's
-environment. Correct the directory and repeat section 3.1 before installing
-Zensical.
+The results should show your project folder, Python 3.14 and that folder's
+`.venv`—not `~/repos/.venv`. If they do not, correct the directory and activate
+the project's environment before continuing.
 
 ////
 
 ///
 
-### Stage 2 — Install and prove Zensical **Clean**{: .install-clean} {: #stage-2-install-and-prove-zensical }
+### Stage 3a — Install and prove Zensical **Clean**{: .install-clean} {: #stage-2-install-and-prove-zensical }
 
-If you already have a Zensical site, skip this stage and continue with Stage 3,
+If you already have a Zensical site, skip this stage and continue with Stage 3b,
 even if its current build fails: Adopt may repair its software dependencies.
-Do not run `zensical new .` in an existing site. If Zensical is installed but you have
-not created a site yet, skip only the installation step and continue with
-“Create the Zensical site” below.
 
 Install Zensical, create its starter site, and prove that the unmodified site
 builds and previews successfully before Prodockit is introduced.
@@ -175,12 +174,8 @@ builds and previews successfully before Prodockit is introduced.
 
 //// step | Install Zensical
 
-Follow Zensical's official [installation
-guide](https://zensical.org/docs/get-started/) and install it into the active
-project environment.
-
-`pip install --upgrade` (or `pip3 install --upgrade`) installs Zensical if it
-is missing, or updates it to the newest available version in this environment.
+Install the latest Zensical into your active project environment using the
+command for your platform. See the [official installation guide](https://zensical.org/docs/get-started/) for details.
 
 === ":material-apple: macOS"
 
@@ -200,80 +195,126 @@ is missing, or updates it to the newest available version in this environment.
     pip install --upgrade zensical
     ```
 
-!!! note "If pip or pip3 does not work"
-
-    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
-    Keep the intended virtual environment active and check that the alternative
-    command belongs to it before installing packages.
-
-Confirm that Zensical is available before creating any files:
-
-```bash
-zensical --version
-```
-
 ////
 
 //// step | Create the Zensical site
 
-Follow Zensical's official [Create your site
-guide](https://zensical.org/docs/create-your-site/) from the empty project
-directory. `zensical new .` creates the starter configuration and documentation;
-the dot means the current directory:
+Create the starter site in your empty project directory. The dot means
+“here”—do not run this in an existing site.
 
 ```bash
 zensical new .
 ```
 
-This creates the [clean Zensical project structure shown in section
-3.2](installation.md#installation-project-structure). Review that tree before
-continuing so you can distinguish Zensical's files from the files Prodockit
-adds later.
+See the [project structure](installation.md#installation-project-structure)
+or Zensical's [Create your site guide](https://zensical.org/docs/create-your-site/) for details.
 
 ////
 
 //// step | Build the plain Zensical site
 
-Build the complete static site from `zensical.toml` and the Markdown files in
-`docs/`:
+Build the website from scratch and check for errors or warnings. Continue
+only when the build succeeds.
 
 ```bash
 zensical build --clean --strict
 ```
 
-`--clean` removes output left by an earlier build. `--strict` makes a warning
-fail the command instead of allowing an uncertain result to continue. A
-successful build proves that Zensical can read the configuration and source
-and produce the deployable site files; it does not start a web server.
-
 ////
 
 //// step | Preview the plain Zensical site
 
-Start Zensical's local development server with \index{`zensical serve`}:
+Start a local preview with \index{`zensical serve`}:
 
 ```bash
 zensical serve
 ```
 
-Open the local address printed in the terminal and confirm that the starter
-site appears. While the server is running, Zensical watches the source and
-rebuilds the preview after a change. Stop it with `Ctrl+C`.
-
-Do not continue until both checks succeed. Any problem at this point belongs
-to the Python environment or the plain Zensical site, not Prodockit.
+Open the address printed in the terminal and check that the site appears.
+Press `Ctrl+C` to stop the preview.
 
 ////
 
-//// step | Reactivate the Zensical environment
+///
 
-You now have a working Zensical site and can stop here if you do not need
-Prodockit yet. After stopping the preview server, reactivate the project
-environment using the command for your platform below. This does not recreate
-`.venv` or reinstall anything.
+Now that Zensical is set up, continue with installing Prodockit:
+[Go to Stage 4](#stage-4-add-and-configure-prodockit){ .install-go }
 
-If you return in a new terminal later, first open the project directory and
-run the same activation command before using Zensical or continuing to Stage 3.
+### Stage 3b — Return to Zensical environment **Upgrade**{: .install-update} {: #stage-2b-return-to-zensical-environment }
+
+Use this route when Zensical is already installed for your existing site.
+If you completed Stage 3a, skip this stage and continue with Stage 4.
+
+/// steps
+
+//// step | Enter the project root directory
+
+Leave the active environment, then enter the existing site's root directory—the folder containing its Zensical
+configuration. Use your own site's path if it differs from the example.
+Skip `deactivate` if no environment is active. Do not create another project
+folder or run `zensical new .`.
+
+=== ":material-apple: macOS"
+
+    ```bash
+    deactivate
+    cd ~/repos/prodockit-project
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    deactivate
+    cd ~/repos/prodockit-project
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    deactivate
+    cd ~/repos/prodockit-project
+    ```
+
+**If `cd` fails, stop and correct the path before continuing.**
+
+////
+
+//// step | Create a virtual environment **Optional**{: .bg-green}
+
+Skip this step if the site already has a working Python 3.14 environment.
+These instructions use `.venv` as the environment folder name. If yours has
+another name, use that name in the activation commands in step 3; do not
+create a second environment just to match the guide.
+
+If no environment exists, create one inside the project directory using
+Python 3.14 from the preparation stage. This keeps the site's packages
+separate from other projects. For a damaged or older environment, follow
+[environment recovery](troubleshooting-installs.md#wrong-python) instead.
+
+=== ":material-apple: macOS"
+
+    ```bash
+    "$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
+    ```
+
+=== ":fontawesome-brands-windows: Windows"
+
+    ```powershell
+    py -3.14 -m venv .venv
+    ```
+
+=== ":material-linux: Linux (Ubuntu)"
+
+    ```bash
+    python3.14 -m venv .venv
+    ```
+
+////
+
+//// step | Activate the virtual environment
+
+Activate the site's environment so the following installation commands use
+its Python and packages. Replace `.venv` if your environment has another name.
 
 === ":material-apple: macOS"
 
@@ -282,6 +323,10 @@ run the same activation command before using Zensical or continuing to Stage 3.
     ```
 
 === ":fontawesome-brands-windows: Windows"
+
+    The execution-policy command allows PowerShell to run the environment's
+    activation script; otherwise Windows may block it. It affects your
+    account, not other users.
 
     ```powershell
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
@@ -298,21 +343,37 @@ run the same activation command before using Zensical or continuing to Stage 3.
 
 ///
 
-### Stage 3 — Add and configure Prodockit
+Now that we have aligned the previous Zensical installation, continue with installing Prodockit:
+[Go to Stage 4](#stage-4-add-and-configure-prodockit){ .install-go }
 
-Install Prodockit, choose its optional renderers, prepare Node.js only when a
-selected renderer needs it, apply the integration stages, configure the shared
-website and PDF settings, and diagnose the resulting project.
+### Stage 4 — Add and configure Prodockit
+
+Install Prodockit, choose the features you need, then check the completed setup.
+
+!!! info "Why are we not installing and configuring by hand?"
+
+    With Mermaid and mathematical notation selected, the setup involves around
+    230 individual software packages and tools: around 30 Python packages,
+    around 195 JavaScript packages, plus Python, Node.js, npm, Pandoc and a
+    browser for drawing diagrams. These figures include the supporting packages
+    installed automatically, not just the tools named in the commands. System
+    libraries and fonts are additional, and totals vary by platform and release.
+    There are also around 50 configuration entries to check or add in
+    `zensical.toml`, counting extension sections and website/PDF settings.
+    The exact work depends on your platform and what is already configured.
+
+    Installing compatible versions, connecting the tools and checking all those
+    settings by hand takes time. Missed commands, failed downloads and small
+    configuration mistakes make it easy to end up with a partly working site.
+    Adopt automates this work, checks what is already present and lets you rerun
+    it after a failure instead of starting the whole process again.
 
 /// steps
 
 //// step | Install Prodockit
 
-Install Prodockit into the same active project environment. This makes the
-`pdk` command available; it does not yet change the Zensical project.
-
-The `--upgrade` option installs the newest available Prodockit release, or
-updates the copy already installed in this environment.
+Install or update Prodockit in the active project environment. This adds the
+`pdk` command; the next steps use it to configure your site.
 
 === ":material-apple: macOS"
 
@@ -332,65 +393,32 @@ updates the copy already installed in this environment.
     pip install --upgrade prodockit
     ```
 
-!!! note "If pip or pip3 does not work"
-
-    If `pip` does not work, try `pip3`; if `pip3` does not work, try `pip`.
-    Keep the intended virtual environment active and check that the alternative
-    command belongs to it before installing packages.
-
-Confirm that the command is available from the active environment:
-
-```bash
-pdk --version
-```
-
 ////
 
 //// step | Choose optional renderers
 
-Save this project's choices before previewing Adopt:
+Choose whether to include Mermaid diagrams and mathematical notation:
 
 ```bash
 pdk adopt --configure
 ```
 
-Mermaid diagrams and mathematical notation are separate, optional choices and
-both default to **No**. A project created from `prodockit-template` already has
-a committed `.prodockit-components.toml` with both enabled; a plain Zensical
-site does not inherit choices merely because its starter configuration can
-support those features.
+Both default to **No** for a new site. Existing installations or saved choices
+may already enable them; check before accepting.
 
-Existing project-local Mermaid or MathJax installations, including incomplete
-scaffolds, are inferred when no saved choices exist. Check the choices before
-accepting them. Unselected renderers are left alone; selected renderer files
-are backed up under `.prodockit-adopt-backups/renderers` before alignment.
-
-If you answer **No** to both questions, continue to the next step. Node.js and
-npm are not required.
-
-If you answer **Yes** to either option, Adopt will check Node.js and npm and
-offer any required installation or repair when you apply the plan. You do not
-need to install them manually first. Administrator approval may be needed.
-On macOS, Homebrew must already be usable from section 3.1. If this activity
-fails, follow [Node.js troubleshooting](troubleshooting-installs.md#installtooling-npm-missing).
+If either is selected, Adopt will check Node.js and npm and offer installation
+or repair. You do not need to install them manually first. On macOS, Homebrew
+must already be available; administrator approval may be needed.
 
 ////
 
 //// step | Adopt the Zensical site
 
-!!! warning "Existing custom styles can override Prodockit"
-
-    Adopt loads managed `pdk.css` after the Zensical theme and keeps any
-    existing `template.css` next. Your `extra.css` has the final website
-    override. For PDFs, `pdk-pdf.css` supplies the managed rules and
-    `print.css` has the final override. Your custom files are retained, but
-    conflicting rules can hide or change Prodockit features. Read
-    [the stylesheet precedence guide](stylesheets.md#load-the-cascade-in-order)
-    if the updated site does not look as expected.
-
-\ref{fig-first-site-adopt-output} explains the coloured messages to look for
-when reviewing each proposed change. See [the command-output guide](commands/output.md#command-output-structure)
-for more about phases, activities, colours, and default-No decisions.
+Adopt checks your site, installs or updates the software it needs, and adds
+Prodockit's settings and shared files while preserving your content. First
+preview its plan, then apply the changes you approve. The coloured messages
+help you see what is ready, what will change and what needs your attention,
+as shown in \ref{fig-first-site-adopt-output}.
 
 ![A terminal report with callouts identifying phases, activities, proposed changes, and warnings](assets/diagrams/command-output-anatomy.svg){ .documentation-diagram }
 /// figure-caption
@@ -399,178 +427,108 @@ for more about phases, activities, colours, and default-No decisions.
 Reading the coloured Adopt messages
 ///
 
-Preview the integration stages before allowing Adopt to install the supported
-project toolchain and configure the standard authoring components and shared
-website styles:
+Preview the proposed changes without installing anything:
 
 ```bash
 pdk adopt --dry-run
 ```
 
-Review the preview, then apply the changes:
+Apply the plan, approving or skipping each group of changes:
 
 ```bash
 pdk adopt --apply
 ```
 
-Read each stage before accepting it. Adopt now uses the component choices you
-saved in the previous step. Its final phase asks for missing site details and
-offers optional Git and remote repository setup, with separate confirmation.
-It never commits or pushes files, and does not configure SSH, editors or publishing.
+Answer the final questions about your site and repository. You can defer
+unknown details and optional repository setup until Stage 7a. Adopt asks before
+installing Git tools, connecting or creating a repository; it never commits,
+pushes or publishes your files.
 
-Answer the site-title, repository-host, account or group, and repository-name
-questions. Adopt proposes a website address where the host's layout is known;
-confirm that address or supply your custom address. For GitLab, use the exact
-Pages address from the hosting service if no reliable suggestion is available.
-Unknown details can be deferred without preventing local testing.
+Accept the final diagnostic check and follow any correction instructions.
+The [project structure guide](installation.md#installation-project-structure)
+explains the files added by Adopt.
 
-Repository setup is optional. Adopt asks before initialising Git locally,
-connecting an origin remote, or creating an empty hosted repository. Creation
-uses `gh` for GitHub or `glab` for GitLab. Adopt offers to install missing Git
-and hosting tools, then guides sign-in through the selected tool. Homebrew is
-the manual macOS prerequisite. Repository creation asks for visibility (private
-by default). Existing remotes are never replaced.
-No files are committed or pushed automatically. You can decline and complete
-these steps in Stage 6 instead.
-
-At the end, accept the diagnostic check to see anything still outstanding.
-Correction commands are followed by numbered lists of the problems they address.
-
-After Adopt, the project retains the Zensical files and adds the [Prodockit
-project files shown in section
-3.2](installation.md#installation-project-structure). Adopt also updates
-`zensical.toml` to enable the standard components and load the shared
-stylesheet.
-
-If installation is interrupted, keep the project files, reactivate its
-environment and rerun `pdk adopt --apply`. Adopt reassesses the project and
-reuses completed work and validated caches. Follow any cleanup or restart
-warning before retrying. See [Recover a failed installation](troubleshooting-installs.md#installtooling-download-fails).
-For a deliberately disconnected machine, see [offline adoption](commands/adopt.md)
-for the caches required by `--offline`; it cannot download missing software.
+If installation is interrupted, keep your files, reactivate the environment
+and rerun `pdk adopt --apply`. Follow any cleanup or restart instructions first;
+see [Recover a failed installation](troubleshooting-installs.md#installtooling-download-fails).
 
 ////
 
 //// step | Refresh the project environment
 
-After Adopt completes, refresh the environment **before running diagnostics,
-building the site or generating a PDF**. Adopt may have added paths needed by
-the installed tools and PDF libraries. Follow its highlighted instructions.
+Reactivate the environment **before running diagnostics or builds** to load
+any paths Adopt added. Use the activation path it prints if yours has another name.
 
 === ":material-apple: macOS"
-
-    In the same terminal and project directory, run:
 
     ```bash
     source .venv/bin/activate
     ```
 
-    This reloads the PDF library settings. You do not need to recreate `.venv`.
-
 === ":fontawesome-brands-windows: Windows"
 
-    If Adopt displays its restart banner, fully close Windows Terminal or
-    VS Code and reopen it. Open PowerShell in your project directory, then run:
+    Adopt displays this highlighted banner, using your project's actual path:
+
+    <pre class="terminal-banner"><code><span class="terminal-warning">==============================================================================
+    RESTART YOUR TERMINAL BEFORE CHECKING THE PROJECT
+    Fully close Windows Terminal or VS Code, then reopen it in this project.</span>
+      Project: C:\Users\your-name\repos\prodockit-project
+      &amp; 'C:\Users\your-name\repos\prodockit-project\.venv\Scripts\Activate.ps1'
+    <span class="terminal-warning">==============================================================================</span></code></pre>
+
+    Close and reopen the terminal, then return to your project directory before
+    running the commands below. The policy command allows activation scripts
+    for your account.
 
     ```powershell
+    cd ~/repos/prodockit-project
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     ```
 
 === ":material-linux: Linux (Ubuntu)"
 
-    Keep the project environment active. If you reopened the terminal, return
-    to the project directory and reactivate it:
-
     ```bash
     source .venv/bin/activate
     ```
-
-Use the activation path printed by Adopt if your environment has another name.
-
-////
-
-//// step | Check the generated configuration
-
-`zensical.toml` is the single project configuration used by the website and
-Prodockit's PDF commands. Adopt keeps Zensical's existing `[project]` settings,
-adds the standard `project.markdown_extensions` tables, and adds
-`"stylesheets/pdk.css"` to `project.extra_css`.
-
-You do not need to open an editor or complete the publishing details at this
-step. The generated defaults are enough to build and test your site locally.
-
-!!! note "Site details are collected by Adopt"
-
-    Adopt's final phase asks for missing `site_name`, `site_url`, `repo_url`
-    and `repo_name` and updates `zensical.toml` after confirmation. Existing
-    values are preserved. If you deferred these questions, run `pdk adopt --apply`
-    again when the details are known. Stage 6 covers publishing and any repository
-    setup you chose not to do in Adopt.
-
-The existing `nav` setting controls website navigation and PDF page order.
-The default PDF outputs are `docs/site_documentation.pdf` and
-`docs/source_bundle.pdf`; you do not need to add these settings manually.
-
-Adopt keeps existing requirements operators and extras while aligning managed
-versions. It uses `requirements.txt`, `requirements/docs.txt` or
-`docs/requirements.txt`, and creates the first when none exists. It also
-records the supported versions in `.prodockit-toolchain.toml` and
-`.python-version`. Missing user-managed styles and scripts are created, not
-overwritten. A configured citation style is installed when missing; existing
-custom CSL files remain yours.
-
-For TOML sites, `.prodockit-adopt.toml` records reviewed template settings.
-New options that Adopt does not recognise are added as commented examples;
-branding and `template.css` are excluded. The ledger does not skip software
-health checks. See [the settings review ledger](commands/adopt.md#template-settings-and-the-review-ledger)
-before resetting it.
-
-Check that the generated configuration is valid before continuing:
-
-```bash
-pdk config --check
-```
-
-Use [PDF configuration](pdf.md#pdf-quick-start) when you later need a different
-page size, margins, output path, or PDF-only stylesheet.
 
 ////
 
 //// step | Diagnose the adopted site
 
-Check the active environment and every required project capability before
-writing with the newly enabled components:
+Check the environment, installed tools and project setup without changing files.
+This is also a useful tool to run whenever you have problems: it checks for
+common errors and suggests how to correct them.
 
 ```bash
 pdk diag
 ```
 
-Resolve every `FAIL` before continuing. If you declined optional repository
-setup, a warning that Git or repository metadata is absent is expected until
-you choose to initialise or clone a repository. The Python,
-configuration, dependency, managed-file, and selected-renderer checks should
-pass.
-
-For help with warnings or failures, see [Correct diagnostic findings](troubleshooting-installs.md#diagnostic-corrections)
-in Troubleshooting.
+Resolve every `FAIL` before continuing. Warnings about deferred repository
+setup can wait until Stage 7a. For help, see [Correct diagnostic findings](troubleshooting-installs.md#diagnostic-corrections).
 
 ////
 
 ///
 
-### Stage 4 — Verify the adopted website
+### Stage 5 — Verify the adopted website
 
-Add a small example using Prodockit's authoring features, then build and
-preview it to confirm that the integration works.
+Build and preview a small example to check that Prodockit is working.
 
 /// steps
 
 //// step | Add and verify Prodockit content
 
-For a new site, replace the starter `docs/index.md` with this small example
-using two enabled extensions. For an existing site, keep its pages and add
-the example to a temporary test page instead:
+For a new site, put this example in `docs/index.md`. For an existing site,
+keep your content and your site will adopt the styles used on this website.
+
+!!! warning "Custom styles can override Prodockit"
+
+    Adopt preserves your custom styles. Your `extra.css` loads after Prodockit's
+    `pdk.css`, so its rules may override the Prodockit styles and change how
+    features appear. You may need to adjust or remove conflicting custom rules.
+    See [stylesheet precedence](stylesheets.md#load-the-cascade-in-order) for
+    the loading order and how the styles work together.
 
 ```md
 # My first document
@@ -586,372 +544,300 @@ Describe what you did here.
 Describe what you found here.
 ```
 
-`prodockit.headings` numbers the sections. `prodockit.refs` turns
-`\ref{results}` into a link containing the current number and title, so it
-stays correct if the sections move.
+Prodockit should number the headings and turn `\ref{results}` into a link
+to the Results section.
 
 ////
 
 //// step | Build and preview the adopted website
 
-`zensical build --clean --strict` rebuilds the website from scratch and stops
-on warnings. If it succeeds, `zensical serve` starts the local preview server:
+Build the site, then start the preview only if the build succeeds:
 
 ```bash
 zensical build --clean --strict
 zensical serve
 ```
 
-Open the local address again and confirm that the headings are numbered and the
-reference is linked. Zensical rebuilds the preview when a source file changes;
-stop it with `Ctrl+C`.
-
-For an existing YAML configuration, add `-f zensical.yml` or
-`-f zensical.yaml` to both Zensical commands to select that file; only
-`zensical.toml` is discovered automatically. Check the real site's pages,
-custom styling and navigation as well as the example.
-
-If the project already uses Git, `git diff` shows the local changes and
-`git status --short` lists modified and untracked files. Review these before
-committing through your normal workflow; press `q` to leave the diff viewer.
+Open the displayed address and check the numbered headings and reference link.
+For an existing site, also check its pages, styling and navigation. Press
+`Ctrl+C` to stop the preview before continuing.
 
 ////
 
 ///
 
-### Stage 5 — Add downloadable outputs
+### Stage 6 — Add downloadable outputs
 
-For an existing site, retain its configured PDF filenames and existing download
-links. Use the actual output paths printed by the commands instead of assuming
-the default filenames below. Skip adding links that already work.
+Create downloadable PDFs of your document and its source. For an existing
+site, keep working download links and use the output filenames printed by the commands.
 
 !!! note "Local downloads and published downloads are different"
 
-    These steps generate and test downloads locally. The stock website workflow
-    does not regenerate PDFs. Before sharing published download links, configure
-    [PDF and source-bundle publishing](publishing.md) so later builds keep them current.
-
-Generate the rendered document and source bundle, link both from the website,
-and verify the finished downloads locally.
+    These steps test downloads locally. The stock website workflow does not
+    regenerate PDFs; configure publishing to keep online downloads up to date.
 
 /// steps
 
 //// step | Generate the rendered PDF
 
-The PDF command consumes the completed Zensical build and follows the pages in
-`project.nav`. If `pdk diag` reported missing WeasyPrint native libraries or
-fonts, complete the adoption row under [Prepare the PDF
-tools](pdf.md#pdf-requirements) first.
-
-`zensical build --clean --strict` rebuilds and checks the website after any
-source or configuration change. If it succeeds, `pdk pdf` uses that completed
-build to generate the rendered PDF:
+Build the website, then generate its PDF. Run `pdk pdf` only if the build succeeds.
 
 ```bash
 zensical build --clean --strict
 pdk pdf
 ```
 
-The configured first-site output is `docs/site_documentation.pdf`. Open it and
-check its headings, contents, links, page breaks, and final page. See [Build
-your first PDF](pdf.md#build-your-first-pdf) for the complete review sequence.
+Open the output, normally `docs/site_documentation.pdf`, and check its layout and links.
+
+See [PDF documentation](pdf.md) for more detailed guidance.
 
 ////
 
 //// step | Generate the source bundle
 
-Create a separate PDF containing the authored Markdown and project
-configuration:
+Create a separate PDF containing the Markdown and configuration for review or
+submission. Skip this step if you do not need to share the source.
 
 ```bash
 pdk source-bundle
 ```
 
-The configured output is `docs/source_bundle.pdf`. It is separate from the
-rendered document: use it when a submission, review, or archive needs the
-underlying source. The [`pdk source-bundle` command
-reference](commands/source-bundle.md) describes its inputs and options.
+The output is normally `docs/source_bundle.pdf`.
+
+See [Bundling source into a PDF](pdf.md#bundling-source-into-a-pdf) for more detailed guidance.
 
 ////
 
 //// step | Add both downloads to the site
 
-Add links to the generated files in `docs/index.md`:
+Add the template's front-page download buttons to `docs/index.md`:
 
 ```md
-[Download the rendered document](site_documentation.pdf)
-
-[Download the source bundle](source_bundle.pdf)
+<div style="float: right; display: flex; gap: 15px; margin-left: 15px;" class="web-only" markdown="1">
+[:material-archive: Source](source_bundle.pdf){ .md-button target="_blank" }
+[:material-file-pdf-box: PDF](site_documentation.pdf){ .md-button target="_blank" }
+</div>
 ```
 
-Both outputs are under `docs/`, so Zensical publishes them as site files.
-Build once more to validate the links and copy the current artifacts, then
-preview the finished site:
-
-`zensical build --clean --strict` creates a fresh website containing the PDF
-downloads. `zensical serve` starts the local server so you can test both links.
+Rebuild to copy the PDFs into the website, then preview it if the build succeeds:
 
 ```bash
 zensical build --clean --strict
 zensical serve
 ```
 
-Open both links in the browser before publishing the site. Regenerate the PDFs
-whenever their Markdown or configuration changes, then rebuild the website so
-the published downloads stay current.
+Test both buttons in the browser. After changing the content, regenerate the
+PDFs and rebuild the website to keep the downloads current. Press `Ctrl+C` to stop the preview.
 
 ////
 
 ///
 
-### Stage 6 — Save and publish **Optional**{: .bg-green} {: #stage-6-save-and-publish-optional }
+Choose the next stage for your site:
 
-You now have a working local site. This optional stage puts a copy of its
-source on your chosen GitHub or GitLab host. Stay in your project directory.
-The commands below do not require a text editor.
+- For a **Clean**{: .install-clean} install: [Go to Stage 7a](#stage-6-save-and-publish-optional){ .install-go }.
+- For an **Update**{: .install-update} install: [Go to Stage 7b](#stage-7-review-the-project-changes){ .install-go }.
+
+### Stage 7a — Publish the website **Clean**{: .install-clean} {: #stage-6-save-and-publish-optional }
+
+This stage publishes your working local site on GitHub Pages or GitLab Pages.
+Stay in the project directory with its environment active. If the site is
+already published, keep its existing workflow and use its normal review process.
+
+The steps below enable Pages, check the files you will share, save and upload
+your changes, and confirm that the website is published. We provide terminal
+commands, but you can review the differences between files in your preferred
+development environment, such as [Visual Studio Code](https://code.visualstudio.com/download).
+Its Source Control view lets you inspect changes side by side before committing.
+Using an editor for this review is optional; the commands below work without one.
 
 !!! warning "Check what you are sharing"
 
-    A public repository exposes its committed files. A public Pages site exposes
-    the generated website, even when its source repository is private.
-    Do not upload passwords, tokens, personal data or confidential documents.
-    Private-repository Pages availability depends on your GitHub plan. Do not
-    make a repository public merely to work around an error.
+    A public repository exposes its committed files, and a public Pages site
+    exposes the generated website. Do not upload passwords, tokens or private
+    material. Do not make a repository public just to work around a Pages error.
 
 /// steps
 
-//// step | Complete any deferred repository setup **Optional**{: .bg-green}
+//// step | Enable repo for Pages
 
-Skip this step if you completed Adopt's optional repository setup. Otherwise run:
-
-```bash
-pdk adopt --apply
-```
-
-Answer **Yes** to “Would you like to set up a GitHub or GitLab repository for
-this site?” Adopt offers to install missing Git and hosting tools, guides
-sign-in, asks for missing commit identity, and confirms repository creation
-or connection separately. Existing settings are reused. It does not push files.
-
-If you need to sign in again manually, use your host's tab:
+Use your host's tab. Skip settings that are already correct.
 
 === "GitHub"
 
-    This starts GitHub's sign-in process and saves authentication for the
-    GitHub command-line tool. Follow its prompts; do not paste a token into
-    your documentation.
+    1. Open your repository on GitHub.
+    2. Open **Settings > Pages**.
+    3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
 
-    ```bash
-    gh auth login --hostname github.com
-    ```
+    Use the existing `.github/workflows/docs.yml`; do not add a duplicate.
+    If it is missing or Pages settings are unavailable, follow
+    [GitHub Pages setup](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
 
 === "GitLab"
 
-    This signs the GitLab command-line tool into the selected GitLab host.
-    Follow its prompts to authenticate your account.
-
-    ```bash
-    glab auth login --hostname gitlab.com
-    ```
-
-    For Surrey, replace `gitlab.com` with `gitlab.surrey.ac.uk`.
+    Keep your existing Pages job in `.gitlab-ci.yml`. If none exists, follow
+    [the GitLab publishing workflow setup](devcons/continuous-integration.md)
+    before continuing. Adopt does not create an active GitLab pipeline.
 
 ////
 
-//// step | Prepare the files and your commit identity
+//// step | Check the site and files
 
-Check that the project is ready. `pdk diag` reports problems without changing
-files. Follow its correction guidance before continuing. Adopt supplies the
-baseline ignore rules and repairs the standard Zensical GitHub workflow;
-diagnostics checks for common omissions but does not perform those repairs.
+Check the setup and build the site.
+Run each command separately and stop if a check fails:
 
 ```bash
 pdk diag
+zensical build --clean --strict
 ```
 
-Adopt asks for missing commit identity and saves it only for this project.
-Existing identity settings are preserved. Check the files before staging:
+List every changed and new file so you can check what will be included in the
+commit and avoid uploading generated or private files:
 
 ```bash
 git status --short --untracked-files=all
 ```
 
-The list should contain your documentation, configuration, shared styles/scripts,
-renderer manifests and lockfiles. Keep the three `.prodockit-*.toml` files.
-It should not contain `.venv`, `node_modules`, generated PDFs, website output,
-backups or `docs/.prodockit-pdf-mermaid`. Stop if anything private appears.
+Include source, configuration and the publishing workflow—not `.venv`,
+`node_modules`, generated website output, caches, backups or private files.
 
 ////
 
-//// step | Create the first commit **Clean**{: .install-clean}
+//// step | Save and upload the changes
 
-**Update**{: .install-update}: skip this first-commit step. Review and commit your
-changes using the existing repository's normal branch and review process;
-keep its remote and publishing workflow.
-
-Run these commands one at a time, reviewing the output before moving on:
-
-- `git add .` selects the current directory's changes for the next commit;
-  files covered by ignore rules are excluded unless already tracked.
-- `git diff --cached --stat` summarises the selected files and change sizes.
-- `git diff --cached` shows their actual changes. Check for private information
-  or unwanted files and stop if anything is wrong. Press `q` to close the viewer.
-- `git commit -m ...` saves the reviewed changes in local Git history with
-  the supplied description. It does not upload anything.
+Select the site's source, configuration and publishing workflow files reviewed
+in step 2, then review and commit the changes, running one command at a time.
+Press `q` to leave the diff viewer; stop if anything should not be shared.
+If your repository requires a pull or merge request, use that process instead.
 
 ```bash
 git add .
-git diff --cached --stat
 git diff --cached
-git commit -m "Create documentation site with Prodockit"
+git commit -m "Publish documentation site"
 ```
 
-Press `q` to leave Git's diff viewer. Adopt's optional setup has already created
-or connected your repository. Do not create it again. `git remote -v` lists
-the configured download and upload addresses; check that `origin` is your
-intended repository:
-
-```bash
-git remote -v
-```
-
-If `origin` is missing, rerun `pdk adopt --apply` and complete repository setup.
-
-////
-
-//// step | Set the website and repository details **Optional**{: .bg-green}
-
-Skip this step if the website and repository details were already set up
-during Adopt and are correct. Use it to complete missing details or update
-them later.
-
-```bash
-pdk sync-repo --create-readme
-```
-
-The command derives repository details from `origin`, retains the site title
-and address confirmed during Adopt, and asks only for missing details. It adds
-missing TOML settings in the right
-tables and creates a README only if absent. It preserves existing custom values.
-The suggested address is not evidence of a published site.
-
-If a title or address needs changing later, no editor is necessary:
-
-```bash
-pdk sync-repo --site-name "My report" --site-url "https://your-account.github.io/your-repository/"
-```
-
-Replace the examples with your real title and website address before running.
-The command updates those two settings in `zensical.toml`.
-
-Then run the following commands one at a time:
-
-- `pdk config --check` validates the configuration and project inputs.
-- `zensical build --clean --strict` rebuilds the website locally, removing old
-  build output and treating warnings as errors. Stop if either check fails.
-- `git add ...` selects the listed configuration and publishing files for a
-  commit. Omit any path that does not exist in your project; a GitLab project
-  may use `.gitlab-ci.yml` instead of the GitHub workflow.
-- `git diff --cached --stat` lists the selected changes for your review.
-- `git commit -m ...` records those changes locally. If Git reports nothing
-  to commit, the files are already saved and you can continue.
-
-```bash
-pdk config --check
-zensical build --clean --strict
-git add zensical.toml README.md .github/workflows/docs.yml .gitignore
-git diff --cached --stat
-git commit -m "Configure repository and website publishing"
-```
-
-////
-
-//// step | Enable repo for Pages
-
-Repository setup does not enable website publishing. Only continue when you
-are ready to publish and have reviewed the workflow for your chosen host.
-
-=== "GitHub"
-
-    1. Open your repository on GitHub in your browser.
-    2. Select **Settings**, then **Pages** in the left-hand menu.
-    3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-       If it is already selected, leave it unchanged.
-
-    Use the project's existing documentation workflow; do not add another
-    workflow from the suggested templates. If Pages or the Source setting is
-    unavailable, check your repository permissions and plan. Do not make the
-    repository public just to clear an error.
-    See [GitHub's Pages instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
-
-=== "GitLab"
-
-    1. Open your project on GitLab in your browser.
-    2. Check that the repository contains `.gitlab-ci.yml` with a Pages job.
-       If it is missing, follow [Build and publish](devcons/continuous-integration.md)
-       before continuing; Adopt's repository setup does not create it.
-    3. Open **Deploy > Pages** to review the publishing information. The website
-       address becomes available after the first successful Pages deployment.
-
-    GitLab uses the Pages job to publish the site; there is no GitHub-style
-    Source selector. On a university or company GitLab instance, ask its
-    administrator if Pages is unavailable.
-    See [GitLab's Pages instructions](https://docs.gitlab.com/user/project/pages/).
-
-////
-
-//// step | Check the published website
-
-For either host, push after checking the files and enabling Pages.
-For an existing repository, use its normal publishing branch and process;
-do not assume it uses `main` or push directly to a protected branch.
-`git push` uploads your local commits to `origin`; `main` names the branch,
-and `-u` remembers that destination for future pushes. This upload can start
-the publishing workflow:
+Upload the commit to start the publishing workflow. Use your publishing branch
+if it is not `main`:
 
 ```bash
 git push -u origin main
 ```
 
-Then check the publishing run for your host:
+If there is nothing new to commit or push, check the latest deployment instead.
+
+////
+
+//// step | Open the published website
+
+Wait for a successful deployment, then open the published site:
 
 === "GitHub"
 
-    - `gh run list --limit 5` lists the five most recent workflow runs.
-    - `gh run watch` lets you select a run and follow its progress until it ends.
-    - `gh api ... --jq .html_url` asks GitHub for the published Pages address.
-      Leave `{owner}` and `{repo}` unchanged: the tool derives them from your
-      current repository.
-
-    ```bash
-    gh run list --limit 5
-    gh run watch
-    gh api "repos/{owner}/{repo}/pages" --jq .html_url
-    ```
-
-    Inspect a failed run with `gh run view --log-failed`.
+    1. Open the repository's **Actions** tab.
+    2. Open the documentation run for your latest commit and wait for success.
+    3. Open **Settings > Pages**, then follow the published website link.
 
 === "GitLab"
 
-    - `glab ci status` reports the current branch's pipeline status.
-    - `glab repo view --web` opens the project in your browser so you can
-      inspect the pipeline and find the Pages address.
+    1. Open the project's **Build > Pipelines** page.
+    2. Open the pipeline for your latest commit and check that its Pages job succeeds.
+    3. Open **Deploy > Pages** and follow the website address shown there.
 
-    ```bash
-    glab ci status
-    glab repo view --web
-    ```
+Check the pages, navigation and any diagrams or maths. If publishing fails,
+use [Troubleshooting](troubleshooting-installs.md) before retrying.
 
-    Inspect the pipeline and open the address shown under Deploy > Pages.
+If the published address differs from your configuration, update it using the
+actual address below, then repeat steps 2 and 3:
 
-Open the returned address and check the pages, navigation and maths. A successful
-push is not the same as a successful deployment. Inspect a failed pipeline
-before retrying. If the actual website address differs from the configured one,
-update it with `pdk sync-repo --site-url "https://your-actual-site-address/"`.
+```bash
+pdk sync-repo --site-url "https://your-actual-site-address/"
+```
 
-The stock workflow publishes the website; it does not generate the downloadable
-PDFs from Stage 5. Follow [Publish a document](publishing.md) to configure the
-full PDF and source-bundle publishing workflow before sharing those download links.
+For automated PDF and source downloads, follow [Publish a document](publishing.md).
+
+////
+
+///
+
+### Stage 7b — Review the project changes **Update**{: .install-update} {: #stage-7-review-the-project-changes }
+
+If your site already uses Git, review the changed and new files before
+committing through your normal workflow. For a new repository, use Stage 7a instead.
+
+/// steps
+
+//// step | Review the Adopt changes
+
+Before committing, review the files added or updated by `pdk adopt`. Check that
+your existing content and custom settings have been preserved. Depending on
+your choices, changes may include:
+
+- `zensical.toml`: updated authoring, website, PDF, stylesheet and script settings,
+  plus any site and repository details you confirmed. Existing settings are retained
+  unless Adopt needs to change them.
+- `requirements.txt` (or your existing requirements file): added packages and
+  aligned versions; unrelated dependencies are retained.
+- `.python-version` and `.prodockit-toolchain.toml`: rewritten with the supported
+  versions. `.prodockit-components.toml` is rewritten with your component choices;
+  `.prodockit-adopt.toml` records which template settings have been reviewed.
+- `.gitignore`: additional rules to exclude local and generated files; existing
+  rules are retained.
+- `docs/stylesheets/pdk.css`, `docs/stylesheets/pdk-pdf.css` and
+  `docs/javascripts/pdk.js`: managed files replaced with the release versions.
+- `docs/stylesheets/extra.css`, `docs/stylesheets/print.css` and
+  `docs/javascripts/extra.js`: created if missing; custom content is preserved.
+  An `extra.js` containing only the recognised old stock script is cleared after
+  moving that behaviour to `pdk.js`.
+- `tools/mermaid/` and `tools/mathjax/`: selected renderer configuration, package
+  manifests, lock files and scripts may be replaced. Previous files are backed up
+  under `.prodockit-adopt-backups/renderers/`.
+- Citation-style files: installed when missing; existing custom styles are retained.
+- Build automation and proposed `pdk.yml` or `.gitlab-pdk.yml` files: review and
+  merge these in the next step.
+
+Adopt can also regenerate MathJax files under `docs/javascripts/`, install packages
+in `.venv` and `node_modules`, and update local Git settings if approved. These
+local or generated changes are not all files to commit.
+
+Keep the configuration needed to reproduce your site, but do not commit local
+environments, caches, backups or private files.
+
+////
+
+//// step | Merge the build instructions
+
+The `pdk adopt` command only updates an existing build automation YAML file if its SHA-256 hash
+matches a known baseline supplied by the Zensical team. Otherwise, it leaves
+your file unchanged and creates a separate Prodockit version for manual merging.
+
+=== ":fontawesome-brands-github: GitHub"
+
+    Merge the relevant instructions from `./pdk.yml` into `./.github/workflows/docs.yml`.
+
+    The proposal stays in the repository root, outside `.github/workflows/`,
+    so GitHub cannot run it automatically before you review and merge it.
+
+=== ":fontawesome-brands-gitlab: GitLab"
+
+    Merge the relevant instructions from `./.gitlab-pdk.yml` into `./.gitlab-ci.yml`.
+
+This is a manual merge, not a file replacement. Bring across the required
+dependency installation and build commands while keeping your existing
+triggers, permissions, secrets and publishing settings. Avoid duplicate jobs
+or commands. The proposals cover the website build; PDF publishing needs
+additional setup.
+
+The separate files do not run automatically. If neither exists, skip this step.
+
+////
+
+//// step | Follow your project's release process
+
+Follow your usual process to create a branch, review and commit all the project
+changes made by `pdk adopt`, including any build instructions merged above,
+then push the branch. Use your normal pull or merge request, testing and release
+process before publishing the updated site. Keep local environments, caches
+and private files out of the commit.
 
 ////
 
@@ -988,17 +874,28 @@ Follow this sequence inside the active project environment:
    Prodockit.
 2. Ask Adopt to compare the project with the newly supported combination:
 
+   `pdk adopt --dry-run`
+   :   Lists the proposed software and project changes without applying them.
+
    ```bash
    pdk adopt --dry-run
    ```
 
    Review the reported files. If Adopt selects any activities, apply them:
 
+   `pdk adopt --apply`
+   :   Asks you to approve or skip the proposed changes and applies those
+       you accept.
+
    ```bash
    pdk adopt --apply
    ```
 
 3. Run Diagnostics as the final integration check:
+
+   `pdk diag`
+   :   Checks the resulting environment and project without changing files.
+       Follow its correction guidance for any failures or warnings.
 
    ```bash
    pdk diag

@@ -134,7 +134,8 @@ def test_every_documented_powershell_activation_sets_the_execution_policy() -> N
     for path in paths:
         lines = path.read_text(encoding="utf-8").splitlines()
         for index, line in enumerate(lines):
-            if r".\.venv\Scripts\Activate.ps1" not in line:
+            # Audit executable lines, not inline-code definition-list terms.
+            if line.strip() != r".\.venv\Scripts\Activate.ps1":
                 continue
             checked += 1
             assert index and lines[index - 1].strip() == POWERSHELL_POLICY, (
@@ -281,9 +282,27 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
 
     assert "installation.md#installation-preparation" in page
     assert "Unlike the template-site route" in page
-    assert page.count("//// step | ") == 24
+    assert page.count("//// step | ") == 27
+    stages = re.split(r"(?m)^### Stage \d+[ab]? —", page)[1:]
+    assert stages[0].count("//// step | ") == 0
+    assert stages[1].count("//// step | ") == 3
+    assert stages[2].count("//// step | ") == 4
+    assert stages[3].count("//// step | ") == 3
+    assert "//// step | Enter the project root directory" in stages[3]
+    assert "//// step | Create a virtual environment **Optional**" in stages[3]
+    assert "//// step | Activate the virtual environment" in stages[3]
+    assert "//// step | Install Prodockit" in stages[4]
+    existing_site = stages[3]
+    assert "cd ~/repos/prodockit-project" in existing_site
+    assert "If `cd` fails, stop" in existing_site
+    assert existing_site.count("    deactivate\n    cd ~/repos/prodockit-project\n") == 3
+    assert "another name" in existing_site
     assert page.count("/// tree") == 0
-    assert page.count("/// steps") == 6
+    assert page.count("/// steps") == 8
+    assert stages[5].count("//// step | ") == 2
+    assert page.index("### Stage 7a — Publish the website **Clean**") < page.index(
+        "### Stage 7b — Review the project changes **Update**"
+    )
 
     preparation = INSTALLATION.read_text(encoding="utf-8")
     structure = preparation[
@@ -316,15 +335,17 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert structure.count("LICENSE - vendor licence supplied with MathJax") == 2
     assert page.count("installation.md#installation-project-structure") == 2
     for phase in (
-        "### Stage 1 — Prepare the project environment",
-        "### Stage 2 — Install and prove Zensical",
-        "### Stage 3 — Add and configure Prodockit",
-        "### Stage 4 — Verify the adopted website",
-        "### Stage 5 — Add downloadable outputs",
+        "### Stage 1 — Prepare the setup environment",
+        "### Stage 2 — Prepare the project environment",
+        "### Stage 3a — Install and prove Zensical",
+        "### Stage 3b — Return to Zensical environment",
+        "### Stage 4 — Add and configure Prodockit",
+        "### Stage 5 — Verify the adopted website",
+        "### Stage 6 — Add downloadable outputs",
     ):
         assert phase in page
 
-    prepare_python = page.index("//// step | Prepare Python and the setup environment")
+    prepare_python = page.index("### Stage 1 — Prepare the setup environment")
     prepare_directory = page.index("//// step | Prepare the empty project directory")
     install_zensical = page.index("//// step | Install Zensical")
     create_zensical = page.index("//// step | Create the Zensical site")
@@ -333,7 +354,6 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     install_prodockit = page.index("//// step | Install Prodockit")
     choose_renderers = page.index("//// step | Choose optional renderers")
     adopt = page.index("//// step | Adopt the Zensical site")
-    configure = page.index("//// step | Check the generated configuration")
     diagnose = page.index("//// step | Diagnose the adopted site")
     add_content = page.index("//// step | Add and verify Prodockit content")
     build_adopted = page.index("//// step | Build and preview the adopted website")
@@ -350,7 +370,6 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
         < install_prodockit
         < choose_renderers
         < adopt
-        < configure
         < diagnose
         < add_content
         < build_adopted
@@ -371,16 +390,14 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert "need to install them manually first" in renderer_choice
     assert "pdk adopt --dry-run\n```" in page[adopt:]
     assert "```bash\npdk adopt --apply\n```" in page[adopt:]
-    assert "`docs/site_documentation.pdf`" in page[configure:diagnose]
-    assert "`docs/source_bundle.pdf`" in page[configure:diagnose]
     assert "pdk diag" in page[diagnose:add_content]
     assert "pdk pdf" in page[pdf:source]
     assert "pdk source-bundle" in page[source:downloads]
     handoff = page[prepare_directory:install_zensical]
-    assert "cd /path/to/your-repositories" in handoff
-    assert "Set-Location C:\\path\\to\\your-repositories" in handoff
+    assert handoff.count("    cd ~/repos\n") == 3
+    assert "mkdir prodockit-project" in handoff
     assert "cd prodockit-project" in handoff
-    assert "Set-Location .\\prodockit-project" in handoff
+    assert "Set-Location" not in handoff
     assert 'python3.14" -m venv .venv' in handoff
     assert "py -3.14 -m venv .venv" in handoff
     assert "python3.14 -m venv .venv" in handoff

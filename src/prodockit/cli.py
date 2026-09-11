@@ -3147,20 +3147,48 @@ def _adopt_correction_summary(checks: Sequence[Any]) -> None:
 
 def _adopt_finish_details(root: Path, *, apply: bool, offline: bool) -> None:
     from prodockit.adopt_identity import configure
-    from prodockit.adopt_repository import setup
+    from prodockit.adopt_repository import activity_heading, setup
     from prodockit.project_config import find_project_config
 
     path = find_project_config(root)
     if path is None:
         return
+    if apply:
+        proposals = [
+            (source, destination)
+            for source, destination in (
+                ("pdk.yml", ".github/workflows/docs.yml"),
+                (".gitlab-pdk.yml", ".gitlab-ci.yml"),
+            )
+            if (root / source).is_file()
+        ]
+        if proposals:
+            click.echo(_bootstrap_warning("BUILD AUTOMATION — MANUAL REVIEW NEEDED"))
+            click.echo(
+                "Your existing build files were preserved. Review and merge these proposals:"
+            )
+            for source, destination in proposals:
+                click.echo(f"  ./{source} → ./{destination}")
+            click.echo("The proposal files do not run automatically. Local testing can continue.")
     _adopt_phase_heading(5, _ADOPT_PHASES[-1])
     interactive = sys.stdin.isatty()
+    if apply and interactive:
+        click.secho("OPTIONAL — Git and repository setup", fg=(230, 159, 0), bold=True)
+        click.echo(
+            "You can keep testing locally without a hosted repository. "
+            "If you choose Yes, each change still needs your approval."
+        )
+        click.echo("No commits, uploads or Pages publishing will be performed.")
     repository_setup = bool(
         apply
         and interactive
         and click.confirm(
             "Would you like to set up a GitHub or GitLab repository for this site?", default=False
         )
+    )
+    activity_heading(
+        "Site details",
+        "Check the site title and addresses in zensical.toml; ask only for missing details.",
     )
     configure(
         path,
@@ -3178,6 +3206,10 @@ def _adopt_finish_details(root: Path, *, apply: bool, offline: bool) -> None:
                     "before retrying; no automatic retry or push was attempted.",
                     fg="yellow",
                 )
+        activity_heading(
+            "Check the completed setup",
+            "Look for common errors and show how to correct anything still outstanding.",
+        )
         if click.confirm("Run diagnostics now to check the completed setup?", default=True):
             from prodockit.diagnostics import inspect
 

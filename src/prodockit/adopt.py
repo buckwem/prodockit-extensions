@@ -1588,7 +1588,9 @@ def assess(
     if _missing_local_ignores(root):
         core_problems.append("exclude local environments and generated output from Git")
     if adopt_workflow.plan(root) is not None:
-        core_problems.append("update the standard GitHub workflow to install project dependencies")
+        core_problems.append(
+            "update a verified stock workflow or prepare separate CI files for manual review"
+        )
     if review_pending:
         core_problems.append("review new template settings and record .prodockit-adopt.toml")
     if missing:
@@ -1737,8 +1739,7 @@ def assess(
                 for action in toolchain.actions
             )
             + tuple(
-                f"READY: {supported_toolchain.DISPLAY_NAMES[package]} "
-                f"{TESTED_VERSIONS[package]}"
+                f"READY: {supported_toolchain.DISPLAY_NAMES[package]} {TESTED_VERSIONS[package]}"
                 for package in (*supported_toolchain.PYTHON_PACKAGES, "pandoc")
                 if not toolchain.blocked
                 and not any(action.package == package for action in toolchain.actions)
@@ -1880,10 +1881,8 @@ def apply_step(
         except supported_toolchain.ToolchainError as error:
             raise AdoptError(str(error)) from error
     if step_id == "core":
-        workflow = adopt_workflow.plan(root)
         workflow_files = []
-        if workflow is not None:
-            path, content = workflow
+        for path, content in adopt_workflow.plans(root):
             _atomic_write(path, content.encode("utf-8"))
             workflow_files.append(path)
         return [
