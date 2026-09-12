@@ -261,6 +261,7 @@ jobs:
       - run: prodockit init-mathjax --no-gitignore
       # The PDF renderer consumes this completed site; it never invokes
       # Zensical itself or cleans the generated output.
+      - run: python tools/docs_page_pdfs.py check
       - run: zensical build --clean --strict
       # Two pandoc+WeasyPrint passes when a selected document contains index
       # terms: the back-of-book index can only be built once WeasyPrint has
@@ -274,12 +275,15 @@ jobs:
           import subprocess
           import tomllib
 
+          from tools.docs_page_pdfs import publish
+
           with open(".github/docs-single-page-pdfs.toml", "rb") as source:
               matrix = tomllib.load(source)
           for group, paths in matrix["build"].items():
               for path in paths:
                   print(f"::group::{group}: {path}", flush=True)
                   subprocess.run(["prodockit", "pdf", "-m", path], check=True)
+                  publish(path)
                   print("::endgroup::", flush=True)
           PY
       - run: prodockit update-dates
@@ -316,6 +320,8 @@ jobs:
         run: |
           grep -RFlq --include='*.html' "$GOOGLE_ANALYTICS_ID" site
           grep -RFlq --include='*.html' 'href="#__consent"' site
+      - name: Check every PDF action before publication
+        run: python tools/docs_page_pdfs.py verify
       # Fingerprint what we are about to publish, so the verify job below can
       # tell whether the live site is actually serving *this* build. Taken
       # from the same directory upload-pages-artifact packs, immediately

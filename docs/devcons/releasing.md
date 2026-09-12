@@ -532,6 +532,22 @@ authoring extensions and each audience overview are representatives, while
 pages with the same material shape reuse one build to keep renderer work
 bounded.
 
+Only pages listed under `[build]` get a **Download this page as PDF** action.
+The `[covered]` mappings describe test coverage, not substitute downloads.
+After changing the matrix, run `python tools/docs_page_pdfs.py generate` and
+commit the updated `overrides/partials/page-pdf.html` alongside it. CI checks
+that the partial still matches the matrix.
+
+After each successful single-page build, CI copies that page's PDF into
+`docs/page-pdfs/`, retaining its source directory: for example,
+`extensions/headings.md` becomes `page-pdfs/extensions/headings.pdf`. This
+avoids filename collisions and preserves the downloads across the final clean
+website rebuild. Immediately before publication,
+`python tools/docs_page_pdfs.py verify` checks every PDF action against its
+page-specific path and requires the PDF to exist in `site/`. Pages without
+their own build must not offer the action. The CLI's existing flat PDF outputs
+remain unchanged.
+
 The workflow uses a `pages` concurrency group with cancellation disabled. A
 queued later deployment must wait and supersede the earlier one; cancelling it
 could leave the pre-release-tag build live.
