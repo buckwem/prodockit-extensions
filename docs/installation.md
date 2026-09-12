@@ -65,9 +65,11 @@ Install and verify the supported interpreter before creating an environment.
 
 === ":fontawesome-brands-windows: Windows"
 
-    Install the 64-bit Python 3.14 release from
-    [python.org](https://www.python.org/downloads/). Select **Add python.exe to
-    PATH** and **Disable path length limit** in the installer, then open a new
+    Install the 64-bit Python 3.14 release from the official Python website:
+
+    [:simple-python: Install Python](https://www.python.org/downloads/windows/){ .md-button .python-button target="_blank" rel="noopener" }
+
+    Select **Add python.exe to PATH** and **Disable path length limit** in the installer, then open a new
     PowerShell window and run:
 
     ```powershell

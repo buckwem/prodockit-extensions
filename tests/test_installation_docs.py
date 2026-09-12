@@ -146,6 +146,18 @@ def test_every_documented_powershell_activation_sets_the_execution_policy() -> N
     assert checked > 1, "the documentation activation audit did not find every usage"
 
 
+def test_windows_preparation_has_a_branded_python_install_button() -> None:
+    page = INSTALLATION.read_text(encoding="utf-8")
+    windows = page.split('=== ":fontawesome-brands-windows: Windows"', 1)[1].split(
+        '=== ":material-linux: Linux (Ubuntu)"', 1
+    )[0]
+    assert "[:simple-python: Install Python](https://www.python.org/downloads/windows/)" in windows
+    assert '.md-button .python-button target="_blank" rel="noopener"' in windows
+    css = (REPO / "docs/stylesheets/extra.css").read_text(encoding="utf-8")
+    assert ".md-typeset .python-button" in css
+    assert "background-color: #3776ab;" in css
+
+
 def test_installation_preparation_is_shared_by_later_routes() -> None:
     preparation_page = INSTALLATION.read_text(encoding="utf-8")
     preparation = preparation_page[
