@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from test_csl import VALID_CSL
 
 from prodockit import diagnostics
 from prodockit.adopt import AdoptOptions, apply_step, assess
@@ -61,13 +62,31 @@ def test_assessment_preserves_an_existing_csl_style(tmp_path: Path) -> None:
     project = _project(tmp_path, "styles/house.csl")
     style = project / "styles" / "house.csl"
     style.parent.mkdir()
-    style.write_text("author supplied", encoding="utf-8")
+    style.write_bytes(VALID_CSL)
 
     activity = next(step for step in assess(project, AdoptOptions()) if step.id == "csl")
 
     assert activity.status == "ok"
     assert "preserve" in activity.detail
-    assert style.read_text(encoding="utf-8") == "author supplied"
+    assert style.read_bytes() == VALID_CSL
+
+
+def test_invalid_existing_style_is_not_ready_and_cannot_be_overwritten(tmp_path: Path) -> None:
+    from prodockit.adopt import AdoptError
+    from prodockit.config_diagnostics import inspect_config
+    from prodockit.project_config import load_project_config
+
+    project = _project(tmp_path, "house.csl")
+    style = project / "house.csl"
+    style.write_text("not XML", encoding="utf-8")
+    activity = next(step for step in assess(project, AdoptOptions()) if step.id == "csl")
+    assert activity.status == "wrong"
+    assert "Existing file preserved" in activity.detail
+    report = inspect_config(load_project_config(project / "zensical.toml"))
+    assert any("not valid XML" in item.message for item in report.diagnostics)
+    with pytest.raises(AdoptError, match="Existing file preserved"):
+        apply_step(project, AdoptOptions(), "csl")
+    assert style.read_text(encoding="utf-8") == "not XML"
 
 
 def test_assessment_blocks_an_unknown_missing_csl_style_with_manual_guidance(

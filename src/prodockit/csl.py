@@ -5,8 +5,12 @@
 
 from __future__ import annotations
 
+import errno
+import http.client
 import os
 import shutil
+import ssl
+import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -18,6 +22,7 @@ DEFAULT_CSL_STYLE = "harvard-cite-them-right.csl"
 CSL_STYLE_URL = "https://www.zotero.org/styles/harvard-cite-them-right"
 CSL_NAMESPACE = "http://purl.org/net/xbiblio/csl"
 MAX_CSL_BYTES = 2 * 1024 * 1024
+DOWNLOAD_ATTEMPTS = 3
 
 
 class CslError(Exception):
@@ -58,25 +63,51 @@ def _atomic_copy(source: Path, destination: Path) -> Path:
     return destination
 
 
+def _transient_download_error(error: Exception) -> bool:
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code in {408, 429} or 500 <= error.code < 600
+    if isinstance(error, urllib.error.URLError):
+        return not isinstance(error.reason, ssl.SSLCertVerificationError)
+    if isinstance(error, (TimeoutError, ConnectionError, http.client.IncompleteRead)):
+        return True
+    return isinstance(error, OSError) and error.errno in {
+        errno.EAGAIN,
+        errno.EINTR,
+        errno.ENETUNREACH,
+        errno.EHOSTUNREACH,
+        errno.ENETRESET,
+        errno.ETIMEDOUT,
+    }
+
+
 def _download(destination: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name(destination.name + f".{os.getpid()}.part")
     request = urllib.request.Request(CSL_STYLE_URL, headers={"User-Agent": "prodockit-adopt"})
-    try:
-        with urllib.request.urlopen(request, timeout=120) as response, temporary.open("wb") as out:
-            remaining = MAX_CSL_BYTES + 1
-            while remaining:
-                block = response.read(min(1024 * 1024, remaining))
-                if not block:
-                    break
-                out.write(block)
-                remaining -= len(block)
-        validate(temporary)
-        temporary.replace(destination)
-    except (OSError, urllib.error.URLError, CslError) as error:
-        raise CslError(f"could not download {CSL_STYLE_URL}: {error}") from error
-    finally:
-        temporary.unlink(missing_ok=True)
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        try:
+            with (
+                urllib.request.urlopen(request, timeout=120) as response,
+                temporary.open("wb") as out,
+            ):
+                remaining = MAX_CSL_BYTES + 1
+                while remaining:
+                    block = response.read(min(1024 * 1024, remaining))
+                    if not block:
+                        break
+                    out.write(block)
+                    remaining -= len(block)
+            validate(temporary)
+            temporary.replace(destination)
+            return destination
+        except (OSError, urllib.error.URLError, http.client.IncompleteRead, CslError) as error:
+            if attempt == DOWNLOAD_ATTEMPTS or not _transient_download_error(error):
+                raise CslError(
+                    f"could not download {CSL_STYLE_URL} after {attempt} attempt(s): {error}"
+                ) from error
+        finally:
+            temporary.unlink(missing_ok=True)
+        time.sleep(attempt)
     return destination
 
 
@@ -85,6 +116,13 @@ def install(destination: Path, *, offline: bool = False) -> Path:
     if destination.exists():
         if not destination.is_file():
             raise CslError(f"configured citation-style path is not a file: {destination}")
+        try:
+            validate(destination)
+        except CslError as error:
+            raise CslError(
+                f"{error}. Existing file preserved; correct or restore the intended CSL "
+                "style, then rerun the command."
+            ) from error
         return destination
 
     cached = cache_path()
