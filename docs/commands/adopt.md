@@ -159,8 +159,17 @@ from the persistent library/PATH settings. Verification generates a small PDF
 and checks that Inter and JetBrains Mono are available rather than accepting
 fallback fonts. A failed verification leaves the activity incomplete.
 
-Existing citation styles are preserved; an unknown custom filename receives
-manual guidance rather than a guessed download.
+Existing citation styles are preserved and checked for valid XML and the
+required CSL structure. An invalid file stops the citation-style activity;
+correct or restore the intended style, then rerun Adopt. Configuration checks
+and Diagnostics report the same problem before a build. An unknown custom
+filename receives manual guidance rather than a guessed download.
+
+Downloading the supported style uses up to three attempts for temporary network
+failures, HTTP 429 or server errors. Partial downloads are discarded before
+retrying. Permanent errors such as HTTP 404 and invalid downloaded content are
+not retried. Only a validated file is installed and cached; offline mode never
+downloads a replacement.
 
 `.prodockit-components.toml` belongs to the project. When it is missing, Adopt
 detects existing project-local renderer installations, including partial installs.

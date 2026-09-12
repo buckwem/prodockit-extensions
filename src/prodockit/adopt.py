@@ -47,6 +47,7 @@ from prodockit.csl import (
 from prodockit.csl import (
     install as install_csl,
 )
+from prodockit.csl import validate as validate_csl
 from prodockit.init_tools import COMPONENT_FILES
 from prodockit.mathjax import MathJaxError, install_mathjax
 from prodockit.pins import TESTED_VERSIONS
@@ -574,6 +575,15 @@ def _csl_activity(root: Path, parsed: dict[str, Any], *, offline: bool) -> Step:
     relative = Path(str(configured))
     target = relative if relative.is_absolute() else root / relative
     if target.is_file():
+        try:
+            validate_csl(target)
+        except CslError as error:
+            return Step(
+                "csl", "Integrate", "Citation style", "wrong",
+                f"{error}. Existing file preserved; correct or restore the intended CSL "
+                "style, then rerun Adopt",
+                files=(target,),
+            )
         return Step(
             "csl",
             "Integrate",

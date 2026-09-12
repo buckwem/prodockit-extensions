@@ -12,6 +12,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from prodockit.csl import CslError
+from prodockit.csl import validate as validate_csl
 from prodockit.project_config import ProjectConfig, load_project_config
 from prodockit.renderer_health import probe_mathjax, probe_mermaid
 
@@ -370,6 +372,17 @@ def inspect_project(config: ProjectConfig) -> tuple[ProjectProblem, ...]:
                     f"file does not exist: {_display(config, style)}",
                 )
             )
+        else:
+            try:
+                validate_csl(style)
+            except CslError as error:
+                problems.append(
+                    ProjectProblem(
+                        'project.markdown_extensions."prodockit.bibliography".csl_style',
+                        f"{error}. Correct or restore the intended CSL style, then rerun "
+                        "the check. The existing file has not been changed.",
+                    )
+                )
 
     mermaid_required, maths_required = _renderer_requirements_from_sources(
         config, markdown_sources
