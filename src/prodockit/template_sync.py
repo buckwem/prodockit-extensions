@@ -257,15 +257,15 @@ def latest_prodockit_version(
 
 
 def template_release(project_root: pathlib.Path, revision: str = "HEAD") -> str | None:
-    """The nearest release tag reachable from a template revision.
+    """The highest versioned release tag included in a source-template revision.
 
-    This intentionally matches Zensical's ``git.short_tag`` semantics. The
-    exact revision is recorded separately, because a template can contain
-    useful commits after its most recent release tag.
+    Mirror merges can make an older release closer in graph distance. Consider
+    every reachable release instead, leaving the exact revision unchanged.
+    Callers supply the pristine source clone, never the student's tag namespace.
     """
     try:
         completed = subprocess.run(
-            [find("git"), "-C", str(project_root), "describe", "--tags", "--abbrev=0", revision],
+            [find("git"), "-C", str(project_root), "tag", "--merged", revision],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -273,8 +273,15 @@ def template_release(project_root: pathlib.Path, revision: str = "HEAD") -> str 
         )
     except OSError:
         return None
-    release = completed.stdout.strip()
-    return release if completed.returncode == 0 and release else None
+    if completed.returncode:
+        return None
+    releases = []
+    for tag in completed.stdout.splitlines():
+        key = _version_key(tag.removeprefix("template-"))
+        if key is not None:
+            releases.append((key, tag))
+    # The tag name breaks equivalent-version ties deterministically.
+    return max(releases)[1] if releases else None
 
 
 def template_revision(project_root: pathlib.Path) -> str | None:

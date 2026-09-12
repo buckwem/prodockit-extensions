@@ -1651,7 +1651,7 @@ def test_a_legacy_stamp_has_no_guessed_applied_release(tmp_path) -> None:
     assert read_applied_release(tmp_path) is None
 
 
-def test_template_release_matches_the_nearest_tag_without_losing_exact_revision(tmp_path) -> None:
+def test_template_release_finds_a_reachable_tag_without_losing_exact_revision(tmp_path) -> None:
     import subprocess
 
     subprocess.run(["git", "init", "--quiet"], cwd=tmp_path, check=True)
@@ -2453,3 +2453,59 @@ def test_merging_a_branch_into_itself_is_refused() -> None:
     problems = publish_blockers(lambda _c: "ok", "template-update-1", "template-update-1")
 
     assert any("into itself" in p for p in problems)
+
+
+@pytest.mark.parametrize("newer_tag", ["0.0.59", "v0.0.59", "template-v0.0.59"])
+def test_template_release_uses_newest_reachable_version_in_mirror_graph(tmp_path, newer_tag):
+    import subprocess
+
+    def git(*args):
+        return subprocess.run(
+            ["git", *args], cwd=tmp_path, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+    git("init", "-b", "main")
+    git("config", "user.email", "test@example.invalid")
+    git("config", "user.name", "Test")
+    git("commit", "--allow-empty", "-m", "base")
+    base = git("rev-parse", "HEAD")
+    assert template_release(tmp_path) is None
+    git("branch", "newer-template")
+    git("commit", "--allow-empty", "-m", "mirror")
+    git("commit", "--allow-empty", "-m", "mirror history before release")
+    git("tag", "0.0.56")
+    git("switch", "newer-template")
+    git("commit", "--allow-empty", "-m", "new release")
+    git("tag", newer_tag)
+    git("commit", "--allow-empty", "-m", "sync one")
+    git("commit", "--allow-empty", "-m", "sync two")
+    git("switch", "main")
+    git("merge", "--no-ff", "newer-template", "-m", "mirror sync")
+    exact = git("rev-parse", "HEAD")
+    assert git("describe", "--tags", "--abbrev=0") == "0.0.56"
+    git("tag", "unrelated-label")
+    git("tag", "prodockit-v99.0.0")
+    git("switch", "-c", "future")
+    git("commit", "--allow-empty", "-m", "future release")
+    git("tag", "9.0.0")
+    git("switch", "main")
+    assert template_release(tmp_path, exact) == newer_tag
+    assert template_release(tmp_path, base) is None
+    assert template_release(tmp_path, "missing-revision") is None
+    assert git("rev-parse", "HEAD") == exact
+
+
+@pytest.mark.parametrize("tags,expected", [
+    (["0.0.9", "0.0.10"], "0.0.10"),
+    (["1.0.0rc1", "1.0.0"], "1.0.0"),
+    (["v1.0.0", "template-v1.0.0"], "v1.0.0"),
+])
+def test_template_release_orders_versions_and_ties_deterministically(tmp_path, tags, expected):
+    import subprocess
+
+    for args in (["init"], ["config", "user.email", "t@example.invalid"],
+                 ["config", "user.name", "T"], ["commit", "--allow-empty", "-m", "base"]):
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+    for tag in tags:
+        subprocess.run(["git", "tag", tag], cwd=tmp_path, check=True)
+    assert template_release(tmp_path) == expected
