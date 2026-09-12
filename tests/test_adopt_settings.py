@@ -3,6 +3,7 @@
 
 """Template additions are reviewed once, not treated as executable defaults."""
 
+import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -238,6 +239,78 @@ def test_download_http_retry_is_bounded(monkeypatch, code, attempts):
     with pytest.raises(settings.urllib.error.HTTPError):
         settings._fetch("https://example.test/template")
     assert len(calls) == attempts
+
+
+@pytest.mark.parametrize("code", [403, 429])
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"Retry-After": "4"},
+        {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1004"},
+        {"Retry-After": "Thu, 01 Jan 1970 00:16:44 GMT"},
+    ],
+)
+def test_github_rate_limit_honours_short_wait(monkeypatch, code, headers):
+    calls, sleeps = [], []
+    monkeypatch.setattr(settings.time, "time", lambda: 1000)
+    monkeypatch.setattr(settings.time, "sleep", sleeps.append)
+
+    def fetch(url):
+        calls.append(url)
+        if len(calls) == 1:
+            raise settings.urllib.error.HTTPError(url, code, "rate limited", headers, None)
+        return TEMPLATE
+
+    monkeypatch.setattr(settings, "_fetch_once", fetch)
+    assert settings._fetch("https://api.github.com/test") == TEMPLATE
+    assert len(calls) == 2
+    assert sleeps == [4.0]
+
+
+@pytest.mark.parametrize("code", [403, 429])
+@pytest.mark.parametrize("cached", [False, True])
+def test_long_rate_limit_uses_cache_or_gives_recovery_without_retry(
+    tmp_path, monkeypatch, code, cached
+):
+    cache = tmp_path / "snapshot.json"
+    monkeypatch.setattr(settings, "cache_path", lambda: cache)
+    monkeypatch.setattr(settings.time, "time", lambda: 1000)
+    monkeypatch.setattr(settings.time, "sleep", lambda _: pytest.fail("must not wait"))
+    if cached:
+        cache.write_bytes(settings.cache_content(settings.Snapshot(TEMPLATE, "github:known")))
+    calls = []
+
+    def fetch(url):
+        calls.append(url)
+        raise settings.urllib.error.HTTPError(
+            url,
+            code,
+            "rate limit exceeded",
+            {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "4600"},
+            None,
+        )
+
+    monkeypatch.setattr(settings, "_fetch_once", fetch)
+    if cached:
+        assert settings.load_snapshot().source == TEMPLATE
+    else:
+        with pytest.raises(settings.SettingsError, match="GITHUB_TOKEN") as caught:
+            settings.load_snapshot()
+        assert "01:16:40" in str(caught.value)
+        assert not cache.exists()
+    assert len(calls) == 1
+
+
+def test_secondary_rate_limit_body_defers_but_permission_403_is_permanent(monkeypatch):
+    url = "https://api.github.com/test"
+    rate = settings.urllib.error.HTTPError(
+        url, 403, "Forbidden", {}, io.BytesIO(b'{"message":"secondary rate limit exceeded"}')
+    )
+    delay, message = settings._github_rate_limit(rate)
+    assert delay == 60
+    assert "GITHUB_TOKEN" in message
+    permission = settings.urllib.error.HTTPError(url, 403, "Forbidden", {}, io.BytesIO(b"denied"))
+    assert settings._github_rate_limit(permission) is None
 
 
 def test_invalid_download_is_not_retried(monkeypatch):

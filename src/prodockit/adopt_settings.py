@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -15,7 +16,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Mapping
-from dataclasses import dataclass
+from contextlib import suppress
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +29,7 @@ from packaging.version import Version
 from prodockit import __version__
 from prodockit.adopt_toml import inline
 from prodockit.project_config import _markdown_extensions
-from prodockit.renderer_resilience import RetryReporter, run_with_retries
+from prodockit.renderer_resilience import RetryNotice, RetryReporter, run_with_retries
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -34,6 +38,7 @@ else:  # pragma: no cover
 
 LEDGER = ".prodockit-adopt.toml"
 MAX_BYTES = 2 * 1024 * 1024
+MAX_RATE_LIMIT_WAIT = 10.0
 OUTCOMES = {"added", "commented", "excluded", "already present"}
 # Whole subtrees are excluded, not copied as commented branding examples.
 EXCEPTIONS = (
@@ -117,14 +122,73 @@ def _fetch_once(url: str) -> str:
     return data.decode("utf-8")
 
 
+def _github_rate_limit(error: urllib.error.HTTPError) -> tuple[float, str] | None:
+    """Read bounded rate-limit evidence without exposing response bodies or tokens."""
+    if urllib.parse.urlsplit(error.url).hostname != "api.github.com" or error.code not in {
+        403,
+        429,
+    }:
+        return None
+    headers = {key.lower(): value for key, value in (error.headers or {}).items()}
+    evidence = str(error.reason).lower()
+    if error.code == 403 and not (
+        headers.get("x-ratelimit-remaining") == "0" or "retry-after" in headers
+    ):
+        evidence += error.read(4096).decode("utf-8", errors="replace").lower()
+        if "rate limit" not in evidence and "abuse detection" not in evidence:
+            return None
+    delays: list[float] = []
+    now = time.time()
+
+    def seconds(value: str) -> float:
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError("non-finite retry time")
+        return number
+
+    retry = headers.get("retry-after", "")
+    if retry:
+        try:
+            delays.append(max(0.0, seconds(retry)))
+        except ValueError:
+            with suppress(ValueError, TypeError, OverflowError):
+                delays.append(max(0.0, parsedate_to_datetime(retry).timestamp() - now))
+    reset = headers.get("x-ratelimit-reset", "")
+    if headers.get("x-ratelimit-remaining") == "0" and reset:
+        with suppress(ValueError):
+            delays.append(max(0.0, seconds(reset) - now))
+    delay = max(delays) if delays else 60.0
+    try:
+        when = datetime.fromtimestamp(now + delay, timezone.utc).isoformat(timespec="seconds")
+    except (ValueError, OverflowError, OSError):
+        when = "the GitHub rate-limit reset time"
+    return delay, (
+        f"GitHub API rate limit reached (HTTP {error.code}). Wait until {when} before retrying, "
+        "or supply GITHUB_TOKEN securely for authenticated API requests. "
+        "A validated cache for this Prodockit version or --template-config can be used instead."
+    )
+
+
 def _fetch(url: str, *, reporter: RetryReporter | None = None) -> str:
     """Retry read-only requests, never malformed data or permanent HTTP failures."""
 
+    minimum_wait = 0.0
+    rate_limit_message = ""
+
     def attempt() -> str | OSError:
+        nonlocal minimum_wait, rate_limit_message
+        minimum_wait = 0.0
+        rate_limit_message = ""
         try:
             return _fetch_once(url)
         except urllib.error.HTTPError as error:
-            if error.code not in {408, 429, 500, 502, 503, 504}:
+            limited = _github_rate_limit(error)
+            if limited is not None:
+                minimum_wait, rate_limit_message = limited
+                if minimum_wait > MAX_RATE_LIMIT_WAIT:
+                    error.close()
+                    raise SettingsError(rate_limit_message) from error
+            elif error.code not in {408, 429, 500, 502, 503, 504}:
                 raise
             error.close()
             return error
@@ -136,15 +200,21 @@ def _fetch(url: str, *, reporter: RetryReporter | None = None) -> str:
             return f"service temporarily unavailable: HTTP {value.code}"
         return str(value)
 
+    def report(notice: RetryNotice) -> None:
+        if reporter is not None:
+            reporter(replace(notice, delay=max(notice.delay, minimum_wait)))
+
     result = run_with_retries(
         "template settings download",
         attempt,
         succeeded=lambda value: isinstance(value, str),
         failure_detail=detail,
-        reporter=reporter,
-        sleeper=time.sleep,
+        reporter=report,
+        sleeper=lambda delay: time.sleep(max(delay, minimum_wait)),
     )
     if isinstance(result.value, OSError):
+        if rate_limit_message:
+            raise SettingsError(rate_limit_message) from result.value
         raise result.value
     return result.value
 
