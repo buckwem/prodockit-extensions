@@ -225,6 +225,9 @@ def manifest_source(options: AdoptOptions) -> str:
 
 
 def write_manifest(root: Path, options: AdoptOptions) -> Path:
+    from prodockit.config_integrity import check_project
+
+    check_project(root, AdoptError)
     path = root / MANIFEST
     _atomic_write(path, manifest_source(options).encode("utf-8"))
     return path
@@ -236,6 +239,9 @@ def _atomic_write(path: Path, content: bytes) -> None:
     Keep identical files untouched on a rerun. This is per-file safety, not
     rollback of package installations or an entire adoption activity.
     """
+    from prodockit.config_integrity import before_write
+
+    before_write(path, content, AdoptError)
     destination = path.resolve()
     if destination.is_file() and destination.read_bytes() == content:
         return
@@ -1541,6 +1547,9 @@ def assess(
     offline: bool = False,
 ) -> list[Step]:
     try:
+        from prodockit.config_integrity import check_project
+
+        check_project(root, AdoptError)
         _check_project_release(root)
         config_path, _source, parsed = _config(root)
         config_status = ("ok", f"{config_path.name} is valid")
@@ -1851,6 +1860,9 @@ def apply_step(
     retry_reporter: RetryReporter | None = None,
     offline: bool = False,
 ) -> list[Path]:
+    from prodockit.config_integrity import check_project
+
+    check_project(root, AdoptError)
     _check_project_release(root)
     if step_id == "pdf-runtime":
         from prodockit import adopt_pdf_runtime

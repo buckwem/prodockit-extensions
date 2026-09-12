@@ -2486,6 +2486,9 @@ def repair_project_configuration(
         source = config_path.read_bytes().decode("utf-8")
     except UnicodeError as error:
         raise RepairTransactionError("zensical.toml is not valid UTF-8") from error
+    from prodockit.config_integrity import validate
+
+    validate(source, config_path, RepairTransactionError)
     planned = _plan_configuration_source(source, problem)
     if planned == source:
         return RepairApplyResult("not-needed")

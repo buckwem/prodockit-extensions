@@ -1278,8 +1278,16 @@ def apply_file_actions(
     rewrites identical bytes makes every update look like a change to
     anyone reading `git status` afterwards.
     """
+    from prodockit.config_integrity import before_write
+
+    pending = pending_writes(actions, project_root, read_template, sidecar=sidecar)
+    for action in pending:
+        if action.action != "keep":
+            before_write(
+                project_root / action.project_path, read_template(action.path), TemplateSyncError
+            )
     written: list[Written] = []
-    for action in pending_writes(actions, project_root, read_template, sidecar=sidecar):
+    for action in pending:
         target = project_root / action.project_path
         if action.action == "keep":
             target = target.with_name(target.name + sidecar)
@@ -1362,6 +1370,7 @@ def apply_config_changes(
         if not any(line.strip() == f"[{table}]" for line in text.splitlines()):
             text = add_config_table(text, table)
         text = set_config_value(text, key, _render(values[key]))
+    read_config(text)
     return text
 
 
@@ -1389,6 +1398,9 @@ def apply_seeds(
         # `LICENSE` into a project that has neither would seed the name
         # the template has already moved away from.
         target = project_root / seed
+        from prodockit.config_integrity import before_write
+
+        before_write(target, read_template(seed), TemplateSyncError)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(read_template(seed))
         written.append(Written(str(target.relative_to(project_root)), "add"))

@@ -24,12 +24,12 @@ the installation manually.
 Choose the Prodockit installation approach
 ///
 
-The four routes below compare their starting points and results in the same
+The three routes below compare their starting points and results in the same
 order as the following sections.
 
 <div class="grid cards installation-route-grid" markdown>
 
--   :lucide-rocket:{ .lg .middle } __Build or update a site__
+-   :lucide-rocket:{ .lg .middle } __Adopt prodockit__
 
     ---
 
@@ -41,19 +41,6 @@ order as the following sections.
     the report template.
 
     [:octicons-arrow-right-24: Open section 4](getting-started.md){ .md-button .md-button--primary .installation-route-button }
-
--   :lucide-package-plus:{ .lg .middle } __Upgrade existing site__
-
-    ---
-
-    **Starting point:** an established Zensical site that you want to keep.
-
-    Adoption inspects the project, aligns it with Prodockit's supported
-    toolchain, and adds the standard authoring components and styles. It keeps
-    the site's content, design decisions, Git history, remotes, editor, and
-    publishing workflow rather than turning it into a template project.
-
-    [:octicons-arrow-right-24: Open section 5](adopt.md){ .md-button .md-button--primary .installation-route-button }
 
 -   :lucide-rocket:{ .lg .middle } __Build a template site__
 

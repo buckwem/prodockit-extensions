@@ -13,9 +13,9 @@ SPDX-License-Identifier: MIT
 
 This section explains how to \index{Tasks!Install manually} by preparing a
 computer and a project. It covers macOS, Windows, and Linux (Ubuntu). The
-commands create the same working setup whether you are starting a new project
-from the Prodockit template or downloading a repository that already contains
-work.
+instructions cover a new project from the Prodockit template (Path 1) or an
+existing Prodockit-ready repository (Path 2). To add Prodockit to a plain
+Zensical site, use [Adopt prodockit](getting-started.md) instead.
 
 !!! warning "Manual installation is not recommended"
     Manual installation is a long process with many opportunities for
@@ -33,7 +33,13 @@ run the check shown for it before continuing.
 ## Manual installation stages
 
 Each stage groups a related part of the installation. Complete its numbered
-steps before moving to the next stage.
+steps before moving to the next stage. Use only the instructions for your
+operating system and chosen Git host; you do not need both GitHub and GitLab.
+Skip tools that already pass the checks, but do not skip verification.
+
+For existing work, keep its content, custom settings and publishing workflow.
+Make changes on a new branch or in a separate clone, and save any uncommitted
+work first: creating a branch alone does not make a backup of it.
 
 ### Stage 1 — Prepare the computer
 
@@ -57,12 +63,12 @@ project's own `.venv`.
 
 ////
 
-//// step | Install Visual Studio Code
+//// step | Install Visual Studio Code **Optional**{: .bg-green}
 
 [Visual Studio Code](https://code.visualstudio.com){target="_blank"} (VS Code) is the editor we have chosen for developing the documentation using Zensical. You can use other editors, but the availability of many plugins in Visual Studio Code will help you edit your documentation more efficiently.
 
-Install Visual Studio Code and its essential plugins with the
-steps below. If VS Code is already installed, check that the plugins are present.
+Skip this step if you already have an editor you prefer. An editor is useful
+for reviewing files, but VS Code is not required to build the website or PDF.
 
 Start with installing [Visual Studio Code](https://code.visualstudio.com){target="_blank"}. Instructions for macOS, Windows, and Linux (Ubuntu/Debian) are below.
 
@@ -147,25 +153,6 @@ Start by installing Git and configuring it for Visual Studio Code. The instructi
 
 ////
 
-//// step | Configure your Git identity
-
-1. Before connecting to any cloud provider, open your terminal (Terminal on macOS/Debian, Git Bash or PowerShell on Windows) and set your global username. This is the identity stamped onto your commits.
-
-    ``` bash
-    git config --global user.name "Your Name"
-    ```
-
-    Then set the email address to go with it. Make sure it's the same one you used to register for your GitLab or GitHub account.
-
-    ``` bash
-    git config --global user.email "your.email@example.com"
-    ```
-
-    !!! tip "Already use Git for other projects?"
-        `--global` applies everywhere, on this project and every other one on your machine - the only option available right now, since you haven't cloned anything yet to scope it to. If you already have a Git identity set up for your own projects, run both commands again with `--local` instead once you've cloned the template below, so this project's commits use these details without changing your identity anywhere else.
-
-////
-
 //// step | Register with the Git hosting service
 
 Register for an account on the public [**GitLab**](https://gitlab.com){target="_blank"} or [**GitHub**](https://github.com){target="_blank"} cloud instance you will use. If you have already registered, you can skip this step.
@@ -183,6 +170,11 @@ Register for an account on the public [**GitLab**](https://gitlab.com){target="_
 
 Create SSH keys, protect them, and confirm that the hosting service accepts
 them before downloading a project.
+
+If SSH already works for your chosen host, skip to the connection check at the
+end of this stage. If your existing project uses authenticated HTTPS, keep
+that arrangement and use its HTTPS clone URL in Stage 3 instead. Create and
+configure keys only for the host you use; never overwrite an existing key.
 
 /// steps
 
@@ -302,7 +294,9 @@ account.
 
 //// step | Configure SSH to use the keys
 
-1. Configure the SSH config file to use the correct key for each service.
+1. Configure the SSH config file to use the correct key for your chosen service.
+    Keep existing settings. Add only the missing host block below; do not
+    replace the whole file or duplicate a host that is already configured.
 
     === ":material-apple: macOS"
 
@@ -320,7 +314,9 @@ account.
         Create the file from PowerShell first, then open it - creating it directly inside an editor risks Notepad naming it `config.txt` instead of `config`:
 
         ``` powershell
-        New-Item -ItemType File -Path $env:USERPROFILE\.ssh\config -Force
+        if (!(Test-Path $env:USERPROFILE\.ssh\config)) {
+            New-Item -ItemType File -Path $env:USERPROFILE\.ssh\config
+        }
         code $env:USERPROFILE\.ssh\config
         ```
 
@@ -668,7 +664,7 @@ section 3.1. The examples use `repos`; substitute the name you chose.
 === ":fontawesome-brands-windows: Windows"
 
     ``` powershell
-    Set-Location ~\repos
+    cd ~/repos
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
     .\.venv\Scripts\Activate.ps1
     ```
@@ -680,7 +676,10 @@ section 3.1. The examples use `repos`; substitute the name you chose.
     source .venv/bin/activate
     ```
 
-The `cd` or `Set-Location` command changes the current directory. The clone
+If `cd` reports that the directory does not exist, stop and correct the path
+before running any more commands.
+
+The `cd` command changes the current directory. The clone
 command creates the project folder inside it. Reactivate this setup
 environment in every new terminal until the project build environment is
 created.
@@ -879,6 +878,14 @@ the same place.
     latest saved change. `git status --short` should print nothing, meaning
     the new clone has no unsaved local changes.
 
+1. Create a branch for any configuration changes, using a new branch name:
+
+    ``` bash
+    git switch -c setup-prodockit
+    ```
+
+    Review and commit on this branch using the project's normal process.
+
 You now have the project locally. The remaining sections are shared by both
 paths and install everything needed to edit, build, and publish it.
 
@@ -943,6 +950,18 @@ The prompt may currently show the parent repositories directory's `.venv`. If it
 `deactivate` now. The commands below create a new `.venv` in the current
 project directory. This second environment contains the project's build
 packages and is the environment used for all later editing and building.
+
+If the project already has a working Python 3.14 environment, reuse it and
+skip the environment-creation commands below. These instructions use the name
+`.venv`; substitute your environment's name if different. For an older or
+damaged environment, follow [Wrong Python version](troubleshooting-installs.md#wrong-python)
+before continuing.
+
+!!! warning "Use supported software versions"
+    Follow the project's [version requirements](commands/pins.md), rather than
+    installing every tool's newest release. Supported versions may be newer
+    or older than those already installed: upstream changes have previously
+    broken builds. Keep these changes inside the project environment where possible.
 
 1. Follow the instructions below to create and activate the project environment
     with the Python 3.14 interpreter installed at the start of this page.
@@ -1260,7 +1279,10 @@ The first line should report `pandoc 3.10.1`.
 
     A version number means everything is in place. If instead you get a long error ending in `cannot load library`, the libraries from the step above are missing or cannot be found - go back and install them.
 
-1. Fetch the citation style your first build needs. The template enables `prodockit.bibliography` by default, pointing `csl_style` at `harvard-cite-them-right.csl` - but that file isn't part of the clone, so `zensical serve`/`zensical build`/`prodockit pdf` all fail outright until it's in place. Fetch it once, from your project root:
+1. Check the citation style configured for the project. If it uses
+    `harvard-cite-them-right.csl` and that file is missing, download it from
+    the project root using the command below. Skip the download if the file
+    already exists; do not replace a project's customised citation style.
 
     === ":material-apple: macOS"
 
@@ -1331,9 +1353,13 @@ renderers used by the project.
 
 /// steps
 
-//// step | Install Zensical Studio and the editor plugins
+//// step | Install Zensical Studio and the editor plugins **Optional**{: .bg-green}
 
 <span id="install-zensical-studio-and-other-plugins"></span>
+
+Skip this step if you do not use VS Code. When editing an existing
+`.vscode/settings.json`, merge the setting below into it rather than replacing
+the file and losing the project's other settings.
 
 Now we'll install the \index{VS Code!Zensical Studio} plugin for Visual Studio Code, which provides a set of tools to help you work with Zensical projects, including commands to build and preview your site. Then we'll install a couple of other useful plugins for working with Markdown and TOML files.
 
@@ -1372,12 +1398,15 @@ Install diagram and maths tooling when the document contains
 \index{Zensical!diagrams} or mathematical notation; the earlier steps do not
 install these tools.
 
-On the website they look after themselves: the reader's browser draws them as the page loads. A PDF has no browser, so `prodockit pdf` converts both into images *before* building the document, using two \index{Node.js} programs to do it.
+The website uses browser scripts; the PDF uses separate \index{Node.js}
+renderers to turn diagrams and equations into images. MathJax also needs its
+website bundle, installed below. Keep the existing project's component choices;
+if neither renderer is needed, skip the remaining steps in this stage.
 
-!!! danger "Without these, the PDF is wrong rather than missing"
-    `prodockit pdf` does **not** fail when they are absent. It leaves the content as it found it, so instead of a flowchart your PDF shows the diagram's own definition text - the `graph LR` line and every node written out beneath it - and instead of a typeset equation, raw LaTeX with all its backslashes and braces.
-
-    Meanwhile the website renders both perfectly. So nothing looks wrong until somebody opens the PDF, which may be well after you have written the document.
+!!! warning "Check the PDF as well as the website"
+    A successful website build does not prove that PDF rendering is ready.
+    Run `pdk diag`, then open the generated PDF and check a diagram and an
+    equation if your project uses them.
 
 ////
 
@@ -1503,10 +1532,15 @@ Then activate the project's virtual environment as a separate step:
     source .venv/bin/activate
     ```
 
-Then install both:
+Install Mermaid's locked dependencies if the project uses diagrams:
 
 ``` bash
 npm ci --prefix tools/mermaid
+```
+
+Install MathJax's locked dependencies if the project uses mathematical notation:
+
+``` bash
 npm ci --prefix tools/mathjax
 ```
 
@@ -1514,7 +1548,7 @@ npm ci --prefix tools/mathjax
 
 This creates a `node_modules` folder inside each, which is deliberately not committed (see `.gitignore`). Run these two commands again if you ever re-clone the project.
 
-Install the MathJax bundle and its matching configuration for the website:
+For mathematical notation, install the MathJax bundle and its matching configuration for the website:
 
 ``` bash
 prodockit init-mathjax
@@ -1527,7 +1561,7 @@ deliberately excluded from Git, so run this command again after cloning the
 project onto another computer.
 
 !!! note "If npm reports vulnerabilities or an `allow-scripts` warning"
-    Both are normal here, not a sign anything went wrong:
+    Read the warning before continuing. These messages describe different checks:
 
     ``` text
     Run `npm audit` for details.
@@ -1535,7 +1569,10 @@ project onto another computer.
     npm warn allow-scripts   puppeteer (postinstall: node install.mjs)
     ```
 
-    The vulnerability count comes from `npm audit` scanning the whole dependency tree Puppeteer pulls in for known advisories, most of which don't apply to how this project uses it - a locally-run PDF build, not a public-facing server. There's nothing to fix here; running `npm audit fix` is more likely to break the pinned versions the lockfile records than to help.
+    A vulnerability warning needs review; it is not automatically harmless
+    because the tools run locally. Check the audit details and report unresolved
+    findings to the project maintainer. Do not run `npm audit fix` blindly:
+    it can change the supported dependencies recorded in the lockfile.
 
     The `allow-scripts` warning is different: recent npm versions skip Puppeteer's own setup step, which downloads the headless browser Mermaid draws diagrams with. The install still succeeds - if a later PDF build reports it cannot find a browser, approve the step and reinstall:
 
@@ -1557,25 +1594,43 @@ project onto another computer.
 
 ### Stage 6 — Verify and finish
 
-Build every output, then complete the path selected when the project was
-obtained.
+Check the local website and any PDFs you need, then complete only the path
+selected in Stage 3. A local build does not publish the website.
 
 /// steps
 
 //// step | Build and finish the setup
 
-Run diagnostics first, then generate the website and PDF before publishing
-anything:
+Use diagnostics to check for common installation and configuration problems:
 
 ``` bash
 pdk diag
-zensical build --clean --strict
-prodockit pdf
 ```
 
-Open both outputs and check that headings, diagrams, mathematics, tables, and
-references render correctly. A command completing successfully cannot detect
-every visual problem.
+Resolve failures before building the website:
+
+``` bash
+zensical build --clean --strict
+```
+
+Preview the website locally and open the address printed in the terminal:
+
+``` bash
+zensical serve
+```
+
+Check the content, navigation and custom styles. Press `Ctrl+C` to stop the
+preview before continuing.
+
+If you need a PDF, generate and open it to check its layout, diagrams,
+mathematics and references:
+
+``` bash
+pdk pdf
+```
+
+See [PDF generation](pdf.md) for downloadable PDFs and source bundles. A
+successful command cannot detect every visual problem.
 
 ////
 
@@ -1585,42 +1640,70 @@ Path 1 has a new local history and an empty online repository. Check exactly
 what the first commit will contain:
 
 ``` bash
-git status --short
+git status --short --untracked-files=all
 ```
 
 Generated dependencies such as `.venv`, `node_modules`, and the installed
-MathJax bundle should not appear because `.gitignore` excludes them. Then save
-the project and send it to `origin`:
+MathJax bundle should not appear because `.gitignore` excludes them. Stop if
+generated files or private material appear, and correct the ignore rules
+before selecting files.
+
+Select the project's content, configuration and build instructions, then
+review what will be saved:
 
 ``` bash
 git add -A
+git diff --cached
+```
+
+Press `q` to leave the review. Save the first version locally:
+
+``` bash
 git commit -m "Initial commit"
+```
+
+Follow [Publish the website](getting-started.md#stage-6-save-and-publish-optional)
+to enable Pages for your chosen host and check the build automation. Your
+repository and `origin` were already set up in Stage 3; do not create them again.
+When ready, send the commit to that repository:
+
+``` bash
 git push -u origin main
 ```
 
 `git commit` saves the first version locally. `git push` copies that commit to
 GitLab or GitHub and `-u origin main` records where later pushes should go.
+Wait for its build to succeed, then open the Pages link on the repository's
+front page as described in the publishing instructions.
 
 ////
 
-//// step | Finish Path 2: leave existing work unchanged
+//// step | Finish Path 2: review and publish the changes
 
-Installing local dependencies should not alter an existing repository. Check:
+Installing dependencies may leave source files unchanged, but configuration
+and repository-link updates can change them. Review the results on your setup
+branch before committing:
 
 ``` bash
-git status --short
-git rev-parse HEAD
-git rev-parse origin/main
+git status --short --untracked-files=all
 ```
 
-An empty status means no project files changed. Matching commit identifiers
-mean the local `main` branch is still at the same saved version as the online
-one. Do not create an "initial" commit and do not force-push an existing
-repository.
+This lists changed and new files. Check edits to tracked files separately:
 
-If `prodockit sync-repo` or an editor setting made an intentional change,
-review it with `git diff` and follow the normal editing workflow in the next
-section rather than replacing the repository's history.
+``` bash
+git diff
+```
+
+Press `q` to leave the review. Confirm that content and custom settings are
+preserved, and that dependency, stylesheet, script and editor changes are
+intentional. Review new files separately; `git diff` does not show their content.
+
+Follow the existing project's branch, commit, review and publishing process.
+Keep its remote and build automation; do not create a new initial history or
+force-push. If there are no project changes, no commit is needed. See
+[Review the project changes](getting-started.md#stage-7-review-the-project-changes)
+for the types of configuration to check; its Adopt-specific file replacement
+rules apply only if you also run Adopt.
 
 ////
 
@@ -1651,9 +1734,11 @@ files to Prodockit.
 
 ### Keep the project current {: #manual-project-maintenance }
 
-Start every maintenance pass in the active project environment. Upgrade the
-declared requirements by following the same platform-specific installation
-steps used above, then run Diagnostics before rebuilding:
+Start every maintenance pass in the active project environment, with existing
+work saved on a branch. Follow the project's supported version requirements
+and the platform-specific installation steps above; do not update every
+dependency independently to its newest version. Run Diagnostics before
+rebuilding, and generate a PDF only if your project needs one:
 
 ```bash
 pdk diag

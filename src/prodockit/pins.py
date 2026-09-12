@@ -554,6 +554,12 @@ def apply_version(root: str, state: PackageState, version: str) -> list[PinSite]
     changelog entry, a comment, a documentation example), and only the
     lines `discover()` identified should move.
     """
+    from pathlib import Path
+
+    from prodockit.config_integrity import before_write, check
+
+    for site in state.sites:
+        check(Path(root) / site.path, PinError)
     changed: list[PinSite] = []
     by_path: dict[str, list[PinSite]] = {}
     for site in state.sites:
@@ -618,6 +624,7 @@ def apply_version(root: str, state: PackageState, version: str) -> list[PinSite]
             lines[index] = replaced
             changed.append(site)
 
+        before_write(Path(abs_path), "\n".join(lines), PinError)
         temporary: str | None = None
         try:
             temporary = f"{abs_path}.{uuid.uuid4().hex}.tmp"

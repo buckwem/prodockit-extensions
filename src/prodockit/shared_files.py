@@ -231,6 +231,9 @@ def apply(root: str | os.PathLike[str], states: list[SharedFileState]) -> list[s
         if state.status == "current":
             continue
         target = _target_path(project, state.file.target)
+        from prodockit.config_integrity import before_write
+
+        before_write(target, state.expected, SharedFileError)
         temporary: Path | None = None
         try:
             target.parent.mkdir(parents=True, exist_ok=True)

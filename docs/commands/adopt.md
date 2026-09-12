@@ -11,6 +11,15 @@ an existing Zensical document. Its final apply phase offers separately confirmed
 site details and optional Git/remote setup. It does not configure SSH, editors
 or Pages, and it never commits or pushes.
 
+Before making changes, Adopt checks the project's root-level TOML and YAML files
+and YAML build workflows. TOML uses Python's TOML parser; YAML is parsed without
+executing configuration tags. If a file is invalid, it reports the file, line and column
+of the first syntax error and stops. Correct that error and rerun the same
+command; another syntax error may become visible after the first is fixed.
+Completed activities are retained and reassessed, not rolled back or blindly
+repeated. Existing and proposed TOML and YAML contents are also checked before writing.
+These are syntax checks, not proof that a hosting service will accept or run a workflow.
+
 Use the [Adopt task guide](../adopt.md) for the preparation and review workflow.
 
 ### Build workflow protection

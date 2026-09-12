@@ -5051,12 +5051,13 @@ def _run_template_sync(
         ]
 
         if config_path.exists() and (added or updated):
-            config_path.write_text(
-                apply_config_changes(
-                    config_path.read_text(encoding="utf-8"), template_config, added, updated
-                ),
-                encoding="utf-8",
+            from prodockit.config_integrity import before_write
+
+            proposed_config = apply_config_changes(
+                config_path.read_text(encoding="utf-8"), template_config, added, updated
             )
+            before_write(config_path, proposed_config, TemplateSyncError)
+            config_path.write_text(proposed_config, encoding="utf-8")
             say_detail(f"zensical.toml: {len(added)} settings added, {len(updated)} updated")
             also_written.append("zensical.toml")
 

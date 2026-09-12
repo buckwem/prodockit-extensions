@@ -45,6 +45,7 @@ def update(source: str, options: "AdoptOptions") -> str:
         _missing_core_extensions,
     )
 
+    tomllib.loads(source)
     document = tomlkit.parse(source)
     project: Any = document["project"]
     if "markdown_extensions" not in project:

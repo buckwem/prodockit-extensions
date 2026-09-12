@@ -371,7 +371,7 @@ and explains when to enter or create the project itself.
 
 <div class="grid cards installation-route-grid" markdown>
 
--   :lucide-rocket:{ .lg .middle } __Build or update a site__
+-   :lucide-rocket:{ .lg .middle } __Adopt prodockit__
 
     ---
 
@@ -379,16 +379,6 @@ and explains when to enter or create the project itself.
     Adoption to add the Prodockit features you select.
 
     [:octicons-arrow-right-24: Open section 4](getting-started.md){ .md-button .md-button--primary .installation-route-button }
-
--   :lucide-package-plus:{ .lg .middle } __Upgrade existing site__
-
-    ---
-
-    Bring an established Zensical project onto Prodockit's supported
-    toolchain without replacing its content, design, Git history, or
-    publishing workflow.
-
-    [:octicons-arrow-right-24: Open section 5](adopt.md){ .md-button .md-button--primary .installation-route-button }
 
 -   :lucide-rocket:{ .lg .middle } __Build a template site__
 
