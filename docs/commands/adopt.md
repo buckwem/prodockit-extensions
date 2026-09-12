@@ -258,6 +258,14 @@ from the same immutable commit. A template requiring a newer Prodockit release
 is not used automatically. Known defaults still come from the **installed
 Prodockit release**, not from the template's values.
 
+GitHub rate limits can return HTTP 403 or 429. Adopt respects `Retry-After`
+and the quota reset time, waiting up to ten seconds per retry. Longer waits
+use a validated cache for the installed version, if available; otherwise Adopt
+reports when to retry and suggests authenticated requests using `GITHUB_TOKEN`
+or a local `--template-config`. Never paste a token into issue reports or logs.
+An ordinary permission-denied 403 is not retried. This follows
+[GitHub's rate-limit guidance](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+
 - Existing project values are preserved.
 - Missing settings recognised by Adopt use its existing configuration rules.
 - New, unrecognised settings are added as **commented examples**, never enabled
