@@ -821,6 +821,10 @@ For automated PDF and source downloads, follow [Publish a document](publishing.m
 
 ///
 
+Congratulations — your Prodockit website is now published!
+[Go to section 4.2](#first-site-completed-project){ .install-go } to learn which
+files are yours to manage and how to keep your site up to date.
+
 ### Stage 7b — Review the project changes **Update**{: .install-update} {: #stage-7-review-the-project-changes }
 
 If your site already uses Git, review the changed and new files before
@@ -933,6 +937,10 @@ and private files out of the commit.
 ////
 
 ///
+
+Congratulations — your Prodockit website is now published!
+[Go to section 4.2](#first-site-completed-project){ .install-go } to learn which
+files are yours to manage and how to keep your site up to date.
 
 ## Understand the completed project {: #first-site-completed-project }
 

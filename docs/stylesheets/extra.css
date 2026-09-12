@@ -45,9 +45,23 @@
   color: #171717;
 }
 
-.md-typeset .homebrew-button svg {
+.md-typeset .homebrew-button svg,
+.md-typeset .python-button svg {
   margin-right: 0.3em;
   vertical-align: -0.15em;
+}
+
+/* Python blue with a white label mirrors the Homebrew installation action. */
+.md-typeset .python-button {
+  border-color: #3776ab;
+  background-color: #3776ab;
+  color: #fff;
+}
+
+.md-typeset .python-button:is(:hover, :focus) {
+  border-color: #2b5b84;
+  background-color: #2b5b84;
+  color: #fff;
 }
 
 
