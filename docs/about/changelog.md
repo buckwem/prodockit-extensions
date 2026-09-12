@@ -21,6 +21,8 @@ requests rather than here.
 
 ## 0.65.2 (2026-09-12)
 
+- Pin MathJax's XML dependency to the patched `@xmldom/xmldom` 0.9.12 while
+  retaining MathJax 3.2.2. Adopt updates the managed renderer files and dependencies.
 - Improve Windows MSYS2 recovery across installation tools and preserve the
   authenticated terminal when installers need administrator approval.
 - Diagnostics audits managed MathJax production dependencies, and template

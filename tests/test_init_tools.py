@@ -112,6 +112,8 @@ def test_scaffolded_manifests_are_valid_json_with_the_expected_dependency(
     assert mermaid_lock["packages"][""]["dependencies"] == mermaid["dependencies"]
     assert "node_modules/tailwindcss" in mermaid_lock["packages"]
     assert mathjax_lock["packages"][""]["dependencies"] == mathjax["dependencies"]
+    assert mathjax["overrides"]["@xmldom/xmldom"] == "0.9.12"
+    assert mathjax_lock["packages"]["node_modules/@xmldom/xmldom"]["version"] == "0.9.12"
 
 
 def test_mermaid_lock_records_the_optional_layout_peer_version(tmp_path: Path) -> None:
