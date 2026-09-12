@@ -21,6 +21,19 @@ requests rather than here.
 
 ## 0.65.2 (2026-09-12)
 
+- Raise the coordinated supported Zensical version to 0.0.61. Upgrade the
+  template's requirements, publishing pins and toolchain record together so
+  Adopt and diagnostics retain the selected version.
+
+Zensical 0.0.61 validates plugin options more strictly, and table-reader paths
+must remain inside the project. Review custom configurations before upgrading.
+Page and heading redirects are available as optional website features; they do
+not automatically create PDF aliases. The upstream Mike `version_selector`
+option regression remains a documented limitation: configurations using that
+option are not qualified for this upgrade. See the
+[compatibility guidance](../devcons/pinning-drift.md#pinning-compatibility-known-limitations).
+
+
 - Pin MathJax's XML dependency to the patched `@xmldom/xmldom` 0.9.12 while
   retaining MathJax 3.2.2. Adopt updates the managed renderer files and dependencies.
 - Improve Windows MSYS2 recovery across installation tools and preserve the

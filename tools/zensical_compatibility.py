@@ -216,7 +216,9 @@ def report(output: Path) -> int:
     lines = [
         "# Zensical compatibility analysis",
         "",
-        "Only Zensical varies between the two environments.",
+        "Only Zensical varies between the two environments. The historical baseline installs "
+        "the local Prodockit build without dependency resolution so it can test below "
+        "the new supported floor.",
         "",
     ]
     failure = len(results) != 2
@@ -314,18 +316,32 @@ def report(output: Path) -> int:
     return int(failure)
 
 
+def baseline_requirements(frozen: str, version: str) -> str:
+    """Reuse candidate dependencies while excluding this release's new floor.
+
+    The local Prodockit build is installed separately without dependency
+    resolution only in the historical baseline. All other requirements remain
+    frozen, and report() rejects any dependency difference except Zensical.
+    """
+    return "\n".join(
+        "zensical==" + version if line.lower().startswith("zensical==") else line
+        for line in frozen.splitlines()
+        if not line.lower().startswith(("prodockit==", "prodockit @ "))
+    ) + "\n"
+
+
 def pair(args: argparse.Namespace) -> int:
     output = args.output.resolve()
     if output.exists():
         raise ValueError("Use a new output directory; prior evidence is never overwritten")
     output.mkdir(parents=True)
     try:
-        baseline = output / "venv-baseline"
-        venv.EnvBuilder(with_pip=True).create(baseline)
-        py = str(python_in(baseline))
+        candidate = output / "venv-candidate"
+        venv.EnvBuilder(with_pip=True).create(candidate)
+        candidate_py = str(python_in(candidate))
         requirements = [
             str(ROOT) + "[testing]",
-            "zensical==" + args.baseline,
+            "zensical==" + args.candidate,
             "weasyprint==69.0",
             "Markdown==3.10.3",
             "pymdown-extensions==11.0.2",
@@ -333,25 +349,29 @@ def pair(args: argparse.Namespace) -> int:
         ]
         if args.template:
             requirements += ["-r", str(args.template / "requirements.txt")]
-        checked([py, "-m", "pip", "install", *requirements], ROOT, output / "install-baseline.log")
-        frozen = subprocess.check_output([py, "-m", "pip", "freeze"], text=True)
-        (output / "baseline-requirements.txt").write_text(frozen, encoding="utf-8")
-        candidate_lock = (
-            "\n".join(
-                "zensical==" + args.candidate if s.lower().startswith("zensical==") else s
-                for s in frozen.splitlines()
-            )
-            + "\n"
-        )
-        lock = output / "candidate-requirements.txt"
-        lock.write_text(candidate_lock, encoding="utf-8")
-        candidate = output / "venv-candidate"
-        venv.EnvBuilder(with_pip=True).create(candidate)
         checked(
-            [str(python_in(candidate)), "-m", "pip", "install", "-r", str(lock)],
-            ROOT,
-            output / "install-candidate.log",
+            [candidate_py, "-m", "pip", "install", *requirements],
+            ROOT, output / "install-candidate.log",
         )
+        frozen = subprocess.check_output([candidate_py, "-m", "pip", "freeze"], text=True)
+        (output / "candidate-requirements.txt").write_text(frozen, encoding="utf-8")
+        baseline = output / "venv-baseline"
+        venv.EnvBuilder(with_pip=True).create(baseline)
+        baseline_py = str(python_in(baseline))
+        lock = output / "baseline-dependencies-requirements.txt"
+        lock.write_text(baseline_requirements(frozen, args.baseline), encoding="utf-8")
+        checked(
+            [baseline_py, "-m", "pip", "install", "-r", str(lock)],
+            ROOT, output / "install-baseline.log",
+        )
+        # The baseline deliberately predates the release's supported floor.
+        # This exception applies only to the local project, never its dependencies.
+        checked(
+            [baseline_py, "-m", "pip", "install", "--no-deps", str(ROOT)],
+            ROOT, output / "install-baseline-project.log",
+        )
+        baseline_frozen = subprocess.check_output([baseline_py, "-m", "pip", "freeze"], text=True)
+        (output / "baseline-requirements.txt").write_text(baseline_frozen, encoding="utf-8")
         for side, env in [("baseline", baseline), ("candidate", candidate)]:
             cmd = [
                 str(python_in(env)),

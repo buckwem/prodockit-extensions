@@ -247,3 +247,11 @@ def test_asset_audit_understands_a_site_url_mount(tmp_path):
     assert checks.site_snapshot(tmp_path)["missing_assets"] == []
     (site / "assets/main.css").unlink()
     assert len(checks.site_snapshot(tmp_path)["missing_assets"]) == 2
+
+
+def test_historical_baseline_changes_only_zensical_and_separates_local_project():
+    frozen = "prodockit @ file:///local/release\nzensical==0.0.61\nMarkdown==3.10.3\npytest==8.4.0\n"
+    assert _GATE.baseline_requirements(frozen, "0.0.59") == (
+        "zensical==0.0.59\nMarkdown==3.10.3\npytest==8.4.0\n"
+    )
+    assert _GATE.baseline_requirements("prodockit==0.65.2\nzensical==0.0.61\n", "0.0.59") == "zensical==0.0.59\n"
