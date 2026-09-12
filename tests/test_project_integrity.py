@@ -62,7 +62,7 @@ def test_local_stylesheets_and_javascript_must_be_configured(tmp_path: Path) -> 
         tmp_path,
         'extra_css = ["stylesheets/configured.css"]\n'
         'extra_javascript = ["javascripts/configured.js"]\n'
-        '[project.extra]\n'
+        "[project.extra]\n"
         'pdf_extra_css = ["stylesheets/print.css"]\n',
     )
     assets = {
@@ -155,8 +155,7 @@ def test_local_markdown_images_exist_after_query_and_theme_fragment_are_removed(
 def test_csl_style_must_exist(tmp_path: Path) -> None:
     config = _project(
         tmp_path,
-        '[project.markdown_extensions."prodockit.bibliography"]\n'
-        'csl_style = "styles/house.csl"\n',
+        '[project.markdown_extensions."prodockit.bibliography"]\ncsl_style = "styles/house.csl"\n',
     )
 
     assert any("styles/house.csl" in message for message in _messages(config))
@@ -192,6 +191,33 @@ def test_example_syntax_in_code_does_not_require_an_extension(tmp_path: Path) ->
     assert _messages(config) == []
 
 
+@pytest.mark.parametrize(
+    "syntax",
+    [
+        r"\ref{target}",
+        r"\autoref{target}",
+        r"\citeref{source}",
+        r"\gls{api}",
+        r"\cite{book}",
+        r"\index{Term}",
+        "/// steps\n",
+        "/// tree\n",
+    ],
+)
+@pytest.mark.parametrize("multiline", [False, True])
+def test_commented_syntax_is_not_active(tmp_path: Path, syntax: str, multiline: bool) -> None:
+    gap = "\n" if multiline else " "
+    config = _project(tmp_path, "", {"index.md": f"# Page\n<!--{gap}{syntax}{gap}-->\n"})
+    assert _messages(config) == []
+
+
+def test_active_syntax_after_a_comment_still_requires_extension(tmp_path: Path) -> None:
+    config = _project(tmp_path, "", {"index.md": "<!-- \\gls{hidden} -->\nSee \\ref{visible}."})
+    messages = _messages(config)
+    assert any("prodockit.refs" in message for message in messages)
+    assert not any("prodockit.glossary" in message for message in messages)
+
+
 def test_configured_mermaid_is_optional_until_a_diagram_uses_it(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -202,12 +228,7 @@ def test_configured_mermaid_is_optional_until_a_diagram_uses_it(
         'custom_fences = [{name = "mermaid"}]\n',
         {
             "index.md": (
-                "# No diagrams\n\n"
-                "````markdown\n"
-                "```mermaid\n"
-                "graph LR\n  A --> B\n"
-                "```\n"
-                "````\n"
+                "# No diagrams\n\n````markdown\n```mermaid\ngraph LR\n  A --> B\n```\n````\n"
             )
         },
     )

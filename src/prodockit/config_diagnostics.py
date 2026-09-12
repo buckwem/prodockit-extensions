@@ -118,6 +118,7 @@ def inspect_config(config: ProjectConfig) -> ConfigReport:
     diagnostics: list[Diagnostic] = []
     extra = config.extra
     known_extra = {setting.key for setting in EXTRA_SETTINGS}
+    invalid_extra = False
 
     for setting in EXTRA_SETTINGS:
         explicit = setting.key in extra
@@ -127,6 +128,12 @@ def inspect_config(config: ProjectConfig) -> ConfigReport:
             else _display_default(config, setting.key, setting.default)
         )
         source = f"project.extra.{setting.key}" if explicit else "default"
+        if explicit:
+            try:
+                setting.validate(value)
+            except SettingError as error:
+                invalid_extra = True
+                diagnostics.append(Diagnostic(source, str(error)))
         settings.append(ResolvedSetting(setting.group, setting.key, value, source))
 
     for key in extra:
@@ -198,9 +205,12 @@ def inspect_config(config: ProjectConfig) -> ConfigReport:
             )
         )
 
-    diagnostics.extend(
-        Diagnostic(problem.path, problem.message) for problem in inspect_project(config)
-    )
+    # Integrity consumers may expect typed paths/lists. Report type errors
+    # first rather than letting a malformed setting trigger an exception.
+    if not invalid_extra:
+        diagnostics.extend(
+            Diagnostic(problem.path, problem.message) for problem in inspect_project(config)
+        )
 
     return ConfigReport(
         path=config.path,

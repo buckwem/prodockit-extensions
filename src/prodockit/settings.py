@@ -59,6 +59,20 @@ class ExtraSetting:
     default: object
     group: str
 
+    def validate(self, value: object) -> None:
+        """Reject coercions; context-dependent defaults are string settings."""
+        if isinstance(self.default, bool):
+            valid = isinstance(value, bool)
+            expected = "true or false (without quotes)"
+        elif isinstance(self.default, tuple):
+            valid = isinstance(value, list) and all(isinstance(item, str) for item in value)
+            expected = "a list of strings"
+        else:
+            valid = isinstance(value, str)
+            expected = "a string"
+        if not valid:
+            raise SettingError(f"project.extra.{self.key} must be {expected}")
+
 
 EXTRA_SETTINGS = (
     ExtraSetting("heading_numbering", True, "Shared rendering"),
@@ -92,6 +106,14 @@ EXTRA_SETTINGS = (
 EXTRA_SETTING_BY_KEY = {setting.key: setting for setting in EXTRA_SETTINGS}
 
 
+def validate_extra_settings(extra: Mapping[str, Any] | None) -> None:
+    """Validate explicit owned settings before a runtime consumer uses them."""
+    for key, value in (extra or {}).items():
+        setting = EXTRA_SETTING_BY_KEY.get(key)
+        if setting is not None:
+            setting.validate(value)
+
+
 def extra_default(key: str) -> Any:
     """Return the one declared default for a Prodockit-owned extra setting."""
     return EXTRA_SETTING_BY_KEY[key].default
@@ -118,6 +140,7 @@ def heading_numbering_enabled(extra: dict[str, Any] | None) -> bool:
     """Whether `project.extra.heading_numbering` (default `True`) enables
     chapter/appendix numbering on headings and captions, on both the
     website and the PDF."""
+    validate_extra_settings(extra)
     return bool((extra or {}).get("heading_numbering", extra_default("heading_numbering")))
 
 
@@ -141,6 +164,7 @@ def reference_style_values(extra: dict[str, Any] | None) -> tuple[str, str, str,
       `"2em"`) - the `global` style's margin-top between entries.
     """
     extra = extra or {}
+    validate_extra_settings(extra)
     style = str(extra.get("reference_style", extra_default("reference_style"))).strip().lower()
     style = "global" if style == "global" else "european"
     spacing_european = str(

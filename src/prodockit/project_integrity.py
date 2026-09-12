@@ -94,7 +94,15 @@ def _without_fenced_code(source: str) -> str:
 
 
 def _scannable_markdown(source: str) -> str:
-    return _INLINE_CODE_RE.sub("", _without_fenced_code(source))
+    source = _INLINE_CODE_RE.sub("", _without_fenced_code(source))
+    # Blank comments rather than deleting them: keep line positions and
+    # avoid joining separate fragments into apparently active syntax.
+    return re.sub(
+        r"<!--.*?(?:-->|\Z)",
+        lambda match: re.sub(r"[^\n]", " ", match.group()),
+        source,
+        flags=re.DOTALL,
+    )
 
 
 def _uses_mermaid(source: str) -> bool:

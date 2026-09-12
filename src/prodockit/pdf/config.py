@@ -46,6 +46,7 @@ from prodockit.settings import (
     heading_numbering_enabled,
     reference_style_values,
     resolve_index_settings,
+    validate_extra_settings,
 )
 from prodockit.zensical_macros import (
     _compute_site_word_count,
@@ -413,6 +414,7 @@ def _build_pdf_from_config(
         config = zensical_config.parse_config(config_path)
         zensical_render = _zensical_render
     extra = config.get("extra") or {}
+    validate_extra_settings(extra)
     theme = config.get("theme") or {}
     font = theme.get("font") or {}
     admonition_icon_config = (theme.get("icon") or {}).get("admonition") or {}
