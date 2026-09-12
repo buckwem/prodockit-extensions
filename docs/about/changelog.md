@@ -19,6 +19,28 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.65.2 (2026-09-12)
+
+- Improve Windows MSYS2 recovery across installation tools and preserve the
+  authenticated terminal when installers need administrator approval.
+- Diagnostics audits managed MathJax production dependencies, and template
+  syncing selects the newest reachable release in mirrored Git histories.
+- Installation commands check TOML and YAML syntax before editing configuration,
+  stop with actionable error locations, and allow you to correct the file and
+  rerun. Configuration checks also reject invalid setting types and ignore
+  authoring examples inside HTML comments.
+- Bootstrap stops when a new environment must be activated before continuing,
+  rather than running subsequent activities in the wrong environment.
+- Citation-style installation validates existing files and retries transient
+  download failures. Template settings retrieval respects GitHub rate limits
+  and uses validated cached settings when available.
+- Consolidate clean and existing-site instructions under **Adopt prodockit**,
+  with updated diagrams, file-change guidance, installation buttons and
+  completion links.
+- Website PDF actions appear only for pages with their own generated PDF.
+  Page-specific download paths prevent different documents with the same
+  filename from sharing the wrong PDF, and deployment checks verify the links.
+
 ## 0.65.1 (2026-09-11)
 
 - Adopt preserves customised build workflows and supplies separate, inactive
