@@ -18,12 +18,12 @@ def test_top_level_sections_open_with_an_introduction() -> None:
 
     expected_first_items = {
         "Getting started": {"1. prodockit overview": "introduction.md"},
-        "Publish a document": {"9. Publishing overview": "publishing.md"},
-        "Maintain prodockit": {"15. Maintenance overview": "project-maintenance.md"},
-        "Authoring reference": {"20. Overview": "authoring.md"},
-        "Command reference": {"34. Command overview": "command-line.md"},
-        "Contributor internals": {"49. Overview": "devcons/devcons.md"},
-        "About": {"56. About prodockit": "about/index.md"},
+        "Publish a document": {"8. Publishing overview": "publishing.md"},
+        "Maintain prodockit": {"14. Maintenance overview": "project-maintenance.md"},
+        "Authoring reference": {"19. Overview": "authoring.md"},
+        "Command reference": {"33. Command overview": "command-line.md"},
+        "Contributor internals": {"48. Overview": "devcons/devcons.md"},
+        "About": {"55. About prodockit": "about/index.md"},
     }
 
     groups = {next(iter(item)): next(iter(item.values())) for item in nav if isinstance(item, dict)}
@@ -65,13 +65,13 @@ def test_contributor_internals_has_focused_reference_pages() -> None:
     )
 
     assert contributor == [
-        {"49. Overview": "devcons/devcons.md"},
-        {"50. Development and code map": "devcons/development.md"},
-        {"51. Extension integration": "devcons/extension-internals.md"},
-        {"52. PDF pipeline and API": "devcons/pdf-internals.md"},
-        {"53. Bootstrap design": "devcons/bootstrap-internals.md"},
-        {"54. Zensical coupling": "devcons/zensical-coupling.md"},
-        {"55. Implementation limitations": "devcons/limitations.md"},
+        {"48. Overview": "devcons/devcons.md"},
+        {"49. Development and code map": "devcons/development.md"},
+        {"50. Extension integration": "devcons/extension-internals.md"},
+        {"51. PDF pipeline and API": "devcons/pdf-internals.md"},
+        {"52. Bootstrap design": "devcons/bootstrap-internals.md"},
+        {"53. Zensical coupling": "devcons/zensical-coupling.md"},
+        {"54. Implementation limitations": "devcons/limitations.md"},
     ]
 
 

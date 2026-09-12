@@ -838,7 +838,7 @@ approve are applied; not every project needs every change below.
 Paths are relative to your project root. The `docs/` examples use the default
 documentation directory; asset paths follow your site's configured locations.
 
-These files may also be used by Zensical, your own customisations or other tools.
+Table \ref{tab-adopt-file-changes} lists files that may also be used by Zensical, your own customisations or other tools.
 Review them for changes that could affect the rest of your project.
 
 | File or group | Overall change | How existing files are handled |
@@ -860,7 +860,7 @@ Review them for changes that could affect the rest of your project.
 Shared project files to review after adoption
 ///
 
-The following files hold Prodockit's own settings, managed assets and renderer
+Table \ref{tab-adopt-specific-file-changes} lists Prodockit's own settings, managed assets and renderer
 setup, or its proposed build instructions. The renderer software itself is
 third-party software; these are the project-local files managed for Prodockit.
 

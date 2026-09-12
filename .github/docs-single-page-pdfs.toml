@@ -52,7 +52,6 @@ other_page_shapes = [
 [covered]
 "index.md" = "complete"
 "choosing-installation.md" = "introduction.md"
-"adopt.md" = "installation.md"
 "getting-started.md" = "installation.md"
 "manual-install.md" = "installation.md"
 "troubleshooting-installs.md" = "installation.md"
