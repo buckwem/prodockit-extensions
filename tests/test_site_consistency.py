@@ -220,7 +220,7 @@ def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
     assert "Start with the [maintenance cycle]" not in introduction
     assert "[Prepare to install](installation.md)" in choices
     assert "grid cards installation-route-grid" in choices
-    assert choices.count(".md-button--primary .installation-route-button") == 4
+    assert choices.count(".md-button--primary .installation-route-button") == 3
     assert "[Authoring reference](authoring.md)" in publishing
     assert "[command-line reference](command-line.md)" in publishing
 
@@ -259,10 +259,10 @@ def test_command_reference_is_a_top_level_section() -> None:
 
     assert all("command-line.md" not in item.values() for item in authoring)
     assert all("command-line.md" not in item.values() for item in maintenance)
-    assert {"34. Command overview": "command-line.md"} in commands
-    assert {"35. Reading command output": "commands/output.md"} in commands
-    assert {"36. Bootstrap": "commands/bootstrap.md"} in commands
-    assert {"37. Diagnostics": "commands/diag.md"} in commands
+    assert {"33. Command overview": "command-line.md"} in commands
+    assert {"34. Reading command output": "commands/output.md"} in commands
+    assert {"35. Bootstrap": "commands/bootstrap.md"} in commands
+    assert {"36. Diagnostics": "commands/diag.md"} in commands
     assert "document authors" in _text("docs/command-line.md")
 
 

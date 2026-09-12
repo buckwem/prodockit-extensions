@@ -53,6 +53,12 @@
 
 /* Keep the installation-route actions aligned at the foot of each card,
    even when the descriptions occupy different numbers of lines. */
+@media screen and (min-width: 60em) {
+  .md-typeset .grid.cards.installation-route-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .md-typeset .grid.cards.installation-route-grid > ul > li {
   display: flex;
   flex-direction: column;

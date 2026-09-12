@@ -371,7 +371,7 @@ and explains when to enter or create the project itself.
 
 <div class="grid cards installation-route-grid" markdown>
 
--   :lucide-rocket:{ .lg .middle } __Build or update a site__
+-   :lucide-rocket:{ .lg .middle } __Adopt prodockit__
 
     ---
 
@@ -380,16 +380,6 @@ and explains when to enter or create the project itself.
 
     [:octicons-arrow-right-24: Open section 4](getting-started.md){ .md-button .md-button--primary .installation-route-button }
 
--   :lucide-package-plus:{ .lg .middle } __Upgrade existing site__
-
-    ---
-
-    Bring an established Zensical project onto Prodockit's supported
-    toolchain without replacing its content, design, Git history, or
-    publishing workflow.
-
-    [:octicons-arrow-right-24: Open section 5](adopt.md){ .md-button .md-button--primary .installation-route-button }
-
 -   :lucide-rocket:{ .lg .middle } __Build a template site__
 
     ---
@@ -397,7 +387,7 @@ and explains when to enter or create the project itself.
     Let Bootstrap prepare the machine, repository, build tools, and maintained
     `prodockit-template` as one recoverable process.
 
-    [:octicons-arrow-right-24: Open section 6](devcons/bootstrap.md){ .md-button .md-button--primary .installation-route-button }
+    [:octicons-arrow-right-24: Open section 5](devcons/bootstrap.md){ .md-button .md-button--primary .installation-route-button }
 
 -   :lucide-book-open:{ .lg .middle } __Build site manually__
 
@@ -406,6 +396,6 @@ and explains when to enter or create the project itself.
     Perform and verify the machine, repository, editor, renderer, and project
     setup yourself instead of asking Bootstrap or Adoption to orchestrate it.
 
-    [:octicons-arrow-right-24: Open section 7](manual-install.md){ .md-button .md-button--primary .installation-route-button }
+    [:octicons-arrow-right-24: Open section 6](manual-install.md){ .md-button .md-button--primary .installation-route-button }
 
 </div>

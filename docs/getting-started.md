@@ -4,18 +4,32 @@ icon: lucide/rocket
 
 {{ heading_counter_reset(page) }}
 
-# Build or update a site
+# Adopt prodockit
 
-Use this route to create a Zensical site or add and update Prodockit in an
-existing site. New projects first prove that Zensical works on its own;
-existing projects keep their content and skip the site-creation steps.
-Adopt then aligns the software and integrates the selected components.
-Unlike the template-site route, this does not replace the project with
-`prodockit-template`.
+Use these instructions to adopt Prodockit into a new or existing Zensical site.
+The **Clean** path creates and tests a new Zensical site first. The **Update**
+path adds Prodockit to an existing site, or updates a site that already uses it,
+while keeping your content and reviewing changes to its configuration.
+
+Both paths use `pdk adopt` to align the software and add your selected features.
+Unlike the template-site route, adoption does not replace your project with
+`prodockit-template`. Section 4.1 guides you through the stages for your path.
 
 ## Build and verify the site
 
-Follow the badges beside the step titles:
+Start with Stage 1, then follow the route shown in \ref{fig-build-or-update-site}:
+for a clean installation, complete Stage 2 and Stage 3a; for an existing site,
+skip those stages and continue with Stage 3b. Both paths join at Stage 4 to
+configure Prodockit, verify the website and add any downloadable outputs you need.
+
+![Stages for building a new site or updating an existing Zensical site](assets/diagrams/4.1-build-or-update-site.png){ .documentation-diagram }
+/// figure-caption
+    attrs: {id: fig-build-or-update-site}
+
+Build or update a site
+///
+
+Use the badges beside stage and step titles to follow your route:
 
 - **Clean**{: .install-clean}: only for a new site in an empty directory.
 - **Update**{: .install-update}: only for an existing Zensical site, with or without Prodockit.
@@ -26,13 +40,14 @@ Steps without a path badge apply to both routes. The words identify the path
 as well as the colours. Keep your existing site's content and configuration;
 do not copy new-site examples over them.
 
-Follow Stage 3a for a clean site or Stage 3b for an existing Zensical site;
-both routes join at Stage 4 and lead to a verified website with downloadable outputs.
-An optional seventh stage saves the source to GitHub and publishes the website.
+After Stage 6, the routes separate again. Stage 7a helps a new project save its
+files and publish through GitHub or GitLab Pages. Stage 7b helps an existing
+project review Adopt's changes and follow its own release process. You can
+stop after local testing if you are not ready to commit or publish.
 
 ### Stage 1 — Prepare the setup environment {: #stage-1-prepare-the-project-environment }
 
-Python 3.14 must be installed before either a clean installation or an upgrade.
+Python 3.14 must be installed before either a clean installation or an update.
 An existing Zensical site may use an older Python version; installing or
 updating Prodockit does not upgrade Python itself.
 
@@ -45,7 +60,7 @@ environment:
 Once you have Python 3.14 installed, choose the route that matches whether you are creating a new site or updating an existing one:
 
 - For a **Clean**{: .install-clean} install, continue: [Go to Stage 2](#stage-2-prepare-the-project-environment){ .install-go }.
-- For an **Upgrade**{: .install-update} install, skip ahead: [Go to Stage 3b](#stage-2b-return-to-zensical-environment){ .install-go }.
+- For an **Update**{: .install-update} install, skip ahead: [Go to Stage 3b](#stage-2b-return-to-zensical-environment){ .install-go }.
 
 ### Stage 2 — Prepare the project environment **Clean**{: .install-clean} {: #stage-2-prepare-the-project-environment }
 
@@ -56,7 +71,7 @@ Zensical site, skip to Stage 3b and use its existing directory and environment.
 
 <span id="prepare-the-empty-project-directory"></span>
 
-//// step | Prepare the empty project directory **Clean**{: .install-clean}
+//// step | Prepare the empty project directory
 
 Leave the setup environment, then create and enter your new site's folder.
 Change `~/repos` and `prodockit-project` if you chose different names. Skip
@@ -94,7 +109,7 @@ Run each line in turn. **If `cd` fails, stop and correct the path before continu
 
 ////
 
-//// step | Create and activate the project environment **Clean**{: .install-clean}
+//// step | Create and activate the project environment
 
 Create a Python 3.14 environment in `.venv`, then activate it so subsequent
 commands use this site's packages rather than another project's.
@@ -240,10 +255,28 @@ Press `Ctrl+C` to stop the preview.
 Now that Zensical is set up, continue with installing Prodockit:
 [Go to Stage 4](#stage-4-add-and-configure-prodockit){ .install-go }
 
-### Stage 3b — Return to Zensical environment **Upgrade**{: .install-update} {: #stage-2b-return-to-zensical-environment }
+### Stage 3b — Return to Zensical environment **Update**{: .install-update} {: #stage-2b-return-to-zensical-environment }
 
-Use this route when Zensical is already installed for your existing site.
+Use this route when you already have a Zensical site, even if its environment
+needs rebuilding or its current build fails.
 If you completed Stage 3a, skip this stage and continue with Stage 4.
+
+!!! warning "Protect your existing site before continuing"
+
+    Create a new Git branch or make a separate clone of your existing Zensical
+    site, and carry out the following steps there. Save open files and protect
+    uncommitted work first: a new branch is not a backup, and a clone does not
+    include uncommitted changes from your current folder.
+
+    The `pdk adopt` command changes several existing files, including the
+    site's configuration, software version settings and managed stylesheets
+    and scripts. Working separately lets you review and test these changes
+    before merging them into your usual branch. If your site does not use Git,
+    make a backup copy of the project folder before continuing.
+
+    See [Section 3.2.3](installation.md#installation-template-structure) for the
+    template site's files and [Section 4.1.9](#stage-7-review-the-project-changes)
+    for details of which files Adopt changes and how to review them.
 
 /// steps
 
@@ -343,7 +376,8 @@ its Python and packages. Replace `.venv` if your environment has another name.
 
 ///
 
-Now that we have aligned the previous Zensical installation, continue with installing Prodockit:
+Now that your existing site's environment is active, continue with installing
+Prodockit. Adopt will align its software in the next stage:
 [Go to Stage 4](#stage-4-add-and-configure-prodockit){ .install-go }
 
 ### Stage 4 — Add and configure Prodockit
@@ -393,6 +427,15 @@ Install or update Prodockit in the active project environment. This adds the
     pip install --upgrade prodockit
     ```
 
+!!! warning "Adopt may upgrade or downgrade software"
+
+    In the following steps, `pdk adopt` may upgrade or downgrade software in
+    your project environment to the versions supported by your installed
+    Prodockit release. Newer versions have previously introduced changes that
+    affected website appearance or broke parts of the build, so the newest
+    version is not always the supported choice. Review Adopt's plan before
+    approving changes; it shows which versions will be installed.
+
 ////
 
 //// step | Choose optional renderers
@@ -440,7 +483,8 @@ pdk adopt --apply
 ```
 
 Answer the final questions about your site and repository. You can defer
-unknown details and optional repository setup until Stage 7a. Adopt asks before
+unknown details and optional repository setup until you are ready to publish.
+Stage 7a explains how to return to these questions. Adopt asks before
 installing Git tools, connecting or creating a repository; it never commits,
 pushes or publishes your files.
 
@@ -451,6 +495,10 @@ explains the files added by Adopt.
 If installation is interrupted, keep your files, reactivate the environment
 and rerun `pdk adopt --apply`. Follow any cleanup or restart instructions first;
 see [Recover a failed installation](troubleshooting-installs.md#installtooling-download-fails).
+
+If a TOML or YAML syntax error is reported, correct the indicated file and
+line, then rerun the same command. Completed activities are retained and
+rechecked; do not delete your project or start again.
 
 ////
 
@@ -513,7 +561,8 @@ setup can wait until Stage 7a. For help, see [Correct diagnostic findings](troub
 
 ### Stage 5 — Verify the adopted website
 
-Build and preview a small example to check that Prodockit is working.
+Check a new site's example or your existing pages to confirm that Prodockit
+is working with your content.
 
 /// steps
 
@@ -521,6 +570,7 @@ Build and preview a small example to check that Prodockit is working.
 
 For a new site, put this example in `docs/index.md`. For an existing site,
 keep your content and your site will adopt the styles used on this website.
+The example below is for the Clean path; do not replace an existing homepage.
 
 !!! warning "Custom styles can override Prodockit"
 
@@ -544,8 +594,9 @@ Describe what you did here.
 Describe what you found here.
 ```
 
-Prodockit should number the headings and turn `\ref{results}` into a link
-to the Results section.
+In the new-site example, Prodockit should number the headings and turn
+`\ref{results}` into a link to the Results section. For an existing site, check
+the features you already use instead.
 
 ////
 
@@ -570,6 +621,7 @@ For an existing site, also check its pages, styling and navigation. Press
 
 Create downloadable PDFs of your document and its source. For an existing
 site, keep working download links and use the output filenames printed by the commands.
+If you do not need downloads, skip to the route choices at the end of this stage.
 
 !!! note "Local downloads and published downloads are different"
 
@@ -610,7 +662,9 @@ See [Bundling source into a PDF](pdf.md#bundling-source-into-a-pdf) for more det
 
 //// step | Add both downloads to the site
 
-Add the template's front-page download buttons to `docs/index.md`:
+Add buttons for the files you generated to `docs/index.md`. Omit the Source
+button if you skipped the source bundle, and use your actual output filenames.
+Keep existing download links if they already work:
 
 ```md
 <div style="float: right; display: flex; gap: 15px; margin-left: 15px;" class="web-only" markdown="1">
@@ -626,7 +680,7 @@ zensical build --clean --strict
 zensical serve
 ```
 
-Test both buttons in the browser. After changing the content, regenerate the
+Test the buttons you added in the browser. After changing the content, regenerate the
 PDFs and rebuild the website to keep the downloads current. Press `Ctrl+C` to stop the preview.
 
 ////
@@ -643,6 +697,10 @@ Choose the next stage for your site:
 This stage publishes your working local site on GitHub Pages or GitLab Pages.
 Stay in the project directory with its environment active. If the site is
 already published, keep its existing workflow and use its normal review process.
+
+If you deferred repository setup, run `pdk adopt --apply` again and accept its
+optional site and repository questions before continuing. You need a repository
+and an `origin` connection before the commands below can upload your files.
 
 The steps below enable Pages, check the files you will share, save and upload
 your changes, and confirm that the website is published. We provide terminal
@@ -670,6 +728,8 @@ Use your host's tab. Skip settings that are already correct.
     3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
 
     Use the existing `.github/workflows/docs.yml`; do not add a duplicate.
+    If Adopt created `pdk.yml`, first follow
+    [Merge the build instructions](#merge-adopt-build-instructions).
     If it is missing or Pages settings are unavailable, follow
     [GitHub Pages setup](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
 
@@ -735,13 +795,15 @@ Wait for a successful deployment, then open the published site:
 
     1. Open the repository's **Actions** tab.
     2. Open the documentation run for your latest commit and wait for success.
-    3. Open **Settings > Pages**, then follow the published website link.
+    3. Return to the repository's front page and click the configuration cog beside **About**.
+    4. Tick **Use your GitHub Pages website** and save the change.
+    5. Click the website link now shown in the **About** panel to open your site.
 
 === "GitLab"
 
     1. Open the project's **Build > Pipelines** page.
     2. Open the pipeline for your latest commit and check that its Pages job succeeds.
-    3. Open **Deploy > Pages** and follow the website address shown there.
+    3. Return to the repository's front page and click the **GitLab Pages** link to open your site.
 
 Check the pages, navigation and any diagrams or maths. If publishing fails,
 use [Troubleshooting](troubleshooting-installs.md) before retrying.
@@ -762,53 +824,82 @@ For automated PDF and source downloads, follow [Publish a document](publishing.m
 ### Stage 7b — Review the project changes **Update**{: .install-update} {: #stage-7-review-the-project-changes }
 
 If your site already uses Git, review the changed and new files before
-committing through your normal workflow. For a new repository, use Stage 7a instead.
+committing through your normal workflow. If your existing site has no repository,
+still review the files below, then use Stage 7a when you are ready to publish.
 
 /// steps
 
 //// step | Review the Adopt changes
 
-Before committing, review the files added or updated by `pdk adopt`. Check that
-your existing content and custom settings have been preserved. Depending on
-your choices, changes may include:
+Before committing, review the files added or updated by [`pdk adopt`](commands/adopt.md). Check that
+your content and custom settings have been preserved. Only the activities you
+approve are applied; not every project needs every change below.
 
-- `zensical.toml`: updated authoring, website, PDF, stylesheet and script settings,
-  plus any site and repository details you confirmed. Existing settings are retained
-  unless Adopt needs to change them.
-- `requirements.txt` (or your existing requirements file): added packages and
-  aligned versions; unrelated dependencies are retained.
-- `.python-version` and `.prodockit-toolchain.toml`: rewritten with the supported
-  versions. `.prodockit-components.toml` is rewritten with your component choices;
-  `.prodockit-adopt.toml` records which template settings have been reviewed.
-- `.gitignore`: additional rules to exclude local and generated files; existing
-  rules are retained.
-- `docs/stylesheets/pdk.css`, `docs/stylesheets/pdk-pdf.css` and
-  `docs/javascripts/pdk.js`: managed files replaced with the release versions.
-- `docs/stylesheets/extra.css`, `docs/stylesheets/print.css` and
-  `docs/javascripts/extra.js`: created if missing; custom content is preserved.
-  An `extra.js` containing only the recognised old stock script is cleared after
-  moving that behaviour to `pdk.js`.
-- `tools/mermaid/` and `tools/mathjax/`: selected renderer configuration, package
-  manifests, lock files and scripts may be replaced. Previous files are backed up
-  under `.prodockit-adopt-backups/renderers/`.
-- Citation-style files: installed when missing; existing custom styles are retained.
-- Build automation and proposed `pdk.yml` or `.gitlab-pdk.yml` files: review and
-  merge these in the next step.
+Paths are relative to your project root. The `docs/` examples use the default
+documentation directory; asset paths follow your site's configured locations.
 
-Adopt can also regenerate MathJax files under `docs/javascripts/`, install packages
-in `.venv` and `node_modules`, and update local Git settings if approved. These
-local or generated changes are not all files to commit.
+Table \ref{tab-adopt-file-changes} lists files that may also be used by Zensical, your own customisations or other tools.
+Review them for changes that could affect the rest of your project.
 
-Keep the configuration needed to reproduce your site, but do not commit local
-environments, caches, backups or private files.
+| File or group | Overall change | How existing files are handled |
+|---|---|---|
+| `zensical.toml` | Add or align authoring extensions, website/PDF settings and stylesheet/script ordering. Save site and repository details you confirm. | Edit the existing TOML with TOML Kit, then validate with `tomllib` before saving. Preserve unrelated settings and comments; update settings required for the selected components. New, unrecognised template settings are added as commented suggestions, subject to [Adopt's exclusions and review ledger](commands/adopt.md#template-settings-and-the-review-ledger). |
+| Existing YAML site configuration, such as `mkdocs.yml` | Apply the supported authoring and asset settings when the project uses YAML instead of TOML. | Update supported settings in the existing text and validate the result before saving. Unsupported structures stop the update rather than being guessed. The [template-settings ledger](commands/adopt.md#template-settings-and-the-review-ledger) applies to TOML, not YAML. |
+| `requirements.txt`, `requirements/docs.txt` or `docs/requirements.txt` | Record the Python packages and supported versions needed to reproduce the site. | Choose the first existing file in this order, or create `requirements.txt`. Update recognised package declarations and append missing ones; retain unrelated dependencies. |
+| Other recognised version declarations, including `pyproject.toml` when present | Align supported package versions already declared in the project. | Use [`pdk pins`](commands/pins.md), the command that aligns recorded software versions, to change recognised version values, not replace the whole file. Build automation (CI) files are excluded from this pass and handled separately below. |
+| `.python-version` | Record the supported Python version. | Replace the file's contents with the release's supported Python version. This does not replace the Python interpreter itself. |
+| `.gitignore` | Exclude environments, generated files, renderer dependencies and Adopt backups. | Append missing ignore rules without removing existing rules. Ignore rules do not untrack files already committed to Git. |
+| `docs/stylesheets/extra.css`, `docs/stylesheets/print.css` | Provide places for your website and PDF customisations. | Create starter files only when missing; preserve existing contents. |
+| `docs/javascripts/extra.js` | Provide a place for your custom JavaScript. | Create an empty file if missing. Preserve custom contents. If it exactly matches the recognised old stock script, allowing for line endings, clear it after installing that behaviour in `pdk.js`. |
+| Configured [citation-style file (`.csl`)](extensions/bibliography.md) | Supply the supported citation style when needed. | Preserve an existing file. Install a missing recognised standard style from its trusted source or validated cache. A missing custom style requires attention rather than substitution. |
+| `.github/workflows/docs.yml` | Add the Prodockit dependency installation and optional MathJax restoration to a stock website build. | Replace only when the entire file's [SHA-256 fingerprint matches the trusted Zensical baseline](commands/adopt.md#build-workflow-protection). Leave an already aligned file unchanged. Otherwise, preserve your workflow and place a proposed replacement at `./pdk.yml` in the project root, creating it only if absent. **Manually edit `.github/workflows/docs.yml` to merge the required changes**; the proposal is not activated automatically. Follow [Step 2 — Merge the build instructions](#merge-adopt-build-instructions). |
+| `.gitlab-ci.yml` | Keep the existing GitLab build and publishing instructions. | Preserve your file unchanged: no trusted stock GitLab baseline is bundled. Place proposed replacement instructions at `./.gitlab-pdk.yml` in the project root, creating it only if absent. **Manually edit `.gitlab-ci.yml` to merge the required changes**; the proposal is not activated automatically. Follow [Step 2 — Merge the build instructions](#merge-adopt-build-instructions). |
+/// table-caption | <
+    attrs: {id: tab-adopt-file-changes}
+
+Shared project files to review after adoption
+///
+
+Table \ref{tab-adopt-specific-file-changes} lists Prodockit's own settings, managed assets and renderer
+setup, or its proposed build instructions. The renderer software itself is
+third-party software; these are the project-local files managed for Prodockit.
+
+| File or group | Overall change | How existing files are handled |
+|---|---|---|
+| `.prodockit-toolchain.toml` | Record the release's supported software specification. | Replace the generated manifest when it differs from the installed release. |
+| `.prodockit-components.toml` | Save the selected optional components. | Write a generated manifest containing the selected component choices; do not use this file for unrelated custom settings. |
+| `.prodockit-adopt.toml` | Record which template settings have already been processed. | Read the [review ledger](commands/adopt.md#template-settings-and-the-review-ledger), skip previously processed settings, then save the updated ledger after valid configuration has been written. Deleting it allows settings to be reviewed again on a later run. |
+| `docs/stylesheets/pdk.css`, `docs/stylesheets/pdk-pdf.css`, `docs/javascripts/pdk.js` | Install the [managed styles and behaviour](commands/shared-files.md) supplied by Prodockit. | Replace these managed files with the installed release's copies when the activity runs. Put your customisations in the [user-managed files](stylesheets.md#keep-managed-and-author-styles-separate) in the first table, not here. |
+| `tools/mermaid/package.json`, `tools/mermaid/package-lock.json` | Align the selected Mermaid renderer with the release. | Compare with the bundled files. Before replacing changed files, save their original bytes in [checksum-named backup folders](commands/adopt.md#selected-renderer-versions-and-backups) under `.prodockit-adopt-backups/renderers/mermaid/`. |
+| `tools/mathjax/package.json`, `tools/mathjax/package-lock.json`, `tools/mathjax/tex2svg.js` | Align the selected maths renderer with the release. | Use the same compare, backup and replace process, under `.prodockit-adopt-backups/renderers/mathjax/`. |
+| `docs/javascripts/mathjax.js` and MathJax assets under `docs/javascripts/vendor/` | Generate the selected website maths configuration and runtime assets with [`pdk init-mathjax`](commands/init-mathjax.md). | Regenerate these installed assets from the MathJax setup; treat them as generated files, not places for custom edits. |
+| `pdk.yml` | Propose GitHub build instructions for manual merging. | Create at the project root only when an existing GitHub workflow is not recognised and no proposal exists. Never overwrite an existing proposal; the root-level file is not an active GitHub workflow. |
+| `.gitlab-pdk.yml` | Propose GitLab build instructions for manual merging. | Create only when `.gitlab-ci.yml` exists and no proposal is present. Never overwrite an existing proposal. Its hidden example job does not run by itself. |
+/// table-caption | <
+    attrs: {id: tab-adopt-specific-file-changes}
+
+Prodockit-specific files to review after adoption
+///
+
+Adopt can also change installed packages in the active environment (usually
+`.venv/`), renderer `node_modules/`, browser/download caches and system tooling
+or environment settings. Separately approved repository setup can initialise
+`.git/` and update local Git identity and remote settings. These are local
+installation changes, not source files to add to your commit. Renderer backups
+are not a general backup of every file Adopt changes.
+
+Do not commit local environments, caches, backups or private files.
 
 ////
 
 //// step | Merge the build instructions
 
-The `pdk adopt` command only updates an existing build automation YAML file if its SHA-256 hash
-matches a known baseline supplied by the Zensical team. Otherwise, it leaves
-your file unchanged and creates a separate Prodockit version for manual merging.
+<a id="merge-adopt-build-instructions"></a>
+
+The `pdk adopt` command only replaces a GitHub workflow when its SHA-256 hash
+matches a trusted Zensical baseline. Otherwise, it preserves the existing workflow
+and creates a separate proposal if one is not already present. GitLab workflows
+are always preserved, with proposed changes supplied separately.
 
 === ":fontawesome-brands-github: GitHub"
 
@@ -833,7 +924,7 @@ The separate files do not run automatically. If neither exists, skip this step.
 
 //// step | Follow your project's release process
 
-Follow your usual process to create a branch, review and commit all the project
+On the branch prepared in Stage 3b, follow your usual process to review and commit all the project
 changes made by `pdk adopt`, including any build instructions merged above,
 then push the branch. Use your normal pull or merge request, testing and release
 process before publishing the updated site. Keep local environments, caches
@@ -850,8 +941,8 @@ how to keep the completed project aligned after installation.
 
 ### Know what becomes yours {: #first-site-ownership }
 
-This route starts with a clean Zensical site and then uses Adopt to add the
-selected Prodockit components. The [adopted project
+Whether you started with a new or existing Zensical site, Adopt adds and aligns
+the selected Prodockit components. The [adopted project
 tree](installation.md#installation-adopted-structure) shows the principal
 managed and user-managed files together.
 
@@ -864,45 +955,32 @@ recreated.
 Adoption does not create or remove a template relationship. For a new plain
 site, `pdk template-sync` does not apply unless that relationship is established
 later. For an existing template-derived site, retain its template metadata and
-continue using Template Sync for template updates, followed by Adopt and diagnostics.
+continue using [Template Sync](commands/template-sync.md) for template updates,
+followed by Adopt and diagnostics.
 
 ### Keep the project current {: #first-site-maintenance }
 
-Follow this sequence inside the active project environment:
+In your project directory, with its environment active, update Prodockit:
 
-1. Use the platform-specific command earlier in this section to upgrade
-   Prodockit.
-2. Ask Adopt to compare the project with the newly supported combination:
+```bash
+pip install --upgrade prodockit
+```
 
-   `pdk adopt --dry-run`
-   :   Lists the proposed software and project changes without applying them.
+Check the project for problems before applying changes:
 
-   ```bash
-   pdk adopt --dry-run
-   ```
+```bash
+pdk diag
+```
 
-   Review the reported files. If Adopt selects any activities, apply them:
+Then review and approve the software and configuration changes proposed by Adopt:
 
-   `pdk adopt --apply`
-   :   Asks you to approve or skip the proposed changes and applies those
-       you accept.
+```bash
+pdk adopt --apply
+```
 
-   ```bash
-   pdk adopt --apply
-   ```
-
-3. Run Diagnostics as the final integration check:
-
-   `pdk diag`
-   :   Checks the resulting environment and project without changing files.
-       Follow its correction guidance for any failures or warnings.
-
-   ```bash
-   pdk diag
-   ```
-
-Continue only when the required checks pass. Then rebuild the website and both
-downloadable outputs, inspect them, and commit only the reviewed project files.
+Follow any environment-refresh instructions it prints and resolve any remaining
+problems. Rebuild and inspect your website and downloads, then review the changed
+files before committing.
 
 ## Where to go next {: #getting-started-where-to-go-next }
 

@@ -313,7 +313,7 @@ def test_first_site_proves_zensical_before_adopting_prodockit() -> None:
     assert structure.count("/// tree") == 3
     routes = preparation[preparation.index("## Continue with an installation route") :]
     assert "grid cards installation-route-grid" in routes
-    assert routes.count(".md-button--primary .installation-route-button") == 4
+    assert routes.count(".md-button--primary .installation-route-button") == 3
     assert "### A clean Zensical site" in structure
     assert "### The site after adding Prodockit" in structure
     assert "### A site created from prodockit-template" in structure
@@ -506,7 +506,15 @@ def test_install_routes_explain_ownership_and_maintenance() -> None:
     adoption = ADOPTION.read_text(encoding="utf-8")
     assert "neither creates nor removes a template relationship" in adoption
 
-    for page in (first_site, adoption):
+    maintenance = first_site[
+        first_site.index("### Keep the project current") : first_site.index("## Where to go next")
+    ]
+    assert maintenance.index("pip install --upgrade prodockit") < maintenance.index("pdk diag")
+    assert maintenance.index("pdk diag") < maintenance.index("pdk adopt --apply")
+    assert "environment-refresh instructions" in maintenance
+    assert "review the changed" in maintenance
+
+    for page in (adoption,):
         maintenance = page[
             page.index("### Keep the project current") : page.index("## Where to go next")
         ]

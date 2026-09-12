@@ -6,30 +6,29 @@ icon: lucide/signpost
 
 # Choose your install
 
-Prodockit supports four installation paths. Choose the one that matches the
+Prodockit supports three installation paths. Choose the one that matches the
 document and level of automation you have; the paths are alternatives rather
 than stages to complete in sequence.
 
 ## Choose an installation path
 
-\ref{fig-installation-approaches} asks about each route in section order: build
-your first site, upgrade an existing site, build a template site, or perform
-the installation manually.
+\ref{fig-installation-approaches} helps you choose between a template site,
+adopting Prodockit for a new or existing Zensical site, and a manual installation.
 
 <!-- Adapted from prodockit-userguide. The canonical editable source for this figure is tools/documentation-diagrams/2.1-installation-approaches.drawio. -->
-![Decision tree for choosing Build your first site, Upgrade existing site, Build a template site, or Build site manually](assets/diagrams/2.1-installation-approaches.png){ .documentation-diagram }
+![Decision tree for choosing a template site, adopting Prodockit, or building manually](assets/diagrams/2.1-installation-approaches.png){ .documentation-diagram }
 /// figure-caption
     attrs: {id: fig-installation-approaches}
 
 Choose the Prodockit installation approach
 ///
 
-The four routes below compare their starting points and results in the same
+The three routes below compare their starting points and results in the same
 order as the following sections.
 
 <div class="grid cards installation-route-grid" markdown>
 
--   :lucide-rocket:{ .lg .middle } __Build or update a site__
+-   :lucide-rocket:{ .lg .middle } __Adopt prodockit__
 
     ---
 
@@ -41,19 +40,6 @@ order as the following sections.
     the report template.
 
     [:octicons-arrow-right-24: Open section 4](getting-started.md){ .md-button .md-button--primary .installation-route-button }
-
--   :lucide-package-plus:{ .lg .middle } __Upgrade existing site__
-
-    ---
-
-    **Starting point:** an established Zensical site that you want to keep.
-
-    Adoption inspects the project, aligns it with Prodockit's supported
-    toolchain, and adds the standard authoring components and styles. It keeps
-    the site's content, design decisions, Git history, remotes, editor, and
-    publishing workflow rather than turning it into a template project.
-
-    [:octicons-arrow-right-24: Open section 5](adopt.md){ .md-button .md-button--primary .installation-route-button }
 
 -   :lucide-rocket:{ .lg .middle } __Build a template site__
 
@@ -67,7 +53,7 @@ order as the following sections.
     resulting site starts from `prodockit-template` and can later receive its
     maintained template updates.
 
-    [:octicons-arrow-right-24: Open section 6](devcons/bootstrap.md){ .md-button .md-button--primary .installation-route-button }
+    [:octicons-arrow-right-24: Open section 5](devcons/bootstrap.md){ .md-button .md-button--primary .installation-route-button }
 
 -   :lucide-book-open:{ .lg .middle } __Build site manually__
 
@@ -81,7 +67,7 @@ order as the following sections.
     yourself. This manual installation route explains all dependencies but
     does not use Bootstrap or Adoption to orchestrate them.
 
-    [:octicons-arrow-right-24: Open section 7](manual-install.md){ .md-button .md-button--primary .installation-route-button }
+    [:octicons-arrow-right-24: Open section 6](manual-install.md){ .md-button .md-button--primary .installation-route-button }
 
 </div>
 

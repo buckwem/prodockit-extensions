@@ -227,6 +227,11 @@ def site_url_for(
 
 
 def _parse_config(text: str) -> tomlkit.TOMLDocument:
+    from pathlib import Path
+
+    from prodockit.config_integrity import validate
+
+    validate(text, Path("zensical.toml"), SyncRepoError)
     try:
         document = tomlkit.parse(text)
     except ValueError as error:
@@ -344,6 +349,7 @@ def update_config(
         raise SyncRepoError("project.theme.icon must be a TOML table")
     set_value(theme["icon"], "repo", icon, "theme.icon.repo")
     text = tomlkit.dumps(document)
+    _parse_config(text)
 
     return text, changes
 
@@ -527,6 +533,11 @@ def _read(path: str) -> str:
 
 
 def _write(path: str, text: str) -> None:
+    from pathlib import Path
+
+    from prodockit.config_integrity import before_write
+
+    before_write(Path(path), text, SyncRepoError)
     try:
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)

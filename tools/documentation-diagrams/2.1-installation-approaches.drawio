@@ -1,48 +1,49 @@
-<!-- Adapted from prodockit-userguide/tools/documentation-diagrams/site-diagrams.drawio, page installing-prodockit-decision-tree-components. -->
-<mxfile host="Electron" version="26.2.15" pages="1">
-  <diagram id="installing-prodockit-components" name="installation-approaches">
-    <mxGraphModel dx="1422" dy="994" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="1100" math="0" shadow="0" background="#ffffff">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-        <mxCell id="component-input" value="&lt;b&gt;Choose how to&lt;br&gt;build your site&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#19c866;strokeColor=#19c866;strokeWidth=3;fontColor=#ffffff;fontSize=22;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="65" width="250" height="120" as="geometry" />
-        </mxCell>
-        <mxCell id="component-question-one" value="Are you starting with an&lt;br&gt;empty directory and want to&lt;br&gt;create Zensical first?" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
-          <mxGeometry x="390" y="55" width="400" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="component-question-two" value="Do you have an existing Zensical&lt;br&gt;site that you want to keep?" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
-          <mxGeometry x="390" y="295" width="400" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="component-question-three" value="Should Bootstrap create the maintained&lt;br&gt;template site and toolchain for you?" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
-          <mxGeometry x="390" y="535" width="400" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="component-first-site" value="&lt;b&gt;Section 4 — Build your first site&lt;/b&gt;&lt;br&gt;Create and prove Zensical first,&lt;br&gt;then add Prodockit with Adopt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
-          <mxGeometry x="910" y="45" width="440" height="160" as="geometry" />
-        </mxCell>
-        <mxCell id="component-adopt" value="&lt;b&gt;Section 5 — Upgrade existing site&lt;/b&gt;&lt;br&gt;Preserve the existing Zensical&lt;br&gt;site, content, design and workflow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
-          <mxGeometry x="910" y="285" width="440" height="160" as="geometry" />
-        </mxCell>
-        <mxCell id="component-bootstrap" value="&lt;b&gt;Section 6 — Build a template site&lt;/b&gt;&lt;br&gt;Use guided, recoverable setup&lt;br&gt;with prodockit-template" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
-          <mxGeometry x="910" y="525" width="440" height="160" as="geometry" />
-        </mxCell>
-        <mxCell id="component-manual" value="&lt;b&gt;Section 7 — Build site manually&lt;/b&gt;&lt;br&gt;Perform and verify every setup step&lt;br&gt;without Bootstrap or Adopt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f8f7;strokeColor=#7b8b8d;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" vertex="1" parent="1">
-          <mxGeometry x="910" y="765" width="440" height="160" as="geometry" />
-        </mxCell>
-        <mxCell id="component-edge-input" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="component-input" target="component-question-one"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="component-edge-first-site" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontFamily=Inter;" edge="1" parent="1" source="component-question-one" target="component-first-site"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="component-edge-next-one" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontFamily=Inter;" edge="1" parent="1" source="component-question-one" target="component-question-two"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="component-edge-adopt" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontFamily=Inter;" edge="1" parent="1" source="component-question-two" target="component-adopt"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="component-edge-next-two" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontFamily=Inter;" edge="1" parent="1" source="component-question-two" target="component-question-three"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="component-edge-bootstrap" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontFamily=Inter;" edge="1" parent="1" source="component-question-three" target="component-bootstrap"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="component-edge-manual" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontFamily=Inter;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="component-question-three" target="component-manual">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="590" y="845" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-      </root>
-    </mxGraphModel>
-  </diagram>
+<mxfile host="65bd71144e" pages="1">
+    <diagram id="installing-prodockit-components" name="installation-approaches">
+        <mxGraphModel dx="1420" dy="1102" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="1100" background="#ffffff" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="component-input" value="&lt;b&gt;&lt;font style=&quot;color: rgb(255, 255, 255);&quot;&gt;Choose how&lt;br&gt;to&amp;nbsp;build a&lt;br&gt;prodockit site&lt;/font&gt;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#19c866;strokeColor=#19c866;strokeWidth=3;fontColor=#FFFFFF;fontSize=22;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="65" width="250" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="component-question-one" value="&lt;span style=&quot;color: rgb(16, 42, 54);&quot;&gt;Do you want to create a new site&lt;br&gt;based on a template that where&lt;br&gt;the&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;color: rgb(16, 42, 54);&quot;&gt;format and toolchain will be maintained for you?&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="390" y="55" width="400" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="component-question-three" value="&lt;span style=&quot;color: rgb(16, 42, 54);&quot;&gt;Do you want to adopt prodockit for a new or existing site with using a semi-automated install?&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="390" y="295" width="400" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="component-first-site" value="&lt;b style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251);&quot;&gt;Section 5 — Build a template site&lt;/b&gt;&lt;br style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251);&quot;&gt;&lt;span style=&quot;color: rgb(16, 42, 54);&quot;&gt;Use guided, recoverable setup&lt;/span&gt;&lt;br style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251);&quot;&gt;&lt;span style=&quot;color: rgb(16, 42, 54);&quot;&gt;with prodockit-template&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="910" y="45" width="440" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="component-bootstrap" value="&lt;b style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251);&quot;&gt;Section 4 — Adopt prodockit&lt;/b&gt;&lt;br style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251);&quot;&gt;&lt;span style=&quot;color: rgb(16, 42, 54);&quot;&gt;Install prodockit with associated software and configuration for an existing or new Zensical instance.&amp;nbsp;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfbf3;strokeColor=#19c866;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="910" y="285" width="440" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="component-manual" value="&lt;b&gt;Section 6 — Build site manually&lt;/b&gt;&lt;br&gt;Perform and verify every setup step&lt;br&gt;without Bootstrap or Adopt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f8f7;strokeColor=#7b8b8d;strokeWidth=3;fontColor=#102a36;fontSize=21;fontFamily=Inter;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="910" y="525" width="440" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="component-edge-input" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="component-input" target="component-question-one" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="component-edge-first-site" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontFamily=Inter;" parent="1" source="component-question-one" target="component-first-site" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="component-edge-next-one" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontFamily=Inter;" parent="1" source="component-question-one" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="590" y="295" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="component-edge-bootstrap" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontFamily=Inter;" parent="1" source="component-question-three" target="component-bootstrap" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="component-edge-manual" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#102a36;strokeWidth=2;endArrow=block;endFill=1;fontSize=18;fontFamily=Inter;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="component-question-three" target="component-manual" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="590" y="605"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>

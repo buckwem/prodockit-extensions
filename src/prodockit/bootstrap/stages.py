@@ -231,7 +231,9 @@ _BOOTSTRAP_ADOPT_OPTIONS = AdoptOptions(mermaid=True, maths=True)
 _BOOTSTRAP_ADOPT_MANIFEST = manifest_source(_BOOTSTRAP_ADOPT_OPTIONS)
 _WRITE_NEW_TEXT_FILE = (
     "import pathlib, sys; "
+    "from prodockit.toml_integrity import before_write; "
     "path = pathlib.Path(sys.argv[1]); "
+    "before_write(path, sys.argv[2]); "
     "stream = path.open(mode='x', encoding='utf-8'); "
     "stream.write(sys.argv[2]); stream.close()"
 )

@@ -473,6 +473,9 @@ def _manifest_source() -> str:
 def write_declarations(root: Path) -> list[Path]:
     """Align existing sites, then add the canonical missing declarations."""
 
+    from prodockit.config_integrity import before_write, check_project
+
+    check_project(root, ToolchainError)
     written: set[Path] = set()
     states = _local_declarations(root)
     try:
@@ -506,6 +509,7 @@ def write_declarations(root: Path) -> list[Path]:
     manifest = root / TOOLCHAIN_MANIFEST
     manifest_source = _manifest_source()
     if not manifest.is_file() or manifest.read_text(encoding="utf-8") != manifest_source:
+        before_write(manifest, manifest_source, ToolchainError)
         manifest.write_text(manifest_source, encoding="utf-8")
         written.add(manifest)
     return sorted(written)
@@ -567,6 +571,9 @@ def apply(
 ) -> list[Path]:
     """Apply and verify a complete plan; declarations are committed last."""
 
+    from prodockit.config_integrity import check_project
+
+    check_project(root, ToolchainError)
     planned = plan(root, offline=offline)
     if planned.blocked:
         raise ToolchainError(planned.blocked)

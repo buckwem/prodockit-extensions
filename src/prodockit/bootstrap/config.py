@@ -244,6 +244,11 @@ def load(path: Path) -> BootstrapConfig:
 
 def save(path: Path, config: BootstrapConfig) -> None:
     """Writes `config` to `path`, creating parent directories."""
+    import tomlkit
+
+    from prodockit.config_integrity import before_write, check
+
+    check(path, BootstrapConfigError)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         lines = [
@@ -252,12 +257,13 @@ def save(path: Path, config: BootstrapConfig) -> None:
             "# nothing here reads one, and this is not a safe place for it.",
             "",
         ]
-        lines += [
-            f'{key} = "{value}"'
-            for key, value in asdict(config).items()
-            if key != "confirmed_site_url" or value
-        ]
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        document = tomlkit.document()
+        for key, value in asdict(config).items():
+            if key != "confirmed_site_url" or value:
+                document[key] = value
+        source = "\n".join(lines) + "\n" + tomlkit.dumps(document)
+        before_write(path, source, BootstrapConfigError)
+        path.write_text(source, encoding="utf-8")
     except OSError as error:
         raise BootstrapConfigError(f"could not write {path}: {error}") from error
 

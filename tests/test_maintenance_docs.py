@@ -28,19 +28,19 @@ def test_getting_started_holds_installation_routes() -> None:
 
     assert {"2. Choose your install": "choosing-installation.md"} in getting_started
     assert {"3. Prepare to install": "installation.md"} in getting_started
-    assert {"4. Build or update a site": "getting-started.md"} in getting_started
-    assert {"5. Upgrade existing site": "adopt.md"} in getting_started
-    assert {"6. Build a template site": "devcons/bootstrap.md"} in getting_started
-    assert {"7. Build site manually": "manual-install.md"} in getting_started
-    assert {"8. Troubleshooting": "troubleshooting-installs.md"} in getting_started
+    assert {"4. Adopt prodockit": "getting-started.md"} in getting_started
+    assert not any("adopt.md" in item.values() for item in getting_started)
+    assert {"5. Build a template site": "devcons/bootstrap.md"} in getting_started
+    assert {"6. Build site manually": "manual-install.md"} in getting_started
+    assert {"7. Troubleshooting": "troubleshooting-installs.md"} in getting_started
     assert not any("prodockit-template.md" in item.values() for item in getting_started)
-    assert {"11. Staying in step with the template": "devcons/template-sync.md"} in publishing
+    assert {"10. Staying in step with the template": "devcons/template-sync.md"} in publishing
     assert maintenance == [
-        {"15. Maintenance overview": "project-maintenance.md"},
-        {"16. Diagnose a project": "devcons/diagnostics.md"},
-        {"17. Repository metadata": "devcons/repo-metadata.md"},
-        {"18. Version pinning and drift": "devcons/pinning-drift.md"},
-        {"19. Build and release": "devcons/releasing.md"},
+        {"14. Maintenance overview": "project-maintenance.md"},
+        {"15. Diagnose a project": "devcons/diagnostics.md"},
+        {"16. Repository metadata": "devcons/repo-metadata.md"},
+        {"17. Version pinning and drift": "devcons/pinning-drift.md"},
+        {"18. Build and release": "devcons/releasing.md"},
     ]
 
 
@@ -119,6 +119,7 @@ def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
     """Architecture diagrams stay identical in the website and PDF."""
 
     expected = {
+        "docs/getting-started.md": ("4.1-build-or-update-site.png",),
         "docs/adopt.md": ("3.1-adoption-workflow.png",),
         "docs/authoring.md": ("7.1-authoring-feature-map.png",),
         "docs/stylesheets.md": (
