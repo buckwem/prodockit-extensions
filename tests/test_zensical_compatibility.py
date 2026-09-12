@@ -255,3 +255,41 @@ def test_historical_baseline_changes_only_zensical_and_separates_local_project()
         "zensical==0.0.59\nMarkdown==3.10.3\npytest==8.4.0\n"
     )
     assert _GATE.baseline_requirements("prodockit==0.65.2\nzensical==0.0.61\n", "0.0.59") == "zensical==0.0.59\n"
+
+
+@pytest.mark.parametrize("extra_failure", [False, True])
+def test_historical_floor_exception_is_exact_and_does_not_hide_other_failures(tmp_path, monkeypatch, extra_failure):
+    import importlib.metadata
+    import json
+
+    from prodockit.pins import TESTED_VERSIONS
+
+    monkeypatch.setattr(importlib.metadata, "version", lambda name: "0.65.2" if name == "prodockit" else "0.0.59")
+    expected = f"prodockit 0.65.2 has requirement zensical>={TESTED_VERSIONS['zensical']}, but you have zensical 0.0.59."
+    failed = {"id": "installation.dependencies", "status": "fail", "details": [expected]}
+    log = tmp_path / "diagnostics.log"
+    checks = [failed]
+    if extra_failure:
+        checks.append({"id": "renderer.mathjax", "status": "fail", "details": ["unavailable"]})
+    log.write_text(json.dumps({"checks": checks}))
+    assert _GATE.historical_floor_mismatch(log) is (not extra_failure)
+    failed["details"].append("another package is missing")
+    log.write_text(json.dumps({"checks": [failed]}))
+    assert not _GATE.historical_floor_mismatch(log)
+    log.write_text("broken JSON")
+    assert not _GATE.historical_floor_mismatch(log)
+
+
+@pytest.mark.parametrize("historical", [False, True])
+def test_only_historical_worker_can_continue_after_expected_floor_mismatch(tmp_path, monkeypatch, historical):
+    def run(args, root, log):
+        return {"exit": int(log.stem in {"diagnostics", "source-bundle"})}
+
+    monkeypatch.setattr(_GATE, "command", run)
+    monkeypatch.setattr(_GATE, "historical_floor_mismatch", lambda log: True)
+    result = _GATE.full_project(tmp_path, tmp_path / "logs", template=True, historical_baseline=historical)
+    assert result["status"] == "failed"
+    assert result["incomplete_after"] == ("source-bundle" if historical else "diagnostics")
+    diagnostic = next(step for step in result["steps"] if step["name"] == "diagnostics")
+    assert diagnostic["exit"] == 1
+    assert ("expected_failure" in diagnostic) is historical

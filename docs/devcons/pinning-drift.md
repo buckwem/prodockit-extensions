@@ -712,7 +712,9 @@ freezes the candidate dependencies, and changes only Zensical in the historical 
 The baseline installs the same local Prodockit build without dependency resolution
 so the new supported floor does not prevent testing the previous release. All
 other dependencies retain their frozen versions; the report rejects any other
-dependency difference.
+dependency difference. The baseline may record only the exact Prodockit/Zensical
+metadata-floor conflict as an expected diagnostic failure; any other diagnostic
+failure still blocks qualification. Candidate diagnostics receive no exemption.
 It never installs into the invoking environment. Complete builds use disposable
 Git copies and the same template citation-style bytes; supply
 `harvard-cite-them-right.csl` in the template checkout as its publishing workflow
