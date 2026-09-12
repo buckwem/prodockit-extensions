@@ -5,12 +5,69 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 import prodockit.config_diagnostics as config_diagnostics
 from prodockit.cli import main
 from prodockit.config_diagnostics import EXTENSION_TYPES
+from prodockit.settings import EXTRA_SETTINGS, SettingError, validate_extra_settings
 from prodockit.template_sync import read_config
+
+
+@pytest.mark.parametrize("setting", EXTRA_SETTINGS, ids=lambda setting: setting.key)
+def test_every_extra_setting_rejects_incompatible_types(setting) -> None:
+    for value in (42, None, {}, [1]):
+        with pytest.raises(SettingError, match=setting.key):
+            validate_extra_settings({setting.key: value})
+    valid = (
+        False
+        if isinstance(setting.default, bool)
+        else []
+        if isinstance(setting.default, tuple)
+        else ""
+    )
+    validate_extra_settings({setting.key: valid, "custom_author_setting": {"anything": 42}})
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        'heading_numbering = "false"',
+        'pdf_double_sided = "false"',
+        'pdf_include_table_of_contents = "false"',
+        "website_heading_numbering = 0",
+        "pdf_page_size = 42",
+        'pdf_extra_css = "print.css"',
+        'pdf_extra_css = ["print.css", 42]',
+    ],
+)
+def test_config_check_rejects_invalid_extra_types(tmp_path: Path, body: str) -> None:
+    path = _config(tmp_path, "\n[project.extra]\n" + body + "\n")
+    result = _run(path, check=True)
+    assert result.exit_code == 1
+    assert "project.extra." + body.split(" =")[0] in result.output
+    assert "must be" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_pdf_rejects_invalid_type_before_rendering(tmp_path: Path) -> None:
+    path = _config(tmp_path, "\n[project.extra]\npdf_page_size = 42\n")
+    result = CliRunner().invoke(main, ["pdf", "--config-file", str(path)])
+    assert result.exit_code == 1
+    assert "project.extra.pdf_page_size must be a string" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_comment_only_reference_passes_config_check(tmp_path: Path) -> None:
+    path = _config(tmp_path)
+    (tmp_path / "writing").mkdir()
+    (tmp_path / "writing" / "index.md").write_text(
+        "# Page\n\n<!-- Example: \\ref{target}. -->\n", encoding="utf-8"
+    )
+    result = _run(path, check=True)
+    assert result.exit_code == 0, result.output
+    assert "prodockit.refs is not enabled" not in result.output
 
 
 def _config(tmp_path: Path, body: str = "") -> Path:

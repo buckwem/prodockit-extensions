@@ -38,7 +38,7 @@ from urllib.parse import urlparse, urlunparse
 
 from prodockit.headings import prescan
 from prodockit.project_config import find_project_config, load_project_config
-from prodockit.settings import flatten_nav, reference_style_values
+from prodockit.settings import flatten_nav, reference_style_values, validate_extra_settings
 from prodockit.template_sync import STAMP_FILE, read_applied_release
 from prodockit.tools import find
 from prodockit.wordcount import compute_word_count
@@ -252,6 +252,7 @@ def define_env(env: Any) -> None:
         config = load_project_config(config_path).as_resolved_mapping()
         project_root = config_path.parent
 
+    validate_extra_settings(config.get("extra"))
     env.variables["word_count"] = _compute_site_word_count(config)
     env.variables["repo_url"] = _get_repo_url()
     short_tag = _short_tag(variables)
