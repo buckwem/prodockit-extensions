@@ -3409,7 +3409,8 @@ def _plan_own_venv(context: Context) -> Plan:
                 "python3.14" if missing_machinery and context.platform == MACOS else "",
             ),
         ],
-        confirm="Is prodockit running from its own environment now?",
+        confirm="Install the prerequisites for creating Prodockit's environment?",
+        needs_a_new_run=not _running_in_a_venv(context),
     )
 
 

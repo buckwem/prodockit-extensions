@@ -1014,7 +1014,9 @@ class Plan:
     #: what to type next.
     #:
     #: Distinct from `CheckResult.verifiable`, which says the answer can
-    #: never be seen from outside and the run should carry on regardless.
+    #: never be seen from outside. Such checks may normally take a user's
+    #: confirmation, but when this flag is also set the run must stop
+    #: without asking: the current process cannot verify its replacement.
     #: This says the opposite: the answer is real, later stages depend on
     #: it, and the way to see it is to start again.
     needs_a_new_run: bool = False

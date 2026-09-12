@@ -24,7 +24,7 @@ from prodockit.bootstrap import (
     build_context,
     load,
 )
-from prodockit.bootstrap.model import MACOS, WINDOWS
+from prodockit.bootstrap.model import MACOS, UBUNTU, WINDOWS
 from prodockit.cli import (
     _announce_apply,
     _apply_outstanding,
@@ -105,6 +105,65 @@ def _isolated(call, *, input: str, color: bool = False):  # type: ignore[no-unty
     with runner.isolation(input=input, color=color) as (out, err, _):
         result = call()
         return result, out.getvalue().decode(), err.getvalue().decode()
+
+
+@pytest.mark.parametrize("platform", [MACOS, UBUNTU, WINDOWS])
+@pytest.mark.parametrize("machinery_available", [False, True])
+def test_system_python_stops_before_confirmation_or_later_activities(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, platform: str, machinery_available: bool
+) -> None:
+    from prodockit.bootstrap import stages
+
+    context = build_context(
+        _config(),
+        runner=CliFakeRunner(),
+        platform=platform,
+        home=tmp_path,
+        fetch=unreachable,
+        guided=True,
+    )
+    inside = False
+    monkeypatch.setattr(stages, "_running_in_a_venv", lambda context: inside)
+    monkeypatch.setattr(stages, "_can_build_environments", lambda context: machinery_available)
+    own = next(stage for stage in STAGES if stage.id == "own-venv")
+    later_checks: list[bool] = []
+
+    def later_check(context):  # type: ignore[no-untyped-def]
+        later_checks.append(True)
+        return CheckResult(Status.OK, "ready")
+
+    later = _stage(later_check, lambda context: Plan())
+    reports = [
+        StageReport(own, own.check(context), own.plan(context)),
+        StageReport(later, CheckResult(Status.OK, "ready"), None),
+    ]
+    _, output, _ = _isolated(
+        lambda: _apply_outstanding(context, reports, tmp_path / ".pdkboot.toml"),
+        input="yes\nyes\n",
+    )
+    assert "new environment needs a new process" in output
+    assert "needs a new run to verify" in output
+    assert "No later activities were started" in output
+    assert "taken on trust" not in output
+    assert "Is prodockit running from its own environment now?" not in output
+    assert not later_checks
+    journal = json.loads((tmp_path / ".pdkboot.last-run.json").read_text(encoding="utf-8"))
+    assert journal["status"] == "waiting"
+    assert all(stage["status"] != "completed" for stage in journal["stages"])
+    if not machinery_available:
+        assert "Install these prerequisites first" in output
+
+    from prodockit.cli import _StartAgain
+
+    with CliRunner().isolation(input=""), pytest.raises(_StartAgain):
+        _verify_until_done(context, own, own.plan(context))
+
+    # A fresh invocation from a working environment may continue, without
+    # relying on a completion recorded by the rejected system-Python run.
+    inside = True
+    machinery_available = True
+    _isolated(lambda: _work_through(context, reports, None), input="")
+    assert later_checks == [True]
 
 
 def test_choice_path_records_the_answer_to_the_requested_config_file(tmp_path: Path) -> None:
