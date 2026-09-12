@@ -116,7 +116,7 @@ def test_plan_names_upgrade_downgrade_and_install(
     action = next(item for item in planned.actions if item.package == "zensical")
     assert action.action == expected
     assert expected in planned.detail
-    assert any("zensical==0.0.59" in command for command in planned.commands)
+    assert any(f"zensical=={TESTED_VERSIONS['zensical']}" in command for command in planned.commands)
 
 
 def test_pip_plan_uses_cache_friendly_retries_and_an_explicit_mirror(

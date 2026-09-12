@@ -80,7 +80,32 @@ def copy_project(source: Path, target: Path) -> None:
         shutil.copy2(csl, target / csl.name)
 
 
-def full_project(root: Path, output: Path, *, template: bool) -> dict:
+def historical_floor_mismatch(log: Path) -> bool:
+    """Recognise only the deliberate baseline metadata conflict, never other failures."""
+    from importlib.metadata import version
+
+    from prodockit.pins import TESTED_VERSIONS
+
+    try:
+        payload = json.loads(log.read_text(encoding="utf-8"))
+        failures = [check for check in payload["checks"] if check["status"] == "fail"]
+        expected = (
+            f"prodockit {version('prodockit')} has requirement "
+            f"zensical>={TESTED_VERSIONS['zensical']}, "
+            f"but you have zensical {version('zensical')}."
+        )
+        return (
+            len(failures) == 1
+            and failures[0]["id"] == "installation.dependencies"
+            and failures[0]["details"] == [expected]
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def full_project(
+    root: Path, output: Path, *, template: bool, historical_baseline: bool = False
+) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     scripts = Path(sys.executable).parent
 
@@ -96,7 +121,7 @@ def full_project(root: Path, output: Path, *, template: bool) -> dict:
     steps += [("mathjax", [exe("prodockit"), "init-mathjax", "--no-gitignore"])]
     if template:
         steps += [
-            ("diagnostics", [exe("prodockit"), "diag"]),
+            ("diagnostics", [exe("prodockit"), "diag", "--json"]),
             ("source-bundle", [exe("prodockit"), "source-bundle"]),
         ]
     steps += [
@@ -107,6 +132,12 @@ def full_project(root: Path, output: Path, *, template: bool) -> dict:
     for name, args in steps:
         run = command(args, root, output / (name + ".log"))
         result["steps"].append({"name": name, **run})
+        if (
+            run["exit"] == 1 and name == "diagnostics" and historical_baseline
+            and historical_floor_mismatch(output / (name + ".log"))
+        ):
+            result["steps"][-1]["expected_failure"] = "historical-zensical-floor"
+            continue
         if run["exit"] != 0:
             result.update(status="failed", incomplete_after=name)
             return result
@@ -193,8 +224,20 @@ def worker(args: argparse.Namespace) -> int:
             for name, source in [("extensions", ROOT), ("template", args.template)]:
                 target = output / name
                 copy_project(source, target)
+                if args.historical_baseline:
+                    # Project environment guards must see the version under test.
+                    # Change only Zensical declarations in the disposable copy;
+                    # runtime code and documentation content remain identical.
+                    from prodockit.pins import apply_version, discover
+
+                    state = discover(str(target))["zensical"]
+                    changed = apply_version(str(target), state, version)
+                    result.setdefault("baseline_declarations", {})[name] = [
+                        site.path for site in changed
+                    ]
                 result["projects"][name] = full_project(
-                    target, output / (name + "-results"), template=name == "template"
+                    target, output / (name + "-results"), template=name == "template",
+                    historical_baseline=args.historical_baseline
                 )
                 if result["projects"][name]["status"] != "passed":
                     result["status"] = "failed"
@@ -216,7 +259,14 @@ def report(output: Path) -> int:
     lines = [
         "# Zensical compatibility analysis",
         "",
-        "Only Zensical varies between the two environments.",
+        "Only Zensical varies between the two environments. The historical baseline installs "
+        "the local Prodockit build without dependency resolution so it can test below "
+        "the new supported floor. Its exact Prodockit/Zensical metadata mismatch may be "
+        "recorded as an expected diagnostic failure; other diagnostic failures still fail "
+        "qualification, and candidate diagnostics receive no exemption. Zensical declarations "
+        "in disposable baseline projects are aligned to the historical version so project "
+        "environment guards validate the version actually under test; runtime source and "
+        "documentation content are unchanged.",
         "",
     ]
     failure = len(results) != 2
@@ -314,18 +364,32 @@ def report(output: Path) -> int:
     return int(failure)
 
 
+def baseline_requirements(frozen: str, version: str) -> str:
+    """Reuse candidate dependencies while excluding this release's new floor.
+
+    The local Prodockit build is installed separately without dependency
+    resolution only in the historical baseline. All other requirements remain
+    frozen, and report() rejects any dependency difference except Zensical.
+    """
+    return "\n".join(
+        "zensical==" + version if line.lower().startswith("zensical==") else line
+        for line in frozen.splitlines()
+        if not line.lower().startswith(("prodockit==", "prodockit @ "))
+    ) + "\n"
+
+
 def pair(args: argparse.Namespace) -> int:
     output = args.output.resolve()
     if output.exists():
         raise ValueError("Use a new output directory; prior evidence is never overwritten")
     output.mkdir(parents=True)
     try:
-        baseline = output / "venv-baseline"
-        venv.EnvBuilder(with_pip=True).create(baseline)
-        py = str(python_in(baseline))
+        candidate = output / "venv-candidate"
+        venv.EnvBuilder(with_pip=True).create(candidate)
+        candidate_py = str(python_in(candidate))
         requirements = [
             str(ROOT) + "[testing]",
-            "zensical==" + args.baseline,
+            "zensical==" + args.candidate,
             "weasyprint==69.0",
             "Markdown==3.10.3",
             "pymdown-extensions==11.0.2",
@@ -333,25 +397,29 @@ def pair(args: argparse.Namespace) -> int:
         ]
         if args.template:
             requirements += ["-r", str(args.template / "requirements.txt")]
-        checked([py, "-m", "pip", "install", *requirements], ROOT, output / "install-baseline.log")
-        frozen = subprocess.check_output([py, "-m", "pip", "freeze"], text=True)
-        (output / "baseline-requirements.txt").write_text(frozen, encoding="utf-8")
-        candidate_lock = (
-            "\n".join(
-                "zensical==" + args.candidate if s.lower().startswith("zensical==") else s
-                for s in frozen.splitlines()
-            )
-            + "\n"
-        )
-        lock = output / "candidate-requirements.txt"
-        lock.write_text(candidate_lock, encoding="utf-8")
-        candidate = output / "venv-candidate"
-        venv.EnvBuilder(with_pip=True).create(candidate)
         checked(
-            [str(python_in(candidate)), "-m", "pip", "install", "-r", str(lock)],
-            ROOT,
-            output / "install-candidate.log",
+            [candidate_py, "-m", "pip", "install", *requirements],
+            ROOT, output / "install-candidate.log",
         )
+        frozen = subprocess.check_output([candidate_py, "-m", "pip", "freeze"], text=True)
+        (output / "candidate-requirements.txt").write_text(frozen, encoding="utf-8")
+        baseline = output / "venv-baseline"
+        venv.EnvBuilder(with_pip=True).create(baseline)
+        baseline_py = str(python_in(baseline))
+        lock = output / "baseline-dependencies-requirements.txt"
+        lock.write_text(baseline_requirements(frozen, args.baseline), encoding="utf-8")
+        checked(
+            [baseline_py, "-m", "pip", "install", "-r", str(lock)],
+            ROOT, output / "install-baseline.log",
+        )
+        # The baseline deliberately predates the release's supported floor.
+        # This exception applies only to the local project, never its dependencies.
+        checked(
+            [baseline_py, "-m", "pip", "install", "--no-deps", str(ROOT)],
+            ROOT, output / "install-baseline-project.log",
+        )
+        baseline_frozen = subprocess.check_output([baseline_py, "-m", "pip", "freeze"], text=True)
+        (output / "baseline-requirements.txt").write_text(baseline_frozen, encoding="utf-8")
         for side, env in [("baseline", baseline), ("candidate", candidate)]:
             cmd = [
                 str(python_in(env)),
@@ -360,6 +428,8 @@ def pair(args: argparse.Namespace) -> int:
                 "--output",
                 str(output / side),
             ]
+            if side == "baseline":
+                cmd += ["--historical-baseline"]
             if args.full:
                 cmd += ["--full", "--template", str(args.template.resolve())]
             if args.browser_script:
@@ -382,6 +452,7 @@ def main() -> int:
         p = sub.add_parser(mode)
         p.add_argument("--output", type=Path, required=True)
         p.add_argument("--full", action="store_true")
+        p.add_argument("--historical-baseline", action="store_true", help=argparse.SUPPRESS)
         p.add_argument("--template", type=Path)
         p.add_argument("--browser-script", type=Path)
         if mode == "pair":
