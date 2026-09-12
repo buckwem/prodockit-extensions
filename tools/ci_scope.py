@@ -140,6 +140,7 @@ _PYTHON_ONLY_RUNTIME_FILES = {
 }
 
 _CI_ONLY_FILES = {
+    "tools/docs_page_pdfs.py",
     "tools/canonical_site_config.py",
     "tools/render_documentation_diagrams.py",
 }
