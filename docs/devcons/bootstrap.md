@@ -60,6 +60,13 @@ reactivate and verify the appropriate environment as described in section 3.1.
 Each command is safe to repeat: Bootstrap checks before it changes anything,
 and a completed activity is left alone.
 
+If Bootstrap reports that it is running outside a virtual environment, it
+stops before later activities. Run the recovery commands it displays, then
+start Bootstrap from that environment in the same setup directory. Answering
+"yes" or activating an environment in another terminal cannot change the
+Python process already running. The new run checks the prerequisite again;
+the stopped run does not record it as completed.
+
 ### Stage 1 — Prepare the setup environment
 
 Create the shared setup environment, install Prodockit into it, and verify that

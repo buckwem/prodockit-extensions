@@ -1046,13 +1046,14 @@ def _apply_outstanding(
     except _StartAgain as done_but_unseen:
         if journal is not None:
             journal.finish("waiting")
-        # Not an error, and not a stage left undone: the reader did what
-        # was asked, and this process simply cannot see it (#397).
+        # A new process must verify this activity; do not claim it is done.
         click.echo("")
-        click.echo(f"  {done_but_unseen} is done, but this run cannot see it.")
+        click.echo(_bootstrap_warning(f"  {done_but_unseen} needs a new run to verify."))
+        click.echo("  No later activities were started.")
         click.echo("")
         resume_command = _resume_command(context, config_path)
         click.echo(f"Run `{resume_command}` again to carry on from here.")
+        click.echo("Use the environment and recovery instructions shown above.")
         return
     except (KeyboardInterrupt, click.Abort):
         if journal is not None:
@@ -1245,6 +1246,14 @@ def _work_through(
             continue
 
         if plan.instructions:
+            if plan.needs_a_new_run and not result.verifiable:
+                if plan.commands:
+                    _show_steps(
+                        "  Install these prerequisites first:",
+                        [shlex.join(command) for command in plan.commands],
+                    )
+                _show_steps("  Restart from the correct environment:", plan.instructions)
+                raise _StartAgain(report.stage.summary)
             _show_steps("  What you need to do:", plan.instructions)
             if not plan.commands:
                 # Guide and verify. The stage's own check is the
@@ -1615,6 +1624,10 @@ def _verify_until_done(
     yet", not "broken" - so it says so, and asks again.
     """
     while True:
+        if plan.needs_a_new_run and not stage.check(context).verifiable:
+            # Unlike a browser confirmation, a known system interpreter
+            # cannot become a venv by accepting the user's word (#810).
+            raise _StartAgain(stage.summary)
         if not _typed_yes(plan.confirm):
             return False
         # The reader has just been to a browser, so anything remembered
