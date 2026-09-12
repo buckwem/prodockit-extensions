@@ -273,3 +273,83 @@ def test_windows_cleanup_targets_owned_tree_and_reports_failure(monkeypatch, sta
     assert commands == [["taskkill", "/PID", "12345", "/T", "/F"]]
     assert waited
     assert bool(killed) is (status != 0)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX session and process groups")
+def test_installer_preserves_session_but_owns_its_group(tmp_path):
+    import json
+
+    result = run_installer(
+        [sys.executable, "-c", "import os,json; print(json.dumps([os.getsid(0),os.getpgrp(),os.getpid()]))"],
+        cwd=tmp_path,
+        timeout=10,
+    )
+    assert result.returncode == 0
+    session, group, pid = json.loads(result.stdout)
+    assert session == os.getsid(0)
+    assert group == pid
+    assert group != os.getpgrp()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX controlling terminal acceptance")
+def test_captured_bootstrap_installer_keeps_the_authenticated_terminal(tmp_path):
+    import errno
+    import pty
+    import select
+    import signal
+
+    # Establish a real controlling terminal without sudo privileges/passwords.
+    # The session and tty are the context sudo-rs lost in the regression.
+    probe = (
+        "import os,json; "
+        "fd=os.open('/dev/tty',os.O_RDONLY); "
+        "print(json.dumps([os.getsid(0),os.fstat(fd).st_rdev])); os.close(fd)"
+    )
+    driver = f"""
+import json, os, sys
+from prodockit.bootstrap.model import SubprocessRunner, INSTALL_TIMEOUT_SECONDS
+fd = os.open('/dev/tty', os.O_RDONLY)
+expected = [os.getsid(0), os.fstat(fd).st_rdev]
+os.close(fd)
+runner = SubprocessRunner()
+for timeout in (None, INSTALL_TIMEOUT_SECONDS):
+    result = runner.run([sys.executable, '-c', {probe!r}], timeout=timeout)
+    assert result.ok, result.stderr
+    assert json.loads(result.stdout) == expected
+print('terminal preserved', flush=True)
+"""
+    pid, terminal = pty.fork()
+    if pid == 0:
+        os.execv(sys.executable, [sys.executable, "-c", driver])
+    output = bytearray()
+    deadline = time.monotonic() + 15
+    try:
+        while time.monotonic() < deadline:
+            if select.select([terminal], [], [], 0.2)[0]:
+                try:
+                    data = os.read(terminal, 4096)
+                except OSError as error:
+                    if error.errno == errno.EIO:
+                        break
+                    raise
+                if not data:
+                    break
+                output.extend(data)
+        else:
+            pytest.fail("terminal probe timed out")
+        _, status = os.waitpid(pid, 0)
+        pid = 0
+        assert os.waitstatus_to_exitcode(status) == 0, output.decode(errors="replace")
+        assert b"terminal preserved" in output
+    finally:
+        if pid:
+            os.kill(pid, signal.SIGKILL)
+            os.waitpid(pid, 0)
+        os.close(terminal)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX exec failure reporting")
+def test_missing_installer_preserves_not_found_status(tmp_path):
+    result = run_installer([str(tmp_path / "missing-command")], cwd=tmp_path, timeout=5)
+    assert result.returncode == 127
+    assert "missing-command" in result.stderr

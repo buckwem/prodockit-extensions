@@ -299,3 +299,15 @@ def test_failure_is_classified_with_safe_recovery_steps(
 
     assert advice.category == category
     assert expected in " ".join(advice.steps)
+
+
+@pytest.mark.parametrize("message", [
+    "sudo: A terminal is required to authenticate",
+    "sudo: interactive authentication is required",
+    "sudo: a password is required",
+])
+def test_sudo_authentication_is_not_misdiagnosed_as_missing_software(message):
+    advice = recovery_advice("vscode", UBUNTU, ["sudo", "apt", "install", "curl"], CommandResult(1, stderr=message))
+    assert advice.category == "sudo-authentication"
+    assert "sudo -v" in " ".join(advice.steps)
+    assert "vendor" not in " ".join(advice.steps)
