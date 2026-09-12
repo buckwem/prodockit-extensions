@@ -224,6 +224,17 @@ def worker(args: argparse.Namespace) -> int:
             for name, source in [("extensions", ROOT), ("template", args.template)]:
                 target = output / name
                 copy_project(source, target)
+                if args.historical_baseline:
+                    # Project environment guards must see the version under test.
+                    # Change only Zensical declarations in the disposable copy;
+                    # runtime code and documentation content remain identical.
+                    from prodockit.pins import apply_version, discover
+
+                    state = discover(str(target))["zensical"]
+                    changed = apply_version(str(target), state, version)
+                    result.setdefault("baseline_declarations", {})[name] = [
+                        site.path for site in changed
+                    ]
                 result["projects"][name] = full_project(
                     target, output / (name + "-results"), template=name == "template",
                     historical_baseline=args.historical_baseline
@@ -252,7 +263,10 @@ def report(output: Path) -> int:
         "the local Prodockit build without dependency resolution so it can test below "
         "the new supported floor. Its exact Prodockit/Zensical metadata mismatch may be "
         "recorded as an expected diagnostic failure; other diagnostic failures still fail "
-        "qualification, and candidate diagnostics receive no exemption.",
+        "qualification, and candidate diagnostics receive no exemption. Zensical declarations "
+        "in disposable baseline projects are aligned to the historical version so project "
+        "environment guards validate the version actually under test; runtime source and "
+        "documentation content are unchanged.",
         "",
     ]
     failure = len(results) != 2

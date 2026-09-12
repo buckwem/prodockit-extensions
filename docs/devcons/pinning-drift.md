@@ -715,6 +715,8 @@ other dependencies retain their frozen versions; the report rejects any other
 dependency difference. The baseline may record only the exact Prodockit/Zensical
 metadata-floor conflict as an expected diagnostic failure; any other diagnostic
 failure still blocks qualification. Candidate diagnostics receive no exemption.
+Only Zensical declarations in disposable baseline projects are aligned to the
+historical version under test; runtime source and documentation stay unchanged.
 It never installs into the invoking environment. Complete builds use disposable
 Git copies and the same template citation-style bytes; supply
 `harvard-cite-them-right.csl` in the template checkout as its publishing workflow
