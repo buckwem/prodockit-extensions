@@ -81,6 +81,7 @@ DIAGNOSTIC_IDS = frozenset(
         "renderer.browser",
         "renderer.mathjax",
         "renderer.mermaid-security",
+        "renderer.mathjax-security",
         "renderer.inspection",
         "renderer.security-inspection",
         "repository.git",
@@ -321,6 +322,11 @@ REPAIR_REGISTRY: dict[str, RepairPolicy] = {
         "no template is required.",
     ),
     "renderer.mermaid-security": RepairPolicy(
+        "prohibited",
+        "Security upgrades require advisory and rendered-output review.",
+        "Review `npm audit --omit=dev` and update the lockfile explicitly.",
+    ),
+    "renderer.mathjax-security": RepairPolicy(
         "prohibited",
         "Security upgrades require advisory and rendered-output review.",
         "Review `npm audit --omit=dev` and update the lockfile explicitly.",
@@ -3532,27 +3538,37 @@ def _probe_weasyprint_import() -> subprocess.CompletedProcess[str]:
 
 
 def _node_security_checks(root: Path, online: bool) -> list[DiagnosticResult]:
-    """Audit the Mermaid production graph only when network checks are requested."""
-    tool_root = root / "tools" / "mermaid"
+    """Audit each configured managed renderer independently of functional probes."""
+    return [
+        check
+        for component, name in (("mermaid", "Mermaid"), ("mathjax", "MathJax"))
+        for check in _node_security_check(root, online, component, name)
+    ]
+
+
+def _node_security_check(
+    root: Path, online: bool, component: str, name: str
+) -> list[DiagnosticResult]:
+    tool_root = root / "tools" / component
     lockfile = tool_root / "package-lock.json"
     if not lockfile.is_file():
         return [
             DiagnosticResult(
-                "renderer.mermaid-security",
+                f"renderer.{component}-security",
                 "Rendering toolchain",
                 "pass",
-                "Mermaid security audit is not applicable",
-                ("tools/mermaid/package-lock.json is not present",),
+                f"{name} security audit is not applicable",
+                (f"tools/{component}/package-lock.json is not present",),
                 {"checked": False, "reason": "not-configured"},
             )
         ]
     if not online:
         return [
             DiagnosticResult(
-                "renderer.mermaid-security",
+                f"renderer.{component}-security",
                 "Rendering toolchain",
                 "pass",
-                "Mermaid security audit skipped in offline mode",
+                f"{name} security audit skipped in offline mode",
                 ("run `pdk diag --online` to query the npm advisory service",),
                 {"checked": False, "reason": "offline", "level": NODE_AUDIT_LEVEL},
             )
@@ -3561,10 +3577,10 @@ def _node_security_checks(root: Path, online: bool) -> list[DiagnosticResult]:
     if npm is None:
         return [
             DiagnosticResult(
-                "renderer.mermaid-security",
+                f"renderer.{component}-security",
                 "Rendering toolchain",
                 "warn",
-                "Mermaid security audit could not run because npm is missing",
+                f"{name} security audit could not run because npm is missing",
                 ("install npm, then rerun `pdk diag --online`",),
                 {"checked": False, "reason": "npm-missing", "level": NODE_AUDIT_LEVEL},
             )
@@ -3576,9 +3592,13 @@ def _node_security_checks(root: Path, online: bool) -> list[DiagnosticResult]:
     except json.JSONDecodeError:
         payload = {}
     metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
-    raw_counts = metadata.get("vulnerabilities", {}) if isinstance(metadata, dict) else {}
+    raw_counts = metadata.get("vulnerabilities") if isinstance(metadata, dict) else None
+    valid_counts = isinstance(raw_counts, dict) and all(
+        type(raw_counts.get(severity)) is int and raw_counts[severity] >= 0
+        for severity in ("low", "moderate", "high", "critical")
+    )
     counts = {
-        severity: int(raw_counts.get(severity, 0)) if isinstance(raw_counts, dict) else 0
+        severity: int(raw_counts[severity]) if valid_counts and isinstance(raw_counts, dict) else 0
         for severity in ("low", "moderate", "high", "critical")
     }
     affected = sum(counts[severity] for severity in ("moderate", "high", "critical"))
@@ -3590,19 +3610,19 @@ def _node_security_checks(root: Path, online: bool) -> list[DiagnosticResult]:
     if affected:
         details = (
             *(f"{severity}: {count}" for severity, count in counts.items() if count),
-            "run `npm audit --omit=dev` in tools/mermaid for remediation detail",
+            f"run `npm audit --omit=dev` in tools/{component} for remediation detail",
         )
         return [
             DiagnosticResult(
-                "renderer.mermaid-security",
+                f"renderer.{component}-security",
                 "Rendering toolchain",
                 "warn",
-                f"Mermaid dependencies have {affected} moderate-or-higher advisories",
+                f"{name} dependencies have {affected} moderate-or-higher advisories",
                 details,
                 data,
             )
         ]
-    if completed.returncode:
+    if completed.returncode or not valid_counts:
         evidence = (
             completed.stderr.strip()
             or completed.stdout.strip()
@@ -3610,20 +3630,20 @@ def _node_security_checks(root: Path, online: bool) -> list[DiagnosticResult]:
         )
         return [
             DiagnosticResult(
-                "renderer.mermaid-security",
+                f"renderer.{component}-security",
                 "Rendering toolchain",
                 "warn",
-                "Mermaid security audit was unavailable",
+                f"{name} security audit was unavailable",
                 (_sanitise_text(evidence, root),),
                 {**data, "checked": False, "reason": "audit-error"},
             )
         ]
     return [
         DiagnosticResult(
-            "renderer.mermaid-security",
+            f"renderer.{component}-security",
             "Rendering toolchain",
             "pass",
-            "Mermaid dependencies have no moderate-or-higher advisories",
+            f"{name} dependencies have no moderate-or-higher advisories",
             (),
             data,
         )
@@ -4097,7 +4117,7 @@ def inspect(
     collect(
         "renderer.security-inspection",
         "Rendering toolchain",
-        "The Mermaid security audit",
+        "The renderer security audits",
         lambda: _node_security_checks(root, online),
     )
     collect(
