@@ -12,6 +12,7 @@ GETTING_STARTED = Path(__file__).resolve().parent.parent / "docs/getting-started
 MANUAL_INSTALL = GETTING_STARTED.with_name("manual-install.md")
 CHOOSING_INSTALLATION = GETTING_STARTED.with_name("choosing-installation.md")
 BOOTSTRAP = GETTING_STARTED.parent / "devcons/bootstrap.md"
+TROUBLESHOOTING = GETTING_STARTED.with_name("troubleshooting-installs.md")
 
 
 def _render(source: Path, *, is_surrey: bool) -> str:
@@ -60,6 +61,23 @@ def test_surrey_review_and_manual_install_have_one_host_tab_per_group() -> None:
         assert '=== "GitLab"' not in content
         assert '=== "GitLab.com"' not in content
     assert '=== ":fontawesome-brands-github: GitHub"' not in review
+
+
+def test_surrey_manual_install_uses_only_surrey_for_repository_guidance() -> None:
+    manual = _render(MANUAL_INSTALL, is_surrey=True)
+    assert "GitHub" not in manual
+    assert "gitlab.com" not in manual
+    assert "Host gitlab.surrey.ac.uk" in manual
+    assert "Open [Surrey GitLab](https://gitlab.surrey.ac.uk)" in manual
+
+
+def test_troubleshooting_host_guidance_matches_the_selected_site() -> None:
+    surrey = _render(TROUBLESHOOTING, is_surrey=True)
+    public = _render(TROUBLESHOOTING, is_surrey=False)
+    assert "GitHub" not in surrey
+    assert "GitLab.com" not in surrey
+    assert "Check the connection to Surrey GitLab" in surrey
+    assert "Check the connection to GitLab or GitHub" in public
 
 
 def test_public_review_and_manual_install_keep_host_choices() -> None:

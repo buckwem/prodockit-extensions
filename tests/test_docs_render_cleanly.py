@@ -64,6 +64,11 @@ _INTENTIONAL_JINJA_BY_PAGE = {
         "{% if is_surrey %}",
         "{% endif %}",
     },
+    "troubleshooting-installs.md": {
+        "{% if is_surrey %}",
+        "{% else %}",
+        "{% endif %}",
+    },
 }
 
 

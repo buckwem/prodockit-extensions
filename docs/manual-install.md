@@ -34,7 +34,8 @@ run the check shown for it before continuing.
 
 Each stage groups a related part of the installation. Complete its numbered
 steps before moving to the next stage. Use only the instructions for your
-operating system and chosen Git host; you do not need both GitHub and GitLab.
+operating system{% if is_surrey %} and use Surrey GitLab for your coursework{% else %}
+and chosen Git host; you do not need both GitHub and GitLab{% endif %}.
 Skip tools that already pass the checks, but do not skip verification.
 
 For existing work, keep its content, custom settings and publishing workflow.
@@ -105,10 +106,10 @@ Start with installing [Visual Studio Code](https://code.visualstudio.com){target
 
 //// step | Install Git
 
-\index{<a href="https://git-scm.com/" target="_blank">Git</a>} is a version control system that enables you to track changes to your code and collaborate with others. You will be using Git to manage your documentation website and push your changes to your **GitLab** or **GitHub** cloud repository.
+\index{<a href="https://git-scm.com/" target="_blank">Git</a>} is a version control system that enables you to track changes to your code and collaborate with others. You will be using Git to manage your documentation website and push your changes to your {% if is_surrey %}[**Surrey GitLab**](https://gitlab.surrey.ac.uk){target="_blank" rel="noopener"}{% else %}**GitLab** or **GitHub**{% endif %} repository.
 
 Install and configure Git next. The instructions below work with
-both *GitLab* and *GitHub*.
+{% if is_surrey %}Surrey GitLab.{% else %}both *GitLab* and *GitHub*.{% endif %}
 
 Start by installing Git and configuring it for Visual Studio Code. The instructions below are for macOS, Windows, and Linux (Ubuntu/Debian).
 
@@ -155,11 +156,10 @@ Start by installing Git and configuring it for Visual Studio Code. The instructi
 
 //// step | Register with the Git hosting service
 
-Register for an account on the public [**GitLab**](https://gitlab.com){target="_blank"} or [**GitHub**](https://github.com){target="_blank"} cloud instance you will use. If you have already registered, you can skip this step.
-
 {% if is_surrey %}
-!!! Info "University of Surrey GitLab"
-    For the University of Surrey, you will need to use the GitLab instance provided by the university at [https://gitlab.surrey.ac.uk](https://gitlab.surrey.ac.uk){target="_blank"} for all assignments. When you get to the login page, select the button **Surrey Login**{: .bg-grey} and use your university credentials.
+Use your university account on [Surrey GitLab](https://gitlab.surrey.ac.uk){target="_blank" rel="noopener"} for coursework. Select **Surrey Login** and sign in with your university credentials. If you have already signed in, skip this step.
+{% else %}
+Register for an account on the public [**GitLab**](https://gitlab.com){target="_blank"} or [**GitHub**](https://github.com){target="_blank"} cloud instance you will use. If you have already registered, you can skip this step.
 {% endif %}
 
 ////
@@ -279,10 +279,7 @@ account.
 {% endif %}
 
 
-{% if is_surrey %}
-    !!! tip "Also want a personal GitHub account?"
-        Everything below is written for your one GitLab key. To add a GitHub account too - for personal projects, say - generate a second key the same way, naming it `id_ed25519_github` instead, then repeat each remaining step for it as well, adding a matching `Host github.com` entry to the ssh config below.
-{% else %}
+{% if not is_surrey %}
     !!! note "`gitxxx` in the steps that follow"
         You now have two key files, `id_ed25519_github` and
         `id_ed25519_gitlab`. The remaining steps are written once, with
@@ -353,12 +350,6 @@ account.
         IdentityFile ~/.ssh/id_ed25519_gitlab
         AddKeysToAgent yes
 
-    # GitLab
-    Host gitlab.com
-        HostName gitlab.com
-        User git
-        IdentityFile ~/.ssh/id_ed25519_gitlab
-        AddKeysToAgent yes
     ```
 {% else %}
     ```text
@@ -534,7 +525,7 @@ account.
 
 ////
 
-//// step | Add the public keys to GitLab or GitHub
+//// step | Add the public {% if is_surrey %}key to Surrey GitLab{% else %}keys to GitLab or GitHub{% endif %}
 
 <span id="integrate-visual-studio-code-with-git"></span>
 
@@ -546,7 +537,7 @@ Visual Studio Code use the same Git installation.
 {% if is_surrey %}
     === ":fontawesome-brands-gitlab: Surrey GitLab"
 
-        1. Open [Surrey GitLab](https://gitlab.surrey.ac.uk), select
+        1. Open [Surrey GitLab](https://gitlab.surrey.ac.uk){target="_blank" rel="noopener"}, select
            **Surrey Login**, and sign in with your university credentials.
 {% else %}
     === "GitLab"
@@ -632,7 +623,7 @@ the local project without losing any existing history.
 <span id="cloning-the-prodockit-template"></span>
 
 This section explains how to get a project onto the computer.
-A **repository** is the project and its saved history. GitLab or GitHub keeps
+A **repository** is the project and its saved history. {% if is_surrey %}Surrey GitLab{% else %}GitLab or GitHub{% endif %} keeps
 the online copy; a **clone** is the working copy on your computer. Git calls
 the online repository connected to a clone `origin`.
 
@@ -699,15 +690,15 @@ created.
 
 Create a project from the template with this path when there is no repository for the project yet, or when you
 have deliberately created an empty one. It copies the template files, starts
-a clean history for your work, and connects that history to your own GitLab
-or GitHub repository.
+a clean history for your work, and connects that history to your own {% if is_surrey %}Surrey GitLab{% else %}GitLab
+or GitHub{% endif %} repository.
 
 1. Create a **blank** repository on the service where the work will be kept.
 
 {% if is_surrey %}
     === ":fontawesome-brands-gitlab: Surrey GitLab"
 
-        On [Surrey GitLab](https://gitlab.surrey.ac.uk), select
+        On [Surrey GitLab](https://gitlab.surrey.ac.uk){target="_blank" rel="noopener"}, select
         **Surrey Login**, then **New project > Create blank project**.
         Give it the required name, set its visibility to **Private**, and
         untick **Initialize repository with a README**.
@@ -839,12 +830,12 @@ or GitHub repository.
 
 <span id="manual-install-path-2"></span>
 
-Clone an existing repository with this path when the GitLab or GitHub repository already contains work. A
+Clone an existing repository with this path when the {% if is_surrey %}Surrey GitLab{% else %}GitLab or GitHub{% endif %} repository already contains work. A
 repository with a visible file list or any entry under **Commits** is not
 empty. This path keeps its complete history and keeps `origin` pointing to
 the same place.
 
-1. Open the repository in GitLab or GitHub. Select **Code**, choose **SSH**,
+1. Open the repository in {% if is_surrey %}[Surrey GitLab](https://gitlab.surrey.ac.uk){target="_blank" rel="noopener"}{% else %}GitLab or GitHub{% endif %}. Select **Code**, choose **SSH**,
     and copy the URL. Check the browser address and repository name carefully;
     similar project names can lead to cloning the wrong work without an error.
 
@@ -925,7 +916,7 @@ git config --local user.name
 git config --local user.email
 ```
 
-Use the email address associated with the GitLab or GitHub account that owns
+Use the email address associated with the {% if is_surrey %}Surrey GitLab{% else %}GitLab or GitHub{% endif %} account that owns
 the repository.
 
 ////
@@ -1348,7 +1339,7 @@ The first line should report `pandoc 3.10.1`.
     ```
 {% endif %}
 
-    This rewrites `repo_url`, `repo_name`, `theme.icon.repo` and `edit_uri` in `zensical.toml`, plus the badge row in your `README.md`, to match the `origin` you just set - so your built site and PDF link to your own repository rather than the template's. Note `theme.icon.repo` in that list: moving from a GitHub template to a GitLab project switches the header's brand icon to match, which is easy to miss by hand. Only the values that actually needed changing are listed, so the set you see may be smaller.
+    This rewrites `repo_url`, `repo_name`, `theme.icon.repo` and `edit_uri` in `zensical.toml`, plus the badge row in your `README.md`, to match the `origin` you just set - so your built site and PDF link to your own repository rather than the template's. {% if not is_surrey %}Note `theme.icon.repo` in that list: moving from a GitHub template to a GitLab project switches the header's brand icon to match, which is easy to miss by hand. {% endif %}Only the values that actually needed changing are listed, so the set you see may be smaller.
 
     On Path 2, the check should normally report that everything already
     matches. If it reports changes, first confirm `git remote -v` shows the
@@ -1689,7 +1680,7 @@ git push -u origin main
 ```
 
 `git commit` saves the first version locally. `git push` copies that commit to
-GitLab or GitHub and `-u origin main` records where later pushes should go.
+{% if is_surrey %}Surrey GitLab{% else %}GitLab or GitHub{% endif %} and `-u origin main` records where later pushes should go.
 Wait for its build to succeed, then open the Pages link on the repository's
 front page as described in the publishing instructions.
 

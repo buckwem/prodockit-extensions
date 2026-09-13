@@ -30,7 +30,7 @@ the checks most likely to help.
 | `pdk diag` reports the wrong Python or says installed packages are missing | • [Activate this project's environment](#wrong-virtual-environment)<br>• [Recreate it with the correct Python](#wrong-python)<br>• Rerun diagnostics before installing anything |
 | An installation appears stuck, times out, or stops part-way through | • [Recover the interrupted installation](#installtooling-download-fails)<br>• [Check the connection](#git-host-unreachable)<br>• Repeat only the failed command or stage |
 | Diagram, mathematics, or PDF setup fails | • [Repair Node.js](#installtooling-npm-missing)<br>• [Repair WeasyPrint](#installtooling-weasyprint-libraries)<br>• [Bring project versions into step](#toolchain-not-aligned) |
-| Template Sync remains on `Checking this project...`, or Git cannot clone, pull, or push | • [Check the connection to GitLab or GitHub](#git-host-unreachable)<br>• [Check the SSH key](#installtooling-git-permission-denied)<br>• [Check an existing project folder](#installtooling-directory-exists) |
+| Template Sync remains on `Checking this project...`, or Git cannot clone, pull, or push | • [Check the connection to {% if is_surrey %}Surrey GitLab{% else %}GitLab or GitHub{% endif %}](#git-host-unreachable)<br>• [Check the SSH key](#installtooling-git-permission-denied)<br>• [Check an existing project folder](#installtooling-directory-exists) |
 | `pdk diag` reports warnings after Prodockit was upgraded | • [Activate this project's environment](#wrong-virtual-environment)<br>• [Bring project versions into step](#toolchain-not-aligned)<br>• Rerun `pdk diag` |
 
 /// table-caption | <
@@ -241,7 +241,7 @@ Inside an active virtual environment, install packages with
 initial machine preparation, use `pip` on Windows and Ubuntu and `pip3` on
 macOS. If that command is unavailable, try the other spelling.
 
-## Check the connection to GitLab or GitHub {: #git-host-unreachable }
+## Check the connection to {% if is_surrey %}Surrey GitLab{% else %}GitLab or GitHub{% endif %} {: #git-host-unreachable }
 
 If Template Sync remains at `Checking this project for template updates...`,
 interrupt it with ++ctrl+c++ rather than waiting indefinitely. Read the end of
@@ -266,8 +266,7 @@ its log:
     ```
 
 If the last entry is a template source with no later Git output, test the exact
-host outside Prodockit. Replace the hostname when the log names GitHub.com or
-GitLab.com:
+host outside Prodockit. {% if is_surrey %}For your Surrey GitLab repository, use:{% else %}Replace the hostname with the one shown in the log:{% endif %}
 
 ``` bash
 ssh -T -o BatchMode=yes -o ConnectTimeout=15 git@gitlab.surrey.ac.uk
@@ -294,11 +293,11 @@ ssh -T git@your-git-host
 
 If the host rejects the key, confirm that the private key is loaded into the
 SSH agent and that its matching public key is registered with the correct
-GitLab or GitHub account. Also check that `git remote -v` contains the expected
+{% if is_surrey %}Surrey GitLab{% else %}GitLab or GitHub{% endif %} account. Also check that `git remote -v` contains the expected
 host, namespace, and repository name. Do not create another repository merely
 because SSH cannot currently see the intended one.
 
-A GitLab.com project may still fetch a public template from GitHub.com. Test
+{% if is_surrey %}A Surrey GitLab project may still fetch a public template from another host.{% else %}A GitLab.com project may still fetch a public template from GitHub.com.{% endif %} Test
 the hostname shown by `.prodockit-template.log`, not only the project's
 `origin`. Modern Template Sync releases use the public template transport when
 available, but a custom template source can still require its own SSH access.
