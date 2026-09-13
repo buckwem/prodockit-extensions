@@ -40,6 +40,14 @@ def test_public_publishing_stage_keeps_both_host_choices() -> None:
     assert "Surrey Login" not in stage
 
 
+def test_route_overview_names_the_rendered_host() -> None:
+    surrey = _render(GETTING_STARTED, is_surrey=True)
+    public = _render(GETTING_STARTED, is_surrey=False)
+    assert "files and publish through Surrey GitLab Pages." in surrey
+    assert "files and publish through GitHub or GitLab Pages." not in surrey
+    assert "files and publish through GitHub or GitLab Pages." in public
+
+
 def test_surrey_review_and_manual_install_have_one_host_tab_per_group() -> None:
     review = _render(GETTING_STARTED, is_surrey=True).split("### Stage 7b —", 1)[1]
     manual = _render(MANUAL_INSTALL, is_surrey=True)

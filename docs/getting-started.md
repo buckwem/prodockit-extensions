@@ -41,7 +41,8 @@ as well as the colours. Keep your existing site's content and configuration;
 do not copy new-site examples over them.
 
 After Stage 6, the routes separate again. Stage 7a helps a new project save its
-files and publish through GitHub or GitLab Pages. Stage 7b helps an existing
+files and publish through {% if is_surrey %}Surrey GitLab Pages{% else %}GitHub or GitLab Pages{% endif %}.
+Stage 7b helps an existing
 project review Adopt's changes and follow its own release process. You can
 stop after local testing if you are not ready to commit or publish.
 
