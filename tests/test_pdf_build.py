@@ -955,16 +955,35 @@ def test_does_not_warn_about_prose_quoting_the_renderers_own_markup(
     genuinely contains `class="arithmatex"` and `class="mermaid"` - just
     inside a code span, with the `<` escaped to `&lt;`.
 
-    This is a regression test with a real regression behind it (#176).
-    `_ARITHMATEX_RE` matched the bare `class="..."` and so fired on this
-    project's own `devcons/limitations.md`, warning that a document with no
-    formulas in it would ship raw LaTeX. `_MERMAID_BLOCK_RE` was already
-    anchored on `<pre` and never had the problem, which is why only maths
-    is named in that issue - both are asserted here so the two cannot drift
-    apart again.
+    An older bare `class="..."` pattern fired on this project's own
+    `devcons/limitations.md`, warning that a document with no formulas in it
+    would ship raw LaTeX (#176). The current HTML parser ignores escaped code
+    examples and HTML comments, and both renderers are asserted here.
     """
     fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
     build_pdf([_DOCUMENTS_THE_RENDERERS_PAGE], str(tmp_path / "out.pdf"))
+    assert "⚠️" not in capsys.readouterr().out
+
+
+def test_does_not_warn_about_commented_renderer_markup_or_literal_delimiters(
+    tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """HTML comments and code examples are not active renderer elements."""
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [
+            Page(
+                docs_rel_path="examples.md",
+                html=(
+                    '<!-- <div class="arithmatex">\\[x^2\\]</div> '
+                    '<pre class="mermaid">graph LR; A --- B</pre> -->'
+                    '<p><code>$$x^2$$</code> and '
+                    '<code>&lt;pre class="mermaid"&gt;</code> are examples.</p>'
+                ),
+            )
+        ],
+        str(tmp_path / "out.pdf"),
+    )
     assert "⚠️" not in capsys.readouterr().out
 
 
@@ -976,7 +995,7 @@ def test_still_warns_when_real_maths_sits_beside_prose_quoting_the_markup(
 
     A page can legitimately be both - documenting the markup *and* using a
     formula - and the escaped prose must not mask the real thing. Without
-    this, emptying `_ARITHMATEX_RE` entirely would leave the test above
+    this, ignoring all arithmatex elements would leave the test above
     passing.
     """
     fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
@@ -988,8 +1007,8 @@ def test_warns_about_inline_maths_not_only_display_maths(
     tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """`_MATHS_PAGE` above is a `<div>` (display maths). Inline maths is a
-    `<span>`, and the pattern now names both elements explicitly rather
-    than matching any tag, so the span case needs its own assertion -
+    `<span>`, and the detector names both elements explicitly, so the span
+    case needs its own assertion -
     confirmed against real `pymdownx.arithmatex` generic-mode output, which
     emits exactly these two wrappers and no others.
     """

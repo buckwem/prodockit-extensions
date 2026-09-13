@@ -1,0 +1,13 @@
+[project]
+site_name = "Nested rendering check"
+
+[project.markdown_extensions]
+attr_list = {}
+md_in_html = {}
+def_list = {}
+pymdownx.tasklist = { custom_checkbox = true }
+pymdownx.tabbed = { alternate_style = true }
+pymdownx.arithmatex = { generic = true }
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]

@@ -38,6 +38,7 @@ from prodockit.pdf.site import (
     validate_built_site,
 )
 from prodockit.pdf.source_bundle import build_source_bundle, discover_markdown_and_config_files
+from prodockit.pdf.web_render import check_web_rendering
 from prodockit.project_config import load_project_config
 from prodockit.revision_dates import resolve_revision_dates
 from prodockit.settings import (
@@ -334,8 +335,9 @@ def _build_pdf_from_config(
       `reference_indent_global`, `reference_spacing_global`,
       `pdf_mmdc_bin` and `pdf_tex2svg_script` (both auto-detected if unset -
       see `_find_mmdc_bin`/`_find_tex2svg_script` - Mermaid diagrams/math
-      formulas are simply left unrendered if neither is found, rather than
-      failing the build), `pdf_math_dir`, `pdf_include_table_of_contents`
+      formulas are left unrendered in the PDF if neither is found. The
+      built website is checked separately in a browser by default when
+      those elements appear), `pdf_math_dir`, `pdf_include_table_of_contents`
       (default `true`), `pdf_table_of_contents_title`, `pdf_extra_css` (a
       list of `docs_dir`-relative stylesheet paths, same
       shape as `project.extra_css` below, but meant *only* for the PDF -
@@ -529,6 +531,14 @@ def _build_pdf_from_config(
                     or revision_dates[Path(full_path)].updated
                 ),
             )
+        )
+
+    if project_config is not None:
+        theme_features = (config.get("theme") or {}).get("features") or []
+        check_web_rendering(
+            project_config,
+            page_objects,
+            instant_navigation=not markdown_file and "navigation.instant" in theme_features,
         )
 
     # Cover-page markers (see this function's own docs below) - a

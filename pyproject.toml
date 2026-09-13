@@ -163,6 +163,7 @@ packages = ["src/prodockit"]
 "docs/stylesheets/pdk.css" = "prodockit/assets/pdk.css"
 "docs/stylesheets/pdk-pdf.css" = "prodockit/assets/pdk-pdf.css"
 "docs/javascripts/pdk.js" = "prodockit/assets/pdk.js"
+"src/prodockit/pdf/web_render.cjs" = "prodockit/pdf/web_render.cjs"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

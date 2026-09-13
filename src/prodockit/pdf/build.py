@@ -16,12 +16,12 @@ generating the Lua filter and CSS, concatenating everything, and running
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from typing import Any
 
 from prodockit.pdf.css import build_css, build_structural_guard_css
@@ -76,25 +76,20 @@ class PdfBuildError(RuntimeError):
         self.stderr = stderr
 
 
-# The same two things the PDF pipeline pre-renders to static images because
-# WeasyPrint has no JS engine: `<pre class="mermaid">` (matching
-# `fix_up_page_html()`'s own `pre.mermaid` selector) and pymdownx.arithmatex's
-# generic-mode `<div|span class="arithmatex">` (matching the Lua filter's own
-# `arithmatex` class check). Matched with a regex rather than a second
-# BeautifulSoup parse of every page - this only decides whether to print a
-# warning, and each page is already parsed properly moments later.
-#
-# Both anchor on a real opening tag, and that is load-bearing rather than
-# tidiness: a page *documenting* either feature quotes the markup in a code
-# span, where Python-Markdown escapes `<` and `>` but leaves the attribute
-# text alone (`<code>&lt;div class="arithmatex"&gt;</code>`). A pattern
-# matching the bare `class="..."` therefore fires on prose about maths in a
-# document containing none, which is exactly what this project's own
-# `devcons/limitations.md` did to every build here
-# (prodockit-extensions#176). Requiring the `<` the escape consumed is what
-# separates real markup from a description of it.
-_MERMAID_BLOCK_RE = re.compile(r'<pre\b[^>]*\bclass="[^"]*\bmermaid\b', re.IGNORECASE)
-_ARITHMATEX_RE = re.compile(r'<(?:div|span)\b[^>]*\bclass="[^"]*\barithmatex\b', re.IGNORECASE)
+class _RendererMarkup(HTMLParser):
+    """Find active renderer elements, ignoring comments and quoted markup."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.mermaid = False
+        self.maths = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        classes = set((dict(attrs).get("class") or "").split())
+        if tag == "pre" and "mermaid" in classes:
+            self.mermaid = True
+        elif tag in {"div", "span"} and "arithmatex" in classes:
+            self.maths = True
 
 
 def _warn_about_unrendered_content(
@@ -116,7 +111,13 @@ def _warn_about_unrendered_content(
     build still succeeds; this only makes the degradation visible.
     """
     warnings = []
-    if render_mermaid is None and any(_MERMAID_BLOCK_RE.search(page.html) for page in pages):
+    detected: list[_RendererMarkup] = []
+    if render_mermaid is None or not mathjax_available:
+        for page in pages:
+            markup = _RendererMarkup()
+            markup.feed(page.html)
+            detected.append(markup)
+    if render_mermaid is None and any(markup.mermaid for markup in detected):
         warnings.append(
             "⚠️  This document contains Mermaid diagrams, but no `mmdc` "
             "(mermaid-cli) binary was found - they will appear in the PDF as "
@@ -124,7 +125,7 @@ def _warn_about_unrendered_content(
             "`prodockit init-tools` to set it up, or set `pdf_mmdc_bin` in "
             "your config to an existing install."
         )
-    if not mathjax_available and any(_ARITHMATEX_RE.search(page.html) for page in pages):
+    if not mathjax_available and any(markup.maths for markup in detected):
         warnings.append(
             "⚠️  This document contains TeX maths, but no `tex2svg` script was "
             "found - formulas will appear in the PDF as raw LaTeX instead of "

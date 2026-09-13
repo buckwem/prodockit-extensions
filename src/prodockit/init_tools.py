@@ -1,12 +1,14 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Scaffold the Node tooling `prodockit.pdf` needs for Mermaid diagrams and
-TeX maths in a PDF.
+"""Scaffold the Node tooling `prodockit.pdf` needs for Mermaid diagrams,
+TeX maths, and default browser verification of the completed website.
 
 WeasyPrint has no JS engine, so neither can be rendered the way the live
 website renders them - `prodockit.pdf` shells out to `mermaid-cli` and a
 `tex2svg` script to turn both into static images before Pandoc sees them.
+The maths scaffold also includes Puppeteer Core so a maths-only project can
+verify browser output without installing the Mermaid renderer.
 `prodockit.pdf.config` looks for those in a specific place
 (`tools/mermaid/node_modules/.bin/mmdc` and `tools/mathjax/tex2svg.js`),
 and until now the library required that layout without providing it - every
