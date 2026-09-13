@@ -70,8 +70,10 @@ def test_missing_built_renderer_element_fails_before_pdf(
     tmp_path: Path, source: str, html: str, missing: str
 ) -> None:
     config = _project(tmp_path, source)
-    with pytest.raises(WebRenderError, match=missing):
+    with pytest.raises(WebRenderError, match=missing) as failure:
         static_render_targets(config, [Page("index.md", html)])
+    assert "`pdk diag`" in str(failure.value)
+    assert "`pdk diag --apply`" in str(failure.value)
 
 
 def test_comments_and_quoted_examples_do_not_require_rendering(tmp_path: Path) -> None:
@@ -163,8 +165,9 @@ def test_browser_failure_keeps_diagnostics_and_fails(
         return SimpleNamespace(returncode=1, stderr="no visible SVG", stdout="")
 
     monkeypatch.setattr("prodockit.pdf.web_render.subprocess.run", failed_run)
-    with pytest.raises(WebRenderError, match="no visible SVG"):
+    with pytest.raises(WebRenderError, match="no visible SVG") as failure:
         check_web_rendering(config, [Page("index.md", '<div class="arithmatex">\\[x^2\\]</div>')])
+    assert "`pdk diag --dry-run`" in str(failure.value)
     assert seen["targets"][0]["maths"] == 1
     assert seen["targets"][0]["mermaid"] == 0
     assert Path(seen["diagnostics"]).is_dir()

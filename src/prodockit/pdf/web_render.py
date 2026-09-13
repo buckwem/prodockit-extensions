@@ -24,6 +24,15 @@ from prodockit.renderer_health import find_browser
 class WebRenderError(BuiltSiteError):
     """A published page did not render its configured maths or diagrams."""
 
+    def __init__(self, message: str) -> None:
+        hint = (
+            "Run `pdk diag` to check project and renderer setup; "
+            "`pdk diag --dry-run` shows repair options and `pdk diag --apply` "
+            "offers supported fixes. If it finds no issue, inspect the page "
+            "and browser diagnostics."
+        )
+        super().__init__(f"{message}\n{hint}")
+
 
 @dataclass(frozen=True)
 class RenderTarget:
@@ -155,8 +164,7 @@ def check_web_rendering(
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise WebRenderError(
-            f"Browser rendering check did not finish: {error}\n"
-            f"Browser diagnostics: {diagnostics}"
+            f"Browser rendering check did not finish: {error}\nBrowser diagnostics: {diagnostics}"
         ) from error
     if result.returncode:
         detail = result.stderr.strip() or result.stdout.strip() or "unknown browser failure"
