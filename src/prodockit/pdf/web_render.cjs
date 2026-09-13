@@ -232,6 +232,15 @@ async function main() {
         await captureFailure(page, `navigation-start-${target.source}`, errors);
         throw new Error(`${target.source}: the instant-navigation start page did not load: ${error.message}`);
       }
+      const expectsInstant = await page.evaluate(() => {
+        try {
+          return JSON.parse(document.querySelector('#__config')?.textContent || '{}')
+            .features?.includes('navigation.instant') === true;
+        } catch (_) {
+          return false;
+        }
+      });
+      await page.evaluate(() => { window.__pdkNavigationMarker = true; });
       const clicked = await page.evaluate(route => {
         const link = [...document.querySelectorAll('a[href]')].find(candidate => {
           const url = new URL(candidate.href);
@@ -250,6 +259,10 @@ async function main() {
       } catch (error) {
         await captureFailure(page, `navigation-${target.source}`, errors);
         throw new Error(`${target.source}: instant navigation did not reach the page: ${error.message}`);
+      }
+      if (expectsInstant && !await page.evaluate(() => window.__pdkNavigationMarker === true)) {
+        await captureFailure(page, `navigation-${target.source}`, errors);
+        throw new Error(`${target.source}: navigation reloaded the document instead of exercising instant navigation`);
       }
       await checkPage(page, target, `navigation-${target.source}`, errors);
     }

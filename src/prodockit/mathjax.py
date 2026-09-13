@@ -60,6 +60,15 @@ window.MathJax = {
     processHtmlClass: "arithmatex",
   },
 };
+
+// Zensical replaces the article on instant navigation without reloading
+// this bundle. MathJax's initial typeset does not cover the new article.
+// Subscribe before loading the bundle so every subsequent page is typeset.
+if (typeof document$ !== "undefined") {
+  document$.subscribe(() => {
+    if (window.MathJax.typesetPromise) window.MathJax.typesetPromise();
+  });
+}
 """
 
 

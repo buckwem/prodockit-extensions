@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import pytest
 from bs4 import BeautifulSoup
 
+from prodockit.mathjax import CONFIG_SOURCE
 from prodockit.pdf.build import Page
 from prodockit.pdf.web_render import (
     RenderTarget,
@@ -380,3 +381,68 @@ def test_real_browser_checks_zensical_closed_shadow_diagrams(tmp_path: Path) -> 
         check=False,
     )
     assert checked.returncode == 0, checked.stderr
+
+
+@pytest.mark.parametrize("subscribe", [False, True])
+def test_real_browser_mathjax_survives_zensical_instant_navigation(
+    tmp_path: Path, subscribe: bool
+) -> None:
+    node = shutil.which("node")
+    browser = find_browser()
+    root = Path(__file__).parents[1]
+    module = Path(os.environ.get(
+        "PDK_BROWSER_TEST_PUPPETEER", str(root / "tools/mermaid/node_modules/puppeteer")
+    ))
+    bundle = Path(os.environ.get(
+        "PDK_BROWSER_TEST_MATHJAX",
+        str(root / "tools/mathjax/node_modules/mathjax-full/es5/tex-svg-full.js"),
+    ))
+    if not node or not browser or not module.is_dir() or not bundle.is_file():
+        pytest.skip("Node, Chrome, Puppeteer and the MathJax install are required")
+
+    docs = tmp_path / "docs"
+    assets = docs / "javascripts"
+    assets.mkdir(parents=True)
+    config_source = CONFIG_SOURCE if subscribe else CONFIG_SOURCE.split(
+        "// Zensical replaces the article", 1
+    )[0]
+    (assets / "mathjax.js").write_text(config_source, encoding="utf-8")
+    shutil.copy2(bundle, assets / "tex-svg-full.js")
+    (docs / "index.md").write_text("[Equation](equation.md)\n", encoding="utf-8")
+    (docs / "equation.md").write_text(
+        "Inline $x^2$ and display:\n\n$$x^2 + y^2$$\n", encoding="utf-8"
+    )
+    (tmp_path / "zensical.toml").write_text(
+        '[project]\nsite_name = "Math navigation"\nsite_url = "https://example.test/"\n'
+        'nav = [{"Home" = "index.md"}, {"Equation" = "equation.md"}]\n'
+        'extra_javascript = ["javascripts/mathjax.js", "javascripts/tex-svg-full.js"]\n'
+        '[project.theme]\nfeatures = ["navigation.instant"]\n'
+        '[project.markdown_extensions.pymdownx.arithmatex]\ngeneric = true\n',
+        encoding="utf-8",
+    )
+    built = subprocess.run(
+        [sys.executable, "-m", "zensical", "build", "--clean", "--strict"],
+        cwd=tmp_path, capture_output=True, text=True, check=False,
+    )
+    assert built.returncode == 0, built.stdout + built.stderr
+    diagnostics = tmp_path / "diagnostics"
+    diagnostics.mkdir()
+    checked = subprocess.run(
+        [node, str(root / "src/prodockit/pdf/web_render.cjs")],
+        input=json.dumps({
+            "siteDir": str(tmp_path / "site"),
+            "puppeteerModule": str(module),
+            "browser": browser,
+            "targets": [{"source": "equation.md", "route": "/equation/", "maths": 2, "mermaid": 0}],
+            "instantNavigation": True,
+            "startRoute": "/",
+            "diagnostics": str(diagnostics),
+            "timeoutMs": 5000,
+        }),
+        capture_output=True, text=True, timeout=45, check=False,
+    )
+    if subscribe:
+        assert checked.returncode == 0, checked.stderr
+    else:
+        assert checked.returncode != 0
+        assert "navigation-equation.md" in checked.stderr
