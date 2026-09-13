@@ -934,6 +934,13 @@ matches a trusted Zensical baseline. Otherwise, it preserves the existing workfl
 and creates a separate proposal if one is not already present. GitLab workflows
 are always preserved, with proposed changes supplied separately.
 
+{% if is_surrey %}
+=== ":fontawesome-brands-gitlab: Surrey GitLab"
+
+    Merge the relevant instructions from `./.gitlab-pdk.yml` into
+    `./.gitlab-ci.yml` in your Surrey GitLab project.
+
+{% else %}
 === ":fontawesome-brands-github: GitHub"
 
     Merge the relevant instructions from `./pdk.yml` into `./.github/workflows/docs.yml`.
@@ -944,6 +951,7 @@ are always preserved, with proposed changes supplied separately.
 === ":fontawesome-brands-gitlab: GitLab"
 
     Merge the relevant instructions from `./.gitlab-pdk.yml` into `./.gitlab-ci.yml`.
+{% endif %}
 
 This is a manual merge, not a file replacement. Bring across the required
 dependency installation and build commands while keeping your existing

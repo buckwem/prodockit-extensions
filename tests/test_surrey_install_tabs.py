@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Mark Buckwell and contributors
 # SPDX-License-Identifier: MIT
 
-"""Keep the first Surrey installation preview free of generic host choices."""
+"""Keep Surrey installation tabs free of generic hosting choices."""
 
 from pathlib import Path
 
@@ -9,12 +9,18 @@ from jinja2 import Environment
 
 
 GETTING_STARTED = Path(__file__).resolve().parent.parent / "docs/getting-started.md"
+MANUAL_INSTALL = GETTING_STARTED.with_name("manual-install.md")
+
+
+def _render(source: Path, *, is_surrey: bool) -> str:
+    text = source.read_text(encoding="utf-8")
+    text = text.replace("{{ heading_counter_reset(page) }}", "")
+    return Environment(autoescape=False).from_string(text).render(is_surrey=is_surrey)
 
 
 def _publishing_stage(*, is_surrey: bool) -> str:
-    source = GETTING_STARTED.read_text(encoding="utf-8")
-    stage = source.split("### Stage 7a —", 1)[1].split("### Stage 7b —", 1)[0]
-    return Environment(autoescape=False).from_string(stage).render(is_surrey=is_surrey)
+    rendered = _render(GETTING_STARTED, is_surrey=is_surrey)
+    return rendered.split("### Stage 7a —", 1)[1].split("### Stage 7b —", 1)[0]
 
 
 def test_surrey_publishing_stage_has_only_surrey_gitlab_tabs() -> None:
@@ -32,3 +38,26 @@ def test_public_publishing_stage_keeps_both_host_choices() -> None:
     assert stage.count('=== "GitLab"') == 2
     assert '=== ":fontawesome-brands-gitlab: Surrey GitLab"' not in stage
     assert "Surrey Login" not in stage
+
+
+def test_surrey_review_and_manual_install_have_one_host_tab_per_group() -> None:
+    review = _render(GETTING_STARTED, is_surrey=True).split("### Stage 7b —", 1)[1]
+    manual = _render(MANUAL_INSTALL, is_surrey=True)
+    assert review.count('=== ":fontawesome-brands-gitlab: Surrey GitLab"') == 1
+    assert manual.count('=== ":fontawesome-brands-gitlab: Surrey GitLab"') == 4
+    for content in (review, manual):
+        assert '=== "GitHub"' not in content
+        assert '=== "GitLab"' not in content
+        assert '=== "GitLab.com"' not in content
+    assert '=== ":fontawesome-brands-github: GitHub"' not in review
+
+
+def test_public_review_and_manual_install_keep_host_choices() -> None:
+    review = _render(GETTING_STARTED, is_surrey=False).split("### Stage 7b —", 1)[1]
+    manual = _render(MANUAL_INSTALL, is_surrey=False)
+    assert '=== ":fontawesome-brands-github: GitHub"' in review
+    assert '=== ":fontawesome-brands-gitlab: GitLab"' in review
+    assert manual.count('=== "GitHub"') == 4
+    assert manual.count('=== "GitLab"') == 2
+    assert manual.count('=== "GitLab.com"') == 2
+    assert '=== ":fontawesome-brands-gitlab: Surrey GitLab"' not in manual

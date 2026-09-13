@@ -543,9 +543,16 @@ Visual Studio Code use the same Git installation.
 
 1. Now that you've generated your keys and finished the configuration, add {% if is_surrey %}it to your GitLab account{% else %}them to your GitHub and GitLab accounts{% endif %} using the instructions below.
 
+{% if is_surrey %}
+    === ":fontawesome-brands-gitlab: Surrey GitLab"
+
+        1. Open [Surrey GitLab](https://gitlab.surrey.ac.uk), select
+           **Surrey Login**, and sign in with your university credentials.
+{% else %}
     === "GitLab"
 
         1. Log in to your **GitLab** account in a web browser.
+{% endif %}
         2. In the top-right corner, click on your **profile avatar** and select **Edit profile**.
         3. On the left-hand sidebar, select **Access > SSH Keys**.
         4. Click **Add new key**{: .bg-blue} and fill out the following details:
@@ -697,6 +704,15 @@ or GitHub repository.
 
 1. Create a **blank** repository on the service where the work will be kept.
 
+{% if is_surrey %}
+    === ":fontawesome-brands-gitlab: Surrey GitLab"
+
+        On [Surrey GitLab](https://gitlab.surrey.ac.uk), select
+        **Surrey Login**, then **New project > Create blank project**.
+        Give it the required name, set its visibility to **Private**, and
+        untick **Initialize repository with a README**.
+
+{% else %}
     === "GitLab"
 
         On the GitLab website, select **New project > Create blank project**.
@@ -708,6 +724,7 @@ or GitHub repository.
         On the GitHub website, select **New repository**. Give it the required
         name, set it to **Private**, and leave every **Initialize this
         repository with** option unticked.
+{% endif %}
 
     The repository must be empty because the template provides the README,
     licence, `.gitignore`, and first commit. Initialising any of those on the
@@ -786,13 +803,12 @@ or GitHub repository.
     SSH URL you copied earlier:
 
 {% if is_surrey %}
-    === "University of Surrey GitLab"
+    === ":fontawesome-brands-gitlab: Surrey GitLab"
 
         ``` bash
         git remote add origin git@gitlab.surrey.ac.uk:comm058-2026/report-az1234.git
         ```
-{% endif %}
-
+{% else %}
     === "GitLab.com"
 
         ``` bash
@@ -804,6 +820,7 @@ or GitHub repository.
         ``` bash
         git remote add origin git@github.com:your-username/report-az1234.git
         ```
+{% endif %}
 
 1. Run `git remote -v` again. Both lines must now show your repository, not
     `prodockit-template`:
@@ -834,13 +851,12 @@ the same place.
 1. Clone that URL. For example:
 
 {% if is_surrey %}
-    === "University of Surrey GitLab"
+    === ":fontawesome-brands-gitlab: Surrey GitLab"
 
         ``` bash
         git clone git@gitlab.surrey.ac.uk:comm058-2026/report-az1234.git
         ```
-{% endif %}
-
+{% else %}
     === "GitLab.com"
 
         ``` bash
@@ -852,6 +868,7 @@ the same place.
         ``` bash
         git clone git@github.com:your-username/report-az1234.git
         ```
+{% endif %}
 
 1. Change into the cloned project as a separate step:
 
