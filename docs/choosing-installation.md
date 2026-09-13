@@ -12,6 +12,14 @@ than stages to complete in sequence.
 
 ## Choose an installation path
 
+{% if is_surrey %}
+!!! info "Coursework with a prepared repository"
+
+    If you are using Prodockit for coursework, your course will give you a
+    prepared repository. Follow [section 5 — Build a template site](devcons/bootstrap.md)
+    to set it up; you do not need to create a separate site from scratch.
+{% endif %}
+
 \ref{fig-installation-approaches} helps you choose between a template site,
 adopting Prodockit for a new or existing Zensical site, and a manual installation.
 

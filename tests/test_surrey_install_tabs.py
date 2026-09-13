@@ -9,6 +9,7 @@ from jinja2 import Environment
 
 GETTING_STARTED = Path(__file__).resolve().parent.parent / "docs/getting-started.md"
 MANUAL_INSTALL = GETTING_STARTED.with_name("manual-install.md")
+CHOOSING_INSTALLATION = GETTING_STARTED.with_name("choosing-installation.md")
 
 
 def _render(source: Path, *, is_surrey: bool) -> str:
@@ -60,3 +61,9 @@ def test_public_review_and_manual_install_keep_host_choices() -> None:
     assert manual.count('=== "GitLab"') == 2
     assert manual.count('=== "GitLab.com"') == 2
     assert '=== ":fontawesome-brands-gitlab: Surrey GitLab"' not in manual
+
+
+def test_prepared_coursework_repo_guidance_is_surrey_only() -> None:
+    link = "[section 5 — Build a template site](devcons/bootstrap.md)"
+    assert link in _render(CHOOSING_INSTALLATION, is_surrey=True)
+    assert link not in _render(CHOOSING_INSTALLATION, is_surrey=False)

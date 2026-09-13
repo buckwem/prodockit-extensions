@@ -60,6 +60,10 @@ _INTENTIONAL_JINJA_BY_PAGE = {
         "{% else %}",
         "{% endif %}",
     },
+    "choosing-installation.md": {
+        "{% if is_surrey %}",
+        "{% endif %}",
+    },
 }
 
 
