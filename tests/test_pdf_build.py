@@ -968,6 +968,28 @@ def test_does_not_warn_about_prose_quoting_the_renderers_own_markup(
     assert "⚠️" not in capsys.readouterr().out
 
 
+def test_does_not_warn_about_commented_renderer_markup_or_literal_delimiters(
+    tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """HTML comments and code examples are not active renderer elements."""
+    fake_pandoc_on_path('echo "%PDF-1.4 stub" > "$3"')
+    build_pdf(
+        [
+            Page(
+                docs_rel_path="examples.md",
+                html=(
+                    '<!-- <div class="arithmatex">\\[x^2\\]</div> '
+                    '<pre class="mermaid">graph LR; A-->B</pre> -->'
+                    '<p><code>$$x^2$$</code> and '
+                    '<code>&lt;pre class="mermaid"&gt;</code> are examples.</p>'
+                ),
+            )
+        ],
+        str(tmp_path / "out.pdf"),
+    )
+    assert "⚠️" not in capsys.readouterr().out
+
+
 def test_still_warns_when_real_maths_sits_beside_prose_quoting_the_markup(
     tmp_path: Path, fake_pandoc_on_path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -111,7 +111,36 @@ def _uses_mermaid(source: str) -> bool:
     """Return whether a real Markdown fence selects the Mermaid renderer."""
     fence_char = ""
     fence_length = 0
+    in_comment = False
     for line in source.splitlines():
+        if not fence_char:
+            # A fenced example inside an HTML comment is not a diagram. Do
+            # this before looking for a fence, but never interpret comment
+            # markers inside code spans or an already-open code fence as
+            # HTML comments.
+            if not re.match(r"^\s*[`~]{3,}", line):
+                line = _INLINE_CODE_RE.sub(lambda match: " " * len(match.group()), line)
+            visible = []
+            offset = 0
+            while offset < len(line):
+                if in_comment:
+                    end = line.find("-->", offset)
+                    if end < 0:
+                        visible.append(" " * (len(line) - offset))
+                        break
+                    visible.append(" " * (end + 3 - offset))
+                    offset = end + 3
+                    in_comment = False
+                else:
+                    start = line.find("<!--", offset)
+                    if start < 0:
+                        visible.append(line[offset:])
+                        break
+                    visible.append(line[offset:start])
+                    visible.append("    ")
+                    offset = start + 4
+                    in_comment = True
+            line = "".join(visible)
         marker = re.match(r"^\s*([`~]{3,})(.*)$", line)
         if fence_char:
             if (

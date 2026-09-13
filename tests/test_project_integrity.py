@@ -241,6 +241,48 @@ def test_configured_mermaid_is_optional_until_a_diagram_uses_it(
     assert any("mmdc renderer" in message for message in _messages(config))
 
 
+@pytest.mark.parametrize(
+    "example",
+    [
+        "<!--\n```mermaid\ngraph LR\n  A --- B\n```\n-->",
+        "````markdown\n```mermaid\ngraph LR\n  A --> B\n```\n````",
+        "` ```mermaid ` is an example, not a diagram.",
+    ],
+)
+def test_quoted_or_commented_mermaid_fence_does_not_require_a_renderer(
+    tmp_path: Path, monkeypatch, example: str
+) -> None:
+    monkeypatch.setenv("PATH", "")
+    config = _project(
+        tmp_path,
+        "[project.markdown_extensions.pymdownx.superfences]\n"
+        'custom_fences = [{name = "mermaid"}]\n',
+        {"index.md": f"# Examples\n\n{example}\n"},
+    )
+
+    assert not any("mmdc renderer" in message for message in _messages(config))
+
+
+def test_real_mermaid_fence_beside_quoted_example_still_requires_a_renderer(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("PATH", "")
+    config = _project(
+        tmp_path,
+        "[project.markdown_extensions.pymdownx.superfences]\n"
+        'custom_fences = [{name = "mermaid"}]\n',
+        {
+            "index.md": (
+                "<!-- ```mermaid is an example -->\n"
+                "The literal opening marker `<!--` is also an example.\n\n"
+                "```mermaid\ngraph LR\n  A --> B\n```\n"
+            )
+        },
+    )
+
+    assert any("mmdc renderer" in message for message in _messages(config))
+
+
 def test_mermaid_renderer_must_run_not_merely_exist(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("PATH", "")
     config = _project(
@@ -271,6 +313,42 @@ def test_configured_maths_is_optional_until_notation_uses_it(tmp_path: Path) -> 
     assert not any("tex2svg renderer" in message for message in _messages(config))
 
     (tmp_path / "docs" / "index.md").write_text("The area is $a^2$.\n", encoding="utf-8")
+    assert any("tex2svg renderer" in message for message in _messages(config))
+
+
+@pytest.mark.parametrize(
+    "example",
+    [
+        "<!-- $$x^2$$ -->",
+        "<!--\n$$\nx^2\n$$\n-->",
+        "`$$x^2$$`",
+        "`` Example: `$$x^2$$` ``",
+        "```markdown\n$$\nx^2\n$$\n```",
+        "~~~text\n$$x^2$$\n~~~",
+        r"\$\$x^2\$\$",
+    ],
+)
+def test_quoted_or_commented_display_maths_does_not_require_a_renderer(
+    tmp_path: Path, example: str
+) -> None:
+    config = _project(
+        tmp_path,
+        "[project.markdown_extensions.pymdownx.arithmatex]\n",
+        {"index.md": f"# Examples\n\n{example}\n"},
+    )
+
+    assert not any("tex2svg renderer" in message for message in _messages(config))
+
+
+def test_real_display_maths_beside_quoted_examples_still_requires_a_renderer(
+    tmp_path: Path,
+) -> None:
+    config = _project(
+        tmp_path,
+        "[project.markdown_extensions.pymdownx.arithmatex]\n",
+        {"index.md": "<!-- $$hidden$$ -->\n`$$example$$`\n\n$$\nx^2\n$$\n"},
+    )
+
     assert any("tex2svg renderer" in message for message in _messages(config))
 
 
