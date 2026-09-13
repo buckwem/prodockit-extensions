@@ -2482,7 +2482,8 @@ def test_template_release_uses_newest_reachable_version_in_mirror_graph(tmp_path
     git("switch", "main")
     git("merge", "--no-ff", "newer-template", "-m", "mirror sync")
     exact = git("rev-parse", "HEAD")
-    assert git("describe", "--tags", "--abbrev=0") == "0.0.56"
+    # Git's preferred reachable tag depends on its traversal order. The
+    # behaviour under test is our semantic-version selection below.
     git("tag", "unrelated-label")
     git("tag", "prodockit-v99.0.0")
     git("switch", "-c", "future")
