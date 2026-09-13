@@ -19,6 +19,19 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.65.3 (2026-09-13)
+
+- PDF table headers now default to left alignment, matching the website.
+  Explicit column and cell alignment is respected, including captioned tables
+  and merged headers.
+- PDF generation checks that the included website pages actually render their
+  maths and Mermaid diagrams, rather than accepting missing or broken output.
+  Failures point to diagnostics and repair commands; quoted examples and
+  comments are not mistaken for active notation.
+- MathJax typesets correctly after instant navigation between website pages.
+  Refresh the generated website assets with `pdk init-mathjax` after upgrading,
+  then rebuild the website before generating its PDF.
+
 ## 0.65.2 (2026-09-12)
 
 - Raise the coordinated supported Zensical version to 0.0.61. Upgrade the
