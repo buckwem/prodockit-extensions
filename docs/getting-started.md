@@ -694,7 +694,12 @@ Choose the next stage for your site:
 
 ### Stage 7a — Publish the website **Clean**{: .install-clean} {: #stage-6-save-and-publish-optional }
 
+{% if is_surrey %}
+This stage publishes your working local site on Surrey GitLab Pages.
+{% else %}
 This stage publishes your working local site on GitHub Pages or GitLab Pages.
+{% endif %}
+
 Stay in the project directory with its environment active. If the site is
 already published, keep its existing workflow and use its normal review process.
 
@@ -721,6 +726,18 @@ Using an editor for this review is optional; the commands below work without one
 
 Use your host's tab. Skip settings that are already correct.
 
+{% if is_surrey %}
+=== ":fontawesome-brands-gitlab: Surrey GitLab"
+
+    Sign in to [Surrey GitLab](https://gitlab.surrey.ac.uk) using
+    **Surrey Login**, then open your project. Keep its existing Pages job in
+    `.gitlab-ci.yml`. If Adopt created `.gitlab-pdk.yml`, first follow
+    [Merge the build instructions](#merge-adopt-build-instructions).
+    If the project has no Pages job, follow
+    [the GitLab publishing workflow setup](devcons/continuous-integration.md)
+    before continuing. Adopt does not create an active GitLab pipeline.
+
+{% else %}
 === "GitHub"
 
     1. Open your repository on GitHub.
@@ -738,6 +755,7 @@ Use your host's tab. Skip settings that are already correct.
     Keep your existing Pages job in `.gitlab-ci.yml`. If none exists, follow
     [the GitLab publishing workflow setup](devcons/continuous-integration.md)
     before continuing. Adopt does not create an active GitLab pipeline.
+{% endif %}
 
 ////
 
@@ -791,6 +809,16 @@ If there is nothing new to commit or push, check the latest deployment instead.
 
 Wait for a successful deployment, then open the published site:
 
+{% if is_surrey %}
+=== ":fontawesome-brands-gitlab: Surrey GitLab"
+
+    1. Open the project's **Build > Pipelines** page on
+       [Surrey GitLab](https://gitlab.surrey.ac.uk) and check that the Pages
+       job for your latest commit succeeds.
+    2. Return to the project's front page and click its **GitLab Pages**
+       link to open the website.
+
+{% else %}
 === "GitHub"
 
     1. Open the repository's **Actions** tab.
@@ -804,6 +832,7 @@ Wait for a successful deployment, then open the published site:
     1. Open the project's **Build > Pipelines** page.
     2. Open the pipeline for your latest commit and check that its Pages job succeeds.
     3. Return to the repository's front page and click the **GitLab Pages** link to open your site.
+{% endif %}
 
 Check the pages, navigation and any diagrams or maths. If publishing fails,
 use [Troubleshooting](troubleshooting-installs.md) before retrying.

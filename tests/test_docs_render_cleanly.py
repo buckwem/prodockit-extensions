@@ -55,6 +55,11 @@ _INTENTIONAL_JINJA_BY_PAGE = {
         "{% else %}",
         "{% endif %}",
     },
+    "getting-started.md": {
+        "{% if is_surrey %}",
+        "{% else %}",
+        "{% endif %}",
+    },
 }
 
 
