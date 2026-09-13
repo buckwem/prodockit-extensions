@@ -7,7 +7,6 @@ from pathlib import Path
 
 from jinja2 import Environment
 
-
 GETTING_STARTED = Path(__file__).resolve().parent.parent / "docs/getting-started.md"
 MANUAL_INSTALL = GETTING_STARTED.with_name("manual-install.md")
 
