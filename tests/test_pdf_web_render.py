@@ -174,17 +174,18 @@ def test_browser_failure_keeps_diagnostics_and_fails(
 
 
 @pytest.mark.parametrize(
-    ("math_format", "missing"),
+    ("math_format", "missing", "closed_shadow"),
     [
-        ("svg", None),
-        ("chtml", None),
-        ("katex", None),
-        ("svg", "maths"),
-        ("svg", "mermaid"),
+        ("svg", None, False),
+        ("chtml", None, False),
+        ("katex", None, False),
+        ("svg", None, True),
+        ("svg", "maths", False),
+        ("svg", "mermaid", False),
     ],
 )
 def test_real_browser_checks_both_renderers_and_navigation(
-    tmp_path: Path, math_format: str, missing: str | None
+    tmp_path: Path, math_format: str, missing: str | None, closed_shadow: bool
 ) -> None:
     node = shutil.which("node")
     browser = find_browser()
@@ -215,14 +216,21 @@ def test_real_browser_checks_both_renderers_and_navigation(
         if missing == "maths"
         else (f"document.querySelector('.arithmatex').innerHTML = {json.dumps(math_markup)};")
     )
-    mermaid_script = (
-        ""
-        if missing == "mermaid"
-        else (
+    if missing == "mermaid":
+        mermaid_script = ""
+    elif closed_shadow:
+        mermaid_script = (
+            "const old = document.querySelector('.mermaid'); "
+            "const host = document.createElement('div'); "
+            "host.className = 'mermaid'; old.replaceWith(host); "
+            "host.attachShadow({mode: 'closed'}).innerHTML = "
+            '\'<svg width="40" height="20"></svg>\';'
+        )
+    else:
+        mermaid_script = (
             "document.querySelector('.mermaid').innerHTML = "
             '\'<svg width="40" height="20"></svg>\';'
         )
-    )
     (example / "index.html").write_text(
         '<article class="md-content__inner md-typeset">'
         '<div class="arithmatex">\\[x^2\\]</div>'
@@ -325,3 +333,50 @@ def test_real_browser_visits_inactive_content_tabs(
     else:
         assert result.returncode != 0
         assert "index.md" in result.stderr
+
+
+def test_real_browser_checks_zensical_closed_shadow_diagrams(tmp_path: Path) -> None:
+    node = shutil.which("node")
+    browser = find_browser()
+    module = Path(
+        os.environ.get(
+            "PDK_BROWSER_TEST_PUPPETEER",
+            str(Path(__file__).parents[1] / "tools/mermaid/node_modules/puppeteer"),
+        )
+    )
+    if not node or not browser or not module.is_dir():
+        pytest.skip("Node, Chrome and the CI Puppeteer install are required")
+
+    fixture = Path(__file__).parent / "fixtures" / "pdf_web_render_nested"
+    shutil.copytree(fixture, tmp_path, dirs_exist_ok=True)
+    built = subprocess.run(
+        [sys.executable, "-m", "zensical", "build", "--clean", "--strict"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    assert built.returncode == 0, built.stdout + built.stderr
+    diagnostics = tmp_path / "diagnostics"
+    diagnostics.mkdir()
+    checked = subprocess.run(
+        [node, str(Path(__file__).parents[1] / "src/prodockit/pdf/web_render.cjs")],
+        input=json.dumps(
+            {
+                "siteDir": str(tmp_path / "site"),
+                "puppeteerModule": str(module),
+                "browser": browser,
+                "targets": [{"source": "index.md", "route": "/", "maths": 0, "mermaid": 9}],
+                "instantNavigation": False,
+                "diagnostics": str(diagnostics),
+                "timeoutMs": 5000,
+            }
+        ),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+        check=False,
+    )
+    assert checked.returncode == 0, checked.stderr

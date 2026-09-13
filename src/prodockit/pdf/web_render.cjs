@@ -49,7 +49,10 @@ const server = http.createServer((incoming, outgoing) => {
 
 function renderedCounts() {
   const article = document.querySelector('article.md-content__inner.md-typeset');
-  if (!article) return { article: false, maths: [], mermaid: [], visibleMaths: [], visibleMermaid: [] };
+  if (!article) return {
+    article: false, maths: [], mermaid: [], visibleMaths: [], visibleMermaid: [],
+    totalMaths: 0, totalMermaid: 0,
+  };
   const visible = element => {
     const box = element.getBoundingClientRect();
     const style = getComputedStyle(element);
@@ -77,7 +80,10 @@ function renderedCounts() {
       return katex && visible(katex) && katex.querySelector('.katex-html') ? [index] : [];
     });
   const mermaid = mermaidHosts.flatMap((host, index) => svgWithin(host) ? [index] : []);
-  return { article: true, maths, mermaid, visibleMaths, visibleMermaid };
+  return {
+    article: true, maths, mermaid, visibleMaths, visibleMermaid,
+    totalMaths: mathHosts.length, totalMermaid: mermaidHosts.length,
+  };
 }
 
 async function captureFailure(page, label, errors) {
@@ -92,21 +98,72 @@ async function captureFailure(page, label, errors) {
   }
 }
 
+async function closedShadowMermaidIndices(client, needed) {
+  if (!needed.length) return [];
+  const { root } = await client.send('DOM.getDocument', { depth: 0 });
+  const { nodeIds } = await client.send('DOM.querySelectorAll', {
+    nodeId: root.nodeId,
+    selector: 'article.md-content__inner.md-typeset .mermaid',
+  });
+  const rendered = [];
+  for (const index of needed) {
+    if (index >= nodeIds.length) continue;
+    const { node } = await client.send('DOM.describeNode', {
+      nodeId: nodeIds[index], depth: 1, pierce: true,
+    });
+    const svg = node.shadowRoots?.flatMap(root => root.children || [])
+      .find(child => child.localName === 'svg');
+    if (!svg?.backendNodeId) continue;
+    const { object } = await client.send('DOM.resolveNode', {
+      backendNodeId: svg.backendNodeId,
+    });
+    if (!object?.objectId) continue;
+    try {
+      const { result } = await client.send('Runtime.callFunctionOn', {
+        objectId: object.objectId,
+        functionDeclaration: `function() {
+          const box = this.getBoundingClientRect();
+          const style = getComputedStyle(this);
+          return box.width > 0 && box.height > 0 &&
+            style.display !== 'none' && style.visibility !== 'hidden';
+        }`,
+        returnByValue: true,
+      });
+      if (result.value === true) rendered.push(index);
+    } finally {
+      await client.send('Runtime.releaseObject', { objectId: object.objectId });
+    }
+  }
+  return rendered;
+}
+
 async function checkPage(page, target, label, errors) {
   const seen = { maths: new Set(), mermaid: new Set() };
+  const client = target.mermaid ? await page.target().createCDPSession() : null;
   const observe = async () => {
-    await page.waitForFunction(
-      () => {
-        const state = window.__pdkRenderedCounts();
-        return state.article &&
-          state.visibleMaths.every(index => state.maths.includes(index)) &&
-          state.visibleMermaid.every(index => state.mermaid.includes(index));
-      },
-      { timeout: timeoutMs, polling: 250 },
-    );
-    const state = await page.evaluate(renderedCounts);
-    state.maths.forEach(index => seen.maths.add(index));
-    state.mermaid.forEach(index => seen.mermaid.add(index));
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const state = await page.evaluate(renderedCounts);
+      const missingMermaid = target.mermaid
+        ? state.visibleMermaid.filter(index => !state.mermaid.includes(index))
+        : [];
+      const closedMermaid = client
+        ? await closedShadowMermaidIndices(client, missingMermaid)
+        : [];
+      const renderedMermaid = new Set([...state.mermaid, ...closedMermaid]);
+      const mathsReady = !target.maths ||
+        state.visibleMaths.every(index => state.maths.includes(index));
+      const mermaidReady = !target.mermaid ||
+        state.visibleMermaid.every(index => renderedMermaid.has(index));
+      if (state.article && state.totalMaths >= target.maths &&
+          state.totalMermaid >= target.mermaid && mathsReady && mermaidReady) {
+        state.maths.forEach(index => seen.maths.add(index));
+        renderedMermaid.forEach(index => seen.mermaid.add(index));
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    throw new Error(`Rendering did not complete within ${timeoutMs} ms`);
   };
   try {
     await observe();
@@ -132,6 +189,8 @@ async function checkPage(page, target, label, errors) {
       `${target.mermaid} Mermaid SVG(s); found ${seen.maths.size} and ` +
       `${seen.mermaid.size} after checking visible content and tabs. ${error.message}`,
     );
+  } finally {
+    if (client) await client.detach().catch(() => {});
   }
 }
 
@@ -158,7 +217,7 @@ async function main() {
 
     for (const target of request.targets) {
       try {
-        await page.goto(`${base}${target.route}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.goto(`${base}${target.route}`, { waitUntil: 'load', timeout: 15000 });
       } catch (error) {
         await captureFailure(page, `load-${target.source}`, errors);
         throw new Error(`${target.source}: the built page did not load: ${error.message}`);
@@ -168,7 +227,7 @@ async function main() {
     if (request.instantNavigation && request.startRoute) {
       const target = request.targets[0];
       try {
-        await page.goto(`${base}${request.startRoute}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.goto(`${base}${request.startRoute}`, { waitUntil: 'load', timeout: 15000 });
       } catch (error) {
         await captureFailure(page, `navigation-start-${target.source}`, errors);
         throw new Error(`${target.source}: the instant-navigation start page did not load: ${error.message}`);
