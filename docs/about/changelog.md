@@ -19,6 +19,12 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.65.5 (2026-09-13)
+
+- Getting started now gives University of Surrey readers the Surrey GitLab
+  route through installation and troubleshooting, while the public guide
+  retains its GitHub and GitLab choices.
+
 ## 0.65.4 (2026-09-13)
 
 - Rename the opening documentation page to `gettingstarted.md`. Update
