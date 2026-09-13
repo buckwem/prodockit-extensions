@@ -8,6 +8,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from jinja2 import Environment
+
 from prodockit.template_sync import read_config
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -154,12 +156,19 @@ def test_template_introduction_explains_contents_and_ownership() -> None:
         "Generated and local files",
         "prodockit bootstrap",
         "pdk template-sync",
-        "maintained on GitHub",
-        "student-facing mirror",
     )
 
     missing = [item for item in required if item not in guide]
     assert not missing, f"template concepts absent from the introduction: {missing}"
+
+    template = Environment(autoescape=False).from_string(
+        guide.replace("{{ heading_counter_reset(page) }}", "")
+    )
+    public = template.render(is_surrey=False)
+    surrey = template.render(is_surrey=True)
+    assert "The template is maintained on GitHub" in public
+    assert "Surrey GitLab repository" in surrey
+    assert "GitHub" not in surrey
 
 
 def test_every_publishing_page_has_a_navigation_icon() -> None:
