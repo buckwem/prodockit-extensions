@@ -18,6 +18,7 @@ from prodockit.pdf.config import (
     build_pdf_from_zensical_config,
     build_source_bundle_from_zensical_config,
 )
+from prodockit.pdf.web_render import WebRenderError
 
 _ZENSICAL_TOML = """
 [project]
@@ -298,6 +299,30 @@ def test_built_site_pdf_is_written_to_author_and_published_paths(project) -> Non
     published_pdf = root / "site" / "site_documentation.pdf"
     assert author_pdf.read_bytes() == b"%PDF-1.4 exact"
     assert published_pdf.read_bytes() == author_pdf.read_bytes()
+
+
+def test_default_built_site_pdf_checks_browser_before_writing_output(
+    project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = project()
+    (root / "docs" / "chapter1.md").write_text("# Chapter One\n\n$$x^2$$\n", encoding="utf-8")
+    (root / "site" / "chapter1" / "index.html").write_text(
+        '<article class="md-content__inner md-typeset">'
+        '<div class="arithmatex">\\[x^2\\]</div></article>',
+        encoding="utf-8",
+    )
+    seen = []
+
+    def reject_rendering(project_config, pages, *, instant_navigation):
+        seen.append([page.docs_rel_path for page in pages])
+        raise WebRenderError("browser-rendered equation is missing")
+
+    monkeypatch.setattr(config, "check_web_rendering", reject_rendering)
+    with pytest.raises(WebRenderError, match="browser-rendered equation is missing"):
+        build_pdf_from_built_site(str(root / "zensical.toml"))
+
+    assert seen == [["index.md", "chapter1.md"]]
+    assert not (root / "docs" / "site_documentation.pdf").exists()
 
 
 def test_built_site_pdf_outside_docs_is_not_published(project) -> None:

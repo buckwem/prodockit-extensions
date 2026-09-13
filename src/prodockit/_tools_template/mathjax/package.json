@@ -3,7 +3,8 @@
   "private": true,
   "description": "Local mathjax-full install used by `prodockit pdf` to pre-render TeX maths for the PDF build. Scaffolded by `prodockit init-tools`.",
   "dependencies": {
-    "mathjax-full": "^3.2.2"
+    "mathjax-full": "^3.2.2",
+    "puppeteer-core": "^25.9.0"
   },
   "overrides": {
     "@xmldom/xmldom": "0.9.12"

@@ -2807,10 +2807,9 @@ def _pdf_options(command: Callable[_P, _R]) -> Callable[_P, _R]:
 @main.command()
 @_pdf_options
 def pdf(config_file: str, markdown_file: str | None) -> None:
-    """Build a PDF from your project, using CONFIG_FILE for everything -
-    nav, docs directory, fonts, page size, and so on. See the PDF
-    generation docs for the full list of `zensical.toml` settings this
-    reads."""
+    """Check website maths and diagrams, then build a PDF from the completed
+    Zensical site. CONFIG_FILE supplies nav, docs directory, fonts, page
+    size, and other PDF settings."""
     try:
         check_pdf_environment(config_file)
     except BuildEnvironmentError as error:

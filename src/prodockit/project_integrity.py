@@ -95,8 +95,21 @@ def _without_fenced_code(source: str) -> str:
     return "".join(lines)
 
 
+def _without_front_matter(source: str) -> str:
+    """Ignore page metadata, which does not become article content."""
+    lines = source.splitlines(keepends=True)
+    if not lines or lines[0].strip() not in {"---", "+++"}:
+        return source
+    delimiter = lines[0].strip()
+    for end in range(1, len(lines)):
+        if lines[end].strip() == delimiter:
+            blank = "".join("\n" if line.endswith("\n") else "" for line in lines[: end + 1])
+            return blank + "".join(lines[end + 1 :])
+    return source
+
+
 def _scannable_markdown(source: str) -> str:
-    source = _INLINE_CODE_RE.sub("", _without_fenced_code(source))
+    source = _INLINE_CODE_RE.sub("", _without_fenced_code(_without_front_matter(source)))
     # Blank comments rather than deleting them: keep line positions and
     # avoid joining separate fragments into apparently active syntax.
     return re.sub(
@@ -107,12 +120,17 @@ def _scannable_markdown(source: str) -> str:
     )
 
 
-def _uses_mermaid(source: str) -> bool:
-    """Return whether a real Markdown fence selects the Mermaid renderer."""
+def count_mermaid_fences(source: str) -> int:
+    """Count active Mermaid fences, excluding examples and HTML comments."""
     fence_char = ""
     fence_length = 0
     in_comment = False
-    for line in source.splitlines():
+    count = 0
+    for line in _without_front_matter(source).splitlines():
+        # A Markdown blockquote can contain a real Mermaid fence. Strip only
+        # its quote markers; illustrative fences inside a code block are
+        # still excluded by the fence state below.
+        line = re.sub(r"^\s*(?:>\s*)+", "", line)
         if not fence_char:
             # A fenced example inside an HTML comment is not a diagram. Do
             # this before looking for a fence, but never interpret comment
@@ -158,13 +176,23 @@ def _uses_mermaid(source: str) -> bool:
         fence_length = len(marker.group(1))
         info = marker.group(2).strip()
         if re.match(r"^mermaid(?:\s|$)", info, flags=re.IGNORECASE):
-            return True
-    return False
+            count += 1
+    return count
+
+
+def _uses_mermaid(source: str) -> bool:
+    """Return whether a real Markdown fence selects the Mermaid renderer."""
+    return count_mermaid_fences(source) > 0
+
+
+def count_math_expressions(source: str) -> int:
+    """Count active Arithmatex notation, excluding documented examples."""
+    return sum(1 for _ in _ARITHMATEX_RE.finditer(_scannable_markdown(source)))
 
 
 def _uses_maths(source: str) -> bool:
     """Return whether prose contains notation handled by Arithmatex."""
-    return bool(_ARITHMATEX_RE.search(_scannable_markdown(source)))
+    return count_math_expressions(source) > 0
 
 
 def _is_remote(value: str) -> bool:
