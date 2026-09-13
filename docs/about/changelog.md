@@ -19,6 +19,13 @@ only when it adds or changes behaviour that matters to a user, or requires an
 upgrade action. Defect-by-defect history belongs in GitHub issues and pull
 requests rather than here.
 
+## 0.65.4 (2026-09-13)
+
+- Rename the opening documentation page to `gettingstarted.md`. Update
+  navigation, internal links, and the single-page PDF action so all point to
+  the new `/gettingstarted/` route. Existing bookmarks to `/introduction/`
+  should be updated.
+
 ## 0.65.3 (2026-09-13)
 
 - PDF table headers now default to left alignment, matching the website.

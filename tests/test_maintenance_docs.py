@@ -142,7 +142,7 @@ def test_documentation_flow_diagrams_are_committed_raster_images() -> None:
         ),
         "docs/devcons/template-sync.md": ("23.1-template-sync-decision.png",),
         "docs/devcons/testing.md": ("25.1-output-testing-layers.png",),
-        "docs/introduction.md": ("1.1-prodockit-output-relationship.png",),
+        "docs/gettingstarted.md": ("1.1-prodockit-output-relationship.png",),
         "docs/choosing-installation.md": ("2.1-installation-approaches.png",),
         "docs/pdf.md": ("19.1-website-and-pdf-example.png",),
     }

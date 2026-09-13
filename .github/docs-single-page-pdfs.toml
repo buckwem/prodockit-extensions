@@ -11,7 +11,7 @@ version = 1
 # site's new audience-level shapes, and previously had almost no single-page
 # coverage beyond the general introduction.
 overviews = [
-  "introduction.md",
+  "gettingstarted.md",
   "authoring.md",
   "publishing.md",
   "project-maintenance.md",
@@ -51,7 +51,7 @@ other_page_shapes = [
 # for the cover: `--markdown-file` deliberately has no cover-page semantics.
 [covered]
 "index.md" = "complete"
-"choosing-installation.md" = "introduction.md"
+"choosing-installation.md" = "gettingstarted.md"
 "getting-started.md" = "installation.md"
 "manual-install.md" = "installation.md"
 "troubleshooting-installs.md" = "installation.md"

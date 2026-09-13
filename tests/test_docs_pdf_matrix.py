@@ -76,7 +76,7 @@ def test_each_audience_overview_uses_the_single_page_path() -> None:
     groups, _ = _matrix()
 
     assert groups["overviews"] == [
-        "introduction.md",
+        "gettingstarted.md",
         "authoring.md",
         "publishing.md",
         "project-maintenance.md",

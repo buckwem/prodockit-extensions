@@ -213,7 +213,7 @@ def test_reference_site_fails_when_a_macro_cannot_render() -> None:
 
 
 def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
-    introduction = _text("docs/introduction.md")
+    introduction = _text("docs/gettingstarted.md")
     choices = _text("docs/choosing-installation.md")
     publishing = _text("docs/publishing.md")
 
@@ -226,7 +226,7 @@ def test_get_started_routes_authors_to_authoring_and_publishing() -> None:
 
 
 def test_introduction_offers_an_optional_tracking_free_support_link() -> None:
-    introduction = _text("docs/introduction.md")
+    introduction = _text("docs/gettingstarted.md")
 
     assert "## Support prodockit" in introduction
     assert "https://buymeacoffee.com/buckwem" in introduction

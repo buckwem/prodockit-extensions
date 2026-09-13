@@ -59,7 +59,7 @@ the task you have in mind.
 
 | Page | Use it for |
 |---|---|
-| [Get started](../introduction.md) | Install prodockit and build a first local site |
+| [Get started](../gettingstarted.md) | Install prodockit and build a first local site |
 | [Authoring reference](../authoring.md) | Add document features, macros, PDFs, and command-line tools |
 | [Publish a document](../publishing.md) | Update and deploy a website and its outputs |
 | [Support and compatibility](support.md) | Check maturity, supported versions, platforms, and known constraints |
