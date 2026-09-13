@@ -3,6 +3,7 @@
 
 """Keep Surrey installation tabs free of generic hosting choices."""
 
+import re
 from pathlib import Path
 
 from jinja2 import Environment
@@ -10,6 +11,7 @@ from jinja2 import Environment
 GETTING_STARTED = Path(__file__).resolve().parent.parent / "docs/getting-started.md"
 MANUAL_INSTALL = GETTING_STARTED.with_name("manual-install.md")
 CHOOSING_INSTALLATION = GETTING_STARTED.with_name("choosing-installation.md")
+BOOTSTRAP = GETTING_STARTED.parent / "devcons/bootstrap.md"
 
 
 def _render(source: Path, *, is_surrey: bool) -> str:
@@ -75,3 +77,23 @@ def test_prepared_coursework_repo_guidance_is_surrey_only() -> None:
     link = "[section 5 — Build a template site](devcons/bootstrap.md)"
     assert link in _render(CHOOSING_INSTALLATION, is_surrey=True)
     assert link not in _render(CHOOSING_INSTALLATION, is_surrey=False)
+
+
+def test_bootstrap_uses_only_the_selected_host_and_surrey_links_open_new_tabs() -> None:
+    surrey = _render(BOOTSTRAP, is_surrey=True)
+    public = _render(BOOTSTRAP, is_surrey=False)
+
+    assert "GitHub" not in surrey
+    assert "GitLab.com" not in surrey
+    assert "gitlab.surrey.ac.uk" in surrey
+    assert surrey.count("Surrey GitLab") == 3
+    surrey_links = re.findall(
+        r'\[Surrey GitLab(?: repository)?\]\(https://gitlab\.surrey\.ac\.uk'
+        r'(?:/mb0105/prodockit-template)?\)\{target="_blank" rel="noopener"\}',
+        surrey,
+    )
+    assert len(surrey_links) == 3
+
+    assert "Surrey" not in public
+    assert "gitlab.surrey.ac.uk" not in public
+    assert "GitHub.com or GitLab.com" in public

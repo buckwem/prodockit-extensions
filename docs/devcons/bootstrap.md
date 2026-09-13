@@ -23,8 +23,7 @@ activities.
 
 ## Start with prodockit-template {: #bootstrap-template }
 
-The \index{`prodockit-template`} project ([GitHub
-repository](https://github.com/buckwem/prodockit-template)) is a ready-made
+The \index{`prodockit-template`} project ({% if is_surrey %}[Surrey GitLab repository](https://gitlab.surrey.ac.uk/mb0105/prodockit-template){target="_blank" rel="noopener"}{% else %}[GitHub repository](https://github.com/buckwem/prodockit-template){% endif %}) is a ready-made
 Zensical project for coursework, assignments, and professional reports. Its
 central promise is **one source, two outputs**: write the report as Markdown
 under `docs/`, then build both a browsable website and a single PDF from the
@@ -34,10 +33,13 @@ Use the template when you want the publishing structure supplied for you. It
 does not prescribe the subject or wording of the report, and it does not turn
 your project into a live copy of the template.
 
-The template is maintained on GitHub. Its Surrey GitLab repository is a
-student-facing mirror of that source, not a separate edition with an
-independent set of fixes. Surrey students clone the nearby mirror; other
-projects normally clone GitHub.
+{% if is_surrey %}
+For coursework, Bootstrap downloads the template from
+[Surrey GitLab](https://gitlab.surrey.ac.uk/mb0105/prodockit-template){target="_blank" rel="noopener"}.
+{% else %}
+The template is maintained on GitHub. Bootstrap uses that source when setting
+up projects on GitHub.com or GitLab.com.
+{% endif %}
 
 <span id="bootstrap-template-contents"></span>
 
@@ -178,15 +180,21 @@ then saves the answers in `.pdkboot.toml` in the setup directory. It stops
 after configuration so the answers and next instruction remain visible; run it
 again to assess the configured work.
 
-Choose GitHub.com, GitLab.com, or the University of Surrey GitLab (`gitlab.surrey.ac.uk`). Bootstrap
-uses the public GitHub template for GitHub.com and GitLab.com, and the
-synchronised Surrey mirror for Surrey GitLab. If you have already been given a
-repository, supply its SSH URL when Bootstrap asks for the source; the existing
-repository is cloned without replacing its history.
+{% if is_surrey %}
+Choose [Surrey GitLab](https://gitlab.surrey.ac.uk){target="_blank" rel="noopener"}
+as the host and use **Surrey Login** to sign in. If your course has given you a
+prepared repository, supply its SSH URL when Bootstrap asks for the source;
+Bootstrap clones it without replacing its history.
 
-On Surrey GitLab, Bootstrap derives several coursework values from your user
-ID, module, assessment stage, and academic year. Other hosts ask directly for
-the namespace and repository name.
+Bootstrap derives several coursework values from your user ID, module,
+assessment stage, and academic year. Check the proposed namespace and
+repository name before applying the plan.
+{% else %}
+Choose GitHub.com or GitLab.com. Bootstrap uses the public GitHub template for
+either host. If you have already been given a repository, supply its SSH URL
+when Bootstrap asks for the source; the existing repository is cloned without
+replacing its history. Bootstrap asks for the namespace and repository name.
+{% endif %}
 
 `pdk boot` is the short form of `prodockit bootstrap`. Use `--config PATH`
 when the saved configuration is deliberately elsewhere. The [command
@@ -359,7 +367,7 @@ python -c "import sys; print(sys.prefix)"
 ```
 
 The printed Python prefix must end in your project's `.venv`, not the parent
-GitHub/GitLab directory's `.venv`. This check applies to new and pre-existing
+repositories directory's `.venv`. This check applies to new and pre-existing
 repositories on every host.
 
 ////
